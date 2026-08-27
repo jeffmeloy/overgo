@@ -621,7 +621,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if mixer := layerPlan.Mixer; mixer >= recurrentMixerDynamicWKV6 && mixer <= recurrentMixerDynamicWKV7 {
-			if mixerErr := loadTokenShiftRecurrentLayer(catalog, prefix, spec, layer, block, layerPlan.Mixer); mixerErr != nil {
+			bindings, compileErr := compileTokenShiftRecurrentBindings(catalog, prefix, spec, layer, block, mixer)
+			if compileErr != nil {
+				return Weights{}, compileErr
+			}
+			if mixerErr := bindTensorProgram(catalog, prefix, bindings); mixerErr != nil {
 				return Weights{}, mixerErr
 			}
 			continue

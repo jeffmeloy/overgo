@@ -7,18 +7,18 @@ const (
 	timeMixGatedProjectionCount = timeMixBaseProjectionCount + tensor.SingletonExtent
 )
 
-func loadTokenShiftRecurrentLayer(
+func compileTokenShiftRecurrentBindings(
 	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 	block uint32,
 	mixer RecurrentMixerPolicy,
-) error {
+) ([]tensorBinding, error) {
 	layer.Recurrent = true
 	if mixer == recurrentMixerAffineWKV6 {
 		embedding := uint64(spec.EmbeddingLength)
-		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+		bindings := []tensorBinding{
 			requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, embedding),
 			requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, embedding),
 			requiredTensorPointer("time_mix_w1.weight", &layer.TimeMixW1,
@@ -45,28 +45,22 @@ func loadTokenShiftRecurrentLayer(
 			requiredTensorPointer("channel_mix_key.weight", &layer.ChannelMixKey, embedding, uint64(spec.FeedForwardLength)),
 			requiredTensorPointer("channel_mix_value.weight", &layer.ChannelMixValue, uint64(spec.FeedForwardLength), embedding),
 			requiredTensorPointer("channel_mix_receptance.weight", &layer.ChannelMixReceptance, embedding, embedding),
-		}); itemErr != nil {
-			return itemErr
 		}
 		if _, ok := catalog.tensors[prefix+"time_mix_lerp_fused.weight"]; ok {
-			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+			bindings = append(bindings,
 				requiredTensorPointer("time_mix_lerp_fused.weight", &layer.TimeMixLerpFused,
 					embedding, tensor.SingletonExtent, tensor.SingletonExtent, timeMixBaseProjectionCount),
-			}); itemErr != nil {
-				return itemErr
-			}
+			)
 		} else {
-			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+			bindings = append(bindings,
 				requiredTensorPointer("time_mix_lerp_w.weight", &layer.TimeMixLerpW, embedding, tensor.SingletonExtent, tensor.SingletonExtent),
 				requiredTensorPointer("time_mix_lerp_k.weight", &layer.TimeMixLerpK, embedding, tensor.SingletonExtent, tensor.SingletonExtent),
 				requiredTensorPointer("time_mix_lerp_v.weight", &layer.TimeMixLerpV, embedding, tensor.SingletonExtent, tensor.SingletonExtent),
 				requiredTensorPointer("time_mix_lerp_r.weight", &layer.TimeMixLerpR, embedding, tensor.SingletonExtent, tensor.SingletonExtent),
 				requiredTensorPointer("time_mix_lerp_g.weight", &layer.TimeMixLerpG, embedding, tensor.SingletonExtent, tensor.SingletonExtent),
-			}); itemErr != nil {
-				return itemErr
-			}
+			)
 		}
-		return nil
+		return bindings, nil
 	}
 	if mixer == recurrentMixerDynamicWKV7 {
 		channelMix := spec.Profile().Normalization == NormalizationLayer
@@ -79,7 +73,7 @@ func loadTokenShiftRecurrentLayer(
 		if !channelMix && spec.GateLoRARank == tensor.FirstOffset {
 			lerpCount = timeMixBaseProjectionCount
 		}
-		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+		bindings := []tensorBinding{
 			requiredTensorPointer("time_mix_w0.weight", &layer.TimeMixW0, embedding),
 			requiredTensorPointer("time_mix_w1.weight", &layer.TimeMixW1, embedding, uint64(spec.DecayLoRARank)),
 			requiredTensorPointer("time_mix_w2.weight", &layer.TimeMixW2, uint64(spec.DecayLoRARank), embedding),
@@ -98,19 +92,15 @@ func loadTokenShiftRecurrentLayer(
 			requiredTensorPointer("time_mix_value.weight", &layer.TimeMixValue, embedding, embedding),
 			requiredTensorPointer("time_mix_receptance.weight", &layer.TimeMixReceptance, embedding, embedding),
 			requiredTensorPointer("time_mix_output.weight", &layer.TimeMixOutput, embedding, embedding),
-		}); itemErr != nil {
-			return itemErr
 		}
 		if spec.GateLoRARank > tensor.FirstOffset {
-			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+			bindings = append(bindings,
 				requiredTensorPointer("time_mix_g1.weight", &layer.TimeMixG1, embedding, uint64(spec.GateLoRARank)),
 				requiredTensorPointer("time_mix_g2.weight", &layer.TimeMixG2, uint64(spec.GateLoRARank), embedding),
-			}); itemErr != nil {
-				return itemErr
-			}
+			)
 		}
 		if channelMix {
-			if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+			bindings = append(bindings,
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, embedding),
 				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, embedding),
 				requiredTensorPointer("time_mix_ln.weight", &layer.TimeMixLN, embedding),
@@ -119,28 +109,22 @@ func loadTokenShiftRecurrentLayer(
 					embedding, tensor.SingletonExtent, tensor.SingletonExtent),
 				requiredTensorPointer("channel_mix_key.weight", &layer.ChannelMixKey, embedding, uint64(spec.FeedForwardLength)),
 				requiredTensorPointer("channel_mix_value.weight", &layer.ChannelMixValue, uint64(spec.FeedForwardLength), embedding),
-			}); itemErr != nil {
-				return itemErr
-			}
+			)
 		} else {
 			if _, ok := catalog.tensors[prefix+"time_mix_ln.weight"]; ok {
-				if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+				bindings = append(bindings,
 					requiredTensorPointer("time_mix_ln.weight", &layer.TimeMixLN, embedding),
 					requiredTensorPointer("time_mix_ln.bias", &layer.TimeMixLNBias, embedding),
-				}); itemErr != nil {
-					return itemErr
-				}
+				)
 			}
-			if itemErr := loadStandardSwiGLUCatalog(catalog, prefix, spec, layer); itemErr != nil {
-				return itemErr
-			}
+			bindings = append(bindings, standardSwiGLUBindings(spec, layer)...)
 		}
-		return nil
+		return bindings, nil
 	}
 	if mixer == recurrentMixerDynamicWKV6 {
 		embedding := uint64(spec.EmbeddingLength)
 		keyValue := uint64(spec.HeadCountKV) * uint64(spec.WKVHeadSize)
-		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+		bindings := []tensorBinding{
 			requiredTensorPointer("time_mix_w1.weight", &layer.TimeMixW1,
 				embedding, uint64(spec.TimeMixExtraDim)*timeMixBaseProjectionCount),
 			requiredTensorPointer("time_mix_w2.weight", &layer.TimeMixW2,
@@ -160,13 +144,8 @@ func loadTokenShiftRecurrentLayer(
 			optionalTensorPointer("time_mix_key.bias", &layer.AttentionKBias, keyValue),
 			optionalTensorPointer("time_mix_value.bias", &layer.AttentionVBias, keyValue),
 			optionalTensorPointer("time_mix_receptance.bias", &layer.AttentionQBias, embedding),
-		}); itemErr != nil {
-			return itemErr
 		}
-		if itemErr := loadStandardSwiGLUCatalog(catalog, prefix, spec, layer); itemErr != nil {
-			return itemErr
-		}
-		return nil
+		return append(bindings, standardSwiGLUBindings(spec, layer)...), nil
 	}
-	return nil
+	return nil, nil
 }

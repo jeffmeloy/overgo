@@ -4,31 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "strategy-experiments",
-      "title": "Compare competing agent strategies under identical authority",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extend the existing loop, plan leases, workflow runtime, and run records to execute one task contract under multiple declared strategies in isolated worktrees from the same baseline. Bind every candidate to one experiment identity, apply identical gates and trajectory evaluation, rank deterministic hard outcomes before cost, retain failures as counterexamples, and publish no winner without exact comparison evidence. Do not add a new experiment command or scheduler.",
-          "status": "open",
-          "verify": "rg -q \"func TestStrategyExperiment\" internal/loop -g \"*_test.go\" \u0026\u0026 go test ./internal/loop -run '^TestStrategyExperiment$' -count=1",
-          "rationale": "This retains the merged controlled-strategy experiment goal while routing it through Overgo's existing experiment, worktree, workflow, and evaluation machinery.",
-          "depends_on": [
-            "attempt-intelligence/directions",
-            "agent-trajectories/evaluation",
-            "agent-recovery/session-recovery"
-          ],
-          "capabilities": [
-            "loop",
-            "work-lease",
-            "experiment-lifecycle",
-            "evaluation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "recursive-policy-steering",
       "title": "Close policy improvement through evidence rather than model authority",
       "status": "open",

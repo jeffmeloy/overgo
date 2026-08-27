@@ -136,14 +136,12 @@ func mtpCommonBindings(
 	}
 }
 
-func loadSharedExpertWeights(
-	catalog weightCatalog,
-	prefix string,
+func sharedExpertBindings(
 	width uint64,
 	spec Spec,
 	layer *LayerWeights,
 	policy sharedExpertCatalogPolicy,
-) error {
+) []tensorBinding {
 	requirements := []tensorBinding{
 		requiredTensorPointer("ffn_up_shexp.weight", &layer.FeedForwardSharedUp, width, uint64(spec.SharedExpertFF)),
 		requiredTensorPointer("ffn_down_shexp.weight", &layer.FeedForwardSharedDown, uint64(spec.SharedExpertFF), width),
@@ -158,7 +156,7 @@ func loadSharedExpertWeights(
 			requiredTensorPointer("ffn_gate_inp_shexp.weight", &layer.FeedForwardSharedRouter, width),
 		)
 	}
-	return bindTensorProgram(catalog, prefix, requirements)
+	return requirements
 }
 
 type encoderDecoderCatalogPlan struct {
@@ -947,7 +945,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if layerUsesMoECatalog(catalog, prefix, spec, block, isDraftBlock) {
-			loadDense, moeErr := loadMoECatalog(catalog, prefix, spec, layer)
+			loadDense, bindings, compileErr := compileMoEBindings(catalog, prefix, spec, layer)
+			if compileErr != nil {
+				return Weights{}, compileErr
+			}
+			moeErr := bindTensorProgram(catalog, prefix, bindings)
 			if moeErr != nil {
 				return Weights{}, moeErr
 			}

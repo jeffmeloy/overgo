@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "schema",
-          "title": "Add an immutable task contract under recipe that binds the exact agent definition, objective, scope, non-goals, allowed effects, acceptance criteria, verification expectations, budget, and pause conditions. Keep reusable worker identity in AgentDefinition and per-invocation task facts in the task contract; model-provided IDs, authority, and completion claims are never trusted.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentTaskContractIdentity\" internal/recipe -g \"*_test.go\" \u0026\u0026 go test ./internal/recipe -run '^TestAgentTaskContractIdentity$' -count=1",
-          "rationale": "Reasonix's task contract is useful, but Overgo should represent it as immutable recipe intent rather than mutable session state or prompt prose.",
-          "depends_on": [
-            "harness-surface-discipline/boundary-tests"
-          ],
-          "capabilities": [
-            "recipe",
-            "agent-definition",
-            "budget"
-          ]
-        },
-        {
           "id": "evidence",
           "title": "Add obligation and resolution documents to runrecord using the common artifact codec. Requirements arise only from the compiled task contract, exact invocation effects, approved plan, and actual receipts. Each resolution binds its evidence, target scope, and mutation epoch; uncertain or absent evidence remains open rather than becoming an inferred pass.",
           "status": "open",

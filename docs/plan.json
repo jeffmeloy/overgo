@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "attempt-intelligence",
-      "title": "Measure strategies, repeated directions, and improvement efficiency",
-      "status": "open",
-      "steps": [
-        {
-          "id": "directions",
-          "title": "Derive a direction fingerprint from the strategy identity, base and candidate manifests, changed symbol closure, selected checks, and declared objective. Record first and last observation, count, measured result, and pivot recommendation in runrecord; repetition and stagnation are advisory facts for the deterministic loop, never string similarity over model prose.",
-          "status": "open",
-          "verify": "rg -q \"func TestAttemptDirectionNovelty\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAttemptDirectionNovelty$' -count=1",
-          "rationale": "Reasonix's direction-tried and stale-count concepts are useful for avoiding repeated failed work. Overgo can derive a stronger fingerprint from manifests and exact strategy evidence.",
-          "depends_on": [
-            "attempt-intelligence/history",
-            "attempt-intelligence/strategy"
-          ],
-          "capabilities": [
-            "runrecord",
-            "codemanifest",
-            "improvement-measurement"
-          ]
-        }
-      ]
-    },
-    {
       "id": "strategy-experiments",
       "title": "Compare competing agent strategies under identical authority",
       "status": "open",

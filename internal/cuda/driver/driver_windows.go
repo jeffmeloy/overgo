@@ -4,7 +4,10 @@ package driver
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -26,6 +29,7 @@ type Library struct {
 	dll *syscall.DLL
 
 	allocationMu        sync.Mutex
+	freeTraces          map[DevicePtr]string
 	allocations         map[DevicePtr]uint64
 	liveSizes           map[uint64]uint64
 	peakSizes           map[uint64]uint64
@@ -173,21 +177,32 @@ func (l *Library) GraphInstantiate(graph Graph) (GraphExec, error) {
 	return execution, err
 }
 
+// graphExecUpdateResultInfo mirrors CUgraphExecUpdateResultInfo: the
+// out-parameter cuGraphExecUpdate_v2 writes. Passing anything smaller
+// lets the driver write past the allocation -- the update writes two
+// node handles beyond an 8-byte slot, scribbling zeros into adjacent
+// Go heap on every successful update.
+type graphExecUpdateResultInfo struct {
+	result        uint32
+	_             uint32
+	errorNode     uintptr
+	errorFromNode uintptr
+}
+
 func (l *Library) GraphExecUpdate(execution GraphExec, graph Graph) (bool, error) {
-	var errorNode uintptr
-	var updateResult int32
+	var info graphExecUpdateResultInfo
 	var pinned runtime.Pinner
-	pinned.Pin(&errorNode)
-	pinned.Pin(&updateResult)
+	pinned.Pin(&info)
 	defer pinned.Unpin()
 	result, _, _ := l.cuGraphExecUpdate.Call(
-		uintptr(execution), uintptr(graph), uintptr(unsafe.Pointer(&errorNode)), uintptr(unsafe.Pointer(&updateResult)),
+		uintptr(execution), uintptr(graph), uintptr(unsafe.Pointer(&info)),
 	)
 	err := l.result("cuGraphExecUpdate_v2", result)
-	if err == nil && updateResult == 0 {
+	updated := err == nil && info.result == 0
+	if updated {
 		l.graphUpdates.Add(1)
 	}
-	return updateResult == 0, err
+	return updated, err
 }
 
 func (l *Library) GraphLaunch(execution GraphExec, stream Stream) error {
@@ -443,6 +458,15 @@ func (l *Library) MemFree(pointer DevicePtr) error {
 	if pointer == 0 {
 		return nil
 	}
+	if os.Getenv("OVERGO_LEDGER_TRACE") == "1" {
+		l.allocationMu.Lock()
+		_, live := l.allocations[pointer]
+		l.allocationMu.Unlock()
+		if l.freeTraces == nil {
+			l.freeTraces = map[DevicePtr]string{}
+		}
+		l.freeTraces[pointer] = fmt.Sprintf("live=%v\n%s", live, debug.Stack())
+	}
 	result, _, _ := l.cuMemFree.Call(uintptr(pointer))
 	if err := l.result("cuMemFree_v2", result); err != nil {
 		return err
@@ -568,7 +592,13 @@ func (l *Library) MemcpyHtoD(destination DevicePtr, source []byte) error {
 		return nil
 	}
 	if !l.ownsDeviceRange(destination, uint64(len(source))) {
-		return errors.New("cuMemcpyHtoD_v2: destination range is not allocated")
+		if trace, ok := l.freeTraces[destination]; ok {
+			return fmt.Errorf("cuMemcpyHtoD_v2: destination range is not allocated; pointer %#x last freed (%s)", destination, trace)
+		}
+		l.allocationMu.Lock()
+		live := len(l.allocations)
+		l.allocationMu.Unlock()
+		return fmt.Errorf("cuMemcpyHtoD_v2: destination range is not allocated; pointer=%#x bytes=%d live_allocations=%d never_freed_here", destination, len(source), live)
 	}
 	var pinned runtime.Pinner
 	pinned.Pin(&source[0])

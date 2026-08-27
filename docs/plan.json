@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "cuda-host-corruption",
-      "title": "Hunt the CUDA-path host memory corruption (8-byte zero writes)",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hunt the CUDA-path host memory corruption (8-byte zero writes)",
-          "status": "open",
-          "verify": "go test ./internal/cuda/driver -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-manifest-diet",
       "title": "Stop persisting full code manifests per gate run; derive from git, keep digests",
       "status": "open",

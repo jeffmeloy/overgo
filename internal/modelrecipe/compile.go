@@ -317,7 +317,10 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 	}},
 	recipe.TaskSpeech: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "tokenize", module: ModuleSpeechTokenize, input: "text", output: "tokens", inputData: recipe.DataText, outData: recipe.DataTokens},
-		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor},
+		// The synthesizer is the model-resident component: without a
+		// declared session lifetime the component session plan is empty
+		// and every speech verify refuses before execution.
+		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
 	}},
 }

@@ -436,17 +436,14 @@ func executeLayerInstruction(
 		}
 		execution.current = normalized
 		return c.Builder.Err()
-	case LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorFeedForwardFusedGLU,
-		LayerOperatorFeedForwardSquaredReLU, LayerOperatorFeedForwardRoutedSquaredReLU,
-		LayerOperatorFeedForwardRoutedSwiGLU, LayerOperatorFeedForwardGatedGELU,
+	case LayerOperatorFeedForwardPolicy, LayerOperatorFeedForwardRoutedSquaredReLU,
+		LayerOperatorFeedForwardRoutedSwiGLU,
 		LayerOperatorFeedForwardParallelGatedGELU, LayerOperatorFeedForwardEncoder,
-		LayerOperatorFeedForwardPlanned, LayerOperatorFeedForwardRelative:
+		LayerOperatorFeedForwardRelative:
 		var feedForward *tensor.Tensor
 		var err error
 		switch instruction.Operator {
-		case LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorFeedForwardFusedGLU,
-			LayerOperatorFeedForwardSquaredReLU, LayerOperatorFeedForwardGatedGELU,
-			LayerOperatorFeedForwardPlanned:
+		case LayerOperatorFeedForwardPolicy:
 			feedForward, err = buildPolicyFeedForwardMix(
 				options, execution.current, execution.residual,
 			)

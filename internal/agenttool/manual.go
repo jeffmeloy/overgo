@@ -75,6 +75,38 @@ type Field struct {
 	Description string    `json:"description,omitempty"`
 }
 
+// EffectScope names the authority boundary containing an invocation target.
+type EffectScope string
+
+const (
+	EffectScopeWorkspace  EffectScope = "workspace"
+	EffectScopeRepository EffectScope = "repository"
+	EffectScopeHost       EffectScope = "host"
+	EffectScopeExternal   EffectScope = "external"
+)
+
+func (scope EffectScope) valid() bool {
+	return scope == EffectScopeWorkspace || scope == EffectScopeRepository ||
+		scope == EffectScopeHost || scope == EffectScopeExternal
+}
+
+// EffectTargetBinding declares how a concrete target is resolved. Argument
+// names are explicit authority; no consumer guesses path semantics from names.
+type EffectTargetBinding struct {
+	Scope    EffectScope `json:"scope"`
+	Argument string      `json:"argument,omitempty"`
+	Value    string      `json:"value,omitempty"`
+}
+
+// EffectCeiling is the manual's static upper bound on invocation effects.
+// Concrete targets are resolved only after strict argument validation.
+type EffectCeiling struct {
+	Targets      []EffectTargetBinding `json:"targets,omitempty"`
+	Destructive  bool                  `json:"destructive,omitempty"`
+	Privileged   bool                  `json:"privileged,omitempty"`
+	Irreversible bool                  `json:"irreversible,omitempty"`
+}
+
 // TransportKind names a native invocation path.
 type TransportKind string
 
@@ -115,13 +147,14 @@ type Transport struct {
 // Manual is one durable tool description: what the tool is, what it
 // does to the world, what it takes, and how it is natively invoked.
 type Manual struct {
-	ID          artifact.ID `json:"-"`
-	Version     uint16      `json:"version"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Effect      Effect      `json:"effect"`
-	Arguments   []Field     `json:"arguments,omitempty"`
-	Transport   Transport   `json:"transport"`
+	ID          artifact.ID   `json:"-"`
+	Version     uint16        `json:"version"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
+	Effect      Effect        `json:"effect"`
+	Ceiling     EffectCeiling `json:"ceiling,omitempty"`
+	Arguments   []Field       `json:"arguments,omitempty"`
+	Transport   Transport     `json:"transport"`
 }
 
 var manualNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]*$`)
@@ -133,6 +166,7 @@ var manualCodec = artifact.JSONDocumentCodec(
 	func(manual *Manual, id artifact.ID) { manual.ID = id },
 	func(manual Manual) Manual {
 		manual.Arguments = slices.Clone(manual.Arguments)
+		manual.Ceiling.Targets = slices.Clone(manual.Ceiling.Targets)
 		manual.Transport.Args = slices.Clone(manual.Transport.Args)
 		return manual
 	},
@@ -179,6 +213,24 @@ func (manual *Manual) validate() error {
 			return fmt.Errorf("agent tool: manual %q argument %q description exceeds the bound", manual.Name, field.Name)
 		}
 		seen[field.Name] = true
+	}
+	for _, binding := range manual.Ceiling.Targets {
+		if !binding.Scope.valid() || (binding.Argument == "") == (binding.Value == "") {
+			return fmt.Errorf("agent tool: manual %q effect target must declare one source and a valid scope", manual.Name)
+		}
+		if binding.Argument != "" {
+			field, found := func() (Field, bool) {
+				for _, candidate := range manual.Arguments {
+					if candidate.Name == binding.Argument {
+						return candidate, true
+					}
+				}
+				return Field{}, false
+			}()
+			if !found || field.Kind != FieldString {
+				return fmt.Errorf("agent tool: manual %q effect target argument %q must be a declared string", manual.Name, binding.Argument)
+			}
+		}
 	}
 	return manual.Transport.validate(manual.Name)
 }

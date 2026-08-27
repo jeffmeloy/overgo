@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "invocation-effects",
-      "title": "Derive exact effects for every concrete tool invocation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extend agenttool's existing manual and executor path with one canonical invocation-effect value derived from the exact manual identity, strict arguments, transport, resolved targets, and observed result. Preserve the manual's static inspection/mutation ceiling, distinguish workspace, repository, host, external, network, executable, destructive, privileged, and irreversible effects, and classify any unresolved writer as opaque mutation. Feed the same value to admission, receipts, trajectories, and policy rather than recreating classifications at each consumer.",
-          "status": "open",
-          "verify": "rg -q \"func TestInvocationEffectDerivation\" internal/agenttool -g \"*_test.go\" \u0026\u0026 go test ./internal/agenttool -run '^TestInvocationEffectDerivation$' -count=1",
-          "rationale": "Reasonix's concrete effect profile is a substantial improvement over static read/write labels. Keeping derivation inside agenttool avoids a second policy vocabulary and closes proxy, transport, and argument-dependent bypasses.",
-          "depends_on": [
-            "harness-surface-discipline/boundary-tests"
-          ],
-          "capabilities": [
-            "agenttool",
-            "artifact-identity",
-            "operator-policy"
-          ]
-        }
-      ]
-    },
-    {
       "id": "agent-contracts",
       "title": "Compile task acceptance and evidence obligations into existing authorities",
       "status": "open",

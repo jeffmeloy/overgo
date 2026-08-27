@@ -120,11 +120,17 @@ func (e *Executor) registerBuiltin(name string, implementation Builtin) error {
 // Invoke validates arguments against the manual and executes it over
 // its declared transport, returning strict JSON or a typed error.
 func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+	result, _, err := e.InvokeWithEffect(ctx, manual, arguments)
+	return result, err
+}
+
+// InvokeWithEffect returns the executed result and the exact canonical effect.
+func (e *Executor) InvokeWithEffect(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, InvocationEffect, error) {
 	if ctx == nil {
-		return nil, errors.New("agent tool: nil invoke context")
+		return nil, InvocationEffect{}, errors.New("agent tool: nil invoke context")
 	}
-	if err := validateArguments(manual, arguments); err != nil {
-		return nil, err
+	if _, err := DeriveInvocationEffect(manual, arguments, nil); err != nil {
+		return nil, InvocationEffect{}, err
 	}
 	// One deadline bounds the whole invocation -- including any wait for
 	// the manual's entry lock -- so a wedged tool fails the call instead
@@ -136,17 +142,22 @@ func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.Raw
 	case entry <- struct{}{}:
 		defer func() { <-entry }()
 	case <-bounded.Done():
-		return nil, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, bounded.Err())
+		return nil, InvocationEffect{}, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, bounded.Err())
 	}
 	adapter, registered := e.adapters[manual.Transport.Kind]
 	if !registered {
-		return nil, fmt.Errorf("agent tool: transport %q has no registered adapter", manual.Transport.Kind)
+		return nil, InvocationEffect{}, fmt.Errorf("agent tool: transport %q has no registered adapter", manual.Transport.Kind)
 	}
 	result, err := adapter.invoke(bounded, manual, arguments)
 	if err != nil {
-		return nil, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
+		return nil, InvocationEffect{}, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
 	}
-	return boundedResult(manual.Name, result)
+	result, err = boundedResult(manual.Name, result)
+	if err != nil {
+		return nil, InvocationEffect{}, err
+	}
+	effect, err := DeriveInvocationEffect(manual, arguments, result)
+	return result, effect, err
 }
 
 func (adapter *builtinAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {

@@ -194,7 +194,7 @@ func writeMediaInventories(
 ) {
 	output.WriteString("## Function inventory\n\n")
 	output.WriteString("The executable surface behind each healthy activation: every recipe node with its module and placement, from the activation's own stored definition. Modules are the native Go implementations the workflow runtime binds.\n\n")
-	output.WriteString("| Model | Task | Node | Module | Placement | Session |\n| --- | --- | --- | --- | --- | --- |\n")
+	output.WriteString("| Model | Task | Node | Module | Placement | Session | Component model |\n| --- | --- | --- | --- | --- | --- | --- |\n")
 	nodes := 0
 	output2 := &bytes.Buffer{}
 	output2.WriteString("## Recipe inventory\n\n")
@@ -214,8 +214,17 @@ func writeMediaInventories(
 			if session == "" {
 				session = "-"
 			}
-			fmt.Fprintf(output, "| `%s` | `%s` | `%s` | `%s` | %s | %s |\n",
-				escapeMarkdown(row.model), row.task, node.ID, node.Module, node.Placement, session)
+			// A slotted node states the content-identified component model
+			// it executes against; a shared component (a Flux-lineage VAE,
+			// for example) renders the same identity wherever it appears.
+			component := "composite"
+			if node.ModelSlot != 0 {
+				if model, ok := activation.Definition.Dependency(recipe.DependencyModel, node.ModelSlot); ok {
+					component = "`" + shortArtifact(model) + "`"
+				}
+			}
+			fmt.Fprintf(output, "| `%s` | `%s` | `%s` | `%s` | %s | %s | %s |\n",
+				escapeMarkdown(row.model), row.task, node.ID, node.Module, node.Placement, session, component)
 			nodes++
 		}
 		dependencies := make([]string, 0, len(activation.Definition.Dependencies))

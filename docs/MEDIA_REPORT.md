@@ -42,34 +42,34 @@ The matrix reports activation and evidence scope, not general model-family suppo
 
 The executable surface behind each healthy activation: every recipe node with its module and placement, from the activation's own stored definition. Modules are the native Go implementations the workflow runtime binds.
 
-| Model | Task | Node | Module | Placement | Session |
-| --- | --- | --- | --- | --- | --- |
-| `Hy-Embodied-RxBrain-1.0` | `vqa` | `generate` | `model.vqa-generate` | device | - |
-| `Hy-Embodied-RxBrain-1.0` | `vqa` | `prepare` | `model.vqa-prepare` | host | - |
-| `Krea-2-Turbo` | `image-gen` | `decode` | `model.latent-image-decode` | hybrid | - |
-| `Krea-2-Turbo` | `image-gen` | `integrate` | `model.latent-image-integrate` | hybrid | - |
-| `Krea-2-Turbo` | `image-gen` | `prepare` | `model.latent-image-prepare` | hybrid | capacity |
-| `LiveEdit` | `video-gen` | `decode` | `model.reference-video-decode` | hybrid | - |
-| `LiveEdit` | `video-gen` | `integrate` | `model.reference-video-integrate` | hybrid | - |
-| `LiveEdit` | `video-gen` | `prepare` | `model.reference-video-prepare` | hybrid | capacity |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `decode` | `model.routed-image-decode` | hybrid | - |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `integrate` | `model.routed-image-integrate` | hybrid | - |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `prepare` | `model.routed-image-prepare` | hybrid | capacity |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `decode` | `model.diffusion-image-decode` | host | - |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `integrate` | `model.diffusion-image-integrate` | host | - |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `prepare` | `model.diffusion-image-prepare` | host | capacity |
-| `Un-0` | `image-gen` | `decode` | `model.oscillator-image-decode` | host | - |
-| `Un-0` | `image-gen` | `integrate` | `model.oscillator-image-integrate` | host | - |
-| `Un-0` | `image-gen` | `prepare` | `model.oscillator-image-prepare` | host | capacity |
-| `Un-0` | `video-gen` | `decode` | `model.oscillator-video-decode` | host | - |
-| `Un-0` | `video-gen` | `integrate` | `model.oscillator-video-integrate` | host | - |
-| `Un-0` | `video-gen` | `prepare` | `model.oscillator-video-prepare` | host | capacity |
-| `Wan2.1-T2V-1.3B` | `video-gen` | `decode` | `model.latent-video-decode` | hybrid | - |
-| `Wan2.1-T2V-1.3B` | `video-gen` | `integrate` | `model.latent-video-integrate` | hybrid | - |
-| `Wan2.1-T2V-1.3B` | `video-gen` | `prepare` | `model.latent-video-prepare` | hybrid | capacity |
-| `pocket-tts` | `speech` | `decode` | `model.speech-decode` | host | - |
-| `pocket-tts` | `speech` | `generate` | `model.speech-generate` | host | capacity |
-| `pocket-tts` | `speech` | `tokenize` | `model.speech-tokenize` | host | - |
+| Model | Task | Node | Module | Placement | Session | Component model |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | `generate` | `model.vqa-generate` | device | - | composite |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | `prepare` | `model.vqa-prepare` | host | - | composite |
+| `Krea-2-Turbo` | `image-gen` | `decode` | `model.latent-image-decode` | hybrid | - | `model:sha256:1b7acc66c8e9c396e08` |
+| `Krea-2-Turbo` | `image-gen` | `integrate` | `model.latent-image-integrate` | hybrid | - | `model:sha256:8f2e2c875364a9c71ba` |
+| `Krea-2-Turbo` | `image-gen` | `prepare` | `model.latent-image-prepare` | hybrid | capacity | `model:sha256:f56d447bad2b83262f8` |
+| `LiveEdit` | `video-gen` | `decode` | `model.reference-video-decode` | hybrid | - | composite |
+| `LiveEdit` | `video-gen` | `integrate` | `model.reference-video-integrate` | hybrid | - | composite |
+| `LiveEdit` | `video-gen` | `prepare` | `model.reference-video-prepare` | hybrid | capacity | composite |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `decode` | `model.routed-image-decode` | hybrid | - | composite |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `integrate` | `model.routed-image-integrate` | hybrid | - | composite |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `prepare` | `model.routed-image-prepare` | hybrid | capacity | composite |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `decode` | `model.diffusion-image-decode` | host | - | composite |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `integrate` | `model.diffusion-image-integrate` | host | - | composite |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `prepare` | `model.diffusion-image-prepare` | host | capacity | composite |
+| `Un-0` | `image-gen` | `decode` | `model.oscillator-image-decode` | host | - | composite |
+| `Un-0` | `image-gen` | `integrate` | `model.oscillator-image-integrate` | host | - | composite |
+| `Un-0` | `image-gen` | `prepare` | `model.oscillator-image-prepare` | host | capacity | composite |
+| `Un-0` | `video-gen` | `decode` | `model.oscillator-video-decode` | host | - | composite |
+| `Un-0` | `video-gen` | `integrate` | `model.oscillator-video-integrate` | host | - | composite |
+| `Un-0` | `video-gen` | `prepare` | `model.oscillator-video-prepare` | host | capacity | composite |
+| `Wan2.1-T2V-1.3B` | `video-gen` | `decode` | `model.latent-video-decode` | hybrid | - | composite |
+| `Wan2.1-T2V-1.3B` | `video-gen` | `integrate` | `model.latent-video-integrate` | hybrid | - | composite |
+| `Wan2.1-T2V-1.3B` | `video-gen` | `prepare` | `model.latent-video-prepare` | hybrid | capacity | composite |
+| `pocket-tts` | `speech` | `decode` | `model.speech-decode` | host | - | composite |
+| `pocket-tts` | `speech` | `generate` | `model.speech-generate` | host | capacity | composite |
+| `pocket-tts` | `speech` | `tokenize` | `model.speech-tokenize` | host | - | composite |
 
 ## Recipe inventory
 
@@ -78,7 +78,7 @@ One row per healthy activation: the recipe artifact the active alias resolves, i
 | Model | Task | Recipe | Evidence tier | Dependencies |
 | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | `recipe:sha256:97d121be90fba86b42` | parity | - |
-| `Krea-2-Turbo` | `image-gen` | `recipe:sha256:d931a95e3aa4d4c1cf` | experimental | profile `profile:sha256:4dedf632a6744df0c` |
+| `Krea-2-Turbo` | `image-gen` | `recipe:sha256:0b1bcc2fb9cf5f42cd` | experimental | profile `profile:sha256:4dedf632a6744df0c` |
 | `LiveEdit` | `video-gen` | `recipe:sha256:7cd66ed08ebee5e566` | experimental | profile `profile:sha256:5dff72b6d581a9d1d` |
 | `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `recipe:sha256:5a729e98ef825033d4` | experimental | flow-profile `profile:sha256:307706b480209dc49` |
 | `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `recipe:sha256:4f0b3b9dbad2427851` | experimental | - |
@@ -94,7 +94,7 @@ One row per healthy activation: the verifier run the activation cites, exactly a
 | Model | Task | Verifier wall | Phases | Peak device | Commit | Run outputs |
 | --- | --- | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | 10.113s | generate 10.668s, prepare 135ms | - | `6da9e6329fe7` | `evidence:sha256:da6e3efbd0aedc45` |
-| `Krea-2-Turbo` | `image-gen` | 14.134s | decode 161ms, integrate 1.441s, prepare 9.198s | - | `f313f43d6c57` | `evidence:sha256:ae3f67c4750ef889` |
+| `Krea-2-Turbo` | `image-gen` | 14.581s | decode 162ms, integrate 1.417s, prepare 9.729s | - | `05faa01ef333` | `evidence:sha256:5b3a1c4bb7981dba` |
 | `LiveEdit` | `video-gen` | 5.409s | integrate 671ms | 3260313344 B | `f313f43d6c57` | `evidence:sha256:9962cef18a9b42ed` |
 | `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 12.421s | decode 68ms, integrate 749ms, prepare 11.126s | - | `f313f43d6c57` | `evidence:sha256:27f5a2e7c5d52553` |
 | `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | 1.845s | decode 8ms, integrate 1.413s | - | `f313f43d6c57` | `evidence:sha256:710bb24341b1d20a` |
@@ -165,10 +165,7 @@ Decoded verifier-run outputs, exported by `go run ./cmd/compatibility -export-sa
 
 ### Krea-2-Turbo (`image-gen`)
 
-- Image: [9042a10dca99db48eb550046da52f690461468336c583b989884ae81d017ad24.png](media_samples/9042a10dca99db48eb550046da52f690461468336c583b989884ae81d017ad24.png)
+- Image: [4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png](media_samples/4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png)
 
-  ![Krea-2-Turbo image](media_samples/9042a10dca99db48eb550046da52f690461468336c583b989884ae81d017ad24.png)
-- Image: [6a362e191056b64a706c8bf49ce1bde31b2cd0cb0f1eb6aae8b18e5e75da5693.png](media_samples/6a362e191056b64a706c8bf49ce1bde31b2cd0cb0f1eb6aae8b18e5e75da5693.png)
-
-  ![Krea-2-Turbo image](media_samples/6a362e191056b64a706c8bf49ce1bde31b2cd0cb0f1eb6aae8b18e5e75da5693.png)
+  ![Krea-2-Turbo image](media_samples/4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png)
 

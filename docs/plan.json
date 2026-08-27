@@ -1,23 +1,6 @@
 {
   "campaign": "AST-guided structural consolidation",
   "doctrine": "Existing typed owners replace duplicated orchestration. Each wave migrates every production caller and deletes displaced functions, switches, wrappers, fallbacks, temporary maps, and compatibility paths in the same commit. Recipes and compiled programs remain topology and policy authority. Neutral operators retain unique mathematics. AST profiles, consumer graphs, host tests, CUDA parity, and closure evidence verify net structural reduction without numerical change.",
-  "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
-  "items": [
-    {
-      "id": "structural-regression-gate",
-      "title": "Gate structural consolidation with existing AST evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Use codeprofile and codemanifest as the sole structural census. Publish the final profile and require each migration wave to report runtime AST nodes, exact-clone excess, branch-heavy functions, exported declarations, import edges, and consumer classes against its parent. Reject new zero-consumer production surface, clone growth, or a replacement switch with equivalent branch surface unless explicit evidence records necessary semantics. Delete temporary audit scripts and hand-maintained counts.",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile ./internal/codemanifest ./internal/repoanalysis ./cmd/gate ./cmd/code-manifest ./cmd/closure-scan -count=1",
-          "depends_on": [
-            "consumer-surface-pruning/do"
-          ]
-        }
-      ]
-    }
-  ]
+  "census_evidence": "evidence:sha256:4586e3a25887bcde107497bedf79eb20383b65129a02d946be0bb53d5ab256b2",
+  "items": []
 }

@@ -4,31 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "recursive-policy-steering",
-      "title": "Close policy improvement through evidence rather than model authority",
-      "status": "open",
-      "steps": [
-        {
-          "id": "loop-closure",
-          "title": "Let the existing loop consume deterministically admitted proposals when the current plan drains, under exact invocation, time, cost, mutation, and experiment budgets; saturation from repeated directions or absent measured gain; unresolved obligations; lease conflicts; and explicit operator stop. The loop may propose and compare policies, but only evidence-gated activation changes the active strategy.",
-          "status": "open",
-          "verify": "rg -q \"func TestProposalClosure\" internal/loop -g \"*_test.go\" \u0026\u0026 go test ./internal/loop -run '^TestProposalClosure$' -count=1",
-          "rationale": "This is the recursive improvement closure already anticipated on master, now grounded in exact trajectories, obligations, recovery, and policy activation.",
-          "depends_on": [
-            "recursive-policy-steering/policy-lifecycle",
-            "recursive-policy-steering/steering-proposals",
-            "agent-recovery/session-recovery"
-          ],
-          "capabilities": [
-            "loop",
-            "budget",
-            "plan-dispatch",
-            "policy-activation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "automation-mutation-tests",
       "title": "Falsify the agent harness and its gate selection",
       "status": "open",

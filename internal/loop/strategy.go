@@ -29,7 +29,14 @@ type Strategy struct {
 var strategyCodec = artifact.JSONDocumentCodec(
 	"agent strategy", artifact.KindProfile, StrategyMediaType, StrategySchema,
 	canonicalizeStrategy, func(v Strategy) artifact.ID { return v.ID }, func(v *Strategy, id artifact.ID) { v.ID = id },
-	func(v Strategy) Strategy { v.Policies = slices.Clone(v.Policies); return v },
+	func(v Strategy) Strategy {
+		v.Policies = slices.Clone(v.Policies)
+		if v.Loop.Closure != nil {
+			closure := *v.Loop.Closure
+			v.Loop.Closure = &closure
+		}
+		return v
+	},
 )
 
 func NewStrategy(worker recipe.AgentDefinition, catalog artifact.ID, config Config) (Strategy, error) {
@@ -64,6 +71,10 @@ func canonicalizeStrategy(v *Strategy) error {
 	if v == nil || v.Version != artifact.InitialDocumentVersion || v.Worker.Kind() != artifact.KindRecipe || v.Prompt.Kind() != artifact.KindFile ||
 		v.ModelRecipe.Kind() != artifact.KindRecipe || v.Catalog.Kind() != artifact.KindProfile || len(v.Policies) == 0 || v.Loop.MaxAttemptsPerStep <= 0 || v.Loop.MaxInvocations <= 0 {
 		return errors.New("loop: invalid agent strategy")
+	}
+	var noProposals uint64
+	if v.Loop.Closure != nil && closureStopReason(*v.Loop.Closure, ClosureFacts{MeasuredGain: true}, noProposals) == ReasonBudget {
+		return errors.New("loop: invalid strategy closure budget")
 	}
 	for _, id := range v.Policies {
 		if id.Kind() != artifact.KindProfile {

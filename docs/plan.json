@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "agent-trajectories",
-      "title": "Turn live agent behavior into exact evaluation and training evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "evaluation",
-          "title": "Extend the existing evaluation plan to score exact agent trajectories for task success, evidence completeness, gate accuracy, effect prediction, regressions, churn, repeated directions, budget, latency, and unsupported completion claims. Deterministic scorers decide hard facts; model judges may contribute versioned advisory metrics but never promotion authority.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentTrajectoryEvaluationPlan\" internal/evaluation -g \"*_test.go\" \u0026\u0026 go test ./internal/evaluation -run '^TestAgentTrajectoryEvaluationPlan$' -count=1",
-          "rationale": "This connects harness behavior to Overgo's existing exact evaluation system rather than adopting Reasonix's independent model-based goal evaluator.",
-          "depends_on": [
-            "agent-trajectories/record"
-          ],
-          "capabilities": [
-            "evaluation-plan",
-            "interaction-trace",
-            "promotion-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "agent-recovery",
       "title": "Recover uncommitted agent work through common artifact and lifecycle code",
       "status": "open",

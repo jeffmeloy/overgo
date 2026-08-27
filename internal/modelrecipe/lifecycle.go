@@ -266,6 +266,12 @@ func RetireOrphanedActivation(
 	}
 	batch.Artifacts = append(batch.Artifacts, failure.Descriptor)
 	batch.Contents = append(batch.Contents, failure)
+	// The orphan has no successor, so the active alias is removed
+	// outright: a retired recipe must leave the catalog, not linger as
+	// an alias naming a refused definition.
+	batch.Aliases = append(batch.Aliases, artifact.AliasBinding{
+		Name: alias, Target: activeID, Previous: &activeID, Remove: true,
+	})
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		return err
 	}

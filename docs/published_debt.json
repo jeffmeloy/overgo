@@ -46,7 +46,7 @@
   },
   {
    "alias": "recipe.active.video-gen.model:sha256:219e348df1bc85079b562474379826341553e5e1181604d5057b0b9ba18f3537",
-   "failure": "model recipe: active recipe lacks verified evidence: run record: successful verifier gate/run evidence is absent"
+   "failure": "model recipe: active alias names refused recipe: orphaned by the tensor-inventory v2 migration: the model identity resolves from no file; the capability is re-verified and active under the current identity; trust check: model recipe: active recipe lacks verified evidence: run record: successful verifier gate/run evidence is absent"
   }
  ]
 }

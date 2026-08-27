@@ -28,9 +28,6 @@ type operationDecisionResponse struct {
 }
 
 func (h *Handler) operationStatus(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	value := request.URL.Query().Get("id")
 	if value == "" {
 		writeJSON(response, http.StatusOK, h.operations.List())
@@ -56,9 +53,6 @@ func (h *Handler) operationStatus(response http.ResponseWriter, request *http.Re
 // from what the runtime durably wrote, and a waiting node points the
 // operator at the inbox.
 func (h *Handler) operationDAG(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	id, err := artifact.ParseID(request.URL.Query().Get("id"))
 	if err != nil || id.Kind() != artifact.KindEvidence {
 		writeError(response, http.StatusBadRequest, "invalid_operation", "operation evidence identity is required")
@@ -135,9 +129,6 @@ func (h *Handler) operationDAG(response http.ResponseWriter, request *http.Reque
 // list answers "what is waiting on me" instead of the operator polling
 // individual operations.
 func (h *Handler) operationInbox(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	items := []map[string]any{}
 	for _, status := range h.operations.List() {
 		if status.State != operation.StateBlocked || status.Recovery == nil {
@@ -161,9 +152,6 @@ func (h *Handler) operationInbox(response http.ResponseWriter, request *http.Req
 }
 
 func (h *Handler) operationCancel(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	var body operationCancelRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -177,9 +165,6 @@ func (h *Handler) operationCancel(response http.ResponseWriter, request *http.Re
 }
 
 func (h *Handler) operationWait(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	id, err := artifact.ParseID(request.URL.Query().Get("id"))
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -198,9 +183,6 @@ func (h *Handler) operationWait(response http.ResponseWriter, request *http.Requ
 }
 
 func (h *Handler) operationDecision(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	if h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "decision repository is unavailable")
 		return

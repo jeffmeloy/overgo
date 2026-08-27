@@ -265,9 +265,6 @@ func (h *Handler) requireProtocolTokenCounting(
 	response http.ResponseWriter,
 	request *http.Request,
 ) (ChatFormatter, bool) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return nil, false
-	}
 	formatter, ok := h.requireChatFormatter(response)
 	if !ok || !h.requireTokenCounting(response) {
 		return nil, false

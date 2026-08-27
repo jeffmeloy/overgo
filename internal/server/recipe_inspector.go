@@ -19,9 +19,6 @@ type activeRecipeResponse struct {
 }
 
 func (h *Handler) activeRecipe(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	task := recipe.Task(request.URL.Query().Get("task"))
 	if !task.Valid() {
 		writeInvalidRequest(response, fmt.Errorf("invalid recipe task %q", task))

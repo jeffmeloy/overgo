@@ -62,10 +62,6 @@ type analyzeTensorsResponse struct {
 }
 
 func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
-		return
-	}
 	profiles, ok := h.characterizeLoadedModel(response)
 	if !ok {
 		return
@@ -97,10 +93,6 @@ type analyzeTensorsSimilarResponse struct {
 }
 
 func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET required")
-		return
-	}
 	name := request.URL.Query().Get("name")
 	if name == "" {
 		writeError(response, http.StatusBadRequest, "invalid_request", "name query parameter is required")

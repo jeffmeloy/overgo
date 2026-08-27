@@ -310,9 +310,6 @@ type evaluationRunRequest struct {
 }
 
 func (h *Handler) evaluationCapabilities(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	workspace := h.config.Evaluation
 	if workspace == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "evaluation workspace is unavailable")
@@ -327,9 +324,6 @@ func (h *Handler) evaluationCapabilities(response http.ResponseWriter, request *
 }
 
 func (h *Handler) evaluationRun(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	workspace := h.config.Evaluation
 	if workspace == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "evaluation workspace is unavailable")
@@ -388,9 +382,6 @@ func admitEvaluationRequest(capabilities []EvaluationCapability, request evaluat
 }
 
 func (h *Handler) evaluationHistory(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	workspace, model, ok := h.evaluationQuery(response, request, "model", artifact.KindModel)
 	if !ok {
 		return
@@ -404,9 +395,6 @@ func (h *Handler) evaluationHistory(response http.ResponseWriter, request *http.
 }
 
 func (h *Handler) evaluationReport(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	workspace, id, ok := h.evaluationQuery(response, request, "id", artifact.KindEvaluation)
 	if !ok {
 		return
@@ -420,9 +408,6 @@ func (h *Handler) evaluationReport(response http.ResponseWriter, request *http.R
 }
 
 func (h *Handler) evaluationFailures(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	workspace, id, ok := h.evaluationQuery(response, request, "id", artifact.KindEvaluation)
 	if !ok {
 		return
@@ -436,9 +421,6 @@ func (h *Handler) evaluationFailures(response http.ResponseWriter, request *http
 }
 
 func (h *Handler) evaluationCompare(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	workspace := h.config.Evaluation
 	if workspace == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "evaluation workspace is unavailable")

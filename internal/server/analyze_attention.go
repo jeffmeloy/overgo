@@ -48,9 +48,6 @@ type analyzeAttentionResponse struct {
 
 // analyzeAttention replays one supported causal attention layer on host.
 func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	capture, ok := h.generator.(AttentionCaptureAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "attention capture is unavailable")

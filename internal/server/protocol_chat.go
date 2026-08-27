@@ -403,9 +403,6 @@ func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Re
 }
 
 func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
 		return

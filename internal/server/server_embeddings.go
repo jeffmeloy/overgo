@@ -62,9 +62,6 @@ type rerankResponse struct {
 }
 
 func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	ranker, ok := h.generator.(Ranker)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "reranking is unavailable")
@@ -158,9 +155,6 @@ func (h *Handler) rerank(response http.ResponseWriter, request *http.Request) {
 }
 
 func (h *Handler) embeddings(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	embedder, ok := h.generator.(Embedder)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "embeddings are unavailable")
@@ -239,9 +233,6 @@ type nativeEmbeddingItem struct {
 }
 
 func (h *Handler) nativeEmbeddings(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	embedder, ok := h.generator.(Embedder)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "embeddings are unavailable")

@@ -12,9 +12,6 @@ type remotePeerAuthorityRequest struct {
 }
 
 func (h *Handler) remotePeerAuthority(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	if h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "remote peer repository is unavailable")
 		return

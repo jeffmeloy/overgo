@@ -655,6 +655,11 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		)
 		return
 	}
+	if routed && len(route.Methods) != 0 && !route.accepts(request.Method) {
+		response.Header().Set("Allow", strings.Join(route.Methods, ", "))
+		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", strings.Join(route.Methods, " or ")+" required")
+		return
+	}
 	if routed {
 		route.serve(h, response, request)
 		return

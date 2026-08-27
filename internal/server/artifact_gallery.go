@@ -29,9 +29,6 @@ type artifactGalleryResponse struct {
 }
 
 func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return
@@ -70,9 +67,6 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 }
 
 func (h *Handler) artifactContent(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	id, err := artifact.ParseID(request.URL.Query().Get("id"))
 	if err != nil {
 		writeInvalidRequest(response, err)

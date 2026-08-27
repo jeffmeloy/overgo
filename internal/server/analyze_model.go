@@ -67,9 +67,6 @@ type analyzeModelDerived struct {
 }
 
 func (h *Handler) analyzeModel(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	api, ok := h.generator.(ModelPropertiesAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")

@@ -53,10 +53,6 @@ func (s *agentSessions) get(ctx context.Context, coordinator *agentloop.Coordina
 // classes and publication coverage; the GUI reads effect to badge
 // mutation tools and drives the approval control from it.
 func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		methodNotAllowed(response)
-		return
-	}
 	if h.repository == nil || h.agentCoordinator == nil {
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
 		return
@@ -94,10 +90,6 @@ func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request
 // admit it under the coordinator's rules, and encode the durable
 // result or the typed refusal.
 func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		methodNotAllowed(response)
-		return
-	}
 	if h.agentCoordinator == nil {
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
 		return
@@ -181,10 +173,6 @@ type agentStepRequest struct {
 // exact argument bytes a grant would bind, any committed decision, and
 // whether it binds these facts. It publishes and executes nothing.
 func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		methodNotAllowed(response)
-		return
-	}
 	if h.agentCoordinator == nil {
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
 		return
@@ -237,9 +225,6 @@ func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *ht
 // path a restart uses -- its inspection state against the step bound.
 // A restarted server lists exactly what the ledger remembers.
 func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	if h.repository == nil || h.agentCoordinator == nil {
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
 		return
@@ -293,9 +278,6 @@ func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.R
 // artifact identity the operator can open. The walk reads what the
 // step durably wrote; it derives nothing.
 func (h *Handler) agentProvenance(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	if h.repository == nil || h.agentCoordinator == nil {
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no evidence repository is configured")
 		return

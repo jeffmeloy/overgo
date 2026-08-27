@@ -40,9 +40,6 @@ type analyzeVocabToken struct {
 // vocabulary. Pure enumeration of raw GGUF facts (id, text, type, score) — no
 // statistics, nothing assumed about the data.
 func (h *Handler) analyzeVocab(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	api, ok := h.generator.(VocabularyInspectionAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "vocabulary inspection is unavailable")

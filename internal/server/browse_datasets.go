@@ -37,9 +37,6 @@ type datasetPreviewRequest struct {
 }
 
 func (h *Handler) previewDataset(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	if h.config.DatasetPreview == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "dataset preview is not configured")
 		return
@@ -70,9 +67,6 @@ func (h *Handler) previewDataset(response http.ResponseWriter, request *http.Req
 
 // browseDatasets serves the active OvergoDB dataset catalog.
 func (h *Handler) browseDatasets(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return

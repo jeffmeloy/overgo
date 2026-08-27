@@ -104,9 +104,6 @@ type compositionGenerationRequest struct {
 }
 
 func (h *Handler) compositionInventory(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	if h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "composition repository is unavailable")
 		return
@@ -193,9 +190,6 @@ func (h *Handler) compositionWorkflowView(ctx context.Context, value composition
 }
 
 func (h *Handler) compositeGeneration(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	if h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "composition repository is unavailable")
 		return
@@ -216,9 +210,6 @@ func (h *Handler) compositeGeneration(response http.ResponseWriter, request *htt
 }
 
 func (h *Handler) activateComposition(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	if h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "composition repository is unavailable")
 		return

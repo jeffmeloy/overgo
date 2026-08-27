@@ -344,7 +344,10 @@ var oscillatorImageCapability = imageCapability(recipe.PlacementHost, recipe.Dat
 var diffusionImageCapability = imageCapability(recipe.PlacementHost, recipe.DataImageTensor, ModuleDiffusionImagePrepare, ModuleDiffusionImageIntegrate, ModuleDiffusionImageDecode)
 
 var oscillatorVideoCapability = linearCapability{placement: recipe.PlacementHost, stages: []scalarStage{
-	{node: "prepare", module: ModuleOscillatorVideoPrepare, input: "condition", output: "session", inputData: recipe.DataClassConditioning, outData: recipe.DataSessionPlan},
+	// The oscillator model is the resident component; without a declared
+	// session lifetime the component session plan compiles empty and
+	// every verify refuses -- the same defect the scalar tasks carried.
+	{node: "prepare", module: ModuleOscillatorVideoPrepare, input: "condition", output: "session", inputData: recipe.DataClassConditioning, outData: recipe.DataSessionPlan, session: recipe.SessionCapacity},
 	{node: "integrate", module: ModuleOscillatorVideoIntegrate, input: "session", output: "features", inputData: recipe.DataSessionPlan, outData: recipe.DataVideoTensor},
 	{node: "decode", module: ModuleOscillatorVideoDecode, input: "features", output: "video", inputData: recipe.DataVideoTensor, outData: recipe.DataVideo},
 }}

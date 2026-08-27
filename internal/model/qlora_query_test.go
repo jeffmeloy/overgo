@@ -28,7 +28,7 @@ func TestQLoRAQueryNormBindsOwnTensor(t *testing.T) {
 		catalog.tensors[item.Name] = index
 	}
 	var layer LayerWeights
-	if err := loadQLoRAQuery(catalog, "blk.0.", spec, queryLength, &layer); err != nil {
+	if err := bindTensorProgram(catalog, "blk.0.", qLoRAQueryBindings(spec, queryLength, &layer)); err != nil {
 		t.Fatal(err)
 	}
 	if layer.AttentionQ == nil || layer.AttentionQ.Name != "blk.0.attn_q_a.weight" {
@@ -45,7 +45,7 @@ func TestQLoRAQueryNormBindsOwnTensor(t *testing.T) {
 		t.Fatal("AttentionQNorm and AttentionQB alias one pointee (the historical bug)")
 	}
 	missing := weightCatalog{tensors: map[string]int{}, items: nil}
-	if err := loadQLoRAQuery(missing, "blk.0.", spec, queryLength, &layer); err == nil {
+	if err := bindTensorProgram(missing, "blk.0.", qLoRAQueryBindings(spec, queryLength, &layer)); err == nil {
 		t.Fatal("missing tensors accepted")
 	}
 }

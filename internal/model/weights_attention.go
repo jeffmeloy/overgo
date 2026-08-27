@@ -6,45 +6,43 @@ import (
 	"overgo/internal/tensor"
 )
 
-func loadQLoRAQuery(catalog weightCatalog, prefix string, spec Spec, queryLength uint64, layer *LayerWeights) error {
-	return bindTensorProgram(catalog, prefix, []tensorBinding{
+func qLoRAQueryBindings(spec Spec, queryLength uint64, layer *LayerWeights) []tensorBinding {
+	return []tensorBinding{
 		requiredTensorPointer("attn_q_a.weight", &layer.AttentionQ,
 			uint64(spec.EmbeddingLength), uint64(spec.QLoRARank)),
 		requiredTensorPointer("attn_q_a_norm.weight", &layer.AttentionQNorm,
 			uint64(spec.QLoRARank)),
 		requiredTensorPointer("attn_q_b.weight", &layer.AttentionQB,
 			uint64(spec.QLoRARank), queryLength),
-	})
+	}
 }
 
-func loadLatentAttentionCatalog(
+func compileLatentAttentionBindings(
 	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 	plan LayerPlan,
 	queryLength, outputLength uint64,
-) error {
+) []tensorBinding {
 	expandQuery := plan.LatentAttention == latentAttentionNeoXResidualScale ||
 		((plan.LatentYaRNQuery || plan.Attention == AttentionSparseLatent ||
 			plan.LatentAttention == latentAttentionNoRoPE || plan.Mixer == recurrentMixerKeyedDelta) &&
 			spec.QLoRARank > tensor.FirstOffset)
+	var program []tensorBinding
 	if expandQuery {
-		if err := loadQLoRAQuery(catalog, prefix, spec, queryLength, layer); err != nil {
-			return err
-		}
-	} else if err := bindTensorProgram(catalog, prefix, []tensorBinding{
-		requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ,
-			uint64(spec.EmbeddingLength), queryLength),
-	}); err != nil {
-		return err
+		program = append(program, qLoRAQueryBindings(spec, queryLength, layer)...)
+	} else {
+		program = append(program, requiredTensorPointer(
+			attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength,
+		))
 	}
 	nope := uint64(spec.KeyLength - spec.RopeDimensionCount)
-	program := []tensorBinding{
+	program = append(program,
 		requiredTensorPointer("attn_kv_a_mqa.weight", &layer.AttentionKVAMQA,
 			uint64(spec.EmbeddingLength), uint64(spec.KVLoRARank+spec.RopeDimensionCount)),
 		requiredTensorPointer("attn_kv_a_norm.weight", &layer.AttentionKVANorm, uint64(spec.KVLoRARank)),
-	}
+	)
 	if _, modern := catalog.tensors[prefix+"attn_k_b.weight"]; modern {
 		program = append(program,
 			requiredTensorPointer("attn_k_b.weight", &layer.AttentionKB,
@@ -70,49 +68,48 @@ func loadLatentAttentionCatalog(
 	program = append(program, requiredTensorPointer(
 		attentionOutputWeightTensor, &layer.AttentionOutput, outputLength, uint64(spec.EmbeddingLength),
 	))
-	return bindTensorProgram(catalog, prefix, program)
+	return program
 }
 
-func loadStandardAttentionCatalog(
+func compileStandardAttentionBindings(
 	catalog weightCatalog,
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
 	queryLength, keyLength, valueLength, outputLength uint64,
-) error {
+) ([]tensorBinding, error) {
 	profile := spec.Profile()
+	var program []tensorBinding
+	fused := false
 	if profile.Has(ArchitectureFusedQKV) {
-		_, present := catalog.tensors[prefix+"attn_qkv.weight"]
-		if present || profile.Has(ArchitectureRequiresFusedQKV) {
+		_, fused = catalog.tensors[prefix+"attn_qkv.weight"]
+		fused = fused || profile.Has(ArchitectureRequiresFusedQKV)
+		if fused {
 			bias := optionalF32TensorPointer(
 				"attn_qkv.bias", &layer.AttentionQKVBias, queryLength+keyLength+valueLength,
 			)
 			bias.optional = !profile.Has(ArchitectureRequiresFusedQKVBias)
-			if err := bindTensorProgram(catalog, prefix, []tensorBinding{
+			program = append(program,
 				requiredTensorPointer("attn_qkv.weight", &layer.AttentionQKV,
 					uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength),
 				bias,
-			}); err != nil {
-				return err
-			}
+			)
 		}
 	}
-	if layer.AttentionQKV == nil {
+	if !fused {
 		if profile.Has(ArchitectureRejectsOrphanFusedQKVBias) {
 			if _, present := catalog.tensors[prefix+"attn_qkv.bias"]; present {
-				return fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
+				return nil, fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 			}
 		}
-		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
+		program = append(program,
 			requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, uint64(spec.EmbeddingLength), queryLength),
 			requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, uint64(spec.EmbeddingLength), keyLength),
 			requiredTensorPointer(attentionValueWeightTensor, &layer.AttentionV, uint64(spec.EmbeddingLength), valueLength),
-		}); err != nil {
-			return err
-		}
+		)
 	}
-	return bindTensorProgram(catalog, prefix, []tensorBinding{
+	return append(program,
 		requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput,
 			outputLength, uint64(spec.EmbeddingLength)),
-	})
+	), nil
 }

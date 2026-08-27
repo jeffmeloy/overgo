@@ -700,17 +700,23 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, attentionErr
 			}
 		} else if layerPlan.Attention == AttentionLatent || layerPlan.Attention == AttentionSparseLatent {
-			if itemErr := loadLatentAttentionCatalog(
-				catalog, prefix, spec, layer, layerPlan,
-				queryLength, uint64(spec.HeadCount)*uint64(spec.ValueLength),
-			); itemErr != nil {
+			bindings := compileLatentAttentionBindings(
+				catalog, prefix, spec, layer, layerPlan, queryLength,
+				uint64(spec.HeadCount)*uint64(spec.ValueLength),
+			)
+			if itemErr := bindTensorProgram(catalog, prefix, bindings); itemErr != nil {
 				return Weights{}, itemErr
 			}
-		} else if attentionErr := loadStandardAttentionCatalog(
-			catalog, prefix, spec, layer,
-			queryLength, keyLength, valueLength, attentionOutputLength,
-		); attentionErr != nil {
-			return Weights{}, attentionErr
+		} else {
+			bindings, compileErr := compileStandardAttentionBindings(
+				catalog, prefix, spec, layer, queryLength, keyLength, valueLength, attentionOutputLength,
+			)
+			if compileErr != nil {
+				return Weights{}, compileErr
+			}
+			if attentionErr := bindTensorProgram(catalog, prefix, bindings); attentionErr != nil {
+				return Weights{}, attentionErr
+			}
 		}
 		qkPlan := layerPlan.QKPreprocess
 		if !layer.Recurrent && (qkPlan.Heads == qkNormWeighted || qkPlan.PostRotary == qkNormWeighted) {

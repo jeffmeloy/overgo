@@ -196,6 +196,62 @@ func RetireActiveCapability(
 	return err
 }
 
+// RetireOrphanedActivation retires an activation whose own trust check
+// fails -- a stale alias left behind when a schema migration changed
+// the model identity, or an activation whose verifier evidence never
+// stood. The failed trust check IS the evidence: a trusted activation
+// is refused here and must retire through the evidence-backed path.
+func RetireOrphanedActivation(
+	ctx context.Context,
+	store artifact.Repository,
+	model artifact.ID,
+	task recipe.Task,
+	revision, reason string,
+) error {
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("model recipe: retirement reason is empty")
+	}
+	alias := activeAlias(model, task)
+	activeID, active, err := artifact.ResolveAlias(ctx, store, alias)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return errors.New("model recipe: retirement requires an active recipe")
+	}
+	if _, _, trustErr := ActiveRecord(ctx, store, model, task); trustErr == nil {
+		return errors.New("model recipe: the activation is trusted; retire it through the evidence-backed path")
+	} else {
+		reason = reason + "; trust check: " + trustErr.Error()
+	}
+	definition, err := loadDefinition(ctx, store, activeID)
+	if err != nil {
+		return err
+	}
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionRefused, recipe.EvidenceExperimental, reason,
+		recipe.Decider{CodeCommit: revision, Derivation: definition.ID}, nil,
+	)
+	if err != nil {
+		return err
+	}
+	batch, err := decision.Batch(
+		"recipe/orphan-retirement/" + definition.ID.String() + "/" + decision.ID.String(),
+	)
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return err
+	}
+	_, _, err = Transition(
+		ctx, store, "recipe/retired/"+definition.ID.String()+"/"+decision.ID.String(),
+		definition, recipe.StatusSuperseded,
+		[]artifact.ID{decision.ID}, nil,
+	)
+	return err
+}
+
 // reverifyActiveCapability: refresh proof after verifier-schema or code change.
 func reverifyActiveCapability(
 	ctx context.Context,

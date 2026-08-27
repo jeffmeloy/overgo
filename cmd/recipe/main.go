@@ -33,7 +33,7 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <verify|activate|retire|run|status|policy> [options] <model>")
+		return errors.New("usage: recipe <verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
 	}
 	verb := os.Args[1]
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
@@ -175,6 +175,11 @@ func run() error {
 		return status(repository, path, selectedTask)
 	case "policy":
 		return ensurePolicy(repository, path, selectedTask)
+	case "retire-orphan":
+		if strings.TrimSpace(*reason) == "" {
+			return errors.New("retire-orphan requires -reason: the refusal records why")
+		}
+		return retireOrphan(repository, flags.Arg(0), selectedTask, *reason)
 	default:
 		return fmt.Errorf("unknown verb %q", verb)
 	}

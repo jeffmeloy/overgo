@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "policy-lifecycle",
-          "title": "Represent automation policy versions through existing recipe profile artifacts and runrecord activation evidence. Declared, experimental, verified, active, contained, and rolled-back transitions require exact trajectory evaluations against the incumbent, preserve the rollback target, and move the active alias atomically. No new automation-policy package or mutable policy registry.",
-          "status": "open",
-          "verify": "rg -q \"func TestAutomationPolicyLifecycle\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAutomationPolicyLifecycle$' -count=1",
-          "rationale": "The merged plan's policy lifecycle belongs beside existing agent and experiment authority in runrecord, not behind another service boundary.",
-          "depends_on": [
-            "strategy-experiments/do"
-          ],
-          "capabilities": [
-            "recipe-policy",
-            "runrecord-authority",
-            "atomic-activation"
-          ]
-        },
-        {
           "id": "steering-proposals",
           "title": "Extend the existing plan and recipe contracts with a typed steering proposal that binds goal, predicted benefit and cost, uncertainty, falsifiable evaluation, affected authorities, and exact measurement references. Deterministic admission validates every reference and may compile an admitted proposal into future plan rows; proposal text never executes work or grants authority.",
           "status": "open",

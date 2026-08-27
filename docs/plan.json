@@ -29,7 +29,7 @@
           "id": "do",
           "title": "Verify and activate the LiveEdit reference video edit route",
           "status": "open",
-          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/video-edit/.test(s)||/stale:/.test(s)) process.exit(1)\"",
+          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/LiveEdit/.test(s)||/stale:/.test(s)) process.exit(1)\"",
           "rationale": "LiveEdit .pt checkpoints through the reference video edit route (task video-edit, ReferenceVideoEditDefinition): verify with a bounded source clip, fix, activate.",
           "depends_on": [
             "sensenova-image-activation/do"

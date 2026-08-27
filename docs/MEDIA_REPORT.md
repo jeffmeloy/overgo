@@ -15,3 +15,15 @@ Evidence rules: an activation states its recipe evidence tier; a measured claim 
 | `tts_b6369a24.safetensors` | `speech` | experimental | - | - |
 
 The matrix reports activation and evidence scope, not general model-family support: an activation means the recipe lifecycle admitted the model for the task at the stated tier, and a measured claim binds that capability to real execution evidence at its commit.
+
+## Measured results
+
+One row per healthy activation: the verifier run the activation cites, exactly as recorded -- wall, verifying commit, and the output artifacts the run published. A dash means the activation stands without a readable run record.
+
+| Model | Task | Verifier wall | Commit | Run outputs |
+| --- | --- | --- | --- | --- |
+| `diffusion_pytorch_model.safetensors` | `video-gen` | 5.737s | `58f98a458732` | `evidence:sha256:e409bdcf8e08fe54` |
+| `model-00001-of-00003.safetensors` | `vqa` | 9.941s | `deb633f55991` | `evidence:sha256:aad076217f89fb8e` |
+| `model.safetensors` | `image-gen` | 29ms | `58f98a458732` | `evidence:sha256:4c4f9951e019f8a2` |
+| `step_799.safetensors` | `image-gen` | 1.826s | `58f98a458732` | `evidence:sha256:ef07513101096dce` |
+| `tts_b6369a24.safetensors` | `speech` | 13.331s | `58f98a458732` | `evidence:sha256:c0f2737502bd83a8` |

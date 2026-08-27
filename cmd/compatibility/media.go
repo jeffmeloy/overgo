@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -64,7 +65,10 @@ func generateMediaReport(root, repository string) ([]byte, error) {
 	output.WriteString("Evidence rules: an activation states its recipe evidence tier; a measured claim states its verification tier, commit, and measurements; a stale activation is reported as stale, never served, never hidden. Absence of a claim row means no measured verification stands for that task.\n\n")
 	output.WriteString("## Media activations\n\n")
 	output.WriteString("| Model | Task | Activation tier | Stale | Measured claim |\n| --- | --- | --- | --- | --- |\n")
-	type reportRow struct{ model, task, tier, stale, claim string }
+	type reportRow struct {
+		model, task, tier, stale, claim string
+		modelID                         artifact.ID
+	}
 	var report []reportRow
 	for _, entry := range entries {
 		for _, capability := range entry.Capabilities {
@@ -79,7 +83,7 @@ func generateMediaReport(root, repository string) ([]byte, error) {
 				name = entry.Model.String()
 			}
 			report = append(report, reportRow{
-				model: name, task: string(capability.Task), tier: string(capability.Tier),
+				model: name, task: string(capability.Task), tier: string(capability.Tier), modelID: entry.Model,
 				stale: staleCell(capability.Stale),
 				claim: claimCell(claimsByModel[entry.Model], capability.Task),
 			})
@@ -102,7 +106,57 @@ func generateMediaReport(root, repository string) ([]byte, error) {
 		output.WriteString("\nThe capability listing was truncated; this report is incomplete and says so.\n")
 	}
 	output.WriteString("\nThe matrix reports activation and evidence scope, not general model-family support: an activation means the recipe lifecycle admitted the model for the task at the stated tier, and a measured claim binds that capability to real execution evidence at its commit.\n")
+	output.WriteString("\n## Measured results\n\n")
+	output.WriteString("One row per healthy activation: the verifier run the activation cites, exactly as recorded -- wall, verifying commit, and the output artifacts the run published. A dash means the activation stands without a readable run record.\n\n")
+	output.WriteString("| Model | Task | Verifier wall | Commit | Run outputs |\n| --- | --- | --- | --- | --- |\n")
+	results := 0
+	for _, row := range report {
+		if strings.HasPrefix(row.stale, "stale") {
+			continue
+		}
+		measured := activationRunResult(ctx, store, row.modelID, recipe.Task(row.task))
+		fmt.Fprintf(&output, "| `%s` | `%s` | %s |\n", escapeMarkdown(row.model), row.task, measured)
+		results++
+	}
+	if results == 0 {
+		output.WriteString("\nNo healthy activation carries a readable run record.\n")
+	}
 	return output.Bytes(), nil
+}
+
+// activationRunResult reads the run the activation's own evidence
+// cites and renders its measurements; absence renders dashes, never an
+// invented number.
+func activationRunResult(ctx context.Context, store *overgodb.Store, model artifact.ID, task recipe.Task) string {
+	activation, active, err := modelrecipe.ActiveRecord(ctx, store, model, task)
+	if err != nil || !active {
+		return "- | - | -"
+	}
+	for _, evidence := range activation.Event.Evidence {
+		if evidence.Kind() != artifact.KindRun {
+			continue
+		}
+		content, found, err := artifact.ReadContent(ctx, store, evidence)
+		if err != nil || !found {
+			continue
+		}
+		run, err := runrecord.ParseRun(content.Data)
+		if err != nil {
+			continue
+		}
+		outputs := make([]string, 0, len(run.Outputs))
+		for _, output := range run.Outputs {
+			outputs = append(outputs, "`"+output.String()[:32]+"`")
+		}
+		rendered := "-"
+		if len(outputs) > 0 {
+			rendered = strings.Join(outputs, ", ")
+		}
+		return fmt.Sprintf("%s | `%s` | %s",
+			time.Duration(run.MeasuredNS).Round(time.Millisecond).String(),
+			shortCommit(run.CodeCommit), rendered)
+	}
+	return "- | - | -"
 }
 
 func mediaTask(task recipe.Task) bool {

@@ -2,5 +2,125 @@
   "campaign": "Governed external tool interoperability",
   "doctrine": "External protocol breadth enters through narrow adapters behind the immutable agent-tool manual. Discovery compiles bounded untrusted descriptions into typed candidate manuals; it never mutates the active catalog. Catalog search is deterministic and bound to exact manual identities. Streaming is a bounded, cancellable, sequenced lifecycle with an explicit terminal record. Model-authored tool workflows compile as closed-world recipe programs and execute without source generation or an embedded interpreter. Every row reuses artifact, recipe, operation, policy, and evidence owners already in the tree and deletes displaced switches, wrappers, caches, and temporary shapes in the same commit.",
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
-  "items": []
+  "items": [
+    {
+      "id": "krea-image-activation",
+      "title": "Verify and activate the Krea latent image route",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify and activate the Krea latent image route",
+          "status": "open",
+          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/[Kk]rea/.test(s)||/stale:/.test(s)) process.exit(1)\"",
+          "rationale": "Krea-2-Turbo through the latent image route (models/Krea-2-Turbo/krea-2): recipe verify -task image-gen with a real generation, fix whatever refuses, activate on gate/run evidence. Reference report shows full-quality 158s runs; a bounded shape suffices for activation, quality shapes follow in results.",
+          "depends_on": [
+            "media-report-results/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sensenova-image-activation",
+      "title": "Verify and activate the SenseNova V3 routed image route",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify and activate the SenseNova V3 routed image route",
+          "status": "open",
+          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/SenseNova|sensenova/.test(s)||/stale:/.test(s)) process.exit(1)\"",
+          "rationale": "SenseNova-U1-8B-MoT-Infographic-V3 through the routed causal-GQA image route: same verify-fix-activate contract.",
+          "depends_on": [
+            "krea-image-activation/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "liveedit-videoedit-activation",
+      "title": "Verify and activate the LiveEdit reference video edit route",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify and activate the LiveEdit reference video edit route",
+          "status": "open",
+          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/video-edit/.test(s)||/stale:/.test(s)) process.exit(1)\"",
+          "rationale": "LiveEdit .pt checkpoints through the reference video edit route (task video-edit, ReferenceVideoEditDefinition): verify with a bounded source clip, fix, activate.",
+          "depends_on": [
+            "sensenova-image-activation/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "oscillator-video-activation",
+      "title": "Verify and activate the Un-0 oscillator video route",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify and activate the Un-0 oscillator video route",
+          "status": "open",
+          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(/stale:/.test(s)) process.exit(1)\"",
+          "rationale": "Un-0 through the oscillator video route (task video-gen, oscillator frames + publication): deterministic, host; verify, activate.",
+          "depends_on": [
+            "liveedit-videoedit-activation/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "media-run-phase-peak",
+      "title": "Record phase walls and peak device bytes in media verifier runs",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record phase walls and peak device bytes in media verifier runs",
+          "status": "open",
+          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/peak/.test(s)) process.exit(1)\"",
+          "rationale": "Capability verifies record what the reference report measures: per-phase walls (prepare/integrate/decode) into run Phases and peak device bytes into the claim/run, so the report renders measured decompositions instead of one wall.",
+          "depends_on": [
+            "oscillator-video-activation/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "media-sample-export",
+      "title": "Export decoded media samples with content hashes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Export decoded media samples with content hashes",
+          "status": "open",
+          "verify": "node -e \"const fs=require('fs'); const d=fs.readdirSync('docs/media_samples'); if(d.length\u003c3) process.exit(1)\"",
+          "rationale": "Export each healthy activation verifier-run output as a decodable file under docs/media_samples (PNG/GIF/WAV) named by content SHA-256, via a compatibility flag or small command; the report embeds them.",
+          "depends_on": [
+            "media-run-phase-peak/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "media-report-parity",
+      "title": "Reach content parity with the adaptive_new image generation report",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reach content parity with the adaptive_new image generation report",
+          "status": "open",
+          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); for(const h of ['## Verdict','## Public media surface','## Function inventory','## Recipe inventory','## Measured results','## Samples']) if(!s.includes(h)) process.exit(1)\"",
+          "rationale": "Generator gains the reference sections, all derived: Verdict (generated per-model facts), Public media surface (server endpoints), Function inventory (capability executors/routes), Recipe inventory (recipes per task with status), per-model Measured results with phases, peak, output SHA-256, and embedded samples.",
+          "depends_on": [
+            "media-sample-export/do"
+          ]
+        }
+      ]
+    }
+  ]
 }

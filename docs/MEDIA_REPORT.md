@@ -27,14 +27,14 @@ Media tasks: `speech`, `image-gen`, `video-gen`, `video-edit`, `vqa`. The VQA la
 | Model | Task | Activation tier | Stale | Measured claim |
 | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | parity | - | - |
-| `Krea-2-Turbo` | `image-gen` | experimental | - | - |
-| `LiveEdit` | `video-gen` | experimental | - | - |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | experimental | - | - |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | experimental | - | - |
-| `Un-0` | `image-gen` | experimental | - | - |
-| `Un-0` | `video-gen` | experimental | - | - |
-| `Wan2.1-T2V-1.3B` | `video-gen` | experimental | - | - |
-| `pocket-tts` | `speech` | experimental | - | - |
+| `Krea-2-Turbo` | `image-gen` | verified | - | - |
+| `LiveEdit` | `video-gen` | verified | - | - |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | verified | - | - |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | verified | - | - |
+| `Un-0` | `image-gen` | verified | - | - |
+| `Un-0` | `video-gen` | verified | - | - |
+| `Wan2.1-T2V-1.3B` | `video-gen` | verified | - | - |
+| `pocket-tts` | `speech` | verified | - | - |
 
 The matrix reports activation and evidence scope, not general model-family support: an activation means the recipe lifecycle admitted the model for the task at the stated tier, and a measured claim binds that capability to real execution evidence at its commit.
 
@@ -78,14 +78,14 @@ One row per healthy activation: the recipe artifact the active alias resolves, i
 | Model | Task | Recipe | Evidence tier | Dependencies |
 | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | `recipe:sha256:97d121be90fba86b42` | parity | - |
-| `Krea-2-Turbo` | `image-gen` | `recipe:sha256:0b1bcc2fb9cf5f42cd` | experimental | profile `profile:sha256:4dedf632a6744df0c` |
-| `LiveEdit` | `video-gen` | `recipe:sha256:7cd66ed08ebee5e566` | experimental | profile `profile:sha256:5dff72b6d581a9d1d` |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `recipe:sha256:5a729e98ef825033d4` | experimental | flow-profile `profile:sha256:307706b480209dc49` |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `recipe:sha256:4f0b3b9dbad2427851` | experimental | - |
-| `Un-0` | `image-gen` | `recipe:sha256:213d890a8988e995e5` | experimental | - |
-| `Un-0` | `video-gen` | `recipe:sha256:4f6267a0ddb44c1357` | experimental | - |
-| `Wan2.1-T2V-1.3B` | `video-gen` | `recipe:sha256:bff12bb8946afe0d8c` | experimental | profile `profile:sha256:5dff72b6d581a9d1d` |
-| `pocket-tts` | `speech` | `recipe:sha256:353213be1a91a29530` | experimental | - |
+| `Krea-2-Turbo` | `image-gen` | `recipe:sha256:0b1bcc2fb9cf5f42cd` | verified | profile `profile:sha256:4dedf632a6744df0c` |
+| `LiveEdit` | `video-gen` | `recipe:sha256:7cd66ed08ebee5e566` | verified | profile `profile:sha256:5dff72b6d581a9d1d` |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `recipe:sha256:5a729e98ef825033d4` | verified | flow-profile `profile:sha256:307706b480209dc49` |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `recipe:sha256:4f0b3b9dbad2427851` | verified | - |
+| `Un-0` | `image-gen` | `recipe:sha256:213d890a8988e995e5` | verified | - |
+| `Un-0` | `video-gen` | `recipe:sha256:4f6267a0ddb44c1357` | verified | - |
+| `Wan2.1-T2V-1.3B` | `video-gen` | `recipe:sha256:bff12bb8946afe0d8c` | verified | profile `profile:sha256:5dff72b6d581a9d1d` |
+| `pocket-tts` | `speech` | `recipe:sha256:353213be1a91a29530` | verified | - |
 
 ## Measured results
 

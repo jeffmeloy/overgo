@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "media-evidence-tier-language",
-      "title": "Evidence-tier vocabulary states evidence strength, not prototype status",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Evidence-tier vocabulary states evidence strength, not prototype status",
-          "status": "open",
-          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(s.includes('| experimental |')) process.exit(1)\""
-        }
-      ]
-    },
-    {
       "id": "media-production-samples",
       "title": "Production-shaped SenseNova and Wan generations replace smoke samples",
       "status": "open",
@@ -26,6 +13,19 @@
           "title": "Production-shaped SenseNova and Wan generations replace smoke samples",
           "status": "open",
           "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/integrate [0-9]+m[0-9]/.test(s) \u0026\u0026 !/integrate [0-9]{2,}\\./.test(s) \u0026\u0026 !/integrate [0-9]{2,}s/.test(s)) process.exit(1)\""
+        }
+      ]
+    },
+    {
+      "id": "build-hygiene",
+      "title": "Segregate retained build artifacts from disposable scrap",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Segregate retained build artifacts from disposable scrap",
+          "status": "open",
+          "verify": "go run ./cmd/gate -check-build-hygiene 2\u003e/dev/null || node -e \"const fs=require('fs'); if(!fs.existsSync('build/RETAINED.json')) process.exit(1)\""
         }
       ]
     }

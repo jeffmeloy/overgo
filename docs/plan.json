@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "checkpoint-runtime",
-          "title": "Capture checkpoints in agentloop immediately before admitted mutations and restore them transactionally under the same workspace claim. Refuse restore on postimage drift, active conflicting writers, incomplete capture, path escape, or identity mismatch; record restore and undo as normal decisions and effects rather than privileged side channels.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentMutationCheckpointLifecycle\" internal/agentloop -g \"*_test.go\" \u0026\u0026 go test ./internal/agentloop -run '^TestAgentMutationCheckpointLifecycle$' -count=1",
-          "rationale": "The coordinator already brackets inspection, approval, and mutation, making it the smallest common capture seam.",
-          "depends_on": [
-            "agent-recovery/checkpoint-document",
-            "workspace-claim-lifecycle/operations",
-            "agent-contracts/enforcement"
-          ],
-          "capabilities": [
-            "agentloop",
-            "workspace-claims",
-            "operator-decisions"
-          ]
-        },
-        {
           "id": "session-recovery",
           "title": "Recover interrupted agent sessions by reconciling existing interaction traces, stage receipts, operation state, obligations, leases, and checkpoints. Resume only the next uncommitted action under the exact task, recipe, model, catalog, policy, and mutation epoch; mismatches fail closed. Add no authoritative JSONL ledger: any optional write-ahead projection is bounded, disposable, and rebuilt from committed artifacts.",
           "status": "open",

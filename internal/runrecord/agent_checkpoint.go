@@ -21,7 +21,10 @@ type AgentCheckpointEntry struct {
 	Mode              string       `json:"mode"`
 	Encoding          string       `json:"encoding"`
 	Preimage          *artifact.ID `json:"preimage,omitempty"`
+	Absent            bool         `json:"absent,omitempty"`
+	Empty             bool         `json:"empty,omitempty"`
 	ExpectedPostimage *artifact.ID `json:"expected_postimage,omitempty"`
+	ExpectedAbsent    bool         `json:"expected_absent,omitempty"`
 	Gap               string       `json:"gap,omitempty"`
 }
 
@@ -87,13 +90,28 @@ func canonicalizeAgentMutationCheckpoint(v *AgentMutationCheckpoint) error {
 	}
 	var captured, gaps uint32
 	for _, entry := range v.Entries {
-		if !checkpointText(entry.Target) || !checkpointText(entry.Mode) || !checkpointText(entry.Encoding) || (entry.Preimage == nil) == (entry.Gap == "") {
+		sources := 0
+		if entry.Preimage != nil {
+			sources++
+		}
+		if entry.Absent {
+			sources++
+		}
+		if entry.Empty {
+			sources++
+		}
+		if entry.Gap != "" {
+			sources++
+		}
+		if !checkpointText(entry.Target) || !checkpointText(entry.Mode) || !checkpointText(entry.Encoding) || sources != int(artifact.InitialDocumentVersion) || entry.ExpectedAbsent && entry.ExpectedPostimage != nil {
 			return errors.New("run record: invalid agent checkpoint entry")
 		}
 		if entry.Preimage != nil {
 			if entry.Preimage.Kind() != artifact.KindFile {
 				return errors.New("run record: checkpoint preimage is not file content")
 			}
+			captured++
+		} else if entry.Absent || entry.Empty {
 			captured++
 		} else if !checkpointText(entry.Gap) {
 			return errors.New("run record: invalid checkpoint capture gap")

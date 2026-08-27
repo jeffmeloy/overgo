@@ -480,6 +480,18 @@ type CodecStep[Bindings, Storage, State any] func(
 	CodecVolume[Storage],
 ) (CodecVolume[Storage], error)
 
+func codecOutputGeometry(operator CodecOperator, input VolumeGeometry) (VolumeGeometry, error) {
+	scale := [3]int{operator.TemporalScale(), operator.SpatialScale(), operator.SpatialScale()}
+	switch operator {
+	case CodecDownsampleSpatial, CodecDownsampleSpatiotemporal:
+		return DownsampledVolumeExactSpatial(input.Frames, input.Height, input.Width, scale)
+	case CodecUpsampleSpatial, CodecUpsampleSpatiotemporal:
+		return UpsampledCausalVolume(input.Frames, input.Height, input.Width, scale)
+	default:
+		return input, nil
+	}
+}
+
 func (p CodecProgram[Bindings]) Validate(scope string) error {
 	if len(p.Operations) == 0 {
 		return fmt.Errorf("%s: operations absent", scope)
@@ -527,11 +539,18 @@ func ExecuteCodecProgram[Bindings, Storage, State any](
 		if !checked.Equal(current.Channels, operation.InputChannels) {
 			return current, fmt.Errorf("%s: operation %d (%s) input channels=%d, volume channels=%d", scope, index, operation.Name, operation.InputChannels, current.Channels)
 		}
+		geometry, geometryErr := codecOutputGeometry(operation.Operator, VolumeGeometry{
+			Frames: current.Frames, Height: current.Height, Width: current.Width,
+		})
+		if geometryErr != nil {
+			return current, fmt.Errorf("%s: operation %d (%s): %w", scope, index, operation.Name, geometryErr)
+		}
 		next, err := step(index, operation, &states[index], current)
 		if err != nil {
 			return current, fmt.Errorf("%s: operation %d (%s): %w", scope, index, operation.Name, err)
 		}
-		if !checked.Equal(next.Channels, operation.OutputChannels) || !checked.PositiveInts(next.Frames, next.Height, next.Width) {
+		if !checked.Equal(next.Channels, operation.OutputChannels) ||
+			next.Frames != geometry.Frames || next.Height != geometry.Height || next.Width != geometry.Width {
 			return current, fmt.Errorf("%s: operation %d (%s) returned invalid geometry", scope, index, operation.Name)
 		}
 		current = next

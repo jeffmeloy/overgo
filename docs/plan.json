@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "agent-contracts",
-      "title": "Compile task acceptance and evidence obligations into existing authorities",
-      "status": "open",
-      "steps": [
-        {
-          "id": "enforcement",
-          "title": "Make agentloop enforce the compiled contract before mutation and completion. A relevant later mutation advances the affected scope's epoch and invalidates earlier verification, review, or sign-off evidence; project-wide evidence is invalidated only by project-wide effects. Reuse operatoraction decisions and stage receipts, and expose a deterministic outstanding-obligation view without adding another controller.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentContractEnforcement\" internal/agentloop -g \"*_test.go\" \u0026\u0026 go test ./internal/agentloop -run '^TestAgentContractEnforcement$' -count=1",
-          "rationale": "The useful Reasonix behavior is evidence invalidation after change, not its controller structure. The existing coordinator is the narrow Overgo assembly point.",
-          "depends_on": [
-            "agent-contracts/evidence"
-          ],
-          "capabilities": [
-            "agentloop",
-            "operatoraction",
-            "stage-receipts"
-          ]
-        }
-      ]
-    },
-    {
       "id": "stable-capability-proxy",
       "title": "Expose a cache-stable tool surface over the governed catalog",
       "status": "open",

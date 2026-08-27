@@ -40,6 +40,7 @@ type Session struct {
 	Interaction artifact.ID
 	Inspected   bool
 	Steps       int
+	Contract    *ContractState
 }
 
 // Coordinator admits and records agent tool steps.
@@ -134,6 +135,13 @@ func (c *Coordinator) propose(
 				"agent loop: mutation %q requires an exact approval", name)
 		}
 	}
+	plannedEffect, err := agenttool.DeriveInvocationEffect(manual, arguments, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := session.Contract.Admit(plannedEffect); err != nil {
+		return nil, err
+	}
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
 	// A mutation admits a durable receipt BEFORE it executes and closes
 	// it after: if the receipt cannot persist the side effect never
@@ -152,7 +160,10 @@ func (c *Coordinator) propose(
 			return nil, fmt.Errorf("agent loop: mutation %q refused without a durable receipt: %w", name, err)
 		}
 	}
-	result, invokeErr := c.executor.Invoke(ctx, manual, arguments)
+	result, actualEffect, invokeErr := c.executor.InvokeWithEffect(ctx, manual, arguments)
+	if invokeErr == nil {
+		session.Contract.ObserveMutation(actualEffect)
+	}
 	var receipt artifact.ID
 	if receiptOperation.Valid() {
 		receipt, err = c.closeMutationReceipt(ctx, receiptOperation, result, invokeErr)

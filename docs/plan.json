@@ -1,87 +1,116 @@
 {
-  "campaign": "Governed external tool interoperability",
-  "doctrine": "External protocol breadth enters through narrow adapters behind the immutable agent-tool manual. Discovery compiles bounded untrusted descriptions into typed candidate manuals; it never mutates the active catalog. Catalog search is deterministic and bound to exact manual identities. Streaming is a bounded, cancellable, sequenced lifecycle with an explicit terminal record. Model-authored tool workflows compile as closed-world recipe programs and execute without source generation or an embedded interpreter. Every row reuses artifact, recipe, operation, policy, and evidence owners already in the tree and deletes displaced switches, wrappers, caches, and temporary shapes in the same commit.",
-  "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
+  "campaign": "AST-guided structural consolidation",
+  "doctrine": "Existing typed owners replace duplicated orchestration. Each wave migrates every production caller and deletes displaced functions, switches, wrappers, fallbacks, temporary maps, and compatibility paths in the same commit. Recipes and compiled programs remain topology and policy authority. Neutral operators retain unique mathematics. AST profiles, consumer graphs, host tests, CUDA parity, and closure evidence verify net structural reduction without numerical change.",
+  "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
   "items": [
     {
-      "id": "strategy-experiments",
-      "title": "Run competing strategies in isolated worktrees against one baseline",
+      "id": "exact-clone-owners",
+      "title": "Delete exact lifecycle and wrapper clones through existing owners",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Run competing strategies in isolated worktrees against one baseline -- cmd/experiment: one plan step, N declared strategies, each run in an isolated worktree from the same baseline commit, each candidate gate-verified, all attempt records bound to one experiment identity; selection is by verify outcome then measured cost, and failures persist as durable counterexamples. Closes: controlled comparison of competing automation strategies.",
+          "title": "Replace manual ReadContent, schema, parse, and identity sequences with artifact.DocumentCodec.Require or existing typed Require functions. Route modelrecipe and trainingworkflow definition loading through recipe.RequireDefinition. Route composition evidence loading through each codec. Consolidate equivalent runrecord alias resolution, evaluation plan binding, projector image/frame entry, and command exit shells only where contracts match. Migrate every caller; delete cloned loaders, alias builders, bind wrappers, entry wrappers, and local validation copies. Require a production-code net reduction and lower exact-clone excess.",
           "status": "open",
-          "verify": "go test ./cmd/experiment -count=1",
-          "depends_on": [
-            "attempt-history/do",
-            "strategy-identity/do"
-          ]
+          "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/trainingworkflow ./internal/composition ./internal/runrecord ./internal/evaluation ./internal/projector ./internal/clioptions ./cmd/... -count=1"
         }
       ]
     },
     {
-      "id": "policy-lifecycle",
-      "title": "Promote automation policies through an evidence-gated lifecycle",
+      "id": "weight-catalog-program",
+      "title": "Make compiled tensor bindings the sole weight catalog authority",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Promote automation policies through an evidence-gated lifecycle -- Automation policy documents move declared -\u003e experimental -\u003e verified -\u003e active exactly as recipes promote: promotion demands measured wins over the incumbent from attempt history and retains the rollback target. Closes: evidence-gated promotion of automation policies.",
+          "title": "Compile model, layer, draft, recurrent, and optional tensor requirements from ArchitectureProfile, recipe facts, and inventory into one ordered indexed binding program. Execute that program once against weightCatalog. Migrate all catalog readers and specialized layer loaders, then delete loadLayerCatalogs orchestration, imperative requirement construction, repeated name lookup, and model-policy branches. Preserve optionality, shape validation, tied weights, and inventory-derived dimensions without fallback catalogs.",
           "status": "open",
-          "verify": "go test ./internal/automationpolicy -count=1",
-          "depends_on": [
-            "strategy-experiments/do"
-          ]
+          "verify": "go test ./internal/model ./internal/modelrecipe ./internal/modelartifact ./internal/inference -count=1",
+          "depends_on": ["exact-clone-owners/do"]
         }
       ]
     },
     {
-      "id": "steering-proposals",
-      "title": "Admit typed steering proposals through deterministic validation",
+      "id": "layer-operator-program",
+      "title": "Compile layer execution instead of interpreting operator policy",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Admit typed steering proposals through deterministic validation -- Typed proposal document: goal, predicted benefit, predicted cost, explicit uncertainty, falsifiable check, references into measurement history. Deterministic admission validates references and converts an admitted proposal into a plan row with the proposal as provenance; proposals never execute anything. Closes: model-proposed steering from accumulated evidence.",
+          "title": "Resolve LayerOperatorInstruction values during LayerPlan compilation into ordered neutral operator stages with indexed operands, caches, weights, and validation contracts. Execute the compiled stage sequence directly. Migrate all graph callers and delete executeLayerInstruction, nested feed-forward and residual switches, and single-consumer topology builders displaced by the stage compiler. Keep distinct attention, recurrent, routed, normalization, and residual mathematics as typed operators; prohibit architecture names and property bags in operator execution.",
           "status": "open",
-          "verify": "go test ./internal/steering -count=1",
-          "depends_on": [
-            "attempt-history/do"
-          ]
+          "verify": "go test ./internal/model ./internal/inference ./internal/routedlm ./internal/scratchmodel -count=1",
+          "depends_on": ["weight-catalog-program/do"]
         }
       ]
     },
     {
-      "id": "loop-proposal-closure",
-      "title": "Close the loop: admitted proposals feed the driver under stop conditions",
+      "id": "cuda-launch-program",
+      "title": "Compile CUDA operand and launch selection once",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Close the loop: admitted proposals feed the driver under stop conditions -- cmd/loop consumes admitted proposals when the plan drains instead of stopping, under stop conditions: invocation budget, saturation (no measured improvement across K consecutive experiments), and the explicit operator stop. Closes: the recursive policy-improvement loop.",
+          "title": "Extend compiled CUDA nodes with exact launcher identity, indexed operand slots, validated extents, layout, and ABI metadata. Resolve launch family and shape contracts at compile time; runtime supplies pointers and dynamic extents only. Migrate recurrent, linear, attention, math-vision, MoE, and RoPE callers together. Delete launchNode family dispatch, repeated attribute decoding, repeated pointer lookup, and duplicated runtime shape validation. Retain bounded kernel selection and numerical parity.",
           "status": "open",
-          "verify": "go test ./internal/loop -run TestProposal -count=1",
-          "depends_on": [
-            "steering-proposals/do",
-            "policy-lifecycle/do"
-          ]
+          "verify": "go test ./internal/cuda/executor ./internal/cuda/kernel ./internal/tensor -count=1",
+          "depends_on": ["layer-operator-program/do"]
         }
       ]
     },
     {
-      "id": "automation-mutation-tests",
-      "title": "Mutation-test the gate selector against injected defects",
+      "id": "reference-execution-program",
+      "title": "Make the CPU oracle consume the same compiled operation contract",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Mutation-test the gate selector against injected defects -- Inject known defects into fixture packages and require the manifest selector to select the checks that catch them; extends the false-negative corpus into mutation coverage of the automation itself.",
+          "title": "Compile reference executor nodes into indexed neutral operation stages using the tensor program contract shared with CUDA. Move invariant validation and attribute interpretation to compilation. Migrate all oracle and host consumers, then delete executeNode dispatch branches and single-consumer operation wrappers where a typed primitive already exists. Preserve accumulation order and CPU-CUDA parity; do not merge operators with different semantics.",
           "status": "open",
-          "verify": "go test ./cmd/gate -run TestMutation -count=1",
-          "depends_on": [
-            "rsi-plan-declared/do"
-          ]
+          "verify": "go test ./internal/tensor/reference ./internal/tensor ./internal/cuda/executor -count=1",
+          "depends_on": ["cuda-launch-program/do"]
+        }
+      ]
+    },
+    {
+      "id": "media-codec-executor",
+      "title": "Move codec sequencing into the neutral media program",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make media.CodecProgram own ordered state transitions, shape evolution, workspace lifetimes, and tensor bindings for host and CUDA backends. Backends implement only causal convolution, spatial convolution, residual, resize, attention, and normalization primitives. Migrate latent video and image codec callers; delete runVAEOp, VAEDecoderCUDASession.runOp, duplicate state structs, repeated shape transitions, and per-stage temporary ownership. Reuse planned workspace by liveness and retain exact host-CUDA output parity.",
+          "status": "open",
+          "verify": "go test ./internal/media ./internal/latentvideo ./internal/latentimage ./internal/diffusionimage -count=1",
+          "depends_on": ["reference-execution-program/do"]
+        }
+      ]
+    },
+    {
+      "id": "consumer-surface-pruning",
+      "title": "Delete dead surface and privatize single-owner contracts",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-run the production consumer graph after the compiler migrations. Delete zero-consumer functions and constants unless a machine-readable external contract requires them. Privatize test-only exports and single-package contracts. Inline single-consumer pass-through functions that own no validation, lifecycle, or evidence boundary. Keep CPU parity oracles explicitly classified rather than deleting them as unused. Remove resulting files and imports; do not add compatibility aliases.",
+          "status": "open",
+          "verify": "go test ./... -count=1",
+          "depends_on": ["media-codec-executor/do"]
+        }
+      ]
+    },
+    {
+      "id": "structural-regression-gate",
+      "title": "Gate structural consolidation with existing AST evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Use codeprofile and codemanifest as the sole structural census. Publish the final profile and require each migration wave to report runtime AST nodes, exact-clone excess, branch-heavy functions, exported declarations, import edges, and consumer classes against its parent. Reject new zero-consumer production surface, clone growth, or a replacement switch with equivalent branch surface unless explicit evidence records necessary semantics. Delete temporary audit scripts and hand-maintained counts.",
+          "status": "open",
+          "verify": "go test ./internal/codeprofile ./internal/codemanifest ./internal/repoanalysis ./cmd/gate ./cmd/code-manifest ./cmd/closure-scan -count=1",
+          "depends_on": ["consumer-surface-pruning/do"]
         }
       ]
     }

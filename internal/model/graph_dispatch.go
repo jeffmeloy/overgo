@@ -510,10 +510,10 @@ func executeLayerInstruction(
 		execution.result.Output = execution.residual
 		return nil
 	case LayerOperatorScale:
-		if !positiveFinite(plan.ResidualStages.residualScale) {
+		if !positiveFinite(instruction.Scalar) {
 			return errors.New("compiled scale stage is invalid")
 		}
-		execution.current = c.Builder.Scale(execution.current, plan.ResidualStages.residualScale)
+		execution.current = c.Builder.Scale(execution.current, instruction.Scalar)
 		execution.result.Output = execution.current
 		return c.Builder.Err()
 	case LayerOperatorResidual:
@@ -598,14 +598,6 @@ func executeLayerInstruction(
 		execution.current = result.Output
 		execution.result.Key = result.Key
 		return nil
-	case LayerOperatorPeriodicScale:
-		if execution.current == nil || !positiveFinite(plan.PeriodicScale) {
-			return errors.New("compiled periodic-scale stage is invalid")
-		}
-		execution.current = c.Builder.Scale(execution.current, plan.PeriodicScale)
-		execution.residual = execution.current
-		execution.result.Output = execution.current
-		return c.Builder.Err()
 	case LayerOperatorLatentAttention:
 		result, err := buildLatentAttentionMixCached(
 			c.Builder, execution.current, options.Spec, options.Weights, c.Positions,

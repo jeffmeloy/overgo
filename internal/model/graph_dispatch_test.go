@@ -173,7 +173,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 	)
 	requireLayerProgram(t, periodic,
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-		LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorPeriodicScale,
+		LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorScale,
 	)
 }
 

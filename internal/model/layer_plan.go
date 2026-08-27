@@ -37,6 +37,8 @@ const (
 // LayerOperator: semantic execution stage.
 type LayerOperator uint8
 
+const noLayerScale float32 = 0
+
 const (
 	LayerOperatorNone LayerOperator = iota
 	LayerOperatorAttentionInputNorm
@@ -78,7 +80,6 @@ const (
 	LayerOperatorOutputAdapter
 	LayerOperatorGatedTokenShiftSquaredReLU
 	LayerOperatorTokenShiftSquaredReLU
-	LayerOperatorPeriodicScale
 	LayerOperatorAttentionResidualNorm
 	LayerOperatorInputResidualNorm
 	LayerOperatorFeedForwardResidualNorm
@@ -93,6 +94,7 @@ const (
 // LayerOperatorInstruction: compiled operator and operand indexes.
 type LayerOperatorInstruction struct {
 	Operator    LayerOperator
+	Scalar      float32
 	CacheCount  uint8
 	TensorCount uint8
 	Caches      [runtimeCacheBindingCount]RuntimeCacheBinding
@@ -959,13 +961,13 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 	}
 	if profile.Attention == AttentionShortConvolution && recurrent {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy, false,
+			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy, noLayerScale,
 		)
 	}
 	if profile.LayerTopology == LayerTopologyAffineWKV6 {
 		return residualMixerProgram(
 			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
-			positiveFinite(plan.ResidualStages.residualScale),
+			plan.ResidualStages.residualScale,
 		)
 	}
 	if profile.Attention == AttentionGatedDelta {
@@ -973,24 +975,24 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 		if recurrent {
 			mixer = attentionLayerStage(LayerOperatorRecurrentMix)
 		}
-		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU, false)
+		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU, noLayerScale)
 	}
 	if plan.Mixer == recurrentMixerAttentionGroupedSelectiveScan {
 		return residualMixerProgram(
-			hybridLayerStage(), LayerOperatorFeedForwardPolicy, false,
+			hybridLayerStage(), LayerOperatorFeedForwardPolicy, noLayerScale,
 		)
 	}
 	if plan.Mixer == recurrentMixerScaledGroupedSelectiveScan {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorRecurrentMix),
-			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
+			scaleLayerStage(plan.ResidualStages.residualScale), layerStage(LayerOperatorResidual),
 			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
-			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
+			scaleLayerStage(plan.ResidualStages.residualScale), layerStage(LayerOperatorResidual),
 		)
 	}
 	if plan.Mixer == recurrentMixerWeightedSelectiveScan {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy, false,
+			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy, noLayerScale,
 		)
 	}
 	if plan.Mixer == recurrentMixerNormalizedSelectiveScan {
@@ -1053,7 +1055,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 				layerStage(LayerOperatorResidual),
 			}
 			if positiveFinite(plan.PeriodicScale) {
-				stages = append(stages, layerStage(LayerOperatorPeriodicScale))
+				stages = append(stages, scaleLayerStage(plan.PeriodicScale))
 			}
 			return newLayerProgram(stages...)
 		}
@@ -1143,22 +1145,22 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 	case profile.LayerTopology == LayerTopologyKeyedDeltaHybrid:
 		if !recurrent {
 			return latentLayerProgram(
-				profile,
+				profile, plan.ResidualStages.residualScale,
 				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 			)
 		}
 		return residualMixerProgram(
 			attentionLayerStage(LayerOperatorRecurrentMix),
-			LayerOperatorFeedForwardPolicy, false,
+			LayerOperatorFeedForwardPolicy, noLayerScale,
 		)
 	case plan.Attention == AttentionLatent:
 		return latentLayerProgram(
-			profile,
+			profile, plan.ResidualStages.residualScale,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 		)
 	case plan.Attention == AttentionSparseLatent:
 		return latentLayerProgram(
-			profile,
+			profile, plan.ResidualStages.residualScale,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
 			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
 		)
@@ -1181,19 +1183,20 @@ func (p LayerPlan) splitProjection() bool {
 		suffix.Operator == LayerOperatorActivatedOutput
 }
 
-func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale bool) (LayerProgram, error) {
+func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale float32) (LayerProgram, error) {
 	stages := []LayerOperatorInstruction{
 		layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
 		layerStage(LayerOperatorFeedForwardNorm), layerStage(feedForward), layerStage(LayerOperatorResidual),
 	}
-	if scale {
-		stages = append(stages, layerStage(LayerOperatorScale))
+	if positiveFinite(scale) {
+		stages = append(stages, scaleLayerStage(scale))
 	}
 	return newLayerProgram(stages...)
 }
 
 func latentLayerProgram(
 	profile ArchitectureProfile,
+	scale float32,
 	caches []RuntimeCacheBinding,
 	tensors []RuntimeTensorBinding,
 ) (LayerProgram, error) {
@@ -1204,7 +1207,7 @@ func latentLayerProgram(
 		layerStage(LayerOperatorFeedForwardPolicy),
 	}
 	if profile.LatentAttention == latentAttentionNeoXResidualScale {
-		stages = append(stages, layerStage(LayerOperatorScale))
+		stages = append(stages, scaleLayerStage(scale))
 	}
 	return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
 }
@@ -1224,6 +1227,10 @@ func leafLayerStage(
 
 func layerStage(operator LayerOperator) LayerOperatorInstruction {
 	return LayerOperatorInstruction{Operator: operator}
+}
+
+func scaleLayerStage(scale float32) LayerOperatorInstruction {
+	return LayerOperatorInstruction{Operator: LayerOperatorScale, Scalar: scale}
 }
 
 func attentionLayerStage(operator LayerOperator) LayerOperatorInstruction {

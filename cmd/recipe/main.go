@@ -317,14 +317,18 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 	}
 	started := time.Now()
 	var output any
+	var measured capabilityruntime.Measured
 	if capability.execute != nil {
 		output, err = capability.execute(ctx, store, path, execution, input)
 		if err != nil {
 			return err
 		}
+		if envelope, ok := output.(capabilityruntime.Measured); ok {
+			measured = envelope
+		}
 	}
-	verification, err := publishCapabilityVerification(
-		ctx, store, definition, revision, time.Since(started), "host", "go", "candidate output validated",
+	verification, err := publishMeasuredVerification(
+		ctx, store, definition, revision, time.Since(started), "host", "go", "candidate output validated", measured,
 	)
 	if err != nil {
 		return err
@@ -347,9 +351,27 @@ func publishCapabilityVerification(
 	wall time.Duration,
 	device, backend, evidence string,
 ) (modelrecipe.Verification, error) {
+	return publishMeasuredVerification(
+		ctx, store, definition, revision, wall, device, backend, evidence, capabilityruntime.Measured{},
+	)
+}
+
+// publishMeasuredVerification records a successful candidate execution
+// together with its measured decomposition: per-node phase walls become
+// gate steps (and thereby run phases), and the peak device bytes enter
+// the execution step's evidence.
+func publishMeasuredVerification(
+	ctx context.Context,
+	store artifact.Repository,
+	definition recipe.Definition,
+	revision string,
+	wall time.Duration,
+	device, backend, evidence string,
+	measured capabilityruntime.Measured,
+) (modelrecipe.Verification, error) {
 	return publishCapabilityResult(
 		ctx, store, definition, revision, wall, device, backend, evidence,
-		runrecord.OutcomeSucceeded, "",
+		runrecord.OutcomeSucceeded, "", measured,
 	)
 }
 
@@ -363,8 +385,27 @@ func publishCapabilityFailure(
 ) (modelrecipe.Verification, error) {
 	return publishCapabilityResult(
 		ctx, store, definition, revision, wall, device, backend, evidence,
-		runrecord.OutcomeFailed, failure,
+		runrecord.OutcomeFailed, failure, capabilityruntime.Measured{},
 	)
+}
+
+// mediaNodePhase maps recipe node identifiers onto the run phase
+// vocabulary; nodes outside the vocabulary carry no phase step and
+// remain inside the total wall.
+func mediaNodePhase(node recipe.NodeID) (runrecord.Phase, bool) {
+	switch node {
+	case "prepare":
+		return runrecord.PhasePrepare, true
+	case "integrate":
+		return runrecord.PhaseIntegrate, true
+	case "decode":
+		return runrecord.PhaseDecode, true
+	case "generate":
+		return runrecord.PhaseGenerate, true
+	case "tokenize":
+		return runrecord.PhaseTokenize, true
+	}
+	return "", false
 }
 
 func publishCapabilityResult(
@@ -376,6 +417,7 @@ func publishCapabilityResult(
 	device, backend, evidence string,
 	outcome runrecord.Outcome,
 	failure string,
+	measured capabilityruntime.Measured,
 ) (modelrecipe.Verification, error) {
 	environment, err := runrecord.CurrentEnvironment(device, backend)
 	if err != nil {
@@ -386,13 +428,26 @@ func publishCapabilityResult(
 	if outcome == runrecord.OutcomeFailed {
 		stepOutcome = runrecord.StepFailed
 	}
+	if measured.PeakDeviceBytes > 0 {
+		evidence = fmt.Sprintf("%s; peak_device_bytes=%d", evidence, measured.PeakDeviceBytes)
+	}
+	steps := []runrecord.GateStep{{
+		Name: "candidate-execution", Phase: runrecord.PhaseTest,
+		Outcome: stepOutcome, DurationNS: duration, Evidence: evidence,
+	}}
+	for _, node := range measured.Phases {
+		phase, ok := mediaNodePhase(node.Node)
+		if !ok || node.WallNS == 0 {
+			continue
+		}
+		steps = append(steps, runrecord.GateStep{
+			Name: "node-" + string(node.Node), Phase: phase,
+			Outcome: stepOutcome, DurationNS: node.WallNS,
+		})
+	}
 	record, err := runrecord.NewGateRecord(
 		definition.ID, environment.ID, revision,
-		outcome, failure, duration,
-		[]runrecord.GateStep{{
-			Name: "candidate-execution", Phase: runrecord.PhaseTest,
-			Outcome: stepOutcome, DurationNS: duration, Evidence: evidence,
-		}},
+		outcome, failure, duration, steps,
 	)
 	if err != nil {
 		return modelrecipe.Verification{}, err
@@ -482,7 +537,9 @@ func executeCapability(
 	if err != nil {
 		return err
 	}
-	return json.NewEncoder(os.Stdout).Encode(output)
+	// The run verb serves the output itself; measured decompositions
+	// belong to verification evidence, not the serving contract.
+	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
 }
 
 // sessionOverride: operator-pinned decode session; nil defers to the

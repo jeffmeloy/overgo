@@ -163,11 +163,20 @@ const (
 	PhaseHostToDevice    Phase = "host_to_device"
 	PhaseDeviceToHost    Phase = "device_to_host"
 	PhasePostprocess     Phase = "postprocess"
-	PhaseValidate        Phase = "validate"
-	PhaseBuild           Phase = "build"
-	PhaseTest            Phase = "test"
-	PhaseVet             Phase = "vet"
-	PhasePackage         Phase = "package"
+	// PhasePrepare is the media recipe node phase for session and
+	// conditioning preparation.
+	PhasePrepare Phase = "prepare"
+	// PhaseIntegrate is the media recipe node phase for the iterative
+	// latent integration loop.
+	PhaseIntegrate Phase = "integrate"
+	// PhaseGenerate is the media recipe node phase for sequence
+	// generation.
+	PhaseGenerate Phase = "generate"
+	PhaseValidate Phase = "validate"
+	PhaseBuild    Phase = "build"
+	PhaseTest     Phase = "test"
+	PhaseVet      Phase = "vet"
+	PhasePackage  Phase = "package"
 )
 
 type PhaseMetric struct {
@@ -378,7 +387,8 @@ func validPhase(phase Phase) bool {
 	switch phase {
 	case PhaseLoad, PhasePromptRender, PhaseTokenize, PhaseMediaDecode, PhaseVision,
 		PhasePrefill, PhaseDecode, PhaseSample, PhaseForwardBackward, PhaseOptimizer,
-		PhaseRefresh, PhaseHostToDevice, PhaseDeviceToHost, PhasePostprocess:
+		PhaseRefresh, PhaseHostToDevice, PhaseDeviceToHost, PhasePostprocess,
+		PhasePrepare, PhaseIntegrate, PhaseGenerate:
 		return true
 	case PhaseValidate, PhaseBuild, PhaseTest, PhaseVet, PhasePackage:
 		return true

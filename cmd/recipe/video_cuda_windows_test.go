@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/latentvideo"
@@ -96,7 +97,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		video, ok := output.(latentvideo.EncodedVideo)
+		video, ok := capabilityruntime.Unwrap(output).(latentvideo.EncodedVideo)
 		if !ok {
 			t.Fatalf("video output type=%T", output)
 		}

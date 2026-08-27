@@ -107,8 +107,8 @@ func generateMediaReport(root, repository string) ([]byte, error) {
 	}
 	output.WriteString("\nThe matrix reports activation and evidence scope, not general model-family support: an activation means the recipe lifecycle admitted the model for the task at the stated tier, and a measured claim binds that capability to real execution evidence at its commit.\n")
 	output.WriteString("\n## Measured results\n\n")
-	output.WriteString("One row per healthy activation: the verifier run the activation cites, exactly as recorded -- wall, verifying commit, and the output artifacts the run published. A dash means the activation stands without a readable run record.\n\n")
-	output.WriteString("| Model | Task | Verifier wall | Commit | Run outputs |\n| --- | --- | --- | --- | --- |\n")
+	output.WriteString("One row per healthy activation: the verifier run the activation cites, exactly as recorded -- wall, measured phase decomposition, peak device bytes, verifying commit, and the output artifacts the run published. A dash means the activation stands without that measurement.\n\n")
+	output.WriteString("| Model | Task | Verifier wall | Phases | Peak device | Commit | Run outputs |\n| --- | --- | --- | --- | --- | --- | --- |\n")
 	results := 0
 	for _, row := range report {
 		if strings.HasPrefix(row.stale, "stale") {
@@ -130,8 +130,9 @@ func generateMediaReport(root, repository string) ([]byte, error) {
 func activationRunResult(ctx context.Context, store *overgodb.Store, model artifact.ID, task recipe.Task) string {
 	activation, active, err := modelrecipe.ActiveRecord(ctx, store, model, task)
 	if err != nil || !active {
-		return "- | - | -"
+		return "- | - | - | - | -"
 	}
+	peak := activationPeakDeviceBytes(ctx, store, activation.Event.Evidence)
 	for _, evidence := range activation.Event.Evidence {
 		if evidence.Kind() != artifact.KindRun {
 			continue
@@ -152,11 +153,81 @@ func activationRunResult(ctx context.Context, store *overgodb.Store, model artif
 		if len(outputs) > 0 {
 			rendered = strings.Join(outputs, ", ")
 		}
-		return fmt.Sprintf("%s | `%s` | %s",
+		return fmt.Sprintf("%s | %s | %s | `%s` | %s",
 			time.Duration(run.MeasuredNS).Round(time.Millisecond).String(),
-			shortCommit(run.CodeCommit), rendered)
+			phaseCell(run.Phases), peak, shortCommit(run.CodeCommit), rendered)
 	}
-	return "- | - | -"
+	return "- | - | " + peak + " | - | -"
+}
+
+// mediaRunPhases is the report's phase scope: the measured recipe-node
+// decomposition, excluding the gate's own bookkeeping phases whose
+// totals duplicate the wall column.
+var mediaRunPhases = map[runrecord.Phase]bool{
+	runrecord.PhasePrepare: true, runrecord.PhaseIntegrate: true,
+	runrecord.PhaseDecode: true, runrecord.PhaseGenerate: true,
+	runrecord.PhaseTokenize: true,
+}
+
+// phaseCell renders the run's recorded node-phase walls in recorded
+// order, or the honest dash when the run predates phase capture.
+func phaseCell(phases []runrecord.PhaseMetric) string {
+	parts := make([]string, 0, len(phases))
+	for _, metric := range phases {
+		if !mediaRunPhases[metric.Phase] {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s %s",
+			metric.Phase, time.Duration(metric.DurationNS).Round(time.Millisecond)))
+	}
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, ", ")
+}
+
+// activationPeakDeviceBytes reads the gate result the activation cites
+// and extracts the recorded peak-device evidence; absence renders the
+// dash, never an invented number.
+func activationPeakDeviceBytes(ctx context.Context, store *overgodb.Store, evidence []artifact.ID) string {
+	for _, id := range evidence {
+		if id.Kind() != artifact.KindEvidence {
+			continue
+		}
+		content, found, err := artifact.ReadContent(ctx, store, id)
+		if err != nil || !found {
+			continue
+		}
+		gate, err := runrecord.ParseGateResult(content.Data)
+		if err != nil {
+			continue
+		}
+		for _, step := range gate.Steps {
+			if peak, ok := stepPeakDeviceBytes(step.Evidence); ok {
+				return peak
+			}
+		}
+	}
+	return "-"
+}
+
+// stepPeakDeviceBytes parses the peak_device_bytes evidence marker a
+// measured verification writes into its execution step.
+func stepPeakDeviceBytes(evidence string) (string, bool) {
+	const marker = "peak_device_bytes="
+	index := strings.Index(evidence, marker)
+	if index < 0 {
+		return "", false
+	}
+	digits := evidence[index+len(marker):]
+	end := 0
+	for end < len(digits) && digits[end] >= '0' && digits[end] <= '9' {
+		end++
+	}
+	if end == 0 {
+		return "", false
+	}
+	return digits[:end] + " B", true
 }
 
 // mediaModelName derives a distinctive name from a recorded location:

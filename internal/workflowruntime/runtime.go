@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
@@ -75,11 +76,19 @@ func (f AdapterFunc) Execute(ctx context.Context, request StepRequest) (map[reci
 	return f(ctx, request)
 }
 
+// NodeWall is one executed node measured wall: the observation the
+// media report renders as a phase decomposition.
+type NodeWall struct {
+	Node   recipe.NodeID `json:"node"`
+	WallNS uint64        `json:"wall_ns"`
+}
+
 // Result: workflow outputs plus durable run identity.
 type Result struct {
-	Outputs map[recipe.PortName]Value
-	Run     runrecord.Run
-	Commit  artifact.CommitID
+	Outputs   map[recipe.PortName]Value
+	Run       runrecord.Run
+	Commit    artifact.CommitID
+	NodeWalls []NodeWall
 }
 
 // Runtime: registered module adapters plus run repository.
@@ -194,7 +203,7 @@ func (r *Runtime) executeProgram(
 	if err != nil {
 		return Result{}, err
 	}
-	outputs, executeErr := r.executePlan(ctx, definition, readySets, operation, attempts, inputs)
+	outputs, nodeWalls, executeErr := r.executePlan(ctx, definition, readySets, operation, attempts, inputs)
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if executeErr != nil {
 		outputs = nil
@@ -223,7 +232,7 @@ func (r *Runtime) executeProgram(
 		commitContext = context.WithoutCancel(ctx)
 	}
 	commit, commitErr := artifact.CommitBatch(commitContext, r.store, batch)
-	result := Result{Outputs: outputs, Run: run, Commit: commit}
+	result := Result{Outputs: outputs, Run: run, Commit: commit, NodeWalls: nodeWalls}
 	if commitErr != nil && !errors.Is(commitErr, artifact.ErrNoChange) {
 		return result, errors.Join(executeErr, commitErr)
 	}
@@ -237,27 +246,31 @@ func (r *Runtime) executePlan(
 	operation artifact.ID,
 	attempts AttemptRecorder,
 	external map[recipe.PortName]Value,
-) (map[recipe.PortName]Value, error) {
+) (map[recipe.PortName]Value, []NodeWall, error) {
+	var walls []NodeWall
 	bound := make(map[recipe.Endpoint][]Value)
 	if len(external) != len(definition.Inputs) {
-		return nil, errors.New("workflow runtime: external input set differs")
+		return nil, nil, errors.New("workflow runtime: external input set differs")
 	}
 	for _, input := range definition.Inputs {
 		value, ok := external[input.Name]
 		if !ok || value.Kind != input.Data {
-			return nil, fmt.Errorf("workflow runtime: invalid input %q", input.Name)
+			return nil, nil, fmt.Errorf("workflow runtime: invalid input %q", input.Name)
 		}
 		bound[input.Target] = append(bound[input.Target], cloneValue(value))
 	}
 	for _, ready := range readySets {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		completed, err := r.executeReadySet(ctx, definition, ready, operation, attempts, bound)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, stage := range completed {
+			if !stage.recovered {
+				walls = append(walls, NodeWall{Node: stage.stage.Node.ID, WallNS: stage.wallNS})
+			}
 			for _, edge := range definition.Edges {
 				if edge.From.Node == stage.stage.Node.ID {
 					if value, ok := stage.outputs[edge.From.Port]; ok {
@@ -278,11 +291,11 @@ func (r *Runtime) executePlan(
 			if err == nil {
 				err = errors.New("output is empty")
 			}
-			return nil, fmt.Errorf("workflow runtime: output %q: %w", output.Name, err)
+			return nil, nil, fmt.Errorf("workflow runtime: output %q: %w", output.Name, err)
 		}
 		outputs[output.Name] = value
 	}
-	return outputs, nil
+	return outputs, walls, nil
 }
 
 type stageExecution struct {
@@ -292,12 +305,14 @@ type stageExecution struct {
 	base      runrecord.StageReceipt
 	outputs   map[recipe.PortName]Value
 	recovered bool
+	wallNS    uint64
 	err       error
 }
 
 type stageResult struct {
 	index   int
 	outputs map[recipe.PortName]Value
+	wallNS  uint64
 	err     error
 }
 
@@ -342,13 +357,15 @@ func (r *Runtime) executeReadySet(
 				entry := r.adapterEntry(stage.stage.Module.ID)
 				entry.Lock()
 				defer entry.Unlock()
+				started := time.Now()
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
-				results <- stageResult{index: index, outputs: outputs, err: err}
+				results <- stageResult{index: index, outputs: outputs, wallNS: uint64(time.Since(started).Nanoseconds()), err: err}
 			}(index)
 		}
 		for range active {
 			result := <-results
 			stages[result.index].outputs, stages[result.index].err = result.outputs, result.err
+			stages[result.index].wallNS = result.wallNS
 			if result.err != nil {
 				cancel()
 			}

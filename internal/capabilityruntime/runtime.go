@@ -60,11 +60,18 @@ func JSONScalar[Input, Model, Output any](
 		if err != nil {
 			return nil, err
 		}
-		output, executeErr := executeScalar[Input, Model, Output](
+		output, walls, executeErr := executeScalar[Input, Model, Output](
 			ctx, store, modelID, program, content, input, model, bind,
 		)
+		var measured Measured
+		if executeErr == nil {
+			measured = measure(output, model, walls)
+		}
 		executeErr = errors.Join(executeErr, closeModel(context.WithoutCancel(ctx), model))
-		return output, executeErr
+		if executeErr != nil {
+			return nil, executeErr
+		}
+		return measured, nil
 	}
 }
 
@@ -73,6 +80,11 @@ func IgnoreInput[Input, Model any](load func(string) (Model, error)) func(contex
 		return load(path)
 	}
 }
+
+var (
+	errorProgramModelDiffers = errors.New("capability runtime: program model differs from binding")
+	errorProgramOutputArity  = errors.New("capability runtime: program requires one output")
+)
 
 // Execute binds adapters and runs a program with one typed output.
 func Execute[Output any](
@@ -84,29 +96,14 @@ func Execute[Output any](
 	inputs map[recipe.PortName]workflowruntime.Value,
 	bind func(*workflowruntime.Runtime) error,
 ) (Output, error) {
+	value, _, err := ExecuteMeasured[Output](ctx, store, modelID, program, key, inputs, bind)
+	return value, err
+}
+
+// singleOutput unwraps the program's one output datum into its typed
+// value, decoding recorded content when the value is not resident.
+func singleOutput[Output any](definition recipe.Definition, result workflowruntime.Result) (Output, error) {
 	var zero Output
-	definition := program.Definition()
-	if definition.Model != modelID {
-		return zero, fmt.Errorf("capability runtime: program model differs from binding")
-	}
-	if len(definition.Outputs) != 1 {
-		return zero, fmt.Errorf("capability runtime: program requires one output")
-	}
-	runtime, err := workflowruntime.NewForProgram(store, program)
-	if err != nil {
-		return zero, err
-	}
-	if err := bind(runtime); err != nil {
-		return zero, err
-	}
-	operation, err := workflowruntime.ExecutionID(definition.ID, key)
-	if err != nil {
-		return zero, err
-	}
-	result, err := runtime.ExecuteProgram(ctx, key, operation, nil, program, inputs)
-	if err != nil {
-		return zero, err
-	}
 	output := definition.Outputs[0]
 	datum, ok := result.Outputs[output.Name].Single()
 	if !ok {

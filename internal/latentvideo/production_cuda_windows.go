@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/media"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor/dtype"
@@ -87,6 +88,15 @@ func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedV
 	return video, err
 }
 
+// PeakDeviceBytes reports the largest peak the resident device
+// sessions record in their allocation ledgers.
+func (r *WanRuntime) PeakDeviceBytes() (uint64, error) {
+	if r == nil || r.generator == nil {
+		return 0, errors.New("latent video: Wan runtime is closed")
+	}
+	return peakAcrossSessions(r.generator.denoiser, r.generator.decoder)
+}
+
 func (r *WanRuntime) Close(context.Context) error {
 	if r == nil || r.generator == nil {
 		return nil
@@ -159,6 +169,15 @@ func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditReq
 	return video, err
 }
 
+// PeakDeviceBytes reports the largest peak the resident device
+// sessions record in their allocation ledgers.
+func (r *LiveEditRuntime) PeakDeviceBytes() (uint64, error) {
+	if r == nil || r.runtime == nil {
+		return 0, errors.New("latent video: LiveEdit runtime is closed")
+	}
+	return peakAcrossSessions(r.runtime.denoiser, r.runtime.decoder)
+}
+
 func (r *LiveEditRuntime) Close(context.Context) error {
 	if r == nil || r.runtime == nil {
 		return nil
@@ -173,6 +192,28 @@ func RegisterLiveEditRuntime(runtime *workflowruntime.Runtime, modelID artifact.
 		return errors.New("latent video: incomplete LiveEdit runtime binding")
 	}
 	return registerReferenceEditRuntime(runtime, modelID, model.Generate)
+}
+
+// peakAcrossSessions folds session allocation ledgers into the single
+// largest observed peak; sessions run on distinct workers, so the
+// maximum is the runtime's device high-water mark, not a sum.
+func peakAcrossSessions(sessions ...interface {
+	MemoryStats() (driver.MemoryStats, error)
+}) (uint64, error) {
+	var peak uint64
+	var errs []error
+	for _, session := range sessions {
+		stats, err := session.MemoryStats()
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		peak = max(peak, stats.PeakBytes)
+	}
+	if peak == 0 && len(errs) > 0 {
+		return 0, errors.Join(errs...)
+	}
+	return peak, nil
 }
 
 func readProgramProfile(ctx context.Context, store artifact.Reader, program recipe.Program) (Profile, error) {

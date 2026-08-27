@@ -17,19 +17,6 @@
       ]
     },
     {
-      "id": "store-segmentation",
-      "title": "OvergoDB snapshot and segment rotation replace the monolithic journal",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "OvergoDB snapshot and segment rotation replace the monolithic journal",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run TestSegment -count=1"
-        }
-      ]
-    },
-    {
       "id": "build-hygiene",
       "title": "Segregate retained build artifacts from disposable scrap",
       "status": "open",

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"overgo/internal/binaryschema"
 )
 
 type schemaBuiltinRule struct {
@@ -611,7 +613,7 @@ func schemaInt64(object orderedJSONObject, name string) (int64, error) {
 	if !ok {
 		return 0, fmt.Errorf("%s is not an integer", name)
 	}
-	result, err := strconv.ParseInt(string(number), 10, 64)
+	result, err := strconv.ParseInt(string(number), binaryschema.DecimalRadix, binaryschema.Width64Bits)
 	if err != nil {
 		return 0, fmt.Errorf("%s is not an int64: %w", name, err)
 	}

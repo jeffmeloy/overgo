@@ -50,6 +50,7 @@ type AttemptRecord struct {
 	Version           uint16           `json:"version"`
 	PlanItem          string           `json:"plan_item"`
 	PlanStep          string           `json:"plan_step"`
+	Strategy          string           `json:"strategy,omitempty"`
 	Result            artifact.ID      `json:"result"`
 	Recipe            artifact.ID      `json:"recipe"`
 	CodeCommit        string           `json:"code_commit"`
@@ -60,7 +61,7 @@ type AttemptRecord struct {
 	CandidateManifest artifact.ID      `json:"candidate_manifest,omitzero"`
 	Selection         AttemptSelection `json:"selection"`
 	Diff              AttemptDiff      `json:"diff"`
-	Strategy          artifact.ID      `json:"strategy,omitzero"`
+	StrategyID        artifact.ID      `json:"strategy_id,omitzero"`
 	TaskContract      artifact.ID      `json:"task_contract,omitzero"`
 	Environment       artifact.ID      `json:"environment,omitzero"`
 	Trajectory        artifact.ID      `json:"trajectory,omitzero"`
@@ -83,6 +84,12 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 	if strings.TrimSpace(value.PlanItem) == "" || strings.TrimSpace(value.PlanStep) == "" ||
 		strings.ContainsAny(value.PlanItem+value.PlanStep, "/\x00\r\n\t ") {
 		return errors.New("run record: attempt requires its plan item and step")
+	}
+	// Strategy is optional -- an interactive session declares none --
+	// but a declared identity is one bounded token, never free text.
+	if value.Strategy != "" &&
+		(len(value.Strategy) > 128 || strings.ContainsAny(value.Strategy, " /\x00\r\n\t")) {
+		return errors.New("run record: attempt strategy must be one bounded token")
 	}
 	if value.Result.Kind() != artifact.KindEvidence {
 		return errors.New("run record: attempt requires the gate result it binds")
@@ -117,7 +124,7 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 	if value.Diff.Files < 0 || value.Diff.Insertions < 0 || value.Diff.Deletions < 0 {
 		return errors.New("run record: attempt diff counts are not observations")
 	}
-	for _, id := range []artifact.ID{value.Strategy, value.TaskContract, value.Environment, value.Trajectory} {
+	for _, id := range []artifact.ID{value.StrategyID, value.TaskContract, value.Environment, value.Trajectory} {
 		if id.Valid() && id.Kind() != artifact.KindEvidence && id.Kind() != artifact.KindRecipe && id.Kind() != artifact.KindProfile {
 			return errors.New("run record: invalid attempt authority")
 		}
@@ -149,7 +156,7 @@ func (a AttemptRecord) Lineage() []artifact.Lineage {
 			})
 		}
 	}
-	for _, parent := range []artifact.ID{a.Strategy, a.TaskContract, a.Environment, a.Trajectory} {
+	for _, parent := range []artifact.ID{a.StrategyID, a.TaskContract, a.Environment, a.Trajectory} {
 		if parent.Valid() {
 			lineage = append(lineage, artifact.Lineage{Child: a.ID, Parent: parent, Relation: artifact.RelationDependsOn})
 		}

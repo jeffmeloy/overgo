@@ -55,6 +55,22 @@ func TestRebindDiagnostics(t *testing.T) {
 	}
 }
 
+func TestReviewedRebindAcceptsCallsiteChange(t *testing.T) {
+	previous := rebindCandidate(t, "37", "old callsites")
+	binding, err := previous.Binding()
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := previous
+	current.CallsiteID = sourceDigest("reviewed callsites")
+	rebound, matched, reason, err := CompileRebindIndex([]Candidate{current}).RebindReviewed(
+		rebindDocument(t, previous, binding),
+	)
+	if err != nil || !matched || reason != "source" || rebound.Bindings[0].CallsiteID != current.CallsiteID {
+		t.Fatalf("reviewed rebind = (%t, %s, %v, %+v)", matched, reason, err, rebound.Bindings)
+	}
+}
+
 func TestRebindMatchesExactBinding(t *testing.T) {
 	candidate := rebindCandidate(t, "37", "stable callsites")
 	binding, err := candidate.Binding()

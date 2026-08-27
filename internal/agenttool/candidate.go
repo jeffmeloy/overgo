@@ -11,11 +11,16 @@ import (
 )
 
 const (
-	CandidateCatalogMediaType      = "application/vnd.overgo.agent-tool-candidate+json"
-	CandidateCatalogSchema         = "overgo/agent-tool-candidate/v1"
+	// CandidateCatalogMediaType identifies encoded candidate-catalog documents.
+	CandidateCatalogMediaType = "application/vnd.overgo.agent-tool-candidate+json"
+	// CandidateCatalogSchema identifies the exact stored candidate-catalog schema.
+	CandidateCatalogSchema = "overgo/agent-tool-candidate/v1"
+	// CandidateVerificationMediaType identifies encoded candidate-verification documents.
 	CandidateVerificationMediaType = "application/vnd.overgo.agent-tool-candidate-verification+json"
-	CandidateVerificationSchema    = "overgo/agent-tool-candidate-verification/v1"
-	ActiveCatalogAlias             = "tool.catalog.active"
+	// CandidateVerificationSchema identifies the exact stored candidate-verification schema.
+	CandidateVerificationSchema = "overgo/agent-tool-candidate-verification/v1"
+	// ActiveCatalogAlias names the store alias of the active tool catalog.
+	ActiveCatalogAlias = "tool.catalog.active"
 )
 
 // CandidateCatalog binds an inactive snapshot to its exact discovery source.

@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/runrecord"
 )
 
@@ -140,17 +141,17 @@ func buildRelease(root, output string, verify bool) error {
 			return errors.New("release: repeated builds are not byte-identical")
 		}
 	}
-	if err := os.MkdirAll(output, 0o755); err != nil {
+	if err := os.MkdirAll(output, releaseDirectoryMode); err != nil {
 		return err
 	}
 	archive := releaseArchiveName(version)
 	archivePath := filepath.Join(output, archive)
-	if err := os.WriteFile(archivePath, first, 0o644); err != nil {
+	if err := os.WriteFile(archivePath, first, clioptions.OutputFileMode); err != nil {
 		return err
 	}
 	sum := sha256.Sum256(first)
 	checksum := hex.EncodeToString(sum[:]) + "  " + archive + "\n"
-	return os.WriteFile(archivePath+".sha256", []byte(checksum), 0o644)
+	return os.WriteFile(archivePath+".sha256", []byte(checksum), clioptions.OutputFileMode)
 }
 
 func releaseManifestAuditCommand(root string) *exec.Cmd {

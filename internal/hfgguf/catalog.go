@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/gguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/model"
@@ -306,7 +307,7 @@ func mapLayerTensor(
 	if !ok {
 		return "", 0, errors.New("tensor has no layer suffix")
 	}
-	index, err := strconv.ParseUint(layer, 10, 32)
+	index, err := strconv.ParseUint(layer, binaryschema.DecimalRadix, binaryschema.Width32Bits)
 	if err != nil {
 		return "", 0, errors.New("tensor has invalid layer")
 	}

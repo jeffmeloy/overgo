@@ -64,7 +64,7 @@ func CompareStrategyExperiment(task recipe.AgentTaskContract, baseline string, c
 		if err := candidate.Lease.ValidateIdentity(); err != nil {
 			return StrategyExperiment{}, StrategyComparison{}, err
 		}
-		if candidate.Lease.TargetHead != baseline || worktrees[strings.ToLower(candidate.Lease.Worktree)] || candidate.Attempt.Strategy != candidate.Strategy.ID ||
+		if candidate.Lease.TargetHead != baseline || worktrees[strings.ToLower(candidate.Lease.Worktree)] || candidate.Attempt.StrategyID != candidate.Strategy.ID ||
 			candidate.Trajectory.Kind() != artifact.KindEvidence || candidate.EvaluationPlan.Kind() != artifact.KindProfile || candidate.EvaluationEvidence.Kind() != artifact.KindEvidence {
 			return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: strategy candidate authority or isolation differs")
 		}

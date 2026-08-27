@@ -482,7 +482,7 @@ func (v *Vocab) EOGTokens() []TokenID {
 	if v == nil {
 		return nil
 	}
-	result := make([]TokenID, 0, 5)
+	var result []TokenID
 	for id := range v.Tokens {
 		if v.IsEOG(TokenID(id)) {
 			result = append(result, TokenID(id))

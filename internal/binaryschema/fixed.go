@@ -9,10 +9,31 @@ const (
 	// BitsPerByte is the bit width of Go's byte and supported wire bytes.
 	BitsPerByte = 8
 	// Uint8Bytes is the storage width of an unsigned 8-bit scalar.
-	Uint8Bytes  = 1
+	Uint8Bytes = 1
+	// Uint16Bytes is the storage width of an unsigned 16-bit scalar.
 	Uint16Bytes = 2
+	// Uint32Bytes is the storage width of an unsigned 32-bit scalar.
 	Uint32Bytes = 4
+	// Uint64Bytes is the storage width of an unsigned 64-bit scalar.
 	Uint64Bytes = 8
+	// Width32Bits is the bit width of a 32-bit scalar.
+	Width32Bits = Uint32Bytes * BitsPerByte
+	// Width64Bits is the bit width of a 64-bit scalar.
+	Width64Bits = Uint64Bytes * BitsPerByte
+	// ByteValueCount is the number of distinct byte values.
+	ByteValueCount = 1 << BitsPerByte
+	// BinaryRadix is the base of binary textual encoding.
+	BinaryRadix = 2
+	// OctalRadix is the base of octal textual encoding.
+	OctalRadix = 8
+	// DecimalRadix is the base of decimal textual encoding.
+	DecimalRadix = 10
+	// HexRadix is the base of hexadecimal textual encoding.
+	HexRadix = 16
+	// NibbleBits is the bit width of one hexadecimal digit.
+	NibbleBits = BitsPerByte / 2
+	// NibbleMask isolates the low nibble of a byte.
+	NibbleMask = 1<<NibbleBits - 1
 )
 
 // Fixed: byte order for fixed-width scalar storage.

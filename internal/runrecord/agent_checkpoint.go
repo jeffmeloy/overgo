@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"errors"
 	"math"
 	"slices"
@@ -63,9 +62,6 @@ var agentMutationCheckpointCodec = artifact.JSONDocumentCodec(
 func NewAgentMutationCheckpoint(value AgentMutationCheckpoint) (AgentMutationCheckpoint, error) {
 	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
 	return agentMutationCheckpointCodec.New(value)
-}
-func RequireAgentMutationCheckpoint(ctx context.Context, reader artifact.Reader, id artifact.ID) (AgentMutationCheckpoint, error) {
-	return agentMutationCheckpointCodec.Require(ctx, reader, id)
 }
 func (v AgentMutationCheckpoint) Content() (artifact.Content, error) {
 	return agentMutationCheckpointCodec.Content(v)

@@ -9,12 +9,12 @@
 //	                      dispatching campaign work.
 //
 // The stop gate protects WORK and the LOOP: it refuses a turn-end that would
-// orphan turn-created uncommitted work, and it refuses a turn-end under an
-// open plan row when the turn advanced nothing (no gate commit moved HEAD) --
-// the owner rule that a prompt interleave never pauses the loop; the one
-// sanctioned pause is a recorded user stop. Valves keep it from ever wedging:
-// a stop_hook_active retry passes, a live background gate steps aside, a
-// fresh recorded stop at HEAD passes, plan-complete passes.
+// orphan turn-created uncommitted work, and it refuses a turn-end while the
+// plan holds ANY open row -- committed progress changes the message, never
+// the verdict, so the loop runs until the plan is empty. The one sanctioned
+// pause is a recorded user stop. Valves keep it from ever wedging: a
+// stop_hook_active retry passes, a live background gate steps aside, a fresh
+// recorded stop at HEAD passes, plan-complete passes.
 package main
 
 import (
@@ -66,29 +66,29 @@ func readStdin() string {
 
 // Stop verdict reasons. Allow whenever a valve fires; otherwise a turn-end is
 // refused for one of two reasons: it would orphan turn-created work, or it
-// would pause the loop on a mere prompt interleave (owner rule 2026-08-20:
-// "the need to continue the plan doesn't go away unless I say stop") — a turn
-// under an open plan row must advance HEAD through the gate, and the only
-// sanctioned pause is a recorded user stop (go run ./cmd/plan -stop), which
-// arms the freshStop valve.
+// would pause the loop while the plan still holds an open row (owner rule
+// 2026-08-20: "the need to continue the plan doesn't go away unless I say
+// stop"). Committed progress is necessary, never sufficient: a turn under an
+// open plan row continues until the plan is EMPTY, and the only sanctioned
+// pause is a recorded user stop (go run ./cmd/plan -stop), which arms the
+// freshStop valve.
 const (
 	stopAllow    = ""
 	stopOrphan   = "orphan"
 	stopContinue = "continue"
 )
 
-// stopDecision is the pure verdict the Stop hook renders.
-func stopDecision(stopHookActive, freshStop, gateRunning, planComplete, dirtyWork, progressed bool) string {
+// stopDecision is the pure verdict the Stop hook renders. planComplete is the
+// only plan-derived allow; a landed commit changes the message, never the
+// verdict.
+func stopDecision(stopHookActive, freshStop, gateRunning, planComplete, dirtyWork bool) string {
 	if stopHookActive || freshStop || gateRunning || planComplete {
 		return stopAllow
 	}
 	if dirtyWork {
 		return stopOrphan
 	}
-	if !progressed {
-		return stopContinue
-	}
-	return stopAllow
+	return stopContinue
 }
 
 func runStop(hookJSON string) int {
@@ -105,7 +105,7 @@ func runStop(hookJSON string) int {
 	dirtyWork := hasTurnCreatedDirt()
 	progressed := headAdvancedSinceTurnStart()
 
-	verdict := stopDecision(false, freshStop, gateRunning, complete, dirtyWork, progressed)
+	verdict := stopDecision(false, freshStop, gateRunning, complete, dirtyWork)
 	if verdict == stopAllow {
 		return 0
 	}
@@ -119,9 +119,15 @@ func runStop(hookJSON string) int {
 		b.WriteString("overgo loop gate: this turn would orphan uncommitted work.\n")
 		b.WriteString("  * commit via 'go run ./cmd/gate -plan <item>/<step> ...' or revert it.\n")
 	case stopContinue:
-		b.WriteString("overgo loop gate: a prompt answer does not pause the loop (owner rule).\n")
-		b.WriteString("  * continue the dispatched row now; a turn under an open row ends after a\n")
-		b.WriteString("    gate commit. To pause: go run ./cmd/plan -stop user-stop:<detail>.\n")
+		if progressed {
+			b.WriteString("overgo loop gate: the row landed, but the plan still holds open rows.\n")
+			b.WriteString("  * continue with the next dispatched row now; a turn ends only when the\n")
+			b.WriteString("    plan is EMPTY. To pause: go run ./cmd/plan -stop user-stop:<detail>.\n")
+		} else {
+			b.WriteString("overgo loop gate: a prompt answer does not pause the loop (owner rule).\n")
+			b.WriteString("  * continue the dispatched row now; a turn ends only when the plan is\n")
+			b.WriteString("    EMPTY. To pause: go run ./cmd/plan -stop user-stop:<detail>.\n")
+		}
 	}
 	b.WriteString("  Dispatched now: " + next + "\n")
 	fmt.Fprint(os.Stderr, b.String())

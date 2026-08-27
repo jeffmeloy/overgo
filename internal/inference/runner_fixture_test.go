@@ -56,14 +56,23 @@ func fixtureLayerPlan(spec model.Spec, layer int) model.LayerPlan {
 func fixtureRunner(spec model.Spec, weights model.Weights) *Runner {
 	program := fixtureProgram(spec, weights)
 	return &Runner{preparedModel: preparedModel{
-		spec: program.Model.Spec(), weights: weights, program: program,
+		spec: program.Model.Spec(), weights: weights, program: program, runtimePolicy: fixtureRuntimePolicy(),
 	}}
 }
 
 func attachFixtureProgram(runner *Runner) *Runner {
 	runner.program = fixtureProgram(runner.spec, runner.weights)
 	runner.spec = runner.program.Model.Spec()
+	runner.runtimePolicy = fixtureRuntimePolicy()
 	return runner
+}
+
+func fixtureRuntimePolicy() modelrecipe.RuntimePolicy {
+	policy, found, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !found {
+		panic("inference fixture runtime policy is unavailable")
+	}
+	return policy
 }
 
 func bindFixtureSpec(spec model.Spec) model.Spec {

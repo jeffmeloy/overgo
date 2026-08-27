@@ -56,6 +56,7 @@ func TestAttemptRecordRefusesNonObservations(t *testing.T) {
 		"hits above eligible":    func(a *AttemptRecord) { a.Selection.CacheHits = 9 },
 		"negative diff":          func(a *AttemptRecord) { a.Diff.Deletions = -1 },
 		"invalid outcome":        func(a *AttemptRecord) { a.Outcome = "maybe" },
+		"free-text strategy":     func(a *AttemptRecord) { a.Strategy = "two words" },
 		"negative planning cost": func(a *AttemptRecord) { a.Selection.PlanningNS = -1 },
 	}
 	for name, mutate := range corrupt {

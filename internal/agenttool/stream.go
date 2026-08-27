@@ -19,10 +19,14 @@ import (
 )
 
 const (
+	// HTTPJSONStreamMediaType is the newline-delimited JSON stream transport type.
 	HTTPJSONStreamMediaType = "application/x-ndjson"
+	// StreamTerminalMediaType identifies encoded stream-terminal documents.
 	StreamTerminalMediaType = "application/vnd.overgo.agent-tool-stream-terminal+json"
-	StreamTerminalSchema    = "overgo/agent-tool-stream-terminal/v1"
-	StreamEventSchema       = "overgo.agent-tool-stream-event.v1"
+	// StreamTerminalSchema identifies the exact stored stream-terminal schema.
+	StreamTerminalSchema = "overgo/agent-tool-stream-terminal/v1"
+	// StreamEventSchema identifies one governed stream event envelope.
+	StreamEventSchema = "overgo.agent-tool-stream-event.v1"
 
 	streamMaxEvents       = 65536
 	streamMaxErrorBytes   = 4096
@@ -57,8 +61,11 @@ func (event StreamEvent) ArtifactContent() (artifact.Content, error) {
 type StreamState string
 
 const (
+	// StreamCompleted reports a stream that delivered every event and its terminal.
 	StreamCompleted StreamState = "completed"
-	StreamFailed    StreamState = "failed"
+	// StreamFailed reports a stream that ended with a bounded error payload.
+	StreamFailed StreamState = "failed"
+	// StreamCancelled reports a stream ended by its consumer before the terminal.
 	StreamCancelled StreamState = "cancelled"
 )
 

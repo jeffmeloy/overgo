@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
@@ -232,7 +233,7 @@ func run() error {
 		if strings.EqualFold(biasText, "-inf") {
 			bias = float64(sampling.BannedLogit())
 		} else {
-			bias, parseErr = strconv.ParseFloat(biasText, 32)
+			bias, parseErr = strconv.ParseFloat(biasText, binaryschema.Width32Bits)
 			if parseErr != nil {
 				return fmt.Errorf("generate: invalid logit bias %q", biasText)
 			}

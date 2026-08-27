@@ -1,7 +1,6 @@
 package recipe
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"sort"
@@ -59,9 +58,6 @@ var steeringProposalCodec = artifact.JSONDocumentCodec(
 func NewSteeringProposal(v SteeringProposal) (SteeringProposal, error) {
 	v.Version, v.ID = artifact.InitialDocumentVersion, artifact.ID{}
 	return steeringProposalCodec.New(v)
-}
-func RequireSteeringProposal(ctx context.Context, reader artifact.Reader, id artifact.ID) (SteeringProposal, error) {
-	return steeringProposalCodec.Require(ctx, reader, id)
 }
 func (v SteeringProposal) Content() (artifact.Content, error) {
 	return steeringProposalCodec.Content(v)

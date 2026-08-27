@@ -42,6 +42,7 @@ import (
 	"overgo/internal/finding"
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
+	"overgo/internal/loop"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/protection"
@@ -1936,6 +1937,10 @@ func advancePlanFile(repo, ref string) (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
 	document, err := plan.Load(path)
 	if err != nil {
 		return nil, err
@@ -1947,7 +1952,7 @@ func advancePlanFile(repo, ref string) (func() error, error) {
 	if err := plan.Save(path, updated); err != nil {
 		return nil, err
 	}
-	return func() error { return os.WriteFile(path, original, 0o644) }, nil
+	return func() error { return os.WriteFile(path, original, info.Mode().Perm()) }, nil
 }
 
 func (g *gateContext) prepare() error {
@@ -2364,6 +2369,9 @@ func (g *gateContext) appendAttemptRecord(
 	}
 	attempt := runrecord.AttemptRecord{
 		PlanItem: item, PlanStep: step, Result: resultID, Recipe: recipeID,
+		// The driver exports the declared strategy; an interactive
+		// session leaves it empty and the record stays honest.
+		Strategy:   os.Getenv(loop.StrategyEnvironment),
 		CodeCommit: codeCommit, Outcome: outcome, Failure: failure,
 		WallNS: uint64(time.Since(g.start).Nanoseconds()),
 		Selection: runrecord.AttemptSelection{

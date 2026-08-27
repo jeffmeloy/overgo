@@ -396,6 +396,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if err := policy.ValidateIdentity(); err != nil {
 		return nil, fmt.Errorf("server: runtime policy: %w", err)
 	}
+	config.RuntimePolicy = policy
 	defaults := policy.Serving
 	if config.Analysis != (AnalysisPolicy{}) {
 		if err := config.Analysis.validate(); err != nil {

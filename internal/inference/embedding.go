@@ -132,7 +132,7 @@ func (r *Runner) projectEmbeddingVectors(
 	ctx context.Context,
 	vectors [][]float32,
 ) ([][]float32, error) {
-	projections := make([]gguf.TensorInfo, 0, 2)
+	var projections []gguf.TensorInfo
 	if r.weights.Dense2Output != nil {
 		projections = append(projections, *r.weights.Dense2Output)
 	}

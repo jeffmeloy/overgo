@@ -102,7 +102,9 @@ func (r *Runner) AdvancePairedProjection(
 		return reference.Value{}, nil, err
 	}
 	current := fused.Primary
-	cacheInputs := make(map[bool][2]*tensor.Tensor, 2)
+	var cacheInputs struct {
+		global, sliding [2]*tensor.Tensor
+	}
 	for _, sliding := range []bool{true, false} {
 		source := len(session.TargetCache.Layers) - 1
 		if sliding {
@@ -111,7 +113,12 @@ func (r *Runner) AdvancePairedProjection(
 		layerCache := session.TargetCache.Layers[source]
 		key := runtime.input(fmt.Sprintf("paired_projection.shared_%t_key", sliding), layerCache.Key)
 		value := runtime.input(fmt.Sprintf("paired_projection.shared_%t_value", sliding), layerCache.Value)
-		cacheInputs[sliding] = [2]*tensor.Tensor{key, value}
+		inputs := [2]*tensor.Tensor{key, value}
+		if sliding {
+			cacheInputs.sliding = inputs
+		} else {
+			cacheInputs.global = inputs
+		}
 	}
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
@@ -120,7 +127,10 @@ func (r *Runner) AdvancePairedProjection(
 		if layerErr != nil {
 			return reference.Value{}, nil, layerErr
 		}
-		shared := cacheInputs[plan.Sliding]
+		shared := cacheInputs.global
+		if plan.Sliding {
+			shared = cacheInputs.sliding
+		}
 		block, err := program.Build(model.CachedBlockContext{
 			Builder: runtime.builder, Input: current, Positions: []uint32{session.Position},
 			PastKey: shared[0], PastValue: shared[1], Layer: plan.Layer,

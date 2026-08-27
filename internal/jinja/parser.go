@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"overgo/internal/binaryschema"
 )
 
 // parseTemplate lexes and parses a template source into a statement list.
@@ -672,7 +674,7 @@ func (p *eparser) parsePrimary() (expr, error) {
 		node = litNode{val: iv}
 		p.pos++
 	case etFloat:
-		fv, err := strconv.ParseFloat(strings.ReplaceAll(t.val, "_", ""), 64)
+		fv, err := strconv.ParseFloat(strings.ReplaceAll(t.val, "_", ""), binaryschema.Width64Bits)
 		if err != nil {
 			return nil, err
 		}
@@ -914,16 +916,16 @@ func parseIntLit(s string) (int, error) {
 	if len(s) > 2 && s[0] == '0' {
 		switch s[1] {
 		case 'x', 'X':
-			v, err := strconv.ParseInt(s[2:], 16, 64)
+			v, err := strconv.ParseInt(s[2:], binaryschema.HexRadix, binaryschema.Width64Bits)
 			return int(v), err
 		case 'b', 'B':
-			v, err := strconv.ParseInt(s[2:], 2, 64)
+			v, err := strconv.ParseInt(s[2:], binaryschema.BinaryRadix, binaryschema.Width64Bits)
 			return int(v), err
 		case 'o', 'O':
-			v, err := strconv.ParseInt(s[2:], 8, 64)
+			v, err := strconv.ParseInt(s[2:], binaryschema.OctalRadix, binaryschema.Width64Bits)
 			return int(v), err
 		}
 	}
-	v, err := strconv.ParseInt(s, 10, 64)
+	v, err := strconv.ParseInt(s, binaryschema.DecimalRadix, binaryschema.Width64Bits)
 	return int(v), err
 }

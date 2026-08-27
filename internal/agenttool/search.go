@@ -13,8 +13,10 @@ import (
 )
 
 const (
+	// CatalogSnapshotMediaType identifies encoded tool-catalog snapshot documents.
 	CatalogSnapshotMediaType = "application/vnd.overgo.agent-tool-catalog+json"
-	CatalogSnapshotSchema    = "overgo/agent-tool-catalog/v1"
+	// CatalogSnapshotSchema identifies the exact stored tool-catalog snapshot schema.
+	CatalogSnapshotSchema = "overgo/agent-tool-catalog/v1"
 
 	catalogSearchMaxQueryBytes = 4096
 	catalogSearchMaxResults    = 256

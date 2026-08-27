@@ -189,7 +189,7 @@ func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error
 		return name
 	}
 	wanted := map[string]int{"head.modulation": 0, "head.head.weight": 1, "head.head.bias": 2}
-	metas := make([]pytorchzip.TensorMeta, 3)
+	metas := make([]pytorchzip.TensorMeta, len(wanted))
 	found := 0
 	for _, meta := range catalog.Tensors {
 		if slot, ok := wanted[normalize(meta.Name)]; ok {
@@ -197,8 +197,8 @@ func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error
 			found++
 		}
 	}
-	if found != 3 {
-		return fmt.Errorf("flow-organ-train-probe: checkpoint has %d of 3 head tensors", found)
+	if found != len(wanted) {
+		return fmt.Errorf("flow-organ-train-probe: checkpoint has %d of %d head tensors", found, len(wanted))
 	}
 	names := []string{metas[0].Name, metas[1].Name, metas[2].Name}
 	bindings, err := pytorchzip.CompileBindings(catalog.Tensors, names)

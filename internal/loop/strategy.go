@@ -1,14 +1,37 @@
 package loop
 
 import (
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"slices"
 	"sort"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
+
+// StrategyEnvironment carries the human-readable strategy label from a
+// driver to gate attempts. Content-addressed strategy authority is recorded
+// separately by Strategy.ID.
+const StrategyEnvironment = "OVERGO_STRATEGY"
+
+const strategyDigestLength = 12
+
+// StrategyIdentity returns an explicit bounded label or derives one from the
+// exact worker command. It is compatibility metadata, not execution authority.
+func StrategyIdentity(worker []string, declared string) string {
+	if name := strings.TrimSpace(declared); name != "" {
+		return name
+	}
+	if len(worker) == 0 {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(strings.Join(worker, "\x00")))
+	return "worker-" + fmt.Sprintf("%x", digest)[:strategyDigestLength]
+}
 
 const (
 	StrategyMediaType = "application/vnd.overgo.agent-strategy+json"
@@ -56,7 +79,7 @@ func (v Strategy) StampAttempt(record runrecord.AttemptRecord) (runrecord.Attemp
 	if err := v.ValidateIdentity(); err != nil {
 		return runrecord.AttemptRecord{}, err
 	}
-	record.Strategy = v.ID
+	record.StrategyID = v.ID
 	return runrecord.NewAttemptRecord(record)
 }
 func (v Strategy) StampTrajectory(trace runrecord.InteractionTrace) (runrecord.InteractionTrace, error) {

@@ -51,6 +51,8 @@ import (
 
 func main() {
 	next := flag.Bool("next", false, "print the top open action")
+	admitProposalFlag := flag.String("admit-proposal", "", "admit one typed steering proposal from a JSON spec into the store and the plan")
+	history := flag.String("history", "", "print attempt history from the store: aggregates and recent attempts (pass a plan item id, or all)")
 	prompt := flag.Bool("prompt", false, "print the generated self-contained task for the top open step")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
@@ -80,7 +82,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, stop: *stop, force: *force, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -94,6 +96,8 @@ type cli struct {
 	grantExploration, chargeExploration, recordExperiment                                 string
 	localitySchedule                                                                      string
 	leaseReport                                                                           bool
+	history                                                                               string
+	admitProposal                                                                         string
 	capacity                                                                              plan.Resources
 }
 
@@ -148,6 +152,10 @@ func run(c cli, args []string) error {
 		return recordExplorationCharge(".", c.chargeExploration, os.Stdout)
 	case c.recordExperiment != "":
 		return recordExperimentTransition(".", c.recordExperiment, os.Stdout)
+	case c.admitProposal != "":
+		return admitProposal(c.admitProposal, document, os.Stdout)
+	case c.history != "":
+		return printAttemptHistory(c.history, os.Stdout)
 	case c.leaseReport:
 		return printLeaseReport(".", c.capacity, os.Stdout)
 	case c.localitySchedule != "":
@@ -515,7 +523,7 @@ func recordStop(reason string) error {
 		head = strings.TrimSpace(string(out))
 	}
 	payload := fmt.Sprintf("{\"reason\":%q,\"head\":%q}\n", strings.TrimSpace(reason), head)
-	if err := os.WriteFile("docs/plan_stop.json", []byte(payload), 0o644); err != nil {
+	if err := clioptions.WriteOutputFile("docs/plan_stop.json", []byte(payload)); err != nil {
 		return err
 	}
 	fmt.Printf("recorded stop: %s\n", strings.TrimSpace(reason))

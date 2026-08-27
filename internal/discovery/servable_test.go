@@ -85,7 +85,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 		Key:       "fixture/discovery/servable/policy-drift",
 		Artifacts: []artifact.Descriptor{{ID: bogus}},
 		Aliases: []artifact.AliasBinding{{
-			Name: "runtime-policy/v1/" + served.Recipe.String(), Target: bogus, Previous: &truePolicy.ID,
+			Name: "runtime-policy/v2/" + served.Recipe.String(), Target: bogus, Previous: &truePolicy.ID,
 		}},
 	}); err != nil {
 		t.Fatal(err)

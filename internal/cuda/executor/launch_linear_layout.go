@@ -536,7 +536,7 @@ func launchStagedNativeMatMul(
 }
 
 func bf16MulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
-	const warpThreads = uint64(32)
+	warpThreads := uint64(kernel.WarpThreads())
 	warps := uint64(leftRows) * uint64(rightRows)
 	if warps > math.MaxUint32/warpThreads {
 		return 0, errors.New("BF16 mul_mat launch size exceeds uint32")

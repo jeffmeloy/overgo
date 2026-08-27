@@ -151,7 +151,7 @@ type digestRecord struct {
 }
 
 func records(values gguf.HashValues, includeUUID bool) []digestRecord {
-	result := make([]digestRecord, 0, 4)
+	var result []digestRecord
 	if values.XXH64 != "" {
 		result = append(result, digestRecord{"xxh64", values.XXH64})
 	}

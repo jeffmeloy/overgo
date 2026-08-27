@@ -1,7 +1,6 @@
 package recipe
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"sort"
@@ -56,9 +55,6 @@ var delegatedAgentInvocationCodec = artifact.JSONDocumentCodec(
 func NewDelegatedAgentInvocation(v DelegatedAgentInvocation) (DelegatedAgentInvocation, error) {
 	v.Version, v.ID = artifact.InitialDocumentVersion, artifact.ID{}
 	return delegatedAgentInvocationCodec.New(v)
-}
-func RequireDelegatedAgentInvocation(ctx context.Context, reader artifact.Reader, id artifact.ID) (DelegatedAgentInvocation, error) {
-	return delegatedAgentInvocationCodec.Require(ctx, reader, id)
 }
 func (v DelegatedAgentInvocation) Content() (artifact.Content, error) {
 	return delegatedAgentInvocationCodec.Content(v)

@@ -8,12 +8,14 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/inference"
 	"overgo/internal/sampling"
 	"overgo/internal/strictjson"
 )
 
-func validateNativeCompletionOptions(body nativeCompletionRequest) error {
+func (h *Handler) validateNativeCompletionOptions(body nativeCompletionRequest) error {
+	limits := h.config.RuntimePolicy.Serving.Limits
 	switch {
 	case body.NIndent < 0:
 		return errors.New("n_indent must be non-negative")
@@ -30,16 +32,15 @@ func validateNativeCompletionOptions(body nativeCompletionRequest) error {
 	case body.TMaxPredictMS < -1:
 		return errors.New("t_max_predict_ms must be at least -1")
 	case body.SSEPingInterval != nil &&
-		(math.IsNaN(*body.SSEPingInterval) ||
-			math.IsInf(*body.SSEPingInterval, 0) ||
+		(!checked.Finite64(*body.SSEPingInterval) ||
 			*body.SSEPingInterval < -1 ||
 			*body.SSEPingInterval > math.MaxInt32 ||
 			math.Trunc(*body.SSEPingInterval) != *body.SSEPingInterval):
 		return errors.New("sse_ping_interval must be an integer in [-1,2147483647]")
 	case body.PostSamplingProbs && body.NProbs == 0:
 		return errors.New("post_sampling_probs requires positive n_probs")
-	case len(body.ResponseFields) > 64:
-		return errors.New("response_fields count exceeds 64")
+	case len(body.ResponseFields) > limits.ResponseFields:
+		return fmt.Errorf("response_fields count exceeds %d", limits.ResponseFields)
 	case nativeJSONSchemaConfigured(body.JSONSchema) &&
 		(body.Grammar != "" ||
 			len(body.GrammarChoices) > 0 ||
@@ -49,11 +50,11 @@ func validateNativeCompletionOptions(body nativeCompletionRequest) error {
 		return errors.New("json_schema cannot be combined with grammar options")
 	default:
 		for index, path := range body.ResponseFields {
-			if len(path) > 256 {
-				return fmt.Errorf("response_fields path %d exceeds 256 bytes", index)
+			if len(path) > limits.ResponseFieldBytes {
+				return fmt.Errorf("response_fields path %d exceeds %d bytes", index, limits.ResponseFieldBytes)
 			}
-			if strings.Count(path, "/") >= 16 {
-				return fmt.Errorf("response_fields path %d exceeds 16 components", index)
+			if strings.Count(path, "/") >= limits.ResponseFieldComponents {
+				return fmt.Errorf("response_fields path %d exceeds %d components", index, limits.ResponseFieldComponents)
 			}
 		}
 		return nil

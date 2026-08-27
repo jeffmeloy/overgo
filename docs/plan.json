@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "record",
-          "title": "Extend runrecord.InteractionTrace instead of creating a trajectory store. Bind ordered model events to the task contract, exact model and recipe, tool manuals, invocation effects, obligations and resolutions, operator decisions, workspace claims, attempts, budget charges, final artifacts, and terminal outcome. Reference existing artifact IDs instead of duplicating payloads, preserve branch visibility, and bound every collection.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentTrajectoryIdentity\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAgentTrajectoryIdentity$' -count=1",
-          "rationale": "Reasonix's trajectory recorder is the most direct RSI contribution, but Overgo's InteractionTrace already owns protocol-neutral model/tool history and should become the single common record.",
-          "depends_on": [
-            "agent-contracts/enforcement",
-            "delegation-contract/do",
-            "workspace-claim-lifecycle/operations"
-          ],
-          "capabilities": [
-            "interaction-trace",
-            "runrecord",
-            "training-evidence"
-          ]
-        },
-        {
           "id": "evaluation",
           "title": "Extend the existing evaluation plan to score exact agent trajectories for task success, evidence completeness, gate accuracy, effect prediction, regressions, churn, repeated directions, budget, latency, and unsupported completion claims. Deterministic scorers decide hard facts; model judges may contribute versioned advisory metrics but never promotion authority.",
           "status": "open",

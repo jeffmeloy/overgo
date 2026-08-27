@@ -21,23 +21,6 @@
       ]
     },
     {
-      "id": "oscillator-video-activation",
-      "title": "Verify and activate the Un-0 oscillator video route",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Verify and activate the Un-0 oscillator video route",
-          "status": "open",
-          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(/stale:/.test(s)) process.exit(1)\"",
-          "rationale": "Un-0 through the oscillator video route (task video-gen, oscillator frames + publication): deterministic, host; verify, activate.",
-          "depends_on": [
-            "liveedit-videoedit-activation/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-run-phase-peak",
       "title": "Record phase walls and peak device bytes in media verifier runs",
       "status": "open",

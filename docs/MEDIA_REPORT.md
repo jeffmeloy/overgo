@@ -14,6 +14,7 @@ Evidence rules: an activation states its recipe evidence tier; a measured claim 
 | `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | experimental | - | - |
 | `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | experimental | - | - |
 | `Un-0` | `image-gen` | experimental | - | - |
+| `Un-0` | `video-gen` | experimental | - | - |
 | `Wan2.1-T2V-1.3B` | `video-gen` | experimental | - | - |
 | `pocket-tts` | `speech` | experimental | - | - |
 
@@ -31,5 +32,6 @@ One row per healthy activation: the verifier run the activation cites, exactly a
 | `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 12.89s | `8594fc50a7a2` | `evidence:sha256:dc2fac5ea2ca34c1` |
 | `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | 1.826s | `58f98a458732` | `evidence:sha256:ef07513101096dce` |
 | `Un-0` | `image-gen` | 29ms | `58f98a458732` | `evidence:sha256:4c4f9951e019f8a2` |
+| `Un-0` | `video-gen` | 57ms | `05a3665e5e03` | `evidence:sha256:4ad62413aab24edb` |
 | `Wan2.1-T2V-1.3B` | `video-gen` | 5.737s | `58f98a458732` | `evidence:sha256:e409bdcf8e08fe54` |
 | `pocket-tts` | `speech` | 13.331s | `58f98a458732` | `evidence:sha256:c0f2737502bd83a8` |

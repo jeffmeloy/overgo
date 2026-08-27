@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "strategy",
-          "title": "Stamp every attempt and trajectory with an immutable strategy identity derived from the worker definition, prompt, model recipe, tool catalog, policy set, and loop configuration. Configuration aliases may select a strategy, but comparisons and resume authority bind the exact content identity.",
-          "status": "open",
-          "verify": "rg -q \"func TestStrategyIdentity\" internal/loop -g \"*_test.go\" \u0026\u0026 go test ./internal/loop -run '^TestStrategyIdentity$' -count=1",
-          "rationale": "Anonymous attempts cannot support policy improvement. This incorporates the existing strategy-identity plan row without creating a separate strategy registry.",
-          "depends_on": [
-            "attempt-intelligence/history"
-          ],
-          "capabilities": [
-            "loop",
-            "agent-definition",
-            "artifact-identity"
-          ]
-        },
-        {
           "id": "directions",
           "title": "Derive a direction fingerprint from the strategy identity, base and candidate manifests, changed symbol closure, selected checks, and declared objective. Record first and last observation, count, measured result, and pivot recommendation in runrecord; repetition and stagnation are advisory facts for the deterministic loop, never string similarity over model prose.",
           "status": "open",

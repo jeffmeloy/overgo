@@ -52,9 +52,9 @@ type Config struct {
 	// MaxAttemptsPerStep parks the step after this many worker exits
 	// without plan advancement. Zero refuses to run: an unbounded retry
 	// loop on a stuck step is the failure mode this exists to prevent.
-	MaxAttemptsPerStep int
+	MaxAttemptsPerStep int `json:"max_attempts_per_step"`
 	// MaxInvocations bounds total worker launches for one Run call.
-	MaxInvocations int
+	MaxInvocations int `json:"max_invocations"`
 }
 
 // Outcome reports why Run returned.

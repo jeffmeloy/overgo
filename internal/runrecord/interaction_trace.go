@@ -51,6 +51,7 @@ type InteractionTrace struct {
 	Decisions         []artifact.ID           `json:"decisions,omitempty"`
 	FinalArtifacts    []artifact.ID           `json:"final_artifacts,omitempty"`
 	TaskContract      artifact.ID             `json:"task_contract,omitzero"`
+	Strategy          artifact.ID             `json:"strategy,omitzero"`
 	ToolManuals       []artifact.ID           `json:"tool_manuals,omitempty"`
 	InvocationEffects []artifact.ID           `json:"invocation_effects,omitempty"`
 	Obligations       []artifact.ID           `json:"obligations,omitempty"`
@@ -77,7 +78,7 @@ func (value InteractionTrace) Content() (artifact.Content, error) {
 }
 
 func (value InteractionTrace) Lineage() []artifact.Lineage {
-	parents := []artifact.ID{value.Recipe, value.Model, value.Operation, value.Request, value.TaskContract}
+	parents := []artifact.ID{value.Recipe, value.Model, value.Operation, value.Request, value.TaskContract, value.Strategy}
 	for _, group := range [][]artifact.ID{value.ToolActions, value.Decisions, value.FinalArtifacts, value.ToolManuals,
 		value.InvocationEffects, value.Obligations, value.Resolutions, value.WorkspaceClaims, value.Attempts, value.BudgetCharges} {
 		parents = append(parents, group...)
@@ -153,6 +154,9 @@ func canonicalizeInteractionTrace(value *InteractionTrace) error {
 	}
 	if value.TaskContract.Valid() && (value.TaskContract.Kind() != artifact.KindRecipe || !validOutcome(value.Terminal)) {
 		return errors.New("run record: invalid agent trajectory")
+	}
+	if value.Strategy.Valid() && value.Strategy.Kind() != artifact.KindProfile {
+		return errors.New("run record: invalid trajectory strategy")
 	}
 	return nil
 }

@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "media-production-samples",
-      "title": "Production-shaped SenseNova and Wan generations replace smoke samples",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Production-shaped SenseNova and Wan generations replace smoke samples",
-          "status": "open",
-          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/integrate [0-9]+m[0-9]/.test(s) \u0026\u0026 !/integrate [0-9]{2,}\\./.test(s) \u0026\u0026 !/integrate [0-9]{2,}s/.test(s)) process.exit(1)\""
-        }
-      ]
-    },
-    {
       "id": "store-output-digests",
       "title": "Media evidence cites content digests instead of embedding tensors and PCM",
       "status": "open",

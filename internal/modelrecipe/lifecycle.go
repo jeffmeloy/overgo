@@ -222,7 +222,14 @@ func RetireOrphanedActivation(
 	}
 	_, _, trustErr := ActiveRecord(ctx, store, model, task)
 	if trustErr == nil {
-		return errors.New("model recipe: the activation is trusted; retire it through the evidence-backed path")
+		// A trusted activation can still be dead: when no recorded
+		// location holds the model bytes, the identity resolves from
+		// nothing and absence is the measured orphan evidence.
+		if _, pathErr := artifact.AvailablePath(ctx, store, model, artifact.LocationFile); pathErr == nil {
+			return errors.New("model recipe: the activation is trusted and its bytes are present; retire it through the evidence-backed path")
+		} else {
+			trustErr = pathErr
+		}
 	}
 	definition, err := loadDefinition(ctx, store, activeID)
 	if err != nil {

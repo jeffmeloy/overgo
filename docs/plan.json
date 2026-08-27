@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "strategy-experiments",
-      "title": "Run competing strategies in isolated worktrees against one baseline",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run competing strategies in isolated worktrees against one baseline -- cmd/experiment: one plan step, N declared strategies, each run in an isolated worktree from the same baseline commit, each candidate gate-verified, all attempt records bound to one experiment identity; selection is by verify outcome then measured cost, and failures persist as durable counterexamples. Closes: controlled comparison of competing automation strategies.",
-          "status": "open",
-          "verify": "go test ./cmd/experiment -count=1",
-          "depends_on": [
-            "attempt-history/do",
-            "strategy-identity/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "policy-lifecycle",
       "title": "Promote automation policies through an evidence-gated lifecycle",
       "status": "open",

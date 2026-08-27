@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "automation-mutation-tests",
-      "title": "Falsify the agent harness and its gate selection",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extend the existing gate false-negative corpus with injected defects covering invocation-effect underclassification, stale obligation evidence, capability-proxy bypass, grant widening, overlapping workspace claims, missing checkpoint coverage, session resume drift, trajectory omission, stale policy activation, and wrong gate exclusion. Each fixture names the check that must run and the invariant that must fail; false positives remain measurable but false negatives fail the suite.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentHarnessMutations\" cmd/gate -g \"*_test.go\" \u0026\u0026 go test ./cmd/gate -run '^TestAgentHarnessMutations$' -count=1",
-          "rationale": "A deterministic harness is only trustworthy if its own selectors and guards are falsifiable. This expands the existing mutation-test plan rather than creating a second validation runner.",
-          "depends_on": [
-            "recursive-policy-steering/loop-closure",
-            "harness-surface-discipline/boundary-tests"
-          ],
-          "capabilities": [
-            "gate",
-            "codemanifest",
-            "false-negative-corpus"
-          ]
-        }
-      ]
-    },
-    {
       "id": "harness-consolidation",
       "title": "Prove the capability gain did not create a second framework",
       "status": "open",

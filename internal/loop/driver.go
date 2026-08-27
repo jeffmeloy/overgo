@@ -47,6 +47,17 @@ type World interface {
 	Paused() bool
 }
 
+// ProposalSource is the optional world extension that feeds the driver
+// admitted steering proposals once the plan drains: the loop closure.
+// AdmitNext admits the next pending proposal into the plan through
+// deterministic admission and returns its plan item id; ok=false means
+// the queue is empty. Block marks a parked proposal row blocked so
+// dispatch moves past it to the next proposal.
+type ProposalSource interface {
+	AdmitNext() (item string, ok bool, err error)
+	Block(step Step, reason string) error
+}
+
 // Config bounds the driver. Every limit is mechanical: no prose persuasion.
 type Config struct {
 	// MaxAttemptsPerStep parks the step after this many worker exits
@@ -55,6 +66,12 @@ type Config struct {
 	MaxAttemptsPerStep int
 	// MaxInvocations bounds total worker launches for one Run call.
 	MaxInvocations int
+	// SaturationLimit stops proposal consumption after this many
+	// consecutive proposal-driven rows end parked -- no measured
+	// improvement, because a row advances only through its falsifiable
+	// check. Zero disables proposal consumption entirely: the plan
+	// draining then ends the run exactly as before.
+	SaturationLimit int
 }
 
 // Outcome reports why Run returned.
@@ -69,6 +86,11 @@ const (
 	ReasonPaused       = "paused"
 	ReasonBudget       = "invocation-budget-exhausted"
 	ReasonParked       = "step-parked"
+	// ReasonSaturated reports the closure's own stop condition: the
+	// configured count of consecutive proposal-driven rows ended with
+	// no measured improvement, so consuming more proposals is spending
+	// without learning.
+	ReasonSaturated = "proposal-saturation"
 )
 
 // Run drives the cycle until a terminal condition. It returns an error only
@@ -80,6 +102,10 @@ func Run(world World, config Config) (Outcome, error) {
 	}
 	outcome := Outcome{}
 	attempts := 0
+	saturation := 0
+	proposalItems := map[string]bool{}
+	source, feeds := world.(ProposalSource)
+	feeds = feeds && config.SaturationLimit > 0
 	var lastKey, feedback string
 	for {
 		if world.Paused() {
@@ -91,8 +117,27 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: read plan: %w", err)
 		}
 		if !open {
-			outcome.Reason = ReasonPlanComplete
-			return outcome, nil
+			// The closure: a drained plan consumes the next admitted
+			// proposal instead of stopping, until the queue empties or
+			// saturation proves further consumption unmeasured.
+			if !feeds {
+				outcome.Reason = ReasonPlanComplete
+				return outcome, nil
+			}
+			if saturation >= config.SaturationLimit {
+				outcome.Reason = ReasonSaturated
+				return outcome, nil
+			}
+			item, pending, err := source.AdmitNext()
+			if err != nil {
+				return outcome, fmt.Errorf("loop: admit proposal: %w", err)
+			}
+			if !pending {
+				outcome.Reason = ReasonPlanComplete
+				return outcome, nil
+			}
+			proposalItems[item] = true
+			continue
 		}
 		if step.Key() != lastKey {
 			lastKey, attempts, feedback = step.Key(), 0, ""
@@ -104,6 +149,17 @@ func Run(world World, config Config) (Outcome, error) {
 				return outcome, fmt.Errorf("loop: park %s: %w", step.Key(), err)
 			}
 			outcome.Parked = append(outcome.Parked, step.Key())
+			if feeds && proposalItems[step.Item] {
+				// A parked proposal row is no measured improvement: it
+				// blocks out of dispatch, counts toward saturation, and
+				// the loop moves to the next proposal instead of ending.
+				if err := source.Block(step, reason); err != nil {
+					return outcome, fmt.Errorf("loop: block %s: %w", step.Key(), err)
+				}
+				saturation++
+				lastKey, attempts, feedback = "", 0, ""
+				continue
+			}
 			outcome.Reason = ReasonParked
 			return outcome, nil
 		}
@@ -131,7 +187,13 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: re-read plan: %w", err)
 		}
 		if !open || after.Key() != step.Key() {
-			continue // the worker advanced the step through the gate
+			// The worker advanced the step through the gate. An advanced
+			// proposal-driven row passed its falsifiable check: measured
+			// improvement, saturation streak reset.
+			if proposalItems[step.Item] {
+				saturation = 0
+			}
+			continue
 		}
 		failure, err := world.Verify(step)
 		if err != nil {

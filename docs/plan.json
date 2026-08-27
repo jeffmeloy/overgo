@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "loop-proposal-closure",
-      "title": "Close the loop: admitted proposals feed the driver under stop conditions",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Close the loop: admitted proposals feed the driver under stop conditions -- cmd/loop consumes admitted proposals when the plan drains instead of stopping, under stop conditions: invocation budget, saturation (no measured improvement across K consecutive experiments), and the explicit operator stop. Closes: the recursive policy-improvement loop.",
-          "status": "open",
-          "verify": "go test ./internal/loop -run TestProposal -count=1",
-          "depends_on": [
-            "steering-proposals/do",
-            "policy-lifecycle/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "automation-mutation-tests",
       "title": "Mutation-test the gate selector against injected defects",
       "status": "open",

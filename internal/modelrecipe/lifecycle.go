@@ -231,7 +231,7 @@ func RetireOrphanedActivation(
 			trustErr = pathErr
 		}
 	}
-	definition, err := loadDefinition(ctx, store, activeID)
+	definition, err := recipe.RequireDefinition(ctx, store, activeID)
 	if err != nil {
 		return err
 	}

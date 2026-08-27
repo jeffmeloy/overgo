@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "steering-proposals",
-          "title": "Extend the existing plan and recipe contracts with a typed steering proposal that binds goal, predicted benefit and cost, uncertainty, falsifiable evaluation, affected authorities, and exact measurement references. Deterministic admission validates every reference and may compile an admitted proposal into future plan rows; proposal text never executes work or grants authority.",
-          "status": "open",
-          "verify": "rg -q \"func TestSteeringProposalAdmission\" internal/plan -g \"*_test.go\" \u0026\u0026 go test ./internal/plan ./internal/recipe -run '^TestSteeringProposalAdmission$' -count=1",
-          "rationale": "This preserves model-proposed steering while keeping the plan as the sole dispatch surface and avoiding a new steering subsystem.",
-          "depends_on": [
-            "attempt-intelligence/history",
-            "agent-trajectories/evaluation"
-          ],
-          "capabilities": [
-            "plan",
-            "recipe",
-            "measurement-lineage"
-          ]
-        },
-        {
           "id": "loop-closure",
           "title": "Let the existing loop consume deterministically admitted proposals when the current plan drains, under exact invocation, time, cost, mutation, and experiment budgets; saturation from repeated directions or absent measured gain; unresolved obligations; lease conflicts; and explicit operator stop. The loop may propose and compare policies, but only evidence-gated activation changes the active strategy.",
           "status": "open",

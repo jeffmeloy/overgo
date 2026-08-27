@@ -5,6 +5,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/media"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 )
@@ -142,7 +143,7 @@ func TestVAEProgramReferenceMatchesHost(t *testing.T) {
 	}
 	maxAbs := 0.0
 	u8Diff := 0
-	wu8, gu8 := PixelsToU8(wantPix), PixelsToU8(gotPix)
+	wu8, gu8 := media.NormalizedF32ToU8(wantPix), media.NormalizedF32ToU8(gotPix)
 	for i := range wantPix {
 		if a := math.Abs(float64(wantPix[i]) - float64(gotPix[i])); a > maxAbs {
 			maxAbs = a

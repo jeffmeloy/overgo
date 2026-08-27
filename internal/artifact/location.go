@@ -123,10 +123,10 @@ func CanonicalLocalLocation(id ID, kind LocationKind, path string) (Location, er
 	return location, nil
 }
 
-// SameLocalLocation compares two local addresses by filesystem identity. The
+// sameLocalLocation compares two local addresses by filesystem identity. The
 // artifact and location kind remain part of the identity; aliases cannot make
 // one artifact's bytes satisfy another artifact's location claim.
-func SameLocalLocation(left, right Location) (bool, error) {
+func sameLocalLocation(left, right Location) (bool, error) {
 	if err := left.Validate(); err != nil {
 		return false, err
 	}

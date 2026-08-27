@@ -422,9 +422,3 @@ func codecSingleFrameConv(out, input, weight, bias []float32, inputChannels, out
 		StrideT: extents.Stride[0], StrideH: extents.Stride[1], StrideW: extents.Stride[2],
 	})
 }
-
-// PixelsToU8 converts a planar [C][H][W] tensor in [-1,1] to the g3 8-bit
-// image convention: u8 = round(((x+1)/2 clamped to [0,1]) * 255).
-func PixelsToU8(pixels []float32) []uint8 {
-	return media.NormalizedF32ToU8(pixels)
-}

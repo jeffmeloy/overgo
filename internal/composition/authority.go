@@ -121,11 +121,6 @@ func NewBridgeDefinition(
 	return bridgeDefinitionCodec.New(value)
 }
 
-// ParseBridgeDefinition admits canonical bridge-definition bytes.
-func ParseBridgeDefinition(data []byte) (BridgeDefinition, error) {
-	return bridgeDefinitionCodec.Parse(data)
-}
-
 // Content returns the exact bridge-definition document.
 func (value BridgeDefinition) Content() (artifact.Content, error) {
 	return bridgeDefinitionCodec.Content(value)

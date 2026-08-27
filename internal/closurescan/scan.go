@@ -288,16 +288,6 @@ func CensusTestLiterals(snapshot repoanalysis.SourceSnapshot) ([]TestLiteralSite
 	return out, nil
 }
 
-func CountTestPolicyLiterals(snapshot repoanalysis.SourceSnapshot) (int, error) {
-	var count int
-	err := visitTestLiterals(snapshot, func(site TestLiteralSite) {
-		if site.Class == TestPolicyCopy {
-			count++
-		}
-	})
-	return count, err
-}
-
 func visitTestLiterals(snapshot repoanalysis.SourceSnapshot, visit func(TestLiteralSite)) error {
 	production := map[string][]string{}
 	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, file *ast.File) {

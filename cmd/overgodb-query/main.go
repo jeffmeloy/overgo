@@ -178,13 +178,15 @@ func writeManifestSummary(output io.Writer, repository, idText string, jsonOutpu
 		return err
 	}
 	defer store.Close()
-	manifest, err := codemanifest.Load(context.Background(), store, id)
-	if err != nil {
-		return err
-	}
-	summary, err := codemanifest.Summarize(manifest)
-	if err != nil {
-		return err
+	var summary codemanifest.Summary
+	if manifest, loadErr := codemanifest.Load(context.Background(), store, id); loadErr == nil {
+		if summary, err = codemanifest.Summarize(manifest); err != nil {
+			return err
+		}
+	} else if summary, err = codemanifest.LoadDigest(context.Background(), store, id); err != nil {
+		// Digest-era manifests store only their footprint; the full
+		// content is derivable from git at the recorded source identity.
+		return errors.Join(loadErr, err)
 	}
 	if jsonOutput {
 		return clioptions.WritePrettyJSON(output, summary)

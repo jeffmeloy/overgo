@@ -8,10 +8,10 @@ Evidence rules: an activation states its recipe evidence tier; a measured claim 
 
 | Model | Task | Activation tier | Stale | Measured claim |
 | --- | --- | --- | --- | --- |
-| `diffusion_pytorch_model.safetensors` | `video-gen` |  | stale: activation cannot be trusted: model recipe: active recipe lacks verified evidence: run record: successful verifier gate/run evidence is absent | - |
-| `model-00001-of-00003.safetensors` | `vqa` | parity | stale: not servable: model recipe: active recipe has no runtime policy (recipe policy <model> binds it) | - |
-| `model.safetensors` | `image-gen` |  | stale: activation cannot be trusted: model recipe: active recipe lacks verified evidence: run record: successful verifier gate/run evidence is absent | - |
-| `step_799.safetensors` | `image-gen` |  | stale: activation cannot be trusted: model recipe: active recipe lacks verified evidence: run record: successful verifier gate/run evidence is absent | - |
-| `tts_b6369a24.safetensors` | `speech` |  | stale: activation cannot be trusted: model recipe: active recipe lacks verified evidence: run record: successful verifier gate/run evidence is absent | - |
+| `diffusion_pytorch_model.safetensors` | `video-gen` | experimental | - | - |
+| `model-00001-of-00003.safetensors` | `vqa` | parity | - | - |
+| `model.safetensors` | `image-gen` | experimental | - | - |
+| `step_799.safetensors` | `image-gen` | experimental | - | - |
+| `tts_b6369a24.safetensors` | `speech` | experimental | - | - |
 
 The matrix reports activation and evidence scope, not general model-family support: an activation means the recipe lifecycle admitted the model for the task at the stated tier, and a measured claim binds that capability to real execution evidence at its commit.

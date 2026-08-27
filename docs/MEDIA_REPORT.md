@@ -22,16 +22,16 @@ The matrix reports activation and evidence scope, not general model-family suppo
 
 ## Measured results
 
-One row per healthy activation: the verifier run the activation cites, exactly as recorded -- wall, verifying commit, and the output artifacts the run published. A dash means the activation stands without a readable run record.
+One row per healthy activation: the verifier run the activation cites, exactly as recorded -- wall, measured phase decomposition, peak device bytes, verifying commit, and the output artifacts the run published. A dash means the activation stands without that measurement.
 
-| Model | Task | Verifier wall | Commit | Run outputs |
-| --- | --- | --- | --- | --- |
-| `Hy-Embodied-RxBrain-1.0` | `vqa` | 9.941s | `deb633f55991` | `evidence:sha256:aad076217f89fb8e` |
-| `Krea-2-Turbo` | `image-gen` | 14.989s | `2ccea11d91bb` | `evidence:sha256:0d731b31f815c780` |
-| `LiveEdit` | `video-gen` | 5.93s | `12c99b78eeb7` | `evidence:sha256:3146056b490db51c` |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 12.89s | `8594fc50a7a2` | `evidence:sha256:dc2fac5ea2ca34c1` |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | 1.826s | `58f98a458732` | `evidence:sha256:ef07513101096dce` |
-| `Un-0` | `image-gen` | 29ms | `58f98a458732` | `evidence:sha256:4c4f9951e019f8a2` |
-| `Un-0` | `video-gen` | 57ms | `05a3665e5e03` | `evidence:sha256:4ad62413aab24edb` |
-| `Wan2.1-T2V-1.3B` | `video-gen` | 5.737s | `58f98a458732` | `evidence:sha256:e409bdcf8e08fe54` |
-| `pocket-tts` | `speech` | 13.331s | `58f98a458732` | `evidence:sha256:c0f2737502bd83a8` |
+| Model | Task | Verifier wall | Phases | Peak device | Commit | Run outputs |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | 10.113s | generate 10.668s, prepare 135ms | - | `6da9e6329fe7` | `evidence:sha256:da6e3efbd0aedc45` |
+| `Krea-2-Turbo` | `image-gen` | 14.134s | decode 161ms, integrate 1.441s, prepare 9.198s | - | `f313f43d6c57` | `evidence:sha256:ae3f67c4750ef889` |
+| `LiveEdit` | `video-gen` | 5.409s | integrate 671ms | 3260313344 B | `f313f43d6c57` | `evidence:sha256:9962cef18a9b42ed` |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 12.421s | decode 68ms, integrate 749ms, prepare 11.126s | - | `f313f43d6c57` | `evidence:sha256:27f5a2e7c5d52553` |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | 1.845s | decode 8ms, integrate 1.413s | - | `f313f43d6c57` | `evidence:sha256:710bb24341b1d20a` |
+| `Un-0` | `image-gen` | 54ms | decode 2ms, integrate 1ms | - | `f313f43d6c57` | `evidence:sha256:033e4554d122101e` |
+| `Un-0` | `video-gen` | 41ms | decode 18ms | - | `f313f43d6c57` | `evidence:sha256:30d089f92a60ec23` |
+| `Wan2.1-T2V-1.3B` | `video-gen` | 6.46s | integrate 698ms | 376261580 B | `f313f43d6c57` | `evidence:sha256:1503d63d735786fb` |
+| `pocket-tts` | `speech` | 12.899s | decode 9.345s, generate 3.249s | - | `f313f43d6c57` | `evidence:sha256:d5cacdf3d27b77aa` |

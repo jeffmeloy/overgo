@@ -21,23 +21,6 @@
       ]
     },
     {
-      "id": "media-run-phase-peak",
-      "title": "Record phase walls and peak device bytes in media verifier runs",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Record phase walls and peak device bytes in media verifier runs",
-          "status": "open",
-          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/peak/.test(s)) process.exit(1)\"",
-          "rationale": "Capability verifies record what the reference report measures: per-phase walls (prepare/integrate/decode) into run Phases and peak device bytes into the claim/run, so the report renders measured decompositions instead of one wall.",
-          "depends_on": [
-            "oscillator-video-activation/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-sample-export",
       "title": "Export decoded media samples with content hashes",
       "status": "open",

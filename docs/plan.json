@@ -1,6 +1,132 @@
 {
-  "campaign": "Governed external tool interoperability",
-  "doctrine": "External protocol breadth enters through narrow adapters behind the immutable agent-tool manual. Discovery compiles bounded untrusted descriptions into typed candidate manuals; it never mutates the active catalog. Catalog search is deterministic and bound to exact manual identities. Streaming is a bounded, cancellable, sequenced lifecycle with an explicit terminal record. Model-authored tool workflows compile as closed-world recipe programs and execute without source generation or an embedded interpreter. Every row reuses artifact, recipe, operation, policy, and evidence owners already in the tree and deletes displaced switches, wrappers, caches, and temporary shapes in the same commit.",
+  "campaign": "Generated Overgo API and ABI manifest",
+  "doctrine": "Runtime-owned typed contracts are the sole interface authority. overgo_api.json is a deterministic projection of the current release surface; Git and prior content-addressed manifests retain history. Each migration moves every caller immediately and deletes displaced route lists, method checks, flag declarations, schema copies, compatibility wrappers, and hand-maintained release metadata. Kernel ABI, code manifests, recipes, artifact contracts, workspace schemas, and OvergoDB records remain authoritative in their existing owners. Model dimensions and runtime policy remain recipe/profile facts, never API literals.",
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
-  "items": []
+  "items": [
+    {
+      "id": "api-manifest-contract",
+      "title": "Define the canonical generated manifest contract",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add internal/apimanifest with a strict versioned document contract for release identity, build contexts, binaries, HTTP routes, artifact schemas, recipe modules, tool protocols, workspace contracts, kernel ABI references, and source-manifest references. Use ordered typed slices and content identities; reject duplicate keys, unresolved references, incompatible build contexts, missing versions, and copied model/runtime parameters. Keep full subsystem payloads in their current owners and store only identity plus the minimum current compatibility surface required for deterministic comparison. Do not carry deprecated interfaces or removal tombstones.",
+          "status": "open",
+          "verify": "go test ./internal/apimanifest -count=1"
+        }
+      ]
+    },
+    {
+      "id": "document-contract-census",
+      "title": "Compile artifact and wire contracts from typed source owners",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Extend the existing code-manifest analysis to extract artifact.DocumentContract and DocumentCodec contracts with Go type information and constant evaluation. Emit kind, media type, schema, version owner, build context, and source identity into the API compiler. Fail on dynamic or ambiguous public contracts instead of adding a central hand-maintained map. Consolidate repeated media-type/schema declarations into existing neutral contract constructors where semantics match, migrate all callers, and delete displaced constants and validation copies.",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/codemanifest ./internal/apimanifest -count=1",
+          "depends_on": [
+            "api-manifest-contract/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "http-route-authority",
+      "title": "Make typed HTTP routes the sole server authority",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Introduce one neutral server route descriptor containing path, method, authentication class, request bound, request contract, response contracts, streaming contract, capability requirement, and handler. Migrate every production endpoint to descriptor-driven dispatch in bounded waves and delete each displaced ServeHTTP switch case, protected-path list entry, handler-local method check, and duplicated route metadata immediately. Preserve protocol aliases as explicit descriptors pointing at the same handler contract. Generate the HTTP section directly from the runtime descriptor catalog and add a census test that rejects undeclared production routes.",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/apimanifest -count=1",
+          "depends_on": [
+            "document-contract-census/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "binary-command-authority",
+      "title": "Compile shipped executable contracts from shared CLI descriptors",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add typed command, flag, environment, stdin, stdout, exit, and build-selection descriptors to clioptions. Migrate every executable selected by the release/package pipeline; descriptors must construct the real flag set and generate manifest data from the same values. Delete parallel usage strings, repeated validation, release binary lists, and manually copied defaults. Classify developer-only commands explicitly and exclude them from the public compatibility surface without hiding them from the source manifest.",
+          "status": "open",
+          "verify": "go test ./internal/clioptions ./cmd/release ./cmd/sbom -count=1",
+          "depends_on": [
+            "http-route-authority/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "runtime-contract-composition",
+      "title": "Compose kernel, recipe, tool, and workspace authorities by identity",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile kernel ABI version, target, PTX entry layouts, shared-memory contract, and manifest digest from kernels/manifest.json through the existing kernel verifier. Compile recipe module input/output roles from the active typed module catalog, governed agent-tool protocol contracts from agenttool, and GUI workspace manifest/schema identities from their current files. Store references and compatibility keys rather than copying complete subsystem documents. Remove duplicate ABI pins outside the existing generated kernel binding, duplicate recipe/tool capability lists, and release metadata now derivable from these owners.",
+          "status": "open",
+          "verify": "go test ./cmd/kernel-manifest ./cmd/kernel-bindings ./internal/modelrecipe ./internal/agenttool ./internal/workflowruntime ./internal/server -count=1",
+          "depends_on": [
+            "binary-command-authority/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "api-manifest-generator",
+      "title": "Generate, validate, publish, and compare overgo_api.json",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add cmd/api-manifest with -update, -check, -compare, and -publish modes. Generate root overgo_api.json deterministically from the exact source snapshot and typed subsystem owners. Record source identity, build contexts, kernel manifest identity, code-manifest identity, and complete current public compatibility keys. Publish the same canonical bytes to OvergoDB as a versioned profile artifact. Compare the current manifest with an explicitly selected prior Git or OvergoDB manifest and report additions, removals, contract changes, evidence-only changes, and build-selection changes without copying history into the current document or using heuristic thresholds. Refuse stale generated bytes, unresolved source uncertainty, mismatched subsystem hashes, duplicate interfaces, and unclassified current entries.",
+          "status": "open",
+          "verify": "go test ./cmd/api-manifest ./internal/apimanifest -count=1 && go run ./cmd/api-manifest -check",
+          "depends_on": [
+            "runtime-contract-composition/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "release-api-gates",
+      "title": "Make the generated manifest a release and verification boundary",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Integrate api-manifest verification with release, SBOM, compatibility, and structural gates. Require an explicit release decision when comparison with a selected prior manifest finds a removed or changed public contract; do not retain that prior contract in the current manifest. Include overgo_api.json and its content identity in release artifacts. Add parity tests proving route dispatch, CLI parsing, artifact codecs, recipe modules, tool streams, workspace schemas, and CUDA launch bindings match their projected entries. Delete temporary census tools and hand-maintained API tables superseded by the generated projection.",
+          "status": "open",
+          "verify": "go run ./cmd/api-manifest -check && go test ./cmd/release ./cmd/sbom ./cmd/compatibility ./cmd/gate ./internal/server ./internal/modelrecipe ./internal/agenttool ./internal/cuda/executor -count=1",
+          "depends_on": [
+            "api-manifest-generator/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "api-surface-closure",
+      "title": "Prove one authority per current public interface",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the production consumer graph and literal/assumption authority gates over the completed migration. Reject current public routes, released commands, artifact schemas, recipe modules, tool protocols, or kernel entries absent from overgo_api.json. Reject manifest entries without a live production consumer or typed owner. Delete remaining wrappers, compatibility fallbacks, duplicate route probes, copied schema strings, and obsolete generated files. Publish the final structural and API-manifest evidence to OvergoDB.",
+          "status": "open",
+          "verify": "go run ./cmd/api-manifest -check && go test ./internal/codeprofile ./internal/codemanifest ./internal/repoanalysis ./cmd/closure-scan ./cmd/gate -count=1",
+          "depends_on": [
+            "release-api-gates/do"
+          ]
+        }
+      ]
+    }
+  ]
 }

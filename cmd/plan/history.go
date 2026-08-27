@@ -6,9 +6,43 @@ import (
 	"io"
 	"time"
 
+	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/plan"
 	"overgo/internal/runrecord"
+	"overgo/internal/steering"
 )
+
+// admitProposal runs one typed steering proposal through deterministic
+// admission: the store records the proposal, and the plan gains the
+// row it becomes -- on top, dispatchable, carrying the proposal as its
+// rationale. Refusal changes nothing.
+func admitProposal(specPath string, document plan.Plan, output io.Writer) error {
+	var proposal steering.Proposal
+	if err := jsonfile.Decode(specPath, &proposal); err != nil {
+		return err
+	}
+	store, err := overgodb.Open("overgodb-store")
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	admitted, row, err := steering.Admit(context.Background(), store, proposal)
+	if err != nil {
+		return err
+	}
+	for _, item := range document.Items {
+		if item.ID == row.ID {
+			return fmt.Errorf("plan: proposal slug %q collides with an open item", row.ID)
+		}
+	}
+	document.Items = append([]plan.Item{row}, document.Items...)
+	if err := plan.Save("", document); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "admitted proposal %s as plan row %s\n", admitted.ID, row.ID)
+	return err
+}
 
 // printAttemptHistory renders the store's attempt measurements for
 // steering: one aggregate row per plan step, then the matched

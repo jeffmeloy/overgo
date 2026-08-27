@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "steering-proposals",
-      "title": "Admit typed steering proposals through deterministic validation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Admit typed steering proposals through deterministic validation -- Typed proposal document: goal, predicted benefit, predicted cost, explicit uncertainty, falsifiable check, references into measurement history. Deterministic admission validates references and converts an admitted proposal into a plan row with the proposal as provenance; proposals never execute anything. Closes: model-proposed steering from accumulated evidence.",
-          "status": "open",
-          "verify": "go test ./internal/steering -count=1",
-          "depends_on": [
-            "attempt-history/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "loop-proposal-closure",
       "title": "Close the loop: admitted proposals feed the driver under stop conditions",
       "status": "open",

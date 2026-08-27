@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
   "items": [
     {
-      "id": "layer-operator-program",
-      "title": "Compile layer execution instead of interpreting operator policy",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve LayerOperatorInstruction values during LayerPlan compilation into ordered neutral operator stages with indexed operands, caches, weights, and validation contracts. Execute the compiled stage sequence directly. Migrate all graph callers and delete executeLayerInstruction, nested feed-forward and residual switches, and single-consumer topology builders displaced by the stage compiler. Keep distinct attention, recurrent, routed, normalization, and residual mathematics as typed operators; prohibit architecture names and property bags in operator execution.",
-          "status": "open",
-          "verify": "go test ./internal/model ./internal/inference ./internal/routedlm ./internal/scratchmodel -count=1",
-          "depends_on": [
-            "weight-catalog-program/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "cuda-launch-program",
       "title": "Compile CUDA operand and launch selection once",
       "status": "open",

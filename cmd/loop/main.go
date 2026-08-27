@@ -35,10 +35,14 @@ import (
 const pauseMarker = "docs/.loop_pause"
 
 type config struct {
-	Worker               []string `json:"worker"`
-	MaxAttemptsPerStep   int      `json:"max_attempts_per_step"`
-	MaxInvocations       int      `json:"max_invocations"`
-	WorkerTimeoutMinutes int      `json:"worker_timeout_minutes"`
+	Worker []string `json:"worker"`
+	// Strategy optionally names this worker configuration; attempt
+	// records carry it so history compares strategies. Unset derives a
+	// stable digest of the worker command.
+	Strategy             string `json:"strategy"`
+	MaxAttemptsPerStep   int    `json:"max_attempts_per_step"`
+	MaxInvocations       int    `json:"max_invocations"`
+	WorkerTimeoutMinutes int    `json:"worker_timeout_minutes"`
 }
 
 func main() {
@@ -112,6 +116,10 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(w.config.WorkerTimeoutMinutes)*time.Minute)
 	defer cancel()
 	command := exec.CommandContext(ctx, w.config.Worker[0], arguments...)
+	// The declared strategy identity reaches every gate run inside the
+	// worker, so each attempt record states which strategy produced it.
+	command.Env = append(os.Environ(),
+		loop.StrategyEnvironment+"="+loop.StrategyIdentity(w.config.Worker, w.config.Strategy))
 	command.Stdin = strings.NewReader(text)
 	out, err := command.CombinedOutput()
 	tail := tailOf(string(out), 4000)

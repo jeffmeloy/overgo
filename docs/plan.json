@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "strategy-identity",
-      "title": "Stamp worker strategy identity into every attempt",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stamp worker strategy identity into every attempt -- The loop config declares a strategy identity (worker command digest + prompt profile); every attempt record carries it so history can compare strategies instead of anonymous runs.",
-          "status": "open",
-          "verify": "go test ./internal/loop -run TestStrategy -count=1",
-          "depends_on": [
-            "attempt-records/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "strategy-experiments",
       "title": "Run competing strategies in isolated worktrees against one baseline",
       "status": "open",

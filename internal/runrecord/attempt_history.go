@@ -17,6 +17,7 @@ import (
 // AttemptFilter bounds one history read. Empty fields admit all.
 type AttemptFilter struct {
 	PlanItem   string
+	Strategy   string
 	CodeCommit string
 	Limit      int
 }
@@ -69,6 +70,9 @@ func LoadAttemptHistory(ctx context.Context, store *overgodb.Store, filter Attem
 			continue
 		}
 		if filter.PlanItem != "" && record.PlanItem != filter.PlanItem {
+			continue
+		}
+		if filter.Strategy != "" && record.Strategy != filter.Strategy {
 			continue
 		}
 		if filter.CodeCommit != "" && record.CodeCommit != filter.CodeCommit {

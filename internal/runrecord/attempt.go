@@ -50,6 +50,7 @@ type AttemptRecord struct {
 	Version           uint16           `json:"version"`
 	PlanItem          string           `json:"plan_item"`
 	PlanStep          string           `json:"plan_step"`
+	Strategy          string           `json:"strategy,omitempty"`
 	Result            artifact.ID      `json:"result"`
 	Recipe            artifact.ID      `json:"recipe"`
 	CodeCommit        string           `json:"code_commit"`
@@ -77,6 +78,12 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 	if strings.TrimSpace(value.PlanItem) == "" || strings.TrimSpace(value.PlanStep) == "" ||
 		strings.ContainsAny(value.PlanItem+value.PlanStep, "/\x00\r\n\t ") {
 		return errors.New("run record: attempt requires its plan item and step")
+	}
+	// Strategy is optional -- an interactive session declares none --
+	// but a declared identity is one bounded token, never free text.
+	if value.Strategy != "" &&
+		(len(value.Strategy) > 128 || strings.ContainsAny(value.Strategy, " /\x00\r\n\t")) {
+		return errors.New("run record: attempt strategy must be one bounded token")
 	}
 	if value.Result.Kind() != artifact.KindEvidence {
 		return errors.New("run record: attempt requires the gate result it binds")

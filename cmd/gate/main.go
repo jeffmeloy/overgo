@@ -42,6 +42,7 @@ import (
 	"overgo/internal/finding"
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
+	"overgo/internal/loop"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/protection"
@@ -2353,6 +2354,9 @@ func (g *gateContext) appendAttemptRecord(
 	}
 	attempt := runrecord.AttemptRecord{
 		PlanItem: item, PlanStep: step, Result: resultID, Recipe: recipeID,
+		// The driver exports the declared strategy; an interactive
+		// session leaves it empty and the record stays honest.
+		Strategy:   os.Getenv(loop.StrategyEnvironment),
 		CodeCommit: codeCommit, Outcome: outcome, Failure: failure,
 		WallNS: uint64(time.Since(g.start).Nanoseconds()),
 		Selection: runrecord.AttemptSelection{

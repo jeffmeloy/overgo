@@ -77,4 +77,26 @@ func TestAttemptHistoryQueriesAndAggregates(t *testing.T) {
 	if err != nil || len(limited.Attempts) != 1 || len(limited.Steps) != 1 {
 		t.Fatalf("limit = (%d attempts, %d steps, %v)", len(limited.Attempts), len(limited.Steps), err)
 	}
+
+	strategist := fixtureAttempt(t)
+	strategist.PlanItem, strategist.Strategy = "gamma", "sonnet-baseline"
+	published, err := NewAttemptRecord(strategist)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := published.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key:       "fixture/attempt/" + published.ID.String(),
+		Artifacts: []artifact.Descriptor{content.Descriptor},
+		Contents:  []artifact.Content{content},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	byStrategy, err := LoadAttemptHistory(ctx, store, AttemptFilter{Strategy: "sonnet-baseline"})
+	if err != nil || len(byStrategy.Attempts) != 1 || byStrategy.Attempts[0].PlanItem != "gamma" {
+		t.Fatalf("strategy filter = (%+v, %v)", byStrategy.Attempts, err)
+	}
 }

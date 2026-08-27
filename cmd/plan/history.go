@@ -43,6 +43,9 @@ func printAttemptHistory(selector string, output io.Writer) error {
 		if attempt.Failure != "" {
 			outcome += ":" + attempt.Failure
 		}
+		if attempt.Strategy != "" {
+			outcome += " strategy=" + attempt.Strategy
+		}
 		fmt.Fprintf(output, "%s/%s %s wall=%s commit=%.8s selected=%d/%d files=%d\n",
 			attempt.PlanItem, attempt.PlanStep, outcome,
 			time.Duration(attempt.WallNS).Round(time.Millisecond).String(), attempt.CodeCommit,

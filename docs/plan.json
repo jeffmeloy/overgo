@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "policy-lifecycle",
-      "title": "Promote automation policies through an evidence-gated lifecycle",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Promote automation policies through an evidence-gated lifecycle -- Automation policy documents move declared -\u003e experimental -\u003e verified -\u003e active exactly as recipes promote: promotion demands measured wins over the incumbent from attempt history and retains the rollback target. Closes: evidence-gated promotion of automation policies.",
-          "status": "open",
-          "verify": "go test ./internal/automationpolicy -count=1",
-          "depends_on": [
-            "strategy-experiments/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "steering-proposals",
       "title": "Admit typed steering proposals through deterministic validation",
       "status": "open",

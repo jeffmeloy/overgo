@@ -1186,7 +1186,7 @@ func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOpera
 		layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
 		layerStage(LayerOperatorFeedForwardNorm), layerStage(feedForward), layerStage(LayerOperatorResidual),
 	}
-	if len(scale) != 0 {
+	if len(scale) != 0 && positiveFinite(scale[tensor.FirstOffset]) {
 		stages = append(stages, scaleLayerStage(scale[tensor.FirstOffset]))
 	}
 	return newLayerProgram(stages...)

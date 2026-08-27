@@ -282,10 +282,10 @@ func writeMediaSamplesSection(
 			if err != nil {
 				return err
 			}
-			present := make([]string, 0, len(samples))
-			for _, name := range samples {
-				if _, statErr := os.Stat(filepath.Join(directory, name)); statErr == nil {
-					present = append(present, name)
+			present := make([]sampleRef, 0, len(samples))
+			for _, sample := range samples {
+				if _, statErr := os.Stat(filepath.Join(directory, sample.Name)); statErr == nil {
+					present = append(present, sample)
 				}
 			}
 			if len(present) == 0 {
@@ -297,14 +297,17 @@ func writeMediaSamplesSection(
 			}
 			fmt.Fprintf(output, "### %s (`%s`)\n\n", escapeMarkdown(name), capability.Task)
 			for _, sample := range present {
-				relative := "media_samples/" + sample
+				relative := "media_samples/" + sample.Name
 				switch {
-				case strings.HasSuffix(sample, ".wav"):
-					fmt.Fprintf(output, "- Audio clip: [%s](%s)\n", sample, relative)
-				case strings.HasSuffix(sample, ".gif"):
-					fmt.Fprintf(output, "- Video clip: [%s](%s)\n\n  ![%s clip](%s)\n", sample, relative, escapeMarkdown(name), relative)
+				case strings.HasSuffix(sample.Name, ".wav"):
+					fmt.Fprintf(output, "- Audio clip: [%s](%s)\n", sample.Name, relative)
+				case strings.HasSuffix(sample.Name, ".gif"):
+					fmt.Fprintf(output, "- Video clip: [%s](%s)\n\n  ![%s clip](%s)\n", sample.Name, relative, escapeMarkdown(name), relative)
 				default:
-					fmt.Fprintf(output, "- Image: [%s](%s)\n\n  ![%s image](%s)\n", sample, relative, escapeMarkdown(name), relative)
+					fmt.Fprintf(output, "- Image: [%s](%s)\n\n  ![%s image](%s)\n", sample.Name, relative, escapeMarkdown(name), relative)
+				}
+				if sample.Request != "" {
+					fmt.Fprintf(output, "\n  Request: `%s`\n", sample.Request)
 				}
 				linked++
 			}

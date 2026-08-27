@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
   "items": [
     {
-      "id": "media-codec-executor",
-      "title": "Move codec sequencing into the neutral media program",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make media.CodecProgram own ordered state transitions, shape evolution, workspace lifetimes, and tensor bindings for host and CUDA backends. Backends implement only causal convolution, spatial convolution, residual, resize, attention, and normalization primitives. Migrate latent video and image codec callers; delete runVAEOp, VAEDecoderCUDASession.runOp, duplicate state structs, repeated shape transitions, and per-stage temporary ownership. Reuse planned workspace by liveness and retain exact host-CUDA output parity.",
-          "status": "open",
-          "verify": "go test ./internal/media ./internal/latentvideo ./internal/latentimage ./internal/diffusionimage -count=1",
-          "depends_on": [
-            "reference-execution-program/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "consumer-surface-pruning",
       "title": "Delete dead surface and privatize single-owner contracts",
       "status": "open",

@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
   "items": [
     {
-      "id": "consumer-surface-pruning",
-      "title": "Delete dead surface and privatize single-owner contracts",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-run the production consumer graph after the compiler migrations. Delete zero-consumer functions and constants unless a machine-readable external contract requires them. Privatize test-only exports and single-package contracts. Inline single-consumer pass-through functions that own no validation, lifecycle, or evidence boundary. Keep CPU parity oracles explicitly classified rather than deleting them as unused. Remove resulting files and imports; do not add compatibility aliases.",
-          "status": "open",
-          "verify": "go test ./... -count=1",
-          "depends_on": [
-            "media-codec-executor/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "structural-regression-gate",
       "title": "Gate structural consolidation with existing AST evidence",
       "status": "open",

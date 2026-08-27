@@ -4,6 +4,32 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
+      "id": "cuda-host-corruption",
+      "title": "Hunt the CUDA-path host memory corruption (8-byte zero writes)",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hunt the CUDA-path host memory corruption (8-byte zero writes)",
+          "status": "open",
+          "verify": "go test ./internal/cuda/driver -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-manifest-diet",
+      "title": "Stop persisting full code manifests per gate run; derive from git, keep digests",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop persisting full code manifests per gate run; derive from git, keep digests",
+          "status": "open",
+          "verify": "go run ./tmp/journalscan overgodb-store/overgodb.log | node -e \"let d='';process.stdin.on('data',c=\u003ed+=c).on('end',()=\u003e{const m=d.match(/([0-9.]+) GB\\s+\\d+\\s+application..vnd.overgo.code-manifest/);if(m\u0026\u0026parseFloat(m[1])\u003e0.5)process.exit(1)})\""
+        }
+      ]
+    },
+    {
       "id": "media-production-samples",
       "title": "Production-shaped SenseNova and Wan generations replace smoke samples",
       "status": "open",
@@ -13,6 +39,32 @@
           "title": "Production-shaped SenseNova and Wan generations replace smoke samples",
           "status": "open",
           "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/integrate [0-9]+m[0-9]/.test(s) \u0026\u0026 !/integrate [0-9]{2,}\\./.test(s) \u0026\u0026 !/integrate [0-9]{2,}s/.test(s)) process.exit(1)\""
+        }
+      ]
+    },
+    {
+      "id": "store-output-digests",
+      "title": "Media evidence cites content digests instead of embedding tensors and PCM",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Media evidence cites content digests instead of embedding tensors and PCM",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-segmentation",
+      "title": "OvergoDB snapshot and segment rotation replace the monolithic journal",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "OvergoDB snapshot and segment rotation replace the monolithic journal",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run TestSegment -count=1"
         }
       ]
     },

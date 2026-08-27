@@ -93,10 +93,11 @@ type Result struct {
 
 // Runtime: registered module adapters plus run repository.
 type Runtime struct {
-	mu       sync.RWMutex
-	store    artifact.Repository
-	catalog  *recipe.Catalog
-	adapters map[recipe.ModuleID]Adapter
+	mu         sync.RWMutex
+	store      artifact.Repository
+	catalog    *recipe.Catalog
+	definition recipe.Definition
+	adapters   map[recipe.ModuleID]Adapter
 	// entries serializes Execute per adapter: the Adapter contract does
 	// not require concurrency safety, so two stages of one module never
 	// enter their shared adapter at once.
@@ -129,10 +130,36 @@ func NewForProgram(store artifact.Repository, program recipe.Program) (*Runtime,
 		parallelism = max(parallelism, len(ready))
 	}
 	return &Runtime{
-		store: store, catalog: catalog, adapters: make(map[recipe.ModuleID]Adapter),
-		entries: make(map[recipe.ModuleID]*sync.Mutex),
-		slots:   make(chan struct{}, parallelism),
+		store: store, catalog: catalog, definition: program.Definition(),
+		adapters: make(map[recipe.ModuleID]Adapter),
+		entries:  make(map[recipe.ModuleID]*sync.Mutex),
+		slots:    make(chan struct{}, parallelism),
 	}, nil
+}
+
+// ModuleModel resolves the model a module's stage executes against: a
+// stage slotted onto a component model expects that component, while
+// an unslotted or ambiguous module keeps the caller's binding.
+func (r *Runtime) ModuleModel(module recipe.ModuleID, fallback artifact.ID) artifact.ID {
+	var matched *recipe.Node
+	for index := range r.definition.Nodes {
+		node := &r.definition.Nodes[index]
+		if node.Module != module {
+			continue
+		}
+		if matched != nil {
+			return fallback
+		}
+		matched = node
+	}
+	if matched == nil || matched.ModelSlot == 0 {
+		return fallback
+	}
+	model, ok := r.definition.Dependency(recipe.DependencyModel, matched.ModelSlot)
+	if !ok {
+		return fallback
+	}
+	return model
 }
 
 func (r *Runtime) Register(module recipe.ModuleID, adapter Adapter) error {

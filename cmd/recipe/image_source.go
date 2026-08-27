@@ -71,10 +71,58 @@ func resolveImageSource(path string) (capabilitySource, error) {
 		return capabilitySource{}, fmt.Errorf("image-gen: unsupported profile strategy %q", source.Profile)
 	}
 
-	return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-		definition, err := modelrecipe.GenerationDefinition(source.Prepare, modelID, profileID)
+	bindings, manifests, err := latentImageComponentBindings(source, inventory)
+	if err != nil {
+		return capabilitySource{}, err
+	}
+	return capabilitySource{inventory: inventory, manifests: manifests, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+		definition, err := modelrecipe.GenerationDefinitionWithComponents(source.Prepare, modelID, profileID, bindings)
 		return definition, contents, err
 	}}, nil
+}
+
+// latentImageComponentBindings slots the latent-image stages onto the
+// diffusers-layout component groups: prepare on the text encoder,
+// integrate on the transformer, decode on the VAE. Each group becomes
+// its own content-identified model manifest, so a byte-identical
+// component shared across models (a Flux-lineage VAE, for example)
+// resolves to the same artifact everywhere. Sources with other
+// inventory layouts stay on the composite slot.
+func latentImageComponentBindings(
+	source modelrecipe.GenerationSourceProfile,
+	inventory modelartifact.Inventory,
+) ([]modelrecipe.ComponentBinding, []artifact.Manifest, error) {
+	if source.Inventory != modelrecipe.SourceInventoryLatentImage {
+		return nil, nil, nil
+	}
+	groups := []struct {
+		node      recipe.NodeID
+		directory string
+	}{
+		{"prepare", "text_encoder"},
+		{"integrate", "transformer"},
+		{"decode", "vae"},
+	}
+	bindings := make([]modelrecipe.ComponentBinding, 0, len(groups))
+	manifests := make([]artifact.Manifest, 0, len(groups))
+	for _, group := range groups {
+		var members []artifact.Component
+		for _, component := range inventory.Manifest.Components {
+			if strings.HasPrefix(component.Name, group.directory+"/") {
+				members = append(members, component)
+			}
+		}
+		if len(members) == 0 {
+			return nil, nil, fmt.Errorf("image-gen: component group %q is empty", group.directory)
+		}
+		manifest, err := artifact.NewManifest(artifact.KindModel, members)
+		if err != nil {
+			return nil, nil, fmt.Errorf("image-gen: component group %q: %w", group.directory, err)
+		}
+		bindings = append(bindings, modelrecipe.ComponentBinding{Node: group.node, Model: manifest.ID})
+		manifests = append(manifests, manifest)
+	}
+	return bindings, manifests, nil
 }
 
 func latentImageInventory(path string) (modelartifact.Inventory, error) {

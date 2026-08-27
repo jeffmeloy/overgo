@@ -267,10 +267,47 @@ func ProjectionDefinition(
 }
 
 func (c linearCapability) definition(task recipe.Task, modelID artifact.ID, dependencies ...recipe.Dependency) (recipe.Definition, error) {
+	return c.componentDefinition(task, modelID, nil, dependencies...)
+}
+
+// ComponentBinding slots one stage node onto the component model that
+// backs it, while the definition keeps the combination-exact composite
+// identity as its primary model.
+type ComponentBinding struct {
+	Node  recipe.NodeID
+	Model artifact.ID
+}
+
+// componentDefinition compiles the linear topology with each bound
+// stage executing against its component model through a slotted model
+// dependency; unbound stages stay on the primary composite slot.
+func (c linearCapability) componentDefinition(
+	task recipe.Task,
+	modelID artifact.ID,
+	bindings []ComponentBinding,
+	dependencies ...recipe.Dependency,
+) (recipe.Definition, error) {
+	slots := make(map[recipe.NodeID]uint32, len(bindings))
+	slotted := make([]recipe.Dependency, 0, len(bindings))
+	for index, binding := range bindings {
+		if _, duplicate := slots[binding.Node]; duplicate {
+			return recipe.Definition{}, fmt.Errorf("model recipe: node %q has two component bindings", binding.Node)
+		}
+		slot := uint32(index) + 1
+		slots[binding.Node] = slot
+		slotted = append(slotted, recipe.Dependency{Role: recipe.DependencyModel, Slot: slot, Artifact: binding.Model})
+	}
 	nodes := make([]recipe.Node, len(c.stages))
 	edges := make([]recipe.Edge, len(c.stages)-1)
+	bound := 0
 	for index, stage := range c.stages {
-		nodes[index] = recipe.Node{ID: stage.node, Module: stage.module, Placement: c.placement, Session: stage.session}
+		nodes[index] = recipe.Node{
+			ID: stage.node, Module: stage.module, Placement: c.placement,
+			Session: stage.session, ModelSlot: slots[stage.node],
+		}
+		if _, ok := slots[stage.node]; ok {
+			bound++
+		}
 		if index > 0 {
 			prior := c.stages[index-1]
 			edges[index-1] = recipe.Edge{
@@ -279,8 +316,12 @@ func (c linearCapability) definition(task recipe.Task, modelID artifact.ID, depe
 			}
 		}
 	}
+	if bound != len(bindings) {
+		return recipe.Definition{}, errors.New("model recipe: component binding names an unknown stage")
+	}
 	first, last := c.stages[0], c.stages[len(c.stages)-1]
 	dependencies = append([]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}}, dependencies...)
+	dependencies = append(dependencies, slotted...)
 	return recipe.NewDefinitionWithDependencies(
 		task, dependencies, nodes, edges,
 		[]recipe.Input{{Name: first.input, Data: first.inputData, Target: recipe.Endpoint{Node: first.node, Port: first.input}}},

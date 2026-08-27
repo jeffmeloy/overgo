@@ -5,12 +5,14 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/pathidentity"
 )
 
 const (
@@ -31,17 +33,38 @@ type Resources struct {
 	GPUExclusive bool `json:"gpu_exclusive"`
 }
 
+type WorkspaceClaimMode string
+
+const (
+	WorkspaceClaimRead  WorkspaceClaimMode = "read"
+	WorkspaceClaimWrite WorkspaceClaimMode = "write"
+)
+
+type WorkspaceClaim struct {
+	Mode WorkspaceClaimMode `json:"mode"`
+	Path string             `json:"path"`
+}
+
+// WorkspaceClaims declares exact path access. WholeWorktree is the
+// conservative representation for an absent or unresolvable scope.
+type WorkspaceClaims struct {
+	WholeWorktree bool     `json:"whole_worktree,omitempty"`
+	Read          []string `json:"read,omitempty"`
+	Write         []string `json:"write,omitempty"`
+}
+
 // WorkLease: immutable lane assignment with CAS alias.
 type WorkLease struct {
-	Version       uint16    `json:"version"`
-	Task          string    `json:"task"`
-	Worktree      string    `json:"worktree"`
-	Branch        string    `json:"branch"`
-	Role          string    `json:"role"`
-	TargetHead    string    `json:"target_head"`
-	ConflictsWith []string  `json:"conflicts_with"`
-	Resources     Resources `json:"resources"`
-	ExpiresAt     string    `json:"expires_at"`
+	Version       uint16          `json:"version"`
+	Task          string          `json:"task"`
+	Worktree      string          `json:"worktree"`
+	Branch        string          `json:"branch"`
+	Role          string          `json:"role"`
+	TargetHead    string          `json:"target_head"`
+	ConflictsWith []string        `json:"conflicts_with"`
+	Resources     Resources       `json:"resources"`
+	Claims        WorkspaceClaims `json:"claims"`
+	ExpiresAt     string          `json:"expires_at"`
 	// Optional experiment retry state.
 	Experiment      artifact.ID `json:"experiment,omitzero"`
 	Checkpoint      artifact.ID `json:"checkpoint,omitzero"`
@@ -54,6 +77,8 @@ var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvide
 	canonicalizeWorkLease, func(value WorkLease) artifact.ID { return value.ID },
 	func(value *WorkLease, id artifact.ID) { value.ID = id }, func(value WorkLease) WorkLease {
 		value.ConflictsWith = slices.Clone(value.ConflictsWith)
+		value.Claims.Read = slices.Clone(value.Claims.Read)
+		value.Claims.Write = slices.Clone(value.Claims.Write)
 		return value
 	})
 
@@ -128,7 +153,111 @@ func canonicalizeWorkLease(value *WorkLease) error {
 	if slices.Contains(value.ConflictsWith, value.Task) {
 		return errors.New("plan: work lease cannot conflict with itself")
 	}
+	canonicalizeClaims(&value.Claims)
 	return nil
+}
+
+// ResolveWorkspaceClaims converts requested paths to live filesystem
+// identities. Any uncertainty returns a whole-worktree claim.
+func ResolveWorkspaceClaims(worktree string, read, write []string) (string, WorkspaceClaims) {
+	root, err := pathidentity.Canonical(worktree)
+	if err != nil {
+		return filepath.ToSlash(filepath.Clean(worktree)), WorkspaceClaims{WholeWorktree: true}
+	}
+	claims := WorkspaceClaims{}
+	resolve := func(values []string, destination *[]string) bool {
+		for _, value := range values {
+			candidate := value
+			if !filepath.IsAbs(candidate) {
+				candidate = filepath.Join(root, candidate)
+			}
+			contained, containErr := pathidentity.Contains(root, candidate)
+			if containErr != nil || !contained {
+				return false
+			}
+			absolute, absoluteErr := filepath.Abs(candidate)
+			if absoluteErr != nil {
+				return false
+			}
+			*destination = append(*destination, filepath.ToSlash(filepath.Clean(absolute)))
+		}
+		return true
+	}
+	if !resolve(read, &claims.Read) || !resolve(write, &claims.Write) || len(read)+len(write) == 0 {
+		return filepath.ToSlash(root), WorkspaceClaims{WholeWorktree: true}
+	}
+	canonicalizeClaims(&claims)
+	return filepath.ToSlash(root), claims
+}
+
+func canonicalizeClaims(claims *WorkspaceClaims) {
+	if claims == nil {
+		return
+	}
+	for _, values := range []*[]string{&claims.Read, &claims.Write} {
+		for index, value := range *values {
+			(*values)[index] = filepath.ToSlash(filepath.Clean(value))
+		}
+		sort.Slice(*values, func(i, j int) bool { return strings.ToLower((*values)[i]) < strings.ToLower((*values)[j]) })
+		*values = slices.CompactFunc(*values, strings.EqualFold)
+	}
+	if len(claims.Read)+len(claims.Write) == 0 {
+		claims.WholeWorktree = true
+	}
+	if claims.WholeWorktree {
+		claims.Read, claims.Write = nil, nil
+	}
+}
+
+// WorkspaceClaimOrder returns the single deterministic acquisition order.
+func WorkspaceClaimOrder(claims WorkspaceClaims) []WorkspaceClaim {
+	if claims.WholeWorktree {
+		return []WorkspaceClaim{{Mode: WorkspaceClaimWrite, Path: "*"}}
+	}
+	result := make([]WorkspaceClaim, 0, len(claims.Read)+len(claims.Write))
+	for _, path := range claims.Read {
+		result = append(result, WorkspaceClaim{Mode: WorkspaceClaimRead, Path: path})
+	}
+	for _, path := range claims.Write {
+		result = append(result, WorkspaceClaim{Mode: WorkspaceClaimWrite, Path: path})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if !strings.EqualFold(result[i].Path, result[j].Path) {
+			return strings.ToLower(result[i].Path) < strings.ToLower(result[j].Path)
+		}
+		return result[i].Mode < result[j].Mode
+	})
+	return result
+}
+
+// WorkspaceClaimsConflict reports write/read or write/write overlap.
+func WorkspaceClaimsConflict(left, right WorkLease) bool {
+	if !strings.EqualFold(filepath.Clean(left.Worktree), filepath.Clean(right.Worktree)) {
+		return false
+	}
+	if left.Claims.WholeWorktree || right.Claims.WholeWorktree {
+		return true
+	}
+	for _, write := range left.Claims.Write {
+		for _, path := range append(slices.Clone(right.Claims.Read), right.Claims.Write...) {
+			if claimPathsOverlap(write, path) {
+				return true
+			}
+		}
+	}
+	for _, write := range right.Claims.Write {
+		for _, read := range left.Claims.Read {
+			if claimPathsOverlap(write, read) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func claimPathsOverlap(left, right string) bool {
+	left, right = strings.TrimSuffix(filepath.ToSlash(filepath.Clean(left)), "/"), strings.TrimSuffix(filepath.ToSlash(filepath.Clean(right)), "/")
+	return strings.EqualFold(left, right) || strings.HasPrefix(strings.ToLower(left), strings.ToLower(right)+"/") || strings.HasPrefix(strings.ToLower(right), strings.ToLower(left)+"/")
 }
 
 type ResourceAdvisory struct {
@@ -161,7 +290,7 @@ func AssessResources(now time.Time, capacity Resources, leases []WorkLease) Reso
 		for j := i + 1; j < len(active); j++ {
 			left, right := active[i], active[j]
 			switch {
-			case strings.EqualFold(left.Worktree, right.Worktree):
+			case WorkspaceClaimsConflict(left, right):
 				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s and %s share worktree %s", left.Task, right.Task, left.Worktree))
 			case slices.Contains(left.ConflictsWith, right.Task) || slices.Contains(right.ConflictsWith, left.Task):
 				result.Conflicts = append(result.Conflicts, fmt.Sprintf("%s conflicts with %s", left.Task, right.Task))

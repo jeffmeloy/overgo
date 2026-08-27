@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "claims",
-          "title": "Extend plan.WorkLease with normalized read and write claims over canonical worktree and path identities. Derive overlap structurally, sort acquisition order deterministically, use existing CAS aliases for ownership, and treat missing or unresolvable scope as whole-worktree conflict. Preserve resource reservations and experiment recovery in the same lease document; do not add a filesystem-lock service.",
-          "status": "open",
-          "verify": "rg -q \"func TestWorkspaceClaims\" internal/plan -g \"*_test.go\" \u0026\u0026 go test ./internal/plan -run '^TestWorkspaceClaims$' -count=1",
-          "rationale": "Reasonix's workspace leasing solves a real parallel-agent hazard. Overgo already has content-addressed work leases and conflict assessment, making an extension smaller and more auditable than porting its interprocess lock owner.",
-          "depends_on": [
-            "harness-surface-discipline/ratchets"
-          ],
-          "capabilities": [
-            "plan-work-lease",
-            "pathidentity",
-            "artifact-cas"
-          ]
-        },
-        {
           "id": "operations",
           "title": "Make operation.Manager acquire, retain, and release exact workspace claims for mutating work, including background execution, cancellation, failure, and recovery. Admission uses the shared invocation effect and work lease; terminal state always records the release or expired-lease recovery evidence. Existing workflowruntime concurrency remains the only executor.",
           "status": "open",

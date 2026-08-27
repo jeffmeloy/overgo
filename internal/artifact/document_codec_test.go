@@ -19,6 +19,15 @@ func (absentDocumentReader) OpenContent(context.Context, ID) (Descriptor, io.Rea
 	return Descriptor{}, nil, false, nil
 }
 
+type codecAliasReader struct {
+	documentReader
+	alias ID
+}
+
+func (r codecAliasReader) ResolveAlias(context.Context, string) (ID, bool, error) {
+	return r.alias, r.alias.Valid(), nil
+}
+
 func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	const expectedEncodesPerOperation = 1
 	contract := DocumentContract{
@@ -78,6 +87,15 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	}
 	if _, err := codec.Require(context.Background(), absentDocumentReader{}, document.ID); err == nil {
 		t.Fatal("absent required document accepted")
+	}
+	resolved, found, err := codec.Resolve(context.Background(), codecAliasReader{
+		documentReader: documentReader{content: content}, alias: document.ID,
+	}, "current")
+	if err != nil || !found || resolved.ID != document.ID {
+		t.Fatalf("resolved document = %+v/%v/%v", resolved, found, err)
+	}
+	if _, found, err := codec.Resolve(context.Background(), codecAliasReader{}, "missing"); err != nil || found {
+		t.Fatalf("absent alias = %v/%v", found, err)
 	}
 	mutated := document
 	mutated.Names = []string{"second", "first"}

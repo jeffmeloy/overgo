@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:3f47d2d429a02e37fc22691735ef8f9a3adf09b4a3768198dfc885713fc9dfc5",
   "items": [
     {
-      "id": "exact-clone-owners",
-      "title": "Delete exact lifecycle and wrapper clones through existing owners",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace manual ReadContent, schema, parse, and identity sequences with artifact.DocumentCodec.Require or existing typed Require functions. Route modelrecipe and trainingworkflow definition loading through recipe.RequireDefinition. Route composition evidence loading through each codec. Consolidate equivalent runrecord alias resolution, evaluation plan binding, projector image/frame entry, and command exit shells only where contracts match. Migrate every caller; delete cloned loaders, alias builders, bind wrappers, entry wrappers, and local validation copies. Require a production-code net reduction and lower exact-clone excess.",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/trainingworkflow ./internal/composition ./internal/runrecord ./internal/evaluation ./internal/projector ./internal/clioptions ./cmd/... -count=1"
-        }
-      ]
-    },
-    {
       "id": "weight-catalog-program",
       "title": "Make compiled tensor bindings the sole weight catalog authority",
       "status": "open",
@@ -26,7 +13,9 @@
           "title": "Compile model, layer, draft, recurrent, and optional tensor requirements from ArchitectureProfile, recipe facts, and inventory into one ordered indexed binding program. Execute that program once against weightCatalog. Migrate all catalog readers and specialized layer loaders, then delete loadLayerCatalogs orchestration, imperative requirement construction, repeated name lookup, and model-policy branches. Preserve optionality, shape validation, tied weights, and inventory-derived dimensions without fallback catalogs.",
           "status": "open",
           "verify": "go test ./internal/model ./internal/modelrecipe ./internal/modelartifact ./internal/inference -count=1",
-          "depends_on": ["exact-clone-owners/do"]
+          "depends_on": [
+            "exact-clone-owners/do"
+          ]
         }
       ]
     },
@@ -40,7 +29,9 @@
           "title": "Resolve LayerOperatorInstruction values during LayerPlan compilation into ordered neutral operator stages with indexed operands, caches, weights, and validation contracts. Execute the compiled stage sequence directly. Migrate all graph callers and delete executeLayerInstruction, nested feed-forward and residual switches, and single-consumer topology builders displaced by the stage compiler. Keep distinct attention, recurrent, routed, normalization, and residual mathematics as typed operators; prohibit architecture names and property bags in operator execution.",
           "status": "open",
           "verify": "go test ./internal/model ./internal/inference ./internal/routedlm ./internal/scratchmodel -count=1",
-          "depends_on": ["weight-catalog-program/do"]
+          "depends_on": [
+            "weight-catalog-program/do"
+          ]
         }
       ]
     },
@@ -54,7 +45,9 @@
           "title": "Extend compiled CUDA nodes with exact launcher identity, indexed operand slots, validated extents, layout, and ABI metadata. Resolve launch family and shape contracts at compile time; runtime supplies pointers and dynamic extents only. Migrate recurrent, linear, attention, math-vision, MoE, and RoPE callers together. Delete launchNode family dispatch, repeated attribute decoding, repeated pointer lookup, and duplicated runtime shape validation. Retain bounded kernel selection and numerical parity.",
           "status": "open",
           "verify": "go test ./internal/cuda/executor ./internal/cuda/kernel ./internal/tensor -count=1",
-          "depends_on": ["layer-operator-program/do"]
+          "depends_on": [
+            "layer-operator-program/do"
+          ]
         }
       ]
     },
@@ -68,7 +61,9 @@
           "title": "Compile reference executor nodes into indexed neutral operation stages using the tensor program contract shared with CUDA. Move invariant validation and attribute interpretation to compilation. Migrate all oracle and host consumers, then delete executeNode dispatch branches and single-consumer operation wrappers where a typed primitive already exists. Preserve accumulation order and CPU-CUDA parity; do not merge operators with different semantics.",
           "status": "open",
           "verify": "go test ./internal/tensor/reference ./internal/tensor ./internal/cuda/executor -count=1",
-          "depends_on": ["cuda-launch-program/do"]
+          "depends_on": [
+            "cuda-launch-program/do"
+          ]
         }
       ]
     },
@@ -82,7 +77,9 @@
           "title": "Make media.CodecProgram own ordered state transitions, shape evolution, workspace lifetimes, and tensor bindings for host and CUDA backends. Backends implement only causal convolution, spatial convolution, residual, resize, attention, and normalization primitives. Migrate latent video and image codec callers; delete runVAEOp, VAEDecoderCUDASession.runOp, duplicate state structs, repeated shape transitions, and per-stage temporary ownership. Reuse planned workspace by liveness and retain exact host-CUDA output parity.",
           "status": "open",
           "verify": "go test ./internal/media ./internal/latentvideo ./internal/latentimage ./internal/diffusionimage -count=1",
-          "depends_on": ["reference-execution-program/do"]
+          "depends_on": [
+            "reference-execution-program/do"
+          ]
         }
       ]
     },
@@ -96,7 +93,9 @@
           "title": "Re-run the production consumer graph after the compiler migrations. Delete zero-consumer functions and constants unless a machine-readable external contract requires them. Privatize test-only exports and single-package contracts. Inline single-consumer pass-through functions that own no validation, lifecycle, or evidence boundary. Keep CPU parity oracles explicitly classified rather than deleting them as unused. Remove resulting files and imports; do not add compatibility aliases.",
           "status": "open",
           "verify": "go test ./... -count=1",
-          "depends_on": ["media-codec-executor/do"]
+          "depends_on": [
+            "media-codec-executor/do"
+          ]
         }
       ]
     },
@@ -110,7 +109,9 @@
           "title": "Use codeprofile and codemanifest as the sole structural census. Publish the final profile and require each migration wave to report runtime AST nodes, exact-clone excess, branch-heavy functions, exported declarations, import edges, and consumer classes against its parent. Reject new zero-consumer production surface, clone growth, or a replacement switch with equivalent branch surface unless explicit evidence records necessary semantics. Delete temporary audit scripts and hand-maintained counts.",
           "status": "open",
           "verify": "go test ./internal/codeprofile ./internal/codemanifest ./internal/repoanalysis ./cmd/gate ./cmd/code-manifest ./cmd/closure-scan -count=1",
-          "depends_on": ["consumer-surface-pruning/do"]
+          "depends_on": [
+            "consumer-surface-pruning/do"
+          ]
         }
       ]
     }

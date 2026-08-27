@@ -182,20 +182,7 @@ func LoadRepresentationBridgePromotion(
 	reader artifact.Reader,
 	id artifact.ID,
 ) (RepresentationBridgePromotion, error) {
-	content, err := loadCompositionContent(
-		ctx, reader, id, artifact.KindEvidence,
-		RepresentationBridgePromotionMediaType, RepresentationBridgePromotionSchema,
-	)
-	if err != nil {
-		return RepresentationBridgePromotion{}, err
-	}
-	value, err := (RepresentationBridgePromoter{}).Parse(content.Data)
-	if err != nil || value.ID != id {
-		return RepresentationBridgePromotion{}, errors.Join(
-			err, errors.New("composition: representation bridge promotion identity differs"),
-		)
-	}
-	return value, nil
+	return representationBridgePromotionCodec.Require(ctx, reader, id)
 }
 
 // ValidateIdentity verifies both the evidence envelope and content identity.

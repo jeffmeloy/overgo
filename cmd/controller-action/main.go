@@ -18,16 +18,14 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/controlleraction"
 	"overgo/internal/modelmerge"
 	"overgo/internal/overgodb"
 )
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "controller-action:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("controller-action", func() error { return run(os.Args[1:], os.Stdout) })
 }
 
 func run(args []string, output io.Writer) error {

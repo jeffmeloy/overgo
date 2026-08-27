@@ -81,12 +81,7 @@ func ResolveStageReceipt(
 	operation artifact.ID,
 	node recipe.NodeID,
 ) (StageReceipt, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, stageReceiptAlias(operation, node))
-	if err != nil || !found {
-		return StageReceipt{}, found, err
-	}
-	value, err := stageReceiptCodec.Require(ctx, reader, id)
-	return value, err == nil, err
+	return stageReceiptCodec.Resolve(ctx, reader, stageReceiptAlias(operation, node))
 }
 
 // PublishStageReceipt advances one operation-node lifecycle.

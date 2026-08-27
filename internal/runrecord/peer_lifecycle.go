@@ -164,12 +164,7 @@ func RequirePeerEnrollment(ctx context.Context, reader artifact.Reader, id artif
 
 // ResolvePeerState returns the current administrative state for one peer.
 func ResolvePeerState(ctx context.Context, reader artifact.Reader, peer artifact.ID) (PeerState, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, PeerStateAliasRoot+peer.String())
-	if err != nil || !found {
-		return PeerState{}, found, err
-	}
-	value, err := peerStateCodec.Require(ctx, reader, id)
-	return value, err == nil, err
+	return peerStateCodec.Resolve(ctx, reader, PeerStateAliasRoot+peer.String())
 }
 
 // PublishPeerState advances active to draining and draining to retired.
@@ -222,12 +217,7 @@ func PublishPeerState(
 
 // ResolvePeerHeartbeat returns the current lease renewal for one peer.
 func ResolvePeerHeartbeat(ctx context.Context, reader artifact.Reader, peer artifact.ID) (PeerHeartbeat, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, PeerHeartbeatAliasRoot+peer.String())
-	if err != nil || !found {
-		return PeerHeartbeat{}, found, err
-	}
-	value, err := peerHeartbeatCodec.Require(ctx, reader, id)
-	return value, err == nil, err
+	return peerHeartbeatCodec.Resolve(ctx, reader, PeerHeartbeatAliasRoot+peer.String())
 }
 
 // PublishPeerHeartbeat atomically renews one capability-bound lease.

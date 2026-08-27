@@ -50,13 +50,9 @@ func ResolvePeerCapabilityPublication(
 	reader artifact.Reader,
 	peer artifact.ID,
 ) (PeerCapabilityPublication, RemotePeerCapability, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, PeerCapabilityPublicationAliasRoot+peer.String())
+	publication, found, err := peerCapabilityPublicationCodec.Resolve(ctx, reader, PeerCapabilityPublicationAliasRoot+peer.String())
 	if err != nil || !found {
 		return PeerCapabilityPublication{}, RemotePeerCapability{}, found, err
-	}
-	publication, err := peerCapabilityPublicationCodec.Require(ctx, reader, id)
-	if err != nil {
-		return PeerCapabilityPublication{}, RemotePeerCapability{}, false, err
 	}
 	capability, err := RequireRemotePeerCapability(ctx, reader, publication.Capability)
 	return publication, capability, err == nil, err

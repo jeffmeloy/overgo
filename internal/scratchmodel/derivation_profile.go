@@ -98,14 +98,14 @@ func PublishDerivationProfileCatalog(
 
 // ResolveActiveDerivationProfile loads current construction authority.
 func ResolveActiveDerivationProfile(ctx context.Context, reader artifact.Reader) (DerivationProfile, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, activeDerivationProfile)
+	profile, found, err := derivationProfileCodec.Resolve(ctx, reader, activeDerivationProfile)
 	if err != nil {
 		return DerivationProfile{}, err
 	}
 	if !found {
 		return DerivationProfile{}, errors.New("scratch model: active derivation profile absent")
 	}
-	return derivationProfileCodec.Require(ctx, reader, id)
+	return profile, nil
 }
 
 func (profile DerivationProfile) validate() error {

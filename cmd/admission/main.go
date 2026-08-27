@@ -17,6 +17,7 @@ import (
 	"os"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -24,10 +25,7 @@ import (
 )
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "admission:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("admission", func() error { return run(os.Args[1:], os.Stdout) })
 }
 
 func run(args []string, output io.Writer) error {

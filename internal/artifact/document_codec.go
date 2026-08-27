@@ -123,6 +123,17 @@ func (c DocumentCodec[T]) Require(ctx context.Context, reader Reader, id ID) (T,
 	return value, nil
 }
 
+// Resolve requires the typed document targeted by one alias.
+func (c DocumentCodec[T]) Resolve(ctx context.Context, reader Reader, alias string) (T, bool, error) {
+	var zero T
+	id, found, err := ResolveAlias(ctx, reader, alias)
+	if err != nil || !found {
+		return zero, found, err
+	}
+	value, err := c.Require(ctx, reader, id)
+	return value, err == nil, err
+}
+
 // Normalize converts external bytes to a canonical value and identity bytes.
 func (c DocumentCodec[T]) Normalize(data []byte) (T, []byte, error) {
 	var decoded T

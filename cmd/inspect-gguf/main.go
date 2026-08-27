@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"os"
 
 	"overgo/internal/clioptions"
@@ -139,8 +138,5 @@ func run(arguments []string) error {
 }
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "inspect-gguf:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("inspect-gguf", func() error { return run(os.Args[1:]) })
 }

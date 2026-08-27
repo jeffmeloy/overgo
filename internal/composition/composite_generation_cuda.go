@@ -77,18 +77,7 @@ func (CompositeGenerationCUDAAuthority) Load(
 	reader artifact.Reader,
 	id artifact.ID,
 ) (CompositeGenerationCUDAEvidence, error) {
-	content, err := loadCompositionContent(
-		ctx, reader, id, artifact.KindEvidence,
-		CompositeGenerationCUDAEvidenceMediaType, CompositeGenerationCUDAEvidenceSchema,
-	)
-	if err != nil {
-		return CompositeGenerationCUDAEvidence{}, err
-	}
-	value, err := compositeGenerationCUDAEvidenceCodec.Parse(content.Data)
-	if err != nil || value.ID != id {
-		return CompositeGenerationCUDAEvidence{}, errors.Join(err, errors.New("composition: composite generation CUDA evidence identity differs"))
-	}
-	return value, nil
+	return compositeGenerationCUDAEvidenceCodec.Require(ctx, reader, id)
 }
 
 // ValidateIdentity verifies the CUDA evidence envelope and content identity.

@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"math"
 	"os"
 
@@ -106,8 +105,5 @@ func run(arguments []string) error {
 }
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "inspect-safetensors:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("inspect-safetensors", func() error { return run(os.Args[1:]) })
 }

@@ -491,6 +491,11 @@ func (r *Runtime) recoverStage(
 		if !found {
 			return nil, false, errors.New("workflow runtime: receipt output differs from module")
 		}
+		if len(binding.Artifacts) == 0 {
+			// A value-only output leaves no durable artifacts to revive;
+			// the stage executes again instead of failing recovery.
+			return nil, false, nil
+		}
 		value := Value{Kind: stage.Module.Outputs[port].Data, Items: make([]Datum, len(binding.Artifacts))}
 		for index, id := range binding.Artifacts {
 			content, contentFound, loadErr := artifact.ReadContent(ctx, r.store, id)
@@ -513,7 +518,12 @@ func (r *Runtime) recoverStage(
 		outputs[binding.Port] = value
 	}
 	validated, err := validateOutputs(stage.Module, outputs)
-	return validated, err == nil, err
+	if err != nil {
+		// A receipt that no longer satisfies the module contract is not
+		// evidence to serve from; the stage executes again.
+		return nil, false, nil
+	}
+	return validated, true, nil
 }
 
 func recoveredDatum(content artifact.Content) Datum {
@@ -614,7 +624,8 @@ func validateOutputs(module recipe.Module, values map[recipe.PortName]Value) (ma
 			value = Value{Kind: port.Data}
 		}
 		if value.Kind != port.Data || !cardinalityValid(port.Cardinality, len(value.Items)) {
-			return nil, fmt.Errorf("invalid output %q", port.Name)
+			return nil, fmt.Errorf("invalid output %q: kind %s with %d items does not satisfy %s %s",
+				port.Name, value.Kind, len(value.Items), port.Cardinality, port.Data)
 		}
 		if ok {
 			result[port.Name] = cloneValue(value)

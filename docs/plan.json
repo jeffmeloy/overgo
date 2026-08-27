@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "evidence",
-          "title": "Add obligation and resolution documents to runrecord using the common artifact codec. Requirements arise only from the compiled task contract, exact invocation effects, approved plan, and actual receipts. Each resolution binds its evidence, target scope, and mutation epoch; uncertain or absent evidence remains open rather than becoming an inferred pass.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentObligationEvidence\" internal/runrecord -g \"*_test.go\" \u0026\u0026 go test ./internal/runrecord -run '^TestAgentObligationEvidence$' -count=1",
-          "rationale": "This retains Reasonix's evidence-backed completion behavior while replacing its in-memory contract graph with Overgo's content-addressed evidence and lineage.",
-          "depends_on": [
-            "agent-contracts/schema",
-            "invocation-effects/do"
-          ],
-          "capabilities": [
-            "runrecord",
-            "artifact-lineage",
-            "evidence-obligations"
-          ]
-        },
-        {
           "id": "enforcement",
           "title": "Make agentloop enforce the compiled contract before mutation and completion. A relevant later mutation advances the affected scope's epoch and invalidates earlier verification, review, or sign-off evidence; project-wide evidence is invalidated only by project-wide effects. Reuse operatoraction decisions and stage receipts, and expose a deterministic outstanding-obligation view without adding another controller.",
           "status": "open",

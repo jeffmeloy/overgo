@@ -70,6 +70,9 @@ func RequireAgentMutationCheckpoint(ctx context.Context, reader artifact.Reader,
 func (v AgentMutationCheckpoint) Content() (artifact.Content, error) {
 	return agentMutationCheckpointCodec.Content(v)
 }
+func (v AgentMutationCheckpoint) ValidateIdentity() error {
+	return agentMutationCheckpointCodec.ValidateIdentity(v)
+}
 func (v AgentMutationCheckpoint) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{v.Operation}
 	for _, entry := range v.Entries {

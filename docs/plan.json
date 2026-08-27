@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:f65fc3634530c5f791a2779beeab96b3836b25835a10a0258358ed50dcb8d1d6",
   "items": [
     {
-      "id": "agent-recovery",
-      "title": "Recover uncommitted agent work through common artifact and lifecycle code",
-      "status": "open",
-      "steps": [
-        {
-          "id": "session-recovery",
-          "title": "Recover interrupted agent sessions by reconciling existing interaction traces, stage receipts, operation state, obligations, leases, and checkpoints. Resume only the next uncommitted action under the exact task, recipe, model, catalog, policy, and mutation epoch; mismatches fail closed. Add no authoritative JSONL ledger: any optional write-ahead projection is bounded, disposable, and rebuilt from committed artifacts.",
-          "status": "open",
-          "verify": "rg -q \"func TestAgentSessionRecovery\" internal/agentloop -g \"*_test.go\" \u0026\u0026 go test ./internal/agentloop -run '^TestAgentSessionRecovery$' -count=1",
-          "rationale": "Reasonix's turn replay and torn-tail handling are valuable, but Overgo already persists exact stage and interaction facts. Reconciliation should join those common records instead of creating a competing session database.",
-          "depends_on": [
-            "agent-recovery/checkpoint-runtime",
-            "agent-trajectories/record"
-          ],
-          "capabilities": [
-            "agentloop-recovery",
-            "interaction-trace",
-            "stage-receipts"
-          ]
-        }
-      ]
-    },
-    {
       "id": "attempt-intelligence",
       "title": "Measure strategies, repeated directions, and improvement efficiency",
       "status": "open",

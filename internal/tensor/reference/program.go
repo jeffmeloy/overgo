@@ -8,11 +8,15 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+const noStorageViewInput = -1
+
 type compiledNode struct {
-	node     *tensor.Tensor
-	operands []int
-	input    int
-	isInput  bool
+	node       *tensor.Tensor
+	operands   []int
+	viewInput  int
+	viewOffset uint64
+	input      int
+	isInput    bool
 }
 
 // Program owns indexed reference execution.
@@ -64,7 +68,15 @@ func CompileProgram(program tensor.Program) (*Program, error) {
 			return nil, fmt.Errorf("reference executor does not support %s for tensor %d", node.Type, node.ID)
 		}
 		indexes[node] = index
-		compiled.nodes[index] = compiledNode{node: node}
+		view, aliases, viewErr := tensor.ResolveStorageView(node)
+		if viewErr != nil {
+			return nil, viewErr
+		}
+		compiled.nodes[index] = compiledNode{node: node, viewInput: noStorageViewInput}
+		if aliases {
+			compiled.nodes[index].viewInput = view.Input
+			compiled.nodes[index].viewOffset = view.ElementOffset
+		}
 		if node.Op == tensor.OpInput {
 			compiled.nodes[index].input = compiled.inputs
 			compiled.nodes[index].isInput = true
@@ -168,6 +180,16 @@ func (p *Program) Execute(inputs *Inputs, workspace *Workspace) (map[*tensor.Ten
 		operands := workspace.operands[:len(compiled.operands)]
 		for operand, slot := range compiled.operands {
 			operands[operand] = workspace.values[slot]
+		}
+		if compiled.viewInput != noStorageViewInput {
+			value, viewErr := materializeStorageView(
+				node.Shape, operands[compiled.viewInput], compiled.viewOffset,
+			)
+			if viewErr != nil {
+				return nil, fmt.Errorf("execute tensor %d (%s): %w", node.ID, node.Op, viewErr)
+			}
+			workspace.values[index] = value
+			continue
 		}
 		value, err := executeNode(node, operands)
 		if err != nil {

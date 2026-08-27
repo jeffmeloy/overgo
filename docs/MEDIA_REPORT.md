@@ -8,11 +8,12 @@ Evidence rules: an activation states its recipe evidence tier; a measured claim 
 
 | Model | Task | Activation tier | Stale | Measured claim |
 | --- | --- | --- | --- | --- |
-| `diffusion_pytorch_model.safetensors` | `video-gen` | experimental | - | - |
-| `model-00001-of-00003.safetensors` | `vqa` | parity | - | - |
-| `model.safetensors` | `image-gen` | experimental | - | - |
-| `step_799.safetensors` | `image-gen` | experimental | - | - |
-| `tts_b6369a24.safetensors` | `speech` | experimental | - | - |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | parity | - | - |
+| `Krea-2-Turbo` | `image-gen` | experimental | - | - |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | experimental | - | - |
+| `Un-0` | `image-gen` | experimental | - | - |
+| `Wan2.1-T2V-1.3B` | `video-gen` | experimental | - | - |
+| `pocket-tts` | `speech` | experimental | - | - |
 
 The matrix reports activation and evidence scope, not general model-family support: an activation means the recipe lifecycle admitted the model for the task at the stated tier, and a measured claim binds that capability to real execution evidence at its commit.
 
@@ -22,8 +23,9 @@ One row per healthy activation: the verifier run the activation cites, exactly a
 
 | Model | Task | Verifier wall | Commit | Run outputs |
 | --- | --- | --- | --- | --- |
-| `diffusion_pytorch_model.safetensors` | `video-gen` | 5.737s | `58f98a458732` | `evidence:sha256:e409bdcf8e08fe54` |
-| `model-00001-of-00003.safetensors` | `vqa` | 9.941s | `deb633f55991` | `evidence:sha256:aad076217f89fb8e` |
-| `model.safetensors` | `image-gen` | 29ms | `58f98a458732` | `evidence:sha256:4c4f9951e019f8a2` |
-| `step_799.safetensors` | `image-gen` | 1.826s | `58f98a458732` | `evidence:sha256:ef07513101096dce` |
-| `tts_b6369a24.safetensors` | `speech` | 13.331s | `58f98a458732` | `evidence:sha256:c0f2737502bd83a8` |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | 9.941s | `deb633f55991` | `evidence:sha256:aad076217f89fb8e` |
+| `Krea-2-Turbo` | `image-gen` | 14.989s | `2ccea11d91bb` | `evidence:sha256:0d731b31f815c780` |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | 1.826s | `58f98a458732` | `evidence:sha256:ef07513101096dce` |
+| `Un-0` | `image-gen` | 29ms | `58f98a458732` | `evidence:sha256:4c4f9951e019f8a2` |
+| `Wan2.1-T2V-1.3B` | `video-gen` | 5.737s | `58f98a458732` | `evidence:sha256:e409bdcf8e08fe54` |
+| `pocket-tts` | `speech` | 13.331s | `58f98a458732` | `evidence:sha256:c0f2737502bd83a8` |

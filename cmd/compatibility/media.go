@@ -77,7 +77,7 @@ func generateMediaReport(root, repository string) ([]byte, error) {
 			}
 			name := namesByModel[entry.Model]
 			if name == "" && entry.Location != "" {
-				name = filepath.Base(entry.Location)
+				name = mediaModelName(entry.Location)
 			}
 			if name == "" {
 				name = entry.Model.String()
@@ -157,6 +157,29 @@ func activationRunResult(ctx context.Context, store *overgodb.Store, model artif
 			shortCommit(run.CodeCommit), rendered)
 	}
 	return "- | - | -"
+}
+
+// mediaModelName derives a distinctive name from a recorded location:
+// the deepest path segment that is not a generic weights file or a
+// standard repository component directory. The skipped names are
+// format facts of the HF and diffusers layouts, not model knowledge.
+func mediaModelName(location string) string {
+	generic := map[string]bool{
+		"text_encoder": true, "transformer": true, "vae": true,
+		"scheduler": true, "tokenizer": true,
+		"classification": true, "regression": true,
+	}
+	segments := strings.Split(filepath.ToSlash(location), "/")
+	for index := len(segments) - 1; index >= 0; index-- {
+		segment := segments[index]
+		lower := strings.ToLower(segment)
+		if strings.HasSuffix(lower, ".safetensors") || strings.HasSuffix(lower, ".gguf") ||
+			strings.HasSuffix(lower, ".pt") || generic[lower] {
+			continue
+		}
+		return segment
+	}
+	return filepath.Base(location)
 }
 
 func mediaTask(task recipe.Task) bool {

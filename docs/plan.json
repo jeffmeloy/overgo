@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:a920ea814f10718d02e7fbcb1b9a7c3625ddcbb4e1a4aa073a695323b3603f01",
   "items": [
     {
-      "id": "krea-image-activation",
-      "title": "Verify and activate the Krea latent image route",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Verify and activate the Krea latent image route",
-          "status": "open",
-          "verify": "node -e \"const s=require('fs').readFileSync('docs/MEDIA_REPORT.md','utf8'); if(!/[Kk]rea/.test(s)||/stale:/.test(s)) process.exit(1)\"",
-          "rationale": "Krea-2-Turbo through the latent image route (models/Krea-2-Turbo/krea-2): recipe verify -task image-gen with a real generation, fix whatever refuses, activate on gate/run evidence. Reference report shows full-quality 158s runs; a bounded shape suffices for activation, quality shapes follow in results.",
-          "depends_on": [
-            "media-report-results/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "sensenova-image-activation",
       "title": "Verify and activate the SenseNova V3 routed image route",
       "status": "open",

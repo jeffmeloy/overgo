@@ -7,15 +7,6 @@ import (
 	"overgo/internal/tensor"
 )
 
-func loadStandardSwiGLUCatalog(
-	catalog weightCatalog,
-	prefix string,
-	spec Spec,
-	layer *LayerWeights,
-) error {
-	return bindTensorProgram(catalog, prefix, standardSwiGLUBindings(spec, layer))
-}
-
 func standardSwiGLUBindings(spec Spec, layer *LayerWeights) []tensorBinding {
 	width, feedForward := uint64(spec.EmbeddingLength), uint64(spec.FeedForwardLength)
 	return []tensorBinding{

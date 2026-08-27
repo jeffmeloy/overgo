@@ -24,7 +24,7 @@ func readTargetFeatureWeightCatalog(catalog weightCatalog, spec Spec) (Weights, 
 	for block := uint32(tensor.FirstOffset); block < spec.BlockCount; block++ {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		layer := &result.Layers[block]
-		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
+		bindings := []tensorBinding{
 			requiredTensorPointer(attentionNormWeightTensor, &layer.AttentionNorm, width),
 			requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, width, query),
 			requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, width, key),
@@ -32,10 +32,8 @@ func readTargetFeatureWeightCatalog(catalog weightCatalog, spec Spec) (Weights, 
 			requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput, query, width),
 			requiredTensorPointer(attentionQueryNormTensor, &layer.AttentionQNorm, uint64(spec.KeyLength)),
 			requiredTensorPointer(attentionKeyNormTensor, &layer.AttentionKNorm, uint64(spec.KeyLength)),
-		}); err != nil {
-			return Weights{}, err
 		}
-		if err := loadStandardSwiGLUCatalog(catalog, prefix, spec, layer); err != nil {
+		if err := bindTensorProgram(catalog, prefix, append(bindings, standardSwiGLUBindings(spec, layer)...)); err != nil {
 			return Weights{}, err
 		}
 	}
@@ -70,7 +68,7 @@ func readHiddenFusionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 	query := uint64(spec.HeadCount) * uint64(spec.KeyLength)
 	key := uint64(spec.HeadCountKV) * uint64(spec.KeyLength)
 	value := uint64(spec.HeadCountKV) * uint64(spec.ValueLength)
-	if err := bindTensorProgram(catalog, firstBlockTensorPrefix, []tensorBinding{
+	bindings := []tensorBinding{
 		requiredTensorPointer(attentionNormWeightTensor, &layer.AttentionNorm, width),
 		requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, tensor.PairedExtent*width, query),
 		requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, tensor.PairedExtent*width, key),
@@ -79,10 +77,9 @@ func readHiddenFusionWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 		requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, width),
 		optionalTensorPointer("rope_freqs.weight", &layer.RopeFactors,
 			uint64(spec.RopeDimensionCount/rotaryPairAlignment)),
-	}); err != nil {
-		return Weights{}, err
 	}
-	if err := loadStandardSwiGLUCatalog(catalog, firstBlockTensorPrefix, spec, layer); err != nil {
+	if err := bindTensorProgram(catalog, firstBlockTensorPrefix,
+		append(bindings, standardSwiGLUBindings(spec, layer)...)); err != nil {
 		return Weights{}, err
 	}
 	return result, nil
@@ -106,7 +103,7 @@ func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weight
 		layer := &result.Layers[block]
 		query := uint64(spec.HeadCount) * uint64(spec.LayerKeyLength(block))
 		output := uint64(spec.HeadCount) * uint64(spec.LayerValueLength(block))
-		if err := bindTensorProgram(catalog, prefix, []tensorBinding{
+		bindings := []tensorBinding{
 			requiredTensorPointer(attentionNormWeightTensor, &layer.AttentionNorm, width),
 			requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, width, query),
 			requiredTensorPointer(attentionOutputWeightTensor, &layer.AttentionOutput, output, width),
@@ -114,10 +111,8 @@ func readPairedProjectionWeightCatalog(catalog weightCatalog, spec Spec) (Weight
 			requiredTensorPointer(postAttentionNormWeightTensor, &layer.AttentionPostNorm, width),
 			requiredTensorPointer("post_ffw_norm.weight", &layer.FeedForwardPostNorm, width),
 			requiredTensorPointer("layer_output_scale.weight", &layer.LayerOutputScale, tensor.SingletonExtent),
-		}); err != nil {
-			return Weights{}, err
 		}
-		if err := loadStandardSwiGLUCatalog(catalog, prefix, spec, layer); err != nil {
+		if err := bindTensorProgram(catalog, prefix, append(bindings, standardSwiGLUBindings(spec, layer)...)); err != nil {
 			return Weights{}, err
 		}
 		if !spec.IsSlidingLayer(block) {

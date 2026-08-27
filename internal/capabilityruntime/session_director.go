@@ -447,17 +447,24 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	}
 	inputs, err := c.inputs(input, content, program.Definition())
 	if err == nil {
-		output, executeErr := Execute[Output](
+		output, walls, executeErr := ExecuteMeasured[Output](
 			ctx, store, modelID, program,
 			"recipe/run/"+program.Definition().ID.String()+"/"+content.Descriptor.ID.String(), inputs,
 			func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
 		)
+		var measured Measured
+		if executeErr == nil {
+			measured = measure(output, entry.model, walls)
+		}
 		if executeErr != nil {
 			err = c.retire(ctx, key, entry, executeErr)
 		} else if resources.RequestScoped() {
 			err = c.retire(ctx, key, entry, nil)
 		}
-		return output, err
+		if executeErr != nil {
+			return zero, err
+		}
+		return measured, err
 	}
 	if err != nil {
 		err = c.retire(ctx, key, entry, err)
@@ -823,10 +830,10 @@ func executeScalar[Input, Model, Output any](
 	input Input,
 	model Model,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
-) (Output, error) {
+) (Output, []workflowruntime.NodeWall, error) {
 	definition := program.Definition()
 	inputPort := definition.Inputs[0]
-	return Execute[Output](
+	return ExecuteMeasured[Output](
 		ctx, store, modelID, program,
 		"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(),
 		map[recipe.PortName]workflowruntime.Value{

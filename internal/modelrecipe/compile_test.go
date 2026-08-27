@@ -170,6 +170,63 @@ func TestCapabilityDefinitionsCompileTypedStages(t *testing.T) {
 	}
 }
 
+// TestCapabilityComponentSlots pins the component-binding contract: a
+// bound stage executes against its component model through a slotted
+// dependency while the definition keeps the composite identity, and a
+// binding that names no stage refuses to compile.
+func TestCapabilityComponentSlots(t *testing.T) {
+	composite := testutil.ArtifactID(t, artifact.KindModel, "latent-composite")
+	profileID := testutil.ArtifactID(t, artifact.KindProfile, "latent-profile")
+	encoder := testutil.ArtifactID(t, artifact.KindModel, "component-text-encoder")
+	transformer := testutil.ArtifactID(t, artifact.KindModel, "component-transformer")
+	vae := testutil.ArtifactID(t, artifact.KindModel, "component-vae")
+	bindings := []ComponentBinding{
+		{Node: "prepare", Model: encoder},
+		{Node: "integrate", Model: transformer},
+		{Node: "decode", Model: vae},
+	}
+	definition, err := GenerationDefinitionWithComponents(ModuleLatentImagePrepare, composite, profileID, bindings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if definition.Model != composite {
+		t.Fatalf("composite identity lost: %s", definition.Model)
+	}
+	slotted := map[recipe.NodeID]artifact.ID{}
+	for _, node := range definition.Nodes {
+		model, ok := definition.Dependency(recipe.DependencyModel, node.ModelSlot)
+		if !ok {
+			t.Fatalf("node %q slot %d unresolved", node.ID, node.ModelSlot)
+		}
+		slotted[node.ID] = model
+	}
+	if slotted["prepare"] != encoder || slotted["integrate"] != transformer || slotted["decode"] != vae {
+		t.Fatalf("slotted models = %v", slotted)
+	}
+	program, err := CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if program.Definition().Model != composite {
+		t.Fatal("compiled program lost the composite identity")
+	}
+	unbound, err := GenerationDefinitionWithComponents(ModuleLatentImagePrepare, composite, profileID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unbound.ID == definition.ID {
+		t.Fatal("component slots did not change the recipe identity")
+	}
+	if _, err := GenerationDefinitionWithComponents(ModuleLatentImagePrepare, composite, profileID,
+		[]ComponentBinding{{Node: "missing", Model: encoder}}); err == nil {
+		t.Fatal("binding to an unknown stage accepted")
+	}
+	if _, err := GenerationDefinitionWithComponents(ModuleLatentImagePrepare, composite, profileID,
+		[]ComponentBinding{{Node: "prepare", Model: encoder}, {Node: "prepare", Model: vae}}); err == nil {
+		t.Fatal("duplicate stage binding accepted")
+	}
+}
+
 func TestProjectionDefinitionCompilesAllSelectedModalities(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "projection-model")
 	projectorID := testutil.ArtifactID(t, artifact.KindProjector, "projection-projector")

@@ -2,6 +2,7 @@ package modelrecipe
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -192,6 +193,99 @@ func RetireActiveCapability(
 		ctx, store, "recipe/retired/"+definition.ID.String()+"/"+decision.ID.String(),
 		definition, recipe.StatusSuperseded,
 		[]artifact.ID{decision.ID, failed.Gate.ID, failed.Run.ID}, nil,
+	)
+	return err
+}
+
+// RetireOrphanedActivation retires an activation whose own trust check
+// fails -- a stale alias left behind when a schema migration changed
+// the model identity, or an activation whose verifier evidence never
+// stood. The failed trust check IS the evidence: a trusted activation
+// is refused here and must retire through the evidence-backed path.
+func RetireOrphanedActivation(
+	ctx context.Context,
+	store artifact.Repository,
+	model artifact.ID,
+	task recipe.Task,
+	revision, reason string,
+) error {
+	if strings.TrimSpace(reason) == "" {
+		return errors.New("model recipe: retirement reason is empty")
+	}
+	alias := activeAlias(model, task)
+	activeID, active, err := artifact.ResolveAlias(ctx, store, alias)
+	if err != nil {
+		return err
+	}
+	if !active {
+		return errors.New("model recipe: retirement requires an active recipe")
+	}
+	_, _, trustErr := ActiveRecord(ctx, store, model, task)
+	if trustErr == nil {
+		// A trusted activation can still be dead: when no recorded
+		// location holds the model bytes, the identity resolves from
+		// nothing and absence is the measured orphan evidence.
+		if _, pathErr := artifact.AvailablePath(ctx, store, model, artifact.LocationFile); pathErr == nil {
+			return errors.New("model recipe: the activation is trusted and its bytes are present; retire it through the evidence-backed path")
+		} else {
+			trustErr = pathErr
+		}
+	}
+	definition, err := loadDefinition(ctx, store, activeID)
+	if err != nil {
+		return err
+	}
+	// The measured trust failure is the retirement evidence: it is
+	// committed verbatim so the refusal cites an observation, not an
+	// assertion.
+	failureContract := artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: artifact.JSONMediaType,
+		Schema: "overgo/orphan-trust-failure/v1",
+	}
+	failureBody, err := json.Marshal(struct {
+		Model    artifact.ID `json:"model"`
+		Task     recipe.Task `json:"task"`
+		Recipe   artifact.ID `json:"recipe"`
+		Failure  string      `json:"failure"`
+		Revision string      `json:"revision"`
+	}{Model: model, Task: task, Recipe: definition.ID, Failure: trustErr.Error(), Revision: revision})
+	if err != nil {
+		return err
+	}
+	failure, err := failureContract.ContentBytes(failureBody)
+	if err != nil {
+		return err
+	}
+	decision, err := recipe.NewDecision(
+		definition.ID, recipe.DecisionRefused, recipe.EvidenceExperimental,
+		reason+"; trust check: "+trustErr.Error(),
+		recipe.Decider{CodeCommit: revision, Derivation: definition.ID},
+		[]artifact.ID{failure.Descriptor.ID},
+	)
+	if err != nil {
+		return err
+	}
+	batch, err := decision.Batch(
+		"recipe/orphan-retirement/" + definition.ID.String() + "/" + decision.ID.String(),
+	)
+	if err != nil {
+		return err
+	}
+	batch.Artifacts = append(batch.Artifacts, failure.Descriptor)
+	batch.Contents = append(batch.Contents, failure)
+	// The orphan has no successor, so the active alias is removed
+	// outright: a retired recipe must leave the catalog, not linger as
+	// an alias naming a refused definition.
+	batch.Aliases = append(batch.Aliases, artifact.AliasBinding{
+		Name: alias, Target: activeID, Previous: &activeID, Remove: true,
+	})
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return err
+	}
+	_, _, err = Transition(
+		ctx, store, "recipe/retired/"+definition.ID.String()+"/"+decision.ID.String(),
+		definition, recipe.StatusSuperseded,
+		[]artifact.ID{decision.ID, failure.Descriptor.ID}, nil,
 	)
 	return err
 }

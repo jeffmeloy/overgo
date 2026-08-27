@@ -18,6 +18,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/workflowruntime"
 )
 
 func codeRevision() (string, error) {
@@ -67,6 +68,7 @@ func publishVQAVerification(
 	store artifact.Repository,
 	definition recipe.Definition,
 	wall time.Duration,
+	walls []workflowruntime.NodeWall,
 ) (modelrecipe.Verification, error) {
 	environment, err := cudaEnvironment()
 	if err != nil {
@@ -77,12 +79,23 @@ func publishVQAVerification(
 		return modelrecipe.Verification{}, err
 	}
 	duration := uint64(max(wall.Nanoseconds(), 1))
+	steps := []runrecord.GateStep{{
+		Name: "rxbrain-canonical-vqa", Phase: runrecord.PhaseTest,
+		Outcome: runrecord.StepSucceeded, DurationNS: duration,
+	}}
+	phases := map[recipe.NodeID]runrecord.Phase{"prepare": runrecord.PhasePrepare, "generate": runrecord.PhaseGenerate}
+	for _, node := range walls {
+		phase, mapped := phases[node.Node]
+		if !mapped || node.WallNS == 0 {
+			continue
+		}
+		steps = append(steps, runrecord.GateStep{
+			Name: "node-" + string(node.Node), Phase: phase,
+			Outcome: runrecord.StepSucceeded, DurationNS: node.WallNS,
+		})
+	}
 	record, err := runrecord.NewGateRecord(
-		definition.ID, environment.ID, revision, runrecord.OutcomeSucceeded, "", duration,
-		[]runrecord.GateStep{{
-			Name: "rxbrain-canonical-vqa", Phase: runrecord.PhaseTest,
-			Outcome: runrecord.StepSucceeded, DurationNS: duration,
-		}},
+		definition.ID, environment.ID, revision, runrecord.OutcomeSucceeded, "", duration, steps,
 	)
 	if err != nil {
 		return modelrecipe.Verification{}, err
@@ -138,7 +151,7 @@ func verifyActivateVQA(l *campaignContext, repo, imagePath, question string) err
 	if err := validateCanonicalVQA(l, verified, "VERIFY"); err != nil {
 		return err
 	}
-	verification, err := publishVQAVerification(ctx, store, definition, verified.result.e2eWall)
+	verification, err := publishVQAVerification(ctx, store, definition, verified.result.e2eWall, verified.walls)
 	if err != nil {
 		return err
 	}

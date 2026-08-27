@@ -58,32 +58,32 @@ func executeVQA[Prepared any](
 	question string,
 	prepare func([]byte, string) (Prepared, error),
 	answer func(context.Context, Prepared) (string, error),
-) (string, error) {
+) (string, []workflowruntime.NodeWall, error) {
 	if len(image) == 0 || strings.TrimSpace(question) == "" || prepare == nil || answer == nil {
-		return "", errors.New("VQA recipe: image, question, and stage adapters are required")
+		return "", nil, errors.New("VQA recipe: image, question, and stage adapters are required")
 	}
 	definition := program.Definition()
 	imageInput, err := vqaInput(definition, recipe.DataImage)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	questionInput, err := vqaInput(definition, recipe.DataText)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	stages := program.Stages()
 	if len(stages) != 2 || len(stages[0].Module.Outputs) != 1 || len(stages[1].Module.Inputs) != 1 {
-		return "", fmt.Errorf("VQA recipe: need prepare and generate stages, got %d", len(stages))
+		return "", nil, fmt.Errorf("VQA recipe: need prepare and generate stages, got %d", len(stages))
 	}
 	imageContent, err := vqaImageContract.ContentBytes(image)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	questionContent, err := artifact.JSONContent(vqaQuestionContract, question)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return capabilityruntime.Execute[string](ctx, store, modelID, program, key,
+	return capabilityruntime.ExecuteMeasured[string](ctx, store, modelID, program, key,
 		map[recipe.PortName]workflowruntime.Value{
 			imageInput.Name:    workflowruntime.ArtifactValue(imageInput.Data, image, imageContent),
 			questionInput.Name: workflowruntime.ArtifactValue(questionInput.Data, question, questionContent),

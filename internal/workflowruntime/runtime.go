@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
@@ -75,19 +76,28 @@ func (f AdapterFunc) Execute(ctx context.Context, request StepRequest) (map[reci
 	return f(ctx, request)
 }
 
+// NodeWall is one executed node measured wall: the observation the
+// media report renders as a phase decomposition.
+type NodeWall struct {
+	Node   recipe.NodeID `json:"node"`
+	WallNS uint64        `json:"wall_ns"`
+}
+
 // Result: workflow outputs plus durable run identity.
 type Result struct {
-	Outputs map[recipe.PortName]Value
-	Run     runrecord.Run
-	Commit  artifact.CommitID
+	Outputs   map[recipe.PortName]Value
+	Run       runrecord.Run
+	Commit    artifact.CommitID
+	NodeWalls []NodeWall
 }
 
 // Runtime: registered module adapters plus run repository.
 type Runtime struct {
-	mu       sync.RWMutex
-	store    artifact.Repository
-	catalog  *recipe.Catalog
-	adapters map[recipe.ModuleID]Adapter
+	mu         sync.RWMutex
+	store      artifact.Repository
+	catalog    *recipe.Catalog
+	definition recipe.Definition
+	adapters   map[recipe.ModuleID]Adapter
 	// entries serializes Execute per adapter: the Adapter contract does
 	// not require concurrency safety, so two stages of one module never
 	// enter their shared adapter at once.
@@ -120,10 +130,36 @@ func NewForProgram(store artifact.Repository, program recipe.Program) (*Runtime,
 		parallelism = max(parallelism, len(ready))
 	}
 	return &Runtime{
-		store: store, catalog: catalog, adapters: make(map[recipe.ModuleID]Adapter),
-		entries: make(map[recipe.ModuleID]*sync.Mutex),
-		slots:   make(chan struct{}, parallelism),
+		store: store, catalog: catalog, definition: program.Definition(),
+		adapters: make(map[recipe.ModuleID]Adapter),
+		entries:  make(map[recipe.ModuleID]*sync.Mutex),
+		slots:    make(chan struct{}, parallelism),
 	}, nil
+}
+
+// ModuleModel resolves the model a module's stage executes against: a
+// stage slotted onto a component model expects that component, while
+// an unslotted or ambiguous module keeps the caller's binding.
+func (r *Runtime) ModuleModel(module recipe.ModuleID, fallback artifact.ID) artifact.ID {
+	var matched *recipe.Node
+	for index := range r.definition.Nodes {
+		node := &r.definition.Nodes[index]
+		if node.Module != module {
+			continue
+		}
+		if matched != nil {
+			return fallback
+		}
+		matched = node
+	}
+	if matched == nil || matched.ModelSlot == 0 {
+		return fallback
+	}
+	model, ok := r.definition.Dependency(recipe.DependencyModel, matched.ModelSlot)
+	if !ok {
+		return fallback
+	}
+	return model
 }
 
 func (r *Runtime) Register(module recipe.ModuleID, adapter Adapter) error {
@@ -194,7 +230,7 @@ func (r *Runtime) executeProgram(
 	if err != nil {
 		return Result{}, err
 	}
-	outputs, executeErr := r.executePlan(ctx, definition, readySets, operation, attempts, inputs)
+	outputs, nodeWalls, executeErr := r.executePlan(ctx, definition, readySets, operation, attempts, inputs)
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if executeErr != nil {
 		outputs = nil
@@ -223,7 +259,7 @@ func (r *Runtime) executeProgram(
 		commitContext = context.WithoutCancel(ctx)
 	}
 	commit, commitErr := artifact.CommitBatch(commitContext, r.store, batch)
-	result := Result{Outputs: outputs, Run: run, Commit: commit}
+	result := Result{Outputs: outputs, Run: run, Commit: commit, NodeWalls: nodeWalls}
 	if commitErr != nil && !errors.Is(commitErr, artifact.ErrNoChange) {
 		return result, errors.Join(executeErr, commitErr)
 	}
@@ -237,27 +273,31 @@ func (r *Runtime) executePlan(
 	operation artifact.ID,
 	attempts AttemptRecorder,
 	external map[recipe.PortName]Value,
-) (map[recipe.PortName]Value, error) {
+) (map[recipe.PortName]Value, []NodeWall, error) {
+	var walls []NodeWall
 	bound := make(map[recipe.Endpoint][]Value)
 	if len(external) != len(definition.Inputs) {
-		return nil, errors.New("workflow runtime: external input set differs")
+		return nil, nil, errors.New("workflow runtime: external input set differs")
 	}
 	for _, input := range definition.Inputs {
 		value, ok := external[input.Name]
 		if !ok || value.Kind != input.Data {
-			return nil, fmt.Errorf("workflow runtime: invalid input %q", input.Name)
+			return nil, nil, fmt.Errorf("workflow runtime: invalid input %q", input.Name)
 		}
 		bound[input.Target] = append(bound[input.Target], cloneValue(value))
 	}
 	for _, ready := range readySets {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		completed, err := r.executeReadySet(ctx, definition, ready, operation, attempts, bound)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, stage := range completed {
+			if !stage.recovered {
+				walls = append(walls, NodeWall{Node: stage.stage.Node.ID, WallNS: stage.wallNS})
+			}
 			for _, edge := range definition.Edges {
 				if edge.From.Node == stage.stage.Node.ID {
 					if value, ok := stage.outputs[edge.From.Port]; ok {
@@ -278,11 +318,11 @@ func (r *Runtime) executePlan(
 			if err == nil {
 				err = errors.New("output is empty")
 			}
-			return nil, fmt.Errorf("workflow runtime: output %q: %w", output.Name, err)
+			return nil, nil, fmt.Errorf("workflow runtime: output %q: %w", output.Name, err)
 		}
 		outputs[output.Name] = value
 	}
-	return outputs, nil
+	return outputs, walls, nil
 }
 
 type stageExecution struct {
@@ -292,12 +332,14 @@ type stageExecution struct {
 	base      runrecord.StageReceipt
 	outputs   map[recipe.PortName]Value
 	recovered bool
+	wallNS    uint64
 	err       error
 }
 
 type stageResult struct {
 	index   int
 	outputs map[recipe.PortName]Value
+	wallNS  uint64
 	err     error
 }
 
@@ -342,13 +384,15 @@ func (r *Runtime) executeReadySet(
 				entry := r.adapterEntry(stage.stage.Module.ID)
 				entry.Lock()
 				defer entry.Unlock()
+				started := time.Now()
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
-				results <- stageResult{index: index, outputs: outputs, err: err}
+				results <- stageResult{index: index, outputs: outputs, wallNS: uint64(time.Since(started).Nanoseconds()), err: err}
 			}(index)
 		}
 		for range active {
 			result := <-results
 			stages[result.index].outputs, stages[result.index].err = result.outputs, result.err
+			stages[result.index].wallNS = result.wallNS
 			if result.err != nil {
 				cancel()
 			}
@@ -474,6 +518,11 @@ func (r *Runtime) recoverStage(
 		if !found {
 			return nil, false, errors.New("workflow runtime: receipt output differs from module")
 		}
+		if len(binding.Artifacts) == 0 {
+			// A value-only output leaves no durable artifacts to revive;
+			// the stage executes again instead of failing recovery.
+			return nil, false, nil
+		}
 		value := Value{Kind: stage.Module.Outputs[port].Data, Items: make([]Datum, len(binding.Artifacts))}
 		for index, id := range binding.Artifacts {
 			content, contentFound, loadErr := artifact.ReadContent(ctx, r.store, id)
@@ -496,7 +545,12 @@ func (r *Runtime) recoverStage(
 		outputs[binding.Port] = value
 	}
 	validated, err := validateOutputs(stage.Module, outputs)
-	return validated, err == nil, err
+	if err != nil {
+		// A receipt that no longer satisfies the module contract is not
+		// evidence to serve from; the stage executes again.
+		return nil, false, nil
+	}
+	return validated, true, nil
 }
 
 func recoveredDatum(content artifact.Content) Datum {
@@ -597,7 +651,8 @@ func validateOutputs(module recipe.Module, values map[recipe.PortName]Value) (ma
 			value = Value{Kind: port.Data}
 		}
 		if value.Kind != port.Data || !cardinalityValid(port.Cardinality, len(value.Items)) {
-			return nil, fmt.Errorf("invalid output %q", port.Name)
+			return nil, fmt.Errorf("invalid output %q: kind %s with %d items does not satisfy %s %s",
+				port.Name, value.Kind, len(value.Items), port.Cardinality, port.Data)
 		}
 		if ok {
 			result[port.Name] = cloneValue(value)

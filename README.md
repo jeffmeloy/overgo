@@ -23,8 +23,11 @@ measurements and state alongside human-directed work. Both paths use the same
 deterministic control plane to admit, evaluate, activate, reject, or recover
 work.
 
-Overgo is not a complete RSI system. It currently provides much of the model,
-agent, automation, and evidence infrastructure required to build and study one.
+Overgo is not a proven RSI system. The recursive loop is implemented end to
+end -- measurement, controlled experiments, evidence-gated policy promotion,
+typed steering proposals, and a driver that consumes them under mechanical
+stop conditions -- but its effectiveness is itself a measured question that
+live unattended campaigns must still answer.
 
 ![Overgo system architecture](docs/assets/overgo-platform-architecture-scientific.png)
 
@@ -69,7 +72,7 @@ Overgo already combines the following components in one codebase:
 | Verification | Plan-driven gates with manifest-derived check selection, structural source analysis, host/device comparisons, model-specific evidence, and compatibility records |
 | Benchmarks and evaluation | Store-derived benchmark catalogs, native lm_eval-family suites, per-model prompt templates, domain-routed evaluation, and measured capability claims |
 | Human-directed work | External workbench for goals, chat and media, agent sessions, model and data operations, measurement review, intervention, and rollback |
-| RSI steering | Bounded steering interface shared with human-directed work; model-directed selection from accumulated evidence remains incomplete |
+| RSI steering | Typed falsifiable proposals through deterministic admission, consumed by the driver under budget, saturation, and operator-stop conditions; shared with human-directed work |
 | Interfaces | Command line, HTTP APIs, scheduled jobs, and an external operator workbench over shared backend state |
 
 ## Operator workbench
@@ -166,66 +169,68 @@ varies by capability.
 | Verification derived from exact code manifests, fail-closed on unproven independence | Implemented |
 | Exact training checkpoints and fail-closed resume | Implemented for supported training paths |
 | Agent and automation lifecycle management | Implemented |
-| Measurement of automation effectiveness | Partial |
-| Durable cross-run measurement history for steering | Partial |
-| Controlled comparison of competing automation strategies | Not complete |
-| Evidence-gated promotion of automation policies | Not complete |
-| Model-proposed steering from accumulated evidence | Not complete |
-| Closed recursive policy-improvement loop | Not complete |
+| Measurement of automation effectiveness | Implemented: every gate run emits a typed attempt record, success and failure |
+| Durable cross-run measurement history for steering | Implemented: attempt history is store-queried and aggregated per step and strategy |
+| Controlled comparison of competing automation strategies | Implemented: isolated-worktree experiments from one baseline, judged by each step's own verify |
+| Evidence-gated promotion of automation policies | Implemented: declared to active on recorded evidence and measured wins, rollback retained |
+| Model-proposed steering from accumulated evidence | Implemented: typed falsifiable proposals through deterministic admission; history-free proposals are refused |
+| Closed recursive policy-improvement loop | Implemented: the driver consumes admitted proposals under budget, saturation, and operator-stop conditions; live unattended campaigns remain to accumulate evidence |
 
 Architecture support and artifact verification are separate claims. Shared
 components can express more model types than are installed and tested on the
 current hardware. Compatibility records therefore identify the exact artifact,
 configuration, environment, and verification command behind each claim.
 
-## What remains before RSI
+## The recursive loop, as implemented
 
-### 1. Close the harness
+The mechanisms the loop needs now exist end to end, each deterministic and
+store-recorded:
 
-- Keep one deterministic authority for planning, execution, policy decisions,
-  evidence, and recovery.
+- **Measurement.** Every gate run — success and failure alike — emits a typed
+  attempt record binding the plan step it served, the strategy that produced
+  it, the manifest selection it observed, the change size, wall time, and
+  outcome. Attempt history is queryable across runs, strategies, and code
+  revisions, aggregated per step, never scraped from logs.
+- **Controlled experiments.** Competing worker strategies run the same plan
+  step in isolated worktrees from the same baseline commit; each trial is
+  judged by the step's own machine verify, selection is verify outcome first
+  and measured cost second, and failed trials persist as durable
+  counterexamples.
+- **Policy promotion.** Automation policies move declared, experimental,
+  verified, active — exactly as model recipes promote. Each promotion demands
+  recorded evidence: an experiment for experimental, repeated measured wins
+  for verified, and a measured non-regression over the incumbent for active,
+  with the displaced incumbent retained as the rollback target.
+- **Steering proposals.** A model — or a human — proposes the next task as a
+  typed document: goal, predicted benefit, predicted cost, explicit
+  uncertainty, a falsifiable check, and references into recorded measurement
+  history. Deterministic admission refuses a proposal that cites nothing or
+  cites measurements nobody recorded, and converts an admitted proposal into
+  a plan row whose verify is the falsifiable check and whose rationale
+  carries the prediction, so outcome is comparable against what was promised.
+- **Closure.** When the plan drains, the driver consumes the next admitted
+  proposal instead of stopping, under three mechanical stop conditions: the
+  invocation budget, saturation — consecutive proposal rows ending without
+  their falsifiable check passing — and the explicit recorded operator stop.
+  Proposals never execute anything; every row still advances only through
+  the gate.
+
+## What remains before autonomous RSI
+
+- Run the closed loop unattended at scale: accumulate cross-strategy attempt
+  history and experiment evidence from live campaigns rather than bounded
+  verification runs.
+- Exercise model-authored proposals: admission validates grounding and
+  falsifiability, but the quality of what models propose is itself a measured
+  question the attempt records will answer.
 - Bound retrieval construction and search as well as request execution.
-- Maintain mutation tests for the automation itself.
 - Finish race, restart, browser, device, and release verification across the
   integrated agent and automation paths.
 
-Verification is now derived from exact code manifests: the gate selects checks
-from the symbol-level delta of the candidate snapshot, proves each exclusion
-against declared ownership, and runs by default when independence cannot be
-proven. A false-negative corpus pins the selector's boundaries, and the same
-manifest authority projects bounded planning context to agents.
-
-### 2. Measure the automation
-
-Every attempt needs an exact identity for its model, prompt, context,
-retrieval, tools, strategy, source state, resource budget, and expected result.
-The durable evidence store must compare prediction with outcome: defects
-found, tests added, regressions introduced, code removed, coverage changed,
-elapsed time, and compute used. Measurements must remain queryable across runs,
-strategies, and code revisions rather than existing only as logs.
-
-### 3. Run controlled strategy experiments
-
-Competing strategies should operate in isolated worktrees against the same
-task and baseline. Independent evaluations should select among the candidates.
-Failures and counterexamples must remain durable inputs so later attempts do
-not repeat known mistakes.
-
-### 4. Promote better policies
-
-Planning, retrieval, repair, verification, and stopping policies need a staged
-lifecycle: declared, experimentally useful, repeatedly verified, and active.
-Promotion must reference measured evidence and retain a rollback target.
-
-### 5. Add autonomous steering and close the recursive loop
-
-Human steering remains a supported operating mode. Autonomous RSI adds a model
-as another steering source only when the measurement history can support
-comparable retrieval, predicted benefit and cost, explicit uncertainty, and a
-falsifiable next experiment. Human and model steering submit goals and
-constraints through the same bounded interface; deterministic policy retains
-admission, evaluation, activation, rollback, resource budgets, saturation
-detection, and stop conditions.
+Human steering remains a supported operating mode throughout: human and model
+steering submit goals through the same bounded interface, and deterministic
+policy retains admission, evaluation, activation, rollback, resource budgets,
+saturation detection, and stop conditions.
 
 ## Scope
 

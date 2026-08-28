@@ -224,22 +224,8 @@ func manualCatalogBatch(
 	digest := sha256.New()
 	capabilities := map[artifact.ID]bool{}
 	for _, manual := range manuals {
-		if manual.CapabilityIdentity != nil && !capabilities[manual.Capability] {
-			content, err := manual.CapabilityIdentity.Content()
-			if err != nil {
-				return artifact.Batch{}, err
-			}
-			batch.Contents = append(batch.Contents, content)
-			batch.Lineage = append(batch.Lineage, manual.CapabilityIdentity.Lineage()...)
-			capabilities[manual.Capability] = true
-		}
-		content, err := artifact.JSONContent(manualCodec.Contract, manual)
-		if err != nil {
+		if err := appendManualDocuments(&batch.Contents, &batch.Lineage, manual, capabilities); err != nil {
 			return artifact.Batch{}, err
-		}
-		batch.Contents = append(batch.Contents, content)
-		if manual.Capability.Valid() {
-			batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(manual.ID, manual.Capability)...)
 		}
 		alias := RegisteredAlias(manual.Name)
 		actual, found, err := repository.ResolveAlias(ctx, alias)

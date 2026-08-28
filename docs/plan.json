@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "grant-binding",
-          "title": "Bind grants to the exact staged candidate catalog, manual schemas, tool-set digest, endpoint scopes, and host capabilities",
-          "status": "open",
-          "verify": "go test ./internal/agenttool -run '^TestCandidateGrantRejectsDrift$' -count=1",
-          "rationale": "Discovery or installation is not authorization. Added tools, removed tools, schema drift, endpoint drift, or absent host capability invalidate activation; an immutable manual identity remains the per-call authority.",
-          "depends_on": [
-            "capability-bound-activation/capability-identity"
-          ],
-          "capabilities": [
-            "agent-tool",
-            "authority",
-            "schema-pinning",
-            "effect-scope"
-          ]
-        },
-        {
           "id": "placement-integration",
           "title": "Use the shared capability identity in peer placement, agent-tool activation, model selection, and attempt receipts",
           "status": "open",

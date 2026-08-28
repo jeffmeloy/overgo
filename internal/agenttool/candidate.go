@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
+	"overgo/internal/runrecord"
 )
 
 const (
@@ -18,7 +20,7 @@ const (
 	// CandidateVerificationMediaType identifies encoded candidate-verification documents.
 	CandidateVerificationMediaType = "application/vnd.overgo.agent-tool-candidate-verification+json"
 	// CandidateVerificationSchema identifies the exact stored candidate-verification schema.
-	CandidateVerificationSchema = "overgo/agent-tool-candidate-verification/v1"
+	CandidateVerificationSchema = "overgo/agent-tool-candidate-verification/v2"
 	// ActiveCatalogAlias names the store alias of the active tool catalog.
 	ActiveCatalogAlias = "tool.catalog.active"
 )
@@ -31,13 +33,17 @@ type CandidateCatalog struct {
 	ID       artifact.ID `json:"-"`
 }
 
-// CandidateVerification proves every snapshot entry was loaded, matched, and
-// found executable by the verifier's adapter and policy environment.
+// CandidateVerification is the immutable activation grant emitted after every
+// snapshot entry is loaded, matched, and checked against the verifier host.
 type CandidateVerification struct {
 	Version     uint16                      `json:"version"`
 	Candidate   artifact.ID                 `json:"candidate"`
 	Source      artifact.ID                 `json:"source"`
 	Snapshot    artifact.ID                 `json:"snapshot"`
+	ToolSet     artifact.ID                 `json:"tool_set"`
+	Schemas     artifact.ID                 `json:"schemas"`
+	Endpoints   artifact.ID                 `json:"endpoints"`
+	Host        artifact.ID                 `json:"host"`
 	Manuals     uint32                      `json:"manuals"`
 	Authorities []CandidateAuthorityBinding `json:"authorities,omitempty"`
 	ID          artifact.ID                 `json:"-"`
@@ -115,13 +121,13 @@ func StageManualCandidates(
 		return CandidateStaging{}, err
 	}
 	contents := []artifact.Content{source.Clone()}
+	lineage := []artifact.Lineage{}
+	capabilities := map[artifact.ID]bool{}
 	manualIDs := make([]artifact.ID, len(ordered))
 	for index, manual := range ordered {
-		content, err := manualCodec.Content(manual)
-		if err != nil {
+		if err := appendManualDocuments(&contents, &lineage, manual, capabilities); err != nil {
 			return CandidateStaging{}, err
 		}
-		contents = append(contents, content)
 		manualIDs[index] = manual.ID
 	}
 	snapshotContent, err := snapshot.ArtifactContent()
@@ -133,7 +139,7 @@ func StageManualCandidates(
 		return CandidateStaging{}, err
 	}
 	contents = append(contents, snapshotContent, candidateContent)
-	lineage := artifact.DependencyLineage(snapshot.ID, manualIDs...)
+	lineage = append(lineage, artifact.DependencyLineage(snapshot.ID, manualIDs...)...)
 	lineage = append(lineage, artifact.DependencyLineage(candidate.ID, source.Descriptor.ID, snapshot.ID)...)
 	batch, err := artifact.NewDocumentBatch(
 		"agent-tool/candidate/"+candidate.ID.String(), contents, lineage, nil,
@@ -166,9 +172,14 @@ func PublishCandidateVerification(
 	if err != nil {
 		return CandidateVerification{}, artifact.CommitID{}, err
 	}
+	binding, err := candidateGrantBinding(ctx, repository, manuals, executor)
+	if err != nil {
+		return CandidateVerification{}, artifact.CommitID{}, err
+	}
 	verification, err := candidateVerificationCodec.New(CandidateVerification{
 		Version: artifact.InitialDocumentVersion, Candidate: candidate.ID,
 		Source: candidate.Source, Snapshot: candidate.Snapshot, Manuals: uint32(len(manuals)),
+		ToolSet: binding.ToolSet, Schemas: binding.Schemas, Endpoints: binding.Endpoints, Host: binding.Host,
 		Authorities: authorities,
 	})
 	if err != nil {
@@ -230,6 +241,11 @@ func ActivateCandidateCatalog(
 	manuals, err := candidateManuals(ctx, repository, snapshot)
 	if err != nil {
 		return CatalogActivation{}, err
+	}
+	binding, err := candidateGrantBinding(ctx, repository, manuals, NewOperatorExecutor())
+	if err != nil || verification.ToolSet != binding.ToolSet || verification.Schemas != binding.Schemas ||
+		verification.Endpoints != binding.Endpoints || verification.Host != binding.Host {
+		return CatalogActivation{}, errors.Join(errors.New("agent tool: candidate activation grant is stale"), err)
 	}
 	coverage, err := InspectManualCatalog(ctx, repository, manuals)
 	if err != nil {
@@ -320,7 +336,7 @@ func inspectCandidate(
 func candidateManuals(ctx context.Context, reader artifact.Reader, snapshot CatalogSnapshot) ([]Manual, error) {
 	manuals := make([]Manual, len(snapshot.Entries))
 	for index, entry := range snapshot.Entries {
-		manual, err := manualCodec.Require(ctx, reader, entry.Manual)
+		manual, err := RequireManual(ctx, reader, entry.Manual)
 		if err != nil {
 			return nil, err
 		}
@@ -344,7 +360,9 @@ func canonicalizeCandidateCatalog(candidate *CandidateCatalog) error {
 func canonicalizeCandidateVerification(verification *CandidateVerification) error {
 	if verification == nil || verification.Version != artifact.InitialDocumentVersion ||
 		verification.Candidate.Kind() != artifact.KindProfile || verification.Source.Kind() != artifact.KindFile ||
-		verification.Snapshot.Kind() != artifact.KindProfile || verification.Manuals == 0 {
+		verification.Snapshot.Kind() != artifact.KindProfile || verification.ToolSet.Kind() != artifact.KindProfile ||
+		verification.Schemas.Kind() != artifact.KindProfile || verification.Endpoints.Kind() != artifact.KindProfile ||
+		verification.Host.Kind() != artifact.KindProfile || verification.Manuals == 0 {
 		return errors.New("agent tool: invalid candidate verification")
 	}
 	sort.Slice(verification.Authorities, func(left, right int) bool {
@@ -357,4 +375,77 @@ func canonicalizeCandidateVerification(verification *CandidateVerification) erro
 		}
 	}
 	return nil
+}
+
+type candidateGrantDigests struct {
+	ToolSet   artifact.ID
+	Schemas   artifact.ID
+	Endpoints artifact.ID
+	Host      artifact.ID
+}
+
+func candidateGrantBinding(
+	ctx context.Context,
+	reader artifact.Reader,
+	manuals []Manual,
+	executor *Executor,
+) (candidateGrantDigests, error) {
+	if ctx == nil || reader == nil || executor == nil {
+		return candidateGrantDigests{}, errors.New("agent tool: candidate grant authority is absent")
+	}
+	type manualSchema struct {
+		Manual     artifact.ID `json:"manual"`
+		Arguments  []Field     `json:"arguments,omitempty"`
+		Capability artifact.ID `json:"capability_schema,omitzero"`
+	}
+	type endpointScope struct {
+		Manual    artifact.ID `json:"manual"`
+		Transport Transport   `json:"transport"`
+	}
+	manualIDs := make([]artifact.ID, len(manuals))
+	schemas := make([]manualSchema, len(manuals))
+	endpoints := make([]endpointScope, len(manuals))
+	for index, manual := range manuals {
+		manualIDs[index] = manual.ID
+		schemas[index] = manualSchema{Manual: manual.ID, Arguments: slices.Clone(manual.Arguments)}
+		if manual.Capability.Valid() {
+			identity, err := runrecord.RequireCapabilityIdentity(ctx, reader, manual.Capability)
+			if err != nil {
+				return candidateGrantDigests{}, err
+			}
+			schemas[index].Capability = identity.Schema
+		}
+		transport := manual.Transport
+		transport.Args = slices.Clone(transport.Args)
+		endpoints[index] = endpointScope{Manual: manual.ID, Transport: transport}
+	}
+	transports := make([]TransportKind, 0, len(executor.adapters))
+	for kind := range executor.adapters {
+		transports = append(transports, kind)
+	}
+	slices.Sort(transports)
+	toolSet, err := artifact.JSONID(artifact.KindProfile, struct {
+		Version uint16        `json:"version"`
+		Manuals []artifact.ID `json:"manuals"`
+	}{Version: artifact.InitialDocumentVersion, Manuals: manualIDs})
+	if err != nil {
+		return candidateGrantDigests{}, err
+	}
+	schemaDigest, err := artifact.JSONID(artifact.KindProfile, schemas)
+	if err != nil {
+		return candidateGrantDigests{}, err
+	}
+	endpointDigest, err := artifact.JSONID(artifact.KindProfile, endpoints)
+	if err != nil {
+		return candidateGrantDigests{}, err
+	}
+	hostDigest, err := artifact.JSONID(artifact.KindProfile, struct {
+		OS         string          `json:"os"`
+		Arch       string          `json:"arch"`
+		Transports []TransportKind `json:"transports"`
+	}{OS: runtime.GOOS, Arch: runtime.GOARCH, Transports: transports})
+	if err != nil {
+		return candidateGrantDigests{}, err
+	}
+	return candidateGrantDigests{ToolSet: toolSet, Schemas: schemaDigest, Endpoints: endpointDigest, Host: hostDigest}, nil
 }

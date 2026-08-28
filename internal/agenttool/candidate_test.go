@@ -51,6 +51,73 @@ func TestCandidateCatalogStagesVerifiesAndActivatesExactly(t *testing.T) {
 	}
 }
 
+func TestCandidateGrantRejectsDrift(t *testing.T) {
+	ctx := context.Background()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+	compilation, err := CompileOpenAPI(strings.NewReader(openAPIFixture), "https://api.example.test/v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := compilation.SourceContent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	staging, err := StageManualCandidates(ctx, store, source, compilation.Manuals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missingHTTP := NewOperatorExecutor()
+	delete(missingHTTP.adapters, TransportHTTP)
+	if _, _, err := PublishCandidateVerification(ctx, store, staging.Candidate.ID, missingHTTP); err == nil {
+		t.Fatal("candidate received a grant without its host transport capability")
+	}
+	grant, _, err := PublishCandidateVerification(ctx, store, staging.Candidate.ID, NewOperatorExecutor())
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign, err := artifact.JSONID(artifact.KindProfile, "drift")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutations := map[string]func(*CandidateVerification){
+		"tool set":        func(value *CandidateVerification) { value.ToolSet = foreign },
+		"manual schemas":  func(value *CandidateVerification) { value.Schemas = foreign },
+		"endpoint scopes": func(value *CandidateVerification) { value.Endpoints = foreign },
+		"host capability": func(value *CandidateVerification) { value.Host = foreign },
+	}
+	for name, mutate := range mutations {
+		t.Run(name, func(t *testing.T) {
+			drifted := grant
+			mutate(&drifted)
+			drifted, err = candidateVerificationCodec.New(drifted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			content, err := candidateVerificationCodec.Content(drifted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			batch, err := artifact.NewDocumentBatch("candidate/grant-drift/"+name, []artifact.Content{content}, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.Commit(ctx, batch); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ActivateCandidateCatalog(ctx, store, staging.Candidate.ID, drifted.ID); err == nil {
+				t.Fatal("candidate activated with drifted " + name)
+			}
+		})
+	}
+	if _, err := ActivateCandidateCatalog(ctx, store, staging.Candidate.ID, grant.ID); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestActiveCatalogExcludesStaleRegisteredAliases(t *testing.T) {
 	ctx := context.Background()
 	store, err := overgodb.Open(t.TempDir())

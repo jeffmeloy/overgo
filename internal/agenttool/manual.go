@@ -206,6 +206,32 @@ func (manual Manual) Content() ([]byte, error) {
 	return manualCodec.ContentBytes(manual)
 }
 
+func appendManualDocuments(
+	contents *[]artifact.Content,
+	lineage *[]artifact.Lineage,
+	manual Manual,
+	capabilities map[artifact.ID]bool,
+) error {
+	if manual.CapabilityIdentity != nil && !capabilities[manual.Capability] {
+		content, err := manual.CapabilityIdentity.Content()
+		if err != nil {
+			return err
+		}
+		*contents = append(*contents, content)
+		*lineage = append(*lineage, manual.CapabilityIdentity.Lineage()...)
+		capabilities[manual.Capability] = true
+	}
+	content, err := manualCodec.Content(manual)
+	if err != nil {
+		return err
+	}
+	*contents = append(*contents, content)
+	if manual.Capability.Valid() {
+		*lineage = append(*lineage, artifact.DependencyLineage(manual.ID, manual.Capability)...)
+	}
+	return nil
+}
+
 // RequireManual loads one exact manual by immutable identity.
 func RequireManual(ctx context.Context, reader artifact.Reader, id artifact.ID) (Manual, error) {
 	manual, err := manualCodec.Require(ctx, reader, id)

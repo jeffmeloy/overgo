@@ -191,6 +191,54 @@ func (value ServingObservation) AttemptKind(previous *ServingObservation) Servin
 	return ServingAttemptReselection
 }
 
+// ResourceFitness converts the serving record's explicitly observed scalar
+// fields into the common resource contract. observed is required because the
+// legacy serving schema used zero for both unknown and measured zero; callers
+// must name exactly which fields their instrumentation measured.
+func (value ServingObservation) ResourceFitness(
+	provider artifact.ID,
+	interactions *InteractionWork,
+	observed ...ResourceMetric,
+) (ResourceFitness, error) {
+	if err := value.ValidateIdentity(); err != nil {
+		return ResourceFitness{}, err
+	}
+	measures := make([]ResourceMeasure, 0, len(observed))
+	for _, metric := range observed {
+		var measured uint64
+		switch metric {
+		case ResourceInputTokens:
+			measured = value.Usage.InputTokens
+		case ResourceOutputTokens:
+			measured = value.Usage.OutputTokens
+		case ResourceInputBytes:
+			measured = value.Usage.InputBytes
+		case ResourceOutputBytes:
+			measured = value.Usage.OutputBytes
+		case ResourceWallNS:
+			measured = value.MeasuredNS
+		case ResourcePeakHostBytes:
+			measured = value.Resources.PeakHostBytes
+		case ResourcePeakDeviceBytes:
+			measured = value.Resources.PeakDeviceBytes
+		case ResourceHostToDeviceBytes:
+			measured = value.Resources.HostToDeviceBytes
+		case ResourceDeviceToHostBytes:
+			measured = value.Resources.DeviceToHostBytes
+		default:
+			return ResourceFitness{}, errors.New("run record: serving record does not own requested resource metric")
+		}
+		measures = append(measures, ResourceMeasure{Metric: metric, Value: measured})
+	}
+	return NewResourceFitness(ResourceFitness{
+		Scope: ResourceScope{
+			Surface: SurfaceServing, Model: value.Model, Hardware: value.Environment,
+			Provider: provider, Workload: value.Recipe, Attempt: value.ID,
+		},
+		Measures: measures, Interactions: interactions,
+	})
+}
+
 func validateServingAttempt(ctx context.Context, reader artifact.Reader, value ServingObservation) error {
 	if !value.Previous.Valid() {
 		return nil

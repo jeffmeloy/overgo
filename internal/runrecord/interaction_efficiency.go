@@ -18,7 +18,7 @@ const (
 // InteractionSurface names the system surface a trace measured.
 type InteractionSurface string
 
-// The seven surfaces the interaction-efficiency baseline covers; a
+// The surfaces the interaction-efficiency and resource-fitness baselines cover; a
 // trace on any other surface is refused so surface totals stay
 // comparable across campaigns.
 const (
@@ -36,11 +36,16 @@ const (
 	SurfaceEvaluation InteractionSurface = "evaluation"
 	// SurfaceUI traces operator interface work.
 	SurfaceUI InteractionSurface = "ui"
+	// SurfaceTraining traces model training work.
+	SurfaceTraining InteractionSurface = "training"
+	// SurfaceServing traces model serving work.
+	SurfaceServing InteractionSurface = "serving"
 )
 
 var interactionSurfaces = []InteractionSurface{
 	SurfaceStorage, SurfaceAgent, SurfaceTool, SurfaceWorkflow,
 	SurfacePeer, SurfaceEvaluation, SurfaceUI,
+	SurfaceTraining, SurfaceServing,
 }
 
 // InteractionWork counts the exact work one traced task performed.

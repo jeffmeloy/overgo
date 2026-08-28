@@ -21,11 +21,12 @@ type Campaign struct {
 }
 
 type CampaignResult struct {
-	Run        artifact.ID        `json:"run"`
-	Evaluation artifact.ID        `json:"evaluation"`
-	Report     artifact.ID        `json:"report"`
-	Evidence   artifact.ID        `json:"evidence"`
-	Metrics    []runrecord.Metric `json:"metrics"`
+	Run        artifact.ID               `json:"run"`
+	Evaluation artifact.ID               `json:"evaluation"`
+	Report     artifact.ID               `json:"report"`
+	Evidence   artifact.ID               `json:"evidence"`
+	Metrics    []runrecord.Metric        `json:"metrics"`
+	Resources  runrecord.ResourceFitness `json:"resources"`
 }
 
 func NewCampaign(
@@ -73,7 +74,11 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 	}
 	started := time.Now()
 	result, evaluateErr := ExecuteSuite(ctx, campaign.repository, campaign.runtime, suite)
-	measured := uint64(max(time.Since(started).Nanoseconds(), 1))
+	elapsedNS := time.Since(started).Nanoseconds()
+	if elapsedNS <= 0 {
+		return CampaignResult{}, errors.Join(evaluateErr, errors.New("evaluation: wall measurement is not positive"))
+	}
+	measured := uint64(elapsedNS)
 	if evaluateErr != nil {
 		terminalCtx := ctx
 		outcome, failure := runrecord.OutcomeFailed, "evaluation"
@@ -82,7 +87,8 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 			outcome, failure = runrecord.OutcomeCancelled, ""
 		}
 		run, publishErr := campaign.publishTerminal(terminalCtx, suite.plan, outcome, failure, measured)
-		return CampaignResult{Run: run}, errors.Join(evaluateErr, publishErr)
+		resources, resourceErr := campaign.resourceFitness(suite.plan.Identity(), run)
+		return CampaignResult{Run: run.ID, Resources: resources}, errors.Join(evaluateErr, publishErr, resourceErr)
 	}
 	return campaign.publishSuccess(ctx, suite, result, measured)
 }
@@ -121,6 +127,10 @@ func (campaign *Campaign) publishSuccess(
 	if err != nil {
 		return CampaignResult{}, err
 	}
+	resources, err := campaign.resourceFitness(plan.Identity(), run)
+	if err != nil {
+		return CampaignResult{}, err
+	}
 	record, err := runrecord.NewEvaluation(campaign.identity.Recipe, run.ID, plan.Dataset(), result.Metrics)
 	if err != nil {
 		return CampaignResult{}, err
@@ -134,6 +144,7 @@ func (campaign *Campaign) publishSuccess(
 	}
 	return CampaignResult{
 		Run: run.ID, Evaluation: record.ID, Report: result.Report, Evidence: evidence.ID, Metrics: result.Metrics,
+		Resources: resources,
 	}, nil
 }
 
@@ -143,7 +154,7 @@ func (campaign *Campaign) publishTerminal(
 	outcome runrecord.Outcome,
 	failure string,
 	measured uint64,
-) (artifact.ID, error) {
+) (runrecord.Run, error) {
 	run, err := runrecord.NewBoundRun(
 		campaign.identity.Recipe, outcome,
 		[]artifact.ID{plan.Identity()}, nil, failure, campaign.commit,
@@ -151,9 +162,9 @@ func (campaign *Campaign) publishTerminal(
 		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: measured}},
 	)
 	if err != nil {
-		return artifact.ID{}, err
+		return runrecord.Run{}, err
 	}
-	return run.ID, campaign.publish(ctx, run, nil)
+	return run, campaign.publish(ctx, run, nil)
 }
 
 func (campaign *Campaign) publish(ctx context.Context, run runrecord.Run, record *runrecord.Evaluation) error {

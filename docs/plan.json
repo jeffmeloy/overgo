@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "resource-contract",
-          "title": "Unify tokens, cache use, wall and active compute, CPU, GPU, memory, disk, network, interaction counts, retries, and integer cost units",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/evaluation -run '^TestResourceFitnessContract$' -count=1",
-          "rationale": "Training, evaluation, serving, agents, tools, workflows, peers, and UI operations must report comparable resource and interaction facts without collapsing model, hardware, provider, workload, or attempt identity. Semantic commits, scans, bytes, wakeups, context repetition, model turns, tool calls, retries, and waits are counted by existing owners; unknown measurements remain unknown rather than zero.",
-          "depends_on": [
-            "execution-semantics",
-            "redundancy-interaction-baseline"
-          ],
-          "capabilities": [
-            "resource-fitness",
-            "interaction-efficiency",
-            "serving-observation",
-            "evaluation"
-          ]
-        },
-        {
           "id": "observation-chunks",
           "title": "Chunk high-volume serving and execution samples into bounded canonical blobs with small summary commits",
           "status": "open",

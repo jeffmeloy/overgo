@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "scale-corpus",
-          "title": "Add deterministic scale fixtures for replay, resident catalog size, snapshot size, commit latency, and content-to-metadata ratio",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestStoreScaleContract$' -count=1",
-          "rationale": "The modularization must remove measured replay, memory, and payload coupling rather than speculate. The fixture records exact corpus construction and exposes measurements without turning a measured value into a hard-coded acceptance threshold.",
-          "capabilities": [
-            "overgodb",
-            "measurement",
-            "deterministic-fixture",
-            "magic-discipline"
-          ]
-        },
-        {
           "id": "compatibility-corpus",
           "title": "Pin legacy inline-log replay, torn-tail recovery, snapshot fallback, read-only refresh, backup, and retention behavior",
           "status": "open",

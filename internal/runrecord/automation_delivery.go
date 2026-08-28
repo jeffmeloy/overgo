@@ -2,10 +2,7 @@ package runrecord
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
@@ -166,12 +163,12 @@ func (authority AutomationDeliveryAuthority) publish(
 	if value.Result.Valid() {
 		parents = append(parents, value.Result)
 	}
-	var nonce [sha256.Size]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
+	key, err := uniquePublicationKey("automation/delivery/", value.ID)
+	if err != nil {
 		return err
 	}
 	batch, err := artifact.NewDocumentBatch(
-		fmt.Sprintf("automation/delivery/%s/%x", value.ID, nonce[:]), contents,
+		key, contents,
 		artifact.DependencyLineage(value.ID, parents...), []artifact.AliasBinding{binding},
 	)
 	if err != nil {

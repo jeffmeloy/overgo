@@ -2,10 +2,7 @@ package runrecord
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -104,12 +101,12 @@ func (authority StimulusFollowupAuthority) Admit(ctx context.Context, boundaryID
 	}
 	parents := append([]artifact.ID{admission.Boundary, admission.Causal.Root}, admission.Sources...)
 	binding := artifact.AliasBinding{Name: StimulusFollowupAliasRoot + boundary.ID.String(), Target: admission.ID}
-	var nonce [sha256.Size]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
+	key, err := uniquePublicationKey("attempt/stimulus-followup/", admission.ID)
+	if err != nil {
 		return StimulusFollowup{}, false, err
 	}
 	batch, err := artifact.NewDocumentBatch(
-		"attempt/stimulus-followup/"+admission.ID.String()+"/"+fmt.Sprintf("%x", nonce[:]),
+		key,
 		[]artifact.Content{content}, artifact.DependencyLineage(admission.ID, parents...), []artifact.AliasBinding{binding},
 	)
 	if err == nil {

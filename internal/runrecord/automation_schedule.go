@@ -2,10 +2,7 @@ package runrecord
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"time"
 
 	"overgo/internal/artifact"
@@ -116,12 +113,12 @@ func (authority AutomationScheduleAuthority) Claim(
 	if found {
 		binding.Previous = artifact.IDPointer(prior)
 	}
-	var attempt [sha256.Size]byte
-	if _, err := rand.Read(attempt[:]); err != nil {
+	key, err := uniquePublicationKey("automation/schedule/claim/", claim.ID)
+	if err != nil {
 		return AutomationScheduleClaim{}, false, err
 	}
 	batch, err := artifact.NewDocumentBatch(
-		"automation/schedule/claim/"+claim.ID.String()+"/"+fmt.Sprintf("%x", attempt[:]), []artifact.Content{content},
+		key, []artifact.Content{content},
 		artifact.DependencyLineage(claim.ID, lineageParents...), []artifact.AliasBinding{binding},
 	)
 	if err == nil {

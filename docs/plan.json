@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "delivery-ledger",
-          "title": "Publish durable accepted, ignored, skipped, duplicate, refused, and replay delivery records with payload blobs",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/overgodb -run '^TestWebhookDeliveryLedgerIdempotency$' -count=1",
-          "rationale": "Idempotency claims survive restart and concurrent delivery. Payload bodies are bounded immutable blobs; records carry digest, signature result, source, causal root, original-delivery link for replay, and no secret material.",
-          "depends_on": [
-            "webhook-ingress/trigger-contract"
-          ],
-          "capabilities": [
-            "automation",
-            "idempotency",
-            "ingress-evidence",
-            "content-addressing"
-          ]
-        },
-        {
           "id": "workflow-dispatch",
           "title": "Dispatch accepted deliveries through AutomationRuntime with exact recovery and one workflow operation",
           "status": "open",

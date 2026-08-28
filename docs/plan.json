@@ -1,6 +1,1420 @@
 {
-  "campaign": "Governed external tool interoperability",
-  "doctrine": "External protocol breadth enters through narrow adapters behind the immutable agent-tool manual. Discovery compiles bounded untrusted descriptions into typed candidate manuals; it never mutates the active catalog. Catalog search is deterministic and bound to exact manual identities. Streaming is a bounded, cancellable, sequenced lifecycle with an explicit terminal record. Model-authored tool workflows compile as closed-world recipe programs and execute without source generation or an embedded interpreter. Every row reuses artifact, recipe, operation, policy, and evidence owners already in the tree and deletes displaced switches, wrappers, caches, and temporary shapes in the same commit.",
+  "campaign": "Deterministic RSI storage and execution control plane",
+  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. RSI additions use typed versioned Go records, existing Overgo owners, derived distribution-free decisions, explicit missing-data coverage, and architecture tests that refuse bypasses. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, projection scans, bytes, wakeups, context repetitions, model turns, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit.",
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
-  "items": []
+  "items": [
+    {
+      "id": "storage-baseline",
+      "title": "Pin the current OvergoDB contract and scale envelope before changing storage",
+      "status": "open",
+      "steps": [
+        {
+          "id": "scale-corpus",
+          "title": "Add deterministic scale fixtures for replay, resident catalog size, snapshot size, commit latency, and content-to-metadata ratio",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestStoreScaleContract$' -count=1",
+          "rationale": "The modularization must remove measured replay, memory, and payload coupling rather than speculate. The fixture records exact corpus construction and exposes measurements without turning a measured value into a hard-coded acceptance threshold.",
+          "capabilities": [
+            "overgodb",
+            "measurement",
+            "deterministic-fixture",
+            "magic-discipline"
+          ]
+        },
+        {
+          "id": "compatibility-corpus",
+          "title": "Pin legacy inline-log replay, torn-tail recovery, snapshot fallback, read-only refresh, backup, and retention behavior",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestLegacyStoreCompatibilityCorpus$' -count=1",
+          "rationale": "Existing stores are an immutable external format boundary. One corpus must prove every behavior the new layout preserves and must include corruption refusal, not only successful replay.",
+          "depends_on": [
+            "storage-baseline/scale-corpus"
+          ],
+          "capabilities": [
+            "overgodb",
+            "format-compatibility",
+            "fault-recovery",
+            "backup"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "redundancy-interaction-baseline",
+      "title": "Measure duplicate ownership and interaction cost before expanding the RSI control plane",
+      "status": "open",
+      "steps": [
+        {
+          "id": "ownership-census",
+          "title": "Publish a computed census of duplicate storage, publication, process, outcome, failure, retry, capability, trigger, resource, and query mechanics",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis ./internal/automationcheck -run '^TestRSIOwnershipCensusContract$' -count=1",
+          "rationale": "The campaign must reuse current owners and identify real policy copies before adding abstractions. The census is computed from Go syntax, imports, call sites, and existing OvergoDB contracts; findings name the canonical owner, consumers, measured recurrence, consolidation path, and retirement trigger.",
+          "depends_on": [
+            "storage-baseline"
+          ],
+          "capabilities": [
+            "common-code",
+            "repo-analysis",
+            "ownership",
+            "census"
+          ]
+        },
+        {
+          "id": "interaction-traces",
+          "title": "Record representative storage, agent, tool, workflow, peer, evaluation, and UI interaction traces with exact work and round-trip counts",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/overgodb -run '^TestInteractionEfficiencyBaseline$' -count=1",
+          "rationale": "The trace records semantic transitions, commits, artifact and blob reads, scanned and returned facts, bytes, wakeups, retries, model turns, context bytes, repeated context identities, tool calls, and waits. It carries the completed task result and evidence so reducing interactions cannot receive credit for doing less work.",
+          "depends_on": [
+            "redundancy-interaction-baseline/ownership-census"
+          ],
+          "capabilities": [
+            "interaction-efficiency",
+            "measurement",
+            "runrecord",
+            "overgodb"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "storage-modular-core",
+      "title": "Separate OvergoDB commit mechanics from concrete catalog state without changing the disk format",
+      "status": "open",
+      "steps": [
+        {
+          "id": "catalog-facets",
+          "title": "Split catalog state into concrete artifact, content-location, alias, lineage, location, and commit-key owners",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestCatalogFacetReplayEquivalence$' -count=1",
+          "rationale": "The current catalogState owns unrelated indexes and validation under one type. Concrete facets establish cohesive ownership while retaining one aggregate transaction view; no generic projector interface is introduced until checkpointing supplies a second real consumer.",
+          "depends_on": [
+            "storage-baseline",
+            "redundancy-interaction-baseline"
+          ],
+          "capabilities": [
+            "overgodb",
+            "common-code",
+            "deterministic-replay"
+          ]
+        },
+        {
+          "id": "commit-coordinator",
+          "title": "Make one commit coordinator own normalize, validate, delta, append, sync, apply, and fault transitions",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestCommitCoordinatorAtomicity$' -count=1",
+          "rationale": "All future blob and projection modules need one ordered transaction path. A failure before durable append publishes nothing; uncertainty during append faults the store; a successful append advances every required in-memory facet exactly once.",
+          "depends_on": [
+            "storage-modular-core/catalog-facets"
+          ],
+          "capabilities": [
+            "overgodb",
+            "atomic-commit",
+            "fault-containment"
+          ]
+        },
+        {
+          "id": "repository-parity",
+          "title": "Run the storage-neutral repository contract against the modular core and delete displaced store paths",
+          "status": "open",
+          "verify": "go test ./internal/artifact/repositorytest ./internal/overgodb -run '^(TestRepositoryContract|TestModularStoreRepositoryParity)$' -count=1",
+          "rationale": "artifact.Repository remains the consumer boundary. The refactor is complete only when callers see identical commit, read, compare-and-set, lineage, cancellation, and close behavior and the old control path is absent.",
+          "depends_on": [
+            "storage-modular-core/commit-coordinator"
+          ],
+          "capabilities": [
+            "artifact-repository",
+            "api-parity",
+            "tightness"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "common-publication-path",
+      "title": "Consolidate canonical document publication and semantic batching",
+      "status": "open",
+      "steps": [
+        {
+          "id": "document-publication",
+          "title": "Move repeated canonicalization, identity validation, content creation, lineage closure, and batch publication onto existing artifact codecs and typed record owners",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/runrecord ./internal/recipe ./internal/modelrecipe -run '^TestCanonicalDocumentPublicationOwners$' -count=1",
+          "rationale": "Each document family retains its semantic validator, but encoding, identity, immutable content ownership, required lineage, and repository commit mechanics are not copied. A shared form is promoted only where the census proves multiple consumers and displaced constructors are deleted.",
+          "depends_on": [
+            "storage-modular-core"
+          ],
+          "capabilities": [
+            "artifact",
+            "document-codec",
+            "common-code",
+            "tightness"
+          ]
+        },
+        {
+          "id": "semantic-batches",
+          "title": "Commit each meaningful state transition as one atomic batch instead of a sequence of per-document interactions",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/modelrecipe -run '^TestSemanticTransitionUsesOneCommit$' -count=1",
+          "rationale": "Attempt completion, automation admission, capability activation, prototype materialization, promotion, and rollback each publish their required documents, lineage, locations, and aliases together. Independent transitions remain independent; batching cannot widen authority or hide partial failure.",
+          "depends_on": [
+            "common-publication-path/document-publication"
+          ],
+          "capabilities": [
+            "atomic-commit",
+            "interaction-efficiency",
+            "runrecord",
+            "workflow-runtime"
+          ]
+        },
+        {
+          "id": "batch-readers",
+          "title": "Move fan-out consumers to bounded VisitContents, document streaming, and projection batch reads",
+          "status": "open",
+          "verify": "go test ./internal/overgodb ./internal/evaluation ./internal/modelrecipe -run '^TestHighFanoutReadsAreBatched$' -count=1",
+          "rationale": "Evaluation, recipe resolution, evidence verification, projection rebuild, and capability loading should not reacquire locks or reopen storage once per artifact. Batch APIs preserve caller order, per-item identity checks, cancellation, byte bounds, and exact missing-content errors.",
+          "depends_on": [
+            "common-publication-path/semantic-batches"
+          ],
+          "capabilities": [
+            "overgodb",
+            "batch-read",
+            "interaction-efficiency",
+            "common-code"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "storage-blob-split",
+      "title": "Move immutable content bytes out of the canonical metadata journal",
+      "status": "open",
+      "steps": [
+        {
+          "id": "blob-owner",
+          "title": "Add a filesystem content-addressed blob owner with prepare, verify, sync, open, and orphan-safe publication",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestBlobStorePublicationContract$' -count=1",
+          "rationale": "Artifact identity already supplies immutable blob keys. Preparing an existing blob is idempotent; a conflicting payload refuses; a crash before journal commit may leave only an unreachable blob that cannot become visible as a committed artifact.",
+          "depends_on": [
+            "storage-modular-core",
+            "common-publication-path"
+          ],
+          "capabilities": [
+            "overgodb",
+            "content-addressing",
+            "durability",
+            "fault-recovery"
+          ]
+        },
+        {
+          "id": "reference-transactions",
+          "title": "Persist small commit envelopes that reference synced blobs instead of embedding new content bytes",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestExternalBlobCommitAtomicity$' -count=1",
+          "rationale": "The journal should carry ordering, identities, descriptors, aliases, lineage, locations, and transaction intent. A committed descriptor whose required blob is absent must refuse replay or content access with exact evidence rather than silently degrade.",
+          "depends_on": [
+            "storage-blob-split/blob-owner"
+          ],
+          "capabilities": [
+            "overgodb",
+            "commit-envelope",
+            "content-addressing",
+            "deterministic-replay"
+          ]
+        },
+        {
+          "id": "legacy-read-new-write",
+          "title": "Read legacy inline frames while writing only the external-blob format and provide verified rebuild migration",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestLegacyInlineToBlobRebuildRoundTrip$' -count=1",
+          "rationale": "Legacy format support is the explicit immutable-format exception to immediate path deletion. It is read-only compatibility: no new inline frames, no topology-changing fallback, and rebuild produces a destination whose artifact, content, alias, lineage, location, and head semantics match the source corpus.",
+          "depends_on": [
+            "storage-blob-split/reference-transactions"
+          ],
+          "capabilities": [
+            "overgodb",
+            "format-migration",
+            "rebuild",
+            "rollback"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "storage-projections",
+      "title": "Make compiled Go projections independently checkpointable and exactly rebuildable",
+      "status": "open",
+      "steps": [
+        {
+          "id": "projection-contract",
+          "title": "Promote the proven catalog facets to a minimal compiled projection contract with explicit names and versions",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestProjectionContractIsClosedAndVersioned$' -count=1",
+          "rationale": "The contract exists only after replay and checkpointing are two real consumers. Registration is compile-time and closed-world; there is no reflection, plugin discovery, Markdown definition, or independent write authority.",
+          "depends_on": [
+            "storage-blob-split"
+          ],
+          "capabilities": [
+            "overgodb",
+            "go-only",
+            "projection"
+          ]
+        },
+        {
+          "id": "atomic-publication",
+          "title": "Publish a head-consistent projection view only after every required projector accepts the commit",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestProjectionPublicationIsAtomic$' -count=1",
+          "rationale": "Queries must never observe aliases at one head and lineage or catalog state at another. A projector failure faults publication and preserves the last complete view; callbacks do not run while the store lock is held.",
+          "depends_on": [
+            "storage-projections/projection-contract"
+          ],
+          "capabilities": [
+            "overgodb",
+            "snapshot-isolation",
+            "concurrency"
+          ]
+        },
+        {
+          "id": "checkpoints",
+          "title": "Write per-projection checkpoints anchored to journal head, sequence, projection version, and canonical digest",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestProjectionCheckpointAnchorAndFallback$' -count=1",
+          "rationale": "A corrupt, stale, unknown-version, or non-canonical checkpoint is discarded and replay resumes from a verified earlier anchor. Checkpoints are derived acceleration state, never promotion evidence or transaction authority.",
+          "depends_on": [
+            "storage-projections/atomic-publication"
+          ],
+          "capabilities": [
+            "overgodb",
+            "checkpoint",
+            "deterministic-replay",
+            "fault-recovery"
+          ]
+        },
+        {
+          "id": "rebuild-equivalence",
+          "title": "Prove cold replay, checkpoint replay, and independent projection rebuild produce identical query digests",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestProjectionRebuildEquivalence$' -count=1",
+          "rationale": "Every derived view must be reproducible from canonical commits. The proof covers bounded queries, cursors, aliases, lineage traversal, documents, locations, and idempotency keys at the same head.",
+          "depends_on": [
+            "storage-projections/checkpoints"
+          ],
+          "capabilities": [
+            "overgodb",
+            "rebuild",
+            "query-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "storage-segments",
+      "title": "Segment the metadata journal without splitting canonical transaction authority",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sealed-segments",
+          "title": "Add one active journal segment and immutable sealed segments with a continuous cross-segment hash chain",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestSegmentedJournalChainAndRecovery$' -count=1",
+          "rationale": "Segmentation bounds active-file recovery and permits incremental backup and replication. Rotation is derived from measured frame history or a typed store decision with a reopen trigger; no domain receives a separate log or head.",
+          "depends_on": [
+            "storage-projections"
+          ],
+          "capabilities": [
+            "overgodb",
+            "segmented-journal",
+            "hash-chain",
+            "magic-discipline"
+          ]
+        },
+        {
+          "id": "refresh-backup",
+          "title": "Teach read-only refresh and backup to capture a stable segment extent, required blobs, and checkpoint anchors",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestSegmentedBackupAndReadOnlyRefresh$' -count=1",
+          "rationale": "A backup names one exact head and includes every sealed segment, active extent, referenced blob, and optional verified checkpoint needed to open that head. Concurrent tail commits are excluded rather than partially copied.",
+          "depends_on": [
+            "storage-segments/sealed-segments"
+          ],
+          "capabilities": [
+            "overgodb",
+            "backup",
+            "read-only-replica",
+            "content-closure"
+          ]
+        },
+        {
+          "id": "retention-rebuild",
+          "title": "Rebuild retention output from canonical reachability while collecting only unreachable blobs and obsolete checkpoints",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestSegmentedRetentionPreservesAuthorityClosure$' -count=1",
+          "rationale": "Retention remains destination rebuild, not in-place deletion. It retains alias roots, manifests, lineage ancestors, canonical documents, and every referenced blob, verifies the destination, and reports reclaimable material before removal.",
+          "depends_on": [
+            "storage-segments/refresh-backup"
+          ],
+          "capabilities": [
+            "overgodb",
+            "retention",
+            "content-closure",
+            "safe-cleanup"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "storage-operational-boundary",
+      "title": "Keep high-frequency coordination out of canonical RSI evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "storage-classes",
+          "title": "Define typed canonical-fact, immutable-blob, rebuildable-projection, and operational-signal ownership rules",
+          "status": "open",
+          "verify": "go test ./internal/overgodb ./internal/runrecord -run '^TestRSIStorageClassContract$' -count=1",
+          "rationale": "Attempts, decisions, durable transitions, and evidence enter OvergoDB; transcripts and observation chunks enter blobs; derived indexes enter projections; heartbeats, wakeups, polling state, and partial output remain bounded operational state unless they cause a durable transition.",
+          "depends_on": [
+            "storage-segments"
+          ],
+          "capabilities": [
+            "overgodb",
+            "rsi-evidence",
+            "operational-coordination"
+          ]
+        },
+        {
+          "id": "transition-boundary",
+          "title": "Centralize conversion of operational state into immutable attempt, lease, loss, recovery, and capability-change records",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/capabilityruntime -run '^TestOperationalTransitionPublication$' -count=1",
+          "rationale": "A noisy heartbeat or process stream cannot advance the artifact head directly. Only a typed state transition with authority, causal context, and bounded evidence produces a canonical batch.",
+          "depends_on": [
+            "storage-operational-boundary/storage-classes"
+          ],
+          "capabilities": [
+            "runrecord",
+            "workflow-runtime",
+            "peer-runtime",
+            "rsi-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "process-supervision",
+      "title": "Create one Go process-tree supervisor for every external command",
+      "status": "open",
+      "steps": [
+        {
+          "id": "supervisor",
+          "title": "Implement bounded start, interrupt, process-tree termination, drain, wait, and termination receipts on Windows and Unix",
+          "status": "open",
+          "verify": "go test ./internal/processcontrol -run '^TestSupervisorProcessTreeContract$' -count=1",
+          "rationale": "External execution needs one owner for lifecycle and evidence. Windows uses a process-tree primitive that contains descendants; Unix uses process groups. Cancellation never reports success until the tree and pipes reach a terminal state.",
+          "depends_on": [
+            "storage-operational-boundary"
+          ],
+          "capabilities": [
+            "process-control",
+            "windows",
+            "unix",
+            "fault-containment"
+          ]
+        },
+        {
+          "id": "consumer-migration",
+          "title": "Move loop, agent tools, media, model operations, and web UI helpers to the shared supervisor and delete direct kill paths",
+          "status": "open",
+          "verify": "go test ./cmd/loop ./internal/agenttool ./internal/media ./internal/latentvideo ./internal/modelswap ./internal/webuilane -run '^TestExternalProcessLifecycle$' -count=1",
+          "rationale": "The common component pays only when every real subprocess consumer uses it. Migration preserves consumer-specific inputs while removing duplicate timeout, kill, pipe, and wait mechanics.",
+          "depends_on": [
+            "process-supervision/supervisor"
+          ],
+          "capabilities": [
+            "process-control",
+            "common-code",
+            "consumer-migration"
+          ]
+        },
+        {
+          "id": "process-boundary-guard",
+          "title": "Add an architecture test that refuses direct production exec and process termination outside processcontrol",
+          "status": "open",
+          "verify": "go test ./internal/processcontrol -run '^TestProductionCommandsUseSupervisor$' -count=1",
+          "rationale": "RSI-authored changes must not bypass the common lifecycle owner. Test-only fixtures and the supervisor implementation are the only explicit exceptions; new production call sites fail before merge.",
+          "depends_on": [
+            "process-supervision/consumer-migration"
+          ],
+          "capabilities": [
+            "architecture-guard",
+            "process-control",
+            "rsi-containment"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "execution-semantics",
+      "title": "Unify execution outcomes, normalized failures, retry policy, and session health",
+      "status": "open",
+      "steps": [
+        {
+          "id": "canonical-outcomes",
+          "title": "Define one canonical execution outcome contract and migrate gate, experiment, workflow, serving, agent, and training records",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/loop ./internal/trainingworkflow -run '^TestCanonicalExecutionOutcomeContract$' -count=1",
+          "rationale": "Succeeded, failed, refused, skipped, inapplicable, cancelled, superseded, inconclusive, lost, and recovered must not be redefined per subsystem. Execution completion remains distinct from improvement success.",
+          "depends_on": [
+            "process-supervision"
+          ],
+          "capabilities": [
+            "runrecord",
+            "outcome-taxonomy",
+            "common-code"
+          ]
+        },
+        {
+          "id": "failure-normalization",
+          "title": "Add versioned structured failure observations that preserve raw evidence and deterministically normalize known causes",
+          "status": "open",
+          "verify": "go test ./internal/executionfailure ./internal/runrecord -run '^TestFailureNormalizationCorpus$' -count=1",
+          "rationale": "Context exhaustion, configuration, authorization, quota, capacity, network, model availability, timeout, missing executable, process failure, tool failure, and unknown remain distinct. Reclassification creates a new derived record naming classifier version; raw evidence is never overwritten.",
+          "depends_on": [
+            "execution-semantics/canonical-outcomes"
+          ],
+          "capabilities": [
+            "failure-taxonomy",
+            "mixed-version",
+            "rsi-evidence"
+          ]
+        },
+        {
+          "id": "retry-session-policy",
+          "title": "Derive retry, resume, fresh-session, retire-session, and refuse decisions from typed failure and bounded attempt history",
+          "status": "open",
+          "verify": "go test ./internal/executionfailure ./internal/agentloop -run '^TestRetryAndSessionDecisionMatrix$' -count=1",
+          "rationale": "Transient failures may retry within an explicit budget; deterministic local failures do not. Context-full or history-poisoned sessions retire instead of resuming forever. The decision and its evidence are published, not inferred later from logs.",
+          "depends_on": [
+            "execution-semantics/failure-normalization"
+          ],
+          "capabilities": [
+            "retry-policy",
+            "session-health",
+            "budget"
+          ]
+        },
+        {
+          "id": "attempt-receipt",
+          "title": "Publish one terminal attempt receipt binding outcome, failure, process termination, resource summary, and recovery lineage",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/agentloop -run '^TestTerminalAttemptReceiptClosure$' -count=1",
+          "rationale": "A terminal attempt must be self-contained enough for evaluation and recovery without scraping text logs. Large transcript and tool output remain referenced blobs; missing optional measurements are explicit coverage gaps.",
+          "depends_on": [
+            "execution-semantics/retry-session-policy"
+          ],
+          "capabilities": [
+            "runrecord",
+            "attempt-evidence",
+            "content-closure"
+          ]
+        },
+        {
+          "id": "obligation-records",
+          "title": "Model cross-attempt obligations as durable records with explicit completion predicates replayed unconditionally",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/loop -run '^TestObligationCompletionReplay$' -count=1",
+          "rationale": "A follow-up the loop owes -- a recovery dispatch, a promised re-evaluation, a rollback notification -- is a typed record whose incompleteness is a query, replayed every supervision round whether or not anything else fired. Obligations lost to a crash are repaired by the replay, so the improvement loop cannot silently drop admitted work.",
+          "depends_on": [
+            "execution-semantics/attempt-receipt"
+          ],
+          "capabilities": [
+            "durable-obligations",
+            "fault-recovery",
+            "rsi-continuity"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "causal-execution",
+      "title": "Record operational causality separately from artifact lineage and authority",
+      "status": "open",
+      "steps": [
+        {
+          "id": "causal-context",
+          "title": "Add a typed causal context for trigger, root cause, parent attempt, retry, replay, delegation, recovery, and motivating evidence",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run '^TestCausalContextIdentityAndValidation$' -count=1",
+          "rationale": "Artifact lineage explains content derivation; causal context explains why execution occurred. Causality never grants authority, and copied root identity prevents delegation cycles from manufacturing a new causal principal.",
+          "depends_on": [
+            "execution-semantics"
+          ],
+          "capabilities": [
+            "runrecord",
+            "causality",
+            "authority-separation"
+          ]
+        },
+        {
+          "id": "trigger-registry",
+          "title": "Require every execution trigger kind to declare causal, authority, budget, idempotency, and evidence behavior",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/workflowruntime -run '^TestExecutionTriggerRegistryCoverage$' -count=1",
+          "rationale": "Manual, schedule, webhook, retry, rerun, delegation, stage wakeup, recovery, and controller proposals cannot enter through undocumented enqueue paths. A new trigger enum without a complete contract fails validation and architecture tests.",
+          "depends_on": [
+            "causal-execution/causal-context"
+          ],
+          "capabilities": [
+            "trigger-contract",
+            "workflow-runtime",
+            "architecture-guard"
+          ]
+        },
+        {
+          "id": "causal-integration",
+          "title": "Bind attempts, experiments, evaluations, promotions, rollbacks, automations, and delegations to causal context",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/loop ./internal/evaluation ./internal/workflowruntime -run '^TestRSICausalChainClosure$' -count=1",
+          "rationale": "An RSI decision must traverse from motivating observation through proposal, attempt, evaluation, promotion, serving evidence, and rollback without guessing from chronology or aliases. Existing duplicate origin fields are migrated and deleted.",
+          "depends_on": [
+            "causal-execution/trigger-registry"
+          ],
+          "capabilities": [
+            "rsi-loop",
+            "causality",
+            "promotion",
+            "rollback"
+          ]
+        },
+        {
+          "id": "causal-projection",
+          "title": "Add a rebuildable causality projection for roots, descendants, retries, replays, and evidence jumps",
+          "status": "open",
+          "verify": "go test ./internal/overgodb ./internal/runrecord -run '^TestCausalityProjectionRebuild$' -count=1",
+          "rationale": "The projection accelerates explanation and audit but does not replace canonical causal records. Queries name the journal head and projection version, and cycles or missing required roots refuse publication.",
+          "depends_on": [
+            "causal-execution/causal-integration"
+          ],
+          "capabilities": [
+            "overgodb",
+            "causality-projection",
+            "explainability"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stimulus-reconciliation",
+      "title": "Bound agent context and reconcile inputs that arrive during execution",
+      "status": "open",
+      "steps": [
+        {
+          "id": "stable-cursors",
+          "title": "Define stable source-cited cursors and aggregate token, byte, document, depth, and result bounds for interaction selection",
+          "status": "open",
+          "verify": "go test ./internal/dataset ./internal/runrecord -run '^TestBoundedInteractionSelection$' -count=1",
+          "rationale": "Context construction retains causal roots and complete recent interaction arcs while refusing unbounded scans. Cursor identity binds source set, selection contract, and head so a continuation cannot silently move to different evidence.",
+          "depends_on": [
+            "causal-execution"
+          ],
+          "capabilities": [
+            "retrieval",
+            "bounded-context",
+            "interaction-evidence"
+          ]
+        },
+        {
+          "id": "inflight-boundary",
+          "title": "Record the exact admitted stimulus boundary for every agent attempt",
+          "status": "open",
+          "verify": "go test ./internal/agentloop ./internal/runrecord -run '^TestAttemptStimulusBoundary$' -count=1",
+          "rationale": "Evaluation and replay must know which inputs the attempt could have observed. Inputs arriving after the boundary are never retroactively attributed to the running attempt.",
+          "depends_on": [
+            "stimulus-reconciliation/stable-cursors"
+          ],
+          "capabilities": [
+            "agent-loop",
+            "stimulus",
+            "replay"
+          ]
+        },
+        {
+          "id": "coalesced-followup",
+          "title": "Coalesce late stimuli and admit at most one causally linked follow-up run for each consumed boundary",
+          "status": "open",
+          "verify": "go test ./internal/agentloop ./internal/workflowruntime -run '^TestLateStimulusReconciliation$' -count=1",
+          "rationale": "No admitted input is dropped, and reconnect or duplicate notifications cannot create an agent loop. The durable follow-up decision is idempotent; wake notifications remain operational signals.",
+          "depends_on": [
+            "stimulus-reconciliation/inflight-boundary"
+          ],
+          "capabilities": [
+            "agent-loop",
+            "reconciliation",
+            "idempotency"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "capability-bound-activation",
+      "title": "Bind executable, peer, model, and tool activation to exact discovered capabilities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "capability-identity",
+          "title": "Define one exact capability identity for implementation, version, transport, schema, platform, and resource envelope",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/agenttool ./internal/runrecord -run '^TestCapabilityIdentityContract$' -count=1",
+          "rationale": "A generic name such as a CLI or tool name is insufficient execution evidence. Discovery records the exact runnable implementation and capabilities; heartbeat availability remains operational while capability changes are durable transitions.",
+          "depends_on": [
+            "causal-execution"
+          ],
+          "capabilities": [
+            "capability-runtime",
+            "peer-runtime",
+            "agent-tool"
+          ]
+        },
+        {
+          "id": "grant-binding",
+          "title": "Bind grants to the exact staged candidate catalog, manual schemas, tool-set digest, endpoint scopes, and host capabilities",
+          "status": "open",
+          "verify": "go test ./internal/agenttool -run '^TestCandidateGrantRejectsDrift$' -count=1",
+          "rationale": "Discovery or installation is not authorization. Added tools, removed tools, schema drift, endpoint drift, or absent host capability invalidate activation; an immutable manual identity remains the per-call authority.",
+          "depends_on": [
+            "capability-bound-activation/capability-identity"
+          ],
+          "capabilities": [
+            "agent-tool",
+            "authority",
+            "schema-pinning",
+            "effect-scope"
+          ]
+        },
+        {
+          "id": "placement-integration",
+          "title": "Use the shared capability identity in peer placement, agent-tool activation, model selection, and attempt receipts",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/agenttool ./internal/agentloop -run '^TestExactCapabilityPlacementAndReceipt$' -count=1",
+          "rationale": "Planning and evidence must name the same implementation. Duplicate executable discovery, version parsing, and capability checks move to their existing common owners and displaced call-site caches are deleted.",
+          "depends_on": [
+            "capability-bound-activation/grant-binding"
+          ],
+          "capabilities": [
+            "capability-runtime",
+            "placement",
+            "common-code",
+            "attempt-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "activation-matrix",
+      "title": "Register behavioral cases once and verify them across every activation profile",
+      "status": "open",
+      "steps": [
+        {
+          "id": "case-registry",
+          "title": "Define a typed behavioral case registry decoupled from activation profiles",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/capabilityruntime -run '^TestActivationCaseRegistry$' -count=1",
+          "rationale": "A behavioral case states one task contract and its evidence check exactly once, with no knowledge of which serving or activation path exercises it. Registration is typed and store-published, so the case population is a denominator, not a convention.",
+          "depends_on": [
+            "capability-bound-activation"
+          ],
+          "capabilities": [
+            "verification-coverage",
+            "common-code"
+          ]
+        },
+        {
+          "id": "profile-coverage",
+          "title": "Cross registered cases with activation profiles and publish coverage denominators that refuse unenumerated activations",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/loop -run '^TestActivationMatrixCoverage$' -count=1",
+          "rationale": "Every registered case runs against every applicable activation profile, coverage is published with explicit gaps, and an activation kind absent from the matrix is refused rather than assumed verified. This mechanizes the enumerate-every-activation rule the campaign currently enforces only by discipline.",
+          "depends_on": [
+            "activation-matrix/case-registry"
+          ],
+          "capabilities": [
+            "verification-coverage",
+            "activation",
+            "honest-denominators"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "webhook-ingress",
+      "title": "Add governed webhook ingress to the existing automation runtime",
+      "status": "open",
+      "steps": [
+        {
+          "id": "trigger-contract",
+          "title": "Add a typed webhook trigger kind with immutable signature, payload, rate, authority, and workflow-binding policy",
+          "status": "open",
+          "verify": "go test ./internal/recipe ./internal/runrecord -run '^TestWebhookTriggerPolicyContract$' -count=1",
+          "rationale": "Webhook is another runtime-owned trigger, not a second automation system. Every accepted policy derives bounds from recorded decisions or store evidence and names the workflow authority it may invoke.",
+          "depends_on": [
+            "causal-execution"
+          ],
+          "capabilities": [
+            "automation",
+            "webhook",
+            "recipe-policy"
+          ]
+        },
+        {
+          "id": "delivery-ledger",
+          "title": "Publish durable accepted, ignored, skipped, duplicate, refused, and replay delivery records with payload blobs",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/overgodb -run '^TestWebhookDeliveryLedgerIdempotency$' -count=1",
+          "rationale": "Idempotency claims survive restart and concurrent delivery. Payload bodies are bounded immutable blobs; records carry digest, signature result, source, causal root, original-delivery link for replay, and no secret material.",
+          "depends_on": [
+            "webhook-ingress/trigger-contract"
+          ],
+          "capabilities": [
+            "automation",
+            "idempotency",
+            "ingress-evidence",
+            "content-addressing"
+          ]
+        },
+        {
+          "id": "workflow-dispatch",
+          "title": "Dispatch accepted deliveries through AutomationRuntime with exact recovery and one workflow operation",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime ./internal/server -run '^TestWebhookAutomationDispatchAndRecovery$' -count=1",
+          "rationale": "Signature validation, deduplication, admission, operation creation, and recovery form one deterministic lifecycle. Retries recover the recorded plan rather than executing a newly resolved recipe or emitting duplicate outbound effects.",
+          "depends_on": [
+            "webhook-ingress/delivery-ledger"
+          ],
+          "capabilities": [
+            "workflow-runtime",
+            "automation",
+            "recovery",
+            "idempotency"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resource-coverage",
+      "title": "Make resource fitness and evidence coverage first-class RSI inputs",
+      "status": "open",
+      "steps": [
+        {
+          "id": "resource-contract",
+          "title": "Unify tokens, cache use, wall and active compute, CPU, GPU, memory, disk, network, interaction counts, retries, and integer cost units",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/evaluation -run '^TestResourceFitnessContract$' -count=1",
+          "rationale": "Training, evaluation, serving, agents, tools, workflows, peers, and UI operations must report comparable resource and interaction facts without collapsing model, hardware, provider, workload, or attempt identity. Semantic commits, scans, bytes, wakeups, context repetition, model turns, tool calls, retries, and waits are counted by existing owners; unknown measurements remain unknown rather than zero.",
+          "depends_on": [
+            "execution-semantics",
+            "redundancy-interaction-baseline"
+          ],
+          "capabilities": [
+            "resource-fitness",
+            "interaction-efficiency",
+            "serving-observation",
+            "evaluation"
+          ]
+        },
+        {
+          "id": "observation-chunks",
+          "title": "Chunk high-volume serving and execution samples into bounded canonical blobs with small summary commits",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/overgodb -run '^TestObservationChunkPublication$' -count=1",
+          "rationale": "Per-token, per-message, and hardware samples must not flood the journal. Canonical encoding, count and byte bounds, source identities, and summary digest make each chunk reproducible and independently verifiable.",
+          "depends_on": [
+            "resource-coverage/resource-contract"
+          ],
+          "capabilities": [
+            "observation",
+            "content-addressing",
+            "journal-tightness"
+          ]
+        },
+        {
+          "id": "coverage-projection",
+          "title": "Project measurement, evaluation, hardware, causal, failure-classification, and pairing coverage separately from scores",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/overgodb -run '^TestEvidenceCoverageProjection$' -count=1",
+          "rationale": "Missing evidence is not favorable evidence. Every aggregate reports observed, missing, degraded, unclassified, uncosted, recovered, and paired counts, anchored to an exact journal head and projection version.",
+          "depends_on": [
+            "resource-coverage/observation-chunks"
+          ],
+          "capabilities": [
+            "coverage",
+            "evaluation",
+            "projection-evidence"
+          ]
+        },
+        {
+          "id": "fitness-integration",
+          "title": "Require improvement comparisons to evaluate capability, quality, resource, and coverage deltas together",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/loop ./internal/runrecord -run '^TestImprovementFitnessRejectsTransferredCost$' -count=1",
+          "rationale": "A candidate cannot improve by moving failures, latency, memory, retries, or unmeasured work into another subsystem. Promotion comparisons cite source chunks and materialize the exact aggregate contract used.",
+          "depends_on": [
+            "resource-coverage/coverage-projection"
+          ],
+          "capabilities": [
+            "rsi-loop",
+            "evaluation",
+            "resource-fitness",
+            "coverage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction-efficiency",
+      "title": "Reduce component, agent, tool, peer, and operator interactions without losing admitted work or evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "projection-query-plans",
+          "title": "Route bounded queries through exact compiled indexes and report inspected, matched, returned, and loaded facts",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestProjectionQueryPlanEfficiency$' -count=1",
+          "rationale": "Kind, media, schema, sequence, alias, lineage, contract, and causal lookups use their owning projection rather than scanning the complete catalog. The planner is deterministic for a query contract and head; a missing index may refuse an unbounded request rather than silently perform a full scan.",
+          "depends_on": [
+            "storage-projections",
+            "resource-coverage",
+            "redundancy-interaction-baseline"
+          ],
+          "capabilities": [
+            "overgodb",
+            "query-plan",
+            "projection",
+            "interaction-efficiency"
+          ]
+        },
+        {
+          "id": "head-bound-deltas",
+          "title": "Serve initial snapshots plus ordered head-bound deltas to read-only peers, runtime views, and the embedded UI",
+          "status": "open",
+          "verify": "go test ./internal/overgodb ./internal/server ./internal/capabilityruntime -run '^TestHeadBoundDeltaReconciliation$' -count=1",
+          "rationale": "Consumers stop reloading complete state or polling parallel authorities. A delta is derived from canonical commits, names previous and resulting heads, coalesces only commutative view changes, and forces a bounded snapshot resync when continuity or projection version differs.",
+          "depends_on": [
+            "interaction-efficiency/projection-query-plans",
+            "storage-operational-boundary"
+          ],
+          "capabilities": [
+            "overgodb",
+            "read-only-replica",
+            "server",
+            "delta-reconciliation"
+          ]
+        },
+        {
+          "id": "incremental-context",
+          "title": "Reuse content identities and admitted stimulus cursors so resumable sessions receive only new interaction arcs",
+          "status": "open",
+          "verify": "go test ./internal/agentloop ./internal/dataset ./internal/runrecord -run '^TestIncrementalContextPreservesEvidence$' -count=1",
+          "rationale": "Repeated source content is referenced once and later occurrences preserve provenance without duplicating bytes. A runtime capability that proves session continuity may receive only the stable cursor delta; stateless or retired sessions deterministically rebuild the bounded full context. Optimization cannot omit an admitted stimulus.",
+          "depends_on": [
+            "interaction-efficiency/head-bound-deltas",
+            "stimulus-reconciliation",
+            "capability-bound-activation"
+          ],
+          "capabilities": [
+            "agent-loop",
+            "bounded-context",
+            "session-health",
+            "interaction-efficiency"
+          ]
+        },
+        {
+          "id": "coalesced-coordination",
+          "title": "Coalesce wakeups, claims, capability refreshes, and reconciliation work around semantic dirty-state boundaries",
+          "status": "open",
+          "verify": "go test ./internal/workflowruntime ./internal/capabilityruntime ./internal/agentloop -run '^TestCoordinationCoalescesWithoutLostWork$' -count=1",
+          "rationale": "Reconnect flaps, repeated wake signals, duplicate deliveries, and unchanged capability probes produce one pending reconciliation rather than one run each. Claims and reads are batched within existing authority boundaries; every admitted item is processed once or remains visibly pending.",
+          "depends_on": [
+            "interaction-efficiency/incremental-context",
+            "webhook-ingress"
+          ],
+          "capabilities": [
+            "workflow-runtime",
+            "reconciliation",
+            "idempotency",
+            "interaction-efficiency"
+          ]
+        },
+        {
+          "id": "operator-decisions",
+          "title": "Project one causal operation timeline and one pending-decision view for approvals, refusals, retries, quarantine, and rollback",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/runrecord -run '^TestOperatorDecisionInteractionContract$' -count=1",
+          "rationale": "The operator should not reconstruct state across logs, dashboards, recipes, and peer pages. The view cites canonical evidence and exposes idempotent typed actions; it creates no new decision authority and does not duplicate domain state.",
+          "depends_on": [
+            "interaction-efficiency/coalesced-coordination"
+          ],
+          "capabilities": [
+            "operator-interaction",
+            "explainability",
+            "human-decision",
+            "projection"
+          ]
+        },
+        {
+          "id": "efficiency-gate",
+          "title": "Reject interaction optimizations that lose capability, evidence, determinism, or merely shift work to another component",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/overgodb ./internal/agentloop ./internal/workflowruntime -run '^TestInteractionEfficiencyGate$' -count=1",
+          "rationale": "Candidate and baseline traces must complete the same task contract with equivalent admitted inputs and evidence. A win requires a Pareto improvement or an explicit tradeoff decision across semantic commits, scans, bytes, wakeups, repeated context, model turns, tool calls, retries, waits, wall time, and resource peaks; missing counters block the claim.",
+          "depends_on": [
+            "interaction-efficiency/operator-decisions"
+          ],
+          "capabilities": [
+            "interaction-efficiency",
+            "evaluation",
+            "coverage",
+            "rsi-gate"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "model-prototypes",
+      "title": "Represent model prototypes as typed hypotheses that compile through registered Go capabilities",
+      "status": "open",
+      "steps": [
+        {
+          "id": "prototype-contract",
+          "title": "Define an immutable model prototype binding parent, architecture profile, derivation policy, training objective, dataset splits, capability hypothesis, budgets, and code evidence",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/trainingprogram -run '^TestModelPrototypeIdentityAndValidation$' -count=1",
+          "rationale": "A prototype is a content-addressed hypothesis, not executable code, weights, or an active recipe. Its architecture name must resolve to a compiled Go registration; all policy and evidence dependencies are exact artifact IDs; code identity is evidence and cannot authorize execution.",
+          "depends_on": [
+            "resource-coverage",
+            "interaction-efficiency",
+            "capability-bound-activation",
+            "causal-execution"
+          ],
+          "capabilities": [
+            "model-prototype",
+            "model-recipe",
+            "artifact-identity",
+            "go-only"
+          ]
+        },
+        {
+          "id": "prototype-admission",
+          "title": "Extend improvement proposals and controller actions to admit model-prototype candidates with causal, authority, budget, development-split, and falsifier closure",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram ./internal/controlleraction ./internal/runrecord -run '^TestModelPrototypeAdmissionContract$' -count=1",
+          "rationale": "The controller may propose a prototype but cannot construct or train it until admission binds the motivating evidence, incumbent, independent promotion split, resource ceiling, registered Go implementation, and objective that can reject the hypothesis.",
+          "depends_on": [
+            "model-prototypes/prototype-contract"
+          ],
+          "capabilities": [
+            "rsi-proposal",
+            "model-prototype",
+            "budget",
+            "authority"
+          ]
+        },
+        {
+          "id": "prototype-compile",
+          "title": "Compile an admitted prototype into scratch construction, training program, evaluation plan, and candidate task recipes without source generation",
+          "status": "open",
+          "verify": "go test ./internal/scratchmodel ./internal/modelrecipe ./internal/trainingprogram ./internal/evaluation -run '^TestPrototypeCompilesClosedWorldTrial$' -count=1",
+          "rationale": "Compilation reuses scratchmodel derivation, registered model architecture, modelrecipe catalogs, trainingprogram, and evaluation owners. It derives tensor shapes, initialization, optimizer/session/resource plans, and recipe dependencies; an unsupported operator or capability refuses before compute.",
+          "depends_on": [
+            "model-prototypes/prototype-admission"
+          ],
+          "capabilities": [
+            "scratch-model",
+            "training-program",
+            "evaluation-plan",
+            "recipe-compile",
+            "go-only"
+          ]
+        },
+        {
+          "id": "prototype-materialization",
+          "title": "Atomically publish trained model, tensor inventory, resolved model definition, trial receipts, and candidate recipes from a successful prototype trial",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/trainingworkflow ./internal/overgodb -run '^TestPrototypeMaterializationClosure$' -count=1",
+          "rationale": "A prototype never becomes a model by alias mutation alone. Successful construction and training produce immutable weights and tensor inventory; ModelDefinitionDocument binds those bytes to the exact profile and architecture; candidate recipes cite the resolved definition and trial evidence in one atomic artifact batch.",
+          "depends_on": [
+            "model-prototypes/prototype-compile"
+          ],
+          "capabilities": [
+            "model-definition",
+            "tensor-inventory",
+            "training-evidence",
+            "atomic-commit"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "model-recipe-lifecycle",
+      "title": "Derive, validate, evaluate, and activate task recipes for prototype-produced models",
+      "status": "open",
+      "steps": [
+        {
+          "id": "recipe-derivation",
+          "title": "Derive inference, training, evaluation, composition, and agent-facing recipe candidates from resolved model definitions and compiled module catalogs",
+          "status": "open",
+          "verify": "go test ./internal/recipe ./internal/modelrecipe ./internal/workflowrecipe -run '^TestPrototypeRecipeDerivation$' -count=1",
+          "rationale": "Recipes remain immutable recipe.Definition artifacts: closed-world node and edge graphs whose modules are compiled Go capabilities. They bind model definition, profile, processor, placement, residency, session, evaluation, and policy artifacts without embedding code or discovering filesystem instructions.",
+          "depends_on": [
+            "model-prototypes"
+          ],
+          "capabilities": [
+            "recipe",
+            "model-recipe",
+            "workflow-recipe",
+            "go-only"
+          ]
+        },
+        {
+          "id": "recipe-validation",
+          "title": "Compile each candidate recipe against exact model, peer, tool, and runtime capabilities and publish verification evidence",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/capabilityruntime ./internal/agenttool -run '^TestCandidateRecipeCapabilityClosure$' -count=1",
+          "rationale": "A recipe candidate is not runnable because it parses. Validation proves every module, port, dependency, placement, residency, session policy, tool grant, and resource requirement against exact capability identities and records refusal rather than selecting a fallback topology.",
+          "depends_on": [
+            "model-recipe-lifecycle/recipe-derivation"
+          ],
+          "capabilities": [
+            "recipe-validation",
+            "capability-runtime",
+            "agent-tool",
+            "refusal"
+          ]
+        },
+        {
+          "id": "recipe-evaluation",
+          "title": "Evaluate prototype-produced recipes on development and promotion evidence while separating model, recipe, and system deltas",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/modelrecipe ./internal/loop -run '^TestRecipeCandidateEvaluationAttribution$' -count=1",
+          "rationale": "The RSI loop must identify whether a gain came from weights, architecture, derivation policy, recipe graph, placement, or another system change. Comparisons bind the same model and split where recipe behavior is the candidate variable and report capability, quality, resources, and coverage.",
+          "depends_on": [
+            "model-recipe-lifecycle/recipe-validation"
+          ],
+          "capabilities": [
+            "recipe-evaluation",
+            "causality",
+            "resource-fitness",
+            "coverage"
+          ]
+        },
+        {
+          "id": "recipe-activation",
+          "title": "Drive candidate, validated, active, refused, superseded, retired, and rollback transitions through the existing modelrecipe lifecycle",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/runrecord ./internal/overgodb -run '^TestPrototypeRecipeLifecycleAndRollback$' -count=1",
+          "rationale": "Activation remains evidence-gated and atomic. Active aliases are scoped by model and task, compare-and-set against the incumbent, cite verification and evaluation evidence, and never make the prototype document itself executable. Supersession and refusal preserve both candidates and their causal evidence.",
+          "depends_on": [
+            "model-recipe-lifecycle/recipe-evaluation"
+          ],
+          "capabilities": [
+            "recipe-lifecycle",
+            "promotion",
+            "alias-cas",
+            "rollback"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evidence-routing",
+      "title": "Route task execution to models through typed evidence-derived decisions",
+      "status": "open",
+      "steps": [
+        {
+          "id": "decision-contract",
+          "title": "Define a typed routing decision record binding task signal, candidate set, evidence basis, and derived selection",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/runrecord -run '^TestRoutingDecisionContract$' -count=1",
+          "rationale": "A routing decision is a canonical fact: which verified model or recipe serves a task, derived from published evaluation and resource evidence with distribution-free bounds and no tunable weights. The record names the candidates considered, the evidence each was judged on, and the derivation, so selection is replayable and auditable like any other promotion.",
+          "depends_on": [
+            "model-recipe-lifecycle",
+            "resource-coverage"
+          ],
+          "capabilities": [
+            "rsi-routing",
+            "evidence-derivation",
+            "determinism"
+          ]
+        },
+        {
+          "id": "evidence-selection",
+          "title": "Derive model selection from published evaluation and resource evidence and record every decision",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/evaluation ./internal/capabilityruntime -run '^TestEvidenceDerivedSelection$' -count=1",
+          "rationale": "Selection prefers the cheapest verified candidate whose published evidence meets the task threshold; evidence admission follows one ordered gate owner. Every live selection commits its decision record through the common publication path, turning the benchmark substrate from passive record into an active control input.",
+          "depends_on": [
+            "evidence-routing/decision-contract",
+            "capability-bound-activation"
+          ],
+          "capabilities": [
+            "rsi-routing",
+            "evidence-derivation",
+            "placement"
+          ]
+        },
+        {
+          "id": "counterfactual-replay",
+          "title": "Replay recorded routing decisions under a candidate policy and publish measured counterfactual deltas",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/overgodb -run '^TestRoutingCounterfactualReplay$' -count=1",
+          "rationale": "A candidate selection policy is evaluated against the recorded decision corpus before any live rollout: identical inputs, both policies, published deltas with coverage. Counterfactual evidence is a required admission input for routing-policy rollout plans, so policy improvement is measured at near-zero cost before it is trusted with live work.",
+          "depends_on": [
+            "evidence-routing/evidence-selection",
+            "causal-execution"
+          ],
+          "capabilities": [
+            "rsi-routing",
+            "counterfactual-evidence",
+            "deterministic-replay"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "deterministic-rollout",
+      "title": "Validate promoted candidates through immutable deterministic rollout plans",
+      "status": "open",
+      "steps": [
+        {
+          "id": "rollout-plan",
+          "title": "Define a content-addressed rollout plan binding baseline, candidate, cohort key, hash version, observation contract, and rollback authority",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/loop -run '^TestRolloutPlanIdentityAndValidation$' -count=1",
+          "rationale": "A rollout is evidence-bearing promotion policy, not a mutable feature flag. Cohort size, observation requirements, and boundaries are derived from evaluation evidence or explicit typed decisions with reopen triggers.",
+          "depends_on": [
+            "resource-coverage",
+            "interaction-efficiency",
+            "causal-execution",
+            "model-recipe-lifecycle",
+            "evidence-routing"
+          ],
+          "capabilities": [
+            "rsi-rollout",
+            "promotion",
+            "artifact-identity",
+            "magic-discipline"
+          ]
+        },
+        {
+          "id": "stable-assignment",
+          "title": "Assign workloads deterministically and keep the same arm across retry, replay, peer placement, and restart",
+          "status": "open",
+          "verify": "go test ./internal/loop ./internal/capabilityruntime -run '^TestRolloutAssignmentIsStable$' -count=1",
+          "rationale": "Assignment uses a canonical key separator and pinned hash version with golden vectors. Every observation records plan and arm; disabled or ineligible workloads can never leak into the candidate arm.",
+          "depends_on": [
+            "deterministic-rollout/rollout-plan"
+          ],
+          "capabilities": [
+            "rsi-rollout",
+            "determinism",
+            "placement"
+          ]
+        },
+        {
+          "id": "projection-evidence",
+          "title": "Materialize rollout reports with head, projector version, query contract, source chunk IDs, coverage, and result digest",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/overgodb -run '^TestRolloutProjectionEvidenceReproduces$' -count=1",
+          "rationale": "Promotion and rollback consume immutable reports, never a dashboard value or mutable projection row. Rebuilding the same projector at the same head reproduces the digest; a new projector version produces new evidence.",
+          "depends_on": [
+            "deterministic-rollout/stable-assignment"
+          ],
+          "capabilities": [
+            "projection-evidence",
+            "rollout",
+            "reproducibility"
+          ]
+        },
+        {
+          "id": "promotion-binding",
+          "title": "Require improvement promotion to bind rollout plan, baseline evidence, candidate evidence, coverage, and rollback contract",
+          "status": "open",
+          "verify": "go test ./internal/runrecord ./internal/loop ./internal/trainingworkflow -run '^TestPromotionRequiresRolloutEvidenceClosure$' -count=1",
+          "rationale": "Offline evaluation may admit a candidate to rollout but does not universally activate it. Compare-and-set activation changes only through the promotion owner after the required evidence closure is present.",
+          "depends_on": [
+            "deterministic-rollout/projection-evidence"
+          ],
+          "capabilities": [
+            "promotion",
+            "authority",
+            "rsi-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "live-safety",
+      "title": "Quarantine or roll back candidates from distribution-free live evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "safety-window",
+          "title": "Derive live comparison windows and alarm boundaries from each metric history with explicit coverage requirements",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/runrecord -run '^TestLiveSafetyWindowDerivation$' -count=1",
+          "rationale": "No Gaussian, stationary, or IID assumption is introduced. Small samples refuse decisions unless envelopes separate; larger histories use the repository doctrine's distribution-free summaries and record the derivation evidence.",
+          "depends_on": [
+            "deterministic-rollout"
+          ],
+          "capabilities": [
+            "live-evaluation",
+            "distribution-discipline",
+            "coverage"
+          ]
+        },
+        {
+          "id": "circuit-breaker",
+          "title": "Publish advisory, finding, quarantine, and operator-stop transitions from sustained correctness, failure, cost, latency, or coverage regressions",
+          "status": "open",
+          "verify": "go test ./internal/loop ./internal/runrecord -run '^TestCandidateCircuitBreakerTransitions$' -count=1",
+          "rationale": "The circuit breaker requires enough comparable observations and excludes skipped or inapplicable work from success and failure ratios. A single noisy window can advise; escalation follows the recorded confirmation policy.",
+          "depends_on": [
+            "live-safety/safety-window"
+          ],
+          "capabilities": [
+            "rsi-containment",
+            "circuit-breaker",
+            "finding"
+          ]
+        },
+        {
+          "id": "atomic-rollback",
+          "title": "Rollback the active alias with compare-and-set and publish the exact regression evidence and causal link",
+          "status": "open",
+          "verify": "go test ./internal/loop ./internal/overgodb -run '^TestAtomicCandidateRollback$' -count=1",
+          "rationale": "Only the promotion authority can change the active binding. Concurrent promotion, rollback, or operator action has one winner; stale decisions refuse and preserve their evidence without overwriting a newer head.",
+          "depends_on": [
+            "live-safety/circuit-breaker"
+          ],
+          "capabilities": [
+            "rollback",
+            "alias-cas",
+            "causality",
+            "authority"
+          ]
+        },
+        {
+          "id": "reentry",
+          "title": "Require new evidence and explicit authority before a quarantined candidate or mechanism family re-enters rollout",
+          "status": "open",
+          "verify": "go test ./internal/loop ./internal/runrecord -run '^TestQuarantineReentryRequiresNewEvidence$' -count=1",
+          "rationale": "Restart, replay, or another controller proposal cannot clear quarantine. Reentry names the prior finding, changed mechanism, new evaluation, decider, and fresh rollout plan.",
+          "depends_on": [
+            "live-safety/atomic-rollback"
+          ],
+          "capabilities": [
+            "rsi-containment",
+            "quarantine",
+            "authority"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "architecture-closure",
+      "title": "Enforce the Go-only RSI architecture and prove the storage transition end to end",
+      "status": "open",
+      "steps": [
+        {
+          "id": "single-entry-guards",
+          "title": "Refuse production bypasses around process, model, tool, network, trigger, commit, and promotion authorities",
+          "status": "open",
+          "verify": "go test ./internal/overgodb ./internal/processcontrol ./internal/agenttool ./internal/inference ./internal/workflowruntime ./internal/loop -run '^TestProductionAuthorityBoundaries$' -count=1",
+          "rationale": "Self-modifying code must not create a second side-effect path. Architecture tests inspect production imports and constructors, permit narrow test exceptions, and require each new trigger to declare causal, authority, budget, idempotency, and evidence behavior.",
+          "depends_on": [
+            "process-supervision",
+            "stimulus-reconciliation",
+            "capability-bound-activation",
+            "webhook-ingress",
+            "model-recipe-lifecycle",
+            "live-safety",
+            "evidence-routing",
+            "activation-matrix"
+          ],
+          "capabilities": [
+            "architecture-guard",
+            "rsi-containment",
+            "single-authority"
+          ]
+        },
+        {
+          "id": "go-only-guard",
+          "title": "Refuse Markdown-discovered behavior, interpreted plugins, runtime scripts, and non-Go extension authority",
+          "status": "open",
+          "verify": "go test ./internal/recipe ./internal/agenttool ./internal/loop -run '^TestRSIRuntimeIsGoOnly$' -count=1",
+          "rationale": "Prompts and descriptions may remain typed artifact data, but files named as skills, plugin manifests, embedded interpreters, or filesystem discovery cannot grant capabilities or alter runtime semantics.",
+          "depends_on": [
+            "architecture-closure/single-entry-guards"
+          ],
+          "capabilities": [
+            "go-only",
+            "architecture-guard",
+            "authority"
+          ]
+        },
+        {
+          "id": "migration-drill",
+          "title": "Rebuild a legacy store into segmented journal, blob, and projection layout and execute backup, restore, retention, and rollback drills",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestRSIStoreMigrationDrill$' -count=1",
+          "rationale": "The drill uses the pinned compatibility and scale corpus, compares query and content digests, injects interruption at each publication boundary, opens the destination read-only, and proves the source remains untouched and recoverable.",
+          "depends_on": [
+            "architecture-closure/go-only-guard"
+          ],
+          "capabilities": [
+            "overgodb",
+            "migration",
+            "backup",
+            "retention",
+            "rollback"
+          ]
+        },
+        {
+          "id": "rsi-end-to-end",
+          "title": "Run one prototype through model and recipe materialization, execution, evaluation, rollout, live regression, atomic rollback, and reproducible explanation",
+          "status": "open",
+          "verify": "go test ./internal/loop ./internal/evaluation ./internal/runrecord ./internal/overgodb -run '^TestDeterministicRSIControlPlane$' -count=1",
+          "rationale": "Acceptance requires externally visible control behavior, not only new record types: admitted prototype, compiled Go construction, resolved model definition, validated task recipe, exact capability placement, bounded stimuli, terminal attempt evidence, resource and coverage comparison, measured interaction reduction without lost work, deterministic cohorting, live containment, and causal evidence reproduced after cold rebuild.",
+          "depends_on": [
+            "architecture-closure/migration-drill"
+          ],
+          "capabilities": [
+            "rsi-loop",
+            "overgodb",
+            "evaluation",
+            "rollout",
+            "rollback",
+            "explainability"
+          ]
+        },
+        {
+          "id": "tightness-census",
+          "title": "Re-run common-code and policy-copy census and record the campaign tightening delta",
+          "status": "open",
+          "verify": "go run ./cmd/clone-census -summary",
+          "rationale": "The campaign closes only if shared components replaced duplicate process, publication, failure, retry, capability, trigger, resource, query, reconciliation, and storage mechanics rather than adding parallel frameworks. The measured census and interaction-trace delta live in OvergoDB and the plan retains no completion ledger.",
+          "depends_on": [
+            "architecture-closure/rsi-end-to-end"
+          ],
+          "capabilities": [
+            "common-code",
+            "tightness",
+            "census"
+          ]
+        }
+      ]
+    }
+  ]
 }

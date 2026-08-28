@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "supervisor",
-          "title": "Implement bounded start, interrupt, process-tree termination, drain, wait, and termination receipts on Windows and Unix",
-          "status": "open",
-          "verify": "go test ./internal/processcontrol -run '^TestSupervisorProcessTreeContract$' -count=1",
-          "rationale": "External execution needs one owner for lifecycle and evidence. Windows uses a process-tree primitive that contains descendants; Unix uses process groups. Cancellation never reports success until the tree and pipes reach a terminal state.",
-          "depends_on": [
-            "storage-operational-boundary"
-          ],
-          "capabilities": [
-            "process-control",
-            "windows",
-            "unix",
-            "fault-containment"
-          ]
-        },
-        {
           "id": "consumer-migration",
           "title": "Move loop, agent tools, media, model operations, and web UI helpers to the shared supervisor and delete direct kill paths",
           "status": "open",

@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 9983 to 9997 for the OperationalTransition document: its two-statement constructor joins the codec-family idiom group (set-version-then-delegate); the tightness-census exemption covers constructor stubs with accessors.",
-  "duplicate_excess_nodes": 9997
+  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 9997 to 10004 for the supervisor platform stubs: nil-return contract stubs on the per-platform tree type join the stub idiom class the tightness-census exemption will cover.",
+  "duplicate_excess_nodes": 10004
 }

@@ -1,0 +1,44 @@
+//go:build !windows
+
+package processcontrol
+
+import (
+	"errors"
+	"os/exec"
+	"syscall"
+)
+
+// Unix containment uses process groups: the command leads its own
+// group, an interrupt delivers SIGTERM to the whole group, and
+// termination delivers SIGKILL to the group.
+type processTree struct {
+	pgid int
+}
+
+func configureSysProc(command *exec.Cmd) {
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+}
+
+func newProcessTree(command *exec.Cmd) (processTree, error) {
+	pgid, err := syscall.Getpgid(command.Process.Pid)
+	if err != nil {
+		return processTree{}, err
+	}
+	return processTree{pgid: pgid}, nil
+}
+
+func (t processTree) interrupt(*exec.Cmd) error {
+	if t.pgid == 0 {
+		return errors.New("processcontrol: no process group")
+	}
+	return syscall.Kill(-t.pgid, syscall.SIGTERM)
+}
+
+func (t processTree) terminate() error {
+	if t.pgid == 0 {
+		return errors.New("processcontrol: no process group")
+	}
+	return syscall.Kill(-t.pgid, syscall.SIGKILL)
+}
+
+func (t processTree) close() error { return nil }

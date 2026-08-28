@@ -758,7 +758,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:18504c37f9eb36537d21cd82a2ec775bf2767a7b77ca6f11b97a89d19890e144"
+     "identity": "file:sha256:61808979424dbf6ac9ac739665d9149b18d5453c98de3249835886fdc77b32c3"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -1050,7 +1050,7 @@
      "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
      "path": "internal/inference/attention_capture_probe_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:00fe9df390b7a7d0525e7d3712fb696b529b66490422dfd9bcbec05e32cf66a1"
+     "identity": "evidence:sha256:47bb95c31229203da8f56765381ba4fc958a3bc08e27d3a26dbde024e6271d8a"
     }
    ],
    "id": "exact-attention-workbench",

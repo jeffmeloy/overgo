@@ -110,9 +110,5 @@ func (h *Handler) automationStream(response http.ResponseWriter, request *http.R
 }
 
 func writeAutomationResult(response http.ResponseWriter, status int, value any, err error) {
-	if err != nil {
-		writeError(response, http.StatusUnprocessableEntity, "automation_refused", err.Error())
-		return
-	}
-	writeJSON(response, status, value)
+	writeRefusableResult(response, status, value, err, "automation_refused")
 }

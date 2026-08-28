@@ -156,9 +156,5 @@ func boundedPeerProjectionLimit(request *http.Request, maximum int) int {
 }
 
 func writePeerResult(response http.ResponseWriter, status int, value any, err error) {
-	if err != nil {
-		writeError(response, http.StatusUnprocessableEntity, "peer_refused", err.Error())
-		return
-	}
-	writeJSON(response, status, value)
+	writeRefusableResult(response, status, value, err, "peer_refused")
 }

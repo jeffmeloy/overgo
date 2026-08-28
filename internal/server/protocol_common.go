@@ -460,3 +460,14 @@ func (h *Handler) configureChatToolGrammar(
 	parameters.GrammarTriggerPatterns = patterns
 	return true
 }
+
+// writeRefusableResult reports one route-family outcome: a refusal
+// error maps to unprocessable-entity with the family refusal code,
+// success writes the value at the given status.
+func writeRefusableResult(response http.ResponseWriter, status int, value any, err error, refusal string) {
+	if err != nil {
+		writeError(response, http.StatusUnprocessableEntity, refusal, err.Error())
+		return
+	}
+	writeJSON(response, status, value)
+}

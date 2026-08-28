@@ -527,9 +527,5 @@ func (h *Handler) agentStream(response http.ResponseWriter, request *http.Reques
 }
 
 func writeAgentResult(response http.ResponseWriter, status int, value any, err error) {
-	if err != nil {
-		writeError(response, http.StatusUnprocessableEntity, "agent_refused", err.Error())
-		return
-	}
-	writeJSON(response, status, value)
+	writeRefusableResult(response, status, value, err, "agent_refused")
 }

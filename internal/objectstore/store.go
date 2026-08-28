@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/fsatomic"
 )
 
 const stagingDirectory = ".staging"
@@ -164,7 +165,7 @@ func (store *Store) install(temporaryPath string, descriptor artifact.Descriptor
 			_ = os.Remove(target)
 			return "", fmt.Errorf("object store: retire staged object: %w", err)
 		}
-		if err := syncDirectory(directory); err != nil {
+		if err := fsatomic.SyncDirectory(directory); err != nil {
 			_ = os.Remove(target)
 			return "", err
 		}

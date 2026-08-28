@@ -117,23 +117,8 @@ func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}
 }
 
 func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) {
-	for _, descriptor := range batch.Artifacts {
-		s.artifacts.add(descriptor, sequence)
-	}
-	for _, content := range batch.Contents {
-		s.contents.set(content.Descriptor.ID, locators[content.Descriptor.ID])
-	}
-	for _, manifest := range batch.Manifests {
-		s.artifacts.setManifest(manifest)
-	}
-	for _, binding := range batch.Aliases {
-		s.aliases.apply(binding)
-	}
-	for _, edge := range batch.Lineage {
-		s.lineage.add(relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation})
-	}
-	for _, event := range batch.Locations {
-		s.locations.apply(event)
+	for _, registered := range projections(s) {
+		registered.view.applyCommit(batch, locators, sequence)
 	}
 }
 

@@ -15,6 +15,45 @@ import (
 // No facet is an interface: checkpointing supplies the second consumer
 // that would justify one, and it has not landed yet.
 
+// projection is the compiled contract every catalog facet satisfies:
+// an explicit name, an explicit schema version, and commit-ordered
+// application. Registration is closed-world at compile time --
+// projections(state) is the complete enumeration -- with no
+// reflection, discovery, or independent write authority. Replay
+// drives the contract now; per-projection checkpoints are its second
+// consumer.
+type projection interface {
+	applyCommit(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64)
+}
+
+// registeredProjection binds one facet to its explicit name and
+// checkpoint schema version; the registry table is the single
+// declaration site for both.
+type registeredProjection struct {
+	name    string
+	version uint16
+	view    projection
+}
+
+// initialProjectionVersion is every projection's first schema
+// version; a projection that changes its checkpoint shape advances
+// its own version constant away from this shared origin.
+const initialProjectionVersion uint16 = 1
+
+// projections enumerates the six facet projections in commit-
+// application order; this table is the closed world and the single
+// owner of projection names and versions.
+func projections(state *catalogState) []registeredProjection {
+	return []registeredProjection{
+		{name: "artifacts", version: initialProjectionVersion, view: &state.artifacts},
+		{name: "contents", version: initialProjectionVersion, view: &state.contents},
+		{name: "lineage", version: initialProjectionVersion, view: &state.lineage},
+		{name: "locations", version: initialProjectionVersion, view: &state.locations},
+		{name: "aliases", version: initialProjectionVersion, view: &state.aliases},
+		{name: "commits", version: initialProjectionVersion, view: &state.commits},
+	}
+}
+
 // artifactRecord carries the artifact facet's facts for one identity.
 type artifactRecord struct {
 	descriptor  artifact.Descriptor
@@ -82,6 +121,16 @@ func (f *artifactFacet) setManifest(manifest artifact.Manifest) {
 	record.manifest, record.hasManifest = manifest.Clone(), true
 }
 
+// applyCommit registers new descriptors and manifests in commit order.
+func (f *artifactFacet) applyCommit(delta artifact.Batch, _ map[artifact.ID]contentLocator, sequence uint64) {
+	for _, descriptor := range delta.Artifacts {
+		f.add(descriptor, sequence)
+	}
+	for _, manifest := range delta.Manifests {
+		f.setManifest(manifest)
+	}
+}
+
 func (f artifactFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
 	for _, descriptor := range batch.Artifacts {
 		if !f.has(descriptor.ID) {
@@ -115,6 +164,13 @@ func (f contentFacet) locator(id artifact.ID) (contentLocator, bool) {
 }
 
 func (f *contentFacet) set(id artifact.ID, locator contentLocator) { f.locators[id] = locator }
+
+// applyCommit binds each committed content to its locator.
+func (f *contentFacet) applyCommit(delta artifact.Batch, locators map[artifact.ID]contentLocator, _ uint64) {
+	for _, content := range delta.Contents {
+		f.set(content.Descriptor.ID, locators[content.Descriptor.ID])
+	}
+}
 
 func (f contentFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
 	for _, content := range batch.Contents {
@@ -178,6 +234,13 @@ func (f *lineageFacet) add(key relationKey) {
 	f.parents[key.child] = insertRelation(f.parents[key.child], key)
 	f.children[key.parent] = insertRelation(f.children[key.parent], key)
 	f.edges++
+}
+
+// applyCommit inserts each committed edge into both adjacencies.
+func (f *lineageFacet) applyCommit(delta artifact.Batch, _ map[artifact.ID]contentLocator, _ uint64) {
+	for _, edge := range delta.Lineage {
+		f.add(relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation})
+	}
 }
 
 func (f lineageFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
@@ -262,6 +325,13 @@ func (f *locationFacet) apply(event artifact.LocationEvent) {
 	}
 }
 
+// applyCommit replays each committed location event in order.
+func (f *locationFacet) applyCommit(delta artifact.Batch, _ map[artifact.ID]contentLocator, _ uint64) {
+	for _, event := range delta.Locations {
+		f.apply(event)
+	}
+}
+
 func (f locationFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
 	for _, event := range batch.Locations {
 		if event.Action == artifact.LocationRemove || !f.has(event.Location) {
@@ -315,6 +385,13 @@ func (f *aliasFacet) apply(binding artifact.AliasBinding) {
 	}
 }
 
+// applyCommit applies each committed binding in order.
+func (f *aliasFacet) applyCommit(delta artifact.Batch, _ map[artifact.ID]contentLocator, _ uint64) {
+	for _, binding := range delta.Aliases {
+		f.apply(binding)
+	}
+}
+
 func (f aliasFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
 	for _, binding := range batch.Aliases {
 		current, exists := f.bindings[binding.Name]
@@ -348,6 +425,10 @@ func (f *commitFacet) add(commit committedBatch) {
 	f.byKey[commit.key] = len(f.ordered)
 	f.ordered = append(f.ordered, commit)
 }
+
+// applyCommit is a no-op on the delta: the commit record advances
+// through addCommit with the frame identity the coordinator owns.
+func (f *commitFacet) applyCommit(artifact.Batch, map[artifact.ID]contentLocator, uint64) {}
 
 func compareRelation(left, right relationKey) int {
 	if order := artifact.CompareID(left.child, right.child); order != 0 {

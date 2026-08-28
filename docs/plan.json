@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "projection-contract",
-          "title": "Promote the proven catalog facets to a minimal compiled projection contract with explicit names and versions",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestProjectionContractIsClosedAndVersioned$' -count=1",
-          "rationale": "The contract exists only after replay and checkpointing are two real consumers. Registration is compile-time and closed-world; there is no reflection, plugin discovery, Markdown definition, or independent write authority.",
-          "depends_on": [
-            "storage-blob-split"
-          ],
-          "capabilities": [
-            "overgodb",
-            "go-only",
-            "projection"
-          ]
-        },
-        {
           "id": "atomic-publication",
           "title": "Publish a head-consistent projection view only after every required projector accepts the commit",
           "status": "open",

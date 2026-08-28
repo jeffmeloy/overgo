@@ -13,6 +13,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"overgo/internal/fsatomic"
 )
 
 const (
@@ -213,7 +215,7 @@ func (writer *streamWriter) finalize() error {
 		}
 	}
 	artifactDirectory := filepath.Join(writer.staging, streamArtifactName)
-	if err := syncDirectory(artifactDirectory); err != nil {
+	if err := fsatomic.SyncDirectory(artifactDirectory); err != nil {
 		return err
 	}
 	if err := os.Rename(artifactDirectory, writer.destination); err != nil {
@@ -225,7 +227,7 @@ func (writer *streamWriter) finalize() error {
 	if err := os.Remove(writer.staging); err != nil {
 		return err
 	}
-	return syncDirectory(filepath.Dir(writer.destination))
+	return fsatomic.SyncDirectory(filepath.Dir(writer.destination))
 }
 
 func (writer *streamWriter) initialize(layouts []streamShardLayout) error {

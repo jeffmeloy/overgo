@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/fsatomic"
 )
 
 // blobStore owns immutable content bytes outside the metadata journal,
@@ -92,7 +93,7 @@ func (b blobStore) prepare(id artifact.ID, payload []byte) error {
 		_ = os.Remove(stagingPath)
 		return fmt.Errorf("overgodb: publish blob: %w", err)
 	}
-	return syncDirectory(directory)
+	return fsatomic.SyncDirectory(directory)
 }
 
 // open returns the blob's bytes stream after a size check against the
@@ -181,17 +182,4 @@ func (b blobStore) has(id artifact.ID) bool {
 	}
 	_, statErr := os.Stat(destination)
 	return statErr == nil
-}
-
-// syncDirectory makes a rename durable where the platform supports
-// directory synchronization; on platforms that refuse directory sync
-// the rename itself is the strongest available barrier.
-func syncDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer directory.Close()
-	_ = directory.Sync()
-	return nil
 }

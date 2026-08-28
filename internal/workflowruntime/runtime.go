@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -468,25 +470,32 @@ func (r *Runtime) publishExecutionAuthority(
 	if err != nil {
 		return err
 	}
+	// One semantic transition, one atomic batch: the recipe content and
+	// every not-yet-registered dependency identity publish together. An
+	// identity already stored -- possibly with a fuller descriptor --
+	// must not be restated, so the batch carries only the missing set
+	// and names that set in its key; a later call under different store
+	// state takes a different key and reduces to no change.
 	identities := make([]artifact.ID, 0, len(definition.Dependencies)+1)
 	identities = append(identities, operation)
 	for _, dependency := range definition.Dependencies {
 		identities = append(identities, dependency.Artifact)
 	}
+	missing := make([]artifact.Descriptor, 0, len(identities))
+	missingKey := sha256.New()
 	for _, id := range identities {
 		if _, found, loadErr := r.store.Artifact(ctx, id); loadErr != nil {
 			return loadErr
 		} else if !found {
-			if _, commitErr := r.store.Commit(ctx, artifact.Batch{
-				Key:       "workflow/authority/artifact/" + id.String(),
-				Artifacts: []artifact.Descriptor{{ID: id}},
-			}); commitErr != nil {
-				return commitErr
-			}
+			missing = append(missing, artifact.Descriptor{ID: id})
+			missingKey.Write([]byte(id.String()))
 		}
 	}
 	_, err = r.store.Commit(ctx, artifact.Batch{
-		Key: "workflow/authority/recipe/" + definition.ID.String(), Contents: []artifact.Content{content},
+		Key: "workflow/authority/recipe/" + definition.ID.String() + "/" +
+			hex.EncodeToString(missingKey.Sum(nil)),
+		Artifacts: missing,
+		Contents:  []artifact.Content{content},
 	})
 	if errors.Is(err, artifact.ErrNoChange) {
 		return nil

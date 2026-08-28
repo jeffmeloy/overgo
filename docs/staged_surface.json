@@ -187,6 +187,12 @@
       "name": "ParseEfficiencyTrace",
       "reason": "Reader for the interaction-efficiency baseline document; staged with its constructor.",
       "consumer_trigger": "interaction-efficiency projection-query-plans reads committed traces for comparison reports."
+    },
+    {
+      "package": "overgo/internal/artifact/repositorytest",
+      "name": "CountingRepository",
+      "reason": "Shared commit-counting wrapper proving one-batch semantic transitions across runrecord, workflowruntime, and modelrecipe; test-support surface is test-consumed by design.",
+      "consumer_trigger": "Permanent test-support owner; retire only if the one-commit-per-transition contract is retired."
     }
   ]
 }

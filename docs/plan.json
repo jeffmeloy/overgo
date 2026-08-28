@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "semantic-batches",
-          "title": "Commit each meaningful state transition as one atomic batch instead of a sequence of per-document interactions",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/modelrecipe -run '^TestSemanticTransitionUsesOneCommit$' -count=1",
-          "rationale": "Attempt completion, automation admission, capability activation, prototype materialization, promotion, and rollback each publish their required documents, lineage, locations, and aliases together. Independent transitions remain independent; batching cannot widen authority or hide partial failure.",
-          "depends_on": [
-            "common-publication-path/document-publication"
-          ],
-          "capabilities": [
-            "atomic-commit",
-            "interaction-efficiency",
-            "runrecord",
-            "workflow-runtime"
-          ]
-        },
-        {
           "id": "batch-readers",
           "title": "Move fan-out consumers to bounded VisitContents, document streaming, and projection batch reads",
           "status": "open",

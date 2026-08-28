@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 
-	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -50,17 +49,11 @@ func (r *Runner) AttentionCaptureLayers() []int32 {
 	}
 	result := make([]int32, 0, len(r.weights.Layers))
 	for layer := range r.weights.Layers {
-		if exactAttentionCapture(r.layerProgram(layer).Layer()) {
+		if r.layerProgram(layer).Layer().ExactAttentionReplay() {
 			result = append(result, int32(layer))
 		}
 	}
 	return result
-}
-
-func exactAttentionCapture(plan model.LayerPlan) bool {
-	attention := plan.AttentionGraph
-	return plan.HasKV && attention.Causal && !attention.UseSinks && !attention.ChunkedWindow &&
-		attention.Window == 0 && attention.Softcap == 0 && attention.MaxALiBiBias == 0
 }
 
 // ExtractAttention captures one replay boundary.
@@ -78,7 +71,7 @@ func (r *Runner) ExtractAttention(ctx context.Context, tokenIDs []tokenizer.Toke
 	if layer < 0 || int(layer) >= len(r.weights.Layers) {
 		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d is out of range", layer)
 	}
-	if !exactAttentionCapture(r.layerProgram(int(layer)).Layer()) {
+	if !r.layerProgram(int(layer)).Layer().ExactAttentionReplay() {
 		return AttentionCapture{}, fmt.Errorf("inference: attention layer %d policy cannot be replayed exactly", layer)
 	}
 	capture := &layerInputCapture{

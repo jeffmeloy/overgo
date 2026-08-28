@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -18,6 +20,14 @@ type RetentionReport struct {
 	Aliases           int
 	Lineage           int
 	DroppedArtifacts  int
+	// ReclaimableBlobs and ReclaimableBlobBytes report source blob
+	// files no retained content references; retention rebuilds a
+	// destination and reports reclaimable material, it never deletes.
+	ReclaimableBlobs     int
+	ReclaimableBlobBytes int64
+	// ObsoleteCheckpoints counts source checkpoint files that no
+	// longer form a valid anchored set.
+	ObsoleteCheckpoints int
 }
 
 // Compact writes alias-rooted parent closure to a new store.
@@ -187,7 +197,40 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 		return report, err
 	}
 	report.DroppedArtifacts = len(descriptors) - report.RetainedArtifacts - report.RetainedManifests
+	reportReclaimable(source, retained, contents, &report)
 	return report, nil
+}
+
+// reportReclaimable names the source material canonical reachability
+// no longer requires: blob files no retained content references and
+// checkpoint files that no longer form a valid anchored set. Retention
+// reports; it never deletes in place.
+func reportReclaimable(source *Store, retained map[artifact.ID]bool, contents map[artifact.ID]bool, report *RetentionReport) {
+	referenced := map[string]bool{}
+	for id, hasContent := range contents {
+		if hasContent && retained[id] {
+			referenced[id.DigestHex()] = true
+		}
+	}
+	root := filepath.Join(source.root, blobDirectory)
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return nil
+		}
+		if !referenced[filepath.Base(path)] {
+			report.ReclaimableBlobs++
+			if info, infoErr := entry.Info(); infoErr == nil {
+				report.ReclaimableBlobBytes += info.Size()
+			}
+		}
+		return nil
+	})
+	if _, _, valid, _ := loadProjectionCheckpoints(source.root); !valid {
+		entries, err := os.ReadDir(filepath.Join(source.root, checkpointDirectory))
+		if err == nil {
+			report.ObsoleteCheckpoints = len(entries)
+		}
+	}
 }
 
 type compactionWriter struct {
@@ -289,7 +332,8 @@ func mergeCompactionItems(items []artifact.Batch) artifact.Batch {
 
 // String renders the report.
 func (report RetentionReport) String() string {
-	return fmt.Sprintf("retained artifacts=%d manifests=%d contents=%d aliases=%d lineage=%d; dropped=%d",
+	return fmt.Sprintf("retained artifacts=%d manifests=%d contents=%d aliases=%d lineage=%d; dropped=%d reclaimable_blobs=%d reclaimable_blob_bytes=%d obsolete_checkpoints=%d",
 		report.RetainedArtifacts, report.RetainedManifests, report.RetainedContents,
-		report.Aliases, report.Lineage, report.DroppedArtifacts)
+		report.Aliases, report.Lineage, report.DroppedArtifacts,
+		report.ReclaimableBlobs, report.ReclaimableBlobBytes, report.ObsoleteCheckpoints)
 }

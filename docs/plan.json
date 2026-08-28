@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "storage-segments",
-      "title": "Segment the metadata journal without splitting canonical transaction authority",
-      "status": "open",
-      "steps": [
-        {
-          "id": "retention-rebuild",
-          "title": "Rebuild retention output from canonical reachability while collecting only unreachable blobs and obsolete checkpoints",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestSegmentedRetentionPreservesAuthorityClosure$' -count=1",
-          "rationale": "Retention remains destination rebuild, not in-place deletion. It retains alias roots, manifests, lineage ancestors, canonical documents, and every referenced blob, verifies the destination, and reports reclaimable material before removal.",
-          "depends_on": [
-            "storage-segments/refresh-backup"
-          ],
-          "capabilities": [
-            "overgodb",
-            "retention",
-            "content-closure",
-            "safe-cleanup"
-          ]
-        }
-      ]
-    },
-    {
       "id": "storage-operational-boundary",
       "title": "Keep high-frequency coordination out of canonical RSI evidence",
       "status": "open",

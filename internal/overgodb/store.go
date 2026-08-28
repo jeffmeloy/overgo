@@ -253,7 +253,12 @@ func (s *Store) Refresh(ctx context.Context) error {
 		// rebuild the view from the journal chain at the current head.
 		return s.reopenLocked()
 	}
-	result, err := s.log.refresh(replayAnchor{sequence: s.sequence, head: s.head}, s.replayEnd, s.applyRecord)
+	result, err := s.log.refresh(replayAnchor{sequence: s.sequence, head: s.head, offset: s.replayEnd}, s.replayEnd, s.applyRecord)
+	if errors.Is(err, ErrSnapshotAnchor) {
+		// The tail no longer chains from this reader's head: the writer
+		// rotated and refilled the active segment past the old offset.
+		return s.reopenLocked()
+	}
 	if err != nil {
 		s.fault = err
 		return err
@@ -293,6 +298,9 @@ func (s *Store) sealActiveSegment() error {
 	if s.sequence == 0 {
 		return errors.New("overgodb: cannot seal an empty journal")
 	}
+	if s.replayEnd <= storeHeaderBytes {
+		return errors.New("overgodb: nothing to seal: the active segment holds no frames")
+	}
 	for id, locator := range s.state.contents.locators {
 		if !locator.blob {
 			return fmt.Errorf("overgodb: cannot seal: content %s is inline in the journal; migrate with Rebuild first", id)
@@ -326,6 +334,10 @@ func (s *Store) sealActiveSegment() error {
 		return fmt.Errorf("overgodb: copy sealed segment: %w", err)
 	}
 	sealed := filepath.Join(directory, fmt.Sprintf("%020d%s", s.sequence, segmentExtension))
+	if _, err := os.Stat(sealed); err == nil {
+		_ = os.Remove(stagingPath)
+		return fmt.Errorf("overgodb: sealed segment %s already exists", filepath.Base(sealed))
+	}
 	if err := os.Rename(stagingPath, sealed); err != nil {
 		_ = os.Remove(stagingPath)
 		return fmt.Errorf("overgodb: publish sealed segment: %w", err)

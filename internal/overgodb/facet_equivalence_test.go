@@ -79,6 +79,7 @@ func TestCatalogFacetReplayEquivalence(t *testing.T) {
 	logRoot := t.TempDir()
 	copyCorpusFile(t, live.log.file.Name(), logRoot+"/"+storeFilename)
 	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(logRoot, blobDirectory))
+	copyCorpusTree(t, filepath.Join(root, segmentDirectory), filepath.Join(logRoot, segmentDirectory))
 	logOnly, err := OpenReadOnly(logRoot)
 	if err != nil {
 		t.Fatal(err)

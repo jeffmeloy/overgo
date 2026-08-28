@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
@@ -92,10 +93,17 @@ type snapshotDocument struct {
 	Commits   []snapshotCommit    `json:"commits"`
 }
 
-// Snapshot writes one immutable, versioned state segment.
+// Snapshot writes one immutable, versioned state segment. On a
+// blob-era store the snapshot boundary is also the rotation boundary:
+// the active journal seals first, so recovery from the fresh anchor
+// replays only the tail written after this maintenance point. A store
+// still carrying inline legacy content snapshots without sealing.
 func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 	if err := contextError(ctx); err != nil {
 		return SnapshotInfo{}, err
+	}
+	if rotateErr := s.sealActiveSegment(); rotateErr != nil && !isSealRefusal(rotateErr) {
+		return SnapshotInfo{}, rotateErr
 	}
 	s.mu.RLock()
 	if err := s.ready(true); err != nil {
@@ -121,6 +129,17 @@ func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 		return SnapshotInfo{}, err
 	}
 	return SnapshotInfo{Sequence: sequence, Head: head, Path: path}, nil
+}
+
+// isSealRefusal reports the sanctioned reasons a snapshot proceeds
+// without rotating: inline legacy content, an empty journal, or a
+// read-only handle asking for a snapshot (which ready refuses next).
+func isSealRefusal(err error) bool {
+	message := err.Error()
+	return strings.Contains(message, "inline in the journal") ||
+		strings.Contains(message, "cannot seal an empty journal") ||
+		strings.Contains(message, "nothing to seal") ||
+		errors.Is(err, ErrReadOnly) || errors.Is(err, ErrClosed)
 }
 
 func stateFromSnapshot(document snapshotDocument) (catalogState, error) {

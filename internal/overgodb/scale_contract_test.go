@@ -114,11 +114,16 @@ func TestStoreScaleContract(t *testing.T) {
 	if journalA != journalB {
 		t.Fatal("corpus journals differ bitwise across roots")
 	}
+	if treeBytes(t, filepath.Join(rootA, segmentDirectory)) != treeBytes(t, filepath.Join(rootB, segmentDirectory)) {
+		t.Fatal("corpus sealed segments differ across roots")
+	}
 
 	journalInfo, err := os.Stat(filepath.Join(rootA, "overgodb.log"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	segmentBytes := treeBytes(t, filepath.Join(rootA, segmentDirectory))
+	metadataBytes := journalInfo.Size() + segmentBytes
 	snapshotInfo, err := os.Stat(snapshotPath)
 	if err != nil {
 		t.Fatal(err)
@@ -175,8 +180,8 @@ func TestStoreScaleContract(t *testing.T) {
 	}
 	blobBytes := treeBytes(t, filepath.Join(rootA, blobDirectory))
 	t.Logf("scale envelope: commits=%d content_bytes=%d blob_bytes=%d journal_metadata_bytes=%d content_to_metadata=%.3f",
-		scaleCorpusCommits, contentBytes, blobBytes, journalInfo.Size(),
-		float64(contentBytes)/float64(journalInfo.Size()))
+		scaleCorpusCommits, contentBytes, blobBytes, metadataBytes,
+		float64(contentBytes)/float64(metadataBytes))
 	if blobBytes < int64(contentBytes) {
 		t.Fatalf("blob tree %d bytes cannot hold %d content bytes", blobBytes, contentBytes)
 	}
@@ -187,6 +192,9 @@ func TestStoreScaleContract(t *testing.T) {
 func treeBytes(t *testing.T, root string) int64 {
 	t.Helper()
 	var total int64
+	if _, statErr := os.Stat(root); statErr != nil {
+		return 0
+	}
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err

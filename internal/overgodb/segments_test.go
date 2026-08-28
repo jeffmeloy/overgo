@@ -94,10 +94,11 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reader.Close()
+	commitOrdinal(t, writer, commits)
 	if err := writer.sealActiveSegment(); err != nil {
 		t.Fatal(err)
 	}
-	commitOrdinal(t, writer, commits)
+	commitOrdinal(t, writer, commits+1)
 	if err := reader.Refresh(ctx); err != nil {
 		t.Fatal(err)
 	}

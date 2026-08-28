@@ -110,6 +110,7 @@ func TestProjectionRebuildEquivalence(t *testing.T) {
 	coldRoot := t.TempDir()
 	copyCorpusFile(t, checkpointed.log.file.Name(), filepath.Join(coldRoot, storeFilename))
 	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(coldRoot, blobDirectory))
+	copyCorpusTree(t, filepath.Join(root, segmentDirectory), filepath.Join(coldRoot, segmentDirectory))
 	cold, err := OpenReadOnly(coldRoot)
 	if err != nil {
 		t.Fatal(err)

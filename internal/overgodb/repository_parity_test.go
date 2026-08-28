@@ -89,6 +89,7 @@ func TestModularStoreRepositoryParity(t *testing.T) {
 	journalRoot := t.TempDir()
 	copyCorpusFile(t, snapshotOpen.log.file.Name(), journalRoot+"/"+storeFilename)
 	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(journalRoot, blobDirectory))
+	copyCorpusTree(t, filepath.Join(root, segmentDirectory), filepath.Join(journalRoot, segmentDirectory))
 	journalOpen, err := OpenReadOnly(journalRoot)
 	if err != nil {
 		t.Fatal(err)

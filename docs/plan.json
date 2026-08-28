@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "refresh-backup",
-          "title": "Teach read-only refresh and backup to capture a stable segment extent, required blobs, and checkpoint anchors",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestSegmentedBackupAndReadOnlyRefresh$' -count=1",
-          "rationale": "A backup names one exact head and includes every sealed segment, active extent, referenced blob, and optional verified checkpoint needed to open that head. Concurrent tail commits are excluded rather than partially copied.",
-          "depends_on": [
-            "storage-segments/sealed-segments"
-          ],
-          "capabilities": [
-            "overgodb",
-            "backup",
-            "read-only-replica",
-            "content-closure"
-          ]
-        },
-        {
           "id": "retention-rebuild",
           "title": "Rebuild retention output from canonical reachability while collecting only unreachable blobs and obsolete checkpoints",
           "status": "open",

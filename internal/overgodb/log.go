@@ -365,6 +365,12 @@ func (l *recordLog) replayFrames(result replayResult, anchor replayAnchor, apply
 			return replayResult{}, fmt.Errorf("overgodb: frame at %d has invalid checksum", frameStart)
 		}
 		if record.sequence != result.sequence+1 || record.previous != result.head {
+			// A mismatch on the first frame after an anchor is a wrong
+			// anchor, not a broken journal: report it as such so the
+			// caller falls back to full replay instead of refusing.
+			if anchor.sequence != 0 && frameStart == anchor.offset {
+				return replayResult{}, ErrSnapshotAnchor
+			}
 			return replayResult{}, fmt.Errorf("overgodb: frame at %d breaks commit chain", frameStart)
 		}
 		if record.id != commitIdentity(record.version, record.sequence, record.previous, record.payload) {

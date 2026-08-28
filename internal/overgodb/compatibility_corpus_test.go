@@ -2,6 +2,7 @@ package overgodb
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,7 +21,33 @@ import (
 // corpus is the contract a migrated reader is judged against.
 func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	source := t.TempDir()
-	head, snapshotPath, _, _ := buildScaleCorpus(t, source)
+	_, snapshotPath, _, _ := buildScaleCorpus(t, source)
+	// Rotation empties the active segment at the snapshot boundary;
+	// append a post-seal tail so torn-tail and corruption behavior stay
+	// exercised against real active frames.
+	const corpusTail = 3
+	tailWriter, err := Open(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for ordinal := range corpusTail {
+		payload := []byte(fmt.Sprintf("compatibility-tail/%d", ordinal))
+		id, idErr := artifact.IdentifyBytes(artifact.KindRun, payload)
+		if idErr != nil {
+			t.Fatal(idErr)
+		}
+		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
+		if _, commitErr := tailWriter.Commit(context.Background(), artifact.Batch{
+			Key:      fmt.Sprintf("compatibility/tail/%d", ordinal),
+			Contents: []artifact.Content{{Descriptor: descriptor, Data: payload}},
+		}); commitErr != nil {
+			t.Fatal(commitErr)
+		}
+	}
+	head, corpusSequence := tailWriter.Head()
+	if err := tailWriter.Close(); err != nil {
+		t.Fatal(err)
+	}
 	journal := filepath.Join(source, storeFilename)
 
 	copyCorpus := func(t *testing.T, withSnapshot bool) string {
@@ -28,6 +55,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		root := t.TempDir()
 		copyCorpusFile(t, journal, filepath.Join(root, storeFilename))
 		copyCorpusTree(t, filepath.Join(source, blobDirectory), filepath.Join(root, blobDirectory))
+		copyCorpusTree(t, filepath.Join(source, segmentDirectory), filepath.Join(root, segmentDirectory))
 		if withSnapshot {
 			if err := os.MkdirAll(filepath.Join(root, snapshotDirectory), storeDirectoryMode); err != nil {
 				t.Fatal(err)
@@ -39,8 +67,8 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	requireHead := func(t *testing.T, store *Store) {
 		t.Helper()
 		replayed, sequence := store.Head()
-		if replayed != head || sequence != scaleCorpusCommits {
-			t.Fatalf("head %s seq %d, corpus %s seq %d", replayed, sequence, head, scaleCorpusCommits)
+		if replayed != head || sequence != corpusSequence {
+			t.Fatalf("head %s seq %d, corpus %s seq %d", replayed, sequence, head, corpusSequence)
 		}
 	}
 
@@ -95,8 +123,8 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		}
 		defer store.Close()
 		_, sequence := store.Head()
-		if sequence != scaleCorpusCommits-1 {
-			t.Fatalf("torn tail recovered to sequence %d, want %d", sequence, scaleCorpusCommits-1)
+		if sequence != corpusSequence-1 {
+			t.Fatalf("torn tail recovered to sequence %d, want %d", sequence, corpusSequence-1)
 		}
 		content := []byte("post-recovery commit")
 		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
@@ -161,7 +189,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 			t.Fatal(err)
 		}
 		refreshed, sequence := reader.Head()
-		if refreshed != written || sequence != scaleCorpusCommits+1 {
+		if refreshed != written || sequence != corpusSequence+1 {
 			t.Fatalf("refresh saw %s seq %d, writer wrote %s", refreshed, sequence, written)
 		}
 	})
@@ -177,8 +205,8 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if backupHead != head || sequence != scaleCorpusCommits {
-			t.Fatalf("backup head %s seq %d, corpus %s seq %d", backupHead, sequence, head, scaleCorpusCommits)
+		if backupHead != head || sequence != corpusSequence {
+			t.Fatalf("backup head %s seq %d, corpus %s seq %d", backupHead, sequence, head, corpusSequence)
 		}
 		restored, err := OpenReadOnly(destination)
 		if err != nil {

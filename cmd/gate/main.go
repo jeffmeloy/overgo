@@ -941,6 +941,20 @@ func (g *gateContext) stepProfile() (bool, error) {
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
 	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
+	baseline, ratcheted, err := codeprofile.LoadCloneBaseline(filepath.Join(g.repo, filepath.FromSlash(codeprofile.CloneBaselineFile)))
+	if err != nil {
+		return false, err
+	}
+	if ratcheted {
+		if err := codeprofile.AdmitCloneBaseline(baseline, profile.DuplicateExcessNodes); err != nil {
+			return false, err
+		}
+		g.honesty = append(g.honesty, fmt.Sprintf(
+			"clone ratchet: duplicate_excess=%d ceiling=%d headroom=%d",
+			profile.DuplicateExcessNodes, baseline.DuplicateExcessNodes,
+			baseline.DuplicateExcessNodes-profile.DuplicateExcessNodes,
+		))
+	}
 	if g.automationPlan() {
 		movement, err := codeprofile.MeasureProductionMovement(baseSource, snapshot)
 		if err != nil {

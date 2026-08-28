@@ -7,8 +7,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -26,6 +29,7 @@ func run() error {
 	runtimeOnly := flag.Bool("runtime", false, "print only non-test clone groups")
 	requireAbsent := flag.String("require-absent", "", "fail if any clone group still contains a function whose file:name contains this substring")
 	maxExcess := flag.Int("max-excess", -1, "fail if duplicate-excess nodes exceed this ratchet; -1 disables")
+	updateBaseline := flag.Bool("update-baseline", false, "write the measured duplicate-excess to "+codeprofile.CloneBaselineFile)
 	flag.Parse()
 	snapshot, err := repoanalysis.DiscoverGo(".", "cmd", "internal")
 	if err != nil {
@@ -37,6 +41,21 @@ func run() error {
 	}
 	fmt.Printf("functions=%d clone_groups=%d duplicate_excess_nodes=%d\n",
 		len(profile.Functions), len(profile.Clones), profile.DuplicateExcessNodes)
+	if *updateBaseline {
+		baseline := codeprofile.CloneBaseline{
+			Version:              1,
+			Doc:                  "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening.",
+			DuplicateExcessNodes: profile.DuplicateExcessNodes,
+		}
+		encoded, err := json.MarshalIndent(baseline, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.FromSlash(codeprofile.CloneBaselineFile), append(encoded, '\n'), 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("clone-census: baseline written to %s at %d\n", codeprofile.CloneBaselineFile, profile.DuplicateExcessNodes)
+	}
 	if *maxExcess >= 0 {
 		if profile.DuplicateExcessNodes > *maxExcess {
 			return fmt.Errorf("clone-census: duplicate-excess %d exceeds ratchet %d", profile.DuplicateExcessNodes, *maxExcess)

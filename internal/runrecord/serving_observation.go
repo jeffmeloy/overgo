@@ -3,7 +3,6 @@ package runrecord
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"slices"
 
@@ -217,7 +216,7 @@ func validateServingAttempt(ctx context.Context, reader artifact.Reader, value S
 }
 
 func servingAttemptAlias(operation artifact.ID, attempt uint32) string {
-	return ServingAttemptAliasRoot + operation.String() + "/" + fmt.Sprint(attempt)
+	return indexedAlias(ServingAttemptAliasRoot, operation, uint64(attempt))
 }
 
 func canonicalizeServingObservation(value *ServingObservation) error {

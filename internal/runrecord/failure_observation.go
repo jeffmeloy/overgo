@@ -3,7 +3,6 @@ package runrecord
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"overgo/internal/artifact"
 	"overgo/internal/executionfailure"
@@ -173,7 +172,7 @@ func ResolveFailureNormalization(ctx context.Context, reader artifact.Reader, ob
 }
 
 func failureNormalizationAlias(observation artifact.ID, classifierVersion uint16) string {
-	return FailureNormalizationAliasRoot + observation.String() + "/" + fmt.Sprint(classifierVersion)
+	return indexedAlias(FailureNormalizationAliasRoot, observation, uint64(classifierVersion))
 }
 
 func canonicalizeFailureObservation(value *FailureObservation) error {

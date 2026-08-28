@@ -143,7 +143,7 @@ func PublishTerminalAttemptReceipt(ctx context.Context, repository artifact.Repo
 }
 
 func terminalAttemptAlias(operation artifact.ID, attempt uint32) string {
-	return TerminalAttemptAliasRoot + operation.String() + "/" + fmt.Sprint(attempt)
+	return indexedAlias(TerminalAttemptAliasRoot, operation, uint64(attempt))
 }
 
 // terminalGapFields pairs each coverage gap label with whether the

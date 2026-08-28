@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "inflight-boundary",
-          "title": "Record the exact admitted stimulus boundary for every agent attempt",
-          "status": "open",
-          "verify": "go test ./internal/agentloop ./internal/runrecord -run '^TestAttemptStimulusBoundary$' -count=1",
-          "rationale": "Evaluation and replay must know which inputs the attempt could have observed. Inputs arriving after the boundary are never retroactively attributed to the running attempt.",
-          "depends_on": [
-            "stimulus-reconciliation/stable-cursors"
-          ],
-          "capabilities": [
-            "agent-loop",
-            "stimulus",
-            "replay"
-          ]
-        },
-        {
           "id": "coalesced-followup",
           "title": "Coalesce late stimuli and admit at most one causally linked follow-up run for each consumed boundary",
           "status": "open",

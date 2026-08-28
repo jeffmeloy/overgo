@@ -17,6 +17,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/inference"
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
@@ -144,6 +145,15 @@ func (c *Coordinator) propose(
 		return nil, err
 	}
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
+	if manual.Effect == agenttool.EffectMutation {
+		if err := c.verifyMutationDecision(ctx, callID, manual, arguments); err != nil {
+			return nil, err
+		}
+	}
+	stimulus, err := c.admitAttemptStimulus(ctx, session, callID, manual, arguments)
+	if err != nil {
+		return nil, fmt.Errorf("agent loop: attempt stimulus was not admitted: %w", err)
+	}
 	// A mutation admits a durable receipt BEFORE it executes and closes
 	// it after: if the receipt cannot persist the side effect never
 	// happens, and if the process dies mid-execution the running receipt
@@ -155,10 +165,7 @@ func (c *Coordinator) propose(
 	var receiptOperation artifact.ID
 	var checkpoint runrecord.AgentMutationCheckpoint
 	if manual.Effect == agenttool.EffectMutation {
-		if err := c.verifyMutationDecision(ctx, callID, manual, arguments); err != nil {
-			return nil, err
-		}
-		if receiptOperation, err = c.admitMutationReceipt(ctx, callID, manual, arguments); err != nil {
+		if receiptOperation, err = c.admitMutationReceipt(ctx, callID, manual, stimulus); err != nil {
 			return nil, fmt.Errorf("agent loop: mutation %q refused without a durable receipt: %w", name, err)
 		}
 		if session.Checkpoints != nil {
@@ -189,7 +196,7 @@ func (c *Coordinator) propose(
 	if invokeErr != nil {
 		return nil, invokeErr
 	}
-	if err := c.recordStep(ctx, session, manual, arguments, result, receipt, checkpoint.ID); err != nil {
+	if err := c.recordStep(ctx, session, manual, arguments, result, receipt, checkpoint.ID, stimulus.ID); err != nil {
 		return nil, fmt.Errorf("agent loop: step executed but did not persist: %w", err)
 	}
 	session.Steps++
@@ -396,6 +403,44 @@ func MutationReceiptOperation(callID string) (artifact.ID, error) {
 	return artifact.IdentifyBytes(artifact.KindEvidence, []byte("overgo/agent-mutation/"+callID))
 }
 
+// admitAttemptStimulus freezes the exact pre-execution head and request bytes.
+// Raw bytes are also the conservative token ceiling when this tool boundary has
+// no model tokenizer; callers can never undercount context by that substitution.
+func (c *Coordinator) admitAttemptStimulus(
+	ctx context.Context,
+	session *Session,
+	callID string,
+	manual agenttool.Manual,
+	arguments json.RawMessage,
+) (runrecord.AttemptStimulusBoundary, error) {
+	operation, err := MutationReceiptOperation(callID)
+	if err != nil {
+		return runrecord.AttemptStimulusBoundary{}, err
+	}
+	content, err := runrecord.AttemptArgumentContent(arguments)
+	if err != nil {
+		return runrecord.AttemptStimulusBoundary{}, err
+	}
+	size := content.Descriptor.Size
+	head, _ := c.store.Head()
+	contents := []artifact.Content{content}
+	sources := []dataset.InteractionSelectionSource{{
+		Source: content.Descriptor.ID, CausalRoot: operation, Tokens: size, Bytes: size,
+		Documents: uint64(len(contents)), Depth: uint32(len(contents)),
+	}}
+	selection, err := dataset.SelectInteractions(dataset.InteractionSelectionBounds{
+		MaxTokens: size, MaxBytes: size, MaxDocuments: uint64(len(contents)),
+		MaxDepth: uint32(len(sources)), MaxResults: uint64(len(sources)),
+	}, head, sources, nil)
+	if err != nil {
+		return runrecord.AttemptStimulusBoundary{}, err
+	}
+	return runrecord.PublishAttemptStimulus(ctx, c.store, runrecord.AttemptStimulusBoundary{
+		Operation: operation, Attempt: uint32(artifact.InitialDocumentVersion),
+		Manual: manual.ID, Prior: session.Interaction, Selection: selection,
+	}, contents)
+}
+
 // admitMutationReceipt persists the admitted and running receipts for
 // one mutation step before anything executes, binding the exact manual
 // identity and the committed argument bytes as the receipt's inputs.
@@ -403,25 +448,23 @@ func (c *Coordinator) admitMutationReceipt(
 	ctx context.Context,
 	callID string,
 	manual agenttool.Manual,
-	arguments json.RawMessage,
+	stimulus runrecord.AttemptStimulusBoundary,
 ) (artifact.ID, error) {
 	operation, err := MutationReceiptOperation(callID)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	argumentsID, err := artifact.IdentifyBytes(artifact.KindEvidence, arguments)
-	if err != nil {
-		return artifact.ID{}, err
-	}
+	argumentsID := stimulus.Selection.Sources[0].Source
 	base := runrecord.StageReceipt{
 		Recipe: c.identity.Recipe, Node: c.identity.Node, Operation: operation,
 		Attempt: 1, State: runrecord.StageAdmitted,
 		Inputs: []runrecord.StageBinding{
 			{Port: "tool", Artifacts: []artifact.ID{manual.ID}},
 			{Port: "arguments", Artifacts: []artifact.ID{argumentsID}},
+			{Port: "stimulus", Artifacts: []artifact.ID{stimulus.ID}},
 		},
 	}
-	descriptors := []artifact.Descriptor{{ID: operation}, {ID: argumentsID}}
+	descriptors := []artifact.Descriptor{{ID: operation}}
 	if _, err := runrecord.PublishStageReceipt(ctx, c.store, base, nil, descriptors); err != nil {
 		return artifact.ID{}, err
 	}
@@ -473,13 +516,15 @@ func (c *Coordinator) recordStep(
 	arguments, result json.RawMessage,
 	receipt artifact.ID,
 	checkpoint artifact.ID,
+	stimulus artifact.ID,
 ) error {
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
 	published, err := runrecord.PublishInteraction(ctx, c.store, runrecord.Interaction{
 		Response: callID,
 		Recipe:   c.identity.Recipe, Model: c.identity.Model, Node: c.identity.Node,
 		Parent: session.Interaction, Run: receipt,
-		Tools: slices.DeleteFunc([]artifact.ID{checkpoint}, func(id artifact.ID) bool { return !id.Valid() }),
+		Stimulus: stimulus,
+		Tools:    slices.DeleteFunc([]artifact.ID{checkpoint}, func(id artifact.ID) bool { return !id.Valid() }),
 	}, []runrecord.InteractionMessage{
 		{
 			Role: string(inference.ChatRoleAssistant),

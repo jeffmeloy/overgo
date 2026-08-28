@@ -2,6 +2,7 @@ package capabilityruntime
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -801,7 +802,80 @@ func decodeJSONInput[Input any](
 	content, err := artifact.JSONContent(
 		artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input.v1"), input,
 	)
+	if err != nil {
+		return input, artifact.Content{}, err
+	}
+	// A request over the inline bound embeds bulk conditioning -- raw
+	// tensors, contexts, pixel buffers -- that is provenance the digest
+	// carries, not knowledge the store archives (owner ruling
+	// 2026-08-27). The durable document keeps the full request's hash
+	// for identity and an abbreviated form for the reader; execution
+	// identity derives from it, so replay semantics are unchanged for
+	// any given request.
+	if len(content.Data) > inlineRequestBytes {
+		content, err = digestRequestContent(name, content)
+	}
 	return input, content, err
+}
+
+// inlineRequestBytes bounds the request document stored verbatim; a
+// megabyte holds every settings-shaped request while excluding the
+// embedded-tensor classes measured at tens of megabytes.
+const inlineRequestBytes = 1 << 20
+
+// digestRequestContent replaces an oversized request document with its
+// durable footprint: the full request's digest and size for identity,
+// and an abbreviated rendering for the reader.
+func digestRequestContent(name string, full artifact.Content) (artifact.Content, error) {
+	var document any
+	if err := json.Unmarshal(full.Data, &document); err != nil {
+		return artifact.Content{}, err
+	}
+	body := struct {
+		RequestSHA256 string `json:"request_sha256"`
+		RequestBytes  int    `json:"request_bytes"`
+		Abbreviated   any    `json:"abbreviated"`
+	}{
+		RequestSHA256: full.Descriptor.ID.String(),
+		RequestBytes:  len(full.Data),
+		Abbreviated:   abbreviateRequestValue(document),
+	}
+	return artifact.JSONContent(
+		artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input-digest.v1"), body,
+	)
+}
+
+// Abbreviation bounds: a request field longer than these is bulk data,
+// not a setting a reader compares.
+const (
+	abbreviateRequestString = 200
+	abbreviateRequestItems  = 8
+)
+
+func abbreviateRequestValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, entry := range typed {
+			result[key] = abbreviateRequestValue(entry)
+		}
+		return result
+	case []any:
+		if len(typed) > abbreviateRequestItems {
+			return fmt.Sprintf("[%d values]", len(typed))
+		}
+		result := make([]any, len(typed))
+		for index, entry := range typed {
+			result[index] = abbreviateRequestValue(entry)
+		}
+		return result
+	case string:
+		if len(typed) > abbreviateRequestString {
+			return typed[:abbreviateRequestString] + "…"
+		}
+		return typed
+	}
+	return value
 }
 
 func decodeScalarInput[Input any](

@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "blob-owner",
-          "title": "Add a filesystem content-addressed blob owner with prepare, verify, sync, open, and orphan-safe publication",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestBlobStorePublicationContract$' -count=1",
-          "rationale": "Artifact identity already supplies immutable blob keys. Preparing an existing blob is idempotent; a conflicting payload refuses; a crash before journal commit may leave only an unreachable blob that cannot become visible as a committed artifact.",
-          "depends_on": [
-            "storage-modular-core",
-            "common-publication-path"
-          ],
-          "capabilities": [
-            "overgodb",
-            "content-addressing",
-            "durability",
-            "fault-recovery"
-          ]
-        },
-        {
           "id": "reference-transactions",
           "title": "Persist small commit envelopes that reference synced blobs instead of embedding new content bytes",
           "status": "open",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -151,6 +152,16 @@ func TestResourceFitnessContract(t *testing.T) {
 			if !observed || wall == 0 || result.Resources.Scope.Workload != suite.Plan().Identity() ||
 				result.Resources.Scope.Attempt != result.Run {
 				t.Fatalf("terminal resources = %+v", result.Resources)
+			}
+			summaryID, found, err := artifact.ResolveAlias(
+				context.Background(), store, runrecord.ObservationChunkAlias(result.Run),
+			)
+			if err != nil || !found {
+				t.Fatalf("terminal resource alias = (%s, %v, %v)", summaryID, found, err)
+			}
+			summary, err := runrecord.RequireObservationChunkSummary(context.Background(), store, summaryID)
+			if err != nil || !reflect.DeepEqual(summary.Aggregate, result.Resources) || summary.Stats.Samples != 1 {
+				t.Fatalf("terminal resource summary = (%+v, %v)", summary, err)
 			}
 		})
 	}

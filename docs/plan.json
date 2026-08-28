@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "observation-chunks",
-          "title": "Chunk high-volume serving and execution samples into bounded canonical blobs with small summary commits",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/overgodb -run '^TestObservationChunkPublication$' -count=1",
-          "rationale": "Per-token, per-message, and hardware samples must not flood the journal. Canonical encoding, count and byte bounds, source identities, and summary digest make each chunk reproducible and independently verifiable.",
-          "depends_on": [
-            "resource-coverage/resource-contract"
-          ],
-          "capabilities": [
-            "observation",
-            "content-addressing",
-            "journal-tightness"
-          ]
-        },
-        {
           "id": "coverage-projection",
           "title": "Project measurement, evaluation, hardware, causal, failure-classification, and pairing coverage separately from scores",
           "status": "open",

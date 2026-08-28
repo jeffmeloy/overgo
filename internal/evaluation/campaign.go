@@ -8,7 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
-	"overgo/internal/runrecord"
+	runrecord "overgo/internal/runrecord"
 )
 
 type Campaign struct {
@@ -86,9 +86,8 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 			terminalCtx = context.WithoutCancel(ctx)
 			outcome, failure = runrecord.OutcomeCancelled, ""
 		}
-		run, publishErr := campaign.publishTerminal(terminalCtx, suite.plan, outcome, failure, measured)
-		resources, resourceErr := campaign.resourceFitness(suite.plan.Identity(), run)
-		return CampaignResult{Run: run.ID, Resources: resources}, errors.Join(evaluateErr, publishErr, resourceErr)
+		run, resources, publishErr := campaign.publishTerminal(terminalCtx, suite.plan, outcome, failure, measured)
+		return CampaignResult{Run: run.ID, Resources: resources}, errors.Join(evaluateErr, publishErr)
 	}
 	return campaign.publishSuccess(ctx, suite, result, measured)
 }
@@ -135,7 +134,7 @@ func (campaign *Campaign) publishSuccess(
 	if err != nil {
 		return CampaignResult{}, err
 	}
-	if err := campaign.publish(ctx, run, &record); err != nil {
+	if err := campaign.publish(ctx, run, &record, resources); err != nil {
 		return CampaignResult{}, err
 	}
 	evidence, err := PublishEvaluationEvidence(ctx, campaign.repository, plan, suite.acceptance, suite.evaluator, result.Report, run, record)
@@ -154,7 +153,7 @@ func (campaign *Campaign) publishTerminal(
 	outcome runrecord.Outcome,
 	failure string,
 	measured uint64,
-) (runrecord.Run, error) {
+) (runrecord.Run, runrecord.ResourceFitness, error) {
 	run, err := runrecord.NewBoundRun(
 		campaign.identity.Recipe, outcome,
 		[]artifact.ID{plan.Identity()}, nil, failure, campaign.commit,
@@ -162,12 +161,24 @@ func (campaign *Campaign) publishTerminal(
 		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: measured}},
 	)
 	if err != nil {
-		return runrecord.Run{}, err
+		return runrecord.Run{}, runrecord.ResourceFitness{}, err
 	}
-	return run, campaign.publish(ctx, run, nil)
+	resources, err := campaign.resourceFitness(plan.Identity(), run)
+	if err != nil {
+		return run, runrecord.ResourceFitness{}, err
+	}
+	if err := campaign.publish(ctx, run, nil, resources); err != nil {
+		return run, resources, err
+	}
+	return run, resources, nil
 }
 
-func (campaign *Campaign) publish(ctx context.Context, run runrecord.Run, record *runrecord.Evaluation) error {
+func (campaign *Campaign) publish(
+	ctx context.Context,
+	run runrecord.Run,
+	record *runrecord.Evaluation,
+	resources runrecord.ResourceFitness,
+) error {
 	environmentContent, err := campaign.environment.Content()
 	if err != nil {
 		return err
@@ -196,6 +207,15 @@ func (campaign *Campaign) publish(ctx context.Context, run runrecord.Run, record
 	}
 	batch, err := artifact.NewDocumentBatch("evaluation/run/"+run.ID.String(), contents, lineage, aliases)
 	if err != nil {
+		return err
+	}
+	chunk, err := runrecord.NewInitialObservationChunk(
+		resources, runrecord.ObservationSampleExecution, run.MeasuredNS,
+	)
+	if err != nil {
+		return err
+	}
+	if _, err := runrecord.BindObservationChunk(ctx, campaign.repository, &batch, chunk); err != nil {
 		return err
 	}
 	_, err = artifact.CommitBatch(ctx, campaign.repository, batch)

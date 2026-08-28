@@ -88,3 +88,47 @@ func TestBlobStorePublicationContract(t *testing.T) {
 		t.Fatalf("corrupted blob verified: %v", err)
 	}
 }
+
+// TestObservationChunkPublication proves retrying publication cannot bless a
+// same-sized corrupt orphan while an intact orphan remains idempotent.
+func TestObservationChunkPublication(t *testing.T) {
+	t.Run("same-sized corrupt orphan refuses retry", func(t *testing.T) {
+		blobs := newBlobStore(t.TempDir())
+		payload := []byte("bounded observation chunk")
+		id, err := artifact.IdentifyBytes(artifact.KindFile, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := blobs.prepare(id, payload); err != nil {
+			t.Fatal(err)
+		}
+
+		path, err := blobs.path(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		corrupted := append([]byte(nil), payload...)
+		corrupted[0] ^= 0xFF
+		if err := os.WriteFile(path, corrupted, storeFileMode); err != nil {
+			t.Fatal(err)
+		}
+		if err := blobs.prepare(id, payload); err == nil || !strings.Contains(err.Error(), "do not hash") {
+			t.Fatalf("retry accepted same-sized corrupt orphan: %v", err)
+		}
+	})
+
+	t.Run("intact orphan retry is idempotent", func(t *testing.T) {
+		blobs := newBlobStore(t.TempDir())
+		payload := []byte("intact observation chunk")
+		id, err := artifact.IdentifyBytes(artifact.KindFile, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := blobs.prepare(id, payload); err != nil {
+			t.Fatal(err)
+		}
+		if err := blobs.prepare(id, payload); err != nil {
+			t.Fatalf("intact orphan retry refused: %v", err)
+		}
+	})
+}

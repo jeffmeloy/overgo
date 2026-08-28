@@ -147,21 +147,11 @@ func (value ResourceFitness) Authorities() []artifact.ID {
 }
 
 func canonicalizeResourceFitness(value *ResourceFitness) error {
-	if value == nil || value.Version != ResourceFitnessVersion || !slices.Contains(interactionSurfaces, value.Scope.Surface) {
+	if value == nil || value.Version != ResourceFitnessVersion {
 		return errors.New("run record: invalid resource fitness envelope")
 	}
-	if value.Scope.Model.Valid() && value.Scope.Model.Kind() != artifact.KindModel ||
-		value.Scope.Hardware.Valid() && value.Scope.Hardware.Kind() != artifact.KindEvidence ||
-		value.Scope.Provider.Valid() && value.Scope.Provider.Kind() != artifact.KindProfile ||
-		!validResourceWorkload(value.Scope.Workload) ||
-		value.Scope.Attempt.Kind() != artifact.KindRun && value.Scope.Attempt.Kind() != artifact.KindEvidence {
-		return errors.New("run record: invalid resource fitness scope")
-	}
-	authorities := value.Authorities()
-	for index, id := range authorities {
-		if slices.Contains(authorities[:index], id) {
-			return errors.New("run record: resource fitness identity axes collapse")
-		}
+	if err := validateResourceScope(value.Scope); err != nil {
+		return err
 	}
 	if len(value.Measures) == 0 {
 		value.Measures = nil
@@ -172,9 +162,7 @@ func canonicalizeResourceFitness(value *ResourceFitness) error {
 		}
 	}
 	sort.Slice(value.Measures, func(i, j int) bool { return value.Measures[i].Metric < value.Measures[j].Metric })
-	if len(slices.CompactFunc(slices.Clone(value.Measures), func(left, right ResourceMeasure) bool {
-		return left.Metric == right.Metric
-	})) != len(value.Measures) {
+	if duplicateResourceMetric(value.Measures) {
 		return errors.New("run record: duplicate resource metric")
 	}
 	if len(value.Measures) == 0 && value.Interactions == nil {
@@ -183,6 +171,24 @@ func canonicalizeResourceFitness(value *ResourceFitness) error {
 	if lookups, lookupsKnown := resourceMeasure(value.Measures, ResourceCacheLookups); lookupsKnown {
 		if hits, hitsKnown := resourceMeasure(value.Measures, ResourceCacheHits); hitsKnown && hits > lookups {
 			return errors.New("run record: cache hits exceed lookups")
+		}
+	}
+	return nil
+}
+
+func validateResourceScope(scope ResourceScope) error {
+	if !slices.Contains(interactionSurfaces, scope.Surface) ||
+		scope.Model.Valid() && scope.Model.Kind() != artifact.KindModel ||
+		scope.Hardware.Valid() && scope.Hardware.Kind() != artifact.KindEvidence ||
+		scope.Provider.Valid() && scope.Provider.Kind() != artifact.KindProfile ||
+		!validResourceWorkload(scope.Workload) ||
+		scope.Attempt.Kind() != artifact.KindRun && scope.Attempt.Kind() != artifact.KindEvidence {
+		return errors.New("run record: invalid resource fitness scope")
+	}
+	authorities := (ResourceFitness{Scope: scope}).Authorities()
+	for index, id := range authorities {
+		if slices.Contains(authorities[:index], id) {
+			return errors.New("run record: resource fitness identity axes collapse")
 		}
 	}
 	return nil
@@ -220,6 +226,12 @@ func resourceMeasure(measures []ResourceMeasure, metric ResourceMetric) (uint64,
 		return unknown, false
 	}
 	return measures[index].Value, true
+}
+
+func duplicateResourceMetric(measures []ResourceMeasure) bool {
+	return len(slices.CompactFunc(slices.Clone(measures), func(left, right ResourceMeasure) bool {
+		return left.Metric == right.Metric
+	})) != len(measures)
 }
 
 func cloneResourceFitness(value ResourceFitness) ResourceFitness {

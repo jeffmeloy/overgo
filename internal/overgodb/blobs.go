@@ -64,7 +64,7 @@ func (b blobStore) prepare(id artifact.ID, payload []byte) error {
 		if info.Size() != int64(len(payload)) {
 			return fmt.Errorf("overgodb: blob %s exists with conflicting size", id)
 		}
-		return nil
+		return b.verify(id)
 	}
 	directory := filepath.Dir(destination)
 	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {

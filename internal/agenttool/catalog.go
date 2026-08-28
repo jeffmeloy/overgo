@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
+	"overgo/internal/runrecord"
 )
 
 // RegisteredAliasPrefix scopes current tool manual bindings.
@@ -78,7 +79,7 @@ func InspectManualCatalog(ctx context.Context, reader artifact.Reader, manuals [
 			case actual != manual.ID:
 				entry.Status = CatalogEntryMismatched
 			default:
-				bound, loadErr := manualCodec.Require(ctx, reader, actual)
+				bound, loadErr := RequireManual(ctx, reader, actual)
 				if loadErr != nil {
 					entry.Status, entry.Detail = CatalogEntryInvalid, loadErr.Error()
 				} else if bound.Name != manual.Name {
@@ -108,6 +109,11 @@ func PublishManualCatalog(ctx context.Context, repository artifact.Repository, m
 	for _, manual := range manuals {
 		if err := CheckArgvAuthority(ctx, repository, manual); err != nil {
 			return CatalogPublication{}, err
+		}
+		if manual.Capability.Valid() && manual.CapabilityIdentity == nil {
+			if _, err := runrecord.RequireCapabilityIdentity(ctx, repository, manual.Capability); err != nil {
+				return CatalogPublication{}, err
+			}
 		}
 	}
 	coverage, err := InspectManualCatalog(ctx, repository, manuals)
@@ -145,7 +151,7 @@ func LoadManual(ctx context.Context, reader artifact.Reader, id artifact.ID) (Ma
 	if ctx == nil || reader == nil {
 		return Manual{}, errors.New("agent tool: nil load context or reader")
 	}
-	return manualCodec.Require(ctx, reader, id)
+	return RequireManual(ctx, reader, id)
 }
 
 // ResolveRegisteredManual requires the store-published manual currently
@@ -162,7 +168,7 @@ func ResolveRegisteredManual(ctx context.Context, reader artifact.Reader, name s
 	if !found {
 		return Manual{}, fmt.Errorf("agent tool: registered alias %q is absent", alias)
 	}
-	manual, err := manualCodec.Require(ctx, reader, target)
+	manual, err := RequireManual(ctx, reader, target)
 	if err != nil {
 		return Manual{}, err
 	}
@@ -216,12 +222,25 @@ func manualCatalogBatch(
 ) (artifact.Batch, error) {
 	batch := artifact.Batch{}
 	digest := sha256.New()
+	capabilities := map[artifact.ID]bool{}
 	for _, manual := range manuals {
+		if manual.CapabilityIdentity != nil && !capabilities[manual.Capability] {
+			content, err := manual.CapabilityIdentity.Content()
+			if err != nil {
+				return artifact.Batch{}, err
+			}
+			batch.Contents = append(batch.Contents, content)
+			batch.Lineage = append(batch.Lineage, manual.CapabilityIdentity.Lineage()...)
+			capabilities[manual.Capability] = true
+		}
 		content, err := artifact.JSONContent(manualCodec.Contract, manual)
 		if err != nil {
 			return artifact.Batch{}, err
 		}
 		batch.Contents = append(batch.Contents, content)
+		if manual.Capability.Valid() {
+			batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(manual.ID, manual.Capability)...)
+		}
 		alias := RegisteredAlias(manual.Name)
 		actual, found, err := repository.ResolveAlias(ctx, alias)
 		if err != nil {

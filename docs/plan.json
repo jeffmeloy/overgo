@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "capability-identity",
-          "title": "Define one exact capability identity for implementation, version, transport, schema, platform, and resource envelope",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./internal/agenttool ./internal/runrecord -run '^TestCapabilityIdentityContract$' -count=1",
-          "rationale": "A generic name such as a CLI or tool name is insufficient execution evidence. Discovery records the exact runnable implementation and capabilities; heartbeat availability remains operational while capability changes are durable transitions.",
-          "depends_on": [
-            "causal-execution"
-          ],
-          "capabilities": [
-            "capability-runtime",
-            "peer-runtime",
-            "agent-tool"
-          ]
-        },
-        {
           "id": "grant-binding",
           "title": "Bind grants to the exact staged candidate catalog, manual schemas, tool-set digest, endpoint scopes, and host capabilities",
           "status": "open",

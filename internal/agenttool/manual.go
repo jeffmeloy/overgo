@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/runrecord"
 	"overgo/internal/textcheck"
 )
 
@@ -142,8 +143,8 @@ type Transport struct {
 	// words for the argv transport; the call payload rides on stdin.
 	Program string   `json:"program,omitempty"`
 	Args    []string `json:"args,omitempty"`
-	// Target and Protocol bind an MCP manual to one remote tool and one
-	// protocol revision. They are authority, not values inferred at runtime.
+	// Target binds an MCP manual to one remote tool. Protocol identifies the
+	// adapter contract when the manual is capability-bound. Both are authority.
 	Target   string `json:"target,omitempty"`
 	Protocol string `json:"protocol,omitempty"`
 }
@@ -159,6 +160,10 @@ type Manual struct {
 	Ceiling     EffectCeiling `json:"ceiling,omitempty"`
 	Arguments   []Field       `json:"arguments,omitempty"`
 	Transport   Transport     `json:"transport"`
+	Capability  artifact.ID   `json:"capability,omitzero"`
+	// CapabilityIdentity supplies new canonical content during catalog
+	// publication; only Capability is stored in the manual itself.
+	CapabilityIdentity *runrecord.CapabilityIdentity `json:"-"`
 }
 
 var manualNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]*$`)
@@ -172,6 +177,10 @@ var manualCodec = artifact.JSONDocumentCodec(
 		manual.Arguments = slices.Clone(manual.Arguments)
 		manual.Ceiling.Targets = slices.Clone(manual.Ceiling.Targets)
 		manual.Transport.Args = slices.Clone(manual.Transport.Args)
+		if manual.CapabilityIdentity != nil {
+			identity := *manual.CapabilityIdentity
+			manual.CapabilityIdentity = &identity
+		}
 		return manual
 	},
 )
@@ -179,6 +188,16 @@ var manualCodec = artifact.JSONDocumentCodec(
 // NewManual canonicalizes and identifies one manual.
 func NewManual(manual Manual) (Manual, error) {
 	manual.Version = ManualVersion
+	if manual.CapabilityIdentity != nil {
+		identity, err := manual.CapabilityIdentity.Identify()
+		if err != nil {
+			return Manual{}, err
+		}
+		if manual.Capability.Valid() && manual.Capability != identity.ID {
+			return Manual{}, errors.New("agent tool: supplied capability identity differs")
+		}
+		manual.Capability, manual.CapabilityIdentity = identity.ID, &identity
+	}
 	return manualCodec.New(manual)
 }
 
@@ -189,7 +208,15 @@ func (manual Manual) Content() ([]byte, error) {
 
 // RequireManual loads one exact manual by immutable identity.
 func RequireManual(ctx context.Context, reader artifact.Reader, id artifact.ID) (Manual, error) {
-	return manualCodec.Require(ctx, reader, id)
+	manual, err := manualCodec.Require(ctx, reader, id)
+	if err != nil || !manual.Capability.Valid() {
+		return manual, err
+	}
+	identity, err := runrecord.RequireCapabilityIdentity(ctx, reader, manual.Capability)
+	if err != nil || identity.ID != manual.Capability || !manualTransportMatchesCapability(manual.Transport, identity.Transport) {
+		return Manual{}, errors.Join(errors.New("agent tool: manual capability cannot be resolved exactly"), err)
+	}
+	return manual, nil
 }
 
 func (manual *Manual) validate() error {
@@ -204,6 +231,17 @@ func (manual *Manual) validate() error {
 	}
 	if !manual.Effect.Valid() {
 		return fmt.Errorf("agent tool: manual %q effect must declare inspection or mutation", manual.Name)
+	}
+	if manual.Capability.Valid() {
+		if manual.Capability.Kind() != artifact.KindProfile || manual.CapabilityIdentity != nil &&
+			(manual.CapabilityIdentity.ID != manual.Capability || manual.CapabilityIdentity.ValidateIdentity() != nil ||
+				!manualTransportMatchesCapability(manual.Transport, manual.CapabilityIdentity.Transport)) {
+			return errors.New("agent tool: manual capability identity differs")
+		}
+	} else if manual.CapabilityIdentity != nil {
+		return errors.New("agent tool: manual capability identity is absent")
+	} else if manual.Transport.Kind != TransportMCPHTTP && manual.Transport.Protocol != "" {
+		return errors.New("agent tool: unbound manual declares a capability protocol")
 	}
 	seen := map[string]bool{}
 	for _, field := range manual.Arguments {
@@ -239,10 +277,30 @@ func (manual *Manual) validate() error {
 	return manual.Transport.validate(manual.Name)
 }
 
+func manualTransportMatchesCapability(transport Transport, capability runrecord.CapabilityTransport) bool {
+	if string(transport.Kind) != string(capability.Kind) || transport.Protocol != capability.Protocol {
+		return false
+	}
+	switch transport.Kind {
+	case TransportBuiltin:
+		return capability.Endpoint == "" && capability.Target == "" && len(capability.Args) == 0
+	case TransportHTTP, TransportHTTPJSONStream:
+		return transport.URL == capability.Endpoint && capability.Target == "" && len(capability.Args) == 0
+	case TransportArgv:
+		return transport.Program == capability.Endpoint && slices.Equal(transport.Args, capability.Args) && capability.Target == ""
+	case TransportMCPHTTP:
+		return transport.URL == capability.Endpoint && transport.Target == capability.Target &&
+			len(capability.Args) == 0
+	default:
+		return false
+	}
+}
+
 func (transport Transport) validate(name string) error {
 	switch transport.Kind {
 	case TransportBuiltin:
-		if transport.URL != "" || transport.Program != "" || len(transport.Args) != 0 || transport.Target != "" || transport.Protocol != "" {
+		if transport.URL != "" || transport.Program != "" || len(transport.Args) != 0 || transport.Target != "" ||
+			transport.Protocol != "" && !textcheck.Bounded(transport.Protocol, len(transport.Protocol), "\x00\r\n") {
 			return fmt.Errorf("agent tool: builtin manual %q must not bind an endpoint or program", name)
 		}
 	case TransportHTTP, TransportHTTPJSONStream:
@@ -250,11 +308,13 @@ func (transport Transport) validate(name string) error {
 		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 			return fmt.Errorf("agent tool: http manual %q requires an absolute http(s) endpoint", name)
 		}
-		if transport.Program != "" || len(transport.Args) != 0 || transport.Target != "" || transport.Protocol != "" {
+		if transport.Program != "" || len(transport.Args) != 0 || transport.Target != "" ||
+			transport.Protocol != "" && !textcheck.Bounded(transport.Protocol, len(transport.Protocol), "\x00\r\n") {
 			return fmt.Errorf("agent tool: http manual %q must not bind a program", name)
 		}
 	case TransportArgv:
-		if transport.Program == "" || transport.URL != "" || transport.Target != "" || transport.Protocol != "" {
+		if transport.Program == "" || transport.URL != "" || transport.Target != "" ||
+			transport.Protocol != "" && !textcheck.Bounded(transport.Protocol, len(transport.Protocol), "\x00\r\n") {
 			return fmt.Errorf("agent tool: argv manual %q requires a program and no endpoint", name)
 		}
 		// A program is a bare command word resolved on PATH: a path

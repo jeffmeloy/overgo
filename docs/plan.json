@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "stable-cursors",
-          "title": "Define stable source-cited cursors and aggregate token, byte, document, depth, and result bounds for interaction selection",
-          "status": "open",
-          "verify": "go test ./internal/dataset ./internal/runrecord -run '^TestBoundedInteractionSelection$' -count=1",
-          "rationale": "Context construction retains causal roots and complete recent interaction arcs while refusing unbounded scans. Cursor identity binds source set, selection contract, and head so a continuation cannot silently move to different evidence.",
-          "depends_on": [
-            "causal-execution"
-          ],
-          "capabilities": [
-            "retrieval",
-            "bounded-context",
-            "interaction-evidence"
-          ]
-        },
-        {
           "id": "inflight-boundary",
           "title": "Record the exact admitted stimulus boundary for every agent attempt",
           "status": "open",

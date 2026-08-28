@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/recipe"
 )
 
@@ -33,6 +34,15 @@ var interactionCodec = artifact.JSONDocumentCodec(
 	func(value Interaction) Interaction {
 		value.Tools = slices.Clone(value.Tools)
 		value.Media = slices.Clone(value.Media)
+		if value.Stimulus != nil {
+			selection := *value.Stimulus
+			selection.Sources = slices.Clone(selection.Sources)
+			if selection.Cursor != nil {
+				cursor := *selection.Cursor
+				selection.Cursor = &cursor
+			}
+			value.Stimulus = &selection
+		}
 		return value
 	},
 )
@@ -59,7 +69,9 @@ type Interaction struct {
 	Trace     artifact.ID   `json:"trace"`
 	Tools     []artifact.ID `json:"tools,omitempty"`
 	Media     []artifact.ID `json:"media,omitempty"`
-	ID        artifact.ID   `json:"-"`
+	// Stimulus is the exact bounded, cited context admitted to this event.
+	Stimulus *dataset.InteractionSelection `json:"stimulus,omitempty"`
+	ID       artifact.ID                   `json:"-"`
 }
 
 // InteractionTranscript stores ordered protocol-neutral messages.
@@ -112,6 +124,11 @@ func canonicalizeInteraction(value *Interaction) error {
 	for _, id := range append(slices.Clone(value.Tools), value.Media...) {
 		if !id.Valid() {
 			return errors.New("run record: invalid interaction attachment")
+		}
+	}
+	if value.Stimulus != nil {
+		if err := value.Stimulus.Validate(); err != nil {
+			return errors.Join(errors.New("run record: invalid interaction stimulus"), err)
 		}
 	}
 	return nil
@@ -270,6 +287,11 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 	parents := []artifact.ID{value.Trace, value.Recipe, value.Operation, value.Run, value.Parent}
 	parents = append(parents, value.Tools...)
 	parents = append(parents, value.Media...)
+	if value.Stimulus != nil {
+		for _, source := range value.Stimulus.Sources {
+			parents = append(parents, source.Source, source.CausalRoot)
+		}
+	}
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
 	contents := []artifact.Content{transcriptContent}
 	if requestTranscript.ID != transcript.ID {

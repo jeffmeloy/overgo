@@ -163,9 +163,7 @@ func canonicalizeInteractionTrace(value *InteractionTrace) error {
 	return nil
 }
 
-func validOutcome(outcome Outcome) bool {
-	return outcome == OutcomeSucceeded || outcome == OutcomeFailed || outcome == OutcomeCancelled
-}
+func validOutcome(outcome Outcome) bool { return ValidOutcome(outcome) }
 
 func (kind InteractionEventKind) valid() bool {
 	return kind == InteractionEventRequest || kind == InteractionEventOutput ||

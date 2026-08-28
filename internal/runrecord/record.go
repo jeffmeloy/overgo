@@ -87,12 +87,34 @@ var runCodec = artifact.DocumentCodec[Run]{
 	SetIdentity: func(value *Run, id artifact.ID) { value.ID = id },
 }
 
+// Outcome is the one canonical execution-outcome vocabulary: every
+// subsystem expresses how an execution ENDED with these ten members
+// and never redefines them. Execution completion stays distinct from
+// improvement success -- a succeeded run may still lose its
+// improvement comparison.
 type Outcome string
 
 const (
+	// OutcomeSucceeded reports an execution that completed its contract.
 	OutcomeSucceeded Outcome = "succeeded"
-	OutcomeFailed    Outcome = "failed"
+	// OutcomeFailed reports an execution that ran and missed its contract.
+	OutcomeFailed Outcome = "failed"
+	// OutcomeCancelled reports an authority stopping the execution before a verdict.
 	OutcomeCancelled Outcome = "cancelled"
+	// OutcomeRefused reports admission declining to run the execution at all.
+	OutcomeRefused Outcome = "refused"
+	// OutcomeSkipped reports scheduling passing over the execution without a verdict.
+	OutcomeSkipped Outcome = "skipped"
+	// OutcomeInapplicable reports an execution that ran and authoritatively found no work.
+	OutcomeInapplicable Outcome = "inapplicable"
+	// OutcomeSuperseded reports a newer execution replacing this one before it finished.
+	OutcomeSuperseded Outcome = "superseded"
+	// OutcomeInconclusive reports an execution that ended without enough evidence for a verdict.
+	OutcomeInconclusive Outcome = "inconclusive"
+	// OutcomeLost reports admitted work that disappeared without a terminal record.
+	OutcomeLost Outcome = "lost"
+	// OutcomeRecovered reports previously lost work repaired to a terminal state.
+	OutcomeRecovered Outcome = "recovered"
 )
 
 type Direction string

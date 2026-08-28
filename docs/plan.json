@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "canonical-outcomes",
-          "title": "Define one canonical execution outcome contract and migrate gate, experiment, workflow, serving, agent, and training records",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/loop ./internal/trainingworkflow -run '^TestCanonicalExecutionOutcomeContract$' -count=1",
-          "rationale": "Succeeded, failed, refused, skipped, inapplicable, cancelled, superseded, inconclusive, lost, and recovered must not be redefined per subsystem. Execution completion remains distinct from improvement success.",
-          "depends_on": [
-            "process-supervision"
-          ],
-          "capabilities": [
-            "runrecord",
-            "outcome-taxonomy",
-            "common-code"
-          ]
-        },
-        {
           "id": "failure-normalization",
           "title": "Add versioned structured failure observations that preserve raw evidence and deterministically normalize known causes",
           "status": "open",

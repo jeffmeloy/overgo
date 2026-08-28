@@ -241,6 +241,42 @@
       "name": "OperationalTransition",
       "reason": "Typed conversion record; staged with its owner functions.",
       "consumer_trigger": "execution-semantics rows consume it in production."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "CanonicalOutcomes",
+      "reason": "Closed execution-outcome vocabulary delivered by execution-semantics/canonical-outcomes; live per-record adoption follows in the same item.",
+      "consumer_trigger": "failure-normalization and attempt-receipt rows consume the vocabulary in production records."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "ValidOutcome",
+      "reason": "Membership rule for the canonical vocabulary; staged with it.",
+      "consumer_trigger": "attempt-receipt validation consumes it."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "StepOutcomeCanonical",
+      "reason": "Total mapping from gate step outcomes onto the canonical set.",
+      "consumer_trigger": "attempt-receipt binds gate steps through it."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "LaneOutcomeCanonical",
+      "reason": "Total mapping from lane outcomes onto the canonical set.",
+      "consumer_trigger": "attempt-receipt binds lane results through it."
+    },
+    {
+      "package": "overgo/internal/testutil",
+      "name": "ForbidVocabularyRedefinition",
+      "reason": "Anti-fork scanner keeping canonical vocabularies from being restated per package; test-support surface is test-consumed by design.",
+      "consumer_trigger": "Permanent test-support owner; retire only with the vocabulary contract."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "OutcomeVocabulary",
+      "reason": "String view of the canonical outcomes for vocabulary guards; staged with the vocabulary.",
+      "consumer_trigger": "Vocabulary guards consume it wherever outcome forks must refuse."
     }
   ]
 }

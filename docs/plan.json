@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "commit-coordinator",
-          "title": "Make one commit coordinator own normalize, validate, delta, append, sync, apply, and fault transitions",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestCommitCoordinatorAtomicity$' -count=1",
-          "rationale": "All future blob and projection modules need one ordered transaction path. A failure before durable append publishes nothing; uncertainty during append faults the store; a successful append advances every required in-memory facet exactly once.",
-          "depends_on": [
-            "storage-modular-core/catalog-facets"
-          ],
-          "capabilities": [
-            "overgodb",
-            "atomic-commit",
-            "fault-containment"
-          ]
-        },
-        {
           "id": "repository-parity",
           "title": "Run the storage-neutral repository contract against the modular core and delete displaced store paths",
           "status": "open",

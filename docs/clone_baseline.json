@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 9953 to 9965 for the catalog facet split: per-facet delta helpers share a shape the commit-coordinator row consolidates.",
-  "duplicate_excess_nodes": 9965
+  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 9965 to 9970 for the appendFault Unwrap accessor pair: single-field accessors are a third idiom class the pure-delegate exemption does not yet cover; extend the rule at architecture-closure/tightness-census.",
+  "duplicate_excess_nodes": 9970
 }

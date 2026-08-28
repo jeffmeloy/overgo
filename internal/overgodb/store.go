@@ -205,22 +205,7 @@ func (s *Store) SnapshotReplay() SnapshotReplay {
 }
 
 func (s *Store) applyRecord(record logRecord) error {
-	batch, payloadHash, locators, err := decodeRecord(record)
-	if err != nil {
-		return err
-	}
-	if batch.ExpectedHead != nil && *batch.ExpectedHead != record.previous {
-		return fmt.Errorf("%w: recorded predecessor differs", ErrHeadConflict)
-	}
-	if _, exists := s.state.commit(batch.Key); exists {
-		return fmt.Errorf("%w: %q repeats in log", ErrBatchKeyConflict, batch.Key)
-	}
-	if err := s.state.validate(batch); err != nil {
-		return err
-	}
-	s.state.apply(batch, locators, record.sequence)
-	s.state.addCommit(committedBatch{key: batch.Key, id: record.id, payload: payloadHash, sequence: record.sequence})
-	return nil
+	return commitCoordinator{state: &s.state, log: s.log}.replay(record)
 }
 
 // Refresh applies the validated committed tail to a read-only store.
@@ -254,7 +239,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	if err := contextError(ctx); err != nil {
 		return artifact.CommitID{}, err
 	}
-	payload, normalized, payloadHash, err := encodeBatch(batch)
+	_, normalized, payloadHash, err := encodeBatch(batch)
 	if err != nil {
 		return artifact.CommitID{}, err
 	}
@@ -266,49 +251,23 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	if err := contextError(ctx); err != nil {
 		return artifact.CommitID{}, err
 	}
-	if committed, ok := s.state.commit(normalized.Key); ok {
-		if committed.payload == payloadHash {
-			return committed.id, nil
+	coordinator := commitCoordinator{state: &s.state, log: s.log}
+	advance, replayed, err := coordinator.commit(normalized, payloadHash, s.head, s.sequence)
+	if err != nil {
+		var fault appendFault
+		if errors.As(err, &fault) {
+			s.fault = fault.cause
+			return advance.id, fmt.Errorf("%w: %w", ErrStoreFaulted, fault.cause)
 		}
-		return artifact.CommitID{}, fmt.Errorf("%w: %q", ErrBatchKeyConflict, normalized.Key)
-	}
-	if normalized.ExpectedHead != nil && *normalized.ExpectedHead != s.head {
-		return artifact.CommitID{}, fmt.Errorf("%w: expected %s, have %s", ErrHeadConflict, *normalized.ExpectedHead, s.head)
-	}
-	if err := s.state.validate(normalized); err != nil {
 		return artifact.CommitID{}, err
 	}
-	delta := s.state.delta(normalized)
-	if delta.Empty() {
-		return artifact.CommitID{}, ErrNoChange
+	if replayed {
+		return advance.id, nil
 	}
-	// The persisted delta must round-trip the replay-side canonical
-	// check, which re-normalizes it: normalization re-derives manifest
-	// descriptors and lineage, so a delta whose manifest artifacts were
-	// deduplicated against existing state would re-expand on replay and
-	// never match its own bytes. Normalizing once more before persisting
-	// makes the check a fixed point.
-	delta, err = normalizeBatch(delta)
-	if err != nil {
-		return artifact.CommitID{}, err
-	}
-	payload, locators, err := encodeTransaction(payloadHash, delta)
-	if err != nil {
-		return artifact.CommitID{}, err
-	}
-	sequence := s.sequence + 1
-	id, payloadOffset, replayEnd, err := s.log.append(sequence, s.head, payload)
-	if err != nil {
-		s.fault = err
-		return id, fmt.Errorf("%w: %w", ErrStoreFaulted, err)
-	}
-	bindContentLocators(locators, payloadOffset)
-	s.state.apply(delta, locators, sequence)
-	s.state.addCommit(committedBatch{key: normalized.Key, id: id, payload: payloadHash, sequence: sequence})
-	s.sequence = sequence
-	s.head = id
-	s.replayEnd = replayEnd
-	return id, nil
+	s.sequence = advance.sequence
+	s.head = advance.id
+	s.replayEnd = advance.replayEnd
+	return advance.id, nil
 }
 
 func (s *Store) transactionFits(batch artifact.Batch) (bool, error) {

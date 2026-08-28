@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "trigger-registry",
-          "title": "Require every execution trigger kind to declare causal, authority, budget, idempotency, and evidence behavior",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/workflowruntime -run '^TestExecutionTriggerRegistryCoverage$' -count=1",
-          "rationale": "Manual, schedule, webhook, retry, rerun, delegation, stage wakeup, recovery, and controller proposals cannot enter through undocumented enqueue paths. A new trigger enum without a complete contract fails validation and architecture tests.",
-          "depends_on": [
-            "causal-execution/causal-context"
-          ],
-          "capabilities": [
-            "trigger-contract",
-            "workflow-runtime",
-            "architecture-guard"
-          ]
-        },
-        {
           "id": "causal-integration",
           "title": "Bind attempts, experiments, evaluations, promotions, rollbacks, automations, and delegations to causal context",
           "status": "open",

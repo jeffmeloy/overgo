@@ -355,6 +355,18 @@
       "name": "NewCausalRoot",
       "reason": "Root minting lands ahead of the trigger registry and integration rows.",
       "consumer_trigger": "causal-execution/trigger-registry and causal-integration mint roots at every enqueue path."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "TriggerContractFor",
+      "reason": "Contract lookup lands ahead of enqueue-path admission wiring.",
+      "consumer_trigger": "causal-execution/causal-integration and webhook-ingress admit executions through contract lookup."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "ValidateTriggerRegistry",
+      "reason": "Registry closure validation lands ahead of admission wiring.",
+      "consumer_trigger": "causal-execution/causal-integration validates the registry at admission construction."
     }
   ]
 }

@@ -9,6 +9,52 @@ import (
 
 const fixtureManifestLocation = "C:/models/fixture.gguf"
 
+// TestManifestRecommitReplaysAsFixedPoint pins the write/replay
+// canonical symmetry: a manifest committed after its descriptor and
+// components already stand deduplicates against state, and the
+// persisted delta must still round-trip the replay-side normalization
+// -- the failure that wedged the first store rebuild.
+func TestManifestRecommitReplaysAsFixedPoint(t *testing.T) {
+	root := t.TempDir()
+	component := fixtureDescriptor(t, artifact.KindTensorSet, "recommit-weights")
+	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+		Role: artifact.ComponentWeights, Name: "weights", Artifact: component.ID,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor, err := manifest.Descriptor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key: "fixture/recommit/artifacts", Artifacts: []artifact.Descriptor{component, descriptor},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(context.Background(), artifact.Batch{
+		Key: "fixture/recommit/manifest", Manifests: []artifact.Manifest{manifest},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenReadOnly(root)
+	if err != nil {
+		t.Fatalf("replay after manifest recommit: %v", err)
+	}
+	defer store.Close()
+	got, ok, err := store.Manifest(context.Background(), manifest.ID)
+	if err != nil || !ok || !sameManifest(got, manifest) {
+		t.Fatalf("manifest = (%+v, %v, %v)", got, ok, err)
+	}
+}
+
 func TestManifestAndLocationReplay(t *testing.T) {
 	root := t.TempDir()
 	component := fixtureDescriptor(t, artifact.KindTensorSet, "manifest-weights")

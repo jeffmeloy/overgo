@@ -506,6 +506,16 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	if delta.Empty() {
 		return artifact.CommitID{}, ErrNoChange
 	}
+	// The persisted delta must round-trip the replay-side canonical
+	// check, which re-normalizes it: normalization re-derives manifest
+	// descriptors and lineage, so a delta whose manifest artifacts were
+	// deduplicated against existing state would re-expand on replay and
+	// never match its own bytes. Normalizing once more before persisting
+	// makes the check a fixed point.
+	delta, err = normalizeBatch(delta)
+	if err != nil {
+		return artifact.CommitID{}, err
+	}
 	payload, locators, err := encodeTransaction(payloadHash, delta)
 	if err != nil {
 		return artifact.CommitID{}, err

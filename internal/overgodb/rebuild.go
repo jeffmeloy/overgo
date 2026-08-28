@@ -1,0 +1,181 @@
+package overgodb
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+
+	"overgo/internal/artifact"
+)
+
+// RebuildReport states what a rebuild carried and what it stripped, so
+// the operation is auditable from its own output.
+type RebuildReport struct {
+	Artifacts       int
+	ContentsKept    int
+	ContentsDropped int
+	BytesKept       uint64
+	BytesDropped    uint64
+	Manifests       int
+	LineageEdges    int
+	Locations       int
+	Aliases         int
+	Batches         int
+}
+
+// rebuildBatchBytes bounds one rebuild batch comfortably inside the
+// frame payload limit so a large kept content never overflows a frame.
+const rebuildBatchBytes = 16 << 20
+
+// Rebuild writes the source store's projected state into a fresh store
+// at destination, in original creation order so every dependency
+// precedes its dependents. strip decides whose CONTENT is dropped; a
+// stripped artifact keeps its registered identity, size, lineage, and
+// locations, so references to it stay resolvable. The source is not
+// modified.
+func Rebuild(ctx context.Context, source *Store, destination string, strip func(artifact.Descriptor) bool) (RebuildReport, error) {
+	if source == nil || destination == "" {
+		return RebuildReport{}, errors.New("overgodb: rebuild needs a source store and destination")
+	}
+	if strip == nil {
+		strip = func(artifact.Descriptor) bool { return false }
+	}
+	target, err := Open(destination)
+	if err != nil {
+		return RebuildReport{}, err
+	}
+	defer target.Close()
+
+	source.mu.RLock()
+	order := append([]artifact.ID(nil), source.state.bySequence...)
+	source.mu.RUnlock()
+
+	report := RebuildReport{}
+	var manifests []artifact.Manifest
+	var edges []relationKey
+	batch := artifact.Batch{}
+	var batchBytes uint64
+	flush := func() error {
+		if len(batch.Artifacts) == 0 && len(batch.Contents) == 0 && len(batch.Manifests) == 0 &&
+			len(batch.Lineage) == 0 && len(batch.Locations) == 0 && len(batch.Aliases) == 0 {
+			return nil
+		}
+		batch.Key = fmt.Sprintf("rebuild/%06d", report.Batches)
+		if _, err := target.Commit(ctx, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+			return fmt.Errorf("overgodb: rebuild batch %d: %w", report.Batches, err)
+		}
+		report.Batches++
+		batch = artifact.Batch{}
+		batchBytes = 0
+		return nil
+	}
+
+	for _, id := range order {
+		source.mu.RLock()
+		slot, ok := source.state.slots[id]
+		if !ok {
+			source.mu.RUnlock()
+			continue
+		}
+		descriptor := slot.descriptor
+		hasManifest := slot.manifest.ID.Valid()
+		manifest := slot.manifest
+		parents := append([]relationKey(nil), slot.parents...)
+		locations := append([]artifact.Location(nil), slot.locations...)
+		hasContent := slot.hasContent
+		locator := slot.content
+		source.mu.RUnlock()
+
+		report.Artifacts++
+		batch.Artifacts = append(batch.Artifacts, descriptor)
+		if hasContent {
+			if strip(descriptor) {
+				report.ContentsDropped++
+				report.BytesDropped += descriptor.Size
+			} else {
+				data, err := source.materializeContent(locator)
+				if err != nil {
+					return report, fmt.Errorf("overgodb: rebuild content %s: %w", id, err)
+				}
+				batch.Contents = append(batch.Contents, artifact.Content{Descriptor: descriptor, Data: data})
+				report.ContentsKept++
+				report.BytesKept += descriptor.Size
+				batchBytes += descriptor.Size
+			}
+		}
+		if hasManifest {
+			manifests = append(manifests, manifest)
+		}
+		edges = append(edges, parents...)
+		for _, location := range locations {
+			batch.Locations = append(batch.Locations, artifact.LocationEvent{
+				Location: location, Action: artifact.LocationAdd,
+			})
+			report.Locations++
+		}
+		if batchBytes >= rebuildBatchBytes {
+			if err := flush(); err != nil {
+				return report, err
+			}
+		}
+	}
+	if err := flush(); err != nil {
+		return report, err
+	}
+	// Manifests and lineage land after every artifact is registered:
+	// an edge or component may join artifacts from different eras.
+	for len(manifests) > 0 {
+		chunk := manifests
+		if len(chunk) > 256 {
+			chunk = manifests[:256]
+		}
+		batch = artifact.Batch{Manifests: chunk}
+		if err := flush(); err != nil {
+			return report, err
+		}
+		report.Manifests += len(chunk)
+		manifests = manifests[len(chunk):]
+	}
+	for len(edges) > 0 {
+		chunk := edges
+		if len(chunk) > 2048 {
+			chunk = edges[:2048]
+		}
+		lineage := make([]artifact.Lineage, len(chunk))
+		for index, edge := range chunk {
+			lineage[index] = artifact.Lineage{Child: edge.child, Parent: edge.parent, Relation: edge.relation}
+		}
+		batch = artifact.Batch{Lineage: lineage}
+		if err := flush(); err != nil {
+			return report, err
+		}
+		report.LineageEdges += len(chunk)
+		edges = edges[len(chunk):]
+	}
+
+	source.mu.RLock()
+	names := make([]string, 0, len(source.state.aliases))
+	for name := range source.state.aliases {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	bindings := make([]artifact.AliasBinding, 0, len(names))
+	for _, name := range names {
+		bindings = append(bindings, artifact.AliasBinding{Name: name, Target: source.state.aliases[name]})
+	}
+	source.mu.RUnlock()
+	for len(bindings) > 0 {
+		chunk := bindings
+		if len(chunk) > 512 {
+			chunk = bindings[:512]
+		}
+		batch = artifact.Batch{Aliases: chunk}
+		if err := flush(); err != nil {
+			return report, err
+		}
+		report.Aliases += len(chunk)
+		bindings = bindings[len(chunk):]
+	}
+	return report, nil
+}

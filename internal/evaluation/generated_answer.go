@@ -165,10 +165,10 @@ func EvaluateGeneratedAnswer(
 		if err != nil {
 			return GeneratedAnswerReport{}, err
 		}
-		scored := transformAnswer(result.Text, compiled.suite.Transforms)
+		scored := normalizeAnswer(result.Text, compiled.suite.Transforms)
 		accepted := false
 		for _, answer := range testCase.Answers {
-			if scored == transformAnswer(answer, compiled.suite.Transforms) {
+			if scored == normalizeAnswer(answer, compiled.suite.Transforms) {
 				accepted = true
 				break
 			}
@@ -198,9 +198,11 @@ func EvaluateGeneratedAnswer(
 	return report, nil
 }
 
-func transformAnswer(value string, transforms []string) string {
-	for _, transform := range transforms {
-		switch transform {
+// normalizeAnswer applies the ordered normalization operations both
+// answer scorers share; the wire names are identical across suites.
+func normalizeAnswer[T ~string](value string, operations []T) string {
+	for _, operation := range operations {
+		switch string(operation) {
 		case TransformTrimSpace:
 			value = strings.TrimSpace(value)
 		case TransformLowercase:

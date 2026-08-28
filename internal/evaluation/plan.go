@@ -171,6 +171,17 @@ func BindExact(exact ExactPlan, authorities ExactAuthorities) (Plan, error) {
 	return bindPlan(exact.dataset, exact.split, exact.identity, exact.suite, scorer, authorities)
 }
 
+// bindKindPlan binds a compiled suite whose scorer document carries
+// only the document version and its kind; every parameterless scorer
+// shares this shape.
+func bindKindPlan[C any](dataset, split, caseProfileID artifact.ID, caseProfile C, kind string, authorities ExactAuthorities) (Plan, error) {
+	scorer := struct {
+		Version uint16 `json:"version"`
+		Kind    string `json:"kind"`
+	}{Version: artifact.InitialDocumentVersion, Kind: kind}
+	return bindPlan(dataset, split, caseProfileID, caseProfile, scorer, authorities)
+}
+
 func bindPlan[C, S any](
 	dataset, split, caseProfileID artifact.ID,
 	caseProfile C,

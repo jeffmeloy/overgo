@@ -156,11 +156,7 @@ func CompileInstructionRules(suite InstructionRulesSuite) (InstructionRulesPlan,
 }
 
 func BindInstructionRules(compiled InstructionRulesPlan, authorities ExactAuthorities) (Plan, error) {
-	scorer := struct {
-		Version uint16 `json:"version"`
-		Kind    string `json:"kind"`
-	}{Version: artifact.InitialDocumentVersion, Kind: InstructionRulesKind}
-	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
+	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, InstructionRulesKind, authorities)
 }
 
 func EvaluateInstructionRules(

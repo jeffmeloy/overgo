@@ -120,11 +120,7 @@ func CompileSequenceScoring(suite SequenceScoringSuite) (SequenceScoringPlan, er
 
 // BindSequenceScoring binds the compiled suite to its authorities.
 func BindSequenceScoring(compiled SequenceScoringPlan, authorities ExactAuthorities) (Plan, error) {
-	scorer := struct {
-		Version uint16 `json:"version"`
-		Kind    string `json:"kind"`
-	}{Version: artifact.InitialDocumentVersion, Kind: SequenceScoringKind}
-	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
+	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, SequenceScoringKind, authorities)
 }
 
 // EvaluateSequenceScoring scores every sequence and publishes the

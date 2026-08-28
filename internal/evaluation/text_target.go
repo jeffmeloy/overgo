@@ -5,7 +5,6 @@ import (
 	"math"
 	"slices"
 	"sort"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipecontract"
@@ -188,9 +187,9 @@ func scoreTextObservation(scorer TextScorerSpec, target TextTargetCase, observat
 		}
 		return *observation.ContinuationLogLikelihood, nil
 	case TextGeneratedAnswer:
-		actual := normalizeTextTarget(observation.Raw, scorer.Normalization)
+		actual := normalizeAnswer(observation.Raw, scorer.Normalization)
 		for _, answer := range target.Answers {
-			if actual == normalizeTextTarget(answer, scorer.Normalization) {
+			if actual == normalizeAnswer(answer, scorer.Normalization) {
 				return 1, nil
 			}
 		}
@@ -207,7 +206,7 @@ func scoreTextObservation(scorer TextScorerSpec, target TextTargetCase, observat
 			if err != nil {
 				return 0, err
 			}
-			if normalizeTextTarget(value, scorer.Normalization) == normalizeTextTarget(field.Value, scorer.Normalization) {
+			if normalizeAnswer(value, scorer.Normalization) == normalizeAnswer(field.Value, scorer.Normalization) {
 				passed++
 			}
 		}
@@ -249,18 +248,6 @@ func verifierValue(verifier artifact.ID, name string, values []TextVerifierResul
 		}
 	}
 	return "", errors.New("evaluation: declared text verifier field is absent")
-}
-
-func normalizeTextTarget(value string, operations []TextNormalization) string {
-	for _, operation := range operations {
-		switch operation {
-		case TextTrimSpaceNormalization:
-			value = strings.TrimSpace(value)
-		case TextLowercaseNormalization:
-			value = strings.ToLower(value)
-		}
-	}
-	return value
 }
 
 func canonicalizeTextTargetPlan(plan *TextTargetPlan) error {

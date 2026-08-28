@@ -337,6 +337,18 @@
       "name": "ResolveTerminalAttemptReceipt",
       "reason": "Per-operation attempt-ordinal receipt lookup.",
       "consumer_trigger": "causal-execution and evaluation read receipts for recovery and scoring."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "PublishLoopObligation",
+      "reason": "Durable follow-up admission lands ahead of the production loop world wiring.",
+      "consumer_trigger": "causal-execution and interaction-efficiency admit obligations from recovery and coalesced coordination."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "ReplayLoopObligations",
+      "reason": "Store-backed replay lands ahead of the production ObligationWorld implementation.",
+      "consumer_trigger": "cmd/loop world implements ObligationWorld over the repository store."
     }
   ]
 }

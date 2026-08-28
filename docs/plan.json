@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "execution-semantics",
-      "title": "Unify execution outcomes, normalized failures, retry policy, and session health",
-      "status": "open",
-      "steps": [
-        {
-          "id": "obligation-records",
-          "title": "Model cross-attempt obligations as durable records with explicit completion predicates replayed unconditionally",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/loop -run '^TestObligationCompletionReplay$' -count=1",
-          "rationale": "A follow-up the loop owes -- a recovery dispatch, a promised re-evaluation, a rollback notification -- is a typed record whose incompleteness is a query, replayed every supervision round whether or not anything else fired. Obligations lost to a crash are repaired by the replay, so the improvement loop cannot silently drop admitted work.",
-          "depends_on": [
-            "execution-semantics/attempt-receipt"
-          ],
-          "capabilities": [
-            "durable-obligations",
-            "fault-recovery",
-            "rsi-continuity"
-          ]
-        }
-      ]
-    },
-    {
       "id": "causal-execution",
       "title": "Record operational causality separately from artifact lineage and authority",
       "status": "open",

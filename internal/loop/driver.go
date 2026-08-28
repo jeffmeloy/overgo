@@ -97,6 +97,17 @@ type ClosureFacts struct {
 	OperatorStop           bool
 }
 
+// ObligationWorld is the optional world extension that replays durable
+// loop obligations. The driver calls ReplayObligations at the top of
+// every supervision round, before reading the plan and whether or not
+// anything else fires, so a follow-up admitted before a crash is
+// repaired from committed facts instead of remembered state.
+type ObligationWorld interface {
+	// ReplayObligations completes every obligation whose predicate now
+	// holds and returns how many follow-ups remain due.
+	ReplayObligations() (due uint64, err error)
+}
+
 // ProposalWorld is an optional extension of the same deterministic driver.
 // Admission mutates only the plan; strategy activation remains external and evidence-gated.
 type ProposalWorld interface {
@@ -110,6 +121,8 @@ type Outcome struct {
 	Reason      string
 	Invocations int
 	Parked      []string
+	// ObligationsDue is the last replay's count of follow-ups still owed.
+	ObligationsDue uint64
 }
 
 const (
@@ -140,11 +153,19 @@ func Run(world World, config Config) (Outcome, error) {
 	proposalItems := map[string]bool{}
 	source, feeds := world.(ProposalSource)
 	feeds = feeds && config.SaturationLimit > 0
+	obligations, replays := world.(ObligationWorld)
 	var lastKey, feedback string
 	for {
 		if world.Paused() {
 			outcome.Reason = ReasonPaused
 			return outcome, nil
+		}
+		if replays {
+			due, err := obligations.ReplayObligations()
+			if err != nil {
+				return outcome, fmt.Errorf("loop: replay obligations: %w", err)
+			}
+			outcome.ObligationsDue = due
 		}
 		step, open, err := world.Current()
 		if err != nil {

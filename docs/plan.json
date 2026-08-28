@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "storage-projections",
-      "title": "Make compiled Go projections independently checkpointable and exactly rebuildable",
-      "status": "open",
-      "steps": [
-        {
-          "id": "rebuild-equivalence",
-          "title": "Prove cold replay, checkpoint replay, and independent projection rebuild produce identical query digests",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestProjectionRebuildEquivalence$' -count=1",
-          "rationale": "Every derived view must be reproducible from canonical commits. The proof covers bounded queries, cursors, aliases, lineage traversal, documents, locations, and idempotency keys at the same head.",
-          "depends_on": [
-            "storage-projections/checkpoints"
-          ],
-          "capabilities": [
-            "overgodb",
-            "rebuild",
-            "query-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "storage-segments",
       "title": "Segment the metadata journal without splitting canonical transaction authority",
       "status": "open",

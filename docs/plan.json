@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "case-registry",
-          "title": "Define a typed behavioral case registry decoupled from activation profiles",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/capabilityruntime -run '^TestActivationCaseRegistry$' -count=1",
-          "rationale": "A behavioral case states one task contract and its evidence check exactly once, with no knowledge of which serving or activation path exercises it. Registration is typed and store-published, so the case population is a denominator, not a convention.",
-          "depends_on": [
-            "capability-bound-activation"
-          ],
-          "capabilities": [
-            "verification-coverage",
-            "common-code"
-          ]
-        },
-        {
           "id": "profile-coverage",
           "title": "Cross registered cases with activation profiles and publish coverage denominators that refuse unenumerated activations",
           "status": "open",

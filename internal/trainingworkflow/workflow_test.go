@@ -453,7 +453,7 @@ func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datase
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, "training workflow fixture"); err != nil {
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "training workflow fixture"); err != nil {
 		t.Fatal(err)
 	}
 	return store, definition.ID

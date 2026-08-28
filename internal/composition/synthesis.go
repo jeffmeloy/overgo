@@ -64,7 +64,7 @@ func SynthesizeBridge(
 		return SynthesisOutcome{}, err
 	}
 	outcome := recipe.DecisionRefused
-	tier := recipe.EvidenceExperimental
+	tier := recipe.EvidenceVerified
 	reason := result.Reason
 	if result.Ship {
 		outcome = recipe.DecisionAccepted

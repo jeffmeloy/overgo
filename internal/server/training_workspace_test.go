@@ -131,7 +131,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, "native DPO fixture"); err != nil {
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "native DPO fixture"); err != nil {
 		t.Fatal(err)
 	}
 	workspace, err := NewTrainingWorkspace(ctx, store, roots, policy)
@@ -231,7 +231,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceExperimental, "training admission fixture"); err != nil {
+			if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, "training admission fixture"); err != nil {
 				t.Fatal(err)
 			}
 			model := testutil.ArtifactID(t, artifact.KindModel, test.name+" absent model")

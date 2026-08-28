@@ -53,7 +53,7 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 		_ = runner.Close()
 		t.Fatal("Qwen3.5 layer program lacks dense/recurrent coverage")
 	}
-	if runner.EvidenceTier() != recipe.EvidenceExperimental {
+	if runner.EvidenceTier() != recipe.EvidenceVerified {
 		_ = runner.Close()
 		t.Fatalf("Qwen3.5 evidence tier = %q", runner.EvidenceTier())
 	}
@@ -122,7 +122,7 @@ func publishActiveGGUFRecipe(
 	}
 	if _, _, err := modelrecipe.ActivateVerified(
 		ctx, store, "integration/qwen35/active", definition, verification,
-		recipe.EvidenceExperimental, "inference integration activation", nil, nil,
+		recipe.EvidenceVerified, "inference integration activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

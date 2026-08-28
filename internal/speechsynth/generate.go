@@ -32,7 +32,7 @@ type LatentBatch struct {
 // The reference break rule holds: the frame that trips the post-EOS budget
 // is never decoded.
 func (m *Model) GenerateLatents(voiceCond []float32, voiceFrames int, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
-	d, latent := m.Dims.DModel, m.Dims.LatentDim
+	d := m.Dims.DModel
 	if len(voiceCond) != voiceFrames*d {
 		return LatentBatch{}, nil, fmt.Errorf("speechsynth: voice conditioning %d values != %d rows x %d", len(voiceCond), voiceFrames, d)
 	}
@@ -48,6 +48,35 @@ func (m *Model) GenerateLatents(voiceCond []float32, voiceFrames int, textIDs []
 		return LatentBatch{}, nil, err
 	}
 	m.AppendForward(st, prompt, voiceFrames+len(textIDs))
+	return m.generateFromState(st, p)
+}
+
+// GenerateLatentsWithVoice seeds the decode state from an exported
+// voice attention state -- the artifact's only voice representation --
+// then prompts the text and runs the same seeded loop.
+func (m *Model) GenerateLatentsWithVoice(voice *VoiceState, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
+	if p.MaxFrames <= tensor.FirstOffset || p.NoiseAt == nil {
+		return LatentBatch{}, nil, fmt.Errorf("speechsynth: generation needs MaxFrames > 0 and a noise source")
+	}
+	if len(textIDs) == tensor.FirstOffset {
+		return LatentBatch{}, nil, fmt.Errorf("speechsynth: voiced generation needs text")
+	}
+	st, err := m.VoiceDecodeState(voice, len(textIDs)+p.MaxFrames+tensor.SingletonExtent)
+	if err != nil {
+		return LatentBatch{}, nil, err
+	}
+	prompt := make([]float32, len(textIDs)*m.Dims.DModel)
+	if err := m.TextEmbedInto(prompt, textIDs); err != nil {
+		return LatentBatch{}, nil, err
+	}
+	m.AppendForward(st, prompt, len(textIDs))
+	return m.generateFromState(st, p)
+}
+
+// generateFromState runs the seeded frame loop against a prompted
+// decode state.
+func (m *Model) generateFromState(st *DecodeState, p GenerateParams) (LatentBatch, []float64, error) {
+	d, latent := m.Dims.DModel, m.Dims.LatentDim
 
 	latents := LatentBatch{Values: make([]float32, p.MaxFrames*latent), Width: latent}
 	eos := make([]float64, tensor.FirstOffset, p.MaxFrames)

@@ -80,7 +80,7 @@ func exportRecipeSamples(
 	directory string,
 ) (int, error) {
 	written := 0
-	err := visitRecipeSamples(ctx, store, definition, func(name string, data []byte) error {
+	err := visitRecipeSamples(ctx, store, definition, func(name string, data []byte, _ string) error {
 		path := filepath.Join(directory, name)
 		if _, statErr := os.Stat(path); statErr == nil {
 			return nil
@@ -94,15 +94,23 @@ func exportRecipeSamples(
 	return written, err
 }
 
-// recipeSampleNames lists the exportable sample file names one recipe
+// sampleRef pairs one exported sample with the abbreviated request
+// that produced it, so the report shows the prompt and settings beside
+// the artifact.
+type sampleRef struct {
+	Name    string
+	Request string
+}
+
+// recipeSampleNames lists the exportable samples one recipe
 // definition's succeeded runs produced, in lineage order.
-func recipeSampleNames(ctx context.Context, store *overgodb.Store, definition artifact.ID) ([]string, error) {
-	var names []string
+func recipeSampleNames(ctx context.Context, store *overgodb.Store, definition artifact.ID) ([]sampleRef, error) {
+	var names []sampleRef
 	seen := map[string]bool{}
-	err := visitRecipeSamples(ctx, store, definition, func(name string, _ []byte) error {
+	err := visitRecipeSamples(ctx, store, definition, func(name string, _ []byte, request string) error {
 		if !seen[name] {
 			seen[name] = true
-			names = append(names, name)
+			names = append(names, sampleRef{Name: name, Request: request})
 		}
 		return nil
 	})
@@ -115,7 +123,7 @@ func visitRecipeSamples(
 	ctx context.Context,
 	store *overgodb.Store,
 	definition artifact.ID,
-	visit func(name string, data []byte) error,
+	visit func(name string, data []byte, request string) error,
 ) error {
 	edges, err := store.Children(ctx, definition)
 	if err != nil {
@@ -129,6 +137,7 @@ func visitRecipeSamples(
 		if err != nil || run.Outcome != runrecord.OutcomeSucceeded {
 			continue
 		}
+		request := runRequest(ctx, store, run.Inputs)
 		for _, output := range run.Outputs {
 			content, found, err := artifact.ReadContent(ctx, store, output)
 			if err != nil || !found {
@@ -138,7 +147,7 @@ func visitRecipeSamples(
 			if !ok {
 				continue
 			}
-			if err := visit(name, data); err != nil {
+			if err := visit(name, data, request); err != nil {
 				return err
 			}
 		}
@@ -185,4 +194,60 @@ func sampleFile(content artifact.Content) (string, []byte, bool) {
 func hashName(data []byte, extension string) string {
 	digest := sha256.Sum256(data)
 	return hex.EncodeToString(digest[:]) + "." + extension
+}
+
+// runRequest reads the run's typed input document and renders it with
+// bulk fields elided: the prompt and the settings stay readable, the
+// embedded tensors and payloads state their extent instead of their
+// values.
+func runRequest(ctx context.Context, store *overgodb.Store, inputs []artifact.ID) string {
+	for _, input := range inputs {
+		content, found, err := artifact.ReadContent(ctx, store, input)
+		if err != nil || !found || content.Descriptor.MediaType != "application/json" {
+			continue
+		}
+		var document any
+		if err := json.Unmarshal(content.Data, &document); err != nil {
+			continue
+		}
+		abbreviated, err := json.Marshal(abbreviateValue(document))
+		if err != nil {
+			continue
+		}
+		return string(abbreviated)
+	}
+	return ""
+}
+
+// Abbreviation bounds: a request field longer than these is bulk data,
+// not a setting a reader compares.
+const (
+	abbreviateStringRunes = 200
+	abbreviateArrayItems  = 8
+)
+
+func abbreviateValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(typed))
+		for key, entry := range typed {
+			result[key] = abbreviateValue(entry)
+		}
+		return result
+	case []any:
+		if len(typed) > abbreviateArrayItems {
+			return fmt.Sprintf("[%d values]", len(typed))
+		}
+		result := make([]any, len(typed))
+		for index, entry := range typed {
+			result[index] = abbreviateValue(entry)
+		}
+		return result
+	case string:
+		if len(typed) > abbreviateStringRunes {
+			return typed[:abbreviateStringRunes] + "…"
+		}
+		return typed
+	}
+	return value
 }

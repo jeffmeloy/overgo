@@ -123,7 +123,7 @@ func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {
 	}
 	defer loaded.Close()
 	if loaded.state.Program.Identity.Recipe != definition.ID ||
-		loaded.state.EvidenceTier != recipe.EvidenceExperimental {
+		loaded.state.EvidenceTier != recipe.EvidenceVerified {
 		t.Fatalf("candidate program = %+v tier=%s", loaded.state.Program.Identity, loaded.state.EvidenceTier)
 	}
 
@@ -215,7 +215,7 @@ func activateProgram(t *testing.T, store artifact.Repository, definition recipe.
 	verification := publishVerification(t, store, definition.ID, "fixture/program/verification/"+definition.ID.String())
 	if _, _, err := ActivateVerified(
 		ctx, store, "fixture/program/active/"+definition.ID.String(), definition, verification,
-		recipe.EvidenceExperimental, "loaded program fixture activation", nil, nil,
+		recipe.EvidenceVerified, "loaded program fixture activation", nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

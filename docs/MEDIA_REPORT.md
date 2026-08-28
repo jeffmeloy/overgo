@@ -27,14 +27,14 @@ Media tasks: `speech`, `image-gen`, `video-gen`, `video-edit`, `vqa`. The VQA la
 | Model | Task | Activation tier | Stale | Measured claim |
 | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | parity | - | - |
-| `Krea-2-Turbo` | `image-gen` | experimental | - | - |
-| `LiveEdit` | `video-gen` | experimental | - | - |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | experimental | - | - |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | experimental | - | - |
-| `Un-0` | `image-gen` | experimental | - | - |
-| `Un-0` | `video-gen` | experimental | - | - |
-| `Wan2.1-T2V-1.3B` | `video-gen` | experimental | - | - |
-| `pocket-tts` | `speech` | experimental | - | - |
+| `Krea-2-Turbo` | `image-gen` | verified | - | - |
+| `LiveEdit` | `video-gen` | verified | - | - |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | verified | - | - |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | verified | - | - |
+| `Un-0` | `image-gen` | verified | - | - |
+| `Un-0` | `video-gen` | verified | - | - |
+| `Wan2.1-T2V-1.3B` | `video-gen` | verified | - | - |
+| `pocket-tts` | `speech` | verified | - | - |
 
 The matrix reports activation and evidence scope, not general model-family support: an activation means the recipe lifecycle admitted the model for the task at the stated tier, and a measured claim binds that capability to real execution evidence at its commit.
 
@@ -42,34 +42,34 @@ The matrix reports activation and evidence scope, not general model-family suppo
 
 The executable surface behind each healthy activation: every recipe node with its module and placement, from the activation's own stored definition. Modules are the native Go implementations the workflow runtime binds.
 
-| Model | Task | Node | Module | Placement | Session |
-| --- | --- | --- | --- | --- | --- |
-| `Hy-Embodied-RxBrain-1.0` | `vqa` | `generate` | `model.vqa-generate` | device | - |
-| `Hy-Embodied-RxBrain-1.0` | `vqa` | `prepare` | `model.vqa-prepare` | host | - |
-| `Krea-2-Turbo` | `image-gen` | `decode` | `model.latent-image-decode` | hybrid | - |
-| `Krea-2-Turbo` | `image-gen` | `integrate` | `model.latent-image-integrate` | hybrid | - |
-| `Krea-2-Turbo` | `image-gen` | `prepare` | `model.latent-image-prepare` | hybrid | capacity |
-| `LiveEdit` | `video-gen` | `decode` | `model.reference-video-decode` | hybrid | - |
-| `LiveEdit` | `video-gen` | `integrate` | `model.reference-video-integrate` | hybrid | - |
-| `LiveEdit` | `video-gen` | `prepare` | `model.reference-video-prepare` | hybrid | capacity |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `decode` | `model.routed-image-decode` | hybrid | - |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `integrate` | `model.routed-image-integrate` | hybrid | - |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `prepare` | `model.routed-image-prepare` | hybrid | capacity |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `decode` | `model.diffusion-image-decode` | host | - |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `integrate` | `model.diffusion-image-integrate` | host | - |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `prepare` | `model.diffusion-image-prepare` | host | capacity |
-| `Un-0` | `image-gen` | `decode` | `model.oscillator-image-decode` | host | - |
-| `Un-0` | `image-gen` | `integrate` | `model.oscillator-image-integrate` | host | - |
-| `Un-0` | `image-gen` | `prepare` | `model.oscillator-image-prepare` | host | capacity |
-| `Un-0` | `video-gen` | `decode` | `model.oscillator-video-decode` | host | - |
-| `Un-0` | `video-gen` | `integrate` | `model.oscillator-video-integrate` | host | - |
-| `Un-0` | `video-gen` | `prepare` | `model.oscillator-video-prepare` | host | capacity |
-| `Wan2.1-T2V-1.3B` | `video-gen` | `decode` | `model.latent-video-decode` | hybrid | - |
-| `Wan2.1-T2V-1.3B` | `video-gen` | `integrate` | `model.latent-video-integrate` | hybrid | - |
-| `Wan2.1-T2V-1.3B` | `video-gen` | `prepare` | `model.latent-video-prepare` | hybrid | capacity |
-| `pocket-tts` | `speech` | `decode` | `model.speech-decode` | host | - |
-| `pocket-tts` | `speech` | `generate` | `model.speech-generate` | host | capacity |
-| `pocket-tts` | `speech` | `tokenize` | `model.speech-tokenize` | host | - |
+| Model | Task | Node | Module | Placement | Session | Component model |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | `generate` | `model.vqa-generate` | device | - | composite |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | `prepare` | `model.vqa-prepare` | host | - | composite |
+| `Krea-2-Turbo` | `image-gen` | `decode` | `model.latent-image-decode` | hybrid | - | `model:sha256:1b7acc66c8e9c396e08` |
+| `Krea-2-Turbo` | `image-gen` | `integrate` | `model.latent-image-integrate` | hybrid | - | `model:sha256:8f2e2c875364a9c71ba` |
+| `Krea-2-Turbo` | `image-gen` | `prepare` | `model.latent-image-prepare` | hybrid | capacity | `model:sha256:f56d447bad2b83262f8` |
+| `LiveEdit` | `video-gen` | `decode` | `model.reference-video-decode` | hybrid | - | composite |
+| `LiveEdit` | `video-gen` | `integrate` | `model.reference-video-integrate` | hybrid | - | composite |
+| `LiveEdit` | `video-gen` | `prepare` | `model.reference-video-prepare` | hybrid | capacity | composite |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `decode` | `model.routed-image-decode` | hybrid | - | composite |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `integrate` | `model.routed-image-integrate` | hybrid | - | composite |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `prepare` | `model.routed-image-prepare` | hybrid | capacity | composite |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `decode` | `model.diffusion-image-decode` | host | - | composite |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `integrate` | `model.diffusion-image-integrate` | host | - | composite |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `prepare` | `model.diffusion-image-prepare` | host | capacity | composite |
+| `Un-0` | `image-gen` | `decode` | `model.oscillator-image-decode` | host | - | composite |
+| `Un-0` | `image-gen` | `integrate` | `model.oscillator-image-integrate` | host | - | composite |
+| `Un-0` | `image-gen` | `prepare` | `model.oscillator-image-prepare` | host | capacity | composite |
+| `Un-0` | `video-gen` | `decode` | `model.oscillator-video-decode` | host | - | composite |
+| `Un-0` | `video-gen` | `integrate` | `model.oscillator-video-integrate` | host | - | composite |
+| `Un-0` | `video-gen` | `prepare` | `model.oscillator-video-prepare` | host | capacity | composite |
+| `Wan2.1-T2V-1.3B` | `video-gen` | `decode` | `model.latent-video-decode` | hybrid | - | composite |
+| `Wan2.1-T2V-1.3B` | `video-gen` | `integrate` | `model.latent-video-integrate` | hybrid | - | composite |
+| `Wan2.1-T2V-1.3B` | `video-gen` | `prepare` | `model.latent-video-prepare` | hybrid | capacity | composite |
+| `pocket-tts` | `speech` | `decode` | `model.speech-decode` | host | - | composite |
+| `pocket-tts` | `speech` | `generate` | `model.speech-generate` | host | capacity | composite |
+| `pocket-tts` | `speech` | `tokenize` | `model.speech-tokenize` | host | - | composite |
 
 ## Recipe inventory
 
@@ -78,14 +78,14 @@ One row per healthy activation: the recipe artifact the active alias resolves, i
 | Model | Task | Recipe | Evidence tier | Dependencies |
 | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | `recipe:sha256:97d121be90fba86b42` | parity | - |
-| `Krea-2-Turbo` | `image-gen` | `recipe:sha256:d931a95e3aa4d4c1cf` | experimental | profile `profile:sha256:4dedf632a6744df0c` |
-| `LiveEdit` | `video-gen` | `recipe:sha256:7cd66ed08ebee5e566` | experimental | profile `profile:sha256:5dff72b6d581a9d1d` |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `recipe:sha256:5a729e98ef825033d4` | experimental | flow-profile `profile:sha256:307706b480209dc49` |
-| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `recipe:sha256:4f0b3b9dbad2427851` | experimental | - |
-| `Un-0` | `image-gen` | `recipe:sha256:213d890a8988e995e5` | experimental | - |
-| `Un-0` | `video-gen` | `recipe:sha256:4f6267a0ddb44c1357` | experimental | - |
-| `Wan2.1-T2V-1.3B` | `video-gen` | `recipe:sha256:bff12bb8946afe0d8c` | experimental | profile `profile:sha256:5dff72b6d581a9d1d` |
-| `pocket-tts` | `speech` | `recipe:sha256:353213be1a91a29530` | experimental | - |
+| `Krea-2-Turbo` | `image-gen` | `recipe:sha256:0b1bcc2fb9cf5f42cd` | verified | profile `profile:sha256:4dedf632a6744df0c` |
+| `LiveEdit` | `video-gen` | `recipe:sha256:7cd66ed08ebee5e566` | verified | profile `profile:sha256:5dff72b6d581a9d1d` |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `recipe:sha256:5a729e98ef825033d4` | verified | flow-profile `profile:sha256:307706b480209dc49` |
+| `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | `recipe:sha256:4f0b3b9dbad2427851` | verified | - |
+| `Un-0` | `image-gen` | `recipe:sha256:213d890a8988e995e5` | verified | - |
+| `Un-0` | `video-gen` | `recipe:sha256:4f6267a0ddb44c1357` | verified | - |
+| `Wan2.1-T2V-1.3B` | `video-gen` | `recipe:sha256:bff12bb8946afe0d8c` | verified | profile `profile:sha256:5dff72b6d581a9d1d` |
+| `pocket-tts` | `speech` | `recipe:sha256:353213be1a91a29530` | verified | - |
 
 ## Measured results
 
@@ -94,14 +94,14 @@ One row per healthy activation: the verifier run the activation cites, exactly a
 | Model | Task | Verifier wall | Phases | Peak device | Commit | Run outputs |
 | --- | --- | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | 10.113s | generate 10.668s, prepare 135ms | - | `6da9e6329fe7` | `evidence:sha256:da6e3efbd0aedc45` |
-| `Krea-2-Turbo` | `image-gen` | 14.134s | decode 161ms, integrate 1.441s, prepare 9.198s | - | `f313f43d6c57` | `evidence:sha256:ae3f67c4750ef889` |
+| `Krea-2-Turbo` | `image-gen` | 14.581s | decode 162ms, integrate 1.417s, prepare 9.729s | - | `05faa01ef333` | `evidence:sha256:5b3a1c4bb7981dba` |
 | `LiveEdit` | `video-gen` | 5.409s | integrate 671ms | 3260313344 B | `f313f43d6c57` | `evidence:sha256:9962cef18a9b42ed` |
-| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 12.421s | decode 68ms, integrate 749ms, prepare 11.126s | - | `f313f43d6c57` | `evidence:sha256:27f5a2e7c5d52553` |
+| `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 2m17.156s | decode 939ms, integrate 2m2.434s, prepare 13.187s | - | `73414af5ea9b` | `evidence:sha256:3d0bc88bed1aadcc` |
 | `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | 1.845s | decode 8ms, integrate 1.413s | - | `f313f43d6c57` | `evidence:sha256:710bb24341b1d20a` |
 | `Un-0` | `image-gen` | 54ms | decode 2ms, integrate 1ms | - | `f313f43d6c57` | `evidence:sha256:033e4554d122101e` |
 | `Un-0` | `video-gen` | 41ms | decode 18ms | - | `f313f43d6c57` | `evidence:sha256:30d089f92a60ec23` |
-| `Wan2.1-T2V-1.3B` | `video-gen` | 6.46s | integrate 698ms | 376261580 B | `f313f43d6c57` | `evidence:sha256:1503d63d735786fb` |
-| `pocket-tts` | `speech` | 12.899s | decode 9.345s, generate 3.249s | - | `f313f43d6c57` | `evidence:sha256:d5cacdf3d27b77aa` |
+| `Wan2.1-T2V-1.3B` | `video-gen` | 6m22.361s | decode 5ms, integrate 6m16.764s | 10329897932 B | `b862f3c902fb` | `evidence:sha256:d137ace0d95df805` |
+| `pocket-tts` | `speech` | 2.088s | decode 1.07s, generate 774ms | - | `1f6efd8b7cda` | `evidence:sha256:9d1085218ce3b99d` |
 
 ## Samples
 
@@ -112,36 +112,57 @@ Decoded verifier-run outputs, exported by `go run ./cmd/compatibility -export-sa
 - Image: [e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d.png](media_samples/e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d.png)
 
   ![SenseNova-U1-8B-MoT-Infographic-V3 image](media_samples/e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d.png)
+
+  Request: `{"cfg_scale":4.5,"height":512,"prompt":"a minimal infographic of three rising bars labeled A B C","seed":42,"steps":4,"timestep_shift":3,"width":512}`
+- Image: [5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png](media_samples/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png)
+
+  ![SenseNova-U1-8B-MoT-Infographic-V3 image](media_samples/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png)
+
+  Request: `{"cfg_scale":4,"height":2720,"prompt":"该信息图以明亮蓝色、活力橙、白色与浅灰色为主色调，主题为\"顺利开局：新员工第一周生存手册\"，突出展示入职准备、每日任务、沟通规范、会议礼…","seed":42,"steps":50,"timestep_shift":3,"width":1536}`
 - Image: [e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png](media_samples/e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png)
 
   ![SenseNova-U1-8B-MoT-Infographic-V3 image](media_samples/e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png)
+
+  Request: `{"cfg_scale":4.5,"height":512,"prompt":"a minimal infographic of three rising bars labeled A B C","seed":142,"steps":4,"timestep_shift":3,"width":512}`
 
 ### Un-0 (`image-gen`)
 
 - Image: [cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png](media_samples/cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png)
 
   ![Un-0 image](media_samples/cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png)
+
+  Request: `{"class":1,"seed":111}`
 - Image: [a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png](media_samples/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png)
 
   ![Un-0 image](media_samples/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png)
+
+  Request: `{"class":1,"seed":11}`
 
 ### Un-0 (`video-gen`)
 
 - Video clip: [9cc39bd74b99db9f50c8db84433c396e55eafedb28336bdc4901bb5b99e3195d.gif](media_samples/9cc39bd74b99db9f50c8db84433c396e55eafedb28336bdc4901bb5b99e3195d.gif)
 
   ![Un-0 clip](media_samples/9cc39bd74b99db9f50c8db84433c396e55eafedb28336bdc4901bb5b99e3195d.gif)
+
+  Request: `{"class":1,"frames":12,"scale":2,"seed":11}`
 - Video clip: [9b52d1275c56c6006c6707c060dba2dba4cae2ad6c6e2b982c90cf808fc6271a.gif](media_samples/9b52d1275c56c6006c6707c060dba2dba4cae2ad6c6e2b982c90cf808fc6271a.gif)
 
   ![Un-0 clip](media_samples/9b52d1275c56c6006c6707c060dba2dba4cae2ad6c6e2b982c90cf808fc6271a.gif)
+
+  Request: `{"class":1,"frames":12,"scale":2,"seed":111}`
 
 ### SimpleDiffusion-TensorProductAttentionRope (`image-gen`)
 
 - Image: [43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319.png](media_samples/43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319.png)
 
   ![SimpleDiffusion-TensorProductAttentionRope image](media_samples/43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319.png)
+
+  Request: `{"height":256,"seed":5,"steps":8,"width":256}`
 - Image: [0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e.png](media_samples/0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e.png)
 
   ![SimpleDiffusion-TensorProductAttentionRope image](media_samples/0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e.png)
+
+  Request: `{"height":256,"seed":105,"steps":8,"width":256}`
 
 ### LiveEdit (`video-gen`)
 
@@ -149,26 +170,46 @@ Decoded verifier-run outputs, exported by `go run ./cmd/compatibility -export-sa
 
   ![LiveEdit clip](media_samples/6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33.gif)
 
+  Request: `{"context_timestep":0,"frames_per_chunk":1,"initial_noise":"[256 values]","local_attention_frames":1,"seed":0,"sigmas":[0.8333333],"text_context":"[786432 values]","timesteps":[900]}`
+
 ### pocket-tts (`speech`)
 
+- Audio clip: [4e00b2b3fd4409b90d471d10fd0b503416864f3f52663a254006564c41fa14c3.wav](media_samples/4e00b2b3fd4409b90d471d10fd0b503416864f3f52663a254006564c41fa14c3.wav)
+
+  Request: `{"max_frames":250,"seed":7,"text":"Once upon a time, in a quiet valley, a small fox learned to sing.","voice":"alba"}`
 - Audio clip: [5efe73da337ffd08f9ce87cd48955a1dabd7b6c1e8d9e5d8554b5735c896ba29.wav](media_samples/5efe73da337ffd08f9ce87cd48955a1dabd7b6c1e8d9e5d8554b5735c896ba29.wav)
+
+  Request: `{"max_frames":400,"seed":107,"text":"The gate remains the sole commit path."}`
 - Audio clip: [5813497710d889c700c417050629b8229bd54b21465dfe18ad442d5583f3b7f2.wav](media_samples/5813497710d889c700c417050629b8229bd54b21465dfe18ad442d5583f3b7f2.wav)
+
+  Request: `{"max_frames":400,"seed":7,"text":"The gate remains the sole commit path."}`
+- Audio clip: [448810fc5e36d2043161191a425a5c220d4421e71a5a2e6e47de565588448401.wav](media_samples/448810fc5e36d2043161191a425a5c220d4421e71a5a2e6e47de565588448401.wav)
+
+  Request: `{"max_frames":250,"seed":8,"text":"Once upon a time, in a quiet valley, a small fox learned to sing.","voice":"alba"}`
 
 ### Wan2.1-T2V-1.3B (`video-gen`)
 
 - Video clip: [e4442cf7ee01b00d3f12d238640bb14a48b94e89d2a2c0130e4c2202be69a02e.gif](media_samples/e4442cf7ee01b00d3f12d238640bb14a48b94e89d2a2c0130e4c2202be69a02e.gif)
 
   ![Wan2.1-T2V-1.3B clip](media_samples/e4442cf7ee01b00d3f12d238640bb14a48b94e89d2a2c0130e4c2202be69a02e.gif)
+
+  Request: `{"cond_context":"[786432 values]","frames":5,"guide_scale":6,"height":64,"noise":{"Block":256,"Grid":4096,"Offset":0,"Seed":131,"Unroll":4},"shift":5,"steps":2,"uncond_context":"[786432 values]","width":64}`
 - Video clip: [4cc19c2db162f6f0678d4ab026f12229abebbbc39a07a3f6154bfc07f74faaa1.gif](media_samples/4cc19c2db162f6f0678d4ab026f12229abebbbc39a07a3f6154bfc07f74faaa1.gif)
 
   ![Wan2.1-T2V-1.3B clip](media_samples/4cc19c2db162f6f0678d4ab026f12229abebbbc39a07a3f6154bfc07f74faaa1.gif)
 
+  Request: `{"cond_context":"[786432 values]","frames":5,"guide_scale":6,"height":64,"noise":{"Block":256,"Grid":4096,"Offset":0,"Seed":31,"Unroll":4},"shift":5,"steps":2,"uncond_context":"[786432 values]","width":64}`
+- Video clip: [88a27a06c4c724e5d92c6271d793528a8dfe4152fc7750a7a08509b59d39c27f.gif](media_samples/88a27a06c4c724e5d92c6271d793528a8dfe4152fc7750a7a08509b59d39c27f.gif)
+
+  ![Wan2.1-T2V-1.3B clip](media_samples/88a27a06c4c724e5d92c6271d793528a8dfe4152fc7750a7a08509b59d39c27f.gif)
+
+  Request: `{"cond_context":"[786432 values]","frames":81,"guide_scale":6,"height":480,"noise":{"Block":256,"Grid":684,"Offset":0,"Seed":31,"Unroll":4},"shift":5,"steps":50,"uncond_context":"[786432 values]","width":832}`
+
 ### Krea-2-Turbo (`image-gen`)
 
-- Image: [9042a10dca99db48eb550046da52f690461468336c583b989884ae81d017ad24.png](media_samples/9042a10dca99db48eb550046da52f690461468336c583b989884ae81d017ad24.png)
+- Image: [4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png](media_samples/4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png)
 
-  ![Krea-2-Turbo image](media_samples/9042a10dca99db48eb550046da52f690461468336c583b989884ae81d017ad24.png)
-- Image: [6a362e191056b64a706c8bf49ce1bde31b2cd0cb0f1eb6aae8b18e5e75da5693.png](media_samples/6a362e191056b64a706c8bf49ce1bde31b2cd0cb0f1eb6aae8b18e5e75da5693.png)
+  ![Krea-2-Turbo image](media_samples/4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png)
 
-  ![Krea-2-Turbo image](media_samples/6a362e191056b64a706c8bf49ce1bde31b2cd0cb0f1eb6aae8b18e5e75da5693.png)
+  Request: `{"height":512,"prompt":"a red fox licking a vanilla ice cream cone in snow","seed":143,"steps":4,"width":512}`
 

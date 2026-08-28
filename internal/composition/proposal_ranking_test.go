@@ -43,12 +43,12 @@ func TestProposalRankingImprovesOnRefusalHistory(t *testing.T) {
 	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "ranking measurement")
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "ranking decider")
 	decider := recipe.Decider{CodeCommit: "0123456789abcdef0123456789abcdef01234567", Derivation: derivation}
-	refused, err := recipe.NewDecision(refusedProposal.ID, recipe.DecisionRefused, recipe.EvidenceExperimental,
+	refused, err := recipe.NewDecision(refusedProposal.ID, recipe.DecisionRefused, recipe.EvidenceVerified,
 		"operator contract mismatch", decider, []artifact.ID{evidence})
 	if err != nil {
 		t.Fatal(err)
 	}
-	observed, err := recipe.NewDecision(observedProposal.ID, recipe.DecisionObserved, recipe.EvidenceExperimental,
+	observed, err := recipe.NewDecision(observedProposal.ID, recipe.DecisionObserved, recipe.EvidenceVerified,
 		"bounded trial completed", decider, []artifact.ID{evidence})
 	if err != nil {
 		t.Fatal(err)

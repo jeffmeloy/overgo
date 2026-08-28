@@ -1,0 +1,23 @@
+{
+ "version": 1,
+ "doc": "Declared retained artifacts under build/. Everything else in build/ is development scrap the scrub tool may remove. Durable knowledge belongs in overgodb; per-session scratch belongs in tmp/.",
+ "retained": [
+  {
+   "prefix": "latentvideo/current_prod50",
+   "reason": "Retained real Wan production frame, final latent, and run report: the real-source fixture four device tests and the reference-edit request builders load; regenerating costs a 50-step 480x832 production run.",
+   "referenced_by": [
+    "internal/latentvideo/reference_edit_denoiser_session_windows_test.go",
+    "internal/latentvideo/reference_edit_runtime_cuda_windows_test.go",
+    "internal/latentvideo/source_codec_session_windows_test.go",
+    "cmd/recipe/video_cuda_windows_test.go"
+   ]
+  },
+  {
+   "prefix": "datasets",
+   "reason": "Prepared training corpora (wikitext) the dense-token training tests read.",
+   "referenced_by": [
+    "internal/thoughtbank/bank_train_windows_model_test.go"
+   ]
+  }
+ ]
+}

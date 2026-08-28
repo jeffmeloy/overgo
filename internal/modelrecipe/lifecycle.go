@@ -173,7 +173,7 @@ func RetireActiveCapability(
 		return err
 	}
 	decision, err := recipe.NewDecision(
-		definition.ID, recipe.DecisionRefused, recipe.EvidenceExperimental, reason,
+		definition.ID, recipe.DecisionRefused, recipe.EvidenceVerified, reason,
 		recipe.Decider{CodeCommit: failed.Gate.CodeCommit, Derivation: failed.Gate.ID},
 		[]artifact.ID{failed.Gate.ID, failed.Run.ID},
 	)
@@ -257,7 +257,7 @@ func RetireOrphanedActivation(
 		return err
 	}
 	decision, err := recipe.NewDecision(
-		definition.ID, recipe.DecisionRefused, recipe.EvidenceExperimental,
+		definition.ID, recipe.DecisionRefused, recipe.EvidenceVerified,
 		reason+"; trust check: "+trustErr.Error(),
 		recipe.Decider{CodeCommit: revision, Derivation: definition.ID},
 		[]artifact.ID{failure.Descriptor.ID},
@@ -576,7 +576,7 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 	if err != nil {
 		return Activation{}, false, fmt.Errorf("model recipe: active recipe lacks verified evidence: %w", err)
 	}
-	tier := recipe.EvidenceExperimental
+	tier := recipe.EvidenceVerified
 	accepted := false
 	for _, decision := range decisions {
 		verification := Verification{Gate: verified.Gate.ID, Run: verified.Run.ID}

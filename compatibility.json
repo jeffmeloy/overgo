@@ -63,7 +63,7 @@
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
-     "identity": "file:sha256:6ef47736d5c85c8be49d05e0e1f7e5be823bb686892d160c62ef2acd44383a84"
+     "identity": "file:sha256:102457ce3f570a18f2b45d96820a6b56df5471d638e95107ad9831f9f6f3e4e1"
     },
     {
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",
@@ -1016,7 +1016,7 @@
      "contains": "func LoadSynthesizer(",
      "path": "internal/speechsynth/runtime.go",
      "role": "source",
-     "identity": "file:sha256:1c482b505bf369f6beb649d369b8184d6b79a46fc5670d5b50acb495f7f0fae5"
+     "identity": "file:sha256:1b6c8f1b3e1545fa95320b6fef76ec542da368a6cdfc699e33f074fdd49f3f8d"
     },
     {
      "contains": "func TestPocketTTSProductionParity(",

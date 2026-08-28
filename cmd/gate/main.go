@@ -2280,6 +2280,10 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 		if manifest == nil {
 			continue
 		}
+		// Register the manifest identity in this batch so the record's
+		// lineage stays resolvable even when the batch lands as owed
+		// debt before the digest publication ran.
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: manifest.ID})
 		batch.Lineage = append(batch.Lineage, artifact.Lineage{
 			Child: record.Result.ID, Parent: manifest.ID, Relation: artifact.RelationDependsOn,
 		})
@@ -2329,11 +2333,13 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 		return g.oweRecord(batch, err)
 	}
 	defer store.Close()
+	// Digests only: the full manifest is derivable from git at this
+	// commit, and persisting it per run was the store's growth curve.
 	for _, manifest := range []*codemanifest.Manifest{g.baseManifest, g.candidateManifest} {
 		if manifest == nil {
 			continue
 		}
-		if _, err := codemanifest.Publish(context.Background(), store, *manifest); err != nil {
+		if _, err := codemanifest.PublishDigest(context.Background(), store, *manifest); err != nil {
 			return g.oweRecord(batch, err)
 		}
 	}

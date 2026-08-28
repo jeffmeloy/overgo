@@ -594,7 +594,7 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 			actIndex := tensor.FirstOffset
 			volume, runErr := media.ExecuteCodecProgram("vae cuda decode", plan.CodecProgram, states, media.CodecVolume[driver.DevicePtr]{
 				Storage: x, Channels: plan.ZDim, Frames: tensor.SingletonExtent, Height: latentH, Width: latentW,
-			}, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
+			}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
 				actIndex = tensor.SingletonExtent - actIndex
 				opStarted := time.Now()
 				next, frames, height, width, stepErr := s.runOp(state, index, chunkIndex, operation, s.weights[index], opState, current.Storage, media.ProgramCodecWorkspace(media.CodecWorkspaceActivation, actIndex), current.Frames, current.Height, current.Width)

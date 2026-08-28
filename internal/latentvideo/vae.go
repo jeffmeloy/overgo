@@ -833,7 +833,7 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 		denormalizeLatentChunk(x, z, stats, plan.ZDim, latentFrames, spatial, chunkIndex)
 		volume, err := media.ExecuteCodecProgram("vae decode", plan.CodecProgram, states, media.CodecVolume[[]float32]{
 			Storage: x, Channels: plan.ZDim, Frames: tensor.SingletonExtent, Height: latentH, Width: latentW,
-		}, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], state *vaeOpState, current media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
+		}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], state *vaeOpState, current media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
 			next, frames, height, width, runErr := runVAEOp(operation, weights[index], state, chunkIndex, current.Storage, current.Frames, current.Height, current.Width)
 			samplePeak()
 			return media.CodecVolume[[]float32]{Storage: next, Channels: operation.OutputChannels, Frames: frames, Height: height, Width: width}, runErr

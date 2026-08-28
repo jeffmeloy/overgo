@@ -19,12 +19,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -34,6 +34,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
+	"overgo/internal/processcontrol"
 )
 
 const pauseMarker = "docs/.loop_pause"
@@ -130,15 +131,20 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(w.config.WorkerTimeoutMinutes)*time.Minute)
 	defer cancel()
-	command := exec.CommandContext(ctx, w.config.Worker[0], arguments...)
+	var combined bytes.Buffer
 	// The declared strategy identity reaches every gate run inside the
 	// worker, so each attempt record states which strategy produced it.
-	command.Env = append(os.Environ(),
-		loop.StrategyEnvironment+"="+loop.StrategyIdentity(w.config.Worker, w.config.Strategy))
-	command.Stdin = strings.NewReader(text)
-	out, err := command.CombinedOutput()
-	tail := tailOf(string(out), 4000)
-	if err != nil && command.ProcessState == nil {
+	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+		Path: w.config.Worker[0],
+		Args: arguments,
+		Env: append(os.Environ(),
+			loop.StrategyEnvironment+"="+loop.StrategyIdentity(w.config.Worker, w.config.Strategy)),
+		Stdin:  strings.NewReader(text),
+		Stdout: &combined,
+		Stderr: &combined,
+	})
+	tail := tailOf(combined.String(), 4000)
+	if err != nil && receipt.WallNS == 0 {
 		return tail, &loop.LaunchError{Err: err}
 	}
 	// A nonzero or timed-out worker still exited; the plan decides what it
@@ -148,16 +154,15 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 }
 
 func (w *execWorld) Verify(loop.Step) (string, error) {
-	command := exec.Command("go", "run", "./cmd/plan", "-verify")
-	out, err := command.CombinedOutput()
+	out, err := runTool("go", "run", "./cmd/plan", "-verify")
 	if err == nil {
 		return "", nil
 	}
-	return tailOf(string(out), 4000), nil
+	return tailOf(out, 4000), nil
 }
 
 func (w *execWorld) Park(step loop.Step, reason string) error {
-	command := exec.Command("go", "run", "./cmd/finding",
+	out, err := runTool("go", "run", "./cmd/finding",
 		"-title", "loop parked "+step.Key()+" after exhausted worker attempts",
 		"-severity", "high",
 		"-owner", step.Key(),
@@ -165,9 +170,8 @@ func (w *execWorld) Park(step loop.Step, reason string) error {
 		"-closure", "fix the step or its verifier, then rerun cmd/loop",
 		"-check", "go run ./cmd/plan -verify",
 	)
-	out, err := command.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("park finding: %w: %s", err, tailOf(string(out), 500))
+		return fmt.Errorf("park finding: %w: %s", err, tailOf(out, 500))
 	}
 	fmt.Printf("loop: PARKED %s -- %s\n", step.Key(), reason)
 	return nil
@@ -206,13 +210,12 @@ func (w *execWorld) AdmitNext() (string, bool, error) {
 	}
 	sort.Strings(names)
 	spec := filepath.Join(w.config.Proposals, names[0])
-	command := exec.Command("go", "run", "./cmd/plan", "-admit-proposal", spec)
-	out, err := command.CombinedOutput()
+	out, err := runTool("go", "run", "./cmd/plan", "-admit-proposal", spec)
 	if err != nil {
 		// A refused proposal is consumed, never retried forever: the
 		// refusal moves with the spec for the operator to read.
 		_ = consumeProposal(spec, "refused")
-		return "", false, fmt.Errorf("admit %s: %w: %s", names[0], err, tailOf(string(out), 500))
+		return "", false, fmt.Errorf("admit %s: %w: %s", names[0], err, tailOf(out, 500))
 	}
 	item := strings.TrimSpace(string(out))
 	if index := strings.LastIndex(item, "as plan row "); index >= 0 {
@@ -250,12 +253,27 @@ func consumeProposal(spec, disposition string) error {
 }
 
 func planCommand(verb string) (string, error) {
-	command := exec.Command("go", "run", "./cmd/plan", verb)
-	out, err := command.CombinedOutput()
+	out, err := runTool("go", "run", "./cmd/plan", verb)
 	if err != nil {
-		return "", fmt.Errorf("plan %s: %w: %s", verb, err, tailOf(string(out), 500))
+		return "", fmt.Errorf("plan %s: %w: %s", verb, err, tailOf(out, 500))
 	}
 	return string(out), nil
+}
+
+// runTool supervises one repository tool invocation and returns its
+// combined output.
+func runTool(arguments ...string) (string, error) {
+	var combined bytes.Buffer
+	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
+		Path:   arguments[0],
+		Args:   arguments[1:],
+		Stdout: &combined,
+		Stderr: &combined,
+	})
+	if err == nil && receipt.ExitCode != 0 {
+		err = fmt.Errorf("exit status %d", receipt.ExitCode)
+	}
+	return combined.String(), err
 }
 
 func tailOf(value string, limit int) string {

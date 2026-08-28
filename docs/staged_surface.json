@@ -241,30 +241,6 @@
       "name": "OperationalTransition",
       "reason": "Typed conversion record; staged with its owner functions.",
       "consumer_trigger": "execution-semantics rows consume it in production."
-    },
-    {
-      "package": "overgo/internal/processcontrol",
-      "name": "Start",
-      "reason": "Process-tree supervisor delivered by process-supervision/supervisor with its containment contract complete on Windows job objects and Unix process groups.",
-      "consumer_trigger": "process-supervision/consumer-migration moves loop, agent tools, media, and model operations onto the supervisor and retires this entry."
-    },
-    {
-      "package": "overgo/internal/processcontrol",
-      "name": "Command",
-      "reason": "Supervised command description; staged with Start.",
-      "consumer_trigger": "consumer-migration consumes it in production."
-    },
-    {
-      "package": "overgo/internal/processcontrol",
-      "name": "Receipt",
-      "reason": "Termination receipt; staged with Start.",
-      "consumer_trigger": "execution-semantics binds receipts into attempt records."
-    },
-    {
-      "package": "overgo/internal/processcontrol",
-      "name": "Supervised",
-      "reason": "Running supervised tree handle; staged with Start.",
-      "consumer_trigger": "consumer-migration consumes it in production."
     }
   ]
 }

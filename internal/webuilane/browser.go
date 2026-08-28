@@ -24,6 +24,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"overgo/internal/processcontrol"
 )
 
 const (
@@ -47,10 +49,11 @@ const (
 
 // Browser is one isolated Chromium target controlled through its DevTools socket.
 type Browser struct {
-	command *exec.Cmd
-	profile string
-	socket  *webSocket
-	output  *bytes.Buffer
+	supervised *processcontrol.Supervised
+	wait       context.Context
+	profile    string
+	socket     *webSocket
+	output     *bytes.Buffer
 }
 
 // FindBrowser resolves an explicit path or an installed Chromium browser.
@@ -103,18 +106,22 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 		return nil, err
 	}
 	output := &bytes.Buffer{}
-	command := exec.CommandContext(ctx, executable,
-		"--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-		"--disable-background-networking", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0",
-		"--user-data-dir="+profile, "about:blank",
-	)
-	command.Stdout, command.Stderr = output, output
-	if err := command.Start(); err != nil {
+	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
+		Path: executable,
+		Args: []string{
+			"--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+			"--disable-background-networking", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0",
+			"--user-data-dir=" + profile, "about:blank",
+		},
+		Stdout: output,
+		Stderr: output,
+	})
+	if err != nil {
 		removeProfile(profile)
 		return nil, err
 	}
-	browser := &Browser{command: command, profile: profile, output: output}
-	port, err := waitDevToolsPort(ctx, profile, command)
+	browser := &Browser{supervised: supervised, wait: ctx, profile: profile, output: output}
+	port, err := waitDevToolsPort(ctx, profile, supervised)
 	if err != nil {
 		browser.Close()
 		return nil, fmt.Errorf("webui lane: browser debugging endpoint: %w: %s", err, output.String())
@@ -148,9 +155,9 @@ func (browser *Browser) Close() error {
 	if browser.socket != nil {
 		_ = browser.socket.close()
 	}
-	if browser.command != nil && browser.command.Process != nil {
-		_ = browser.command.Process.Kill()
-		_, _ = browser.command.Process.Wait()
+	if browser.supervised != nil {
+		_ = browser.supervised.Terminate()
+		_, _ = browser.supervised.Wait(browser.wait)
 	}
 	removeProfile(browser.profile)
 	return nil
@@ -216,7 +223,7 @@ func (browser *Browser) SetViewport(ctx context.Context, width, height int) erro
 	}, nil)
 }
 
-func waitDevToolsPort(ctx context.Context, profile string, command *exec.Cmd) (int, error) {
+func waitDevToolsPort(ctx context.Context, profile string, supervised *processcontrol.Supervised) (int, error) {
 	ticker := time.NewTicker(time.Millisecond)
 	defer ticker.Stop()
 	path := filepath.Join(profile, "DevToolsActivePort")
@@ -229,7 +236,7 @@ func waitDevToolsPort(ctx context.Context, profile string, command *exec.Cmd) (i
 				return port, nil
 			}
 		}
-		if command.ProcessState != nil && command.ProcessState.Exited() {
+		if supervised.Exited() {
 			return 0, errors.New("browser exited before publishing DevTools port")
 		}
 		select {

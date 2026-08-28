@@ -7,9 +7,10 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"strconv"
 	"time"
+
+	"overgo/internal/processcontrol"
 )
 
 // healthPollInterval paces readiness probes against a starting child;
@@ -46,21 +47,26 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 	address := "127.0.0.1:" + strconv.Itoa(port)
 	// The child self-reports the servable's name so the GUI's model pill
 	// (and the proxy's self-identity short-circuit) track the swap.
-	command := exec.Command(l.Binary,
-		"-listen", address, "-repo", l.Store, "-model-id", servable.Name, servable.Location)
-	command.Stdout = os.Stderr
-	command.Stderr = os.Stderr
-	if err := command.Start(); err != nil {
+	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
+		Path:   l.Binary,
+		Args:   []string{"-listen", address, "-repo", l.Store, "-model-id", servable.Name, servable.Location},
+		Stdout: os.Stderr,
+		Stderr: os.Stderr,
+	})
+	if err != nil {
 		return nil, err
 	}
-	_ = ctx
 	exited := make(chan error, 1)
-	go func() { exited <- command.Wait(); close(exited) }()
-	return &serverProcess{command: command, exited: exited, url: "http://" + address}, nil
+	go func() {
+		_, waitErr := supervised.Wait(context.WithoutCancel(ctx))
+		exited <- waitErr
+		close(exited)
+	}()
+	return &serverProcess{supervised: supervised, exited: exited, url: "http://" + address}, nil
 }
 
 type serverProcess struct {
-	command *exec.Cmd
+	supervised *processcontrol.Supervised
 	// exited delivers the child's Wait result; a child that dies during
 	// startup fails Ready immediately instead of polling forever.
 	exited chan error
@@ -92,12 +98,12 @@ func (p *serverProcess) Ready(ctx context.Context) error {
 	}
 }
 
-// Stop terminates the child process and reaps it.
+// Stop terminates the child process tree and reaps it.
 func (p *serverProcess) Stop() error {
-	if p.command.Process == nil {
+	if p.supervised == nil {
 		return nil
 	}
-	if err := p.command.Process.Kill(); err != nil {
+	if err := p.supervised.Terminate(); err != nil {
 		return err
 	}
 	<-p.exited

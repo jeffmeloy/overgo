@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/processcontrol"
 	"overgo/internal/strictjson"
 )
 
@@ -191,12 +191,18 @@ func (adapter *httpAdapter) invoke(ctx context.Context, manual Manual, arguments
 }
 
 func (argvAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
-	command := exec.CommandContext(ctx, manual.Transport.Program, manual.Transport.Args...)
-	command.Stdin = bytes.NewReader(arguments)
 	var stdout bytes.Buffer
-	command.Stdout, command.Stderr = &stdout, io.Discard
-	if err := command.Run(); err != nil {
+	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+		Path:   manual.Transport.Program,
+		Args:   manual.Transport.Args,
+		Stdin:  bytes.NewReader(arguments),
+		Stdout: &stdout,
+	})
+	if err != nil {
 		return nil, fmt.Errorf("agent tool: %q exited: %w", manual.Name, err)
+	}
+	if receipt.ExitCode != 0 {
+		return nil, fmt.Errorf("agent tool: %q exited with status %d", manual.Name, receipt.ExitCode)
 	}
 	// Argv tools speak text; the result is the stdout text as one JSON
 	// string so every transport returns strict JSON to the loop.

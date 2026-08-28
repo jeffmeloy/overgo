@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"overgo/internal/checked"
+	"overgo/internal/processcontrol"
 )
 
 // CaptionedClip binds one on-disk clip to its corpus caption, so DiT
@@ -110,25 +110,32 @@ func DecodeClipSource(ctx context.Context, ffmpeg, path string, shape SourceVide
 	if err != nil {
 		return nil, err
 	}
-	command := exec.CommandContext(ctx, ffmpeg,
-		"-v", "error", "-i", path,
-		"-vf", fmt.Sprintf("scale=%d:%d:flags=bilinear", shape.Width, shape.Height),
-		"-frames:v", fmt.Sprintf("%d", shape.Frames), "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1",
-	)
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
+	stdout, sink := io.Pipe()
 	var stderr bytes.Buffer
-	command.Stderr = &stderr
-	if err := command.Start(); err != nil {
+	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
+		Path: ffmpeg,
+		Args: []string{
+			"-v", "error", "-i", path,
+			"-vf", fmt.Sprintf("scale=%d:%d:flags=bilinear", shape.Width, shape.Height),
+			"-frames:v", fmt.Sprintf("%d", shape.Frames), "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1",
+		},
+		Stdout: sink,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		_ = sink.Close()
 		return nil, err
 	}
+	go func() {
+		_, _ = supervised.Wait(ctx)
+		_ = sink.Close()
+	}()
 	frameBytes := make([]byte, 3*spatial)
 	pixels := make([]float32, elements)
 	for frame := 0; frame < shape.Frames; frame++ {
 		if _, err := io.ReadFull(stdout, frameBytes); err != nil {
-			_ = command.Wait()
+			_ = supervised.Terminate()
+			_, _ = supervised.Wait(ctx)
 			return nil, fmt.Errorf("vidgen: decode %q frame %d/%d: %w: %s",
 				filepath.Base(path), frame, shape.Frames, err, strings.TrimSpace(stderr.String()))
 		}
@@ -138,8 +145,10 @@ func DecodeClipSource(ctx context.Context, ffmpeg, path string, shape SourceVide
 			}
 		}
 	}
-	if err := command.Wait(); err != nil {
-		return nil, fmt.Errorf("vidgen: decode %q: %w: %s", filepath.Base(path), err, strings.TrimSpace(stderr.String()))
+	_, _ = io.Copy(io.Discard, stdout)
+	receipt, err := supervised.Wait(ctx)
+	if err != nil || receipt.ExitCode != 0 {
+		return nil, fmt.Errorf("vidgen: decode %q exit %d: %v: %s", filepath.Base(path), receipt.ExitCode, err, strings.TrimSpace(stderr.String()))
 	}
 	return pixels, nil
 }

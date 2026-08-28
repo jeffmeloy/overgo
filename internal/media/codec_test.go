@@ -22,7 +22,7 @@ func TestExecuteCodecProgram(t *testing.T) {
 	var visited []string
 	output, err := ExecuteCodecProgram("test", program, make([]int, len(program.Operations)), CodecVolume[string]{
 		Storage: "storage", Channels: 2, Frames: 1, Height: 4, Width: 4,
-	}, func(_ int, operation CodecOperation[struct{}], state *int, current CodecVolume[string]) (CodecVolume[string], error) {
+	}, false, func(_ int, operation CodecOperation[struct{}], state *int, current CodecVolume[string]) (CodecVolume[string], error) {
 		*state++
 		visited = append(visited, operation.Name)
 		current.Channels = operation.OutputChannels
@@ -34,7 +34,7 @@ func TestExecuteCodecProgram(t *testing.T) {
 	if output.Channels != 1 || !slices.Equal(visited, program.Names()) {
 		t.Fatalf("output=%+v visited=%v program=%v", output, visited, program.Names())
 	}
-	if _, err := ExecuteCodecProgram("mismatch", program, make([]int, 1), CodecVolume[int]{Channels: 2, Frames: 1, Height: 1, Width: 1}, func(_ int, operation CodecOperation[struct{}], _ *int, current CodecVolume[int]) (CodecVolume[int], error) {
+	if _, err := ExecuteCodecProgram("mismatch", program, make([]int, 1), CodecVolume[int]{Channels: 2, Frames: 1, Height: 1, Width: 1}, false, func(_ int, operation CodecOperation[struct{}], _ *int, current CodecVolume[int]) (CodecVolume[int], error) {
 		current.Channels = operation.OutputChannels
 		return current, nil
 	}); err == nil {

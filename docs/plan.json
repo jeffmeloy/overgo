@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "consumer-migration",
-          "title": "Move loop, agent tools, media, model operations, and web UI helpers to the shared supervisor and delete direct kill paths",
-          "status": "open",
-          "verify": "go test ./cmd/loop ./internal/agenttool ./internal/media ./internal/latentvideo ./internal/modelswap ./internal/webuilane -run '^TestExternalProcessLifecycle$' -count=1",
-          "rationale": "The common component pays only when every real subprocess consumer uses it. Migration preserves consumer-specific inputs while removing duplicate timeout, kill, pipe, and wait mechanics.",
-          "depends_on": [
-            "process-supervision/supervisor"
-          ],
-          "capabilities": [
-            "process-control",
-            "common-code",
-            "consumer-migration"
-          ]
-        },
-        {
           "id": "process-boundary-guard",
           "title": "Add an architecture test that refuses direct production exec and process termination outside processcontrol",
           "status": "open",

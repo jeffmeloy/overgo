@@ -22,6 +22,9 @@ type Command struct {
 	Args []string
 	Dir  string
 	Env  []string
+	// Stdin feeds the process; nil means no input. A caller streaming
+	// input over the process lifetime passes the read side of a pipe.
+	Stdin io.Reader
 	// Stdout and Stderr receive drained output; nil discards.
 	Stdout io.Writer
 	Stderr io.Writer
@@ -49,6 +52,11 @@ type Supervised struct {
 	stdoutBytes int64
 	stderrBytes int64
 
+	// exited closes when the process and both pipes are terminal;
+	// waitErr carries the raw wait result for Wait to interpret.
+	exited  chan struct{}
+	waitErr error
+
 	mu          sync.Mutex
 	interrupted bool
 	terminated  bool
@@ -66,6 +74,7 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	run := exec.Command(command.Path, command.Args...)
 	run.Dir = command.Dir
 	run.Env = command.Env
+	run.Stdin = command.Stdin
 	configureSysProc(run)
 	stdout, err := run.StdoutPipe()
 	if err != nil {
@@ -85,11 +94,36 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 		_ = run.Wait()
 		return nil, fmt.Errorf("processcontrol: contain %s: %w", command.Path, err)
 	}
+	stdoutSink, stderrSink := command.Stdout, command.Stderr
+	if stdoutSink != nil && stdoutSink == stderrSink {
+		shared := &lockedWriter{sink: stdoutSink}
+		stdoutSink, stderrSink = shared, shared
+	}
 	supervised.tree = tree
+	supervised.exited = make(chan struct{})
 	supervised.drain.Add(2)
-	go supervised.drainPipe(stdout, command.Stdout, &supervised.stdoutBytes)
-	go supervised.drainPipe(stderr, command.Stderr, &supervised.stderrBytes)
+	go supervised.drainPipe(stdout, stdoutSink, &supervised.stdoutBytes)
+	go supervised.drainPipe(stderr, stderrSink, &supervised.stderrBytes)
+	go func() {
+		supervised.drain.Wait()
+		supervised.waitErr = run.Wait()
+		close(supervised.exited)
+	}()
 	return supervised, nil
+}
+
+// lockedWriter serializes two drains aimed at one shared sink, so a
+// caller asking for combined output never races its own buffer.
+type lockedWriter struct {
+	mu   sync.Mutex
+	sink io.Writer
+}
+
+// Write forwards under the lock.
+func (w *lockedWriter) Write(data []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.sink.Write(data)
 }
 
 func (s *Supervised) drainPipe(pipe io.Reader, sink io.Writer, counter *int64) {
@@ -137,18 +171,13 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 	}
 	s.mu.Unlock()
 
-	done := make(chan error, 1)
-	go func() {
-		s.drain.Wait()
-		done <- s.command.Wait()
-	}()
-	var waitErr error
 	select {
-	case waitErr = <-done:
+	case <-s.exited:
 	case <-ctx.Done():
 		_ = s.Terminate()
-		waitErr = <-done
+		<-s.exited
 	}
+	waitErr := s.waitErr
 	_ = s.tree.close()
 
 	s.mu.Lock()
@@ -170,4 +199,26 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 		return s.receipt, fmt.Errorf("processcontrol: deadline terminated the tree: %w", ctx.Err())
 	}
 	return s.receipt, nil
+}
+
+// Exited reports, without blocking, whether the process tree and its
+// pipes have reached a terminal state.
+func (s *Supervised) Exited() bool {
+	select {
+	case <-s.exited:
+		return true
+	default:
+		return false
+	}
+}
+
+// Run supervises one command to completion: start, wait for the tree
+// and pipes, and return the receipt. The context deadline terminates
+// the whole tree.
+func Run(ctx context.Context, command Command) (Receipt, error) {
+	supervised, err := Start(ctx, command)
+	if err != nil {
+		return Receipt{}, err
+	}
+	return supervised.Wait(ctx)
 }

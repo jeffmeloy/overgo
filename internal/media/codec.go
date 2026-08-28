@@ -65,6 +65,29 @@ func DownsampledVolumeExactSpatial(frames, height, width int, stride [3]int) (Vo
 	return volume, nil
 }
 
+// UpsampledContinuedVolume derives the geometry a causal temporal
+// upsampler produces once its temporal cache is primed: every input
+// frame yields a full stride of output frames, unlike the first chunk
+// whose leading frame is not temporally expanded.
+func UpsampledContinuedVolume(frames, height, width int, stride [3]int) (VolumeGeometry, error) {
+	if !checked.PositiveInts(frames, height, width, stride[0], stride[1], stride[2]) {
+		return VolumeGeometry{}, fmt.Errorf("media: invalid volume or codec stride")
+	}
+	temporal, ok := checked.MulInt(frames, stride[0])
+	if !ok {
+		return VolumeGeometry{}, fmt.Errorf("media: temporal volume overflows")
+	}
+	outputHeight, ok := checked.MulInt(height, stride[1])
+	if !ok {
+		return VolumeGeometry{}, fmt.Errorf("media: spatial volume overflows")
+	}
+	outputWidth, ok := checked.MulInt(width, stride[2])
+	if !ok {
+		return VolumeGeometry{}, fmt.Errorf("media: spatial volume overflows")
+	}
+	return VolumeGeometry{Frames: temporal, Height: outputHeight, Width: outputWidth}, nil
+}
+
 // UpsampledCausalVolume derives the media geometry produced by a causal
 // temporal codec and integral spatial upsampling.
 func UpsampledCausalVolume(frames, height, width int, stride [3]int) (VolumeGeometry, error) {
@@ -480,12 +503,30 @@ type CodecStep[Bindings, Storage, State any] func(
 	CodecVolume[Storage],
 ) (CodecVolume[Storage], error)
 
-func codecOutputGeometry(operator CodecOperator, input VolumeGeometry) (VolumeGeometry, error) {
+// codecOutputGeometry predicts one operation's output volume. The
+// causal temporal boundary applies only to a chunk that begins the
+// stream: a continued chunk runs with primed temporal caches, so every
+// frame expands (or contracts) by the full temporal stride.
+func codecOutputGeometry(operator CodecOperator, input VolumeGeometry, continued bool) (VolumeGeometry, error) {
 	scale := [3]int{operator.TemporalScale(), operator.SpatialScale(), operator.SpatialScale()}
 	switch operator {
 	case CodecDownsampleSpatial, CodecDownsampleSpatiotemporal:
+		if continued && scale[0] > 1 {
+			if input.Frames%scale[0] != 0 {
+				return VolumeGeometry{}, fmt.Errorf("media: continued temporal volume is not stride-aligned")
+			}
+			volume, err := DownsampledVolumeExactSpatial(input.Frames, input.Height, input.Width, scale)
+			if err != nil {
+				return VolumeGeometry{}, err
+			}
+			volume.Frames = input.Frames / scale[0]
+			return volume, nil
+		}
 		return DownsampledVolumeExactSpatial(input.Frames, input.Height, input.Width, scale)
 	case CodecUpsampleSpatial, CodecUpsampleSpatiotemporal:
+		if continued {
+			return UpsampledContinuedVolume(input.Frames, input.Height, input.Width, scale)
+		}
 		return UpsampledCausalVolume(input.Frames, input.Height, input.Width, scale)
 	default:
 		return input, nil
@@ -524,6 +565,7 @@ func ExecuteCodecProgram[Bindings, Storage, State any](
 	program CodecProgram[Bindings],
 	states []State,
 	input CodecVolume[Storage],
+	continued bool,
 	step CodecStep[Bindings, Storage, State],
 ) (CodecVolume[Storage], error) {
 	if err := program.Validate(scope); err != nil {
@@ -541,7 +583,7 @@ func ExecuteCodecProgram[Bindings, Storage, State any](
 		}
 		geometry, geometryErr := codecOutputGeometry(operation.Operator, VolumeGeometry{
 			Frames: current.Frames, Height: current.Height, Width: current.Width,
-		})
+		}, continued)
 		if geometryErr != nil {
 			return current, fmt.Errorf("%s: operation %d (%s): %w", scope, index, operation.Name, geometryErr)
 		}

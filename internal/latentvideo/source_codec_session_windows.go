@@ -87,7 +87,7 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 			actIndex := tensor.FirstOffset
 			volume, runErr := media.ExecuteCodecProgram("source codec CUDA", s.Plan.CodecProgram, states, media.CodecVolume[driver.DevicePtr]{
 				Storage: x, Channels: plan.Source.Channels, Frames: chunkFrames, Height: plan.Source.Height, Width: plan.Source.Width,
-			}, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
+			}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
 				actIndex = tensor.SingletonExtent - actIndex
 				next, frames, height, width, stepErr := s.codec.runOp(state, index, chunkIndex, operation, s.codec.weights[index], opState, current.Storage, media.ProgramCodecWorkspace(media.CodecWorkspaceActivation, actIndex), current.Frames, current.Height, current.Width)
 				return media.CodecVolume[driver.DevicePtr]{Storage: next, Channels: operation.OutputChannels, Frames: frames, Height: height, Width: width}, stepErr

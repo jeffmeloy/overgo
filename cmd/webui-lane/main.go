@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/processcontrol"
 	"overgo/internal/webuilane"
 )
 
@@ -35,14 +35,18 @@ func run() error {
 	if title != "overgo-webui-lane" {
 		return fmt.Errorf("browser transport self-check returned title %q", title)
 	}
-	command := exec.CommandContext(
-		context.Background(), "go", "test", "./internal/server",
-		"-run", "^TestWebUIBrowserAcceptance$", "-count=1", "-timeout=2m", "-v",
-	)
-	command.Env = append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser)
-	command.Stdout, command.Stderr = os.Stdout, os.Stderr
-	if err := command.Run(); err != nil {
+	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
+		Path:   "go",
+		Args:   []string{"test", "./internal/server", "-run", "^TestWebUIBrowserAcceptance$", "-count=1", "-timeout=2m", "-v"},
+		Env:    append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser),
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	})
+	if err != nil {
 		return err
+	}
+	if receipt.ExitCode != 0 {
+		return fmt.Errorf("webui lane: acceptance exited %d", receipt.ExitCode)
 	}
 	fmt.Printf("webui lane: PASS browser=%s\n", browser)
 	return nil

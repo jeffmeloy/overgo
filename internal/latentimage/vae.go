@@ -297,7 +297,7 @@ func (d *VAEDecoder) DecodeImage(z []float32, h, w int) (pixels []float32, outH,
 		"latentimage vae", d.CodecProgram, make([]struct{}, len(d.Operations)),
 		media.CodecVolume[[]float32]{
 			Storage: x, Channels: d.ZDim, Frames: tensor.SingletonExtent, Height: h, Width: w,
-		},
+		}, false,
 		func(_ int, operation media.CodecOperation[[]float32], _ *struct{}, current media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
 			next, channels, height, width, runErr := d.runOp(
 				operation, current.Storage, current.Channels, current.Height, current.Width,

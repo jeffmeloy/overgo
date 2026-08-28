@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"overgo/internal/checked"
+	"overgo/internal/processcontrol"
 	"overgo/internal/tensor"
 )
 
@@ -184,22 +185,30 @@ func validateVideoDecode(fps float64, maximum int) error {
 
 func decodeFFmpegFrames(ctx context.Context, ffmpeg, input string, stdin io.Reader, fps float64, maximum int) ([]image.Image, error) {
 	filter := "fps=" + strconv.FormatFloat(fps, 'g', -tensor.SingletonExtent, float64Bits)
-	command := exec.CommandContext(
-		ctx, ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
-		"-i", input, "-vf", filter, "-frames:v", strconv.Itoa(maximum),
-		"-f", "image2pipe", "-vcodec", "png", "pipe:1",
-	)
-	command.Stdin = stdin
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
+	framePipe, frameSink := io.Pipe()
 	var stderr DiagnosticBuffer
-	command.Stderr = &stderr
-	if err := command.Start(); err != nil {
+	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
+		Path: ffmpeg,
+		Args: []string{
+			"-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
+			"-i", input, "-vf", filter, "-frames:v", strconv.Itoa(maximum),
+			"-f", "image2pipe", "-vcodec", "png", "pipe:1",
+		},
+		Stdin:  stdin,
+		Stdout: frameSink,
+		Stderr: &stderr,
+	})
+	if err != nil {
+		_ = frameSink.Close()
 		return nil, err
 	}
-	reader := bufio.NewReader(stdout)
+	waitDone := make(chan struct{})
+	go func() {
+		defer close(waitDone)
+		_, _ = supervised.Wait(ctx)
+		_ = frameSink.Close()
+	}()
+	reader := bufio.NewReader(framePipe)
 	frames := make([]image.Image, tensor.FirstOffset, maximum)
 	for len(frames) < maximum {
 		frame, decodeErr := png.Decode(reader)
@@ -207,14 +216,19 @@ func decodeFFmpegFrames(ctx context.Context, ffmpeg, input string, stdin io.Read
 			break
 		}
 		if decodeErr != nil {
-			_ = command.Process.Kill()
-			_ = command.Wait()
+			_ = supervised.Terminate()
+			<-waitDone
 			return nil, decodeErr
 		}
 		frames = append(frames, frame)
 	}
-	if err := command.Wait(); err != nil {
-		return nil, fmt.Errorf("media: FFmpeg: %w: %s", err, strings.TrimSpace(stderr.String()))
+	// Drain any tail bytes so a bounded decode never breaks the pipe
+	// under the writer; the sink closes when the process exits.
+	_, _ = io.Copy(io.Discard, framePipe)
+	<-waitDone
+	receipt, err := supervised.Wait(ctx)
+	if err != nil || receipt.ExitCode != 0 && !receipt.TreeTerminated {
+		return nil, fmt.Errorf("media: FFmpeg exit %d: %v: %s", receipt.ExitCode, err, strings.TrimSpace(stderr.String()))
 	}
 	if len(frames) == tensor.FirstOffset {
 		return nil, errors.New("media: FFmpeg produced no video frames")

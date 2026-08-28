@@ -7,17 +7,18 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
 	"overgo/internal/checked"
 	"overgo/internal/media"
+	"overgo/internal/processcontrol"
 )
 
 // MP4Encoder streams planar frames through one FFmpeg process.
 type MP4Encoder struct {
-	command                             *exec.Cmd
+	supervised                          *processcontrol.Supervised
+	wait                                context.Context
 	input                               io.WriteCloser
 	output                              bytes.Buffer
 	errors                              media.DiagnosticBuffer
@@ -39,24 +40,27 @@ func NewMP4Encoder(ctx context.Context, ffmpeg string, fps, height, width int, p
 	if _, err := os.Stat(ffmpeg); err != nil {
 		return nil, fmt.Errorf("latent video: FFmpeg: %w", err)
 	}
-	encoder := &MP4Encoder{fps: fps, height: height, width: width, pixels: pixels, raw: make([]byte, media.RGBChannels*height*width)}
-	encoder.command = exec.CommandContext(ctx, ffmpeg,
-		"-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
-		"-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", width, height),
-		"-r", strconv.Itoa(fps), "-i", "pipe:0", "-an", "-c:v", "libx264",
-		"-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
-		"-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1",
-	)
-	encoder.command.Stdout, encoder.command.Stderr = &encoder.output, &encoder.errors
-	input, err := encoder.command.StdinPipe()
+	encoder := &MP4Encoder{fps: fps, height: height, width: width, pixels: pixels, raw: make([]byte, media.RGBChannels*height*width), wait: ctx}
+	frameInput, frameSource := io.Pipe()
+	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
+		Path: ffmpeg,
+		Args: []string{
+			"-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1",
+			"-f", "rawvideo", "-pix_fmt", "rgb24", "-s", fmt.Sprintf("%dx%d", width, height),
+			"-r", strconv.Itoa(fps), "-i", "pipe:0", "-an", "-c:v", "libx264",
+			"-preset", "ultrafast", "-crf", "18", "-pix_fmt", "yuv420p",
+			"-movflags", "frag_keyframe+empty_moov", "-f", "mp4", "pipe:1",
+		},
+		Stdin:  frameInput,
+		Stdout: &encoder.output,
+		Stderr: &encoder.errors,
+	})
 	if err != nil {
+		_ = frameSource.Close()
 		return nil, err
 	}
-	encoder.input = input
-	if err := encoder.command.Start(); err != nil {
-		_ = input.Close()
-		return nil, err
-	}
+	encoder.supervised = supervised
+	encoder.input = frameSource
 	return encoder, nil
 }
 
@@ -101,10 +105,10 @@ func (s *MP4Encoder) Finish() (EncodedVideo, error) {
 		return EncodedVideo{}, err
 	}
 	s.input = nil
-	err := s.command.Wait()
-	s.command = nil
-	if err != nil {
-		return EncodedVideo{}, fmt.Errorf("latent video: FFmpeg: %w: %s", err, strings.TrimSpace(s.errors.String()))
+	receipt, err := s.supervised.Wait(s.wait)
+	s.supervised = nil
+	if err != nil || receipt.ExitCode != 0 {
+		return EncodedVideo{}, fmt.Errorf("latent video: FFmpeg exit %d: %v: %s", receipt.ExitCode, err, strings.TrimSpace(s.errors.String()))
 	}
 	return EncodedVideo{
 		Data: s.output.Bytes(), MediaType: media.MP4MediaType, Frames: s.frames, Channels: media.RGBChannels,
@@ -121,11 +125,11 @@ func (s *MP4Encoder) Close() error {
 		_ = s.input.Close()
 		s.input = nil
 	}
-	if s.command == nil || s.command.Process == nil {
+	if s.supervised == nil {
 		return nil
 	}
-	_ = s.command.Process.Kill()
-	err := s.command.Wait()
-	s.command = nil
+	_ = s.supervised.Terminate()
+	_, err := s.supervised.Wait(s.wait)
+	s.supervised = nil
 	return err
 }

@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "retry-session-policy",
-          "title": "Derive retry, resume, fresh-session, retire-session, and refuse decisions from typed failure and bounded attempt history",
-          "status": "open",
-          "verify": "go test ./internal/executionfailure ./internal/agentloop -run '^TestRetryAndSessionDecisionMatrix$' -count=1",
-          "rationale": "Transient failures may retry within an explicit budget; deterministic local failures do not. Context-full or history-poisoned sessions retire instead of resuming forever. The decision and its evidence are published, not inferred later from logs.",
-          "depends_on": [
-            "execution-semantics/failure-normalization"
-          ],
-          "capabilities": [
-            "retry-policy",
-            "session-health",
-            "budget"
-          ]
-        },
-        {
           "id": "attempt-receipt",
           "title": "Publish one terminal attempt receipt binding outcome, failure, process termination, resource summary, and recovery lineage",
           "status": "open",

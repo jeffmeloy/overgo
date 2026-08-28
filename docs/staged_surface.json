@@ -313,6 +313,12 @@
       "name": "ResolveFailureNormalization",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
       "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+    },
+    {
+      "package": "overgo/internal/executionfailure",
+      "name": "ValidDecision",
+      "reason": "Membership guard for the decision vocabulary; staged with the vocabulary.",
+      "consumer_trigger": "execution-semantics/attempt-receipt validates receipt dispositions with it."
     }
   ]
 }

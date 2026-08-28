@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "stimulus-reconciliation",
-      "title": "Bound agent context and reconcile inputs that arrive during execution",
-      "status": "open",
-      "steps": [
-        {
-          "id": "coalesced-followup",
-          "title": "Coalesce late stimuli and admit at most one causally linked follow-up run for each consumed boundary",
-          "status": "open",
-          "verify": "go test ./internal/agentloop ./internal/workflowruntime -run '^TestLateStimulusReconciliation$' -count=1",
-          "rationale": "No admitted input is dropped, and reconnect or duplicate notifications cannot create an agent loop. The durable follow-up decision is idempotent; wake notifications remain operational signals.",
-          "depends_on": [
-            "stimulus-reconciliation/inflight-boundary"
-          ],
-          "capabilities": [
-            "agent-loop",
-            "reconciliation",
-            "idempotency"
-          ]
-        }
-      ]
-    },
-    {
       "id": "capability-bound-activation",
       "title": "Bind executable, peer, model, and tool activation to exact discovered capabilities",
       "status": "open",

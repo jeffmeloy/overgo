@@ -60,6 +60,11 @@ func ResolveAttemptStimulus(ctx context.Context, reader artifact.Reader, operati
 	return attemptStimulusCodec.Resolve(ctx, reader, attemptStimulusAlias(operation, attempt))
 }
 
+// RequireAttemptStimulus returns one boundary by immutable identity.
+func RequireAttemptStimulus(ctx context.Context, reader artifact.Reader, id artifact.ID) (AttemptStimulusBoundary, error) {
+	return attemptStimulusCodec.Require(ctx, reader, id)
+}
+
 // PublishAttemptStimulus commits the immutable boundary and its new cited content.
 func PublishAttemptStimulus(ctx context.Context, repository artifact.Repository, value AttemptStimulusBoundary, contents []artifact.Content) (AttemptStimulusBoundary, error) {
 	if ctx == nil || repository == nil {

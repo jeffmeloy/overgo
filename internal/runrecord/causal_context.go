@@ -29,6 +29,8 @@ const (
 	TriggerDelegation CausalTrigger = "delegation"
 	// TriggerRecovery repairs work lost by a crash.
 	TriggerRecovery CausalTrigger = "recovery"
+	// TriggerFollowup consumes stimuli that arrived after an attempt boundary.
+	TriggerFollowup CausalTrigger = "followup"
 )
 
 // OriginatingTriggers are the triggers that may start a causal root:
@@ -41,7 +43,7 @@ var OriginatingTriggers = []CausalTrigger{
 // DerivedTriggers are the triggers that only continue an existing
 // causal chain; they can never mint a root.
 var DerivedTriggers = []CausalTrigger{
-	TriggerRetry, TriggerRerun, TriggerDelegation, TriggerRecovery,
+	TriggerRetry, TriggerRerun, TriggerDelegation, TriggerRecovery, TriggerFollowup,
 }
 
 // CausalContext explains why one execution occurred, separately from
@@ -65,6 +67,8 @@ type CausalContext struct {
 	DelegatedFrom artifact.ID `json:"delegated_from,omitzero"`
 	// RecoveredFrom names the lost work a recovery repairs.
 	RecoveredFrom artifact.ID `json:"recovered_from,omitzero"`
+	// FollowupOf names the consumed stimulus boundary continued by this run.
+	FollowupOf artifact.ID `json:"followup_of,omitzero"`
 	// Motivation lists the evidence that motivated the execution,
 	// sorted and unique.
 	Motivation []artifact.ID `json:"motivation,omitempty"`
@@ -102,6 +106,8 @@ func (context CausalContext) Derive(trigger CausalTrigger, subject artifact.ID) 
 		derived.DelegatedFrom = subject
 	case TriggerRecovery:
 		derived.RecoveredFrom = subject
+	case TriggerFollowup:
+		derived.FollowupOf = subject
 	default:
 		return CausalContext{}, errors.New("run record: originating trigger cannot derive from a chain")
 	}
@@ -163,6 +169,8 @@ func (context CausalContext) subject() artifact.ID {
 		return context.DelegatedFrom
 	case TriggerRecovery:
 		return context.RecoveredFrom
+	case TriggerFollowup:
+		return context.FollowupOf
 	default:
 		return artifact.ID{}
 	}
@@ -181,6 +189,7 @@ func (context CausalContext) Validate() error {
 		TriggerRerun:      context.ReplayOf.Valid(),
 		TriggerDelegation: context.DelegatedFrom.Valid(),
 		TriggerRecovery:   context.RecoveredFrom.Valid(),
+		TriggerFollowup:   context.FollowupOf.Valid(),
 	}
 	carried, known := subjects[context.Trigger]
 	if !known {
@@ -196,7 +205,7 @@ func (context CausalContext) Validate() error {
 		}
 	}
 	for _, subject := range []artifact.ID{
-		context.ParentAttempt, context.ReplayOf, context.DelegatedFrom, context.RecoveredFrom,
+		context.ParentAttempt, context.ReplayOf, context.DelegatedFrom, context.RecoveredFrom, context.FollowupOf,
 	} {
 		if subject.Valid() && subject.Kind() != artifact.KindEvidence {
 			return errors.New("run record: causal subject must be evidence")

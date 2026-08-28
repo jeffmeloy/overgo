@@ -86,6 +86,8 @@ var TriggerRegistry = []TriggerContract{
 		Budget: BudgetInherited, Idempotency: IdempotencyKeyed, Evidence: "delegation-record"},
 	{Trigger: TriggerRecovery, Originates: false, Authority: AuthorityDeclaredPolicy,
 		Budget: BudgetAttemptBounded, Idempotency: IdempotencyReplaySafe, Evidence: "loop-obligation"},
+	{Trigger: TriggerFollowup, Originates: false, Authority: AuthorityInherited,
+		Budget: BudgetInherited, Idempotency: IdempotencyKeyed, Evidence: "attempt-stimulus"},
 }
 
 // TriggerContractFor returns one trigger's declared contract.

@@ -167,6 +167,17 @@ func (runtime AutomationRuntime) admit(
 	destination string,
 	inputs map[recipe.PortName]Value,
 ) (AutomationExecution, error) {
+	return runtime.admitCausal(ctx, key, plan, destination, inputs, nil)
+}
+
+func (runtime AutomationRuntime) admitCausal(
+	ctx context.Context,
+	key string,
+	plan workflowcontract.AutomationExecutionPlan,
+	destination string,
+	inputs map[recipe.PortName]Value,
+	causal *runrecord.CausalContext,
+) (AutomationExecution, error) {
 	if ctx == nil || runtime.Store == nil || runtime.Operations == nil || runtime.Catalog == nil {
 		return AutomationExecution{}, errors.New("workflow runtime: automation runtime authority is absent")
 	}
@@ -178,15 +189,7 @@ func (runtime AutomationRuntime) admit(
 	if err != nil {
 		return AutomationExecution{}, err
 	}
-	destination, err = automationDeliveryDestination(plan.Delivery, destination)
-	if err != nil {
-		return AutomationExecution{}, err
-	}
-	admissionKey, err := automationAdmissionKey(key, destination)
-	if err != nil {
-		return AutomationExecution{}, err
-	}
-	executionID, err := plan.ExecutionID(admissionKey)
+	destination, executionID, err := automationExecutionIdentity(plan, key, destination)
 	if err != nil {
 		return AutomationExecution{}, err
 	}
@@ -210,8 +213,8 @@ func (runtime AutomationRuntime) admit(
 			}
 			registered[module] = struct{}{}
 		}
-		result, executeErr := engine.ExecuteProgram(
-			runContext, "automation/run/"+executionID.String(), reporter.OperationID(), reporter, program, inputs,
+		result, executeErr := engine.executeProgramCausal(
+			runContext, "automation/run/"+executionID.String(), reporter.OperationID(), reporter, program, inputs, causal,
 		)
 		if executeErr == nil && plan.Delivery.Kind == recipe.AutomationDeliveryTool {
 			executeErr = runtime.deliverAutomation(
@@ -228,6 +231,22 @@ func (runtime AutomationRuntime) admit(
 		return AutomationExecution{}, err
 	}
 	return AutomationExecution{Operation: operationID, Plan: plan}, nil
+}
+
+func automationExecutionIdentity(
+	plan workflowcontract.AutomationExecutionPlan,
+	key, destination string,
+) (string, artifact.ID, error) {
+	destination, err := automationDeliveryDestination(plan.Delivery, destination)
+	if err != nil {
+		return "", artifact.ID{}, err
+	}
+	admissionKey, err := automationAdmissionKey(key, destination)
+	if err != nil {
+		return "", artifact.ID{}, err
+	}
+	executionID, err := plan.ExecutionID(admissionKey)
+	return destination, executionID, err
 }
 
 func (runtime AutomationRuntime) deliverAutomation(

@@ -37,4 +37,9 @@ func TestExecutionTriggerRegistryCoverage(t *testing.T) {
 	if delegation.Idempotency != runrecord.IdempotencyKeyed || delegation.Budget != runrecord.BudgetInherited {
 		t.Fatalf("delegation contract = %+v", delegation)
 	}
+	webhook, _ := runrecord.TriggerContractFor(runrecord.TriggerWebhook)
+	if !seen[runrecord.TriggerWebhook] || webhook.Authority != runrecord.AuthorityDeclaredPolicy ||
+		webhook.Idempotency != runrecord.IdempotencyKeyed {
+		t.Fatalf("webhook contract = %+v, declared = %v", webhook, seen[runrecord.TriggerWebhook])
+	}
 }

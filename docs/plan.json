@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "webhook-ingress",
-      "title": "Add governed webhook ingress to the existing automation runtime",
-      "status": "open",
-      "steps": [
-        {
-          "id": "workflow-dispatch",
-          "title": "Dispatch accepted deliveries through AutomationRuntime with exact recovery and one workflow operation",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime ./internal/server -run '^TestWebhookAutomationDispatchAndRecovery$' -count=1",
-          "rationale": "Signature validation, deduplication, admission, operation creation, and recovery form one deterministic lifecycle. Retries recover the recorded plan rather than executing a newly resolved recipe or emitting duplicate outbound effects.",
-          "depends_on": [
-            "webhook-ingress/delivery-ledger"
-          ],
-          "capabilities": [
-            "workflow-runtime",
-            "automation",
-            "recovery",
-            "idempotency"
-          ]
-        }
-      ]
-    },
-    {
       "id": "resource-coverage",
       "title": "Make resource fitness and evidence coverage first-class RSI inputs",
       "status": "open",

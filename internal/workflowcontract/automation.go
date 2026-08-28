@@ -100,6 +100,9 @@ func (compiler AutomationCompiler) Compile(ctx context.Context, name string) (Au
 	if err != nil {
 		return AutomationExecutionPlan{}, err
 	}
+	if err := requireWebhookWorkflow(trigger, definition.ID); err != nil {
+		return AutomationExecutionPlan{}, err
+	}
 	delivery, err := recipe.RequireAutomationDeliveryPolicy(ctx, compiler.Repository, active.Definition.DeliveryPolicy)
 	if err != nil {
 		return AutomationExecutionPlan{}, err
@@ -232,12 +235,23 @@ func canonicalizeAutomationExecutionPlan(value *AutomationExecutionPlan) error {
 	if value.Trigger.ValidateIdentity() != nil || value.Delivery.ValidateIdentity() != nil {
 		return errors.New("workflow contract: automation policy identity differs")
 	}
+	if err := requireWebhookWorkflow(value.Trigger, value.Recipe); err != nil {
+		return err
+	}
 	if _, err := value.Resources.Content(); err != nil {
 		return err
 	}
 	want, err := automationCacheIdentity(*value)
 	if err != nil || want != value.CacheIdentity {
 		return errors.Join(errors.New("workflow contract: automation cache identity differs"), err)
+	}
+	return nil
+}
+
+func requireWebhookWorkflow(trigger recipe.AutomationTriggerPolicy, workflow artifact.ID) error {
+	if trigger.Kind == recipe.AutomationTriggerWebhook &&
+		(trigger.Webhook == nil || trigger.Webhook.Workflow != workflow) {
+		return errors.New("workflow contract: webhook workflow differs from automation recipe")
 	}
 	return nil
 }

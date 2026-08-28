@@ -69,12 +69,13 @@ type AutomationWorkspaceAPI interface {
 
 // AutomationWorkspace composes existing authorities for server and GUI use.
 type AutomationWorkspace struct {
-	store    *overgodb.Store
-	catalog  *recipe.Catalog
-	adapters map[recipe.ModuleID]workflowruntime.Adapter
-	tools    *agenttool.Executor
-	limit    int
-	clock    workflowruntime.AutomationClock
+	store              *overgodb.Store
+	catalog            *recipe.Catalog
+	adapters           map[recipe.ModuleID]workflowruntime.Adapter
+	tools              *agenttool.Executor
+	webhookKeyResolver AutomationWebhookKeyResolver
+	limit              int
+	clock              workflowruntime.AutomationClock
 }
 
 type systemAutomationClock struct{}
@@ -84,11 +85,12 @@ func (systemAutomationClock) Now() time.Time { return time.Now().UTC() }
 
 // AutomationWorkspaceConfig binds protocol projection to shared runtime owners.
 type AutomationWorkspaceConfig struct {
-	Store    *overgodb.Store
-	Catalog  *recipe.Catalog
-	Adapters map[recipe.ModuleID]workflowruntime.Adapter
-	Tools    *agenttool.Executor
-	Limit    int
+	Store              *overgodb.Store
+	Catalog            *recipe.Catalog
+	Adapters           map[recipe.ModuleID]workflowruntime.Adapter
+	Tools              *agenttool.Executor
+	WebhookKeyResolver AutomationWebhookKeyResolver
+	Limit              int
 }
 
 // Open validates and creates one automation workspace.
@@ -98,7 +100,8 @@ func (config AutomationWorkspaceConfig) Open() (*AutomationWorkspace, error) {
 	}
 	return &AutomationWorkspace{
 		store: config.Store, catalog: config.Catalog, adapters: cloneAutomationAdapters(config.Adapters),
-		tools: config.Tools, limit: config.Limit, clock: systemAutomationClock{},
+		tools: config.Tools, webhookKeyResolver: config.WebhookKeyResolver,
+		limit: config.Limit, clock: systemAutomationClock{},
 	}, nil
 }
 
@@ -294,24 +297,7 @@ func (workspace *AutomationWorkspace) automationInputs(
 	if err != nil {
 		return nil, err
 	}
-	if len(raw) != len(definition.Inputs) {
-		return nil, errors.New("automation workspace: input set differs")
-	}
-	values := make(map[recipe.PortName]workflowruntime.Value, len(raw))
-	for _, input := range definition.Inputs {
-		encoded, found := raw[string(input.Name)]
-		if !found {
-			return nil, errors.New("automation workspace: required input is absent")
-		}
-		var value any
-		if err := json.Unmarshal(encoded, &value); err != nil {
-			return nil, err
-		}
-		values[input.Name] = workflowruntime.Value{
-			Kind: input.Data, Items: []workflowruntime.Datum{{Value: value}},
-		}
-	}
-	return values, nil
+	return workflowruntime.BindAutomationInputs(definition, raw)
 }
 
 func (workspace *AutomationWorkspace) runtime(operations *operation.Manager) workflowruntime.AutomationRuntime {

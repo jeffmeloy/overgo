@@ -13,7 +13,7 @@ const (
 	// WebhookDeliveryMediaType identifies immutable inbound-delivery evidence.
 	WebhookDeliveryMediaType = "application/vnd.overgo.webhook-delivery+json"
 	// WebhookDeliverySchema identifies the delivery ledger contract.
-	WebhookDeliverySchema = "overgo/webhook-delivery/v1"
+	WebhookDeliverySchema = "overgo/webhook-delivery/v2"
 	// WebhookPayloadMediaType identifies verbatim bounded request bodies.
 	WebhookPayloadMediaType = "application/octet-stream"
 	// WebhookPayloadSchema identifies immutable webhook payload blobs.
@@ -74,26 +74,33 @@ const (
 	WebhookReasonPayloadMismatch WebhookDeliveryReason = "payload-mismatch"
 	// WebhookReasonInvalidPayload refuses an empty or malformed body.
 	WebhookReasonInvalidPayload WebhookDeliveryReason = "invalid-payload"
+	// WebhookReasonContentTypeMismatch refuses a bounded body with a foreign media type.
+	WebhookReasonContentTypeMismatch WebhookDeliveryReason = "content-type-mismatch"
 	// WebhookReasonAuthorityDenied refuses an unauthorized source.
 	WebhookReasonAuthorityDenied WebhookDeliveryReason = "authority-denied"
 )
 
-// WebhookDelivery is one immutable inbound observation. Payload is its
-// content digest; PayloadStored distinguishes a bounded blob from a refused
-// body for which only the digest and byte count were retained.
+// WebhookDelivery is one immutable inbound observation. Payload is the digest
+// of the bytes observed at ingress. PayloadStored distinguishes an immutable
+// bounded blob from a refusal carrying only its digest and byte count. When
+// PayloadObservedPrefix is set, PayloadBytes is a lower bound for the request
+// body and Payload identifies only the bounded prefix that ingress observed.
+// Plan pins every executable disposition to its compiled runtime authority.
 type WebhookDelivery struct {
-	Version       uint16                     `json:"version"`
-	Policy        artifact.ID                `json:"policy"`
-	Source        string                     `json:"source"`
-	Idempotency   artifact.ID                `json:"idempotency,omitzero"`
-	Payload       artifact.ID                `json:"payload"`
-	PayloadBytes  uint64                     `json:"payload_bytes"`
-	PayloadStored bool                       `json:"payload_stored,omitempty"`
-	Signature     WebhookSignatureResult     `json:"signature"`
-	Disposition   WebhookDeliveryDisposition `json:"disposition"`
-	Reason        WebhookDeliveryReason      `json:"reason,omitempty"`
-	Original      artifact.ID                `json:"original,omitzero"`
-	ID            artifact.ID                `json:"-"`
+	Version               uint16                     `json:"version"`
+	Policy                artifact.ID                `json:"policy"`
+	Plan                  artifact.ID                `json:"plan,omitzero"`
+	Source                string                     `json:"source"`
+	Idempotency           artifact.ID                `json:"idempotency,omitzero"`
+	Payload               artifact.ID                `json:"payload"`
+	PayloadBytes          uint64                     `json:"payload_bytes"`
+	PayloadStored         bool                       `json:"payload_stored,omitempty"`
+	PayloadObservedPrefix bool                       `json:"payload_observed_prefix,omitempty"`
+	Signature             WebhookSignatureResult     `json:"signature"`
+	Disposition           WebhookDeliveryDisposition `json:"disposition"`
+	Reason                WebhookDeliveryReason      `json:"reason,omitempty"`
+	Original              artifact.ID                `json:"original,omitzero"`
+	ID                    artifact.ID                `json:"-"`
 }
 
 // CausalRoot returns the ingress evidence downstream executions must retain.
@@ -108,13 +115,17 @@ func (value WebhookDelivery) CausalRoot() artifact.ID {
 // their content identities and typed outcomes enter WebhookDelivery.
 type WebhookDeliveryInput struct {
 	Policy         artifact.ID
+	Plan           artifact.ID
 	Source         string
 	IdempotencyKey string
 	Payload        []byte
-	Signature      WebhookSignatureResult
-	Disposition    WebhookDeliveryDisposition
-	Reason         WebhookDeliveryReason
-	Original       artifact.ID
+	// PayloadObservedPrefix marks a policy-bounded observation whose byte
+	// count is a lower bound and whose digest does not claim the full body.
+	PayloadObservedPrefix bool
+	Signature             WebhookSignatureResult
+	Disposition           WebhookDeliveryDisposition
+	Reason                WebhookDeliveryReason
+	Original              artifact.ID
 }
 
 var webhookDeliveryCodec = artifact.JSONDocumentCodec(
@@ -162,6 +173,9 @@ func (ledger WebhookDeliveryLedger) Publish(ctx context.Context, input WebhookDe
 	if err != nil || policy.Kind != recipe.AutomationTriggerWebhook || policy.Webhook == nil {
 		return WebhookDelivery{}, errors.Join(errors.New("run record: webhook policy is absent"), err)
 	}
+	if input.PayloadObservedPrefix && (len(input.Payload) == 0 || uint64(len(input.Payload)) <= policy.Webhook.Payload.MaxBytes) {
+		return WebhookDelivery{}, errors.New("run record: invalid webhook payload observation")
+	}
 	idempotency := artifact.ID{}
 	if input.IdempotencyKey != "" {
 		idempotency, err = webhookIdempotency(policy.ID, input.Source, input.IdempotencyKey)
@@ -174,9 +188,10 @@ func (ledger WebhookDeliveryLedger) Publish(ctx context.Context, input WebhookDe
 		return WebhookDelivery{}, err
 	}
 	value := WebhookDelivery{
-		Version: artifact.InitialDocumentVersion, Policy: policy.ID, Source: input.Source,
+		Version: artifact.InitialDocumentVersion, Policy: policy.ID, Plan: input.Plan, Source: input.Source,
 		Idempotency: idempotency, Payload: payloadID, PayloadBytes: uint64(len(input.Payload)),
-		Signature: input.Signature, Disposition: input.Disposition, Reason: input.Reason, Original: input.Original,
+		PayloadObservedPrefix: input.PayloadObservedPrefix, Signature: input.Signature,
+		Disposition: input.Disposition, Reason: input.Reason, Original: input.Original,
 	}
 	var payload *artifact.Content
 	switch {
@@ -253,7 +268,7 @@ func (ledger WebhookDeliveryLedger) publishCollision(
 		original.Source != attempted.Source || original.Idempotency != attempted.Idempotency {
 		return WebhookDelivery{}, errors.New("run record: webhook idempotency alias differs")
 	}
-	attempted.Original = original.ID
+	attempted.Plan, attempted.Original = original.Plan, original.ID
 	if original.Payload == attempted.Payload && original.PayloadBytes == attempted.PayloadBytes {
 		attempted.Disposition, attempted.Reason = WebhookDeliveryDuplicate, ""
 		payload = nil
@@ -276,6 +291,7 @@ func (ledger WebhookDeliveryLedger) publishReplay(
 	}
 	original, err := ledger.Require(ctx, value.Original)
 	if err != nil || original.Disposition != WebhookDeliveryAccepted || original.Policy != value.Policy ||
+		original.Plan != value.Plan ||
 		original.Source != value.Source || original.Idempotency != value.Idempotency ||
 		original.Payload != value.Payload || original.PayloadBytes != value.PayloadBytes {
 		return WebhookDelivery{}, errors.Join(errors.New("run record: webhook replay differs from original"), err)
@@ -299,6 +315,9 @@ func (ledger WebhookDeliveryLedger) publish(
 	}
 	contents := []artifact.Content{content}
 	parents := []artifact.ID{value.Policy}
+	if value.Plan.Valid() {
+		parents = append(parents, value.Plan)
+	}
 	if value.PayloadStored {
 		parents = append(parents, value.Payload)
 	}
@@ -360,7 +379,8 @@ func webhookIdempotency(policy artifact.ID, source, key string) (artifact.ID, er
 func canonicalizeWebhookDelivery(value *WebhookDelivery) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Policy.Kind() != artifact.KindProfile ||
 		!textcheck.LowerIdentifier(value.Source, len(value.Source)) || value.Payload.Kind() != artifact.KindFile ||
-		!validWebhookSignature(value.Signature) || value.Original.Valid() && value.Original.Kind() != artifact.KindEvidence {
+		!validWebhookSignature(value.Signature) || value.Plan.Valid() && value.Plan.Kind() != artifact.KindProfile ||
+		value.Original.Valid() && value.Original.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid webhook delivery")
 	}
 	if value.PayloadStored {
@@ -372,9 +392,13 @@ func canonicalizeWebhookDelivery(value *WebhookDelivery) error {
 		value.Reason != WebhookReasonInvalidPayload && value.Reason != WebhookReasonPayloadTooLarge) {
 		return errors.New("run record: invalid webhook payload storage fact")
 	}
+	if value.PayloadObservedPrefix && (value.Disposition != WebhookDeliveryRefused ||
+		value.Reason != WebhookReasonPayloadTooLarge || value.PayloadStored || value.PayloadBytes == 0) {
+		return errors.New("run record: invalid webhook payload observation")
+	}
 	switch value.Disposition {
 	case WebhookDeliveryAccepted:
-		if value.Signature != WebhookSignatureVerified || !value.Idempotency.Valid() || value.Reason != "" || value.Original.Valid() || !value.PayloadStored {
+		if value.Plan.Kind() != artifact.KindProfile || value.Signature != WebhookSignatureVerified || !value.Idempotency.Valid() || value.Reason != "" || value.Original.Valid() || !value.PayloadStored {
 			return errors.New("run record: invalid accepted webhook delivery")
 		}
 	case WebhookDeliveryIgnored:
@@ -385,13 +409,9 @@ func canonicalizeWebhookDelivery(value *WebhookDelivery) error {
 		if value.Reason != WebhookReasonRateLimited || value.Original.Valid() || !value.PayloadStored {
 			return errors.New("run record: invalid skipped webhook delivery")
 		}
-	case WebhookDeliveryDuplicate:
-		if value.Signature != WebhookSignatureVerified || !value.Idempotency.Valid() || value.Reason != "" || !value.Original.Valid() || !value.PayloadStored {
-			return errors.New("run record: invalid duplicate webhook delivery")
-		}
-	case WebhookDeliveryReplay:
-		if value.Signature != WebhookSignatureVerified || !value.Idempotency.Valid() || value.Reason != "" || !value.Original.Valid() || !value.PayloadStored {
-			return errors.New("run record: invalid replay webhook delivery")
+	case WebhookDeliveryDuplicate, WebhookDeliveryReplay:
+		if value.Plan.Kind() != artifact.KindProfile || value.Signature != WebhookSignatureVerified || !value.Idempotency.Valid() || value.Reason != "" || !value.Original.Valid() || !value.PayloadStored {
+			return errors.New("run record: invalid webhook retry delivery")
 		}
 	case WebhookDeliveryRefused:
 		if !validWebhookRefusal(*value) {
@@ -418,7 +438,8 @@ func validWebhookRefusal(value WebhookDelivery) bool {
 		return value.Signature == WebhookSignatureInvalid && !value.Original.Valid()
 	case WebhookReasonMissingSignature:
 		return value.Signature == WebhookSignatureMissing && !value.Original.Valid()
-	case WebhookReasonMissingIdempotency, WebhookReasonInvalidPayload, WebhookReasonPayloadTooLarge, WebhookReasonAuthorityDenied:
+	case WebhookReasonMissingIdempotency, WebhookReasonInvalidPayload, WebhookReasonPayloadTooLarge,
+		WebhookReasonContentTypeMismatch, WebhookReasonAuthorityDenied:
 		if value.Original.Valid() {
 			return false
 		}
@@ -427,6 +448,8 @@ func validWebhookRefusal(value WebhookDelivery) bool {
 			return !value.PayloadStored && value.PayloadBytes == 0
 		case WebhookReasonPayloadTooLarge:
 			return !value.PayloadStored && value.PayloadBytes > 0
+		case WebhookReasonContentTypeMismatch:
+			return value.Signature == WebhookSignatureVerified && value.PayloadStored
 		default:
 			return value.PayloadStored
 		}

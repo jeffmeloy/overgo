@@ -17,6 +17,7 @@ import (
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/strictjson"
 )
 
 const (
@@ -189,6 +190,18 @@ func (r *Runtime) ExecuteProgram(
 	program recipe.Program,
 	inputs map[recipe.PortName]Value,
 ) (Result, error) {
+	return r.executeProgramCausal(ctx, key, operation, attempts, program, inputs, nil)
+}
+
+func (r *Runtime) executeProgramCausal(
+	ctx context.Context,
+	key string,
+	operation artifact.ID,
+	attempts AttemptRecorder,
+	program recipe.Program,
+	inputs map[recipe.PortName]Value,
+	causal *runrecord.CausalContext,
+) (Result, error) {
 	if r == nil || r.store == nil || r.catalog == nil {
 		return Result{}, errors.New("workflow runtime: nil runtime")
 	}
@@ -201,7 +214,7 @@ func (r *Runtime) ExecuteProgram(
 	if !program.UsesCatalog(r.catalog) {
 		return Result{}, errors.New("workflow runtime: compiled program uses another module catalog")
 	}
-	return r.executeProgram(ctx, key, operation, attempts, program, inputs)
+	return r.executeProgram(ctx, key, operation, attempts, program, inputs, causal)
 }
 
 // ExecutionID derives one stable operation identity from recipe and caller key.
@@ -222,10 +235,11 @@ func (r *Runtime) executeProgram(
 	attempts AttemptRecorder,
 	program recipe.Program,
 	inputs map[recipe.PortName]Value,
+	causal *runrecord.CausalContext,
 ) (Result, error) {
 	definition := program.Definition()
 	readySets := program.ReadySets()
-	if err := r.publishExecutionAuthority(context.WithoutCancel(ctx), definition, operation); err != nil {
+	if err := r.publishExecutionAuthorityCausal(context.WithoutCancel(ctx), definition, operation, causal); err != nil {
 		return Result{}, err
 	}
 	inputIDs, inputFacts, err := externalFacts(inputs, false)
@@ -466,6 +480,15 @@ func (r *Runtime) publishExecutionAuthority(
 	definition recipe.Definition,
 	operation artifact.ID,
 ) error {
+	return r.publishExecutionAuthorityCausal(ctx, definition, operation, nil)
+}
+
+func (r *Runtime) publishExecutionAuthorityCausal(
+	ctx context.Context,
+	definition recipe.Definition,
+	operation artifact.ID,
+	causal *runrecord.CausalContext,
+) error {
 	content, err := definition.ArtifactContent()
 	if err != nil {
 		return err
@@ -491,12 +514,16 @@ func (r *Runtime) publishExecutionAuthority(
 			missingKey.Write([]byte(id.String()))
 		}
 	}
-	_, err = r.store.Commit(ctx, artifact.Batch{
+	batch := artifact.Batch{
 		Key: "workflow/authority/recipe/" + definition.ID.String() + "/" +
 			hex.EncodeToString(missingKey.Sum(nil)),
 		Artifacts: missing,
 		Contents:  []artifact.Content{content},
-	})
+	}
+	if err := runrecord.BindCausality(&batch, operation, causal); err != nil {
+		return err
+	}
+	_, err = r.store.Commit(ctx, batch)
 	if errors.Is(err, artifact.ErrNoChange) {
 		return nil
 	}
@@ -565,7 +592,12 @@ func (r *Runtime) recoverStage(
 func recoveredDatum(content artifact.Content) Datum {
 	cloned := content.Clone()
 	value := any(slices.Clone(cloned.Data))
-	if strings.HasPrefix(cloned.Descriptor.MediaType, "text/") {
+	if cloned.Descriptor.MediaType == automationInputMediaType && cloned.Descriptor.Schema == automationInputSchema {
+		var decoded any
+		if strictjson.DecodeBytes(cloned.Data, &decoded) == nil {
+			value = decoded
+		}
+	} else if strings.HasPrefix(cloned.Descriptor.MediaType, "text/") {
 		value = string(cloned.Data)
 	}
 	return Datum{Artifact: cloned.Descriptor, Content: &cloned, Value: value}

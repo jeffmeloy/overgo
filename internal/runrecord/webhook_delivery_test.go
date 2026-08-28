@@ -23,12 +23,14 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 		t.Fatal(err)
 	}
 	policy := publishWebhookPolicyFixture(t, store)
+	plan := testutil.ArtifactID(t, artifact.KindProfile, "webhook-plan")
+	testutil.PublishArtifact(t, store, plan)
 	ledger := WebhookDeliveryLedger{Repository: store}
 	payload := bytes.Repeat([]byte(`{"event":"created"}`), 64)
 	originalPayload := slices.Clone(payload)
 	const rawKey = "raw-idempotency-secret"
 	input := WebhookDeliveryInput{
-		Policy: policy.ID, Source: "github", IdempotencyKey: rawKey, Payload: payload,
+		Policy: policy.ID, Plan: plan, Source: "github", IdempotencyKey: rawKey, Payload: payload,
 		Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryAccepted,
 	}
 
@@ -67,7 +69,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 			t.Fatalf("concurrent disposition = %q", record.Disposition)
 		}
 	}
-	if !accepted.ID.Valid() || duplicate.Original != accepted.ID || duplicate.Payload != accepted.Payload ||
+	if !accepted.ID.Valid() || accepted.Plan != plan || duplicate.Plan != plan || duplicate.Original != accepted.ID || duplicate.Payload != accepted.Payload ||
 		accepted.CausalRoot() != accepted.ID || duplicate.CausalRoot() != accepted.ID {
 		t.Fatalf("concurrent records = accepted %+v duplicate %+v", accepted, duplicate)
 	}
@@ -75,10 +77,12 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	assertWebhookPayload(t, store, accepted.Payload, originalPayload)
 
 	current, found, err := ledger.Current(ctx, policy.ID, "github", rawKey)
-	if err != nil || !found || current.ID != accepted.ID {
+	if err != nil || !found || current.ID != accepted.ID || current.Plan != plan {
 		t.Fatalf("current original = (%+v, %v, %v)", current, found, err)
 	}
 	assertWebhookRelation(t, store, duplicate.ID, accepted.ID, artifact.RelationDuplicateOf)
+	assertWebhookRelation(t, store, duplicate.ID, plan, artifact.RelationDependsOn)
+	assertWebhookRelation(t, store, accepted.ID, plan, artifact.RelationDependsOn)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -89,51 +93,82 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	defer store.Close()
 	ledger.Repository = store
 	current, found, err = ledger.Current(ctx, policy.ID, "github", rawKey)
-	if err != nil || !found || current.ID != accepted.ID {
+	if err != nil || !found || current.ID != accepted.ID || current.Plan != plan {
 		t.Fatalf("reopened original = (%+v, %v, %v)", current, found, err)
 	}
+	driftPlan := testutil.ArtifactID(t, artifact.KindProfile, "replacement-webhook-plan")
+	testutil.PublishArtifact(t, store, driftPlan)
+	if _, err := ledger.Publish(ctx, WebhookDeliveryInput{
+		Policy: policy.ID, Source: "github", IdempotencyKey: "planless-key", Payload: originalPayload,
+		Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryAccepted,
+	}); err == nil {
+		t.Fatal("accepted delivery omitted its exact compiled plan")
+	}
 	restarted, err := ledger.Publish(ctx, WebhookDeliveryInput{
-		Policy: policy.ID, Source: "github", IdempotencyKey: rawKey, Payload: originalPayload,
+		Policy: policy.ID, Plan: driftPlan, Source: "github", IdempotencyKey: rawKey, Payload: originalPayload,
 		Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryAccepted,
 	})
-	if err != nil || restarted.ID != duplicate.ID || restarted.Original != accepted.ID {
+	if err != nil || restarted.ID != duplicate.ID || restarted.Original != accepted.ID || restarted.Plan != plan {
 		t.Fatalf("restart duplicate = (%+v, %v)", restarted, err)
 	}
 	replay, err := ledger.Publish(ctx, WebhookDeliveryInput{
-		Policy: policy.ID, Source: "github", IdempotencyKey: rawKey, Payload: originalPayload,
+		Policy: policy.ID, Plan: plan, Source: "github", IdempotencyKey: rawKey, Payload: originalPayload,
 		Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryReplay, Original: accepted.ID,
 	})
 	if err != nil || replay.CausalRoot() != accepted.ID {
 		t.Fatalf("replay = (%+v, %v)", replay, err)
 	}
 	assertWebhookRelation(t, store, replay.ID, accepted.ID, artifact.RelationDerivedFrom)
+	assertWebhookRelation(t, store, replay.ID, plan, artifact.RelationDependsOn)
+	if _, err := ledger.Publish(ctx, WebhookDeliveryInput{
+		Policy: policy.ID, Plan: driftPlan, Source: "github", IdempotencyKey: rawKey, Payload: originalPayload,
+		Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryReplay, Original: accepted.ID,
+	}); err == nil {
+		t.Fatal("replay accepted a plan different from its original")
+	}
 
 	mismatch, err := ledger.Publish(ctx, WebhookDeliveryInput{
-		Policy: policy.ID, Source: "github", IdempotencyKey: rawKey, Payload: []byte(`{"event":"changed"}`),
+		Policy: policy.ID, Plan: driftPlan, Source: "github", IdempotencyKey: rawKey, Payload: []byte(`{"event":"changed"}`),
 		Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryAccepted,
 	})
 	if err != nil || mismatch.Disposition != WebhookDeliveryRefused || mismatch.Reason != WebhookReasonPayloadMismatch ||
-		mismatch.Original != accepted.ID || mismatch.CausalRoot() != mismatch.ID {
+		mismatch.Original != accepted.ID || mismatch.Plan != plan || mismatch.CausalRoot() != mismatch.ID {
 		t.Fatalf("payload mismatch = (%+v, %v)", mismatch, err)
 	}
 
 	for _, fixture := range []WebhookDeliveryInput{
 		{Policy: policy.ID, Source: "github", IdempotencyKey: "ignored-key", Payload: []byte("ignored"), Signature: WebhookSignatureUnchecked, Disposition: WebhookDeliveryIgnored, Reason: WebhookReasonInactivePolicy},
 		{Policy: policy.ID, Source: "github", IdempotencyKey: "skipped-key", Payload: []byte("skipped"), Signature: WebhookSignatureVerified, Disposition: WebhookDeliverySkipped, Reason: WebhookReasonRateLimited},
+		{Policy: policy.ID, Plan: plan, Source: "github", IdempotencyKey: "foreign-content-key", Payload: []byte("bounded"), Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryRefused, Reason: WebhookReasonContentTypeMismatch},
 	} {
 		if _, err := ledger.Publish(ctx, fixture); err != nil {
 			t.Fatal(err)
 		}
 	}
+	observedPrefix := bytes.Repeat([]byte("x"), int(policy.Webhook.Payload.MaxBytes)+1)
+	oversized, err := ledger.Publish(ctx, WebhookDeliveryInput{
+		Policy: policy.ID, Plan: plan, Source: "github", IdempotencyKey: "oversized-key", Payload: observedPrefix,
+		PayloadObservedPrefix: true, Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryAccepted,
+	})
+	if err != nil || oversized.Disposition != WebhookDeliveryRefused || oversized.Reason != WebhookReasonPayloadTooLarge ||
+		!oversized.PayloadObservedPrefix || oversized.PayloadStored || oversized.PayloadBytes != uint64(len(observedPrefix)) {
+		t.Fatalf("observed-prefix refusal = (%+v, %v)", oversized, err)
+	}
+	if _, err := ledger.Publish(ctx, WebhookDeliveryInput{
+		Policy: policy.ID, Plan: plan, Source: "github", IdempotencyKey: "false-prefix-key", Payload: []byte("bounded"),
+		PayloadObservedPrefix: true, Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryAccepted,
+	}); err == nil {
+		t.Fatal("bounded body accepted as an observed prefix")
+	}
 	refused, err := ledger.Publish(ctx, WebhookDeliveryInput{
-		Policy: policy.ID, Source: "github", IdempotencyKey: "unpoisoned-key", Payload: []byte("bounded"),
+		Policy: policy.ID, Plan: plan, Source: "github", IdempotencyKey: "unpoisoned-key", Payload: []byte("bounded"),
 		Signature: WebhookSignatureInvalid, Disposition: WebhookDeliveryAccepted,
 	})
 	if err != nil || refused.Disposition != WebhookDeliveryRefused || refused.Reason != WebhookReasonInvalidSignature {
 		t.Fatalf("invalid signature refusal = (%+v, %v)", refused, err)
 	}
 	afterRefusal, err := ledger.Publish(ctx, WebhookDeliveryInput{
-		Policy: policy.ID, Source: "github", IdempotencyKey: "unpoisoned-key", Payload: []byte("bounded"),
+		Policy: policy.ID, Plan: plan, Source: "github", IdempotencyKey: "unpoisoned-key", Payload: []byte("bounded"),
 		Signature: WebhookSignatureVerified, Disposition: WebhookDeliveryAccepted,
 	})
 	if err != nil || afterRefusal.Disposition != WebhookDeliveryAccepted {

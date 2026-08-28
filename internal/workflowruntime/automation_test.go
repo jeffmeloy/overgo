@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 type automationRuntimeFixture struct {
 	store      *overgodb.Store
+	root       string
 	definition recipe.Definition
 	name       string
 	inputs     map[recipe.PortName]Value
@@ -121,6 +123,116 @@ func TestAutomationRecovery(t *testing.T) {
 	}
 }
 
+func TestWebhookAutomationDispatchAndRecovery(t *testing.T) {
+	fixture := newWebhookAutomationRuntimeFixture(t)
+	defer func() {
+		if fixture.store != nil {
+			_ = fixture.store.Close()
+		}
+	}()
+	ctx := context.Background()
+	firstManager, err := operation.NewManager(len(fixture.definition.Nodes) + 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tokenizeCalls atomic.Uint32
+	firstAdapters := generationAutomationAdapters(t, true, nil)
+	tokenize := firstAdapters[workflowrecipe.ModuleTokenize]
+	firstAdapters[workflowrecipe.ModuleTokenize] = AdapterFunc(func(ctx context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
+		tokenizeCalls.Add(1)
+		return tokenize.Execute(ctx, request)
+	})
+	first := fixture.runtime(t, firstManager, firstAdapters)
+	plan, err := first.PrepareWebhook(ctx, fixture.name)
+	if err != nil {
+		firstManager.Close()
+		t.Fatal(err)
+	}
+	payload := []byte(`{"prompt":"hello"}`)
+	ledger := runrecord.WebhookDeliveryLedger{Repository: fixture.store}
+	accepted, err := ledger.Publish(ctx, runrecord.WebhookDeliveryInput{
+		Policy: plan.Trigger.ID, Plan: plan.ID, Source: plan.Name, IdempotencyKey: "delivery-1",
+		Payload: payload, Signature: runrecord.WebhookSignatureVerified, Disposition: runrecord.WebhookDeliveryAccepted,
+	})
+	if err != nil {
+		firstManager.Close()
+		t.Fatal(err)
+	}
+	failed, err := first.DispatchWebhook(ctx, accepted.ID)
+	if err != nil {
+		firstManager.Close()
+		t.Fatal(err)
+	}
+	status, err := firstManager.Wait(ctx, failed.Operation)
+	if err != nil || status.State != operation.StateFailed || tokenizeCalls.Load() != 1 {
+		firstManager.Close()
+		t.Fatalf("failed webhook operation = (%+v, %v), tokenize calls = %d", status, err, tokenizeCalls.Load())
+	}
+	duplicate, err := ledger.Publish(ctx, runrecord.WebhookDeliveryInput{
+		Policy: plan.Trigger.ID, Plan: plan.ID, Source: plan.Name, IdempotencyKey: "delivery-1",
+		Payload: payload, Signature: runrecord.WebhookSignatureVerified, Disposition: runrecord.WebhookDeliveryAccepted,
+	})
+	if err != nil || duplicate.Disposition != runrecord.WebhookDeliveryDuplicate || duplicate.Plan != plan.ID {
+		firstManager.Close()
+		t.Fatalf("duplicate webhook delivery = (%+v, %v)", duplicate, err)
+	}
+	converged, err := first.DispatchWebhook(ctx, duplicate.ID)
+	if err != nil || converged.Operation != failed.Operation || len(firstManager.List()) != 1 || tokenizeCalls.Load() != 1 {
+		firstManager.Close()
+		t.Fatalf("duplicate webhook convergence = (%+v, %v), operations = %d, tokenize calls = %d",
+			converged, err, len(firstManager.List()), tokenizeCalls.Load())
+	}
+	firstManager.Close()
+	if err := fixture.store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	fixture.store = nil
+
+	reopened, err := overgodb.Open(fixture.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.store = reopened
+	activateReplacementWebhook(t, fixture)
+	secondManager, err := operation.NewManager(len(fixture.definition.Nodes) + 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer secondManager.Close()
+	secondAdapters := generationAutomationAdapters(t, false, nil)
+	secondAdapters[workflowrecipe.ModuleTokenize] = AdapterFunc(func(context.Context, StepRequest) (map[recipe.PortName]Value, error) {
+		return nil, errors.New("completed webhook stage reran")
+	})
+	second := fixture.runtime(t, secondManager, secondAdapters)
+	replacementPlan, err := second.PrepareWebhook(ctx, fixture.name)
+	if err != nil || replacementPlan.ID == plan.ID {
+		t.Fatalf("replacement webhook plan = (%s, %v), original = %s", replacementPlan.ID, err, plan.ID)
+	}
+	retry, err := (runrecord.WebhookDeliveryLedger{Repository: fixture.store}).Publish(ctx, runrecord.WebhookDeliveryInput{
+		Policy: plan.Trigger.ID, Plan: replacementPlan.ID, Source: plan.Name, IdempotencyKey: "delivery-1",
+		Payload: payload, Signature: runrecord.WebhookSignatureVerified, Disposition: runrecord.WebhookDeliveryAccepted,
+	})
+	if err != nil || retry.Disposition != runrecord.WebhookDeliveryDuplicate || retry.Plan != plan.ID {
+		t.Fatalf("replacement-era retry = (%+v, %v)", retry, err)
+	}
+	recovered, err := second.DispatchWebhook(ctx, retry.ID)
+	if err != nil || recovered.Operation != failed.Operation || recovered.Plan.ID != plan.ID {
+		t.Fatalf("webhook recovery admission = (%+v, %v)", recovered, err)
+	}
+	status, err = secondManager.Wait(ctx, recovered.Operation)
+	if err != nil || status.State != operation.StateCompleted || len(secondManager.List()) != 1 || tokenizeCalls.Load() != 1 {
+		t.Fatalf("recovered webhook status = (%+v, %v), operations = %d, tokenize calls = %d",
+			status, err, len(secondManager.List()), tokenizeCalls.Load())
+	}
+	causality, err := fixture.store.QueryCausality(ctx, overgodb.CausalityQuery{
+		Execution: &recovered.Operation, MaxResults: 1,
+	})
+	if err != nil || len(causality.Links) != 1 || causality.Links[0].Root != accepted.ID ||
+		causality.Links[0].Trigger != string(runrecord.TriggerWebhook) {
+		t.Fatalf("webhook operation causality = (%+v, %v)", causality, err)
+	}
+}
+
 type fixedAutomationClock struct{ now time.Time }
 
 func (clock fixedAutomationClock) Now() time.Time { return clock.now }
@@ -196,13 +308,82 @@ func newScheduledAutomationRuntimeFixture(t *testing.T, anchor time.Time) automa
 	})
 }
 
+func newWebhookAutomationRuntimeFixture(t *testing.T) automationRuntimeFixture {
+	fixture := newAutomationRuntimeFixture(t)
+	key := commitAutomationRuntimeBlob(t, fixture.store, artifact.KindProfile, "automation-webhook-key")
+	schema := commitAutomationRuntimeBlob(t, fixture.store, artifact.KindProfile, "automation-webhook-schema")
+	authority := commitAutomationRuntimeBlob(t, fixture.store, artifact.KindEvidence, "automation-webhook-authority")
+	trigger, err := (recipe.AutomationTriggerPolicy{Kind: recipe.AutomationTriggerWebhook, Webhook: &recipe.WebhookTriggerPolicy{
+		Signature: recipe.WebhookSignaturePolicy{Algorithm: "hmac-sha256", Header: "X-Overgo-Signature", Key: key},
+		Payload: recipe.WebhookPayloadPolicy{
+			ContentType: "application/json", Schema: schema, MaxBytes: 4096, IdempotencyHeader: "X-Overgo-Delivery",
+		},
+		Rate:      recipe.WebhookRatePolicy{WindowSeconds: 60, MaxDeliveries: 10},
+		Authority: authority, Workflow: fixture.definition.ID,
+	}}).Identify()
+	if err != nil {
+		fixture.store.Close()
+		t.Fatal(err)
+	}
+	content, err := trigger.ArtifactContent()
+	if err == nil {
+		var batch artifact.Batch
+		batch, err = artifact.NewDocumentBatch("automation/runtime/webhook-trigger", []artifact.Content{content}, trigger.Lineage(), nil)
+		if err == nil {
+			_, err = artifact.CommitBatch(context.Background(), fixture.store, batch)
+		}
+	}
+	if err != nil {
+		fixture.store.Close()
+		t.Fatal(err)
+	}
+	current, found, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Resolve(context.Background(), fixture.name)
+	if err != nil || !found {
+		fixture.store.Close()
+		t.Fatalf("manual fixture activation = (%v, %v)", found, err)
+	}
+	declaration := current.Definition
+	declaration.TriggerPolicy = trigger.ID
+	declaration, err = recipe.NewAutomationDefinition(declaration)
+	if err != nil {
+		fixture.store.Close()
+		t.Fatal(err)
+	}
+	decision := commitAutomationRuntimeBlob(t, fixture.store, artifact.KindEvidence, "automation-webhook-activation")
+	if _, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Activate(
+		context.Background(), "automation/runtime/activate-webhook", declaration, decision,
+	); err != nil {
+		fixture.store.Close()
+		t.Fatal(err)
+	}
+	return fixture
+}
+
+func activateReplacementWebhook(
+	t *testing.T,
+	fixture automationRuntimeFixture,
+) {
+	t.Helper()
+	current, found, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Resolve(context.Background(), fixture.name)
+	if err != nil || !found {
+		t.Fatalf("webhook fixture activation = (%v, %v)", found, err)
+	}
+	decision := commitAutomationRuntimeBlob(t, fixture.store, artifact.KindEvidence, "automation-webhook-replacement-activation")
+	if _, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Activate(
+		context.Background(), "automation/runtime/activate-webhook-replacement", current.Definition, decision,
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func newAutomationRuntimeFixtureWithTrigger(
 	t *testing.T,
 	triggerDeclaration recipe.AutomationTriggerPolicy,
 ) automationRuntimeFixture {
 	t.Helper()
 	ctx := context.Background()
-	store, err := overgodb.Open(t.TempDir())
+	root := t.TempDir()
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +449,7 @@ func newAutomationRuntimeFixtureWithTrigger(
 	}
 	prompt := fixtureContent(t, artifact.KindFile, "hello")
 	return automationRuntimeFixture{
-		store: store, definition: definition, name: automation.Name,
+		store: store, root: root, definition: definition, name: automation.Name,
 		inputs: map[recipe.PortName]Value{
 			"prompt": {Kind: recipe.DataText, Items: []Datum{{Content: &prompt, Value: "hello"}}},
 		},

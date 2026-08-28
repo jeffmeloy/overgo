@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "tighten-artifact-unmarshal",
-      "title": "One text-unmarshal helper in artifact",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "One text-unmarshal helper in artifact",
-          "status": "open",
-          "verify": "go test ./internal/artifact -count=1"
-        }
-      ]
-    },
-    {
       "id": "tighten-composition-alias",
       "title": "One parameterized composition alias resolver",
       "status": "open",

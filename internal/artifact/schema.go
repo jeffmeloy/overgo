@@ -95,15 +95,7 @@ func (r Relation) MarshalJSON() ([]byte, error) {
 }
 
 func (r *Relation) UnmarshalText(data []byte) error {
-	if r == nil {
-		return errors.New("artifact: nil relation target")
-	}
-	parsed, err := ParseRelation(string(data))
-	if err != nil {
-		return err
-	}
-	*r = parsed
-	return nil
+	return unmarshalParsedText(r, data, ParseRelation, "relation")
 }
 
 func (r *Relation) UnmarshalJSON(data []byte) error {

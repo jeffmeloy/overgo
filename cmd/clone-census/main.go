@@ -25,6 +25,7 @@ func run() error {
 	summary := flag.Bool("summary", false, "print only the totals line")
 	runtimeOnly := flag.Bool("runtime", false, "print only non-test clone groups")
 	requireAbsent := flag.String("require-absent", "", "fail if any clone group still contains a function whose file:name contains this substring")
+	maxExcess := flag.Int("max-excess", -1, "fail if duplicate-excess nodes exceed this ratchet; -1 disables")
 	flag.Parse()
 	snapshot, err := repoanalysis.DiscoverGo(".", "cmd", "internal")
 	if err != nil {
@@ -36,6 +37,12 @@ func run() error {
 	}
 	fmt.Printf("functions=%d clone_groups=%d duplicate_excess_nodes=%d\n",
 		len(profile.Functions), len(profile.Clones), profile.DuplicateExcessNodes)
+	if *maxExcess >= 0 {
+		if profile.DuplicateExcessNodes > *maxExcess {
+			return fmt.Errorf("clone-census: duplicate-excess %d exceeds ratchet %d", profile.DuplicateExcessNodes, *maxExcess)
+		}
+		fmt.Printf("clone-census: duplicate-excess %d within ratchet %d\n", profile.DuplicateExcessNodes, *maxExcess)
+	}
 	if *requireAbsent != "" {
 		for _, clone := range profile.Clones {
 			for _, function := range clone.Functions {

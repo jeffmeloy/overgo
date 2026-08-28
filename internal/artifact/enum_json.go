@@ -20,6 +20,20 @@ func unmarshalEnumJSON(data []byte, names []string, kind string) (int, error) {
 	return parseEnum(value, names, kind)
 }
 
+// unmarshalParsedText fills target from a textual form through its
+// parser; every TextUnmarshaler in the package shares this shape.
+func unmarshalParsedText[T any](target *T, data []byte, parse func(string) (T, error), kind string) error {
+	if target == nil {
+		return fmt.Errorf("artifact: nil %s target", kind)
+	}
+	parsed, err := parse(string(data))
+	if err != nil {
+		return err
+	}
+	*target = parsed
+	return nil
+}
+
 func unmarshalEnumInto[T ~uint8](target *T, data []byte, names []string, kind string) error {
 	if target == nil {
 		return fmt.Errorf("artifact: nil %s target", kind)

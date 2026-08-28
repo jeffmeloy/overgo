@@ -181,15 +181,7 @@ func (id ID) MarshalText() ([]byte, error) {
 }
 
 func (id *ID) UnmarshalText(data []byte) error {
-	if id == nil {
-		return errors.New("artifact: nil ID target")
-	}
-	parsed, err := ParseID(string(data))
-	if err != nil {
-		return err
-	}
-	*id = parsed
-	return nil
+	return unmarshalParsedText(id, data, ParseID, "ID")
 }
 
 func (id ID) MarshalJSON() ([]byte, error) {

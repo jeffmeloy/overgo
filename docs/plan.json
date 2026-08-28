@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "storage-baseline",
-      "title": "Pin the current OvergoDB contract and scale envelope before changing storage",
-      "status": "open",
-      "steps": [
-        {
-          "id": "compatibility-corpus",
-          "title": "Pin legacy inline-log replay, torn-tail recovery, snapshot fallback, read-only refresh, backup, and retention behavior",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestLegacyStoreCompatibilityCorpus$' -count=1",
-          "rationale": "Existing stores are an immutable external format boundary. One corpus must prove every behavior the new layout preserves and must include corruption refusal, not only successful replay.",
-          "depends_on": [
-            "storage-baseline/scale-corpus"
-          ],
-          "capabilities": [
-            "overgodb",
-            "format-compatibility",
-            "fault-recovery",
-            "backup"
-          ]
-        }
-      ]
-    },
-    {
       "id": "redundancy-interaction-baseline",
       "title": "Measure duplicate ownership and interaction cost before expanding the RSI control plane",
       "status": "open",

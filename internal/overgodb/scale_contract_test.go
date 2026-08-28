@@ -64,7 +64,7 @@ func buildScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, []t
 			batch.Lineage = []artifact.Lineage{{Child: id, Parent: previous, Relation: artifact.RelationDerivedFrom}}
 		}
 		if ordinal%scaleAliasStride == 0 {
-			batch.Aliases = []artifact.AliasBinding{{Name: fmt.Sprintf("scale/alias/%d", ordinal), Target: id}}
+			batch.Aliases = []artifact.AliasBinding{{Name: aliasName(ordinal), Target: id}}
 		}
 		start := time.Now()
 		if _, err := store.Commit(ctx, batch); err != nil {
@@ -81,6 +81,8 @@ func buildScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, []t
 	head, _ := store.Head()
 	return head, snapshot.Path, latencies, contentBytes
 }
+
+func aliasName(ordinal int) string { return fmt.Sprintf("scale/alias/%d", ordinal) }
 
 func scaleContent(ordinal int) []byte {
 	content := make([]byte, 0, scaleContentBytes)
@@ -146,7 +148,7 @@ func TestStoreScaleContract(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		target, found, err := store.ResolveAlias(ctx, fmt.Sprintf("scale/alias/%d", ordinal))
+		target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
 		if err != nil || !found || target != id {
 			t.Fatalf("alias %d: found=%v err=%v", ordinal, found, err)
 		}

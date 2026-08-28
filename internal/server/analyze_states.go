@@ -56,9 +56,6 @@ type analyzeStatesResponse struct {
 // cosine/Euclidean distance matrices, a kNN neighbor graph, and a rank-only
 // non-metric-MDS layout. Nothing here fits a model or assumes a shape.
 func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	if h.config.Analysis == (AnalysisPolicy{}) {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "state analysis policy is unavailable")
 		return

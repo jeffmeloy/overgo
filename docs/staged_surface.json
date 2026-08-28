@@ -2,29 +2,185 @@
  "version": 1,
  "doc": "Reviewed staged surface: exported symbols whose production consumer is deliberately deferred. Each entry names why the surface exists and the work expected to consume it; prune an entry when its trigger lands. Undeclared new unconsumed surface still blocks the gate.",
  "staged": [
-  {"package": "overgo/internal/agentloop", "name": "NewMutationCheckpointRuntime", "reason": "Agent-loop mutation checkpointing API delivered by the manifest lane with internals and tests complete.", "consumer_trigger": "Agent delegation campaign wires checkpointed mutation runs into cmd/agent-loop."},
-  {"package": "overgo/internal/agentloop", "name": "NewDelegatedCoordinator", "reason": "Delegated multi-agent coordination API delivered by the manifest lane.", "consumer_trigger": "Agent delegation campaign wires coordination into cmd/agent-loop."},
-  {"package": "overgo/internal/agenttool", "name": "CapabilityProxyManual", "reason": "Capability proxy manual surface for agent tool invocation.", "consumer_trigger": "Agent delegation campaign exposes capability proxies through the tool transport."},
-  {"package": "overgo/internal/agenttool", "name": "RegisterCapabilityProxy", "reason": "Capability proxy registration for agent tool invocation.", "consumer_trigger": "Agent delegation campaign exposes capability proxies through the tool transport."},
-  {"package": "overgo/internal/closurescan", "name": "AgentHarnessSurfaceRegressions", "reason": "Harness surface regression audit delivered ahead of its gate phase.", "consumer_trigger": "Gate grows a harness-audit check."},
-  {"package": "overgo/internal/evaluation", "name": "BindAgentTrajectoryPlan", "reason": "Agent trajectory evaluation binding delivered ahead of trajectory scoring.", "consumer_trigger": "Agent trajectory evaluation campaign."},
-  {"package": "overgo/internal/loop", "name": "CompareStrategyExperiment", "reason": "Strategy comparison experiment API for the continuity loop.", "consumer_trigger": "cmd/loop adopts strategy experiments."},
-  {"package": "overgo/internal/loop", "name": "NewStrategy", "reason": "Strategy constructor for the continuity loop experiment API.", "consumer_trigger": "cmd/loop adopts strategy experiments."},
-  {"package": "overgo/internal/operation", "name": "NewManagerWithRepository", "reason": "Operation manager bound to a store repository.", "consumer_trigger": "Operation manager store adoption in the serving surface."},
-  {"package": "overgo/internal/plan", "name": "NewWorkLease", "reason": "Multi-lane work lease API for plan orchestration.", "consumer_trigger": "Multi-lane plan coordination campaign."},
-  {"package": "overgo/internal/plan", "name": "ResolveWorkspaceClaims", "reason": "Workspace claim resolution for plan orchestration.", "consumer_trigger": "Multi-lane plan coordination campaign."},
-  {"package": "overgo/internal/plan", "name": "WorkLeaseAlias", "reason": "Work lease alias naming for plan orchestration.", "consumer_trigger": "Multi-lane plan coordination campaign."},
-  {"package": "overgo/internal/plan", "name": "WorkspaceClaimOrder", "reason": "Deterministic workspace claim ordering for plan orchestration.", "consumer_trigger": "Multi-lane plan coordination campaign."},
-  {"package": "overgo/internal/plan", "name": "AdmitSteeringProposal", "reason": "Typed steering proposal admission into the plan.", "consumer_trigger": "cmd/plan admits steering proposals from agents."},
-  {"package": "overgo/internal/recipe", "name": "NewAgentTaskContract", "reason": "Typed agent task contract records.", "consumer_trigger": "Agent delegation campaign records task contracts."},
-  {"package": "overgo/internal/recipe", "name": "NewDelegatedAgentInvocation", "reason": "Typed delegated agent invocation records.", "consumer_trigger": "Agent delegation campaign records invocations."},
-  {"package": "overgo/internal/recipe", "name": "NewSteeringProposal", "reason": "Typed steering proposal records.", "consumer_trigger": "cmd/plan admits steering proposals from agents."},
-  {"package": "overgo/internal/repoanalysis", "name": "AuditAgentHarnessConsolidation", "reason": "Agent harness consolidation audit delivered ahead of its gate phase.", "consumer_trigger": "Gate grows a harness-audit check."},
-  {"package": "overgo/internal/runrecord", "name": "NewAgentObligation", "reason": "Typed agent obligation records.", "consumer_trigger": "Agent obligation enforcement in the gate."},
-  {"package": "overgo/internal/runrecord", "name": "NewAgentObligationResolution", "reason": "Typed agent obligation resolution records.", "consumer_trigger": "Agent obligation enforcement in the gate."},
-  {"package": "overgo/internal/runrecord", "name": "ObserveAttemptDirection", "reason": "Attempt direction observation records.", "consumer_trigger": "Attempt-history steering in the loop."},
-  {"package": "overgo/internal/runrecord", "name": "SummarizeAttemptHistory", "reason": "Attempt history summarization for steering.", "consumer_trigger": "Attempt-history steering in the loop."},
-  {"package": "overgo/internal/runrecord", "name": "PublishAutomationPolicyTransition", "reason": "Automation policy lifecycle transition records.", "consumer_trigger": "cmd/automation-policy records lifecycle transitions."},
-  {"package": "overgo/internal/workflowruntime", "name": "CompileDelegatedAgentInvocation", "reason": "Delegated agent invocation compilation in the workflow runtime.", "consumer_trigger": "Agent delegation campaign executes delegated invocations."}
+  {
+   "package": "overgo/internal/agentloop",
+   "name": "NewMutationCheckpointRuntime",
+   "reason": "Agent-loop mutation checkpointing API delivered by the manifest lane with internals and tests complete.",
+   "consumer_trigger": "Agent delegation campaign wires checkpointed mutation runs into cmd/agent-loop."
+  },
+  {
+   "package": "overgo/internal/agentloop",
+   "name": "NewDelegatedCoordinator",
+   "reason": "Delegated multi-agent coordination API delivered by the manifest lane.",
+   "consumer_trigger": "Agent delegation campaign wires coordination into cmd/agent-loop."
+  },
+  {
+   "package": "overgo/internal/agenttool",
+   "name": "CapabilityProxyManual",
+   "reason": "Capability proxy manual surface for agent tool invocation.",
+   "consumer_trigger": "Agent delegation campaign exposes capability proxies through the tool transport."
+  },
+  {
+   "package": "overgo/internal/agenttool",
+   "name": "RegisterCapabilityProxy",
+   "reason": "Capability proxy registration for agent tool invocation.",
+   "consumer_trigger": "Agent delegation campaign exposes capability proxies through the tool transport."
+  },
+  {
+   "package": "overgo/internal/closurescan",
+   "name": "AgentHarnessSurfaceRegressions",
+   "reason": "Harness surface regression audit delivered ahead of its gate phase.",
+   "consumer_trigger": "Gate grows a harness-audit check."
+  },
+  {
+   "package": "overgo/internal/evaluation",
+   "name": "BindAgentTrajectoryPlan",
+   "reason": "Agent trajectory evaluation binding delivered ahead of trajectory scoring.",
+   "consumer_trigger": "Agent trajectory evaluation campaign."
+  },
+  {
+   "package": "overgo/internal/loop",
+   "name": "CompareStrategyExperiment",
+   "reason": "Strategy comparison experiment API for the continuity loop.",
+   "consumer_trigger": "cmd/loop adopts strategy experiments."
+  },
+  {
+   "package": "overgo/internal/loop",
+   "name": "NewStrategy",
+   "reason": "Strategy constructor for the continuity loop experiment API.",
+   "consumer_trigger": "cmd/loop adopts strategy experiments."
+  },
+  {
+   "package": "overgo/internal/operation",
+   "name": "NewManagerWithRepository",
+   "reason": "Operation manager bound to a store repository.",
+   "consumer_trigger": "Operation manager store adoption in the serving surface."
+  },
+  {
+   "package": "overgo/internal/plan",
+   "name": "NewWorkLease",
+   "reason": "Multi-lane work lease API for plan orchestration.",
+   "consumer_trigger": "Multi-lane plan coordination campaign."
+  },
+  {
+   "package": "overgo/internal/plan",
+   "name": "ResolveWorkspaceClaims",
+   "reason": "Workspace claim resolution for plan orchestration.",
+   "consumer_trigger": "Multi-lane plan coordination campaign."
+  },
+  {
+   "package": "overgo/internal/plan",
+   "name": "WorkLeaseAlias",
+   "reason": "Work lease alias naming for plan orchestration.",
+   "consumer_trigger": "Multi-lane plan coordination campaign."
+  },
+  {
+   "package": "overgo/internal/plan",
+   "name": "WorkspaceClaimOrder",
+   "reason": "Deterministic workspace claim ordering for plan orchestration.",
+   "consumer_trigger": "Multi-lane plan coordination campaign."
+  },
+  {
+   "package": "overgo/internal/plan",
+   "name": "AdmitSteeringProposal",
+   "reason": "Typed steering proposal admission into the plan.",
+   "consumer_trigger": "cmd/plan admits steering proposals from agents."
+  },
+  {
+   "package": "overgo/internal/recipe",
+   "name": "NewAgentTaskContract",
+   "reason": "Typed agent task contract records.",
+   "consumer_trigger": "Agent delegation campaign records task contracts."
+  },
+  {
+   "package": "overgo/internal/recipe",
+   "name": "NewDelegatedAgentInvocation",
+   "reason": "Typed delegated agent invocation records.",
+   "consumer_trigger": "Agent delegation campaign records invocations."
+  },
+  {
+   "package": "overgo/internal/recipe",
+   "name": "NewSteeringProposal",
+   "reason": "Typed steering proposal records.",
+   "consumer_trigger": "cmd/plan admits steering proposals from agents."
+  },
+  {
+   "package": "overgo/internal/repoanalysis",
+   "name": "AuditAgentHarnessConsolidation",
+   "reason": "Agent harness consolidation audit delivered ahead of its gate phase.",
+   "consumer_trigger": "Gate grows a harness-audit check."
+  },
+  {
+   "package": "overgo/internal/runrecord",
+   "name": "NewAgentObligation",
+   "reason": "Typed agent obligation records.",
+   "consumer_trigger": "Agent obligation enforcement in the gate."
+  },
+  {
+   "package": "overgo/internal/runrecord",
+   "name": "NewAgentObligationResolution",
+   "reason": "Typed agent obligation resolution records.",
+   "consumer_trigger": "Agent obligation enforcement in the gate."
+  },
+  {
+   "package": "overgo/internal/runrecord",
+   "name": "ObserveAttemptDirection",
+   "reason": "Attempt direction observation records.",
+   "consumer_trigger": "Attempt-history steering in the loop."
+  },
+  {
+   "package": "overgo/internal/runrecord",
+   "name": "SummarizeAttemptHistory",
+   "reason": "Attempt history summarization for steering.",
+   "consumer_trigger": "Attempt-history steering in the loop."
+  },
+  {
+   "package": "overgo/internal/runrecord",
+   "name": "PublishAutomationPolicyTransition",
+   "reason": "Automation policy lifecycle transition records.",
+   "consumer_trigger": "cmd/automation-policy records lifecycle transitions."
+  },
+  {
+   "package": "overgo/internal/workflowruntime",
+   "name": "CompileDelegatedAgentInvocation",
+   "reason": "Delegated agent invocation compilation in the workflow runtime.",
+   "consumer_trigger": "Agent delegation campaign executes delegated invocations."
+  },
+  {
+   "package": "overgo/internal/apimanifest",
+   "name": "CompileDocuments",
+   "reason": "API manifest census compilation delivered by the tightening lane ahead of its gate integration.",
+   "consumer_trigger": "The gate grows an API-manifest census phase."
+  },
+  {
+   "package": "overgo/internal/apimanifest",
+   "name": "Compare",
+   "reason": "API manifest diffing delivered ahead of its gate integration.",
+   "consumer_trigger": "The gate grows an API-manifest census phase."
+  },
+  {
+   "package": "overgo/internal/apimanifest",
+   "name": "New",
+   "reason": "API manifest document construction delivered ahead of its gate integration.",
+   "consumer_trigger": "The gate grows an API-manifest census phase."
+  },
+  {
+   "package": "overgo/internal/apimanifest",
+   "name": "Parse",
+   "reason": "API manifest document parsing delivered ahead of its gate integration.",
+   "consumer_trigger": "The gate grows an API-manifest census phase."
+  },
+  {
+   "package": "overgo/internal/artifact",
+   "name": "sameLocalLocation",
+   "reason": "Location comparison helper landing with the location tightening; its production caller arrives with location dedup.",
+   "consumer_trigger": "Location dedup consumes local-location comparison."
+  },
+  {
+   "package": "overgo/internal/codemanifest",
+   "name": "DocumentDeclarations",
+   "reason": "Code manifest document declaration listing delivered ahead of the API-manifest census.",
+   "consumer_trigger": "The gate grows an API-manifest census phase."
+  }
  ]
 }

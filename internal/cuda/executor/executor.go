@@ -75,6 +75,7 @@ type executionScratch struct {
 	pointers          []driver.DevicePtr
 	attributePointers []driver.DevicePtr
 	attributeWords    []uint32
+	attributes        []tensor.Attributes
 	retainedStorage   []bool
 	retainedOffsets   []uint64
 	replayFrame       []driver.DevicePtr
@@ -879,7 +880,7 @@ type compiledNode struct {
 	view          tensor.StorageView
 	aliases       bool
 	skipped       bool
-	launchProgram tensor.CUDAProgram
+	launcher      nodeLauncher
 }
 
 type compiledFusionKind uint8
@@ -1339,7 +1340,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			if !ok || descriptor.CUDA == tensor.CUDAProgramNone {
 				return nil, fmt.Errorf("CUDA operation %s has no compiled launch program", node.Op)
 			}
-			frame.launchProgram = descriptor.CUDA
+			if int(descriptor.CUDA) >= len(nodeLaunchers) || nodeLaunchers[descriptor.CUDA] == nil {
+				return nil, fmt.Errorf("CUDA operation %s has no compiled launcher", node.Op)
+			}
+			frame.launcher = nodeLaunchers[descriptor.CUDA]
 		}
 		compiled.nodes[index] = frame
 		_, elided := compiled.elided[node]
@@ -1694,6 +1698,24 @@ func execute(
 		(runtimeAttributes.compiled != compiled || len(runtimeAttributes.values) != len(order)) {
 		return nil, errors.New("CUDA runtime attributes belong to another compiled graph")
 	}
+	var resolvedAttributes []tensor.Attributes
+	if runtimeAttributes != nil {
+		if cap(scratch.attributes) < len(order) {
+			scratch.attributes = make([]tensor.Attributes, len(order))
+		}
+		resolvedAttributes = scratch.attributes[:len(order)]
+		clear(resolvedAttributes)
+		for index, attributes := range runtimeAttributes.values {
+			if attributes == nil {
+				continue
+			}
+			resolved, resolveErr := resolveRuntimeAttributes(attributes)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			resolvedAttributes[index] = resolved
+		}
+	}
 
 	if plan.ArenaSize > 0 && arena == 0 {
 		return nil, errors.New("CUDA executor arena is unavailable")
@@ -1962,12 +1984,8 @@ func execute(
 		auxiliaryLeases = append(auxiliaryLeases, lease)
 		for _, slot := range compiled.attributeSlots {
 			attributes := slot.node.Attrs
-			if runtimeAttributes != nil && runtimeAttributes.values[slot.index] != nil {
-				var resolveErr error
-				attributes, resolveErr = resolveRuntimeAttributes(runtimeAttributes.values[slot.index])
-				if resolveErr != nil {
-					return nil, resolveErr
-				}
+			if resolvedAttributes != nil && resolvedAttributes[slot.index] != nil {
+				attributes = resolvedAttributes[slot.index]
 			}
 			destination := words[slot.offset : slot.offset+slot.words]
 			written, writeErr := tensor.RuntimeAttributeWords(slot.node, attributes, destination)
@@ -2037,17 +2055,10 @@ func execute(
 				continue
 			}
 			attributes := node.Attrs
-			if runtimeAttributes != nil && runtimeAttributes.values[nodeIndex] != nil {
-				var resolveErr error
-				attributes, resolveErr = resolveRuntimeAttributes(runtimeAttributes.values[nodeIndex])
-				if resolveErr != nil {
-					return resolveErr
-				}
+			if resolvedAttributes != nil && resolvedAttributes[nodeIndex] != nil {
+				attributes = resolvedAttributes[nodeIndex]
 			}
-			if err := launchNode(
-				state, functions, blas, q8Input, node, attributes, operands,
-				frame.launchProgram,
-			); err != nil {
+			if err := frame.launcher(state, functions, blas, q8Input, node, attributes, operands); err != nil {
 				return fmt.Errorf("launch tensor %d (%s): %w", node.ID, node.Op, err)
 			}
 			submitted = true

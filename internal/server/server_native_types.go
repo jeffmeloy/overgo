@@ -56,9 +56,6 @@ func (h *Handler) infill(
 	response http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	formatter, ok := h.generator.(InfillFormatter)
 	if !ok {
 		writeError(
@@ -303,9 +300,6 @@ type preparedPrompt struct {
 }
 
 func (h *Handler) nativeCompletions(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	var body nativeCompletionRequest
 	if !h.decodeMultimodalJSON(response, request, &body) {
 		return

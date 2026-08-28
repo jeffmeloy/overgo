@@ -56,7 +56,7 @@ func PromoteObjectiveAdaptive(
 			return trainingprogram.ObjectiveDocument{}, fmt.Errorf(
 				"training workflow: promotion evidence %s is task %q outcome %q, need a succeeded training session", observationID, observation.Task, observation.Outcome)
 		}
-		definition, err := loadRecipeDefinition(ctx, repository, observation.Recipe)
+		definition, err := recipe.RequireDefinition(ctx, repository, observation.Recipe)
 		if err != nil {
 			return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: promotion evidence %s recipe: %w", observationID, err)
 		}
@@ -165,23 +165,4 @@ func PromoteObjectiveApproved(
 		return trainingprogram.ObjectiveDocument{}, err
 	}
 	return promoted, nil
-}
-
-// loadRecipeDefinition reads one recipe definition by exact identity.
-func loadRecipeDefinition(ctx context.Context, reader artifact.Reader, id artifact.ID) (recipe.Definition, error) {
-	content, ok, err := artifact.ReadContent(ctx, reader, id)
-	if err != nil {
-		return recipe.Definition{}, err
-	}
-	if !ok || content.Descriptor.Schema != recipe.Schema {
-		return recipe.Definition{}, errors.New("training workflow: recipe definition content is absent or incompatible")
-	}
-	definition, err := recipe.ParseDefinition(content.Data)
-	if err != nil {
-		return recipe.Definition{}, err
-	}
-	if recipe.DefinitionDocumentContract().ValidateContent(content, id) != nil || definition.ID != id {
-		return recipe.Definition{}, errors.New("training workflow: recipe definition identity differs")
-	}
-	return definition, nil
 }

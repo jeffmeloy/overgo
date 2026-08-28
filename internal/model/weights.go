@@ -77,13 +77,14 @@ func loadQKNormPair(
 	prefix string,
 	layer *LayerWeights,
 	queryShape, keyShape []uint64,
-	optionalLabel string,
+	optional bool,
 ) error {
-	if optionalLabel != "" {
+	if optional {
 		_, hasQuery := catalog.tensor(prefix + attentionQueryNormTensor)
 		_, hasKey := catalog.tensor(prefix + attentionKeyNormTensor)
 		if hasQuery != hasKey {
-			return fmt.Errorf("%s Q/K norm tensors must both be present or absent", optionalLabel)
+			return fmt.Errorf("tensors %q and %q must both be present or absent",
+				prefix+attentionQueryNormTensor, prefix+attentionKeyNormTensor)
 		}
 		if !hasQuery {
 			return nil
@@ -99,13 +100,12 @@ func loadOptionalWeightBias(
 	catalog weightCatalog,
 	prefix string,
 	weight, bias tensorBinding,
-	orphanError string,
 ) error {
 	_, hasWeight := catalog.tensor(prefix + weight.name)
 	_, hasBias := catalog.tensor(prefix + bias.name)
 	if !hasWeight {
 		if hasBias {
-			return errors.New(orphanError)
+			return fmt.Errorf("tensor %q requires tensor %q", prefix+bias.name, prefix+weight.name)
 		}
 		return nil
 	}
@@ -121,31 +121,27 @@ type mtpCommonDestinations struct {
 	tokenEmbedding, outputNorm, output      **gguf.TensorInfo
 }
 
-func loadMTPCommonWeights(
-	catalog weightCatalog,
-	prefix string,
+func mtpCommonBindings(
 	spec Spec,
 	destination mtpCommonDestinations,
-) error {
+) []tensorBinding {
 	width := uint64(spec.EmbeddingLength)
-	return bindTensorProgram(catalog, prefix, []tensorBinding{
+	return []tensorBinding{
 		requiredTensor("nextn.eh_proj.weight", destination.ehProjection, tensor.PairedExtent*width, width),
 		requiredTensor("nextn.enorm.weight", destination.embeddingNorm, width),
 		requiredTensor("nextn.hnorm.weight", destination.hiddenNorm, width),
 		optionalTensorPointer("nextn.embed_tokens.weight", destination.tokenEmbedding, width, uint64(spec.VocabularySize)),
 		optionalTensorPointer("nextn.shared_head_norm.weight", destination.outputNorm, width),
 		optionalTensorPointer("nextn.shared_head_head.weight", destination.output, width, uint64(spec.VocabularySize)),
-	})
+	}
 }
 
-func loadSharedExpertWeights(
-	catalog weightCatalog,
-	prefix string,
+func sharedExpertBindings(
 	width uint64,
 	spec Spec,
 	layer *LayerWeights,
 	policy sharedExpertCatalogPolicy,
-) error {
+) []tensorBinding {
 	requirements := []tensorBinding{
 		requiredTensorPointer("ffn_up_shexp.weight", &layer.FeedForwardSharedUp, width, uint64(spec.SharedExpertFF)),
 		requiredTensorPointer("ffn_down_shexp.weight", &layer.FeedForwardSharedDown, uint64(spec.SharedExpertFF), width),
@@ -160,7 +156,7 @@ func loadSharedExpertWeights(
 			requiredTensorPointer("ffn_gate_inp_shexp.weight", &layer.FeedForwardSharedRouter, width),
 		)
 	}
-	return bindTensorProgram(catalog, prefix, requirements)
+	return requirements
 }
 
 type encoderDecoderCatalogPlan struct {
@@ -340,15 +336,15 @@ func readLayeredWeightCatalog(catalog weightCatalog, spec Spec) (Weights, error)
 }
 
 type layerCatalogLoader struct {
-	catalog         weightCatalog
-	spec            Spec
-	profile         ArchitectureProfile
-	draftPlan       DraftPlan
-	normPlan        NormalizationPlan
-	trunkBlockCount uint32
-	cohere2HasMTP   bool
-	cohere2MTPOnly  bool
-	mtpOnly         bool
+	catalog           weightCatalog
+	spec              Spec
+	profile           ArchitectureProfile
+	draftPlan         DraftPlan
+	normPlan          NormalizationPlan
+	trunkBlockCount   uint32
+	hasOptionalDraft  bool
+	optionalDraftOnly bool
+	mtpOnly           bool
 }
 
 func compileModelTensorBindings(
@@ -498,14 +494,14 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	if draftPlan.AppendedBlocks {
 		trunkBlockCount += draftPlan.Heads
 	}
-	cohere2HasMTP := false
-	cohere2MTPOnly := false
+	hasOptionalDraft := false
+	optionalDraftOnly := false
 	if draftPlan.Kind == DraftOptionalSingleCatalog && draftPlan.SessionEligible() {
 		mtpPrefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, tensor.FirstOffset))
-		_, cohere2HasMTP = catalog.tensors[mtpPrefix+"nextn.eh_proj.weight"]
+		_, hasOptionalDraft = catalog.tensors[mtpPrefix+"nextn.eh_proj.weight"]
 		_, hasTrunk := catalog.tensors[firstBlockTensorPrefix+attentionNormWeightTensor]
-		cohere2MTPOnly = cohere2HasMTP && !hasTrunk
-		if cohere2HasMTP {
+		optionalDraftOnly = hasOptionalDraft && !hasTrunk
+		if hasOptionalDraft {
 			trunkBlockCount++
 		}
 	}
@@ -519,8 +515,8 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 	}
 	result.Layers = make([]LayerWeights, trunkBlockCount)
 	l.trunkBlockCount = trunkBlockCount
-	l.cohere2HasMTP = cohere2HasMTP
-	l.cohere2MTPOnly = cohere2MTPOnly
+	l.hasOptionalDraft = hasOptionalDraft
+	l.optionalDraftOnly = optionalDraftOnly
 	l.mtpOnly = mtpOnly
 	return result, nil
 }
@@ -528,9 +524,9 @@ func (l *layerCatalogLoader) loadModelCatalog(result Weights) (Weights, error) {
 func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) {
 	catalog := l.catalog
 	spec, profile, normPlan := l.spec, l.profile, l.normPlan
-	trunkBlockCount, cohere2MTPOnly := l.trunkBlockCount, l.cohere2MTPOnly
+	trunkBlockCount, optionalDraftOnly := l.trunkBlockCount, l.optionalDraftOnly
 	for block := uint32(tensor.FirstOffset); block < trunkBlockCount; block++ {
-		if cohere2MTPOnly && block < spec.BlockCount {
+		if optionalDraftOnly && block < spec.BlockCount {
 			continue
 		}
 		prefix := fmt.Sprintf("blk.%d.", block)
@@ -570,11 +566,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			_, hasQNorm := catalog.tensors[prefix+attentionQueryNormTensor]
 			_, hasKNorm := catalog.tensors[prefix+attentionKeyNormTensor]
 			if hasQNorm != hasKNorm {
-				return Weights{}, errors.New("MPT Q/K norm tensors must both be present or absent")
+				return Weights{}, errors.New("optional Q/K norm tensors must both be present or absent")
 			}
 			if hasQNorm {
 				if queryLength != uint64(spec.EmbeddingLength) || keyLength != uint64(spec.EmbeddingLength) {
-					return Weights{}, errors.New("MPT Q/K norm requires full-width Q/K projections")
+					return Weights{}, errors.New("optional Q/K norm requires full-width Q/K projections")
 				}
 				if normErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 					requiredF32TensorPointer(attentionQueryNormTensor, &layer.AttentionQNorm, uint64(spec.EmbeddingLength)),
@@ -585,9 +581,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					return Weights{}, normErr
 				}
 			} else if _, hasQBias := catalog.tensors[prefix+"attn_q_norm.bias"]; hasQBias {
-				return Weights{}, errors.New("MPT Q norm bias has no weight")
+				return Weights{}, errors.New("optional Q norm bias has no weight")
 			} else if _, hasKBias := catalog.tensors[prefix+"attn_k_norm.bias"]; hasKBias {
-				return Weights{}, errors.New("MPT K norm bias has no weight")
+				return Weights{}, errors.New("optional K norm bias has no weight")
 			}
 			if scaleErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 				optionalF32TensorPointer("ffn_act.scales", &layer.FeedForwardActivationScale,
@@ -621,7 +617,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if mixer := layerPlan.Mixer; mixer >= recurrentMixerDynamicWKV6 && mixer <= recurrentMixerDynamicWKV7 {
-			if mixerErr := loadTokenShiftRecurrentLayer(catalog, prefix, spec, layer, block, layerPlan.Mixer); mixerErr != nil {
+			bindings, compileErr := compileTokenShiftRecurrentBindings(catalog, prefix, spec, layer, block, mixer)
+			if compileErr != nil {
+				return Weights{}, compileErr
+			}
+			if mixerErr := bindTensorProgram(catalog, prefix, bindings); mixerErr != nil {
 				return Weights{}, mixerErr
 			}
 			continue
@@ -631,7 +631,6 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				catalog, prefix,
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, uint64(spec.EmbeddingLength)),
-				"secondary attention norm bias has no weight",
 			); normErr != nil {
 				return Weights{}, normErr
 			}
@@ -696,22 +695,28 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				return Weights{}, attentionErr
 			}
 		} else if layerPlan.Attention == AttentionLatent || layerPlan.Attention == AttentionSparseLatent {
-			if itemErr := loadLatentAttentionCatalog(
-				catalog, prefix, spec, layer, layerPlan,
-				queryLength, uint64(spec.HeadCount)*uint64(spec.ValueLength),
-			); itemErr != nil {
+			bindings := compileLatentAttentionBindings(
+				catalog, prefix, spec, layer, layerPlan, queryLength,
+				uint64(spec.HeadCount)*uint64(spec.ValueLength),
+			)
+			if itemErr := bindTensorProgram(catalog, prefix, bindings); itemErr != nil {
 				return Weights{}, itemErr
 			}
-		} else if attentionErr := loadStandardAttentionCatalog(
-			catalog, prefix, spec, layer,
-			queryLength, keyLength, valueLength, attentionOutputLength,
-		); attentionErr != nil {
-			return Weights{}, attentionErr
+		} else {
+			bindings, compileErr := compileStandardAttentionBindings(
+				catalog, prefix, spec, layer, queryLength, keyLength, valueLength, attentionOutputLength,
+			)
+			if compileErr != nil {
+				return Weights{}, compileErr
+			}
+			if attentionErr := bindTensorProgram(catalog, prefix, bindings); attentionErr != nil {
+				return Weights{}, attentionErr
+			}
 		}
 		qkPlan := layerPlan.QKPreprocess
 		if !layer.Recurrent && (qkPlan.Heads == qkNormWeighted || qkPlan.PostRotary == qkNormWeighted) {
 			shape := []uint64{uint64(spec.KeyLength)}
-			if normErr := loadQKNormPair(catalog, prefix, layer, shape, shape, ""); normErr != nil {
+			if normErr := loadQKNormPair(catalog, prefix, layer, shape, shape, false); normErr != nil {
 				return Weights{}, normErr
 			}
 		}
@@ -730,7 +735,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		if qkPlan.Heads == qkNormOptionalWeighted {
 			shape := []uint64{uint64(spec.KeyLength)}
-			if normErr := loadQKNormPair(catalog, prefix, layer, shape, shape, spec.Architecture); normErr != nil {
+			if normErr := loadQKNormPair(catalog, prefix, layer, shape, shape, true); normErr != nil {
 				return Weights{}, normErr
 			}
 		}
@@ -772,14 +777,10 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		headQKNorm := qkPlan.Heads == qkNormAffine || qkPlan.Heads == qkNormConfiguredNoBias ||
 			qkPlan.Heads == qkNormLayer
 		if headQKNorm {
-			optionalLabel := ""
-			if qkPlan.Heads == qkNormLayer {
-				optionalLabel = spec.Architecture
-			}
 			if normErr := loadQKNormPair(
 				catalog, prefix, layer,
 				[]uint64{uint64(spec.KeyLength), uint64(spec.HeadCount)},
-				[]uint64{uint64(spec.KeyLength), uint64(spec.HeadCountKV)}, optionalLabel,
+				[]uint64{uint64(spec.KeyLength), uint64(spec.HeadCountKV)}, qkPlan.Heads == qkNormLayer,
 			); normErr != nil {
 				return Weights{}, normErr
 			}
@@ -805,7 +806,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 		}
 		if qkPlan.Projection == qkNormWeighted {
 			if normErr := loadQKNormPair(
-				catalog, prefix, layer, []uint64{queryLength}, []uint64{keyLength}, "",
+				catalog, prefix, layer, []uint64{queryLength}, []uint64{keyLength}, false,
 			); normErr != nil {
 				return Weights{}, normErr
 			}
@@ -824,19 +825,17 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 					catalog, prefix,
 					requiredTensorPointer(binding.name+".weight", binding.weight, shape...),
 					requiredTensorPointer(binding.name+".bias", binding.bias, shape...),
-					"JinaBERT v2 "+binding.name+" bias has no weight",
 				); normErr != nil {
 					return Weights{}, normErr
 				}
 			}
 			if layer.AttentionKNorm != nil && keyLength != uint64(spec.EmbeddingLength) {
-				return Weights{}, errors.New("JinaBERT v2 K norm requires full-width KV projection")
+				return Weights{}, errors.New("optional K norm requires full-width KV projection")
 			}
 			if normErr := loadOptionalWeightBias(
 				catalog, prefix,
 				requiredTensorPointer("attn_norm_2.weight", &layer.AttentionNorm2, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("attn_norm_2.bias", &layer.AttentionNorm2Bias, uint64(spec.EmbeddingLength)),
-				"JinaBERT v2 secondary norm bias has no weight",
 			); normErr != nil {
 				return Weights{}, normErr
 			}
@@ -927,7 +926,6 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				catalog, prefix,
 				requiredTensorPointer(feedForwardNormName, &layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
 				requiredTensorPointer("ffn_norm.bias", &layer.FeedForwardNormBias, uint64(spec.EmbeddingLength)),
-				"StableLM FFN norm bias has no weight",
 			); normErr != nil {
 				return Weights{}, normErr
 			}
@@ -947,7 +945,11 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 			}
 		}
 		if layerUsesMoECatalog(catalog, prefix, spec, block, isDraftBlock) {
-			loadDense, moeErr := loadMoECatalog(catalog, prefix, spec, layer)
+			loadDense, bindings, compileErr := compileMoEBindings(catalog, prefix, spec, layer)
+			if compileErr != nil {
+				return Weights{}, compileErr
+			}
+			moeErr := bindTensorProgram(catalog, prefix, bindings)
 			if moeErr != nil {
 				return Weights{}, moeErr
 			}
@@ -955,7 +957,9 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 				continue
 			}
 		}
-		if ffnErr := loadDenseFFNCatalog(catalog, prefix, spec, layer, block); ffnErr != nil {
+		if ffnErr := bindTensorProgram(
+			catalog, prefix, compileDenseFFNBindings(catalog, prefix, spec, layer, block),
+		); ffnErr != nil {
 			return Weights{}, ffnErr
 		}
 	}
@@ -965,7 +969,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) {
 	catalog := l.catalog
 	spec, profile, draftPlan, mtpOnly := l.spec, l.profile, l.draftPlan, l.mtpOnly
-	cohere2HasMTP, cohere2MTPOnly := l.cohere2HasMTP, l.cohere2MTPOnly
+	hasOptionalDraft, optionalDraftOnly := l.hasOptionalDraft, l.optionalDraftOnly
 	if draftPlan.Kind == DraftSingleCatalog && draftPlan.SessionEligible() {
 		prefix := fmt.Sprintf("blk.%d.", draftPlan.Block(spec.BlockCount, tensor.FirstOffset))
 		mtp := &SingleDraftWeights{}
@@ -975,7 +979,7 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		queryLength := shapes.QueryProjectionWidth()
 		keyLength := shapes.KeyProjectionWidth()
 		valueLength := shapes.ValueProjectionWidth()
-		if loadErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+		bindings := []tensorBinding{
 			requiredTensorPointer(attentionNormWeightTensor, &mtp.Layer.AttentionNorm, uint64(spec.EmbeddingLength)),
 			requiredTensorPointer(postAttentionNormWeightTensor, &mtp.Layer.FeedForwardNorm, uint64(spec.EmbeddingLength)),
 			requiredTensorPointer(attentionQueryWeightTensor, &mtp.Layer.AttentionQ, uint64(spec.EmbeddingLength), uint64(draftPlan.QueryCopies)*queryLength),
@@ -987,13 +991,12 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			requiredTensorPointer(feedForwardDownWeightTensor, &mtp.Layer.FeedForwardDown, uint64(spec.FeedForwardLength), uint64(spec.EmbeddingLength)),
 			requiredTensorPointer(attentionQueryNormTensor, &mtp.Layer.AttentionQNorm, uint64(spec.KeyLength)),
 			requiredTensorPointer(attentionKeyNormTensor, &mtp.Layer.AttentionKNorm, uint64(spec.KeyLength)),
-		}); loadErr != nil {
-			return Weights{}, loadErr
 		}
-		if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
+		bindings = append(bindings, mtpCommonBindings(spec, mtpCommonDestinations{
 			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-		}); loadErr != nil {
+		})...)
+		if loadErr := bindTensorProgram(catalog, prefix, bindings); loadErr != nil {
 			return Weights{}, loadErr
 		}
 		result.SingleCatalogDraft = mtp
@@ -1006,10 +1009,10 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &heads[offset]
 			mtp.Layer = result.Layers[block]
-			if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
+			if loadErr := bindTensorProgram(catalog, prefix, mtpCommonBindings(spec, mtpCommonDestinations{
 				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-			}); loadErr != nil {
+			})); loadErr != nil {
 				return Weights{}, loadErr
 			}
 		}
@@ -1020,18 +1023,18 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 		}
 		result.Layers = result.Layers[:spec.BlockCount]
 	}
-	if cohere2HasMTP {
+	if hasOptionalDraft {
 		block := draftPlan.Block(spec.BlockCount, tensor.FirstOffset)
 		prefix := fmt.Sprintf("blk.%d.", block)
-		mtp := &SingleDraftWeights{MTPOnly: cohere2MTPOnly, Layer: result.Layers[block]}
-		if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
+		mtp := &SingleDraftWeights{MTPOnly: optionalDraftOnly, Layer: result.Layers[block]}
+		if loadErr := bindTensorProgram(catalog, prefix, mtpCommonBindings(spec, mtpCommonDestinations{
 			ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 			tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-		}); loadErr != nil {
+		})); loadErr != nil {
 			return Weights{}, loadErr
 		}
 		result.OptionalCatalogDraft = mtp
-		if cohere2MTPOnly {
+		if optionalDraftOnly {
 			result.Layers = result.Layers[:tensor.FirstOffset]
 		} else {
 			result.Layers = result.Layers[:spec.BlockCount]
@@ -1044,19 +1047,18 @@ func (l *layerCatalogLoader) loadDraftCatalogs(result Weights) (Weights, error) 
 			prefix := fmt.Sprintf("blk.%d.", block)
 			mtp := &result.AppendedSingleDraft[offset]
 			mtp.Layer = result.Layers[block]
-			if loadErr := loadMTPCommonWeights(catalog, prefix, spec, mtpCommonDestinations{
+			bindings := mtpCommonBindings(spec, mtpCommonDestinations{
 				ehProjection: &mtp.EHProjection, embeddingNorm: &mtp.EmbeddingNorm, hiddenNorm: &mtp.HiddenNorm,
 				tokenEmbedding: &mtp.TokenEmbedding, outputNorm: &mtp.OutputNorm, output: &mtp.Output,
-			}); loadErr != nil {
-				return Weights{}, loadErr
-			}
+			})
 			if profile.ModelCatalog.DraftLayerOutputNorm {
-				if loadErr := bindTensorProgram(catalog, prefix, []tensorBinding{
+				bindings = append(bindings,
 					requiredTensorPointer("layer_output_norm.weight", &mtp.LayerOutputNorm,
 						uint64(spec.EmbeddingLength)),
-				}); loadErr != nil {
-					return Weights{}, loadErr
-				}
+				)
+			}
+			if loadErr := bindTensorProgram(catalog, prefix, bindings); loadErr != nil {
+				return Weights{}, loadErr
 			}
 		}
 		result.Layers = result.Layers[:spec.BlockCount]

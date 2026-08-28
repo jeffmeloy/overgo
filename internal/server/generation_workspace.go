@@ -94,9 +94,6 @@ type workflowResponse struct {
 }
 
 func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, string(kind)+" workspace is unavailable")
@@ -119,9 +116,6 @@ func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *ht
 }
 
 func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, string(kind)+" workspace is unavailable")

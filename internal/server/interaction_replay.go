@@ -25,9 +25,6 @@ type interactionMediaRef struct {
 }
 
 func (h *Handler) interactionReplay(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	if h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "interaction repository is unavailable")
 		return

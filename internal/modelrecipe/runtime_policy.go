@@ -150,13 +150,9 @@ func EnsureRuntimePolicy(ctx context.Context, store artifact.Repository, definit
 
 // ResolveRuntimePolicy loads the exact policy bound to a recipe.
 func ResolveRuntimePolicy(ctx context.Context, store artifact.Reader, definition recipe.Definition) (RuntimePolicy, error) {
-	id, found, err := artifact.ResolveAlias(ctx, store, runtimePolicyAlias(definition.ID))
+	policy, found, err := runtimePolicyCodec.Resolve(ctx, store, runtimePolicyAlias(definition.ID))
 	if err != nil || !found {
 		return RuntimePolicy{}, errors.Join(errors.New("model recipe: active recipe has no runtime policy"), err)
-	}
-	policy, err := runtimePolicyCodec.Require(ctx, store, id)
-	if err != nil {
-		return RuntimePolicy{}, err
 	}
 	if !slices.Contains(policy.Tasks, definition.Task) {
 		return RuntimePolicy{}, errors.New("model recipe: runtime policy does not admit recipe task")

@@ -155,7 +155,7 @@ func RetireActiveCapability(
 	if !active {
 		return errors.New("model recipe: retirement requires an active recipe")
 	}
-	definition, err := loadDefinition(ctx, store, activeID)
+	definition, err := recipe.RequireDefinition(ctx, store, activeID)
 	if err != nil {
 		return err
 	}
@@ -231,7 +231,7 @@ func RetireOrphanedActivation(
 			trustErr = pathErr
 		}
 	}
-	definition, err := loadDefinition(ctx, store, activeID)
+	definition, err := recipe.RequireDefinition(ctx, store, activeID)
 	if err != nil {
 		return err
 	}
@@ -486,7 +486,7 @@ func transition(
 			Previous: artifact.CloneID(supersedes),
 		})
 		if active {
-			oldDefinition, loadErr := loadDefinition(ctx, store, activeID)
+			oldDefinition, loadErr := recipe.RequireDefinition(ctx, store, activeID)
 			if loadErr != nil {
 				return artifact.CommitID{}, recipe.LifecycleEvent{}, loadErr
 			}
@@ -544,7 +544,7 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 	if err != nil || !ok {
 		return Activation{}, ok, err
 	}
-	definition, err := loadDefinition(ctx, store, id)
+	definition, err := recipe.RequireDefinition(ctx, store, id)
 	if err != nil {
 		return Activation{}, false, err
 	}
@@ -717,24 +717,6 @@ func loadDecisions(ctx context.Context, store artifact.Reader, ids []artifact.ID
 		decisions = append(decisions, decision)
 	}
 	return decisions, nil
-}
-
-func loadDefinition(ctx context.Context, store artifact.Reader, id artifact.ID) (recipe.Definition, error) {
-	content, ok, err := artifact.ReadContent(ctx, store, id)
-	if err != nil {
-		return recipe.Definition{}, err
-	}
-	if !ok || content.Descriptor.Schema != recipe.Schema {
-		return recipe.Definition{}, errors.New("model recipe: definition content is absent or incompatible")
-	}
-	definition, err := recipe.ParseDefinition(content.Data)
-	if err != nil {
-		return recipe.Definition{}, err
-	}
-	if recipe.DefinitionDocumentContract().ValidateContent(content, id) != nil || definition.ID != id {
-		return recipe.Definition{}, errors.New("model recipe: definition content identity differs")
-	}
-	return definition, nil
 }
 
 func statusAlias(recipeID artifact.ID) string {

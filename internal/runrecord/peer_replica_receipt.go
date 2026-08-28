@@ -81,12 +81,7 @@ func ResolvePeerReplicaReceipt(
 	operation, target artifact.ID,
 	phase PeerReplicaPhase,
 ) (PeerReplicaReceipt, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, peerReplicaReceiptAlias(operation, target, phase))
-	if err != nil || !found {
-		return PeerReplicaReceipt{}, found, err
-	}
-	value, err := peerReplicaReceiptCodec.Require(ctx, reader, id)
-	return value, err == nil, err
+	return peerReplicaReceiptCodec.Resolve(ctx, reader, peerReplicaReceiptAlias(operation, target, phase))
 }
 
 // PublishPeerReplicaReceipt advances one exact action attempt chain.

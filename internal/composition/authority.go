@@ -121,11 +121,6 @@ func NewBridgeDefinition(
 	return bridgeDefinitionCodec.New(value)
 }
 
-// ParseBridgeDefinition admits canonical bridge-definition bytes.
-func ParseBridgeDefinition(data []byte) (BridgeDefinition, error) {
-	return bridgeDefinitionCodec.Parse(data)
-}
-
 // Content returns the exact bridge-definition document.
 func (value BridgeDefinition) Content() (artifact.Content, error) {
 	return bridgeDefinitionCodec.Content(value)
@@ -241,13 +236,9 @@ func (authority CompositionAuthority) Batch(key string) (artifact.Batch, error) 
 
 // LoadBridgeDefinition resolves and revalidates one exact bridge authority.
 func LoadBridgeDefinition(ctx context.Context, reader artifact.Reader, id artifact.ID) (BridgeDefinition, error) {
-	content, err := loadCompositionContent(ctx, reader, id, artifact.KindProfile, BridgeDefinitionMediaType, BridgeDefinitionSchema)
+	value, err := bridgeDefinitionCodec.Require(ctx, reader, id)
 	if err != nil {
 		return BridgeDefinition{}, err
-	}
-	value, err := ParseBridgeDefinition(content.Data)
-	if err != nil || value.ID != id {
-		return BridgeDefinition{}, errors.Join(err, errors.New("composition: bridge definition identity differs"))
 	}
 	source, err := representation.LoadContract(ctx, reader, value.Graph.Source)
 	if err != nil {
@@ -283,13 +274,9 @@ func LoadBridgeWeights(
 
 // LoadCompositionRecipe resolves a recipe and all exact authorities it names.
 func LoadCompositionRecipe(ctx context.Context, reader artifact.Reader, id artifact.ID) (CompositionRecipe, error) {
-	content, err := loadCompositionContent(ctx, reader, id, artifact.KindRecipe, CompositionRecipeMediaType, CompositionRecipeSchema)
+	value, err := compositionRecipeCodec.Require(ctx, reader, id)
 	if err != nil {
 		return CompositionRecipe{}, err
-	}
-	value, err := ParseCompositionRecipe(content.Data)
-	if err != nil || value.ID != id {
-		return CompositionRecipe{}, errors.Join(err, errors.New("composition: recipe identity differs"))
 	}
 	canonical, err := NewCompositionRecipe(value)
 	if err != nil || canonical.ID != id {
@@ -513,40 +500,15 @@ func loadCompositionAuthority(
 		}
 		external = &loaded
 	}
-	executionContent, err := loadCompositionContent(ctx, reader, value.ExecutionRecipe, artifact.KindRecipe, recipe.MediaType, recipe.Schema)
+	execution, err := recipe.RequireDefinition(ctx, reader, value.ExecutionRecipe)
 	if err != nil {
 		return CompositionAuthority{}, err
-	}
-	execution, err := recipe.ParseDefinition(executionContent.Data)
-	if err != nil || execution.ID != value.ExecutionRecipe {
-		return CompositionAuthority{}, errors.Join(err, errors.New("composition: execution recipe identity differs"))
 	}
 	return CompositionAuthority{
 		SourceContract: source, TargetContract: target, Bridge: bridge,
 		Execution: execution, PromotionPolicy: promotionPolicy, Promotion: promotion,
 		ExternalCrossAttention: external, Recipe: value,
 	}, nil
-}
-
-func loadCompositionContent(
-	ctx context.Context,
-	reader artifact.Reader,
-	id artifact.ID,
-	kind artifact.Kind,
-	mediaType, schema string,
-) (artifact.Content, error) {
-	if ctx == nil || reader == nil || id.Kind() != kind {
-		return artifact.Content{}, errors.New("composition: repository query authority is invalid")
-	}
-	content, found, err := artifact.ReadContent(ctx, reader, id)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	if !found || content.Descriptor.ID != id || content.Descriptor.MediaType != mediaType ||
-		content.Descriptor.Schema != schema || content.Validate() != nil {
-		return artifact.Content{}, errors.New("composition: repository content is absent or incompatible")
-	}
-	return content, nil
 }
 
 func loadBridgeWeightAuthority(

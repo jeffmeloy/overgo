@@ -478,7 +478,7 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:72be298535f82c42e0a2561fb7110f36b80b963ac9d8296d080d8ae72ad37812"
+     "identity": "file:sha256:627d8530ef59107105b6bb386418bbd7605d2149f44eb6414e920a22ba24c2e1"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
@@ -499,13 +499,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:4dc051668e610dcb17f1e9ba18bde975bbd8e9dabf156397d03dc2d471bedff0"
+     "identity": "file:sha256:ed0f062db51b5152fd188c4a62199935a8ffa0ae441c20dc1332d487a00f3e37"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:046593b2d2b404d0e7cc67830e0802f4c387198c2d38b5bba4659e1d97ae067b"
+     "identity": "evidence:sha256:e68ee7db724ea3f06e44de054fc7f117507660282da3544b5dbe3a4a0831742e"
     }
    ],
    "id": "compiled-cuda-graph",
@@ -731,7 +731,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:39961029aa0920dc62d5a8d1eac4f867ab91fd9d8eb599d1833fc314864f32e4"
+     "identity": "file:sha256:055617d4049b916dd8aa30580a71700ee4dcf90d701c2c4a1cfa34e3410b0975"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -758,7 +758,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:499cff53718366686327c3a834c89d301cfa927d8b9e72ff2a8d35e140b9846d"
+     "identity": "file:sha256:18504c37f9eb36537d21cd82a2ec775bf2767a7b77ca6f11b97a89d19890e144"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -800,7 +800,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:763bc1917af55a937307705abdb2f0e872bd0319ede958ab81f6c33ca9656edc"
+     "identity": "file:sha256:e93d8c06dba3a49be16f683c6e39e8507faa03c3edb10a61f5f4a1ee2a29007c"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -863,7 +863,7 @@
      "contains": "func PublishInteraction(",
      "path": "internal/runrecord/interaction.go",
      "role": "source",
-     "identity": "file:sha256:697ee0d754f49fe7eac105638197adff90cdc0d40879d81f90dbc1defcaee8bc"
+     "identity": "file:sha256:1b1d3f4921dce129bc7b50df6341e9a99bb0f325e7010fbfdcb3a490753e4add"
     },
     {
      "contains": "func TestResponsesContinuationRestart(",
@@ -884,7 +884,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:39961029aa0920dc62d5a8d1eac4f867ab91fd9d8eb599d1833fc314864f32e4"
+     "identity": "file:sha256:055617d4049b916dd8aa30580a71700ee4dcf90d701c2c4a1cfa34e3410b0975"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -926,7 +926,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:de1206c233aa1e55ea509e4cf10de6989e3e45465c34f08a9d63cae6dc72f5d7"
+     "identity": "file:sha256:887c75656181186045226f956db9d14f4754820cd73961bcfd0d6f616d505b37"
     },
     {
      "contains": "func ReadWeights(",
@@ -938,7 +938,7 @@
      "contains": "func TestLayerProgramsCoverTypedProfiles(",
      "path": "internal/model/graph_dispatch_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:265fe204dcefbe5a655c11eb46cd4280b14dddb8fe07e360e3caba77016b0e1e"
+     "identity": "evidence:sha256:84a4fa8f17bdb69c275cf54c9730a7a8d3a84b981b7766199d1735af10c5814f"
     }
    ],
    "id": "neutral-layer-dispatch",
@@ -1038,7 +1038,7 @@
      "contains": "func (h *Handler) analyzeAttention(",
      "path": "internal/server/analyze_attention.go",
      "role": "source",
-     "identity": "file:sha256:b8192ce4851e7f76d1865af45641b53a6f8a690b068a79f6913f2d61e3071694"
+     "identity": "file:sha256:f044439a62b823ed3da66defb7a2b0df3bc2d5aeb627fda0e8228d4ba62453ba"
     },
     {
      "contains": "func TestAttentionWeightsHostMath(",
@@ -1065,7 +1065,7 @@
      "contains": "func (h *Handler) browseDatasets(",
      "path": "internal/server/browse_datasets.go",
      "role": "source",
-     "identity": "file:sha256:411ed76fc013d6d0ddecdb32c9efe6c6891b05e04849d049270aaff26808c2d6"
+     "identity": "file:sha256:f2b78b70e50bf3eeb5a70c1e65d948833dd361d45f4e962be4a7dfdeb8ef6748"
     },
     {
      "contains": "func TestBrowseDatasetsUsesCatalog(",
@@ -1086,7 +1086,7 @@
      "contains": "func (h *Handler) browseRuns(",
      "path": "internal/server/browse_runs.go",
      "role": "source",
-     "identity": "file:sha256:f0a69ef2dc4142e56da2a3c60cf99132d1c50200324d9cf9562c97085cc22832"
+     "identity": "file:sha256:3f7cfa8986315a7cbd8a9339e33f1863f1ee6adead5bb14afcde9998443893bf"
     },
     {
      "contains": "func TestBrowseRunsReadsOvergoDBRecords(",

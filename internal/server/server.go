@@ -644,69 +644,8 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 	h.requestsTotal.Add(counterStep)
 	h.requestsActive.Add(counterStep)
 	defer h.requestsActive.Add(-counterStep)
-	protectedV1 := strings.HasPrefix(request.URL.Path, "/v1/") &&
-		request.URL.Path != "/v1/models" &&
-		request.URL.Path != "/v1/health"
-	if (protectedV1 ||
-		request.URL.Path == "/apply-template" ||
-		request.URL.Path == "/tokenize" ||
-		request.URL.Path == "/detokenize" ||
-		request.URL.Path == "/props" ||
-		request.URL.Path == "/analyze/model" ||
-		request.URL.Path == "/analyze/vocab" ||
-		request.URL.Path == "/analyze/states" ||
-		request.URL.Path == "/analyze/attention" ||
-		request.URL.Path == "/analyze/tensors" ||
-		request.URL.Path == "/analyze/tensors/similar" ||
-		request.URL.Path == "/datasets" ||
-		request.URL.Path == "/datasets/preview" ||
-		request.URL.Path == "/runs" ||
-		request.URL.Path == "/interactions/replay" ||
-		request.URL.Path == "/capabilities/bundles" ||
-		request.URL.Path == "/recipes/active" ||
-		request.URL.Path == "/compositions" ||
-		request.URL.Path == "/compositions/activate" ||
-		request.URL.Path == "/compositions/generate" ||
-		request.URL.Path == "/operations" ||
-		request.URL.Path == "/operations/inbox" ||
-		request.URL.Path == "/operations/dag" ||
-		request.URL.Path == "/operations/cancel" ||
-		request.URL.Path == "/operations/decision" ||
-		request.URL.Path == "/operations/wait" ||
-		request.URL.Path == "/runtime/activity/stream" ||
-		request.URL.Path == "/runtime/peers" ||
-		request.URL.Path == "/evaluations/capabilities" ||
-		request.URL.Path == "/evaluations/run" ||
-		request.URL.Path == "/evaluations/history" ||
-		request.URL.Path == "/evaluations/report" ||
-		request.URL.Path == "/evaluations/failures" ||
-		request.URL.Path == "/evaluations/compare" ||
-		request.URL.Path == "/generation/capabilities" ||
-		request.URL.Path == "/generation/run" ||
-		request.URL.Path == "/training/capabilities" ||
-		request.URL.Path == "/training/run" ||
-		request.URL.Path == "/model-builder/capabilities" ||
-		request.URL.Path == "/model-builder/run" ||
-		request.URL.Path == "/export/capabilities" ||
-		request.URL.Path == "/export/run" ||
-		request.URL.Path == "/artifacts" ||
-		request.URL.Path == "/artifacts/content" ||
-		request.URL.Path == "/completion" ||
-		request.URL.Path == "/completions" ||
-		request.URL.Path == "/infill" ||
-		request.URL.Path == "/responses" ||
-		request.URL.Path == "/embedding" ||
-		request.URL.Path == "/embeddings" ||
-		request.URL.Path == "/rerank" ||
-		request.URL.Path == "/reranking" ||
-		request.URL.Path == "/runtime/sessions" ||
-		request.URL.Path == "/runtime/activity" ||
-		request.URL.Path == "/slots" ||
-		request.URL.Path == "/chat/completions" ||
-		request.URL.Path == "/chat/completions/input_tokens" ||
-		request.URL.Path == "/responses/input_tokens" ||
-		request.URL.Path == "/lora-adapters") &&
-		!h.authorized(request) {
+	route, routed := resolveRoute(request.URL.Path)
+	if routed && route.Authentication == routeBearer && !h.authorized(request) {
 		response.Header().Set("WWW-Authenticate", "Bearer")
 		writeError(
 			response,
@@ -716,162 +655,16 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		)
 		return
 	}
-	switch request.URL.Path {
-	case "/health", "/healthz", "/v1/health":
-		h.health(response, request)
-	case "/metrics":
-		h.metrics(response, request)
-	case "/v1/models":
-		h.models(response, request)
-	case "/models":
-		h.models(response, request)
-	case "/v1/completions":
-		h.completions(response, request)
-	case "/completion", "/completions":
-		h.nativeCompletions(response, request)
-	case "/infill":
-		h.infill(response, request)
-	case "/v1/chat/completions":
-		h.chatCompletions(response, request)
-	case "/chat/completions":
-		h.chatCompletions(response, request)
-	case "/responses", "/v1/responses":
-		h.responses(response, request)
-	case "/chat/completions/input_tokens", "/v1/chat/completions/input_tokens":
-		h.chatInputTokens(response, request)
-	case "/responses/input_tokens", "/v1/responses/input_tokens":
-		h.responsesInputTokens(response, request)
-	case "/v1/messages/count_tokens":
-		h.anthropicInputTokens(response, request)
-	case "/v1/messages":
-		h.anthropicMessages(response, request)
-	case "/v1/embeddings":
-		h.embeddings(response, request)
-	case "/v1/images/generations":
-		h.nativeImageGeneration(response, request)
-	case "/v1/videos/generations":
-		h.nativeVideoGeneration(response, request)
-	case "/v1/videos/edits":
-		h.nativeVideoEdit(response, request)
-	case "/v1/audio/speech":
-		h.nativeAudioSpeech(response, request)
-	case "/embedding", "/embeddings":
-		h.nativeEmbeddings(response, request)
-	case "/rerank", "/reranking", "/v1/rerank", "/v1/reranking":
-		h.rerank(response, request)
-	case "/apply-template":
-		h.applyTemplate(response, request)
-	case "/tokenize":
-		h.tokenize(response, request)
-	case "/detokenize":
-		h.detokenize(response, request)
-	case "/props":
-		h.properties(response, request)
-	case "/analyze/model":
-		h.analyzeModel(response, request)
-	case "/analyze/vocab":
-		h.analyzeVocab(response, request)
-	case "/analyze/states":
-		h.analyzeStates(response, request)
-	case "/analyze/attention":
-		h.analyzeAttention(response, request)
-	case "/analyze/tensors":
-		h.analyzeTensors(response, request)
-	case "/analyze/tensors/similar":
-		h.analyzeTensorsSimilar(response, request)
-	case "/datasets":
-		h.browseDatasets(response, request)
-	case "/datasets/preview":
-		h.previewDataset(response, request)
-	case "/runs":
-		h.browseRuns(response, request)
-	case "/interactions/replay":
-		h.interactionReplay(response, request)
-	case "/capabilities/bundles":
-		h.capabilityBundles(response, request)
-	case "/recipes/active":
-		h.activeRecipe(response, request)
-	case "/compositions":
-		h.compositionInventory(response, request)
-	case "/compositions/activate":
-		h.activateComposition(response, request)
-	case "/compositions/generate":
-		h.compositeGeneration(response, request)
-	case "/operations":
-		h.operationStatus(response, request)
-	case "/operations/inbox":
-		h.operationInbox(response, request)
-	case "/operations/dag":
-		h.operationDAG(response, request)
-	case "/operations/cancel":
-		h.operationCancel(response, request)
-	case "/operations/decision":
-		h.operationDecision(response, request)
-	case "/operations/wait":
-		h.operationWait(response, request)
-	case "/evaluations/capabilities":
-		h.evaluationCapabilities(response, request)
-	case "/evaluations/run":
-		h.evaluationRun(response, request)
-	case "/evaluations/history":
-		h.evaluationHistory(response, request)
-	case "/evaluations/report":
-		h.evaluationReport(response, request)
-	case "/evaluations/failures":
-		h.evaluationFailures(response, request)
-	case "/evaluations/compare":
-		h.evaluationCompare(response, request)
-	case "/generation/capabilities":
-		h.workflowCapabilities(response, request, WorkflowGeneration)
-	case "/generation/run":
-		h.workflowRun(response, request, WorkflowGeneration)
-	case "/training/capabilities":
-		h.workflowCapabilities(response, request, WorkflowTraining)
-	case "/training/run":
-		h.workflowRun(response, request, WorkflowTraining)
-	case "/model-builder/capabilities":
-		h.workflowCapabilities(response, request, WorkflowModelBuild)
-	case "/model-builder/run":
-		h.workflowRun(response, request, WorkflowModelBuild)
-	case "/export/capabilities":
-		h.workflowCapabilities(response, request, WorkflowExport)
-	case "/export/run":
-		h.workflowRun(response, request, WorkflowExport)
-	case "/artifacts":
-		h.artifactGallery(response, request)
-	case "/artifacts/content":
-		h.artifactContent(response, request)
-	case "/runtime/sessions":
-		h.runtimeSessions(response, request)
-	case "/runtime/activity":
-		h.runtimeActivity(response, request)
-	case "/runtime/activity/stream":
-		h.runtimeActivityStream(response, request)
-	case "/runtime/peers":
-		h.remotePeerAuthority(response, request)
-	case "/slots":
-		h.slotStatus(response, request)
-	case "/lora-adapters":
-		h.loraAdapters(response, request)
-	case "/catalog/models":
-		h.catalogModels(response, request)
-	case "/hub/search":
-		h.hubSearch(response, request)
-	case "/hub/downloads":
-		h.hubDownloads(response, request)
-	case "/agent/tools":
-		h.agentTools(response, request)
-	case "/agent/step":
-		h.agentStep(response, request)
-	case "/agent/approval":
-		h.agentApprovalPreview(response, request)
-	case "/agent/provenance":
-		h.agentProvenance(response, request)
-	case "/agent/sessions":
-		h.agentSessionList(response, request)
-	default:
-		h.serveWebUI(response, request)
+	if routed && len(route.Methods) != 0 && !route.accepts(request.Method) {
+		response.Header().Set("Allow", strings.Join(route.Methods, ", "))
+		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", strings.Join(route.Methods, " or ")+" required")
+		return
 	}
+	if routed {
+		route.serve(h, response, request)
+		return
+	}
+	h.serveWebUI(response, request)
 }
 
 func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error) {

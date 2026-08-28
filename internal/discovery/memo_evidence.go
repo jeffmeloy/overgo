@@ -77,11 +77,7 @@ func validateIdentityEvidence(value *IdentityEvidence) error {
 // claim: digest of these bytes as last read.
 func LoadMemo(ctx context.Context, reader artifact.Reader) *Memo {
 	memo := NewMemo()
-	id, found, err := artifact.ResolveAlias(ctx, reader, IdentityEvidenceAlias)
-	if err != nil || !found {
-		return memo
-	}
-	evidence, found, err := identityEvidenceCodec.Read(ctx, reader, id)
+	evidence, found, err := identityEvidenceCodec.Resolve(ctx, reader, IdentityEvidenceAlias)
 	if err != nil || !found {
 		return memo
 	}

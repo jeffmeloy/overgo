@@ -158,9 +158,6 @@ type completionRequest struct {
 }
 
 func (h *Handler) completions(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	var body completionRequest
 	if !h.decodeJSONWithLimit(response, request, &body, maxRequestBytes) {
 		return

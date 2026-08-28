@@ -85,16 +85,9 @@ func loadLifecycle(
 	request Request,
 	intent artifact.ID,
 ) (Completion, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, repository, lifecycleAlias(operationID))
+	record, found, err := lifecycleCodec.Resolve(ctx, repository, lifecycleAlias(operationID))
 	if err != nil || !found {
 		return Completion{}, found, err
-	}
-	record, found, err := lifecycleCodec.Read(ctx, repository, id)
-	if err != nil || !found {
-		if err == nil {
-			err = errors.New("operation: lifecycle record is absent")
-		}
-		return Completion{}, true, err
 	}
 	if record.Operation != operationID || record.Intent != intent || record.Task != request.Task || record.Recipe != request.Recipe {
 		return Completion{}, true, ErrLifecycleConflict

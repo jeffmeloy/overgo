@@ -59,12 +59,7 @@ func RequireHumanDecision(ctx context.Context, reader artifact.Reader, id artifa
 
 // ResolveHumanDecision returns the latest decision for one operation.
 func ResolveHumanDecision(ctx context.Context, reader artifact.Reader, operation artifact.ID) (HumanDecision, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, HumanDecisionAliasRoot+operation.String())
-	if err != nil || !found {
-		return HumanDecision{}, found, err
-	}
-	value, err := humanDecisionCodec.Require(ctx, reader, id)
-	return value, err == nil, err
+	return humanDecisionCodec.Resolve(ctx, reader, HumanDecisionAliasRoot+operation.String())
 }
 
 // PublishHumanDecision atomically advances one operation decision chain.

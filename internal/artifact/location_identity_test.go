@@ -21,14 +21,14 @@ func TestCanonicalLocalLocationContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	same, err := SameLocalLocation(first, second)
+	same, err := sameLocalLocation(first, second)
 	if err != nil || !same || first.Value != second.Value || !filepath.IsAbs(first.Value) {
 		t.Fatalf("canonical locations = (%+v, %+v, %t, %v)", first, second, same, err)
 	}
 	otherID := identifyLocationFixture(t, KindFile, file)
 	other := second
 	other.Artifact = otherID
-	if same, err := SameLocalLocation(first, other); err != nil || same {
+	if same, err := sameLocalLocation(first, other); err != nil || same {
 		t.Fatalf("different artifact location = (%t, %v)", same, err)
 	}
 	if _, err := CanonicalLocalLocation(id, LocationDirectory, file); err == nil {

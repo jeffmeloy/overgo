@@ -108,7 +108,7 @@ func TestImpactUnknownSourceRunsAll(t *testing.T) {
 		{Descriptor: Descriptor{Name: "first", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:first"}, Inapplicable: "independent"}, Run: pass},
 		{Descriptor: Descriptor{Name: "second", Phase: runrecord.PhaseValidate, Triggers: []Fact{"owner:second"}, Inapplicable: "independent"}, Run: pass},
 	}
-	planned, err := Plan(checks, MergeImpact(Impact{}, Impact{}))
+	planned, err := Plan(checks, Impact{})
 	if err != nil || len(planned) != len(checks) {
 		t.Fatalf("unknown producer output planned = %+v, %v", planned, err)
 	}

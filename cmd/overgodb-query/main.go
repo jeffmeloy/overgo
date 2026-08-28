@@ -29,10 +29,7 @@ import (
 )
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.Main(func() error { return run(os.Args[1:], os.Stdout) })
 }
 
 func run(args []string, output io.Writer) error {

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
+	"overgo/internal/media"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -72,7 +73,7 @@ func TestVAEProgramCUDAMatchesReference(t *testing.T) {
 	}
 	maxAbs := 0.0
 	u8Diff := 0
-	wu8, gu8 := PixelsToU8(want), PixelsToU8(got)
+	wu8, gu8 := media.NormalizedF32ToU8(want), media.NormalizedF32ToU8(got)
 	for i := range want {
 		g := float64(got[i])
 		if math.IsNaN(g) || math.IsInf(g, 0) {
@@ -137,7 +138,7 @@ func TestVAEDecodeCUDARealModelMatchesHost(t *testing.T) {
 	}
 	maxAbs := 0.0
 	u8Diff := 0
-	hu8, du8 := PixelsToU8(hostPix), PixelsToU8(devPix)
+	hu8, du8 := media.NormalizedF32ToU8(hostPix), media.NormalizedF32ToU8(devPix)
 	for i := range hostPix {
 		g := float64(devPix[i])
 		if math.IsNaN(g) || math.IsInf(g, 0) {

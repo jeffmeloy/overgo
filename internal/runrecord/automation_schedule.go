@@ -64,12 +64,7 @@ func (authority AutomationScheduleAuthority) Current(
 	ctx context.Context,
 	name string,
 ) (AutomationScheduleClaim, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, authority.Repository, AutomationScheduleClaimAliasRoot+name)
-	if err != nil || !found {
-		return AutomationScheduleClaim{}, found, err
-	}
-	claim, err := automationScheduleClaimCodec.Require(ctx, authority.Repository, id)
-	return claim, err == nil, err
+	return automationScheduleClaimCodec.Resolve(ctx, authority.Repository, AutomationScheduleClaimAliasRoot+name)
 }
 
 // Require loads one exact claim for restart recovery.

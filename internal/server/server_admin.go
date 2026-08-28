@@ -96,9 +96,6 @@ type propertiesResponse struct {
 }
 
 func (h *Handler) properties(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	api, ok := h.generator.(ModelPropertiesAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")
@@ -305,9 +302,6 @@ func (stats *slotRuntimeStats) metrics(processing bool) slotRuntimeMetrics {
 }
 
 func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	includeText := request.URL.Query().Get("include_text") == "1"
 	if request.URL.Query().Has("fail_on_no_slot") && h.sessions.Available() == 0 {
 		writeError(response, http.StatusServiceUnavailable, "server_busy", "no slot available")
@@ -388,9 +382,6 @@ func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Reque
 			}
 		}
 		writeJSON(response, http.StatusOK, map[string]bool{"success": true})
-	default:
-		response.Header().Set("Allow", http.MethodGet+", "+http.MethodPost)
-		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "GET or POST required")
 	}
 }
 
@@ -407,9 +398,6 @@ type tokenPieceResponse struct {
 }
 
 func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	api, ok := h.generator.(TokenizationAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tokenization is unavailable")
@@ -510,9 +498,6 @@ type detokenizeRequest struct {
 }
 
 func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	api, ok := h.generator.(TokenizationAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "detokenization is unavailable")
@@ -593,9 +578,6 @@ type applyTemplateRequest struct {
 }
 
 func (h *Handler) applyTemplate(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	formatter, ok := h.generator.(ChatFormatter)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "chat formatting is unavailable")
@@ -645,9 +627,6 @@ func (h *Handler) authorized(request *http.Request) bool {
 }
 
 func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	response.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	response.WriteHeader(http.StatusOK)
 	_, _ = fmt.Fprintf(
@@ -802,9 +781,6 @@ func (h *Handler) generate(
 }
 
 func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	model := inference.ModelProperties{}
 	if api, ok := h.generator.(ModelPropertiesAPI); ok {
 		model = api.ModelProperties()
@@ -858,9 +834,6 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 }
 
 func (h *Handler) health(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	writeJSON(response, http.StatusOK, map[string]any{
 		"status": "ok",
 		"model":  h.config.ModelID,

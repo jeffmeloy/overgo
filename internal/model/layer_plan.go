@@ -63,15 +63,14 @@ const (
 	LayerOperatorHybridMix
 	LayerOperatorRecurrentMix
 	LayerOperatorFeedForwardNorm
-	LayerOperatorFeedForwardStandardSwiGLU
-	LayerOperatorFeedForwardFusedGLU
-	LayerOperatorFeedForwardSquaredReLU
+	// LayerOperatorFeedForwardPolicy runs the feed-forward declared by the
+	// layer plan: routed expert composition when a router is present,
+	// the dense feed-forward runtime otherwise.
+	LayerOperatorFeedForwardPolicy
 	LayerOperatorFeedForwardRoutedSquaredReLU
 	LayerOperatorFeedForwardRoutedSwiGLU
-	LayerOperatorFeedForwardGatedGELU
 	LayerOperatorFeedForwardParallelGatedGELU
 	LayerOperatorFeedForwardEncoder
-	LayerOperatorFeedForwardPlanned
 	LayerOperatorFeedForwardRelative
 	LayerOperatorFeedForwardPostNorm
 	LayerOperatorCacheSentinel
@@ -82,7 +81,6 @@ const (
 	LayerOperatorOutputAdapter
 	LayerOperatorGatedTokenShiftSquaredReLU
 	LayerOperatorTokenShiftSquaredReLU
-	LayerOperatorPeriodicScale
 	LayerOperatorAttentionResidualNorm
 	LayerOperatorInputResidualNorm
 	LayerOperatorFeedForwardResidualNorm
@@ -97,6 +95,7 @@ const (
 // LayerOperatorInstruction: compiled operator and operand indexes.
 type LayerOperatorInstruction struct {
 	Operator    LayerOperator
+	Scalar      float32
 	CacheCount  uint8
 	TensorCount uint8
 	Caches      [runtimeCacheBindingCount]RuntimeCacheBinding
@@ -963,13 +962,13 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 	}
 	if profile.Attention == AttentionShortConvolution && recurrent {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardStandardSwiGLU, false,
+			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
 		)
 	}
 	if profile.LayerTopology == LayerTopologyAffineWKV6 {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardStandardSwiGLU,
-			positiveFinite(plan.ResidualStages.residualScale),
+			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
+			plan.ResidualStages.residualScale,
 		)
 	}
 	if profile.Attention == AttentionGatedDelta {
@@ -977,31 +976,31 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 		if recurrent {
 			mixer = attentionLayerStage(LayerOperatorRecurrentMix)
 		}
-		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU, false)
+		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU)
 	}
 	if plan.Mixer == recurrentMixerAttentionGroupedSelectiveScan {
 		return residualMixerProgram(
-			hybridLayerStage(), LayerOperatorFeedForwardStandardSwiGLU, false,
+			hybridLayerStage(), LayerOperatorFeedForwardPolicy,
 		)
 	}
 	if plan.Mixer == recurrentMixerScaledGroupedSelectiveScan {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorRecurrentMix),
-			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardStandardSwiGLU),
-			layerStage(LayerOperatorScale), layerStage(LayerOperatorResidual),
+			scaleLayerStage(plan.ResidualStages.residualScale), layerStage(LayerOperatorResidual),
+			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
+			scaleLayerStage(plan.ResidualStages.residualScale), layerStage(LayerOperatorResidual),
 		)
 	}
 	if plan.Mixer == recurrentMixerWeightedSelectiveScan {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardStandardSwiGLU, false,
+			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
 		)
 	}
 	if plan.Mixer == recurrentMixerNormalizedSelectiveScan {
 		return newLayerProgram(
 			layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorRecurrentMix),
 			layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardFusedGLU),
+			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
 			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 		)
 	}
@@ -1039,7 +1038,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionSharedCacheQKNorm),
 				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardGatedGELU),
+				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
 				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidualScale),
 			)
 		}
@@ -1047,7 +1046,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 			return newLayerProgram(
 				pairedInputLayerStage(), attentionLayerStage(LayerOperatorAttentionPairedCausalProjection),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-				layerStage(LayerOperatorFeedForwardStandardSwiGLU), layerStage(LayerOperatorResidual),
+				layerStage(LayerOperatorFeedForwardPolicy), layerStage(LayerOperatorResidual),
 			)
 		}
 		if profile.LayerTopology == LayerTopologyDynamicWKV6 {
@@ -1057,7 +1056,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 				layerStage(LayerOperatorResidual),
 			}
 			if positiveFinite(plan.PeriodicScale) {
-				stages = append(stages, layerStage(LayerOperatorPeriodicScale))
+				stages = append(stages, scaleLayerStage(plan.PeriodicScale))
 			}
 			return newLayerProgram(stages...)
 		}
@@ -1070,7 +1069,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 				stages = append(stages, tokenShiftLayerStage(LayerOperatorTokenShiftSquaredReLU))
 			} else {
 				stages = append(stages, layerStage(LayerOperatorFeedForwardNorm),
-					layerStage(LayerOperatorFeedForwardStandardSwiGLU))
+					layerStage(LayerOperatorFeedForwardPolicy))
 			}
 			return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
 		}
@@ -1086,7 +1085,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 			return newLayerProgram(
 				layerStage(LayerOperatorRMSNorm), attentionLayerStage(LayerOperatorAttentionCausalPostQKNorm),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorRMSNorm),
-				layerStage(LayerOperatorFeedForwardStandardSwiGLU), layerStage(LayerOperatorResidual),
+				layerStage(LayerOperatorFeedForwardPolicy), layerStage(LayerOperatorResidual),
 				layerStage(LayerOperatorScaledSkip),
 			)
 		}
@@ -1094,14 +1093,14 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 			return newLayerProgram(
 				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionBidirectionalQKNorm),
 				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardGatedGELU),
+				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
 				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
 			)
 		}
 		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
 			return newLayerProgram(
 				attentionLayerStage(LayerOperatorAttentionBidirectionalFusedQKV), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardFusedGLU),
+				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
 				layerStage(LayerOperatorResidual),
 			)
 		}
@@ -1130,7 +1129,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 			}
 			return newLayerProgram(append(stages,
 				layerStage(LayerOperatorFeedForwardNorm),
-				layerStage(LayerOperatorFeedForwardStandardSwiGLU),
+				layerStage(LayerOperatorFeedForwardPolicy),
 				layerStage(LayerOperatorResidual),
 			)...)
 		}
@@ -1139,7 +1138,7 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 				layerStage(LayerOperatorAttentionInputNorm),
 				attentionLayerStage(LayerOperatorAttentionPlannedProjection),
 				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardInputNorm),
-				layerStage(LayerOperatorFeedForwardPlanned),
+				layerStage(LayerOperatorFeedForwardPolicy),
 				layerStage(LayerOperatorFeedForwardOutput), layerStage(LayerOperatorResidual),
 			)
 		}
@@ -1147,22 +1146,22 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 	case profile.LayerTopology == LayerTopologyKeyedDeltaHybrid:
 		if !recurrent {
 			return latentLayerProgram(
-				profile,
+				profile, plan.ResidualStages.residualScale,
 				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 			)
 		}
 		return residualMixerProgram(
 			attentionLayerStage(LayerOperatorRecurrentMix),
-			LayerOperatorFeedForwardStandardSwiGLU, false,
+			LayerOperatorFeedForwardPolicy,
 		)
 	case plan.Attention == AttentionLatent:
 		return latentLayerProgram(
-			profile,
+			profile, plan.ResidualStages.residualScale,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
 		)
 	case plan.Attention == AttentionSparseLatent:
 		return latentLayerProgram(
-			profile,
+			profile, plan.ResidualStages.residualScale,
 			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
 			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
 		)
@@ -1185,34 +1184,31 @@ func (p LayerPlan) splitProjection() bool {
 		suffix.Operator == LayerOperatorActivatedOutput
 }
 
-func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale bool) (LayerProgram, error) {
+func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale ...float32) (LayerProgram, error) {
 	stages := []LayerOperatorInstruction{
 		layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
 		layerStage(LayerOperatorFeedForwardNorm), layerStage(feedForward), layerStage(LayerOperatorResidual),
 	}
-	if scale {
-		stages = append(stages, layerStage(LayerOperatorScale))
+	if len(scale) != 0 && positiveFinite(scale[tensor.FirstOffset]) {
+		stages = append(stages, scaleLayerStage(scale[tensor.FirstOffset]))
 	}
 	return newLayerProgram(stages...)
 }
 
 func latentLayerProgram(
 	profile ArchitectureProfile,
+	scale float32,
 	caches []RuntimeCacheBinding,
 	tensors []RuntimeTensorBinding,
 ) (LayerProgram, error) {
-	mix := LayerOperatorFeedForwardStandardSwiGLU
-	if profile.FeedForward == FeedForwardSquaredReLU {
-		mix = LayerOperatorFeedForwardSquaredReLU
-	}
 	stages := []LayerOperatorInstruction{
 		layerStage(LayerOperatorAttentionNorm),
 		leafLayerStage(LayerOperatorLatentAttention, caches, tensors),
 		layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-		layerStage(mix),
+		layerStage(LayerOperatorFeedForwardPolicy),
 	}
 	if profile.LatentAttention == latentAttentionNeoXResidualScale {
-		stages = append(stages, layerStage(LayerOperatorScale))
+		stages = append(stages, scaleLayerStage(scale))
 	}
 	return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
 }
@@ -1232,6 +1228,10 @@ func leafLayerStage(
 
 func layerStage(operator LayerOperator) LayerOperatorInstruction {
 	return LayerOperatorInstruction{Operator: operator}
+}
+
+func scaleLayerStage(scale float32) LayerOperatorInstruction {
+	return LayerOperatorInstruction{Operator: LayerOperatorScale, Scalar: scale}
 }
 
 func attentionLayerStage(operator LayerOperator) LayerOperatorInstruction {

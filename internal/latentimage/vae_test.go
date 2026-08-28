@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/media"
 )
 
 // The decoder graph must DERIVE from the real Krea checkpoint: z16 -> RGB,
@@ -130,7 +132,7 @@ func TestVAEDecodeSyntheticImage(t *testing.T) {
 			t.Fatalf("pixel %d out of [-1,1]: %g", i, v)
 		}
 	}
-	u8 := PixelsToU8(pixels)
+	u8 := media.NormalizedF32ToU8(pixels)
 	sum := sha256.Sum256(u8ToBytes(u8))
 	// determinism: a second decode is bit-identical.
 	pixels2, _, _, err := d.DecodeImage(z, lh, lw)

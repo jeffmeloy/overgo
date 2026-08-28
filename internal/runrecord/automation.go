@@ -98,13 +98,9 @@ func resolveAutomationActivation(
 	if !textcheck.LowerIdentifier(name, len(name)) {
 		return ActiveAutomation{}, false, errors.New("run record: invalid automation name")
 	}
-	id, found, err := artifact.ResolveAlias(ctx, reader, AutomationActiveAliasRoot+name)
+	activation, found, err := automationActivationCodec.Resolve(ctx, reader, AutomationActiveAliasRoot+name)
 	if err != nil || !found {
 		return ActiveAutomation{}, found, err
-	}
-	activation, err := automationActivationCodec.Require(ctx, reader, id)
-	if err != nil {
-		return ActiveAutomation{}, false, err
 	}
 	definition, err := recipe.RequireAutomationDefinition(ctx, reader, activation.Definition)
 	if err != nil {

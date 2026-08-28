@@ -86,13 +86,9 @@ func (authority AgentAuthority) Resolve(ctx context.Context, name string) (Activ
 	if ctx == nil || authority.Repository == nil || !textcheck.LowerIdentifier(name, len(name)) {
 		return ActiveAgent{}, false, errors.New("run record: invalid agent resolution")
 	}
-	id, found, err := artifact.ResolveAlias(ctx, authority.Repository, AgentActiveAliasRoot+name)
+	activation, found, err := agentActivationCodec.Resolve(ctx, authority.Repository, AgentActiveAliasRoot+name)
 	if err != nil || !found {
 		return ActiveAgent{}, found, err
-	}
-	activation, err := agentActivationCodec.Require(ctx, authority.Repository, id)
-	if err != nil {
-		return ActiveAgent{}, false, err
 	}
 	definition, err := recipe.RequireAgentDefinition(ctx, authority.Repository, activation.Definition)
 	if err != nil || activation.Name != definition.Name || activation.Name != name {

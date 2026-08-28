@@ -78,18 +78,7 @@ func (CompositeGenerationPromotionAuthority) Load(
 	reader artifact.Reader,
 	id artifact.ID,
 ) (CompositeGenerationPromotion, error) {
-	content, err := loadCompositionContent(
-		ctx, reader, id, artifact.KindEvidence,
-		CompositeGenerationPromotionMediaType, CompositeGenerationPromotionSchema,
-	)
-	if err != nil {
-		return CompositeGenerationPromotion{}, err
-	}
-	value, err := compositeGenerationPromotionCodec.Parse(content.Data)
-	if err != nil || value.ID != id {
-		return CompositeGenerationPromotion{}, errors.Join(err, errors.New("composition: composite generation promotion identity differs"))
-	}
-	return value, nil
+	return compositeGenerationPromotionCodec.Require(ctx, reader, id)
 }
 
 // ValidateIdentity verifies the promotion envelope and content identity.
@@ -133,13 +122,9 @@ func ActiveCompositeGeneration(
 	if err != nil {
 		return CompositeGenerationPromotion{}, CompositionExecutionPlan{}, false, err
 	}
-	id, found, err := artifact.ResolveAlias(ctx, reader, alias)
+	promotion, found, err := compositeGenerationPromotionCodec.Resolve(ctx, reader, alias)
 	if err != nil || !found {
 		return CompositeGenerationPromotion{}, CompositionExecutionPlan{}, found, err
-	}
-	promotion, err := (CompositeGenerationPromotionAuthority{}).Load(ctx, reader, id)
-	if err != nil {
-		return CompositeGenerationPromotion{}, CompositionExecutionPlan{}, false, err
 	}
 	plan, err := CompileCompositionExecutionPlan(ctx, reader, source, target, task)
 	if err != nil {

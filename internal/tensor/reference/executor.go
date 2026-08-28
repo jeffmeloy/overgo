@@ -109,10 +109,6 @@ func ExecuteOperation(node *tensor.Tensor, inputs []Value) (Value, error) {
 	if !ok || descriptor.Backends&tensor.BackendReference == 0 {
 		return Value{}, fmt.Errorf("unsupported reference operation %s", node.Op)
 	}
-	return executeNode(node, inputs)
-}
-
-func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	view, aliases, err := tensor.ResolveStorageView(node)
 	if err != nil {
 		return Value{}, err
@@ -123,6 +119,18 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		}
 		return materializeStorageView(node.Shape, inputs[view.Input], view.ElementOffset)
 	}
+	return executeNode(node, inputs)
+}
+
+func mapValues(shape tensor.Shape, input Value, transform func(float32) float32) Value {
+	output := make([]float32, len(input.Data))
+	for index, value := range input.Data {
+		output[index] = transform(value)
+	}
+	return Value{Shape: shape, Data: output}
+}
+
+func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	switch node.Op {
 	case tensor.OpAdd:
 		return elementwiseBroadcast(node.Shape, inputs[0], inputs[1], func(a, b float32) float32 { return a + b })
@@ -151,11 +159,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpBF16Round:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
-			output[i] = dtype.RoundBF16(value)
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+		return mapValues(node.Shape, inputs[0], dtype.RoundBF16), nil
 	case tensor.OpRMSNorm:
 		attributes, ok := node.Attrs.(tensor.RMSNormAttributes)
 		if !ok {
@@ -177,31 +181,22 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpSoftmax:
 		return softmax(node.Shape, inputs[0])
 	case tensor.OpSiLU:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
-			output[i] = value / (1 + float32(math.Exp(float64(-value))))
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
+			return value / (1 + float32(math.Exp(float64(-value))))
+		}), nil
 	case tensor.OpGELU:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
-			output[i] = RoundedGELUTanh(value)
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+		return mapValues(node.Shape, inputs[0], RoundedGELUTanh), nil
 	case tensor.OpGELUErf:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
-			output[i] = float32(0.5 * float64(value) * (1 + math.Erf(float64(value)/math.Sqrt2)))
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
+			return float32(0.5 * float64(value) * (1 + math.Erf(float64(value)/math.Sqrt2)))
+		}), nil
 	case tensor.OpReLU:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
 			if value > 0 {
-				output[i] = value
+				return value
 			}
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+			return 0
+		}), nil
 	case tensor.OpConv1DSame:
 		attributes, ok := node.Attrs.(tensor.Conv1DAttributes)
 		if !ok {
@@ -259,44 +254,33 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 		}
 		return Value{Shape: node.Shape, Data: output}, nil
 	case tensor.OpReLUSquared:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
 			if value > 0 {
-				output[i] = value * value
+				return value * value
 			}
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+			return 0
+		}), nil
 	case tensor.OpSigmoid:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
-			output[i] = 1 / (1 + float32(math.Exp(float64(-value))))
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
+			return 1 / (1 + float32(math.Exp(float64(-value))))
+		}), nil
 	case tensor.OpSoftplus:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
 			absolute := math.Abs(float64(value))
-			output[i] = float32(math.Max(float64(value), 0) + math.Log1p(math.Exp(-absolute)))
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+			return float32(math.Max(float64(value), 0) + math.Log1p(math.Exp(-absolute)))
+		}), nil
 	case tensor.OpTanh:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
-			output[i] = float32(math.Tanh(float64(value)))
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
+			return float32(math.Tanh(float64(value)))
+		}), nil
 	case tensor.OpAtan:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
-			output[i] = float32(math.Atan(float64(value)))
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
+			return float32(math.Atan(float64(value)))
+		}), nil
 	case tensor.OpExp:
-		output := make([]float32, len(inputs[0].Data))
-		for i, value := range inputs[0].Data {
-			output[i] = float32(math.Exp(float64(value)))
-		}
-		return Value{Shape: node.Shape, Data: output}, nil
+		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
+			return float32(math.Exp(float64(value)))
+		}), nil
 	case tensor.OpL2Norm:
 		attributes, ok := node.Attrs.(tensor.L2NormAttributes)
 		if !ok {

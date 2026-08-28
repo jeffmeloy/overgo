@@ -59,9 +59,6 @@ type browseRunDetail struct {
 
 // browseRuns lists run artifacts from the retained OvergoDB view.
 func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	store, ok := h.requireBrowseStore(response, request)
 	if !ok {
 		return

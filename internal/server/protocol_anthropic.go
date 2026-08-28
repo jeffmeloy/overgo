@@ -63,9 +63,6 @@ type anthropicResponse struct {
 }
 
 func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
 		return

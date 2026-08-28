@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -20,10 +21,7 @@ import (
 )
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, "graft-probe:", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("graft-probe", func() error { return run(os.Args[1:], os.Stdout) })
 }
 
 func run(args []string, output io.Writer) error {

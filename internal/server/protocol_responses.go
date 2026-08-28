@@ -100,9 +100,6 @@ type responsesResponse struct {
 }
 
 func (h *Handler) responses(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
 	formatter, ok := h.requireChatFormatter(response)
 	if !ok {
 		return

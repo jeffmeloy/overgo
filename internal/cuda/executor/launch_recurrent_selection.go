@@ -17,7 +17,9 @@ func launchRecurrentSelection(
 	state *device.State,
 	functions functionSet,
 	blas *blasState,
+	_ *q8InputState,
 	node *tensor.Tensor,
+	_ tensor.Attributes,
 	pointers launchPointerFrame,
 ) error {
 	output := pointers.output()

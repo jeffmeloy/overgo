@@ -70,12 +70,7 @@ func (authority AutomationDeliveryAuthority) Current(
 	ctx context.Context,
 	idempotency artifact.ID,
 ) (AutomationDeliveryAttempt, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, authority.Repository, AutomationDeliveryAttemptAliasRoot+idempotency.String())
-	if err != nil || !found {
-		return AutomationDeliveryAttempt{}, found, err
-	}
-	value, err := automationDeliveryAttemptCodec.Require(ctx, authority.Repository, id)
-	return value, err == nil, err
+	return automationDeliveryAttemptCodec.Resolve(ctx, authority.Repository, AutomationDeliveryAttemptAliasRoot+idempotency.String())
 }
 
 // Begin atomically owns one external delivery. Won is false for an existing

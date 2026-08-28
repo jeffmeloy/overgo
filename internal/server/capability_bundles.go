@@ -12,9 +12,6 @@ type capabilityBundleResponse struct {
 }
 
 func (h *Handler) capabilityBundles(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	loader, ok := h.tools.(capabilityBundleAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "capability bundles are unavailable")

@@ -37,7 +37,7 @@ func typedFixtureLayerProgram(t *testing.T, profile ArchitectureProfile, plan La
 func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 	attentionNorm := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorLatentAttention, LayerOperatorResidual,
-		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy, LayerOperatorResidual,
 	}
 	recurrent := []LayerOperator{LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual}
 	tests := []struct {
@@ -48,7 +48,7 @@ func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 	}{
 		{name: "dense", want: []LayerOperator{
 			LayerOperatorAttentionInputNorm, LayerOperatorAttentionPlannedProjection, LayerOperatorResidual,
-			LayerOperatorFeedForwardInputNorm, LayerOperatorFeedForwardPlanned,
+			LayerOperatorFeedForwardInputNorm, LayerOperatorFeedForwardPolicy,
 			LayerOperatorFeedForwardOutput, LayerOperatorResidual,
 		}},
 		{name: "keyed delta", profile: ArchitectureProfile{LayerTopology: LayerTopologyKeyedDeltaHybrid, RecurrentMixer: recurrentMixerKeyedDelta}, want: attentionNorm},
@@ -59,15 +59,15 @@ func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 		}},
 		{name: "selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerSelectiveScan}, want: recurrent},
 		{name: "grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerGroupedSelectiveScan}, want: recurrent},
-		{name: "weighted selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerWeightedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: append(recurrent, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual)},
+		{name: "weighted selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerWeightedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: append(recurrent, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy, LayerOperatorResidual)},
 		{name: "scaled grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerScaledGroupedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorScale,
-			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU,
+			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy,
 			LayerOperatorScale, LayerOperatorResidual,
 		}},
 		{name: "normalized selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerNormalizedSelectiveScan}, plan: LayerPlan{Recurrent: true}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorAttentionPostNorm,
-			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardFusedGLU,
+			LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy,
 			LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
 		}},
 		{name: "sparse grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerSparseGroupedSelectiveScan}, plan: LayerPlan{Composition: LayerCompositionAttentionOnly}, want: []LayerOperator{
@@ -75,7 +75,7 @@ func TestLayerProgramsCoverTypedProfiles(t *testing.T) {
 		}},
 		{name: "attention grouped selective scan", profile: ArchitectureProfile{RecurrentMixer: recurrentMixerAttentionGroupedSelectiveScan}, want: []LayerOperator{
 			LayerOperatorAttentionNorm, LayerOperatorHybridMix, LayerOperatorResidual,
-			LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+			LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy, LayerOperatorResidual,
 		}},
 	}
 	for _, test := range tests {
@@ -103,7 +103,7 @@ func TestEagle3ProgramUsesPairedInputStages(t *testing.T) {
 	)
 	want := []LayerOperator{
 		LayerOperatorPairedInputNorm, LayerOperatorAttentionPairedCausalProjection, LayerOperatorResidual,
-		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy, LayerOperatorResidual,
 	}
 	requireLayerProgram(t, program, want...)
 	paired, _ := program.Instruction(0)
@@ -118,7 +118,7 @@ func TestGemma4AssistantProgramUsesSharedCacheStages(t *testing.T) {
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionSharedCacheQKNorm, LayerOperatorAttentionPostNorm,
-		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardGatedGELU,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy,
 		LayerOperatorFeedForwardPostNorm, LayerOperatorResidualScale,
 	}
 	requireLayerProgram(t, program, want...)
@@ -157,7 +157,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 			},
 			want: []LayerOperator{
 				LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+				LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy, LayerOperatorResidual,
 			},
 		},
 	}
@@ -173,7 +173,7 @@ func TestRWKVProgramsUseNeutralStages(t *testing.T) {
 	)
 	requireLayerProgram(t, periodic,
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-		LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorPeriodicScale,
+		LayerOperatorGatedTokenShiftSquaredReLU, LayerOperatorResidual, LayerOperatorScale,
 	)
 }
 
@@ -183,7 +183,7 @@ func TestTalkieProgramUsesNeutralStages(t *testing.T) {
 	)
 	want := []LayerOperator{
 		LayerOperatorRMSNorm, LayerOperatorAttentionCausalPostQKNorm, LayerOperatorResidual,
-		LayerOperatorRMSNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+		LayerOperatorRMSNorm, LayerOperatorFeedForwardPolicy, LayerOperatorResidual,
 		LayerOperatorScaledSkip,
 	}
 	requireLayerProgram(t, program, want...)
@@ -220,7 +220,7 @@ func TestGemmaEmbeddingProgramUsesNeutralStages(t *testing.T) {
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorAttentionBidirectionalQKNorm, LayerOperatorAttentionPostNorm,
-		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardGatedGELU,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy,
 		LayerOperatorFeedForwardPostNorm, LayerOperatorResidual,
 	}
 	requireLayerProgram(t, program, want...)
@@ -230,7 +230,7 @@ func TestDeciSparseProgramUsesNeutralStages(t *testing.T) {
 	program := mustCompileLayerProgram(t, LayerPlan{DeciSparse: true}, ArchitectureProfile{})
 	want := []LayerOperator{
 		LayerOperatorCacheSentinel, LayerOperatorAttentionNorm, LayerOperatorAttentionOutputProjection,
-		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU,
+		LayerOperatorResidual, LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy,
 		LayerOperatorResidual,
 	}
 	requireLayerProgram(t, program, want...)
@@ -241,13 +241,13 @@ func TestKeyedDeltaProgramSelectsLinearAttention(t *testing.T) {
 	program := typedFixtureLayerProgram(t, profile, LayerPlan{Recurrent: true})
 	requireLayerProgram(t, program,
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy, LayerOperatorResidual,
 	)
 	mixer, _ := program.Instruction(1)
 	feedForward, _ := program.Instruction(4)
 	state := compileRecurrentMixer(profile, true)
 	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerKeyedDelta ||
-		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
+		feedForward.Operator != LayerOperatorFeedForwardPolicy {
 		t.Fatalf("keyed-delta policies = %+v/%+v/%d", mixer, feedForward, state)
 	}
 }
@@ -259,7 +259,7 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 	)
 	want := []LayerOperator{
 		LayerOperatorAttentionNorm, LayerOperatorRecurrentMix, LayerOperatorResidual,
-		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardStandardSwiGLU, LayerOperatorResidual,
+		LayerOperatorFeedForwardNorm, LayerOperatorFeedForwardPolicy, LayerOperatorResidual,
 	}
 	requireLayerProgram(t, program, want...)
 	mixer, _ := program.Instruction(1)
@@ -268,7 +268,7 @@ func TestLFM2RecurrentProgramUsesSharedStages(t *testing.T) {
 		ArchitectureProfile{RecurrentMixer: recurrentMixerShortConvolution}, true,
 	)
 	if mixer.Operator != LayerOperatorRecurrentMix || state != recurrentMixerShortConvolution ||
-		feedForward.Operator != LayerOperatorFeedForwardStandardSwiGLU {
+		feedForward.Operator != LayerOperatorFeedForwardPolicy {
 		t.Fatalf("LFM2 recurrent policies = %+v/%d/%d", mixer, state, feedForward.Operator)
 	}
 }

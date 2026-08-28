@@ -173,12 +173,7 @@ func RequireInteraction(ctx context.Context, reader artifact.Reader, id artifact
 
 // ResolveInteraction resolves a response identity to its durable event.
 func ResolveInteraction(ctx context.Context, reader artifact.Reader, response string) (Interaction, bool, error) {
-	id, found, err := artifact.ResolveAlias(ctx, reader, InteractionResponseAliasRoot+response)
-	if err != nil || !found {
-		return Interaction{}, found, err
-	}
-	value, err := RequireInteraction(ctx, reader, id)
-	return value, err == nil, err
+	return interactionCodec.Resolve(ctx, reader, InteractionResponseAliasRoot+response)
 }
 
 // VisibleInteractionMessages materializes one branch-isolated parent chain.

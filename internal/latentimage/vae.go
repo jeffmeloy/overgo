@@ -293,15 +293,26 @@ func (d *VAEDecoder) DecodeImage(z []float32, h, w int) (pixels []float32, outH,
 			x[ch*spatial+pos] = z[ch*spatial+pos]*std + mean
 		}
 	}
-	ch, ch_h, ch_w := d.ZDim, h, w
-	for i := range d.Operations {
-		x, ch, ch_h, ch_w, err = d.runOp(d.Operations[i], x, ch, ch_h, ch_w)
-		if err != nil {
-			return nil, 0, 0, fmt.Errorf("latentimage vae: %s: %w", d.Operations[i].Name, err)
-		}
+	volume, err := media.ExecuteCodecProgram(
+		"latentimage vae", d.CodecProgram, make([]struct{}, len(d.Operations)),
+		media.CodecVolume[[]float32]{
+			Storage: x, Channels: d.ZDim, Frames: tensor.SingletonExtent, Height: h, Width: w,
+		},
+		func(_ int, operation media.CodecOperation[[]float32], _ *struct{}, current media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
+			next, channels, height, width, runErr := d.runOp(
+				operation, current.Storage, current.Channels, current.Height, current.Width,
+			)
+			return media.CodecVolume[[]float32]{
+				Storage: next, Channels: channels, Frames: current.Frames, Height: height, Width: width,
+			}, runErr
+		},
+	)
+	if err != nil {
+		return nil, 0, 0, err
 	}
+	x = volume.Storage
 	media.ClampNormalizedF32InPlace(x)
-	return x, ch_h, ch_w, nil
+	return x, volume.Height, volume.Width, nil
 }
 
 // runOp executes one op on a single-frame volume [c][h][w].
@@ -410,10 +421,4 @@ func codecSingleFrameConv(out, input, weight, bias []float32, inputChannels, out
 		PadT: kernel[0] / tensor.PairedExtent, PadH: kernel[1] / tensor.PairedExtent, PadW: kernel[2] / tensor.PairedExtent,
 		StrideT: extents.Stride[0], StrideH: extents.Stride[1], StrideW: extents.Stride[2],
 	})
-}
-
-// PixelsToU8 converts a planar [C][H][W] tensor in [-1,1] to the g3 8-bit
-// image convention: u8 = round(((x+1)/2 clamped to [0,1]) * 255).
-func PixelsToU8(pixels []float32) []uint8 {
-	return media.NormalizedF32ToU8(pixels)
 }

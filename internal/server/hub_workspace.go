@@ -33,10 +33,6 @@ import (
 // carries its own tier or defect. The inference activation also fills
 // the flat recipe/tier fields so existing consumers keep their shape.
 func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		methodNotAllowed(response)
-		return
-	}
 	if h.config.Repository == nil {
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", "no artifact repository is configured")
 		return
@@ -142,10 +138,6 @@ func idText(id artifact.ID) string {
 
 // hubSearch proxies one bounded discovery query to the configured hub.
 func (h *Handler) hubSearch(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet {
-		methodNotAllowed(response)
-		return
-	}
 	client, err := h.hubClient()
 	if err != nil {
 		writeError(response, http.StatusServiceUnavailable, "hub_unavailable", err.Error())
@@ -300,8 +292,6 @@ func (h *Handler) hubDownloads(response http.ResponseWriter, request *http.Reque
 		h.startHubDownload(response, request)
 	case http.MethodDelete:
 		h.cancelHubDownload(response, request)
-	default:
-		methodNotAllowed(response)
 	}
 }
 
@@ -397,8 +387,4 @@ func hubDestination(root, directory string) (string, error) {
 
 func (h *Handler) hubClient() (*hfhub.Client, error) {
 	return hfhub.New(h.config.HubEndpoint, h.config.HubToken)
-}
-
-func methodNotAllowed(response http.ResponseWriter) {
-	writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 }

@@ -167,9 +167,6 @@ func (h *Handler) nativeWorkflowRequest(
 	request *http.Request,
 	task recipe.Task,
 ) (WorkflowWorkspaceAPI, WorkflowCapability, map[string]json.RawMessage, bool) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return nil, WorkflowCapability{}, nil, false
-	}
 	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "generation workspace is unavailable")

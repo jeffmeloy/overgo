@@ -49,9 +49,6 @@ type runtimeActivityResponse struct {
 }
 
 func (h *Handler) runtimeSessions(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	writeJSON(response, http.StatusOK, h.runtimeSessionsSnapshot())
 }
 
@@ -75,9 +72,6 @@ func (h *Handler) runtimeSessionsSnapshot() runtimeSessionsResponse {
 }
 
 func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	activity, err := h.runtimeActivitySnapshot(request.Context())
 	if errors.Is(err, errBrowseRepositoryUnavailable) {
 		writeJSON(response, http.StatusOK, runtimeActivityResponse{Operations: h.operations.List()})
@@ -146,9 +140,6 @@ func projectedDocuments(
 }
 
 func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	events, unsubscribe, err := h.operations.Subscribe()
 	if err != nil {
 		writeGenerationError(response, err)

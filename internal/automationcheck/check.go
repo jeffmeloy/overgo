@@ -32,22 +32,6 @@ type Impact struct {
 	Exclusions []Exclusion `json:"exclusions,omitempty"`
 }
 
-// MergeImpact combines independent producers without treating absent output as
-// exclusion evidence.
-func MergeImpact(parts ...Impact) Impact {
-	var merged Impact
-	for _, part := range parts {
-		merged.Facts = append(merged.Facts, part.Facts...)
-		merged.Exclusions = append(merged.Exclusions, part.Exclusions...)
-	}
-	slices.Sort(merged.Facts)
-	merged.Facts = slices.Compact(merged.Facts)
-	slices.SortFunc(merged.Exclusions, func(left, right Exclusion) int {
-		return strings.Compare(left.Check, right.Check)
-	})
-	return merged
-}
-
 // ExclusionReason returns the producer's proof for one check.
 func (impact Impact) ExclusionReason(check string) (string, bool) {
 	for _, exclusion := range impact.Exclusions {

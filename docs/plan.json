@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "process-supervision",
-      "title": "Create one Go process-tree supervisor for every external command",
-      "status": "open",
-      "steps": [
-        {
-          "id": "process-boundary-guard",
-          "title": "Add an architecture test that refuses direct production exec and process termination outside processcontrol",
-          "status": "open",
-          "verify": "go test ./internal/processcontrol -run '^TestProductionCommandsUseSupervisor$' -count=1",
-          "rationale": "RSI-authored changes must not bypass the common lifecycle owner. Test-only fixtures and the supervisor implementation are the only explicit exceptions; new production call sites fail before merge.",
-          "depends_on": [
-            "process-supervision/consumer-migration"
-          ],
-          "capabilities": [
-            "architecture-guard",
-            "process-control",
-            "rsi-containment"
-          ]
-        }
-      ]
-    },
-    {
       "id": "execution-semantics",
       "title": "Unify execution outcomes, normalized failures, retry policy, and session health",
       "status": "open",

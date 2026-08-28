@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
+	"overgo/internal/jsonabbrev"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -210,44 +211,11 @@ func runRequest(ctx context.Context, store *overgodb.Store, inputs []artifact.ID
 		if err := json.Unmarshal(content.Data, &document); err != nil {
 			continue
 		}
-		abbreviated, err := json.Marshal(abbreviateValue(document))
+		abbreviated, err := json.Marshal(jsonabbrev.Value(document))
 		if err != nil {
 			continue
 		}
 		return string(abbreviated)
 	}
 	return ""
-}
-
-// Abbreviation bounds: a request field longer than these is bulk data,
-// not a setting a reader compares.
-const (
-	abbreviateStringRunes = 200
-	abbreviateArrayItems  = 8
-)
-
-func abbreviateValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		result := make(map[string]any, len(typed))
-		for key, entry := range typed {
-			result[key] = abbreviateValue(entry)
-		}
-		return result
-	case []any:
-		if len(typed) > abbreviateArrayItems {
-			return fmt.Sprintf("[%d values]", len(typed))
-		}
-		result := make([]any, len(typed))
-		for index, entry := range typed {
-			result[index] = abbreviateValue(entry)
-		}
-		return result
-	case string:
-		if len(typed) > abbreviateStringRunes {
-			return typed[:abbreviateStringRunes] + "…"
-		}
-		return typed
-	}
-	return value
 }

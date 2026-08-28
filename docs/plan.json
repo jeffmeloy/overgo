@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "tighten-abbrev",
-      "title": "One JSON abbreviation owner",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "One JSON abbreviation owner",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./cmd/compatibility -count=1"
-        }
-      ]
-    },
-    {
       "id": "tighten-file-digest",
       "title": "One file digest helper in dataset",
       "status": "open",

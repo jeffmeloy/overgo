@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"overgo/internal/artifact"
+	"overgo/internal/jsonabbrev"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
@@ -838,44 +839,11 @@ func digestRequestContent(name string, full artifact.Content) (artifact.Content,
 	}{
 		RequestSHA256: full.Descriptor.ID.String(),
 		RequestBytes:  len(full.Data),
-		Abbreviated:   abbreviateRequestValue(document),
+		Abbreviated:   jsonabbrev.Value(document),
 	}
 	return artifact.JSONContent(
 		artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input-digest.v1"), body,
 	)
-}
-
-// Abbreviation bounds: a request field longer than these is bulk data,
-// not a setting a reader compares.
-const (
-	abbreviateRequestString = 200
-	abbreviateRequestItems  = 8
-)
-
-func abbreviateRequestValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		result := make(map[string]any, len(typed))
-		for key, entry := range typed {
-			result[key] = abbreviateRequestValue(entry)
-		}
-		return result
-	case []any:
-		if len(typed) > abbreviateRequestItems {
-			return fmt.Sprintf("[%d values]", len(typed))
-		}
-		result := make([]any, len(typed))
-		for index, entry := range typed {
-			result[index] = abbreviateRequestValue(entry)
-		}
-		return result
-	case string:
-		if len(typed) > abbreviateRequestString {
-			return typed[:abbreviateRequestString] + "…"
-		}
-		return typed
-	}
-	return value
 }
 
 func decodeScalarInput[Input any](

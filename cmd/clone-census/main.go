@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"sort"
+	"strings"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/codeprofile"
@@ -23,6 +24,7 @@ func main() {
 func run() error {
 	summary := flag.Bool("summary", false, "print only the totals line")
 	runtimeOnly := flag.Bool("runtime", false, "print only non-test clone groups")
+	requireAbsent := flag.String("require-absent", "", "fail if any clone group still contains a function whose file:name contains this substring")
 	flag.Parse()
 	snapshot, err := repoanalysis.DiscoverGo(".", "cmd", "internal")
 	if err != nil {
@@ -34,6 +36,16 @@ func run() error {
 	}
 	fmt.Printf("functions=%d clone_groups=%d duplicate_excess_nodes=%d\n",
 		len(profile.Functions), len(profile.Clones), profile.DuplicateExcessNodes)
+	if *requireAbsent != "" {
+		for _, clone := range profile.Clones {
+			for _, function := range clone.Functions {
+				if strings.Contains(function, *requireAbsent) {
+					return fmt.Errorf("clone-census: %q still clones as %v", *requireAbsent, clone.Functions)
+				}
+			}
+		}
+		fmt.Printf("clone-census: %q is absent from every clone group\n", *requireAbsent)
+	}
 	if *summary {
 		return nil
 	}

@@ -148,26 +148,8 @@
   },
   {
    "package": "overgo/internal/apimanifest",
-   "name": "CompileDocuments",
-   "reason": "API manifest census compilation delivered by the tightening lane ahead of its gate integration.",
-   "consumer_trigger": "The gate grows an API-manifest census phase."
-  },
-  {
-   "package": "overgo/internal/apimanifest",
    "name": "Compare",
    "reason": "API manifest diffing delivered ahead of its gate integration.",
-   "consumer_trigger": "The gate grows an API-manifest census phase."
-  },
-  {
-   "package": "overgo/internal/apimanifest",
-   "name": "New",
-   "reason": "API manifest document construction delivered ahead of its gate integration.",
-   "consumer_trigger": "The gate grows an API-manifest census phase."
-  },
-  {
-   "package": "overgo/internal/apimanifest",
-   "name": "Parse",
-   "reason": "API manifest document parsing delivered ahead of its gate integration.",
    "consumer_trigger": "The gate grows an API-manifest census phase."
   },
   {
@@ -175,12 +157,6 @@
    "name": "sameLocalLocation",
    "reason": "Location comparison helper landing with the location tightening; its production caller arrives with location dedup.",
    "consumer_trigger": "Location dedup consumes local-location comparison."
-  },
-  {
-   "package": "overgo/internal/codemanifest",
-   "name": "DocumentDeclarations",
-   "reason": "Code manifest document declaration listing delivered ahead of the API-manifest census.",
-   "consumer_trigger": "The gate grows an API-manifest census phase."
   }
  ]
 }

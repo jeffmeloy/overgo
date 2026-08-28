@@ -2,5 +2,19 @@
   "campaign": "Governed external tool interoperability",
   "doctrine": "External protocol breadth enters through narrow adapters behind the immutable agent-tool manual. Discovery compiles bounded untrusted descriptions into typed candidate manuals; it never mutates the active catalog. Catalog search is deterministic and bound to exact manual identities. Streaming is a bounded, cancellable, sequenced lifecycle with an explicit terminal record. Model-authored tool workflows compile as closed-world recipe programs and execute without source generation or an embedded interpreter. Every row reuses artifact, recipe, operation, policy, and evidence owners already in the tree and deletes displaced switches, wrappers, caches, and temporary shapes in the same commit.",
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
-  "items": []
+  "items": [
+    {
+      "id": "readme-refresh",
+      "title": "README captures merged capabilities and links the API manifest",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "README captures merged capabilities and links the API manifest",
+          "status": "open",
+          "verify": "node -e \"const s=require('fs').readFileSync('README.md','utf8'); if(!s.includes('API_MANIFEST.md')) process.exit(1)\""
+        }
+      ]
+    }
+  ]
 }

@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "activation-matrix",
-      "title": "Register behavioral cases once and verify them across every activation profile",
-      "status": "open",
-      "steps": [
-        {
-          "id": "profile-coverage",
-          "title": "Cross registered cases with activation profiles and publish coverage denominators that refuse unenumerated activations",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/loop -run '^TestActivationMatrixCoverage$' -count=1",
-          "rationale": "Every registered case runs against every applicable activation profile, coverage is published with explicit gaps, and an activation kind absent from the matrix is refused rather than assumed verified. This mechanizes the enumerate-every-activation rule the campaign currently enforces only by discipline.",
-          "depends_on": [
-            "activation-matrix/case-registry"
-          ],
-          "capabilities": [
-            "verification-coverage",
-            "activation",
-            "honest-denominators"
-          ]
-        }
-      ]
-    },
-    {
       "id": "webhook-ingress",
       "title": "Add governed webhook ingress to the existing automation runtime",
       "status": "open",

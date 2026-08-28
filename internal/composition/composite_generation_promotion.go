@@ -103,10 +103,7 @@ func (value CompositeGenerationPromotion) Lineage() []artifact.Lineage {
 // CompositeGenerationPromotionAlias scopes production generation by source,
 // target, and task, exactly like the active composition recipe.
 func CompositeGenerationPromotionAlias(source, target artifact.ID, task recipe.Task) (string, error) {
-	if source.Kind() != artifact.KindModel || target.Kind() != artifact.KindModel || source == target || !task.Valid() {
-		return "", errors.New("composition: composite generation promotion scope is invalid")
-	}
-	return "composition.generation.active." + string(task) + "." + source.String() + "." + target.String(), nil
+	return scopedModelTaskAlias("composition.generation.active.", source, target, task, "composite generation promotion")
 }
 
 // ActiveCompositeGeneration resolves the promoted generation and revalidates

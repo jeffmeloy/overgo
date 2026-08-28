@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "tighten-composition-alias",
-      "title": "One parameterized composition alias resolver",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "One parameterized composition alias resolver",
-          "status": "open",
-          "verify": "go test ./internal/composition -count=1"
-        }
-      ]
-    },
-    {
       "id": "tighten-evaluation-binders",
       "title": "Shared evaluation binder and answer normalization",
       "status": "open",

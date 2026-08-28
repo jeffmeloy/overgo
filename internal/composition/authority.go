@@ -329,12 +329,19 @@ func (value CompositionRecipe) ActivationBatch(
 	return batch, nil
 }
 
+// scopedModelTaskAlias derives a source-target-task scoped alias name
+// under one prefix; every promotion authority shares this scope rule:
+// two distinct models and a valid task, or no alias at all.
+func scopedModelTaskAlias(prefix string, source, target artifact.ID, task recipe.Task, scope string) (string, error) {
+	if source.Kind() != artifact.KindModel || target.Kind() != artifact.KindModel || source == target || !task.Valid() {
+		return "", errors.New("composition: " + scope + " scope is invalid")
+	}
+	return prefix + string(task) + "." + source.String() + "." + target.String(), nil
+}
+
 // ActiveCompositionAlias derives the source-target-task scoped alias name.
 func ActiveCompositionAlias(source, target artifact.ID, task recipe.Task) (string, error) {
-	if source.Kind() != artifact.KindModel || target.Kind() != artifact.KindModel || source == target || !task.Valid() {
-		return "", errors.New("composition: active alias scope is invalid")
-	}
-	return "composition.active." + string(task) + "." + source.String() + "." + target.String(), nil
+	return scopedModelTaskAlias("composition.active.", source, target, task, "active alias")
 }
 
 // ActiveComposition resolves and revalidates the exact scoped active recipe.

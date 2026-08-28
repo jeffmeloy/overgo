@@ -35,8 +35,6 @@ type AttemptHistory struct {
 	Steps    []AttemptAggregate `json:"steps"`
 }
 
-const attemptHistoryMaxRecords = 4096
-
 // LoadAttemptHistory queries committed attempt records from the store,
 // filters and orders them deterministically, and aggregates them per step.
 func LoadAttemptHistory(ctx context.Context, store *overgodb.Store, filter AttemptFilter) (AttemptHistory, error) {
@@ -44,10 +42,10 @@ func LoadAttemptHistory(ctx context.Context, store *overgodb.Store, filter Attem
 		return AttemptHistory{}, errors.New("run record: attempt history requires the store")
 	}
 	limit := filter.Limit
-	if limit <= 0 || limit > attemptHistoryMaxRecords {
-		limit = attemptHistoryMaxRecords
+	if limit <= 0 || limit > MaximumAttemptPopulation {
+		limit = MaximumAttemptPopulation
 	}
-	result, err := store.Query(ctx, overgodb.Query{Kind: artifact.KindEvidence, MediaType: AttemptMediaType, Schema: AttemptSchema, MaxResults: attemptHistoryMaxRecords, Projection: overgodb.ProjectContentPresence})
+	result, err := store.Query(ctx, overgodb.Query{Kind: artifact.KindEvidence, MediaType: AttemptMediaType, Schema: AttemptSchema, MaxResults: MaximumAttemptPopulation, Projection: overgodb.ProjectContentPresence})
 	if err != nil {
 		return AttemptHistory{}, err
 	}

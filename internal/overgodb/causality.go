@@ -13,7 +13,8 @@ import (
 	"overgo/internal/strictjson"
 )
 
-const causalityProjectionVersion = initialProjectionVersion
+// CausalityProjectionVersion identifies the indexed causal query contract.
+const CausalityProjectionVersion = initialProjectionVersion
 
 // CausalityQuery selects one bounded view of the operational causal graph.
 // Filters intersect. DescendantOf traverses causal subjects, independently of
@@ -61,10 +62,10 @@ func (f causalityFacet) validate(batch artifact.Batch, hasArtifact func(artifact
 		if err := link.Validate(); err != nil {
 			return err
 		}
-		if current, found := f.records[link.Execution]; found && !equalCausalLink(current, link) {
+		if current, found := f.records[link.Execution]; found && !current.Equal(link) {
 			return fmt.Errorf("overgodb: causal execution conflicts: %s", link.Execution)
 		}
-		if current, found := pending[link.Execution]; found && !equalCausalLink(current, link) {
+		if current, found := pending[link.Execution]; found && !current.Equal(link) {
 			return fmt.Errorf("overgodb: duplicate causal execution: %s", link.Execution)
 		}
 		for _, required := range causalEvidence(link) {
@@ -135,7 +136,7 @@ func (f *causalityFacet) applyCommit(batch artifact.Batch, _ map[artifact.ID]con
 
 func (f causalityFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
 	for _, link := range batch.Causality {
-		if current, found := f.records[link.Execution]; !found || !equalCausalLink(current, link) {
+		if current, found := f.records[link.Execution]; !found || !current.Equal(link) {
 			delta.Causality = append(delta.Causality, link.Clone())
 		}
 	}
@@ -180,7 +181,7 @@ func (s *Store) QueryCausality(ctx context.Context, query CausalityQuery) (Causa
 	}
 	ids := s.state.causality.selectIDs(query)
 	result := CausalityResult{
-		Head: s.head, Sequence: s.sequence, ProjectionVersion: causalityProjectionVersion,
+		Head: s.head, Sequence: s.sequence, ProjectionVersion: CausalityProjectionVersion,
 		Matched: len(ids), Truncated: query.MaxResults < len(ids),
 	}
 	ids = ids[:min(len(ids), query.MaxResults)]
@@ -274,9 +275,4 @@ func insertCausalIndex[K comparable](index map[K][]artifact.ID, key K, id artifa
 	if !found {
 		index[key] = slices.Insert(values, at, id)
 	}
-}
-
-func equalCausalLink(left, right artifact.CausalLink) bool {
-	return left.Execution == right.Execution && left.Root == right.Root && left.Trigger == right.Trigger &&
-		left.Subject == right.Subject && slices.Equal(left.Motivation, right.Motivation)
 }

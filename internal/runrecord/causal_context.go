@@ -135,6 +135,22 @@ func cloneCausal(causal *CausalContext) *CausalContext {
 	return &cloned
 }
 
+// Link deterministically derives the storage-neutral projection input for one
+// validated causal context and execution.
+func (context CausalContext) Link(execution artifact.ID) (artifact.CausalLink, error) {
+	if err := context.Validate(); err != nil {
+		return artifact.CausalLink{}, err
+	}
+	link := artifact.CausalLink{
+		Execution: execution, Root: context.Root, Trigger: string(context.Trigger),
+		Subject: context.subject(), Motivation: slices.Clone(context.Motivation),
+	}
+	if err := link.Validate(); err != nil {
+		return artifact.CausalLink{}, err
+	}
+	return link, nil
+}
+
 // BindCausality appends the storage-neutral projection input derived from a
 // typed causal context. Nil contexts remain compatible with historical
 // records; non-nil contexts are validated before the batch can be published.
@@ -145,14 +161,8 @@ func BindCausality(batch *artifact.Batch, execution artifact.ID, causal *CausalC
 	if causal == nil {
 		return nil
 	}
-	if err := causal.Validate(); err != nil {
-		return err
-	}
-	link := artifact.CausalLink{
-		Execution: execution, Root: causal.Root, Trigger: string(causal.Trigger),
-		Subject: causal.subject(), Motivation: slices.Clone(causal.Motivation),
-	}
-	if err := link.Validate(); err != nil {
+	link, err := causal.Link(execution)
+	if err != nil {
 		return err
 	}
 	batch.Causality = append(batch.Causality, link)

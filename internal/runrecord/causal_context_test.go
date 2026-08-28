@@ -1,11 +1,69 @@
 package runrecord
 
 import (
+	"reflect"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/testutil"
 )
+
+// TestCausalContextLink pins the one shared context-to-projection adapter.
+func TestCausalContextLink(t *testing.T) {
+	id := func(label string) artifact.ID { return testutil.ArtifactID(t, artifact.KindEvidence, label) }
+	rootID, subject := id("causal-link-root"), id("causal-link-subject")
+	motivationA, motivationB := id("causal-link-motivation-a"), id("causal-link-motivation-b")
+	root, err := NewCausalRoot(TriggerWebhook, rootID, motivationB, motivationA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	context, err := root.Derive(TriggerRecovery, subject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution := id("causal-link-execution")
+	link, err := context.Link(execution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := artifact.CausalLink{
+		Execution: execution, Root: rootID, Trigger: string(TriggerRecovery),
+		Subject: subject, Motivation: []artifact.ID{motivationA, motivationB},
+	}
+	if artifact.CompareID(motivationA, motivationB) > 0 {
+		want.Motivation[0], want.Motivation[1] = want.Motivation[1], want.Motivation[0]
+	}
+	if !reflect.DeepEqual(link, want) {
+		t.Fatalf("causal link = %+v, want %+v", link, want)
+	}
+	batch := artifact.Batch{}
+	if err := BindCausality(&batch, execution, &context); err != nil {
+		t.Fatal(err)
+	}
+	if len(batch.Causality) != 1 || !reflect.DeepEqual(batch.Causality[0], want) {
+		t.Fatalf("bound causality = %+v, want %+v", batch.Causality, want)
+	}
+	context.Motivation[0] = id("mutated-motivation")
+	if !reflect.DeepEqual(link, want) || !reflect.DeepEqual(batch.Causality[0], want) {
+		t.Fatalf("causal link aliases its context: link=%+v batch=%+v", link, batch.Causality)
+	}
+
+	for name, refusal := range map[string]struct {
+		execution artifact.ID
+		context   CausalContext
+	}{
+		"absent execution":  {context: root},
+		"foreign execution": {execution: testutil.ArtifactID(t, artifact.KindRun, "causal-link-run"), context: root},
+		"execution is root": {execution: rootID, context: root},
+		"invalid context":   {execution: execution, context: CausalContext{Trigger: "foreign", Root: rootID}},
+	} {
+		t.Run("refuses "+name, func(t *testing.T) {
+			if _, err := refusal.context.Link(refusal.execution); err == nil {
+				t.Fatal("accepted")
+			}
+		})
+	}
+}
 
 // TestCausalContextIdentityAndValidation pins the causal contract:
 // only originating triggers mint roots, every derivation copies the

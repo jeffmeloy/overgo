@@ -127,6 +127,13 @@ func (link CausalLink) Clone() CausalLink {
 	return link
 }
 
+// Equal reports exact causal fact equality, including motivation order.
+func (link CausalLink) Equal(other CausalLink) bool {
+	return link.Execution == other.Execution && link.Root == other.Root &&
+		link.Trigger == other.Trigger && link.Subject == other.Subject &&
+		slices.Equal(link.Motivation, other.Motivation)
+}
+
 // Validate checks repository-generic causal facts. Trigger-specific field
 // rules remain the canonical record owner's responsibility.
 func (link CausalLink) Validate() error {

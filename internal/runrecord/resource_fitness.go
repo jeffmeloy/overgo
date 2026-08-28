@@ -17,6 +17,26 @@ const ResourceFitnessVersion uint16 = 1
 // with allocation counts.
 type ResourceMetric string
 
+// Valid reports membership in the closed resource metric vocabulary.
+func (metric ResourceMetric) Valid() bool {
+	return validResourceMetric(metric)
+}
+
+// Hardware reports whether metric is measured from host, accelerator, or I/O
+// resource activity rather than from logical work, elapsed wall time, or cost.
+func (metric ResourceMetric) Hardware() bool {
+	switch metric {
+	case ResourceActiveComputeNS, ResourceCPUNS, ResourceGPUNS,
+		ResourcePeakHostBytes, ResourcePeakDeviceBytes,
+		ResourceDiskReadBytes, ResourceDiskWriteBytes,
+		ResourceNetworkReceiveBytes, ResourceNetworkSendBytes,
+		ResourceHostToDeviceBytes, ResourceDeviceToHostBytes:
+		return true
+	default:
+		return false
+	}
+}
+
 const (
 	// ResourceInputTokens counts uncached input tokens.
 	ResourceInputTokens ResourceMetric = "input_tokens"

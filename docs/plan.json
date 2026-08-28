@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "coverage-projection",
-          "title": "Project measurement, evaluation, hardware, causal, failure-classification, and pairing coverage separately from scores",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/overgodb -run '^TestEvidenceCoverageProjection$' -count=1",
-          "rationale": "Missing evidence is not favorable evidence. Every aggregate reports observed, missing, degraded, unclassified, uncosted, recovered, and paired counts, anchored to an exact journal head and projection version.",
-          "depends_on": [
-            "resource-coverage/observation-chunks"
-          ],
-          "capabilities": [
-            "coverage",
-            "evaluation",
-            "projection-evidence"
-          ]
-        },
-        {
           "id": "fitness-integration",
           "title": "Require improvement comparisons to evaluate capability, quality, resource, and coverage deltas together",
           "status": "open",

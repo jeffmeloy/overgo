@@ -929,7 +929,7 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	causality := result.Causality[:0]
 	for _, link := range result.Causality {
 		if len(causality) != 0 && causality[len(causality)-1].Execution == link.Execution {
-			if !equalCausalLink(causality[len(causality)-1], link) {
+			if !causality[len(causality)-1].Equal(link) {
 				return artifact.Batch{}, fmt.Errorf("overgodb: conflicting causal execution %s", link.Execution)
 			}
 			continue

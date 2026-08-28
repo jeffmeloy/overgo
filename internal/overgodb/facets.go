@@ -57,7 +57,7 @@ func projections(state *catalogState) []registeredProjection {
 		{name: "artifacts", version: initialProjectionVersion, view: &state.artifacts},
 		{name: "contents", version: initialProjectionVersion, view: &state.contents},
 		{name: "lineage", version: initialProjectionVersion, view: &state.lineage},
-		{name: "causality", version: causalityProjectionVersion, view: &state.causality},
+		{name: "causality", version: CausalityProjectionVersion, view: &state.causality},
 		{name: "locations", version: initialProjectionVersion, view: &state.locations},
 		{name: "aliases", version: initialProjectionVersion, view: &state.aliases},
 		{name: "commits", version: initialProjectionVersion, view: &state.commits},

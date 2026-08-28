@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -19,6 +20,9 @@ const (
 	AttemptMediaType = "application/vnd.overgo.gate-attempt+json"
 	// AttemptSchema identifies the exact stored gate-attempt schema.
 	AttemptSchema = "overgo/gate-attempt/v1"
+	// MaximumAttemptPopulation bounds one deterministic in-memory population
+	// of attempt records or per-attempt evidence reads.
+	MaximumAttemptPopulation = 4096
 )
 
 var attemptContract = artifact.DocumentContract{
@@ -146,6 +150,11 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 func NewAttemptRecord(record AttemptRecord) (AttemptRecord, error) {
 	record.Version = artifact.InitialDocumentVersion
 	return attemptCodec.New(record)
+}
+
+// RequireAttemptRecord loads one canonical gate-attempt document.
+func RequireAttemptRecord(ctx context.Context, reader artifact.Reader, id artifact.ID) (AttemptRecord, error) {
+	return attemptCodec.Require(ctx, reader, id)
 }
 
 // Content encodes the attempt for its store batch.

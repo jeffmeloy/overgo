@@ -27,7 +27,14 @@ func PackageNames(snapshot SourceSnapshot, selection BuildSelection) (map[string
 		if packagePath == "" {
 			packagePath = path.Dir(source.Path) + "#" + file.Name.Name
 		}
-		names[packagePath] = file.Name.Name
+		// XTestGoFiles are owned by the production import path in the build
+		// selection even though they declare package <name>_test. Preserve the
+		// production declaration as the import qualifier regardless of source
+		// ordering; otherwise an external test can make real consumers appear
+		// unresolved and turn the consumer census into a false dead-export report.
+		if names[packagePath] == "" || !source.Test {
+			names[packagePath] = file.Name.Name
+		}
 		for _, spec := range file.Imports {
 			importPath, err := strconv.Unquote(spec.Path.Value)
 			if err == nil {

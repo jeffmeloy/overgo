@@ -97,10 +97,32 @@ var terminalAttemptCodec = artifact.JSONDocumentCodec(
 	},
 )
 
+// RequireTerminalAttemptReceipt loads one canonical terminal receipt by its
+// immutable identity.
+func RequireTerminalAttemptReceipt(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (TerminalAttemptReceipt, error) {
+	receipt, err := terminalAttemptCodec.Require(ctx, reader, id)
+	if err == nil {
+		err = validateTerminalAttemptReceiptReferences(ctx, reader, receipt)
+	}
+	if err != nil {
+		return TerminalAttemptReceipt{}, err
+	}
+	return receipt, nil
+}
+
 // ResolveTerminalAttemptReceipt returns one operation's receipt for one
 // attempt ordinal, when that attempt closed.
 func ResolveTerminalAttemptReceipt(ctx context.Context, reader artifact.Reader, operation artifact.ID, attempt uint32) (TerminalAttemptReceipt, bool, error) {
-	return terminalAttemptCodec.Resolve(ctx, reader, terminalAttemptAlias(operation, attempt))
+	id, found, err := artifact.ResolveAlias(ctx, reader, terminalAttemptAlias(operation, attempt))
+	if err != nil || !found {
+		return TerminalAttemptReceipt{}, found, err
+	}
+	receipt, err := RequireTerminalAttemptReceipt(ctx, reader, id)
+	return receipt, true, err
 }
 
 // PublishTerminalAttemptReceipt commits one terminal receipt. Failure
@@ -111,22 +133,12 @@ func PublishTerminalAttemptReceipt(ctx context.Context, repository artifact.Repo
 	if ctx == nil || repository == nil {
 		return TerminalAttemptReceipt{}, errors.New("run record: terminal attempt repository is absent")
 	}
-	if _, err := RequireCapabilityIdentity(ctx, repository, value.Capability); err != nil {
-		return TerminalAttemptReceipt{}, errors.Join(errors.New("run record: terminal attempt capability cannot be resolved exactly"), err)
-	}
-	if value.FailureObservation.Valid() {
-		if _, err := RequireFailureObservation(ctx, repository, value.FailureObservation); err != nil {
-			return TerminalAttemptReceipt{}, err
-		}
-	}
-	if value.FailureNormalization.Valid() {
-		if _, err := RequireFailureNormalization(ctx, repository, value.FailureNormalization); err != nil {
-			return TerminalAttemptReceipt{}, err
-		}
-	}
 	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
 	identified, err := terminalAttemptCodec.New(value)
 	if err != nil {
+		return TerminalAttemptReceipt{}, err
+	}
+	if err := validateTerminalAttemptReceiptReferences(ctx, repository, identified); err != nil {
 		return TerminalAttemptReceipt{}, err
 	}
 	parents := []artifact.ID{identified.Operation, identified.Capability}
@@ -144,6 +156,104 @@ func PublishTerminalAttemptReceipt(ctx context.Context, repository artifact.Repo
 		"attempt/terminal/"+identified.ID.String(), identified,
 		artifact.DependencyLineage(identified.ID, parents...),
 		[]artifact.AliasBinding{{Name: alias, Target: identified.ID}})
+}
+
+// validateTerminalAttemptReceiptReferences closes the typed failure tuple
+// without replaying a possibly newer classifier. Historical normalizations
+// remain valid, but they must classify the exact observation named by the
+// receipt and the stored disposition must be the deterministic decision for
+// its own recorded situation. Receipt operations are evidence authorities,
+// while FailureObservation.Run can only name a run, so a receipt admits only
+// observations that are not bound to a run. Recovery lineage is walked by
+// decreasing attempt ordinal, bounded by MaximumAttemptPopulation, and every
+// prior must be the immutable receipt selected by the same operation's alias.
+func validateTerminalAttemptReceiptReferences(
+	ctx context.Context,
+	reader artifact.Reader,
+	receipt TerminalAttemptReceipt,
+) error {
+	if uint64(receipt.Attempt)+1 > uint64(MaximumAttemptPopulation) {
+		return errors.New("run record: terminal attempt recovery lineage exceeds the bounded attempt population")
+	}
+	current := receipt
+	for {
+		if err := validateTerminalAttemptReceiptDirectReferences(ctx, reader, current); err != nil {
+			return err
+		}
+		if current.Attempt == 0 {
+			return nil
+		}
+		alias := terminalAttemptAlias(current.Operation, current.Attempt-1)
+		previousID, found, err := artifact.ResolveAlias(ctx, reader, alias)
+		if err != nil {
+			return errors.Join(errors.New("run record: terminal previous receipt alias cannot be resolved exactly"), err)
+		}
+		if !found {
+			return errors.New("run record: terminal previous receipt alias cannot be resolved exactly")
+		}
+		if previousID != current.Previous {
+			return errors.New("run record: terminal previous receipt differs from the exact operation ordinal")
+		}
+		previous, err := terminalAttemptCodec.Require(ctx, reader, current.Previous)
+		if err != nil {
+			return errors.Join(errors.New("run record: terminal previous receipt cannot be required exactly"), err)
+		}
+		if previous.Operation != current.Operation || uint64(previous.Attempt)+1 != uint64(current.Attempt) {
+			return errors.New("run record: terminal previous receipt changes operation or attempt ordinal")
+		}
+		current = previous
+	}
+}
+
+func validateTerminalAttemptReceiptDirectReferences(
+	ctx context.Context,
+	reader artifact.Reader,
+	receipt TerminalAttemptReceipt,
+) error {
+	if _, found, err := reader.Artifact(ctx, receipt.Operation); err != nil {
+		return errors.Join(errors.New("run record: terminal attempt operation cannot be resolved exactly"), err)
+	} else if !found {
+		return errors.New("run record: terminal attempt operation cannot be resolved exactly")
+	}
+	if _, err := RequireCapabilityIdentity(ctx, reader, receipt.Capability); err != nil {
+		return errors.Join(errors.New("run record: terminal attempt capability cannot be resolved exactly"), err)
+	}
+	if !receipt.FailureObservation.Valid() {
+		return nil
+	}
+	observation, err := RequireFailureObservation(ctx, reader, receipt.FailureObservation)
+	if err != nil {
+		return errors.Join(errors.New("run record: terminal failure observation cannot be resolved exactly"), err)
+	}
+	if observation.Run.Valid() {
+		return errors.New("run record: terminal failure observation is bound to a run instead of the receipt operation")
+	}
+	normalization, err := RequireFailureNormalization(ctx, reader, receipt.FailureNormalization)
+	if err != nil {
+		return errors.Join(errors.New("run record: terminal failure normalization cannot be resolved exactly"), err)
+	}
+	if normalization.Observation != observation.ID {
+		return errors.New("run record: terminal failure normalization changes observation")
+	}
+	if receipt.Disposition == nil || receipt.Disposition.Situation.Cause != normalization.Cause {
+		return errors.New("run record: terminal failure disposition changes normalized cause")
+	}
+	situation := receipt.Disposition.Situation
+	if situation.Interrupted != observation.Interrupted {
+		return errors.New("run record: terminal failure disposition changes interruption state")
+	}
+	if uint64(situation.Attempts) != uint64(receipt.Attempt)+1 ||
+		situation.MaxAttempts == 0 || situation.MaxAttempts < situation.Attempts {
+		return errors.New("run record: terminal failure disposition has inconsistent attempt bounds")
+	}
+	if receipt.Process != nil && (receipt.Process.ExitCode != observation.ExitCode ||
+		receipt.Process.Interrupted != observation.Interrupted) {
+		return errors.New("run record: terminal process termination changes failure observation")
+	}
+	if expected := executionfailure.Decide(situation); *receipt.Disposition != expected {
+		return errors.New("run record: terminal failure disposition differs from deterministic policy")
+	}
+	return nil
 }
 
 func terminalAttemptAlias(operation artifact.ID, attempt uint32) string {
@@ -198,6 +308,9 @@ func canonicalizeTerminalAttempt(value *TerminalAttemptReceipt) error {
 	if value.Previous.Valid() != (value.Attempt > 0) || value.Previous == value.Operation ||
 		value.Previous.Valid() && value.Previous.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid terminal recovery lineage")
+	}
+	if value.Outcome == OutcomeRecovered && value.Attempt == 0 {
+		return errors.New("run record: a recovered terminal attempt requires prior lineage")
 	}
 	if value.RestoredCheckpoint.Valid() && value.RestoredCheckpoint.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid terminal restored checkpoint")

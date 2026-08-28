@@ -246,12 +246,30 @@ func RequireObservationChunk(ctx context.Context, reader artifact.Reader, id art
 	if ctx == nil || reader == nil || id.Kind() != artifact.KindFile {
 		return ObservationChunk{}, errors.New("run record: invalid observation chunk read")
 	}
-	content, found, err := artifact.ReadContent(ctx, reader, id)
+	return requireObservationChunkContent(ctx, reader, id, nil)
+}
+
+// requireObservationChunkContent loads one raw chunk and, when supplied,
+// refuses a descriptor that changed after a caller's size preflight.
+func requireObservationChunkContent(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+	preflight *artifact.Descriptor,
+) (ObservationChunk, error) {
+	descriptor, stream, found, err := reader.OpenContent(ctx, id)
 	if err != nil {
 		return ObservationChunk{}, err
 	}
 	if !found {
 		return ObservationChunk{}, errors.New("run record: observation chunk is absent")
+	}
+	if preflight != nil && descriptor != *preflight {
+		return ObservationChunk{}, errors.New("run record: observation chunk descriptor changed after preflight")
+	}
+	content, err := artifact.ReadContentFrom(descriptor, stream)
+	if err != nil {
+		return ObservationChunk{}, err
 	}
 	if content.Descriptor.MediaType != ObservationChunkMediaType || content.Descriptor.Schema != ObservationChunkSchema {
 		return ObservationChunk{}, errors.New("run record: incompatible observation chunk content")
@@ -270,18 +288,27 @@ func RequireObservationChunk(ctx context.Context, reader artifact.Reader, id art
 // recomputes its raw chunk. A typed fact with absent or differing blob bytes is
 // not accepted as observation evidence.
 func RequireObservationChunkSummary(ctx context.Context, reader artifact.Reader, id artifact.ID) (ObservationChunkSummary, error) {
+	value, _, err := requireObservationChunkSummaryAndChunk(ctx, reader, id)
+	return value, err
+}
+
+func requireObservationChunkSummaryAndChunk(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (ObservationChunkSummary, ObservationChunk, error) {
 	value, err := observationChunkSummaryCodec.Require(ctx, reader, id)
 	if err != nil {
-		return ObservationChunkSummary{}, err
+		return ObservationChunkSummary{}, ObservationChunk{}, err
 	}
 	chunk, err := RequireObservationChunk(ctx, reader, value.Chunk)
 	if err != nil {
-		return ObservationChunkSummary{}, err
+		return ObservationChunkSummary{}, ObservationChunk{}, err
 	}
 	if err := VerifyObservationChunk(value, chunk); err != nil {
-		return ObservationChunkSummary{}, err
+		return ObservationChunkSummary{}, ObservationChunk{}, err
 	}
-	return value, nil
+	return value, chunk, nil
 }
 
 // VerifyObservationChunk recomputes digest, byte count, counters, aggregates,
@@ -461,18 +488,9 @@ func summarizeObservationChunk(value ObservationChunk, byteCount uint64) (Observ
 		kindCounts[sample.Kind]++
 		for _, measure := range sample.Measures {
 			metricCounts[measure.Metric]++
-			current, observed := metricTotals[measure.Metric]
-			if measure.Metric == ResourcePeakHostBytes || measure.Metric == ResourcePeakDeviceBytes {
-				if !observed || measure.Value > current {
-					metricTotals[measure.Metric] = measure.Value
-				}
-				continue
-			}
-			total, ok := checked.Add64(current, measure.Value)
-			if !ok {
-				return ObservationChunkSummary{}, errors.New("run record: observation resource aggregate overflows")
-			}
-			metricTotals[measure.Metric] = total
+		}
+		if !addResourceMeasures(metricTotals, sample.Measures) {
+			return ObservationChunkSummary{}, errors.New("run record: observation resource aggregate overflows")
 		}
 		if sample.Interactions != nil {
 			interactionSamples++
@@ -542,6 +560,9 @@ func canonicalizeObservationChunkSummary(value *ObservationChunkSummary) error {
 	}
 	if len(value.Stats.Metrics) != len(value.Aggregate.Measures) {
 		return errors.New("run record: observation metric coverage differs from aggregate")
+	}
+	if len(value.Stats.Metrics) == 0 {
+		value.Stats.Metrics = nil
 	}
 	value.Stats.Kinds = slices.Clone(value.Stats.Kinds)
 	sort.Slice(value.Stats.Kinds, func(i, j int) bool { return value.Stats.Kinds[i].Kind < value.Stats.Kinds[j].Kind })
@@ -621,6 +642,24 @@ func addInteractionWork(total *InteractionWork, delta InteractionWork) bool {
 			return false
 		}
 		*value.total = total
+	}
+	return true
+}
+
+func addResourceMeasures(total map[ResourceMetric]uint64, delta []ResourceMeasure) bool {
+	for _, measure := range delta {
+		current, observed := total[measure.Metric]
+		if measure.Metric == ResourcePeakHostBytes || measure.Metric == ResourcePeakDeviceBytes {
+			if !observed || measure.Value > current {
+				total[measure.Metric] = measure.Value
+			}
+			continue
+		}
+		next, ok := checked.Add64(current, measure.Value)
+		if !ok {
+			return false
+		}
+		total[measure.Metric] = next
 	}
 	return true
 }

@@ -122,7 +122,7 @@ func assertCausalityProjection(
 	t.Helper()
 	rootResult, err := store.QueryCausality(t.Context(), CausalityQuery{Root: &root, MaxResults: 8})
 	if err != nil || rootResult.Head != head || rootResult.Sequence != sequence ||
-		rootResult.ProjectionVersion != causalityProjectionVersion || rootResult.Matched != 4 || rootResult.Truncated {
+		rootResult.ProjectionVersion != CausalityProjectionVersion || rootResult.Matched != 4 || rootResult.Truncated {
 		t.Fatalf("root result = (%+v, %v)", rootResult, err)
 	}
 	bounded, err := store.QueryCausality(t.Context(), CausalityQuery{Root: &root, MaxResults: 2})

@@ -2,5 +2,175 @@
   "campaign": "Governed external tool interoperability",
   "doctrine": "External protocol breadth enters through narrow adapters behind the immutable agent-tool manual. Discovery compiles bounded untrusted descriptions into typed candidate manuals; it never mutates the active catalog. Catalog search is deterministic and bound to exact manual identities. Streaming is a bounded, cancellable, sequenced lifecycle with an explicit terminal record. Model-authored tool workflows compile as closed-world recipe programs and execute without source generation or an embedded interpreter. Every row reuses artifact, recipe, operation, policy, and evidence owners already in the tree and deletes displaced switches, wrappers, caches, and temporary shapes in the same commit.",
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
-  "items": []
+  "items": [
+    {
+      "id": "tighten-abbrev",
+      "title": "One JSON abbreviation owner",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One JSON abbreviation owner",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./cmd/compatibility -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-file-digest",
+      "title": "One file digest helper in dataset",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One file digest helper in dataset",
+          "status": "open",
+          "verify": "go test ./internal/dataset -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-revision-owner",
+      "title": "One owner for git revision facts",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One owner for git revision facts",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "tighten-artifact-unmarshal",
+      "title": "One text-unmarshal helper in artifact",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One text-unmarshal helper in artifact",
+          "status": "open",
+          "verify": "go test ./internal/artifact -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-composition-alias",
+      "title": "One parameterized composition alias resolver",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One parameterized composition alias resolver",
+          "status": "open",
+          "verify": "go test ./internal/composition -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-evaluation-binders",
+      "title": "Shared evaluation binder and answer normalization",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Shared evaluation binder and answer normalization",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-server-writers",
+      "title": "One typed result writer for server route families",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One typed result writer for server route families",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-projector-encode",
+      "title": "EncodeImage delegates to EncodeFrames",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "EncodeImage delegates to EncodeFrames",
+          "status": "open",
+          "verify": "go test ./internal/projector -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-attention-replay",
+      "title": "One owner for exact attention capture/replay",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One owner for exact attention capture/replay",
+          "status": "open",
+          "verify": "go test ./internal/model ./internal/inference -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-probe-harness",
+      "title": "Train-probe mains share one harness",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train-probe mains share one harness",
+          "status": "open",
+          "verify": "go build ./cmd/mixture-train-probe ./cmd/seriesforecast-train-probe"
+        }
+      ]
+    },
+    {
+      "id": "tighten-small-pairs",
+      "title": "Same-package duplicate pairs: testutil Require, jinja peek, diffusionimage close, runrecord constructors",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Same-package duplicate pairs: testutil Require, jinja peek, diffusionimage close, runrecord constructors",
+          "status": "open",
+          "verify": "go test ./internal/jinja ./internal/runrecord ./internal/cuda/testutil -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-testkits",
+      "title": "Shared test fixtures: golden readers, tolerance checks, projector testkit",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Shared test fixtures: golden readers, tolerance checks, projector testkit",
+          "status": "open",
+          "verify": "go test ./internal/testutil ./internal/projector -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tighten-closure",
+      "title": "Re-run the clone census and record the tightening delta",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-run the clone census and record the tightening delta",
+          "status": "open",
+          "verify": "go run ./cmd/clone-census -summary"
+        }
+      ]
+    }
+  ]
 }

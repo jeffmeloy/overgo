@@ -113,6 +113,9 @@ func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 		return SnapshotInfo{}, err
 	}
 	path, err := writeSnapshot(ctx, root, sequence, head, offset, hex.EncodeToString(anchor[:]), s.state)
+	if err == nil {
+		err = writeProjectionCheckpoints(root, &s.state, sequence, head, offset, hex.EncodeToString(anchor[:]))
+	}
 	s.mu.RUnlock()
 	if err != nil {
 		return SnapshotInfo{}, err

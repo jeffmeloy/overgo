@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "checkpoints",
-          "title": "Write per-projection checkpoints anchored to journal head, sequence, projection version, and canonical digest",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestProjectionCheckpointAnchorAndFallback$' -count=1",
-          "rationale": "A corrupt, stale, unknown-version, or non-canonical checkpoint is discarded and replay resumes from a verified earlier anchor. Checkpoints are derived acceleration state, never promotion evidence or transaction authority.",
-          "depends_on": [
-            "storage-projections/atomic-publication"
-          ],
-          "capabilities": [
-            "overgodb",
-            "checkpoint",
-            "deterministic-replay",
-            "fault-recovery"
-          ]
-        },
-        {
           "id": "rebuild-equivalence",
           "title": "Prove cold replay, checkpoint replay, and independent projection rebuild produce identical query digests",
           "status": "open",

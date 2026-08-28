@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
 	"sort"
 	"sync"
@@ -182,8 +183,21 @@ func open(root string, readOnly bool) (*Store, error) {
 	if root == "" {
 		return nil, errors.New("overgodb: empty root")
 	}
-	state, anchor, snapshot := loadLatestSnapshot(root)
-	loaded := snapshot.Loaded
+	// Per-projection checkpoints are the fastest verified anchor; any
+	// defect in the set falls back to the monolithic snapshot, then to
+	// full journal replay. Checkpoints are acceleration, not authority.
+	state, anchor, loaded, checkpointFallback := loadProjectionCheckpoints(root)
+	snapshot := SnapshotReplay{Loaded: loaded}
+	if loaded {
+		snapshot.Path = filepath.Join(root, checkpointDirectory)
+	}
+	if !loaded {
+		state, anchor, snapshot = loadLatestSnapshot(root)
+		if checkpointFallback != "" && snapshot.Fallback == "" {
+			snapshot.Fallback = checkpointFallback
+		}
+		loaded = snapshot.Loaded
+	}
 	if !loaded {
 		state = newCatalogState()
 	}

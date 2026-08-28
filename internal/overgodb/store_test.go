@@ -133,7 +133,7 @@ func TestMetadataSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if status := store.SnapshotReplay(); !status.Loaded || status.Path != snapshot.Path || status.Fallback != "" {
+	if status := store.SnapshotReplay(); !status.Loaded || status.Path != filepath.Join(root, checkpointDirectory) || status.Fallback != "" {
 		t.Fatalf("snapshot replay = %+v", status)
 	}
 	gotDescriptor, reader, found, err := store.OpenContent(context.Background(), descriptor.ID)

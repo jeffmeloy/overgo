@@ -90,6 +90,11 @@ func TestSnapshotFallbackReport(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = file.Close()
+	// The checkpoint set is the faster verified anchor; remove it so
+	// this test still exercises the monolithic snapshot fallback path.
+	if err := os.RemoveAll(filepath.Join(root, checkpointDirectory)); err != nil {
+		t.Fatal(err)
+	}
 	store, err = OpenReadOnly(root)
 	if err != nil {
 		t.Fatal(err)

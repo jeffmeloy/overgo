@@ -28,6 +28,11 @@ type projection interface {
 	// publishes nothing anywhere.
 	accept(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) error
 	applyCommit(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64)
+	// checkpoint serializes the projection's complete state canonically:
+	// serializing a restored checkpoint reproduces it byte for byte.
+	checkpoint() ([]byte, error)
+	// restore replaces the projection's state from one checkpoint.
+	restore(data []byte) error
 }
 
 // registeredProjection binds one facet to its explicit name and

@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "ownership-census",
-          "title": "Publish a computed census of duplicate storage, publication, process, outcome, failure, retry, capability, trigger, resource, and query mechanics",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis ./internal/automationcheck -run '^TestRSIOwnershipCensusContract$' -count=1",
-          "rationale": "The campaign must reuse current owners and identify real policy copies before adding abstractions. The census is computed from Go syntax, imports, call sites, and existing OvergoDB contracts; findings name the canonical owner, consumers, measured recurrence, consolidation path, and retirement trigger.",
-          "depends_on": [
-            "storage-baseline"
-          ],
-          "capabilities": [
-            "common-code",
-            "repo-analysis",
-            "ownership",
-            "census"
-          ]
-        },
-        {
           "id": "interaction-traces",
           "title": "Record representative storage, agent, tool, workflow, peer, evaluation, and UI interaction traces with exact work and round-trip counts",
           "status": "open",

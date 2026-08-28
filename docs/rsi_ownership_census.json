@@ -1,0 +1,201 @@
+{
+  "version": 1,
+  "doc": "Computed RSI ownership census; regenerate with go run ./cmd/rsi-census -update. Owners and recurrence are derived from repository syntax, never hand-listed.",
+  "findings": [
+    {
+      "family": "storage",
+      "owner": "cmd/overgodb-query",
+      "sites": 117,
+      "owner_sites": 18,
+      "recurrence": 99,
+      "consumers": [
+        "cmd/admission",
+        "cmd/advisories",
+        "cmd/agent-loop",
+        "cmd/agent-tool",
+        "cmd/benchmark",
+        "cmd/closure-scan",
+        "cmd/compatibility",
+        "cmd/composite-generation-lane",
+        "cmd/controller-action",
+        "cmd/dataset-catalog",
+        "cmd/dit-train-probe",
+        "cmd/eval-lane",
+        "cmd/evaluate",
+        "cmd/finding",
+        "cmd/gate",
+        "cmd/generate",
+        "cmd/graft-probe",
+        "cmd/hf-gguf-convert",
+        "cmd/hybrid-stack-train-probe",
+        "cmd/lora-extract",
+        "cmd/model-build",
+        "cmd/model-characterize",
+        "cmd/mot-train-probe",
+        "cmd/offline-artifact-validate",
+        "cmd/overgodb-backup",
+        "cmd/overgodb-compact",
+        "cmd/overgodb-import",
+        "cmd/overgodb-rebuild",
+        "cmd/plan",
+        "cmd/profile-catalog",
+        "cmd/recipe",
+        "cmd/sealed-authority",
+        "cmd/server",
+        "cmd/smoke-lane",
+        "cmd/store-check",
+        "cmd/tool-workflow",
+        "cmd/train",
+        "cmd/training-objective",
+        "cmd/vqaparity",
+        "internal/clioptions",
+        "internal/modelrecipetest",
+        "internal/modelswap",
+        "internal/scratchmodeltest",
+        "internal/server",
+        "internal/servingtest"
+      ]
+    },
+    {
+      "family": "publication",
+      "owner": "internal/server",
+      "sites": 54,
+      "owner_sites": 6,
+      "recurrence": 48,
+      "consumers": [
+        "cmd/admission",
+        "cmd/advisories",
+        "cmd/benchmark",
+        "cmd/closure-scan",
+        "cmd/compatibility",
+        "cmd/composite-generation-lane",
+        "cmd/controller-action",
+        "cmd/finding",
+        "cmd/gate",
+        "cmd/graft-probe",
+        "cmd/hf-gguf-convert",
+        "cmd/lora-extract",
+        "cmd/model-characterize",
+        "cmd/offline-artifact-validate",
+        "cmd/plan",
+        "cmd/recipe",
+        "cmd/smoke-lane",
+        "cmd/training-objective",
+        "internal/composition",
+        "internal/evaluation",
+        "internal/modelrecipetest",
+        "internal/steering",
+        "internal/trainingworkflow"
+      ]
+    },
+    {
+      "family": "process",
+      "owner": "cmd/plan",
+      "sites": 61,
+      "owner_sites": 9,
+      "recurrence": 52,
+      "consumers": [
+        "cmd/advisories",
+        "cmd/build-kernels",
+        "cmd/compatibility",
+        "cmd/composite-generation-lane",
+        "cmd/eval-lane",
+        "cmd/evaluate",
+        "cmd/gate",
+        "cmd/loop",
+        "cmd/loophook",
+        "cmd/recipe",
+        "cmd/release",
+        "cmd/reverify",
+        "cmd/sbom",
+        "cmd/smoke-lane",
+        "cmd/test-lane",
+        "cmd/webui-lane",
+        "internal/agenttool",
+        "internal/clioptions",
+        "internal/latentvideo",
+        "internal/media",
+        "internal/modelswap",
+        "internal/repoanalysis",
+        "internal/runrecord",
+        "internal/testutil",
+        "internal/webuilane"
+      ]
+    },
+    {
+      "family": "outcome",
+      "owner": "internal/runrecord",
+      "sites": 18,
+      "owner_sites": 6,
+      "recurrence": 12,
+      "consumers": [
+        "internal/composition",
+        "internal/evaluation",
+        "internal/loop",
+        "internal/parity",
+        "internal/plan",
+        "internal/recipe",
+        "internal/workflowruntime"
+      ]
+    },
+    {
+      "family": "failure",
+      "owner": "internal/server",
+      "sites": 1,
+      "owner_sites": 1,
+      "recurrence": 0
+    },
+    {
+      "family": "retry",
+      "owner": "",
+      "sites": 0,
+      "owner_sites": 0,
+      "recurrence": 0
+    },
+    {
+      "family": "capability",
+      "owner": "internal/server",
+      "sites": 10,
+      "owner_sites": 4,
+      "recurrence": 6,
+      "consumers": [
+        "internal/adaptiveparity",
+        "internal/discovery",
+        "internal/model",
+        "internal/modelrecipe",
+        "internal/modelrecipetest"
+      ]
+    },
+    {
+      "family": "trigger",
+      "owner": "",
+      "sites": 0,
+      "owner_sites": 0,
+      "recurrence": 0
+    },
+    {
+      "family": "resource",
+      "owner": "internal/latentvideo",
+      "sites": 9,
+      "owner_sites": 4,
+      "recurrence": 5,
+      "consumers": [
+        "cmd/benchmark",
+        "cmd/hybrid-stack-train-probe",
+        "internal/testutil"
+      ]
+    },
+    {
+      "family": "query",
+      "owner": "internal/server",
+      "sites": 23,
+      "owner_sites": 19,
+      "recurrence": 4,
+      "consumers": [
+        "cmd/overgodb-query",
+        "internal/discovery",
+        "internal/runrecord"
+      ]
+    }
+  ]
+}

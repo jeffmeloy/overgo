@@ -91,6 +91,9 @@ func validateProfile(profile Profile) error {
 		if _, err := hex.DecodeString(clone.Fingerprint); err != nil {
 			return errors.New("invalid clone fingerprint")
 		}
+		if clone.Delegate {
+			continue
+		}
 		excessCopies := len(clone.Functions)
 		excessCopies--
 		excess += clone.Nodes * excessCopies

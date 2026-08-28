@@ -46,6 +46,11 @@ type Clone struct {
 	Nodes         int      `json:"nodes"`
 	Functions     []string `json:"functions"`
 	AdvisoryClass string   `json:"advisory_class,omitempty"`
+	// Delegate marks a group whose every member is a pure delegate --
+	// one statement forwarding to another call. Such members cannot be
+	// tightened further, so the group is listed but contributes nothing
+	// to the duplicate-excess ratchet.
+	Delegate bool `json:"delegate,omitempty"`
 }
 
 // ImpactSelection records how structural ownership affected expensive checks.
@@ -76,8 +81,9 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 	var profile Profile
 	imports := map[string]bool{}
 	type body struct {
-		nodes int
-		refs  []string
+		nodes     int
+		refs      []string
+		delegates bool
 	}
 	bodies := map[string]*body{}
 	for _, source := range snapshot.Files {
@@ -147,9 +153,10 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 				})
 				key := class + "\x00" + clone
 				if bodies[key] == nil {
-					bodies[key] = &body{nodes: size}
+					bodies[key] = &body{nodes: size, delegates: true}
 				}
 				bodies[key].refs = append(bodies[key].refs, ref)
+				bodies[key].delegates = bodies[key].delegates && pureDelegate(value)
 			case *ast.GenDecl:
 				for _, spec := range value.Specs {
 					switch named := spec.(type) {
@@ -176,8 +183,12 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 		class, fingerprint, _ := strings.Cut(key, "\x00")
 		sort.Strings(group.refs)
 		profile.Clones = append(profile.Clones, Clone{
-			Fingerprint: hex.EncodeToString([]byte(fingerprint)), Nodes: group.nodes, Functions: group.refs, AdvisoryClass: class,
+			Fingerprint: hex.EncodeToString([]byte(fingerprint)), Nodes: group.nodes, Functions: group.refs,
+			AdvisoryClass: class, Delegate: group.delegates,
 		})
+		if group.delegates {
+			continue
+		}
 		excessCopies := len(group.refs)
 		excessCopies--
 		profile.DuplicateExcessNodes += group.nodes * excessCopies
@@ -195,6 +206,28 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 		return profile.Clones[i].Fingerprint < profile.Clones[j].Fingerprint
 	})
 	return profile, nil
+}
+
+// pureDelegate reports whether the function body is one statement
+// forwarding to a single call -- a bare call or a return of one call.
+// A pure delegate already routes through a shared owner, so identical
+// delegates are the consolidation idiom, not consolidation debt.
+func pureDelegate(function *ast.FuncDecl) bool {
+	if function.Body == nil || len(function.Body.List) != 1 {
+		return false
+	}
+	switch statement := function.Body.List[0].(type) {
+	case *ast.ExprStmt:
+		_, ok := statement.X.(*ast.CallExpr)
+		return ok
+	case *ast.ReturnStmt:
+		if len(statement.Results) != 1 {
+			return false
+		}
+		_, ok := statement.Results[0].(*ast.CallExpr)
+		return ok
+	}
+	return false
 }
 
 func receiverName(function *ast.FuncDecl) string {

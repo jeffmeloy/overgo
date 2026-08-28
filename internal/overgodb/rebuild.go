@@ -93,7 +93,7 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 				report.ContentsDropped++
 				report.BytesDropped += descriptor.Size
 			} else {
-				data, err := source.materializeContent(locator)
+				data, err := source.materializeContent(id, locator)
 				if err != nil {
 					return report, fmt.Errorf("overgodb: rebuild content %s: %w", id, err)
 				}

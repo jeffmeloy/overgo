@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -71,7 +72,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("content: found=%v err=%v", found, err)
 	}
-	if _, err := reader.Read(make([]byte, 1)); err != nil {
+	if _, err := io.ReadAll(reader); err != nil {
 		t.Fatal(err)
 	}
 	work.BlobReads++

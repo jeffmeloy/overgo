@@ -211,12 +211,6 @@
       "name": "ContentPresence",
       "reason": "Optional presence-batch capability interface for mixed evidence lists.",
       "consumer_trigger": "Implemented by overgodb.Store; retire if presence moves onto the Reader interface."
-    },
-    {
-      "package": "overgo/internal/overgodb",
-      "name": "newBlobStore",
-      "reason": "Content-addressed blob owner delivered by storage-blob-split/blob-owner with its publication contract complete; the commit path does not reference blobs until reference transactions land.",
-      "consumer_trigger": "storage-blob-split/reference-transactions wires the blob store into the commit coordinator and retires this entry."
     }
   ]
 }

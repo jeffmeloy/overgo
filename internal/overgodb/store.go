@@ -61,11 +61,18 @@ type persistedTransaction struct {
 	Request [sha256.Size]byte     `json:"request"`
 	Delta   artifact.Batch        `json:"delta"`
 	Content []artifact.Descriptor `json:"content,omitempty"`
+	// BlobContent lists descriptors whose bytes were made durable in
+	// the blob store before this frame was appended; the envelope
+	// carries intent and identity, never the bytes.
+	BlobContent []artifact.Descriptor `json:"blob_content,omitempty"`
 }
 
 type contentLocator struct {
 	offset int64
 	size   int64
+	// blob marks content whose bytes live in the content-addressed
+	// blob store rather than inline in the journal frame.
+	blob bool
 }
 
 // catalogState is the aggregate transaction view over the six
@@ -149,6 +156,7 @@ func (s *catalogState) addCommit(commit committedBatch) { s.commits.add(commit) 
 type Store struct {
 	mu        sync.RWMutex
 	log       *recordLog
+	blobs     blobStore
 	state     catalogState
 	head      artifact.CommitID
 	sequence  uint64
@@ -179,7 +187,7 @@ func open(root string, readOnly bool) (*Store, error) {
 	if !loaded {
 		state = newCatalogState()
 	}
-	store := &Store{state: state, readOnly: readOnly, root: root, snapshot: snapshot}
+	store := &Store{state: state, readOnly: readOnly, root: root, snapshot: snapshot, blobs: newBlobStore(root)}
 	log, replay, err := openRecordLog(root, readOnly, anchor, store.applyRecord)
 	if errors.Is(err, ErrSnapshotAnchor) && loaded {
 		store.state = newCatalogState()
@@ -205,7 +213,7 @@ func (s *Store) SnapshotReplay() SnapshotReplay {
 }
 
 func (s *Store) applyRecord(record logRecord) error {
-	return commitCoordinator{state: &s.state, log: s.log}.replay(record)
+	return commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}.replay(record)
 }
 
 // Refresh applies the validated committed tail to a read-only store.
@@ -251,7 +259,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	if err := contextError(ctx); err != nil {
 		return artifact.CommitID{}, err
 	}
-	coordinator := commitCoordinator{state: &s.state, log: s.log}
+	coordinator := commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}
 	advance, replayed, err := coordinator.commit(normalized, payloadHash, s.head, s.sequence)
 	if err != nil {
 		var fault appendFault
@@ -347,7 +355,11 @@ func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descr
 	if !ok || !hasContent {
 		return artifact.Descriptor{}, nil, false, nil
 	}
-	return record.descriptor, s.log.openContent(locator), true, nil
+	reader, err := s.openLocator(id, locator)
+	if err != nil {
+		return artifact.Descriptor{}, nil, false, err
+	}
+	return record.descriptor, reader, true, nil
 }
 
 // PresentContents reports, in caller order, the subset of ids whose
@@ -410,15 +422,43 @@ func (s *Store) VisitContents(ctx context.Context, ids []artifact.ID, visit func
 		if err := contextError(ctx); err != nil {
 			return err
 		}
-		if err := visit(entry.descriptor, s.log.openContent(entry.locator)); err != nil {
+		reader, err := s.openLocator(entry.id, entry.locator)
+		if err != nil {
+			return err
+		}
+		err = visit(entry.descriptor, reader)
+		if closer, ok := reader.(io.Closer); ok {
+			_ = closer.Close()
+		}
+		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Store) materializeContent(locator contentLocator) ([]byte, error) {
-	reader := s.log.openContent(locator)
+// openLocator opens content bytes wherever they live: the blob store
+// for referenced content, the journal frame for legacy inline frames.
+// An absent required blob is exact evidence, never a silent degrade.
+func (s *Store) openLocator(id artifact.ID, locator contentLocator) (io.Reader, error) {
+	if !locator.blob {
+		return s.log.openContent(locator), nil
+	}
+	reader, err := s.blobs.open(id, uint64(locator.size))
+	if err != nil {
+		return nil, fmt.Errorf("overgodb: committed content %s requires an absent blob: %w", id, err)
+	}
+	return reader, nil
+}
+
+func (s *Store) materializeContent(id artifact.ID, locator contentLocator) ([]byte, error) {
+	reader, err := s.openLocator(id, locator)
+	if err != nil {
+		return nil, err
+	}
+	if closer, ok := reader.(io.Closer); ok {
+		defer closer.Close()
+	}
 	data, err := io.ReadAll(io.LimitReader(reader, locator.size+1))
 	if err != nil {
 		return nil, err
@@ -561,6 +601,9 @@ func encodeBatch(batch artifact.Batch) (artifact.Batch, [sha256.Size]byte, error
 	return normalized, sha256.Sum256(payload), nil
 }
 
+// encodeTransaction persists a small commit envelope: ordering,
+// identities, descriptors, and transaction intent. Content bytes are
+// referenced through the blob store, never embedded.
 func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte, map[artifact.ID]contentLocator, error) {
 	contents := delta.Contents
 	delta.Contents = nil
@@ -568,7 +611,7 @@ func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte,
 	for index := range contents {
 		descriptors[index] = contents[index].Descriptor
 	}
-	metadata, err := json.Marshal(persistedTransaction{Request: request, Delta: delta, Content: descriptors})
+	metadata, err := json.Marshal(persistedTransaction{Request: request, Delta: delta, BlobContent: descriptors})
 	if err != nil {
 		return nil, nil, fmt.Errorf("overgodb: encode transaction: %w", err)
 	}
@@ -576,8 +619,7 @@ func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte,
 	payload = append(payload, metadata...)
 	locators := make(map[artifact.ID]contentLocator, len(contents))
 	for _, content := range contents {
-		locators[content.Descriptor.ID] = contentLocator{offset: int64(len(payload)), size: int64(len(content.Data))}
-		payload = append(payload, content.Data...)
+		locators[content.Descriptor.ID] = contentLocator{size: int64(len(content.Data)), blob: true}
 	}
 	if len(payload) > maxFramePayload {
 		return nil, nil, fmt.Errorf("%w: transaction", errPayloadLimit)
@@ -603,7 +645,7 @@ func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, map[arti
 	if err != nil {
 		return artifact.Batch{}, [sha256.Size]byte{}, nil, err
 	}
-	canonical, err := json.Marshal(persistedTransaction{Request: transaction.Request, Delta: normalized, Content: transaction.Content})
+	canonical, err := json.Marshal(persistedTransaction{Request: transaction.Request, Delta: normalized, Content: transaction.Content, BlobContent: transaction.BlobContent})
 	if err != nil {
 		return artifact.Batch{}, [sha256.Size]byte{}, nil, fmt.Errorf("overgodb: canonicalize transaction: %w", err)
 	}
@@ -611,7 +653,14 @@ func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, map[arti
 		return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("overgodb: non-canonical transaction metadata")
 	}
 	dataOffset := metadataOffset + metadataSize
-	locators := make(map[artifact.ID]contentLocator, len(transaction.Content))
+	locators := make(map[artifact.ID]contentLocator, len(transaction.Content)+len(transaction.BlobContent))
+	for _, descriptor := range transaction.BlobContent {
+		if err := descriptor.Validate(); err != nil {
+			return artifact.Batch{}, [sha256.Size]byte{}, nil, err
+		}
+		normalized.Contents = append(normalized.Contents, artifact.Content{Descriptor: descriptor})
+		locators[descriptor.ID] = contentLocator{size: int64(descriptor.Size), blob: true}
+	}
 	for _, descriptor := range transaction.Content {
 		end := dataOffset + int(descriptor.Size)
 		if end < dataOffset || end > len(record.payload) {

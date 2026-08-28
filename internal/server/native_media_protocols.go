@@ -154,6 +154,9 @@ func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.
 	}
 	descriptor, reader, found, err := store.OpenContent(request.Context(), status.Outputs[0])
 	if err != nil || !found || !strings.HasPrefix(descriptor.MediaType, "audio/") {
+		if closer, ok := reader.(io.Closer); ok {
+			_ = closer.Close()
+		}
 		writeError(response, http.StatusInternalServerError, "invalid_output", "speech output is not an audio artifact")
 		return
 	}

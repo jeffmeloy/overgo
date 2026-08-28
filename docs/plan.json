@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "reference-transactions",
-          "title": "Persist small commit envelopes that reference synced blobs instead of embedding new content bytes",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestExternalBlobCommitAtomicity$' -count=1",
-          "rationale": "The journal should carry ordering, identities, descriptors, aliases, lineage, locations, and transaction intent. A committed descriptor whose required blob is absent must refuse replay or content access with exact evidence rather than silently degrade.",
-          "depends_on": [
-            "storage-blob-split/blob-owner"
-          ],
-          "capabilities": [
-            "overgodb",
-            "commit-envelope",
-            "content-addressing",
-            "deterministic-replay"
-          ]
-        },
-        {
           "id": "legacy-read-new-write",
           "title": "Read legacy inline frames while writing only the external-blob format and provide verified rebuild migration",
           "status": "open",

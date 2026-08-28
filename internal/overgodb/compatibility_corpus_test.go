@@ -27,6 +27,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		t.Helper()
 		root := t.TempDir()
 		copyCorpusFile(t, journal, filepath.Join(root, storeFilename))
+		copyCorpusTree(t, filepath.Join(source, blobDirectory), filepath.Join(root, blobDirectory))
 		if withSnapshot {
 			if err := os.MkdirAll(filepath.Join(root, snapshotDirectory), storeDirectoryMode); err != nil {
 				t.Fatal(err)
@@ -214,6 +215,29 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 			}
 		}
 	})
+}
+
+// copyCorpusTree mirrors the blob tree beside a copied journal; the
+// external-blob format makes the pair one corpus.
+func copyCorpusTree(t *testing.T, source, destination string) {
+	t.Helper()
+	entries, err := os.ReadDir(source)
+	if os.IsNotExist(err) {
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(destination, storeDirectoryMode); err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			copyCorpusTree(t, filepath.Join(source, entry.Name()), filepath.Join(destination, entry.Name()))
+			continue
+		}
+		copyCorpusFile(t, filepath.Join(source, entry.Name()), filepath.Join(destination, entry.Name()))
+	}
 }
 
 func copyCorpusFile(t *testing.T, source, destination string) {

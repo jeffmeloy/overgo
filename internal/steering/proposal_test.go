@@ -71,7 +71,7 @@ func TestProposalAdmissionConvertsToPlanRow(t *testing.T) {
 		!strings.Contains(step.Rationale, "uncertainty:") {
 		t.Fatalf("step = %+v", step)
 	}
-	if _, _, found, err := store.OpenContent(ctx, admitted.ID); err != nil || !found {
+	if found, err := store.HasContent(ctx, admitted.ID); err != nil || !found {
 		t.Fatalf("proposal content = (%t, %v)", found, err)
 	}
 }

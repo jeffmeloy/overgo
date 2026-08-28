@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"testing"
 
@@ -77,6 +78,7 @@ func TestCatalogFacetReplayEquivalence(t *testing.T) {
 
 	logRoot := t.TempDir()
 	copyCorpusFile(t, live.log.file.Name(), logRoot+"/"+storeFilename)
+	copyCorpusTree(t, filepath.Join(root, blobDirectory), filepath.Join(logRoot, blobDirectory))
 	logOnly, err := OpenReadOnly(logRoot)
 	if err != nil {
 		t.Fatal(err)

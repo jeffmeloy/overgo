@@ -111,7 +111,43 @@ func (b blobStore) open(id artifact.ID, size uint64) (io.ReadCloser, error) {
 		_ = file.Close()
 		return nil, fmt.Errorf("overgodb: blob %s size differs from descriptor", id)
 	}
-	return file, nil
+	return &blobReader{file: file, remaining: int64(size)}, nil
+}
+
+// blobReader closes its file the moment the stream is exhausted --
+// at end of file OR after the final expected byte -- so callers that
+// read exactly the descriptor size through a bare io.Reader never
+// leak an OS handle; abandoning callers close through io.Closer.
+type blobReader struct {
+	file      *os.File
+	remaining int64
+	done      bool
+}
+
+// Read streams the blob and closes the file at end of stream.
+func (r *blobReader) Read(buffer []byte) (int, error) {
+	if r.done {
+		return 0, io.EOF
+	}
+	count, err := r.file.Read(buffer)
+	r.remaining -= int64(count)
+	if (err == io.EOF || r.remaining <= 0) && !r.done {
+		r.done = true
+		_ = r.file.Close()
+		if err == nil {
+			return count, nil
+		}
+	}
+	return count, err
+}
+
+// Close releases the file for callers that abandon the stream early.
+func (r *blobReader) Close() error {
+	if r.done {
+		return nil
+	}
+	r.done = true
+	return r.file.Close()
 }
 
 // verify re-derives the blob's digest from its bytes and compares it

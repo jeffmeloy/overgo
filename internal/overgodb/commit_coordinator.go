@@ -17,6 +17,7 @@ import (
 type commitCoordinator struct {
 	state *catalogState
 	log   *recordLog
+	blobs blobStore
 }
 
 // commitAdvance is the head movement a successful commit produces.
@@ -74,6 +75,14 @@ func (c commitCoordinator) commit(
 	payload, locators, err := encodeTransaction(payloadHash, delta)
 	if err != nil {
 		return commitAdvance{}, false, err
+	}
+	// Blob bytes become durable BEFORE the journal frame that references
+	// them: a crash here leaves an unreachable blob, never a committed
+	// descriptor whose bytes are missing.
+	for _, content := range delta.Contents {
+		if err := c.blobs.prepare(content.Descriptor.ID, content.Data); err != nil {
+			return commitAdvance{}, false, err
+		}
 	}
 	next := sequence + 1
 	id, payloadOffset, replayEnd, err := c.log.append(next, head, payload)

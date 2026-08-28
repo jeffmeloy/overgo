@@ -105,7 +105,7 @@ func Admit(ctx context.Context, store *overgodb.Store, proposal Proposal) (Propo
 		return Proposal{}, plan.Item{}, err
 	}
 	for _, id := range admitted.History {
-		_, _, found, err := store.OpenContent(ctx, id)
+		found, err := store.HasContent(ctx, id)
 		if err != nil {
 			return Proposal{}, plan.Item{}, err
 		}

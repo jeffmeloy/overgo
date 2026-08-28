@@ -69,6 +69,7 @@ type snapshotContent struct {
 	Artifact artifact.ID `json:"artifact"`
 	Offset   int64       `json:"offset"`
 	Size     int64       `json:"size"`
+	Blob     bool        `json:"blob,omitempty"`
 }
 
 type snapshotArtifact struct {
@@ -163,11 +164,11 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	state.apply(normalized, nil, document.Sequence)
 	for _, content := range document.Contents {
 		record, ok := state.artifacts.record(content.Artifact)
-		if !ok || content.Offset < storeHeaderBytes || content.Size <= 0 ||
-			uint64(content.Size) != record.descriptor.Size {
+		if !ok || content.Size <= 0 || uint64(content.Size) != record.descriptor.Size ||
+			!content.Blob && content.Offset < storeHeaderBytes {
 			return catalogState{}, errors.New("overgodb: invalid snapshot content locator")
 		}
-		state.contents.set(content.Artifact, contentLocator{offset: content.Offset, size: content.Size})
+		state.contents.set(content.Artifact, contentLocator{offset: content.Offset, size: content.Size, blob: content.Blob})
 	}
 	for index, entry := range document.Commits {
 		if entry.Sequence != uint64(index)+1 {
@@ -288,7 +289,7 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.array("contents", len(contentIDs), true, func(index int) {
 		id := contentIDs[index]
 		locator, _ := state.contents.locator(id)
-		stream.value(snapshotContent{Artifact: id, Offset: locator.offset, Size: locator.size})
+		stream.value(snapshotContent{Artifact: id, Offset: locator.offset, Size: locator.size, Blob: locator.blob})
 	})
 	manifestIDs := snapshotArtifactIDs(state, func(_ artifact.ID, record *artifactRecord) bool { return record.hasManifest })
 	stream.array("manifests", len(manifestIDs), true, func(index int) {

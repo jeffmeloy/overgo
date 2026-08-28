@@ -173,12 +173,35 @@ func TestStoreScaleContract(t *testing.T) {
 		totalCommit += latency
 		worst = max(worst, latency)
 	}
-	metadataBytes := uint64(journalInfo.Size()) - contentBytes
-	t.Logf("scale envelope: commits=%d content_bytes=%d journal_bytes=%d metadata_bytes=%d content_to_metadata=%.3f",
-		scaleCorpusCommits, contentBytes, journalInfo.Size(), metadataBytes,
-		float64(contentBytes)/float64(metadataBytes))
+	blobBytes := treeBytes(t, filepath.Join(rootA, blobDirectory))
+	t.Logf("scale envelope: commits=%d content_bytes=%d blob_bytes=%d journal_metadata_bytes=%d content_to_metadata=%.3f",
+		scaleCorpusCommits, contentBytes, blobBytes, journalInfo.Size(),
+		float64(contentBytes)/float64(journalInfo.Size()))
+	if blobBytes < int64(contentBytes) {
+		t.Fatalf("blob tree %d bytes cannot hold %d content bytes", blobBytes, contentBytes)
+	}
 	t.Logf("scale envelope: snapshot_bytes=%d replay_wall=%s commit_mean=%s commit_worst=%s",
 		snapshotSize, replayWall, totalCommit/scaleCorpusCommits, worst)
+}
+
+func treeBytes(t *testing.T, root string) int64 {
+	t.Helper()
+	var total int64
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		total += info.Size()
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return total
 }
 
 func fileDigestAt(t *testing.T, path string) string {

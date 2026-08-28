@@ -128,7 +128,7 @@ func (s *Store) VisitDocuments(
 			s.mu.RUnlock()
 			return DocumentPage{}, err
 		}
-		data, err := s.materializeContent(entry.locator)
+		data, err := s.materializeContent(entry.descriptor.ID, entry.locator)
 		s.mu.RUnlock()
 		if err != nil {
 			return DocumentPage{}, err

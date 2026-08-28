@@ -138,8 +138,16 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 	if err := validCausal(value.Causal); err != nil {
 		return err
 	}
-	for _, id := range []artifact.ID{value.StrategyID, value.TaskContract, value.Environment, value.Trajectory} {
-		if id.Valid() && id.Kind() != artifact.KindEvidence && id.Kind() != artifact.KindRecipe && id.Kind() != artifact.KindProfile {
+	for _, authority := range []struct {
+		id   artifact.ID
+		kind artifact.Kind
+	}{
+		{value.StrategyID, artifact.KindProfile},
+		{value.TaskContract, artifact.KindRecipe},
+		{value.Environment, artifact.KindEvidence},
+		{value.Trajectory, artifact.KindEvidence},
+	} {
+		if authority.id.Valid() && authority.id.Kind() != authority.kind {
 			return errors.New("run record: invalid attempt authority")
 		}
 	}
@@ -150,6 +158,13 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 func NewAttemptRecord(record AttemptRecord) (AttemptRecord, error) {
 	record.Version = artifact.InitialDocumentVersion
 	return attemptCodec.New(record)
+}
+
+// ValidateIdentity proves that the attempt still matches its immutable
+// content-addressed identity. Comparison admission uses this to reject a
+// strategy ID attached after the gate identified the record.
+func (a AttemptRecord) ValidateIdentity() error {
+	return attemptCodec.ValidateIdentity(a)
 }
 
 // RequireAttemptRecord loads one canonical gate-attempt document.

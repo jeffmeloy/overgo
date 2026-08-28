@@ -58,19 +58,20 @@ func TestRSICausalChainClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	boundTrajectory := testutil.ArtifactID(t, artifact.KindEvidence, "trajectory-bound")
 	attempt, err := runrecord.NewAttemptRecord(runrecord.AttemptRecord{
 		PlanItem: "causal-execution", PlanStep: "bound",
 		Result:     testutil.ArtifactID(t, artifact.KindEvidence, "result-bound"),
 		Recipe:     testutil.ArtifactID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: baseline, Outcome: runrecord.OutcomeSucceeded, WallNS: 1,
-		StrategyID: strategy.ID, CostUnits: 1, Causal: &root,
+		StrategyID: strategy.ID, Trajectory: boundTrajectory, CostUnits: 1, Causal: &root,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	bound := StrategyExperimentCandidate{
 		Strategy: strategy, Lease: lease, Attempt: attempt,
-		Trajectory:         testutil.ArtifactID(t, artifact.KindEvidence, "trajectory-bound"),
+		Trajectory:         boundTrajectory,
 		EvaluationPlan:     testutil.ArtifactID(t, artifact.KindProfile, "plan-bound"),
 		EvaluationEvidence: testutil.ArtifactID(t, artifact.KindEvidence, "evaluation-bound"),
 		Hard:               StrategyHardOutcome{TaskSucceeded: true, EvidenceComplete: true, GatePassed: true},
@@ -89,19 +90,20 @@ func TestRSICausalChainClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	rivalTrajectory := testutil.ArtifactID(t, artifact.KindEvidence, "trajectory-rival")
 	rivalAttempt, err := runrecord.NewAttemptRecord(runrecord.AttemptRecord{
 		PlanItem: "causal-execution", PlanStep: "rival",
 		Result:     testutil.ArtifactID(t, artifact.KindEvidence, "result-rival"),
 		Recipe:     testutil.ArtifactID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: baseline, Outcome: runrecord.OutcomeFailed, Failure: "tests", WallNS: 1,
-		StrategyID: rival.ID, CostUnits: 2, Causal: &root,
+		StrategyID: rival.ID, Trajectory: rivalTrajectory, CostUnits: 2, Causal: &root,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	competitor := StrategyExperimentCandidate{
 		Strategy: rival, Lease: rivalLease, Attempt: rivalAttempt,
-		Trajectory:         testutil.ArtifactID(t, artifact.KindEvidence, "trajectory-rival"),
+		Trajectory:         rivalTrajectory,
 		EvaluationPlan:     testutil.ArtifactID(t, artifact.KindProfile, "plan-rival"),
 		EvaluationEvidence: testutil.ArtifactID(t, artifact.KindEvidence, "evaluation-rival"),
 		Hard:               StrategyHardOutcome{},

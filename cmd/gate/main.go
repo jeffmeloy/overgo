@@ -92,6 +92,7 @@ type gateContext struct {
 	manifestDelta     *codemanifest.Delta
 	manifestImpact    *codemanifest.Impact
 	manifestMetrics   automationcheck.ManifestMeasurements
+	strategy          *loop.Strategy
 	diff              runrecord.AttemptDiff
 }
 
@@ -2045,6 +2046,7 @@ func (g *gateContext) prepare() error {
 		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
 	}
 	defer store.Close()
+	g.resolveAttemptStrategy(store)
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
 	}
@@ -2449,7 +2451,13 @@ func (g *gateContext) appendAttemptRecord(
 	if g.candidateManifest != nil {
 		attempt.CandidateManifest = g.candidateManifest.ID
 	}
-	published, err := runrecord.NewAttemptRecord(attempt)
+	var published runrecord.AttemptRecord
+	var err error
+	if g.strategy == nil {
+		published, err = runrecord.NewAttemptRecord(attempt)
+	} else {
+		published, err = g.strategy.StampAttempt(attempt)
+	}
 	if err != nil {
 		return err
 	}
@@ -2460,6 +2468,24 @@ func (g *gateContext) appendAttemptRecord(
 	batch.Contents = append(batch.Contents, content)
 	batch.Lineage = append(batch.Lineage, published.Lineage()...)
 	return nil
+}
+
+func (g *gateContext) resolveAttemptStrategy(reader artifact.Reader) {
+	declared := strings.TrimSpace(os.Getenv(loop.StrategyIDEnvironment))
+	if declared == "" {
+		return
+	}
+	id, err := artifact.ParseID(declared)
+	if err != nil || id.Kind() != artifact.KindProfile || reader == nil {
+		g.honesty = append(g.honesty, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
+		return
+	}
+	strategy, err := loop.RequireStrategy(context.Background(), reader, id)
+	if err != nil {
+		g.honesty = append(g.honesty, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
+		return
+	}
+	g.strategy = &strategy
 }
 
 // observeDiff reads the worktree's change size against HEAD; binary

@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "strategy-identity-binding",
-          "title": "Bind every automation attempt to its content-addressed strategy before cross-strategy comparison",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/loop ./internal/runrecord -run '^(TestGateAttemptBindsStrategyIdentity|TestStrategyComparisonRequiresIdentity)$' -count=1",
-          "rationale": "Gate-produced attempts bind the exact strategy profile ID; display labels are non-authoritative. Anonymous, label-only, or unresolved attempts remain recordable but are ineligible for cross-strategy claims, and the same strategy identity propagates into trajectory and evaluation evidence.",
-          "depends_on": [
-            "resource-coverage/coverage-projection"
-          ],
-          "capabilities": [
-            "strategy-identity",
-            "attempt-record",
-            "comparison-admission",
-            "coverage"
-          ]
-        },
-        {
           "id": "reference-relevance-admission",
           "title": "Require admitted references to prove role-specific semantic relevance",
           "status": "open",

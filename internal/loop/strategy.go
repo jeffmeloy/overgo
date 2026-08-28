@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -13,10 +14,14 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// StrategyEnvironment carries the human-readable strategy label from a
-// driver to gate attempts. Content-addressed strategy authority is recorded
-// separately by Strategy.ID.
-const StrategyEnvironment = "OVERGO_STRATEGY"
+const (
+	// StrategyEnvironment carries the human-readable strategy label from a
+	// driver to gate attempts. It is display metadata, never authority.
+	StrategyEnvironment = "OVERGO_STRATEGY"
+	// StrategyIDEnvironment carries the exact content-addressed strategy
+	// profile a driver resolved before execution.
+	StrategyIDEnvironment = "OVERGO_STRATEGY_ID"
+)
 
 const strategyDigestLength = 12
 
@@ -78,6 +83,16 @@ func NewStrategy(worker recipe.AgentDefinition, catalog artifact.ID, config Conf
 
 // Content returns the canonical committed bytes of the strategy.
 func (v Strategy) Content() (artifact.Content, error) { return strategyCodec.Content(v) }
+
+// RequireStrategy loads one exact strategy profile from repository content.
+func RequireStrategy(ctx context.Context, reader artifact.Reader, id artifact.ID) (Strategy, error) {
+	return strategyCodec.Require(ctx, reader, id)
+}
+
+// Batch materializes the strategy and its dependency lineage for publication.
+func (v Strategy) Batch(key string) (artifact.Batch, error) {
+	return strategyCodec.Batch(key, v, v.Lineage(), nil)
+}
 
 // ValidateIdentity checks the strategy's canonical form and content-addressed identity.
 func (v Strategy) ValidateIdentity() error { return strategyCodec.ValidateIdentity(v) }

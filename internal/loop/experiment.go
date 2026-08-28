@@ -42,15 +42,26 @@ type StrategyExperiment struct {
 	Strategies []artifact.ID `json:"strategies"`
 }
 
+// StrategyComparisonEvidence keeps one strategy's execution evidence grouped;
+// consumers never have to infer which trajectory or evaluation belongs to an
+// attempt from position in a flat ID list.
+type StrategyComparisonEvidence struct {
+	Strategy           artifact.ID `json:"strategy"`
+	Attempt            artifact.ID `json:"attempt"`
+	Trajectory         artifact.ID `json:"trajectory"`
+	EvaluationPlan     artifact.ID `json:"evaluation_plan"`
+	EvaluationEvidence artifact.ID `json:"evaluation_evidence"`
+}
+
 // StrategyComparison ranks an experiment's strategies by hard facts before
 // cost, naming a winner only when the clean best strictly beats the runner-up.
 type StrategyComparison struct {
-	ID              artifact.ID   `json:"-"`
-	Experiment      artifact.ID   `json:"experiment"`
-	Ranked          []artifact.ID `json:"ranked"`
-	Winner          *artifact.ID  `json:"winner,omitempty"`
-	Counterexamples []artifact.ID `json:"counterexamples,omitempty"`
-	Evidence        []artifact.ID `json:"evidence"`
+	ID              artifact.ID                  `json:"-"`
+	Experiment      artifact.ID                  `json:"experiment"`
+	Ranked          []artifact.ID                `json:"ranked"`
+	Winner          *artifact.ID                 `json:"winner,omitempty"`
+	Counterexamples []artifact.ID                `json:"counterexamples,omitempty"`
+	Evidence        []StrategyComparisonEvidence `json:"evidence"`
 }
 
 // CompareStrategyExperiment validates isolated executions and ranks hard facts
@@ -64,19 +75,24 @@ func CompareStrategyExperiment(task recipe.AgentTaskContract, baseline string, c
 		return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: strategy experiment requires a baseline and competing candidates")
 	}
 	worktrees := map[string]bool{}
+	seenStrategies := map[artifact.ID]bool{}
 	strategies := make([]artifact.ID, len(candidates))
 	for index, candidate := range candidates {
 		if err := candidate.Strategy.ValidateIdentity(); err != nil {
 			return StrategyExperiment{}, StrategyComparison{}, err
 		}
+		if err := candidate.Attempt.ValidateIdentity(); err != nil {
+			return StrategyExperiment{}, StrategyComparison{}, err
+		}
 		if err := candidate.Lease.ValidateIdentity(); err != nil {
 			return StrategyExperiment{}, StrategyComparison{}, err
 		}
-		if candidate.Lease.TargetHead != baseline || worktrees[strings.ToLower(candidate.Lease.Worktree)] || candidate.Attempt.StrategyID != candidate.Strategy.ID ||
+		if candidate.Lease.TargetHead != baseline || worktrees[strings.ToLower(candidate.Lease.Worktree)] || seenStrategies[candidate.Strategy.ID] || candidate.Attempt.StrategyID != candidate.Strategy.ID || candidate.Attempt.Trajectory != candidate.Trajectory ||
 			candidate.Trajectory.Kind() != artifact.KindEvidence || candidate.EvaluationPlan.Kind() != artifact.KindProfile || candidate.EvaluationEvidence.Kind() != artifact.KindEvidence {
 			return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: strategy candidate authority or isolation differs")
 		}
 		worktrees[strings.ToLower(candidate.Lease.Worktree)] = true
+		seenStrategies[candidate.Strategy.ID] = true
 		strategies[index] = candidate.Strategy.ID
 	}
 	slices.SortFunc(strategies, artifact.CompareID)
@@ -94,7 +110,10 @@ func CompareStrategyExperiment(task recipe.AgentTaskContract, baseline string, c
 	comparison := StrategyComparison{Experiment: experiment.ID, Ranked: make([]artifact.ID, len(ordered))}
 	for index, candidate := range ordered {
 		comparison.Ranked[index] = candidate.Strategy.ID
-		comparison.Evidence = append(comparison.Evidence, candidate.Attempt.ID, candidate.Trajectory, candidate.EvaluationPlan, candidate.EvaluationEvidence)
+		comparison.Evidence = append(comparison.Evidence, StrategyComparisonEvidence{
+			Strategy: candidate.Strategy.ID, Attempt: candidate.Attempt.ID, Trajectory: candidate.Trajectory,
+			EvaluationPlan: candidate.EvaluationPlan, EvaluationEvidence: candidate.EvaluationEvidence,
+		})
 		if !candidate.Hard.TaskSucceeded || !candidate.Hard.EvidenceComplete || !candidate.Hard.GatePassed {
 			comparison.Counterexamples = append(comparison.Counterexamples, candidate.Attempt.ID)
 		}

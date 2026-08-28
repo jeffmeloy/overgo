@@ -10,8 +10,7 @@
 //
 //	{
 //	  "worker": ["claude", "-p", "{prompt}"],
-//	  "max_attempts_per_step": 3,
-//	  "max_invocations": 20,
+//	  "strategy_id": "profile:sha256:<digest>",
 //	  "worker_timeout_minutes": 90
 //	}
 //
@@ -30,9 +29,11 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 )
@@ -42,16 +43,16 @@ const pauseMarker = "docs/.loop_pause"
 type config struct {
 	Worker []string `json:"worker"`
 	// Strategy optionally names this worker configuration; attempt
-	// records carry it so history compares strategies. Unset derives a
-	// stable digest of the worker command.
-	Strategy           string `json:"strategy"`
-	MaxAttemptsPerStep int    `json:"max_attempts_per_step"`
-	MaxInvocations     int    `json:"max_invocations"`
-	// SaturationLimit enables the proposal closure: a drained plan
-	// consumes admitted steering proposals from the proposals directory
-	// until the queue empties or this many consecutive proposal rows
-	// park without measured improvement. Zero disables consumption.
-	SaturationLimit int `json:"saturation_limit"`
+	// records carry it as display metadata. Unset derives a stable digest
+	// of the worker command.
+	Strategy string `json:"strategy"`
+	// StrategyID names the already-published, content-addressed strategy
+	// profile. Its Loop field is the sole retry, invocation, saturation,
+	// and closure-budget authority for this run.
+	StrategyID artifact.ID `json:"strategy_id"`
+	// Repository contains the strategy profile. Empty uses the same local
+	// default as gate.
+	Repository string `json:"repository"`
 	// Proposals is the pending-proposal queue directory.
 	Proposals            string `json:"proposals"`
 	WorkerTimeoutMinutes int    `json:"worker_timeout_minutes"`
@@ -83,20 +84,44 @@ func run(args []string) error {
 	if loaded.Proposals == "" {
 		loaded.Proposals = "docs/proposals"
 	}
-	world := &execWorld{config: loaded}
-	outcome, err := loop.Run(world, loop.Config{
-		MaxAttemptsPerStep: loaded.MaxAttemptsPerStep,
-		MaxInvocations:     loaded.MaxInvocations,
-		SaturationLimit:    loaded.SaturationLimit,
-	})
+	strategy, err := resolveConfiguredStrategy(loaded)
+	if err != nil {
+		return err
+	}
+	world := &execWorld{config: loaded, strategy: strategy}
+	outcome, err := loop.Run(world, strategy.Loop)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; honesty: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked)
 	return err
 }
 
+func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
+	if loaded.StrategyID.Kind() != artifact.KindProfile {
+		return loop.Strategy{}, errors.New("config requires an exact strategy_id profile")
+	}
+	repository := loaded.Repository
+	if repository == "" {
+		repository = "overgodb-store"
+	}
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return loop.Strategy{}, fmt.Errorf("open strategy repository: %w", err)
+	}
+	strategy, strategyErr := loop.RequireStrategy(context.Background(), store, loaded.StrategyID)
+	closeErr := store.Close()
+	if strategyErr != nil {
+		return loop.Strategy{}, fmt.Errorf("resolve strategy: %w", strategyErr)
+	}
+	if closeErr != nil {
+		return loop.Strategy{}, fmt.Errorf("close strategy repository: %w", closeErr)
+	}
+	return strategy, nil
+}
+
 // execWorld adapts the driver to the repository's real owners.
 type execWorld struct {
-	config config
+	config   config
+	strategy loop.Strategy
 }
 
 func (w *execWorld) Current() (loop.Step, bool, error) {
@@ -138,7 +163,8 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 		Path: w.config.Worker[0],
 		Args: arguments,
 		Env: append(os.Environ(),
-			loop.StrategyEnvironment+"="+loop.StrategyIdentity(w.config.Worker, w.config.Strategy)),
+			loop.StrategyEnvironment+"="+loop.StrategyIdentity(w.config.Worker, w.config.Strategy),
+			loop.StrategyIDEnvironment+"="+w.strategy.ID.String()),
 		Stdin:  strings.NewReader(text),
 		Stdout: &combined,
 		Stderr: &combined,

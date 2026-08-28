@@ -3,26 +3,23 @@ package runrecord
 import (
 	"context"
 	"errors"
+	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 )
 
-// Attempt history is the durable cross-run measurement surface: typed
-// store reads over the attempt records every gate run emits, filtered
-// and aggregated for steering. Nothing here scrapes logs; the store's
-// media-typed query is the only source.
-
-// AttemptFilter bounds one history read. Empty fields admit all.
+// AttemptFilter narrows loaded attempt records; zero fields match everything.
 type AttemptFilter struct {
 	PlanItem   string
 	Strategy   string
+	StrategyID artifact.ID
 	CodeCommit string
 	Limit      int
 }
 
-// AttemptAggregate is one plan step's measured record across attempts.
+// AttemptAggregate totals the attempts of one plan item and step.
 type AttemptAggregate struct {
 	PlanItem    string `json:"plan_item"`
 	PlanStep    string `json:"plan_step"`
@@ -32,19 +29,16 @@ type AttemptAggregate struct {
 	TotalFiles  int    `json:"total_files"`
 }
 
-// AttemptHistory carries the matched attempts and their per-step
-// aggregates, both deterministically ordered.
+// AttemptHistory pairs filtered attempt records with their per-step aggregates.
 type AttemptHistory struct {
 	Attempts []AttemptRecord    `json:"attempts"`
 	Steps    []AttemptAggregate `json:"steps"`
 }
 
-// attemptHistoryMaxRecords bounds one history read: steering consumes
-// aggregates and recent attempts, never an unbounded scan.
 const attemptHistoryMaxRecords = 4096
 
-// LoadAttemptHistory reads every attempt record matching the filter
-// from the store and derives the per-step aggregates.
+// LoadAttemptHistory queries committed attempt records from the store,
+// filters and orders them deterministically, and aggregates them per step.
 func LoadAttemptHistory(ctx context.Context, store *overgodb.Store, filter AttemptFilter) (AttemptHistory, error) {
 	if ctx == nil || store == nil {
 		return AttemptHistory{}, errors.New("run record: attempt history requires the store")
@@ -53,10 +47,7 @@ func LoadAttemptHistory(ctx context.Context, store *overgodb.Store, filter Attem
 	if limit <= 0 || limit > attemptHistoryMaxRecords {
 		limit = attemptHistoryMaxRecords
 	}
-	result, err := store.Query(ctx, overgodb.Query{
-		Kind: artifact.KindEvidence, MediaType: AttemptMediaType, Schema: AttemptSchema,
-		MaxResults: attemptHistoryMaxRecords, Projection: overgodb.ProjectContentPresence,
-	})
+	result, err := store.Query(ctx, overgodb.Query{Kind: artifact.KindEvidence, MediaType: AttemptMediaType, Schema: AttemptSchema, MaxResults: attemptHistoryMaxRecords, Projection: overgodb.ProjectContentPresence})
 	if err != nil {
 		return AttemptHistory{}, err
 	}
@@ -66,16 +57,8 @@ func LoadAttemptHistory(ctx context.Context, store *overgodb.Store, filter Attem
 		if err != nil {
 			return AttemptHistory{}, err
 		}
-		if !found {
-			continue
-		}
-		if filter.PlanItem != "" && record.PlanItem != filter.PlanItem {
-			continue
-		}
-		if filter.Strategy != "" && record.Strategy != filter.Strategy {
-			continue
-		}
-		if filter.CodeCommit != "" && record.CodeCommit != filter.CodeCommit {
+		if !found || filter.PlanItem != "" && record.PlanItem != filter.PlanItem || filter.Strategy != "" && record.Strategy != filter.Strategy ||
+			filter.StrategyID.Valid() && record.StrategyID != filter.StrategyID || filter.CodeCommit != "" && record.CodeCommit != filter.CodeCommit {
 			continue
 		}
 		history.Attempts = append(history.Attempts, record)
@@ -97,7 +80,6 @@ func LoadAttemptHistory(ctx context.Context, store *overgodb.Store, filter Attem
 	return history, nil
 }
 
-// aggregateAttempts reduces attempts to one measured row per plan step.
 func aggregateAttempts(attempts []AttemptRecord) []AttemptAggregate {
 	type key struct{ item, step string }
 	byStep := map[key]*AttemptAggregate{}
@@ -121,5 +103,79 @@ func aggregateAttempts(attempts []AttemptRecord) []AttemptAggregate {
 	for _, k := range order {
 		result = append(result, *byStep[k])
 	}
+	return result
+}
+
+// AttemptHistoryFilter narrows attempt summaries by exact authorities; zero
+// fields match everything.
+type AttemptHistoryFilter struct {
+	PlanItem     string
+	StrategyID   artifact.ID
+	CodeCommit   string
+	TaskContract artifact.ID
+	Environment  artifact.ID
+}
+
+// AttemptStepHistory totals one plan step's attempts, verification selection,
+// cost, churn, recoveries, and trajectories.
+type AttemptStepHistory struct {
+	PlanItem             string        `json:"plan_item"`
+	PlanStep             string        `json:"plan_step"`
+	Attempts             uint64        `json:"attempts"`
+	Succeeded            uint64        `json:"succeeded"`
+	VerificationSelected uint64        `json:"verification_selected"`
+	VerificationDefined  uint64        `json:"verification_defined"`
+	EffectUncertainty    uint64        `json:"effect_uncertainty"`
+	CostUnits            uint64        `json:"cost_units"`
+	WallNS               uint64        `json:"wall_ns"`
+	Churn                uint64        `json:"churn"`
+	Recoveries           uint64        `json:"recoveries"`
+	Trajectories         []artifact.ID `json:"trajectories,omitempty"`
+}
+
+// SummarizeAttemptHistory folds attempt records into ordered per-step summaries.
+func SummarizeAttemptHistory(records []AttemptRecord, filter AttemptHistoryFilter) []AttemptStepHistory {
+	byStep := map[string]*AttemptStepHistory{}
+	for _, record := range records {
+		if filter.PlanItem != "" && record.PlanItem != filter.PlanItem || filter.StrategyID.Valid() && record.StrategyID != filter.StrategyID ||
+			filter.CodeCommit != "" && record.CodeCommit != filter.CodeCommit || filter.TaskContract.Valid() && record.TaskContract != filter.TaskContract ||
+			filter.Environment.Valid() && record.Environment != filter.Environment {
+			continue
+		}
+		key := record.PlanItem + "\x00" + record.PlanStep
+		summary := byStep[key]
+		if summary == nil {
+			summary = &AttemptStepHistory{PlanItem: record.PlanItem, PlanStep: record.PlanStep}
+			byStep[key] = summary
+		}
+		summary.Attempts++
+		if record.Outcome == OutcomeSucceeded {
+			summary.Succeeded++
+		}
+		summary.VerificationSelected += uint64(record.Selection.Selected)
+		summary.VerificationDefined += uint64(record.Selection.Defined)
+		summary.EffectUncertainty += uint64(record.Selection.Uncertainty)
+		summary.CostUnits += record.CostUnits
+		summary.WallNS += record.WallNS
+		summary.Churn += uint64(record.Diff.Insertions) + uint64(record.Diff.Deletions)
+		if record.Recovered {
+			summary.Recoveries++
+		}
+		if record.Trajectory.Valid() {
+			summary.Trajectories = append(summary.Trajectories, record.Trajectory)
+		}
+	}
+	result := make([]AttemptStepHistory, 0, len(byStep))
+	for _, summary := range byStep {
+		sort.Slice(summary.Trajectories, func(i, j int) bool { return artifact.CompareID(summary.Trajectories[i], summary.Trajectories[j]) < 0 })
+		summary.Trajectories = slices.Compact(summary.Trajectories)
+		result = append(result, *summary)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].PlanItem != result[j].PlanItem {
+			return result[i].PlanItem < result[j].PlanItem
+		}
+		return result[i].PlanStep < result[j].PlanStep
+	})
 	return result
 }

@@ -1584,6 +1584,21 @@ func (g *gateContext) stepTest() (bool, error) {
 			}
 		}
 	}
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	boundaryCoverage, err := automationcheck.AgentHarnessBoundaryCoverage(snapshot, g.paths)
+	if err != nil {
+		return false, err
+	}
+	selectedTests := append(slices.Clone(direct), dependent...)
+	if err := automationcheck.RequireAgentHarnessBoundaries(boundaryCoverage, selectedTests); err != nil {
+		return false, err
+	}
+	if len(boundaryCoverage.Boundaries) != 0 {
+		g.honesty = append(g.honesty, "assembled agent boundaries: "+strings.Join(boundaryCoverage.Boundaries, ","))
+	}
 	if len(direct)+len(dependent) == 0 {
 		g.honesty = append(g.honesty, "tests skipped: changed packages have no importers and no tests resolved")
 		return true, nil
@@ -2443,15 +2458,16 @@ func observeDiff(repo string) runrecord.AttemptDiff {
 	}
 	var diff runrecord.AttemptDiff
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 3 {
+		insertionsText, remainder, hasDeletions := strings.Cut(line, "\t")
+		deletionsText, _, hasPath := strings.Cut(remainder, "\t")
+		if !hasDeletions || !hasPath {
 			continue
 		}
 		diff.Files++
-		if insertions, err := strconv.Atoi(fields[0]); err == nil {
+		if insertions, err := strconv.Atoi(insertionsText); err == nil {
 			diff.Insertions += insertions
 		}
-		if deletions, err := strconv.Atoi(fields[1]); err == nil {
+		if deletions, err := strconv.Atoi(deletionsText); err == nil {
 			diff.Deletions += deletions
 		}
 	}

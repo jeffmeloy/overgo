@@ -9,10 +9,13 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/operatoraction"
+	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -45,22 +48,46 @@ type Metric struct {
 }
 
 type Status struct {
-	ID       artifact.ID           `json:"id"`
-	Task     recipe.Task           `json:"task"`
-	Recipe   artifact.ID           `json:"recipe"`
-	State    State                 `json:"state"`
-	Progress Progress              `json:"progress"`
-	Metrics  []Metric              `json:"metrics,omitempty"`
-	Outputs  []artifact.ID         `json:"outputs,omitempty"`
-	Attempts []artifact.ID         `json:"attempts,omitempty"`
-	Run      *artifact.ID          `json:"run,omitempty"`
-	Failure  string                `json:"failure,omitempty"`
-	Recovery *operatoraction.Block `json:"recovery,omitempty"`
+	ID             artifact.ID              `json:"id"`
+	Task           recipe.Task              `json:"task"`
+	Recipe         artifact.ID              `json:"recipe"`
+	State          State                    `json:"state"`
+	Progress       Progress                 `json:"progress"`
+	Metrics        []Metric                 `json:"metrics,omitempty"`
+	Outputs        []artifact.ID            `json:"outputs,omitempty"`
+	Attempts       []artifact.ID            `json:"attempts,omitempty"`
+	Run            *artifact.ID             `json:"run,omitempty"`
+	Failure        string                   `json:"failure,omitempty"`
+	Recovery       *operatoraction.Block    `json:"recovery,omitempty"`
+	WorkspaceClaim *WorkspaceClaimLifecycle `json:"workspace_claim,omitempty"`
 }
 
 type Request struct {
 	Task   recipe.Task
 	Recipe artifact.ID
+	Lease  *plan.WorkLease
+	Effect *agenttool.InvocationEffect
+}
+
+// WorkspaceClaimState names one stage of a workspace claim lifecycle.
+type WorkspaceClaimState string
+
+const (
+	// WorkspaceClaimAcquired marks a claim admitted for a fresh operation.
+	WorkspaceClaimAcquired WorkspaceClaimState = "acquired"
+	// WorkspaceClaimRecovered marks a claim re-admitted during recovery.
+	WorkspaceClaimRecovered WorkspaceClaimState = "recovered"
+	// WorkspaceClaimReleased marks a claim released when the operation ends.
+	WorkspaceClaimReleased WorkspaceClaimState = "released"
+)
+
+// WorkspaceClaimLifecycle is immutable identity evidence retained in status.
+type WorkspaceClaimLifecycle struct {
+	ID       artifact.ID         `json:"-"`
+	Lease    artifact.ID         `json:"lease"`
+	Effect   artifact.ID         `json:"effect"`
+	State    WorkspaceClaimState `json:"state"`
+	Previous *artifact.ID        `json:"previous,omitempty"`
 }
 
 type Completion struct {
@@ -86,17 +113,18 @@ type Reporter interface {
 type Executor func(context.Context, Reporter) (Completion, error)
 
 type Manager struct {
-	mu       sync.RWMutex
-	entries  map[artifact.ID]*entry
-	order    []artifact.ID
-	limit    int
-	salt     [sha256.Size]byte
-	sequence atomic.Uint64
-	wait     sync.WaitGroup
-	closed   bool
-	watchers map[uint64]chan Event
-	watchID  uint64
-	eventID  uint64
+	mu         sync.RWMutex
+	entries    map[artifact.ID]*entry
+	order      []artifact.ID
+	limit      int
+	salt       [sha256.Size]byte
+	sequence   atomic.Uint64
+	wait       sync.WaitGroup
+	closed     bool
+	watchers   map[uint64]chan Event
+	watchID    uint64
+	eventID    uint64
+	repository artifact.Reader
 }
 
 type entry struct {
@@ -115,10 +143,22 @@ type ticket struct {
 }
 
 func NewManager(limit int) (*Manager, error) {
+	return newManager(limit, nil)
+}
+
+// NewManagerWithRepository enables CAS-backed workspace claim admission.
+func NewManagerWithRepository(limit int, repository artifact.Reader) (*Manager, error) {
+	if repository == nil {
+		return nil, errors.New("operation: workspace claim repository is absent")
+	}
+	return newManager(limit, repository)
+}
+
+func newManager(limit int, repository artifact.Reader) (*Manager, error) {
 	if limit <= 0 {
 		return nil, errors.New("operation: retention limit must be positive")
 	}
-	manager := &Manager{entries: make(map[artifact.ID]*entry), limit: limit, watchers: make(map[uint64]chan Event)}
+	manager := &Manager{entries: make(map[artifact.ID]*entry), limit: limit, watchers: make(map[uint64]chan Event), repository: repository}
 	if _, err := rand.Read(manager.salt[:]); err != nil {
 		return nil, fmt.Errorf("operation: initialize identity: %w", err)
 	}
@@ -157,12 +197,26 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 	if !request.Task.Valid() || request.Recipe.Kind() != artifact.KindRecipe {
 		return artifact.ID{}, errors.New("operation: invalid task or recipe")
 	}
+	claim, claimErr := manager.admitWorkspaceClaim(parent, request, recover)
+	if claimErr != nil {
+		return artifact.ID{}, claimErr
+	}
 	ctx, cancel := context.WithCancel(parent)
 	manager.mu.Lock()
 	if manager.closed {
 		manager.mu.Unlock()
 		cancel()
 		return artifact.ID{}, errors.New("operation: manager is closed")
+	}
+	if claim != nil {
+		for _, active := range manager.entries {
+			if active.status.WorkspaceClaim != nil && active.status.WorkspaceClaim.State != WorkspaceClaimReleased &&
+				active.request.Lease != nil && plan.WorkspaceClaimsConflict(*request.Lease, *active.request.Lease) {
+				manager.mu.Unlock()
+				cancel()
+				return artifact.ID{}, errors.New("operation: workspace claim conflicts with active mutation")
+			}
+		}
 	}
 	if current := manager.entries[id]; current != nil {
 		if !recover || !terminal(current.status.State) {
@@ -177,7 +231,7 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 		}
 	}
 	manager.entries[id] = &entry{
-		status:  Status{ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted},
+		status:  Status{ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted, WorkspaceClaim: claim},
 		request: request,
 		execute: execute,
 		cancel:  cancel,
@@ -197,6 +251,7 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 	defer func() {
 		manager.mu.Lock()
 		if current := manager.entries[id]; current != nil {
+			manager.releaseWorkspaceClaim(current)
 			current.cancel()
 			current.cancel = nil
 			if current.status.State != StateBlocked {
@@ -204,6 +259,7 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 			}
 			close(current.done)
 			manager.trimLocked()
+			manager.publishLocked(current.status)
 		}
 		manager.mu.Unlock()
 	}()
@@ -245,6 +301,45 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 		current.status.State = StateCompleted
 	}
 	manager.publishLocked(current.status)
+}
+
+func (manager *Manager) admitWorkspaceClaim(ctx context.Context, request Request, recover bool) (*WorkspaceClaimLifecycle, error) {
+	if request.Effect == nil || request.Effect.Class != agenttool.EffectMutation {
+		return nil, nil
+	}
+	if request.Lease == nil || manager.repository == nil || !request.Effect.ID.Valid() {
+		return nil, errors.New("operation: mutation requires exact effect, work lease, and claim repository")
+	}
+	if err := plan.ResolveWorkLeaseOwner(ctx, manager.repository, *request.Lease); err != nil {
+		return nil, err
+	}
+	if request.Effect.OpaqueMutation || !request.Effect.Known {
+		return nil, errors.New("operation: opaque mutation cannot acquire a scoped workspace claim")
+	}
+	state := WorkspaceClaimAcquired
+	expires, err := time.Parse(time.RFC3339Nano, request.Lease.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+	if !expires.After(time.Now()) {
+		if !recover {
+			return nil, errors.New("operation: work lease expired before admission")
+		}
+		state = WorkspaceClaimRecovered
+	}
+	claim := WorkspaceClaimLifecycle{Lease: request.Lease.ID, Effect: request.Effect.ID, State: state}
+	claim.ID, err = artifact.JSONID(artifact.KindEvidence, claim)
+	return &claim, err
+}
+
+func (manager *Manager) releaseWorkspaceClaim(current *entry) {
+	if current == nil || current.status.WorkspaceClaim == nil || current.status.WorkspaceClaim.State == WorkspaceClaimReleased {
+		return
+	}
+	prior := current.status.WorkspaceClaim
+	released := WorkspaceClaimLifecycle{Lease: prior.Lease, Effect: prior.Effect, State: WorkspaceClaimReleased, Previous: artifact.IDPointer(prior.ID)}
+	released.ID, _ = artifact.JSONID(artifact.KindEvidence, released)
+	current.status.WorkspaceClaim = &released
 }
 
 // RecoverAfterDecision resumes only the exact action bound by a granted decision.
@@ -464,6 +559,10 @@ func cloneStatus(status Status) Status {
 	if status.Recovery != nil {
 		recovery := status.Recovery.Clone()
 		status.Recovery = &recovery
+	}
+	if status.WorkspaceClaim != nil {
+		claim := *status.WorkspaceClaim
+		status.WorkspaceClaim = &claim
 	}
 	return status
 }

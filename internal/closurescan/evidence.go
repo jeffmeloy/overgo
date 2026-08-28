@@ -37,6 +37,7 @@ type CensusEvidence struct {
 	Counts          CensusCounts        `json:"counts"`
 	Owners          []OwnerPressure     `json:"owners"`
 	Files           []FilePressure      `json:"files"`
+	Harness         HarnessSurface      `json:"agent_harness"`
 	Pressure        ClosurePressure     `json:"closure_pressure"`
 	Unresolved      []UnresolvedClosure `json:"unresolved"`
 	Stale           []BindingIssue      `json:"stale,omitempty"`
@@ -52,7 +53,7 @@ var censusEvidenceCodec = artifact.JSONDocumentCodec(
 func NewCensusEvidence(census Census, head artifact.CommitID, sequence uint64, active []closureledger.Document, stale []BindingIssue) (CensusEvidence, error) {
 	evidence := CensusEvidence{
 		Source: census.Source, CatalogHead: head.String(), CatalogSequence: sequence,
-		Counts: census.Counts, Owners: census.Owners, Files: census.Files,
+		Counts: census.Counts, Owners: census.Owners, Files: census.Files, Harness: census.Harness,
 		Pressure: ClosurePressure{ActiveDocuments: len(active), StaleBindings: len(stale)}, Stale: stale,
 	}
 	for _, document := range active {
@@ -115,6 +116,9 @@ func validateCensusEvidence(value *CensusEvidence) error {
 	if err := validateFilePressure(value.Files, value.Counts); err != nil {
 		return err
 	}
+	if err := validateHarnessSurface(value.Harness); err != nil {
+		return err
+	}
 	for _, row := range value.Unresolved {
 		hasBinding := false
 		for range row.Bindings {
@@ -143,6 +147,7 @@ func cloneCensusEvidence(value CensusEvidence) CensusEvidence {
 	value.Files = slices.Clone(value.Files)
 	value.Unresolved = slices.Clone(value.Unresolved)
 	value.Stale = slices.Clone(value.Stale)
+	value.Harness.LayerViolations = slices.Clone(value.Harness.LayerViolations)
 	for index := range value.Unresolved {
 		value.Unresolved[index].Bindings = slices.Clone(value.Unresolved[index].Bindings)
 	}

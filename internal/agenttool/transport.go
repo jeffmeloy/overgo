@@ -49,8 +49,7 @@ type httpJSONStreamAdapter struct{ client *http.Client }
 // honors the invocation deadline -- a wedged first call cannot make a
 // second call wait past its own bound.
 type Executor struct {
-	mu       sync.Mutex
-	entries  map[string]chan struct{}
+	entries  [sha256.Size]chan struct{}
 	adapters map[TransportKind]transportAdapter
 }
 
@@ -72,8 +71,7 @@ func NewOperatorExecutor() *Executor {
 
 func newExecutor(client *http.Client) *Executor {
 	builtins := &builtinAdapter{implementations: map[string]Builtin{}}
-	return &Executor{
-		entries: map[string]chan struct{}{},
+	executor := &Executor{
 		adapters: map[TransportKind]transportAdapter{
 			TransportBuiltin:        builtins,
 			TransportHTTP:           &httpAdapter{client: client},
@@ -82,6 +80,10 @@ func newExecutor(client *http.Client) *Executor {
 			TransportHTTPJSONStream: &httpJSONStreamAdapter{client: client},
 		},
 	}
+	for index := range executor.entries {
+		executor.entries[index] = make(chan struct{}, 1)
+	}
+	return executor
 }
 
 func (adapter *httpJSONStreamAdapter) invoke(context.Context, Manual, json.RawMessage) (json.RawMessage, error) {
@@ -89,14 +91,8 @@ func (adapter *httpJSONStreamAdapter) invoke(context.Context, Manual, json.RawMe
 }
 
 func (e *Executor) manualEntry(name string) chan struct{} {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	entry, found := e.entries[name]
-	if !found {
-		entry = make(chan struct{}, 1)
-		e.entries[name] = entry
-	}
-	return entry
+	digest := sha256.Sum256([]byte(name))
+	return e.entries[int(digest[0])%len(e.entries)]
 }
 
 // registerBuiltin binds one in-process implementation to a manual name.
@@ -120,11 +116,17 @@ func (e *Executor) registerBuiltin(name string, implementation Builtin) error {
 // Invoke validates arguments against the manual and executes it over
 // its declared transport, returning strict JSON or a typed error.
 func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
+	result, _, err := e.InvokeWithEffect(ctx, manual, arguments)
+	return result, err
+}
+
+// InvokeWithEffect returns the executed result and the exact canonical effect.
+func (e *Executor) InvokeWithEffect(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, InvocationEffect, error) {
 	if ctx == nil {
-		return nil, errors.New("agent tool: nil invoke context")
+		return nil, InvocationEffect{}, errors.New("agent tool: nil invoke context")
 	}
-	if err := validateArguments(manual, arguments); err != nil {
-		return nil, err
+	if _, err := DeriveInvocationEffect(manual, arguments, nil); err != nil {
+		return nil, InvocationEffect{}, err
 	}
 	// One deadline bounds the whole invocation -- including any wait for
 	// the manual's entry lock -- so a wedged tool fails the call instead
@@ -136,17 +138,22 @@ func (e *Executor) Invoke(ctx context.Context, manual Manual, arguments json.Raw
 	case entry <- struct{}{}:
 		defer func() { <-entry }()
 	case <-bounded.Done():
-		return nil, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, bounded.Err())
+		return nil, InvocationEffect{}, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, bounded.Err())
 	}
 	adapter, registered := e.adapters[manual.Transport.Kind]
 	if !registered {
-		return nil, fmt.Errorf("agent tool: transport %q has no registered adapter", manual.Transport.Kind)
+		return nil, InvocationEffect{}, fmt.Errorf("agent tool: transport %q has no registered adapter", manual.Transport.Kind)
 	}
 	result, err := adapter.invoke(bounded, manual, arguments)
 	if err != nil {
-		return nil, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
+		return nil, InvocationEffect{}, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
 	}
-	return boundedResult(manual.Name, result)
+	result, err = boundedResult(manual.Name, result)
+	if err != nil {
+		return nil, InvocationEffect{}, err
+	}
+	effect, err := DeriveInvocationEffect(manual, arguments, result)
+	return result, effect, err
 }
 
 func (adapter *builtinAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {

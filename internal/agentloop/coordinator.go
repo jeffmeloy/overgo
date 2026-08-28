@@ -40,6 +40,8 @@ type Session struct {
 	Interaction artifact.ID
 	Inspected   bool
 	Steps       int
+	Contract    *ContractState
+	Checkpoints *MutationCheckpointRuntime
 }
 
 // Coordinator admits and records agent tool steps.
@@ -134,6 +136,13 @@ func (c *Coordinator) propose(
 				"agent loop: mutation %q requires an exact approval", name)
 		}
 	}
+	plannedEffect, err := agenttool.DeriveInvocationEffect(manual, arguments, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := session.Contract.Admit(plannedEffect); err != nil {
+		return nil, err
+	}
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
 	// A mutation admits a durable receipt BEFORE it executes and closes
 	// it after: if the receipt cannot persist the side effect never
@@ -144,6 +153,7 @@ func (c *Coordinator) propose(
 	// verifies the COMMITTED decision bound to this exact step, manual
 	// identity, and argument bytes.
 	var receiptOperation artifact.ID
+	var checkpoint runrecord.AgentMutationCheckpoint
 	if manual.Effect == agenttool.EffectMutation {
 		if err := c.verifyMutationDecision(ctx, callID, manual, arguments); err != nil {
 			return nil, err
@@ -151,8 +161,24 @@ func (c *Coordinator) propose(
 		if receiptOperation, err = c.admitMutationReceipt(ctx, callID, manual, arguments); err != nil {
 			return nil, fmt.Errorf("agent loop: mutation %q refused without a durable receipt: %w", name, err)
 		}
+		if session.Checkpoints != nil {
+			checkpoint, err = session.Checkpoints.BeginCheckpoint(ctx, receiptOperation, plannedEffect, uint64(session.Steps))
+			if err != nil {
+				_, _ = c.closeMutationReceipt(ctx, receiptOperation, nil, err)
+				return nil, err
+			}
+		}
 	}
-	result, invokeErr := c.executor.Invoke(ctx, manual, arguments)
+	result, actualEffect, invokeErr := c.executor.InvokeWithEffect(ctx, manual, arguments)
+	if checkpoint.ID.Valid() {
+		checkpoint, err = session.Checkpoints.SealCheckpoint(context.WithoutCancel(ctx), checkpoint)
+		if err != nil {
+			invokeErr = errors.Join(invokeErr, err)
+		}
+	}
+	if invokeErr == nil {
+		session.Contract.ObserveMutation(actualEffect)
+	}
 	var receipt artifact.ID
 	if receiptOperation.Valid() {
 		receipt, err = c.closeMutationReceipt(ctx, receiptOperation, result, invokeErr)
@@ -163,7 +189,7 @@ func (c *Coordinator) propose(
 	if invokeErr != nil {
 		return nil, invokeErr
 	}
-	if err := c.recordStep(ctx, session, manual, arguments, result, receipt); err != nil {
+	if err := c.recordStep(ctx, session, manual, arguments, result, receipt, checkpoint.ID); err != nil {
 		return nil, fmt.Errorf("agent loop: step executed but did not persist: %w", err)
 	}
 	session.Steps++
@@ -446,12 +472,14 @@ func (c *Coordinator) recordStep(
 	manual agenttool.Manual,
 	arguments, result json.RawMessage,
 	receipt artifact.ID,
+	checkpoint artifact.ID,
 ) error {
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
 	published, err := runrecord.PublishInteraction(ctx, c.store, runrecord.Interaction{
 		Response: callID,
 		Recipe:   c.identity.Recipe, Model: c.identity.Model, Node: c.identity.Node,
 		Parent: session.Interaction, Run: receipt,
+		Tools: slices.DeleteFunc([]artifact.ID{checkpoint}, func(id artifact.ID) bool { return !id.Valid() }),
 	}, []runrecord.InteractionMessage{
 		{
 			Role: string(inference.ChatRoleAssistant),

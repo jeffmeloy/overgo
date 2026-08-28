@@ -63,15 +63,46 @@ type Config struct {
 	// MaxAttemptsPerStep parks the step after this many worker exits
 	// without plan advancement. Zero refuses to run: an unbounded retry
 	// loop on a stuck step is the failure mode this exists to prevent.
-	MaxAttemptsPerStep int
+	MaxAttemptsPerStep int `json:"max_attempts_per_step"`
 	// MaxInvocations bounds total worker launches for one Run call.
-	MaxInvocations int
-	// SaturationLimit stops proposal consumption after this many
-	// consecutive proposal-driven rows end parked -- no measured
-	// improvement, because a row advances only through its falsifiable
-	// check. Zero disables proposal consumption entirely: the plan
-	// draining then ends the run exactly as before.
-	SaturationLimit int
+	MaxInvocations int            `json:"max_invocations"`
+	Closure        *ClosureConfig `json:"closure,omitempty"`
+	// SaturationLimit supports the compatibility proposal source when no
+	// evidence-bound Closure is configured.
+	SaturationLimit int `json:"saturation_limit,omitempty"`
+}
+
+// ClosureConfig bounds evidence-gated proposal consumption after the plan
+// drains. Every budget must be nonzero; a zero budget stops the loop as
+// budget-exhausted rather than running unbounded.
+type ClosureConfig struct {
+	MaxWallNS      uint64 `json:"max_wall_ns"`
+	MaxCostUnits   uint64 `json:"max_cost_units"`
+	MaxMutations   uint64 `json:"max_mutations"`
+	MaxExperiments uint64 `json:"max_experiments"`
+	MaxProposals   uint64 `json:"max_proposals"`
+}
+
+// ClosureFacts are the measured world facts the closure stop decision
+// consumes; they are observed, never predicted.
+type ClosureFacts struct {
+	WallNS                 uint64
+	CostUnits              uint64
+	Mutations              uint64
+	Experiments            uint64
+	OutstandingObligations uint64
+	LeaseConflicts         uint64
+	RepeatedDirections     uint64
+	MeasuredGain           bool
+	OperatorStop           bool
+}
+
+// ProposalWorld is an optional extension of the same deterministic driver.
+// Admission mutates only the plan; strategy activation remains external and evidence-gated.
+type ProposalWorld interface {
+	World
+	ClosureFacts() (ClosureFacts, error)
+	AdmitNextProposal() (bool, error)
 }
 
 // Outcome reports why Run returned.
@@ -86,11 +117,13 @@ const (
 	ReasonPaused       = "paused"
 	ReasonBudget       = "invocation-budget-exhausted"
 	ReasonParked       = "step-parked"
-	// ReasonSaturated reports the closure's own stop condition: the
-	// configured count of consecutive proposal-driven rows ended with
-	// no measured improvement, so consuming more proposals is spending
-	// without learning.
-	ReasonSaturated = "proposal-saturation"
+	// ReasonClosureBlocked reports outstanding obligations or lease
+	// conflicts blocking further proposal consumption.
+	ReasonClosureBlocked = "proposal-closure-blocked"
+	// ReasonSaturated reports repeated directions or absent measured gain.
+	ReasonSaturated = "proposal-saturated"
+	// ReasonOperatorStop reports an explicit operator stop fact.
+	ReasonOperatorStop = "operator-stop"
 )
 
 // Run drives the cycle until a terminal condition. It returns an error only
@@ -101,6 +134,7 @@ func Run(world World, config Config) (Outcome, error) {
 		return Outcome{}, errors.New("loop: attempt and invocation budgets are required")
 	}
 	outcome := Outcome{}
+	var proposals uint64
 	attempts := 0
 	saturation := 0
 	proposalItems := map[string]bool{}
@@ -117,6 +151,30 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: read plan: %w", err)
 		}
 		if !open {
+			if config.Closure != nil {
+				proposalWorld, capable := world.(ProposalWorld)
+				if !capable {
+					return outcome, errors.New("loop: closure configured without proposal world")
+				}
+				facts, factErr := proposalWorld.ClosureFacts()
+				if factErr != nil {
+					return outcome, factErr
+				}
+				if reason := closureStopReason(*config.Closure, facts, proposals); reason != "" {
+					outcome.Reason = reason
+					return outcome, nil
+				}
+				admitted, admitErr := proposalWorld.AdmitNextProposal()
+				if admitErr != nil {
+					return outcome, admitErr
+				}
+				if !admitted {
+					outcome.Reason = ReasonPlanComplete
+					return outcome, nil
+				}
+				proposals++
+				continue
+			}
 			// The closure: a drained plan consumes the next admitted
 			// proposal instead of stopping, until the queue empties or
 			// saturation proves further consumption unmeasured.
@@ -208,6 +266,23 @@ func Run(world World, config Config) (Outcome, error) {
 		feedback = "attempt " + fmt.Sprint(attempts) + " verify failure:\n" + truncate(failure, 2000) +
 			"\nworker tail:\n" + truncate(tail, 1000)
 	}
+}
+
+func closureStopReason(config ClosureConfig, facts ClosureFacts, proposals uint64) string {
+	if facts.OperatorStop {
+		return ReasonOperatorStop
+	}
+	if facts.OutstandingObligations != 0 || facts.LeaseConflicts != 0 {
+		return ReasonClosureBlocked
+	}
+	if facts.RepeatedDirections != 0 || !facts.MeasuredGain {
+		return ReasonSaturated
+	}
+	if config.MaxWallNS == 0 || config.MaxCostUnits == 0 || config.MaxMutations == 0 || config.MaxExperiments == 0 || config.MaxProposals == 0 ||
+		facts.WallNS >= config.MaxWallNS || facts.CostUnits >= config.MaxCostUnits || facts.Mutations >= config.MaxMutations || facts.Experiments >= config.MaxExperiments || proposals >= config.MaxProposals {
+		return ReasonBudget
+	}
+	return ""
 }
 
 // LaunchError marks a worker that could not start at all, as distinct from a

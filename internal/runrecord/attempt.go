@@ -61,6 +61,12 @@ type AttemptRecord struct {
 	CandidateManifest artifact.ID      `json:"candidate_manifest,omitzero"`
 	Selection         AttemptSelection `json:"selection"`
 	Diff              AttemptDiff      `json:"diff"`
+	StrategyID        artifact.ID      `json:"strategy_id,omitzero"`
+	TaskContract      artifact.ID      `json:"task_contract,omitzero"`
+	Environment       artifact.ID      `json:"environment,omitzero"`
+	Trajectory        artifact.ID      `json:"trajectory,omitzero"`
+	CostUnits         uint64           `json:"cost_units,omitempty"`
+	Recovered         bool             `json:"recovered,omitempty"`
 	ID                artifact.ID      `json:"-"`
 }
 
@@ -118,6 +124,11 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 	if value.Diff.Files < 0 || value.Diff.Insertions < 0 || value.Diff.Deletions < 0 {
 		return errors.New("run record: attempt diff counts are not observations")
 	}
+	for _, id := range []artifact.ID{value.StrategyID, value.TaskContract, value.Environment, value.Trajectory} {
+		if id.Valid() && id.Kind() != artifact.KindEvidence && id.Kind() != artifact.KindRecipe && id.Kind() != artifact.KindProfile {
+			return errors.New("run record: invalid attempt authority")
+		}
+	}
 	return nil
 }
 
@@ -143,6 +154,11 @@ func (a AttemptRecord) Lineage() []artifact.Lineage {
 			lineage = append(lineage, artifact.Lineage{
 				Child: a.ID, Parent: manifest, Relation: artifact.RelationDependsOn,
 			})
+		}
+	}
+	for _, parent := range []artifact.ID{a.StrategyID, a.TaskContract, a.Environment, a.Trajectory} {
+		if parent.Valid() {
+			lineage = append(lineage, artifact.Lineage{Child: a.ID, Parent: parent, Relation: artifact.RelationDependsOn})
 		}
 	}
 	return lineage

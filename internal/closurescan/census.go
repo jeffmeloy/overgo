@@ -64,6 +64,7 @@ type Census struct {
 	Owners   []OwnerPressure    `json:"owners"`
 	Files    []FilePressure     `json:"files"`
 	Repeated []RawPolicyLiteral `json:"repeated"`
+	Harness  HarnessSurface     `json:"agent_harness"`
 }
 
 // BuildCensus measures source pressure; findings grant no disposition.
@@ -89,9 +90,13 @@ func BuildCensus(snapshot repoanalysis.SourceSnapshot, authorities ...closureled
 	if err != nil {
 		return Census{}, err
 	}
+	harness, err := BuildAgentHarnessSurface(snapshot)
+	if err != nil {
+		return Census{}, err
+	}
 
 	result := Census{
-		Schema: CensusSchema, Source: snapshot.Identity(), Repeated: repeated,
+		Schema: CensusSchema, Source: snapshot.Identity(), Repeated: repeated, Harness: harness,
 		Counts: CensusCounts{NamedConstants: len(named), InlineLiterals: len(inline),
 			AssumptionHints: len(assumptions), RepeatedGroups: len(repeated)},
 	}

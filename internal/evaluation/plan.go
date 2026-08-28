@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
@@ -69,16 +70,89 @@ type Plan struct {
 }
 
 type planBody struct {
-	Version         uint16      `json:"version"`
-	ModelDefinition artifact.ID `json:"model_definition"`
-	RuntimeRecipe   artifact.ID `json:"runtime_recipe"`
-	Dataset         artifact.ID `json:"dataset"`
-	Split           artifact.ID `json:"split"`
-	CaseProfile     artifact.ID `json:"case_profile"`
-	Scorer          artifact.ID `json:"scorer"`
-	Execution       artifact.ID `json:"execution"`
-	CodeCommit      string      `json:"code_commit"`
-	Environment     artifact.ID `json:"environment"`
+	Version         uint16                      `json:"version"`
+	ModelDefinition artifact.ID                 `json:"model_definition"`
+	RuntimeRecipe   artifact.ID                 `json:"runtime_recipe"`
+	Dataset         artifact.ID                 `json:"dataset"`
+	Split           artifact.ID                 `json:"split"`
+	CaseProfile     artifact.ID                 `json:"case_profile"`
+	Scorer          artifact.ID                 `json:"scorer"`
+	Execution       artifact.ID                 `json:"execution"`
+	CodeCommit      string                      `json:"code_commit"`
+	Environment     artifact.ID                 `json:"environment"`
+	Agent           *AgentTrajectoryAuthorities `json:"agent,omitempty"`
+}
+
+// AgentTrajectoryScore names one deterministic, code-owned trajectory scorer.
+type AgentTrajectoryScore string
+
+const (
+	// AgentScoreTaskSuccess names the scorer for task acceptance success.
+	AgentScoreTaskSuccess AgentTrajectoryScore = "task-success"
+	// AgentScoreEvidenceCompleteness names the scorer for committed-evidence completeness.
+	AgentScoreEvidenceCompleteness AgentTrajectoryScore = "evidence-completeness"
+	// AgentScoreGateAccuracy names the scorer for gate-result accuracy.
+	AgentScoreGateAccuracy AgentTrajectoryScore = "gate-accuracy"
+	// AgentScoreEffectPrediction names the scorer for predicted-versus-observed effects.
+	AgentScoreEffectPrediction AgentTrajectoryScore = "effect-prediction"
+	// AgentScoreRegressions names the scorer for introduced regressions.
+	AgentScoreRegressions AgentTrajectoryScore = "regressions"
+	// AgentScoreChurn names the scorer for code churn spent on the task.
+	AgentScoreChurn AgentTrajectoryScore = "churn"
+	// AgentScoreRepeatedDirections names the scorer for repeated attempt directions.
+	AgentScoreRepeatedDirections AgentTrajectoryScore = "repeated-directions"
+	// AgentScoreBudget names the scorer for consumed budget.
+	AgentScoreBudget AgentTrajectoryScore = "budget"
+	// AgentScoreLatency names the scorer for wall-clock latency.
+	AgentScoreLatency AgentTrajectoryScore = "latency"
+	// AgentScoreUnsupportedCompletion names the scorer for completion claims without evidence.
+	AgentScoreUnsupportedCompletion AgentTrajectoryScore = "unsupported-completion"
+)
+
+// AgentTrajectoryAuthorities extend the exact plan. Deterministic scorers are
+// code-owned hard facts; advisory judges are versioned profiles only.
+type AgentTrajectoryAuthorities struct {
+	Trajectories   []artifact.ID          `json:"trajectories"`
+	Deterministic  []AgentTrajectoryScore `json:"deterministic"`
+	AdvisoryJudges []artifact.ID          `json:"advisory_judges,omitempty"`
+}
+
+var requiredAgentTrajectoryScores = []AgentTrajectoryScore{
+	AgentScoreTaskSuccess, AgentScoreEvidenceCompleteness, AgentScoreGateAccuracy, AgentScoreEffectPrediction,
+	AgentScoreRegressions, AgentScoreChurn, AgentScoreRepeatedDirections, AgentScoreBudget, AgentScoreLatency,
+	AgentScoreUnsupportedCompletion,
+}
+
+// BindAgentTrajectoryPlan binds exact trajectories to the existing evaluation
+// plan identity without granting model judges promotion authority.
+func BindAgentTrajectoryPlan(base Plan, trajectories, advisoryJudges []artifact.ID) (Plan, error) {
+	if err := base.ValidateIdentity(); err != nil {
+		return Plan{}, err
+	}
+	agent := &AgentTrajectoryAuthorities{Trajectories: slices.Clone(trajectories), Deterministic: slices.Clone(requiredAgentTrajectoryScores), AdvisoryJudges: slices.Clone(advisoryJudges)}
+	if err := canonicalizeAgentTrajectoryAuthorities(agent); err != nil {
+		return Plan{}, err
+	}
+	body := base.body
+	body.Agent = agent
+	identity, err := artifact.JSONID(artifact.KindProfile, body)
+	if err != nil {
+		return Plan{}, err
+	}
+	return Plan{identity: identity, body: body, authorities: slices.Clone(base.authorities)}, nil
+}
+
+// AgentTrajectoryAuthorities returns a deep copy of the plan's agent
+// trajectory extension; ok is false when the plan carries none.
+func (p Plan) AgentTrajectoryAuthorities() (AgentTrajectoryAuthorities, bool) {
+	if p.body.Agent == nil {
+		return AgentTrajectoryAuthorities{}, false
+	}
+	copy := *p.body.Agent
+	copy.Trajectories = slices.Clone(copy.Trajectories)
+	copy.Deterministic = slices.Clone(copy.Deterministic)
+	copy.AdvisoryJudges = slices.Clone(copy.AdvisoryJudges)
+	return copy, true
 }
 
 func BindExact(exact ExactPlan, authorities ExactAuthorities) (Plan, error) {
@@ -172,6 +246,13 @@ func (p Plan) ValidateIdentity() error {
 		!validCommit(p.body.CodeCommit) {
 		return errors.New("evaluation: invalid plan identity authorities")
 	}
+	if p.body.Agent != nil {
+		copy := *p.body.Agent
+		if err := canonicalizeAgentTrajectoryAuthorities(&copy); err != nil || !slices.Equal(copy.Trajectories, p.body.Agent.Trajectories) ||
+			!slices.Equal(copy.Deterministic, p.body.Agent.Deterministic) || !slices.Equal(copy.AdvisoryJudges, p.body.Agent.AdvisoryJudges) {
+			return errors.Join(err, errors.New("evaluation: agent trajectory authorities are not canonical"))
+		}
+	}
 	want, err := artifact.JSONID(artifact.KindProfile, p.body)
 	if err != nil || want != p.identity {
 		return errors.Join(err, errors.New("evaluation: plan identity differs"))
@@ -180,10 +261,34 @@ func (p Plan) ValidateIdentity() error {
 }
 
 func (p Plan) Lineage() []artifact.Lineage {
-	return artifact.DependencyLineage(p.identity,
+	parents := []artifact.ID{
 		p.body.ModelDefinition, p.body.RuntimeRecipe, p.body.Dataset, p.body.Split,
 		p.body.CaseProfile, p.body.Scorer, p.body.Execution, p.body.Environment,
-	)
+	}
+	if p.body.Agent != nil {
+		parents = append(parents, p.body.Agent.Trajectories...)
+		parents = append(parents, p.body.Agent.AdvisoryJudges...)
+	}
+	return artifact.DependencyLineage(p.identity, parents...)
+}
+
+func canonicalizeAgentTrajectoryAuthorities(agent *AgentTrajectoryAuthorities) error {
+	if agent == nil || len(agent.Trajectories) == 0 || !slices.Equal(agent.Deterministic, requiredAgentTrajectoryScores) {
+		return errors.New("evaluation: incomplete deterministic agent trajectory plan")
+	}
+	for _, group := range []struct {
+		values *[]artifact.ID
+		kind   artifact.Kind
+	}{{&agent.Trajectories, artifact.KindEvidence}, {&agent.AdvisoryJudges, artifact.KindProfile}} {
+		for _, id := range *group.values {
+			if id.Kind() != group.kind {
+				return errors.New("evaluation: invalid agent trajectory authority")
+			}
+		}
+		sort.Slice(*group.values, func(i, j int) bool { return artifact.CompareID((*group.values)[i], (*group.values)[j]) < 0 })
+		*group.values = slices.Compact(*group.values)
+	}
+	return nil
 }
 
 // Content returns the native OvergoDB document for external adapter publication.

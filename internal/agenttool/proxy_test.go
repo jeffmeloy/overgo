@@ -1,0 +1,68 @@
+package agenttool
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
+)
+
+func TestStableCapabilityProxy(t *testing.T) {
+	ctx := context.Background()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	target, err := NewManual(Manual{Name: "echo.value", Description: "Return exact arguments.", Effect: EffectInspection,
+		Arguments: []Field{{Name: "value", Kind: FieldString, Required: true}}, Transport: Transport{Kind: TransportBuiltin}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishManualCatalog(ctx, store, []Manual{target}); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := NewCatalogSnapshot([]Manual{target})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := snapshot.ArtifactContent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("proxy-test", []artifact.Content{content}, nil,
+		[]artifact.AliasBinding{{Name: ActiveCatalogAlias, Target: snapshot.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		t.Fatal(err)
+	}
+	executor := NewOperatorExecutor()
+	if err := executor.registerBuiltin(target.Name, func(_ context.Context, raw json.RawMessage) (json.RawMessage, error) { return raw, nil }); err != nil {
+		t.Fatal(err)
+	}
+	admitted := artifact.ID{}
+	if err := RegisterCapabilityProxy(executor, store, func(effect InvocationEffect) error { admitted = effect.Manual; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	proxy, err := CapabilityProxyManual()
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, _ := json.Marshal(map[string]any{"action": "call", "manual": target.ID.String(), "arguments": map[string]any{"value": "ok"}})
+	result, err := executor.Invoke(ctx, proxy, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if admitted != target.ID || string(result) != `{"value":"ok"}` {
+		t.Fatalf("proxy result=%s admitted=%s", result, admitted)
+	}
+	other, _ := NewManual(Manual{Name: "other.tool", Description: "Unlisted.", Effect: EffectInspection, Transport: Transport{Kind: TransportBuiltin}})
+	request, _ = json.Marshal(map[string]any{"action": "inspect", "manual": other.ID.String()})
+	if _, err := executor.Invoke(ctx, proxy, request); err == nil {
+		t.Fatal("proxy admitted a manual outside active snapshot")
+	}
+}

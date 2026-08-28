@@ -113,10 +113,7 @@ func validateQwen2VLCatalog(file *gguf.File, spec Qwen2VLSpec) ([]string, error)
 }
 
 func (r *Qwen2VLRunner) EncodeImage(ctx context.Context, source image.Image, options Qwen2VLPreprocessOptions) (Qwen2VLOutput, error) {
-	return executePreparedProjector(
-		ctx, r != nil && r.file != nil, source, r.Spec().preprocessSpec(), options,
-		PreprocessQwen3VLImage, r.encodeGraph,
-	)
+	return r.EncodeFrames(ctx, []image.Image{source}, options)
 }
 
 func (r *Qwen2VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen2VLPreprocessOptions) (Qwen2VLOutput, error) {

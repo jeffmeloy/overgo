@@ -243,10 +243,7 @@ func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 }
 
 func (r *Qwen3VLRunner) EncodeImage(ctx context.Context, source image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {
-	return executePreparedProjector(
-		ctx, r != nil && r.file != nil, source, r.Spec(), options,
-		PreprocessQwen3VLImage, r.encodeGraph,
-	)
+	return r.EncodeFrames(ctx, []image.Image{source}, options)
 }
 
 func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {

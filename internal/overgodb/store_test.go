@@ -3,6 +3,7 @@ package overgodb
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/crc32"
@@ -261,9 +262,13 @@ func TestReadOnlyRefreshRejectsFork(t *testing.T) {
 	defer reader.Close()
 	head, sequence := reader.Head()
 	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
-	payload, _, _, err := encodeBatch(artifact.Batch{
+	forkBatch, _, err := encodeBatch(artifact.Batch{
 		Key: "fixture/fork/v1", Artifacts: []artifact.Descriptor{descriptor},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(forkBatch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +343,7 @@ func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
 		Artifacts: append(slices.Clone(base.Artifacts), added),
 		Lineage:   slices.Clone(base.Lineage),
 	}
-	_, normalized, requestDigest, err := encodeBatch(request)
+	normalized, requestDigest, err := encodeBatch(request)
 	if err != nil {
 		t.Fatal(err)
 	}

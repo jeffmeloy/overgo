@@ -239,7 +239,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 	if err := contextError(ctx); err != nil {
 		return artifact.CommitID{}, err
 	}
-	_, normalized, payloadHash, err := encodeBatch(batch)
+	normalized, payloadHash, err := encodeBatch(batch)
 	if err != nil {
 		return artifact.CommitID{}, err
 	}
@@ -271,7 +271,7 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 }
 
 func (s *Store) transactionFits(batch artifact.Batch) (bool, error) {
-	_, normalized, requestHash, err := encodeBatch(batch)
+	normalized, requestHash, err := encodeBatch(batch)
 	if errors.Is(err, errPayloadLimit) {
 		return false, nil
 	}
@@ -523,19 +523,22 @@ func (s *Store) ready(write bool) error {
 	return nil
 }
 
-func encodeBatch(batch artifact.Batch) ([]byte, artifact.Batch, [sha256.Size]byte, error) {
+// encodeBatch normalizes one batch and returns it with its canonical
+// request digest; the encoded bytes exist only to bound and hash the
+// request, so they are not returned.
+func encodeBatch(batch artifact.Batch) (artifact.Batch, [sha256.Size]byte, error) {
 	normalized, err := normalizeBatch(batch)
 	if err != nil {
-		return nil, artifact.Batch{}, [sha256.Size]byte{}, err
+		return artifact.Batch{}, [sha256.Size]byte{}, err
 	}
 	payload, err := json.Marshal(normalized)
 	if err != nil {
-		return nil, artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("overgodb: encode batch: %w", err)
+		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("overgodb: encode batch: %w", err)
 	}
 	if len(payload) > maxFramePayload {
-		return nil, artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("%w: batch", errPayloadLimit)
+		return artifact.Batch{}, [sha256.Size]byte{}, fmt.Errorf("%w: batch", errPayloadLimit)
 	}
-	return payload, normalized, sha256.Sum256(payload), nil
+	return normalized, sha256.Sum256(payload), nil
 }
 
 func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte, map[artifact.ID]contentLocator, error) {

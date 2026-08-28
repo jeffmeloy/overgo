@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "storage-modular-core",
-      "title": "Separate OvergoDB commit mechanics from concrete catalog state without changing the disk format",
-      "status": "open",
-      "steps": [
-        {
-          "id": "repository-parity",
-          "title": "Run the storage-neutral repository contract against the modular core and delete displaced store paths",
-          "status": "open",
-          "verify": "go test ./internal/artifact/repositorytest ./internal/overgodb -run '^(TestRepositoryContract|TestModularStoreRepositoryParity)$' -count=1",
-          "rationale": "artifact.Repository remains the consumer boundary. The refactor is complete only when callers see identical commit, read, compare-and-set, lineage, cancellation, and close behavior and the old control path is absent.",
-          "depends_on": [
-            "storage-modular-core/commit-coordinator"
-          ],
-          "capabilities": [
-            "artifact-repository",
-            "api-parity",
-            "tightness"
-          ]
-        }
-      ]
-    },
-    {
       "id": "common-publication-path",
       "title": "Consolidate canonical document publication and semantic batching",
       "status": "open",

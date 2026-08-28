@@ -62,14 +62,7 @@ func f32of(values []float64) []float32 {
 // requireWithin logs the measured diff verbatim and fails past the gate.
 func requireWithin(t *testing.T, name string, got []float32, want []float64, tol float64) {
 	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("%s: length %d != golden %d", name, len(got), len(want))
-	}
-	diff := testutil.MaxAbsDiff(got, want)
-	t.Logf("%s: max abs diff %.6e (gate %.0e)", name, diff, tol)
-	if diff > tol {
-		t.Fatalf("%s diverges: %g > %g", name, diff, tol)
-	}
+	testutil.RequireWithin(t, name, got, want, tol)
 }
 
 func randF32(elements int, seed int64) []float32 {

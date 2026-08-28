@@ -122,14 +122,7 @@ func f32of(values []float64) []float32 {
 // fails past the gate.
 func requireWithin(t *testing.T, name string, got []float32, want []float64, tol float64) {
 	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("%s: length %d != golden %d", name, len(got), len(want))
-	}
-	diff := testutil.MaxAbsDiff(got, want)
-	t.Logf("%s: max abs diff %.6e (gate %.0e)", name, diff, tol)
-	if diff > tol {
-		t.Fatalf("%s diverges: %g > %g", name, diff, tol)
-	}
+	testutil.RequireWithin(t, name, got, want, tol)
 }
 
 // Shared once-loaded artifact for the real-model gates.
@@ -161,9 +154,5 @@ func loadArtifactModel(t *testing.T) *Model {
 
 func artifactDir(t *testing.T) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Join(roots.Models, "pocket-tts")
+	return testutil.ModelArtifactDir(t, "pocket-tts")
 }

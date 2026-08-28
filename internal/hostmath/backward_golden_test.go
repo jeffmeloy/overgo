@@ -28,14 +28,7 @@ const componentTol = 1e-4
 
 func checkClose(t *testing.T, name string, got []float32, want []float64) {
 	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("%s: len %d, want %d", name, len(got), len(want))
-	}
-	for i := range got {
-		if d := math.Abs(float64(got[i]) - want[i]); d > componentTol {
-			t.Fatalf("%s[%d]: |%g - %g| = %g > %g", name, i, got[i], want[i], d, componentTol)
-		}
-	}
+	testutil.RequireElementsWithin(t, name, got, want, componentTol)
 }
 
 func f64To32(v []float64) []float32 {

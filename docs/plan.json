@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "tighten-testkits",
-      "title": "Shared test fixtures: golden readers, tolerance checks, projector testkit",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Shared test fixtures: golden readers, tolerance checks, projector testkit",
-          "status": "open",
-          "verify": "go test ./internal/testutil ./internal/projector -count=1"
-        }
-      ]
-    },
-    {
       "id": "tighten-closure",
       "title": "Re-run the clone census and record the tightening delta",
       "status": "open",

@@ -2,7 +2,10 @@ package testutil
 
 import (
 	"math"
+	"path/filepath"
 	"testing"
+
+	"overgo/internal/dataroot"
 )
 
 type Float interface {
@@ -66,4 +69,44 @@ func RequireRange(t testing.TB, label string, got, minimum, maximum float64) {
 	if math.IsNaN(got) || math.IsInf(got, 0) || got < minimum || got > maximum {
 		t.Fatalf("%s = %g, want [%g, %g]", label, got, minimum, maximum)
 	}
+}
+
+// RequireWithin fails the test unless got matches want elementwise
+// within tol; the max-abs-diff observation is logged either way so
+// golden gates leave a numeric trace.
+func RequireWithin[L, R Float](t testing.TB, name string, got []L, want []R, tol float64) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s: length %d != golden %d", name, len(got), len(want))
+	}
+	diff := MaxAbsDiff(got, want)
+	t.Logf("%s: max abs diff %.6e (gate %.0e)", name, diff, tol)
+	if diff > tol {
+		t.Fatalf("%s diverges: %g > %g", name, diff, tol)
+	}
+}
+
+// RequireElementsWithin fails at the first element whose difference
+// exceeds tol, naming the index for golden triage.
+func RequireElementsWithin[L, R Float](t testing.TB, name string, got []L, want []R, tol float64) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s: len %d, want %d", name, len(got), len(want))
+	}
+	for i := range got {
+		if d := math.Abs(float64(got[i]) - float64(want[i])); d > tol {
+			t.Fatalf("%s[%d]: |%g - %g| = %g > %g", name, i, got[i], want[i], d, tol)
+		}
+	}
+}
+
+// ModelArtifactDir resolves one named model directory under the
+// repository data roots for artifact-gated golden tests.
+func ModelArtifactDir(t testing.TB, name string) string {
+	t.Helper()
+	roots, err := dataroot.Resolve(RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(roots.Models, name)
 }

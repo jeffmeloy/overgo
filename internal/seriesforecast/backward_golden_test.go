@@ -36,14 +36,7 @@ const wiredTol = 1e-3
 
 func closeTo(t *testing.T, name string, got []float32, want []float64, tol float64) {
 	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("%s: len %d, want %d", name, len(got), len(want))
-	}
-	for i := range got {
-		if d := math.Abs(float64(got[i]) - want[i]); d > tol {
-			t.Fatalf("%s[%d]: |%g - %g| = %g > %g", name, i, got[i], want[i], d, tol)
-		}
-	}
+	testutil.RequireElementsWithin(t, name, got, want, tol)
 }
 
 func TestResidualBlockBackwardMatchesGolden(t *testing.T) {

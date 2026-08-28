@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"overgo/internal/dataroot"
 	"overgo/internal/testutil"
 )
 
@@ -41,14 +40,7 @@ func loadGolden[T any](t *testing.T, name string) T {
 // requireWithin logs the measured diff verbatim and fails past the gate.
 func requireWithin(t *testing.T, name string, got, want []float32, tol float64) {
 	t.Helper()
-	if len(got) != len(want) {
-		t.Fatalf("%s: length %d != golden %d", name, len(got), len(want))
-	}
-	diff := testutil.MaxAbsDiff(got, want)
-	t.Logf("%s: max abs diff %.6e (gate %.0e)", name, diff, tol)
-	if diff > tol {
-		t.Fatalf("%s diverges: %g > %g", name, diff, tol)
-	}
+	testutil.RequireWithin(t, name, got, want, tol)
 }
 
 // uditTinyFixture: the tiny full-model golden. Threshold fields are the
@@ -149,11 +141,7 @@ var (
 
 func artifactDir(t *testing.T) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return filepath.Join(roots.Models, "SimpleDiffusion-TensorProductAttentionRope")
+	return testutil.ModelArtifactDir(t, "SimpleDiffusion-TensorProductAttentionRope")
 }
 
 func loadArtifactModel(t *testing.T) *Model {

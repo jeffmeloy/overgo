@@ -698,23 +698,47 @@ func findDecision(
 
 func loadDecisions(ctx context.Context, store artifact.Reader, ids []artifact.ID) ([]recipe.Decision, error) {
 	decisions := make([]recipe.Decision, 0)
+	collect := func(content artifact.Content, id artifact.ID) error {
+		if content.Descriptor.MediaType != recipe.DecisionMediaType ||
+			content.Descriptor.Schema != recipe.DecisionSchema {
+			return nil
+		}
+		decision, err := recipe.ParseDecision(content.Data)
+		if err != nil {
+			return err
+		}
+		if decision.ID != id {
+			return errors.New("model recipe: decision identity mismatch")
+		}
+		decisions = append(decisions, decision)
+		return nil
+	}
+	// Evidence lists mix decisions with runs and identity-only facts, so
+	// absence is tolerated; with a presence-capable store the whole list
+	// resolves in one acquisition plus one batched read.
+	if presence, batched := store.(artifact.ContentPresence); batched {
+		present, err := presence.PresentContents(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		if err := artifact.ReadContents(ctx, store, present, func(content artifact.Content) error {
+			return collect(content, content.Descriptor.ID)
+		}); err != nil {
+			return nil, err
+		}
+		return decisions, nil
+	}
 	for _, id := range ids {
 		content, ok, err := artifact.ReadContent(ctx, store, id)
 		if err != nil {
 			return nil, err
 		}
-		if !ok || content.Descriptor.MediaType != recipe.DecisionMediaType ||
-			content.Descriptor.Schema != recipe.DecisionSchema {
+		if !ok {
 			continue
 		}
-		decision, err := recipe.ParseDecision(content.Data)
-		if err != nil {
+		if err := collect(content, id); err != nil {
 			return nil, err
 		}
-		if decision.ID != id {
-			return nil, errors.New("model recipe: decision identity mismatch")
-		}
-		decisions = append(decisions, decision)
 	}
 	return decisions, nil
 }

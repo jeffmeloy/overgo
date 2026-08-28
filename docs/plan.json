@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "common-publication-path",
-      "title": "Consolidate canonical document publication and semantic batching",
-      "status": "open",
-      "steps": [
-        {
-          "id": "batch-readers",
-          "title": "Move fan-out consumers to bounded VisitContents, document streaming, and projection batch reads",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/evaluation ./internal/modelrecipe -run '^TestHighFanoutReadsAreBatched$' -count=1",
-          "rationale": "Evaluation, recipe resolution, evidence verification, projection rebuild, and capability loading should not reacquire locks or reopen storage once per artifact. Batch APIs preserve caller order, per-item identity checks, cancellation, byte bounds, and exact missing-content errors.",
-          "depends_on": [
-            "common-publication-path/semantic-batches"
-          ],
-          "capabilities": [
-            "overgodb",
-            "batch-read",
-            "interaction-efficiency",
-            "common-code"
-          ]
-        }
-      ]
-    },
-    {
       "id": "storage-blob-split",
       "title": "Move immutable content bytes out of the canonical metadata journal",
       "status": "open",

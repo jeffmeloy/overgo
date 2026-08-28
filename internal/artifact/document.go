@@ -45,6 +45,68 @@ func ReadContent(ctx context.Context, reader Reader, id ID) (Content, bool, erro
 	return content, err == nil, err
 }
 
+// ContentVisitor is implemented by repositories that stream many
+// contents under one storage acquisition; ReadContents rides it when
+// present and falls back to per-id reads otherwise.
+type ContentVisitor interface {
+	VisitContents(ctx context.Context, ids []ID, visit func(Descriptor, io.Reader) error) error
+}
+
+// ContentPresence is implemented by repositories that answer content
+// presence for many ids under one state acquisition.
+type ContentPresence interface {
+	PresentContents(ctx context.Context, ids []ID) ([]ID, error)
+}
+
+// ReadContents materializes every id and visits the results in caller
+// order, whatever order the storage layer streams them in. Identity,
+// byte bounds, and cancellation follow ReadContent exactly; an absent
+// id is the storage layer's exact missing-content error, never a
+// silent skip.
+func ReadContents(ctx context.Context, reader Reader, ids []ID, visit func(Content) error) error {
+	if ctx == nil || reader == nil || visit == nil {
+		return errors.New("artifact: nil batch read context, reader, or visitor")
+	}
+	visitor, batched := reader.(ContentVisitor)
+	if !batched {
+		for _, id := range ids {
+			content, found, err := ReadContent(ctx, reader, id)
+			if err != nil {
+				return err
+			}
+			if !found {
+				return fmt.Errorf("artifact: content is absent: %s", id)
+			}
+			if err := visit(content); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	loaded := make(map[ID]Content, len(ids))
+	err := visitor.VisitContents(ctx, ids, func(descriptor Descriptor, stream io.Reader) error {
+		content, err := ReadContentFrom(descriptor, stream)
+		if err != nil {
+			return err
+		}
+		loaded[descriptor.ID] = content
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		content, found := loaded[id]
+		if !found {
+			return fmt.Errorf("artifact: content is absent: %s", id)
+		}
+		if err := visit(content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ReadContentFrom materializes one opened content stream.
 func ReadContentFrom(descriptor Descriptor, stream io.Reader) (Content, error) {
 	if stream == nil {

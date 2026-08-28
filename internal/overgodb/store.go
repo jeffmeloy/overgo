@@ -350,6 +350,26 @@ func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descr
 	return record.descriptor, s.log.openContent(locator), true, nil
 }
 
+// PresentContents reports, in caller order, the subset of ids whose
+// content bytes are committed, under one state acquisition.
+func (s *Store) PresentContents(ctx context.Context, ids []artifact.ID) ([]artifact.ID, error) {
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return nil, err
+	}
+	present := make([]artifact.ID, 0, len(ids))
+	for _, id := range ids {
+		if s.state.contents.has(id) {
+			present = append(present, id)
+		}
+	}
+	return present, nil
+}
+
 // VisitContents streams requested content in storage order.
 func (s *Store) VisitContents(ctx context.Context, ids []artifact.ID, visit func(artifact.Descriptor, io.Reader) error) error {
 	if err := contextError(ctx); err != nil {

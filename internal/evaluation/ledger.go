@@ -68,57 +68,91 @@ func publishPlanAuthorities(
 	return err
 }
 
-func loadShardReport(
+// loadShardReports resolves every completed shard in one pass: alias
+// resolution per shard, then ONE batched read for all report
+// documents and ONE batched read for all their outputs, so resume
+// verification does not reopen storage once per shard or per
+// observation. Verification per item is unchanged.
+func loadShardReports(
 	ctx context.Context,
 	repository artifact.Repository,
 	plan Plan,
-	shard caseShard,
-) (shardReport, bool, error) {
-	target, ok, err := artifact.ResolveAlias(ctx, repository, shardAlias(plan.identity, shard.ID))
-	if err != nil || !ok {
-		return shardReport{}, ok, err
-	}
-	content, ok, err := artifact.ReadContent(ctx, repository, target)
-	if err != nil {
-		return shardReport{}, false, err
-	}
-	if !ok {
-		return shardReport{}, false, errors.New("evaluation: completed shard report content is absent")
-	}
-	if err := shardReportContract.ValidateContent(content, target); err != nil {
-		return shardReport{}, false, fmt.Errorf("evaluation: completed shard report: %w", err)
-	}
-	var report shardReport
-	if err := strictjson.DecodeBytes(content.Data, &report); err != nil {
-		return shardReport{}, false, fmt.Errorf("evaluation: decode shard report: %w", err)
-	}
-	report.ID = target
-	canonical, err := newShardReport(shard, report.Observations, report.Metrics)
-	if err != nil || !reflect.DeepEqual(canonical, report) {
-		return shardReport{}, false, errors.New("evaluation: completed shard report differs from plan")
-	}
-	for _, observation := range report.Observations {
-		outputContent, found, err := artifact.ReadContent(ctx, repository, observation.Output)
+	shards []caseShard,
+) (map[int]shardReport, error) {
+	stored := map[int]artifact.ID{}
+	reportIDs := make([]artifact.ID, 0, len(shards))
+	ordinals := make([]int, 0, len(shards))
+	for index, shard := range shards {
+		target, ok, err := artifact.ResolveAlias(ctx, repository, shardAlias(plan.identity, shard.ID))
 		if err != nil {
-			return shardReport{}, false, err
+			return nil, err
 		}
-		if !found {
-			return shardReport{}, false, errors.New("evaluation: completed shard output is absent")
+		if !ok {
+			continue
 		}
-		if err := textOutputContract.ValidateContent(outputContent, observation.Output); err != nil {
-			return shardReport{}, false, fmt.Errorf("evaluation: completed shard output: %w", err)
+		stored[index] = target
+		reportIDs = append(reportIDs, target)
+		ordinals = append(ordinals, index)
+	}
+	if len(reportIDs) == 0 {
+		return map[int]shardReport{}, nil
+	}
+	reports := make(map[int]shardReport, len(reportIDs))
+	type pendingOutput struct {
+		caseID artifact.ID
+		output artifact.ID
+	}
+	var outputs []pendingOutput
+	position := 0
+	if err := artifact.ReadContents(ctx, repository, reportIDs, func(content artifact.Content) error {
+		index := ordinals[position]
+		target := stored[index]
+		position++
+		if err := shardReportContract.ValidateContent(content, target); err != nil {
+			return fmt.Errorf("evaluation: completed shard report: %w", err)
+		}
+		var report shardReport
+		if err := strictjson.DecodeBytes(content.Data, &report); err != nil {
+			return fmt.Errorf("evaluation: decode shard report: %w", err)
+		}
+		report.ID = target
+		canonical, err := newShardReport(shards[index], report.Observations, report.Metrics)
+		if err != nil || !reflect.DeepEqual(canonical, report) {
+			return errors.New("evaluation: completed shard report differs from plan")
+		}
+		for _, observation := range report.Observations {
+			outputs = append(outputs, pendingOutput{caseID: observation.Case, output: observation.Output})
+		}
+		reports[index] = report
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	outputIDs := make([]artifact.ID, len(outputs))
+	for index, pending := range outputs {
+		outputIDs[index] = pending.output
+	}
+	cursor := 0
+	if err := artifact.ReadContents(ctx, repository, outputIDs, func(outputContent artifact.Content) error {
+		pending := outputs[cursor]
+		cursor++
+		if err := textOutputContract.ValidateContent(outputContent, pending.output); err != nil {
+			return fmt.Errorf("evaluation: completed shard output: %w", err)
 		}
 		var output textOutput
 		if err := strictjson.DecodeBytes(outputContent.Data, &output); err != nil {
-			return shardReport{}, false, fmt.Errorf("evaluation: decode shard output: %w", err)
+			return fmt.Errorf("evaluation: decode shard output: %w", err)
 		}
-		output.ID = observation.Output
-		canonicalOutput, err := newTextOutput(plan.identity, observation.Case, output.Text)
+		output.ID = pending.output
+		canonicalOutput, err := newTextOutput(plan.identity, pending.caseID, output.Text)
 		if err != nil || canonicalOutput != output {
-			return shardReport{}, false, errors.New("evaluation: completed shard output differs from plan")
+			return errors.New("evaluation: completed shard output differs from plan")
 		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
-	return report, true, nil
+	return reports, nil
 }
 
 func publishShardReport(

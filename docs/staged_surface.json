@@ -193,6 +193,24 @@
       "name": "CountingRepository",
       "reason": "Shared commit-counting wrapper proving one-batch semantic transitions across runrecord, workflowruntime, and modelrecipe; test-support surface is test-consumed by design.",
       "consumer_trigger": "Permanent test-support owner; retire only if the one-commit-per-transition contract is retired."
+    },
+    {
+      "package": "overgo/internal/artifact",
+      "name": "ReadContents",
+      "reason": "Batched content reader consolidating per-item fan-out reads; consumed by evaluation resume and modelrecipe decision loading.",
+      "consumer_trigger": "Already consumed in production; entry documents the batch-reader family until interaction-efficiency projections widen it."
+    },
+    {
+      "package": "overgo/internal/artifact",
+      "name": "ContentVisitor",
+      "reason": "Optional batch-visit capability interface the batched reader detects.",
+      "consumer_trigger": "Implemented by overgodb.Store; retire if content visiting moves onto the Reader interface."
+    },
+    {
+      "package": "overgo/internal/artifact",
+      "name": "ContentPresence",
+      "reason": "Optional presence-batch capability interface for mixed evidence lists.",
+      "consumer_trigger": "Implemented by overgodb.Store; retire if presence moves onto the Reader interface."
     }
   ]
 }

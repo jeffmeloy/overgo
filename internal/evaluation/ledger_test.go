@@ -103,7 +103,7 @@ func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		content, err := contentFor(shardReportContract, foreignReport.ID, foreignReport)
+		content, err := shardReportContract.ContentJSON(foreignReport.ID, foreignReport)
 		if err != nil {
 			t.Fatal(err)
 		}

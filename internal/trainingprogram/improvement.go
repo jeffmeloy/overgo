@@ -1,7 +1,6 @@
 package trainingprogram
 
 import (
-	"encoding/json"
 	"errors"
 	"slices"
 	"sort"
@@ -114,11 +113,7 @@ func (p ImprovementProposal) Proposer() artifact.ID         { return p.proposer 
 func (p ImprovementProposal) Components() []artifact.ID     { return slices.Clone(p.components) }
 
 func (p ImprovementProposal) Content() (artifact.Content, error) {
-	data, err := json.Marshal(p.body())
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return improvementProposalContract.Content(p.id, data)
+	return improvementProposalContract.ContentJSON(p.id, p.body())
 }
 
 func (p ImprovementProposal) Lineage() []artifact.Lineage {

@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "document-publication",
-          "title": "Move repeated canonicalization, identity validation, content creation, lineage closure, and batch publication onto existing artifact codecs and typed record owners",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/runrecord ./internal/recipe ./internal/modelrecipe -run '^TestCanonicalDocumentPublicationOwners$' -count=1",
-          "rationale": "Each document family retains its semantic validator, but encoding, identity, immutable content ownership, required lineage, and repository commit mechanics are not copied. A shared form is promoted only where the census proves multiple consumers and displaced constructors are deleted.",
-          "depends_on": [
-            "storage-modular-core"
-          ],
-          "capabilities": [
-            "artifact",
-            "document-codec",
-            "common-code",
-            "tightness"
-          ]
-        },
-        {
           "id": "semantic-batches",
           "title": "Commit each meaningful state transition as one atomic batch instead of a sequence of per-document interactions",
           "status": "open",

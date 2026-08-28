@@ -1,7 +1,6 @@
 package modelmerge
 
 import (
-	"encoding/json"
 	"errors"
 	"math"
 	"slices"
@@ -95,11 +94,7 @@ func (value LoRAExtraction) Lineage() []artifact.Lineage {
 
 // Content returns the immutable extracted adapter document.
 func (value LoRAExtraction) Content() (artifact.Content, error) {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return loRAExtractionContract.Content(value.ID, data)
+	return loRAExtractionContract.ContentJSON(value.ID, value)
 }
 
 // Reconstruct applies extracted factors to a frozen base snapshot.

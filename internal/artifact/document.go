@@ -2,7 +2,9 @@ package artifact
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -100,6 +102,17 @@ func (c DocumentContract) Content(id ID, data []byte) (Content, error) {
 		return Content{}, err
 	}
 	return Content{Descriptor: descriptor, Data: slices.Clone(data)}, nil
+}
+
+// ContentJSON marshals value canonically and binds it to id under
+// the contract. Every typed document family publishes through this
+// one owner; copying the marshal-then-Content pair is a census hit.
+func (c DocumentContract) ContentJSON(id ID, value any) (Content, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return Content{}, fmt.Errorf("artifact: encode %s document: %w", c.Schema, err)
+	}
+	return c.Content(id, data)
 }
 
 // ContentBytes binds raw document bytes to their derived identity.

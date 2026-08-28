@@ -307,11 +307,7 @@ func (p Plan) Content() (artifact.Content, error) {
 	if err := p.ValidateIdentity(); err != nil {
 		return artifact.Content{}, err
 	}
-	data, err := json.Marshal(p.body)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return evaluationPlanContract.Content(p.identity, data)
+	return evaluationPlanContract.ContentJSON(p.identity, p.body)
 }
 
 func (p Plan) authorityContents() []artifact.Content {

@@ -2,7 +2,6 @@ package evaluation
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -19,24 +18,16 @@ func campaignAlias(plan artifact.ID) string {
 	return "evaluation/campaigns/" + plan.String()
 }
 
-func contentFor[T any](contract artifact.DocumentContract, id artifact.ID, value T) (artifact.Content, error) {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return artifact.Content{}, err
-	}
-	return contract.Content(id, data)
-}
-
 func datasetContents[T any](
 	datasetID, splitID artifact.ID,
 	value T,
 	datasetContract, splitContract artifact.DocumentContract,
 ) ([]artifact.Content, error) {
-	dataset, err := contentFor(datasetContract, datasetID, value)
+	dataset, err := datasetContract.ContentJSON(datasetID, value)
 	if err != nil {
 		return nil, err
 	}
-	split, err := contentFor(splitContract, splitID, struct {
+	split, err := splitContract.ContentJSON(splitID, struct {
 		Dataset artifact.ID `json:"dataset"`
 	}{Dataset: datasetID})
 	if err != nil {
@@ -138,15 +129,15 @@ func publishShardReport(
 	output textOutput,
 	report shardReport,
 ) error {
-	shardContent, err := contentFor(caseShardContract, shard.ID, shard)
+	shardContent, err := caseShardContract.ContentJSON(shard.ID, shard)
 	if err != nil {
 		return err
 	}
-	outputContent, err := contentFor(textOutputContract, output.ID, output)
+	outputContent, err := textOutputContract.ContentJSON(output.ID, output)
 	if err != nil {
 		return err
 	}
-	reportContent, err := contentFor(shardReportContract, report.ID, report)
+	reportContent, err := shardReportContract.ContentJSON(report.ID, report)
 	if err != nil {
 		return err
 	}
@@ -191,7 +182,7 @@ func publishCampaignReport(
 		}
 		return campaignReportContract.ValidateContent(content, current)
 	}
-	reportContent, err := contentFor(campaignReportContract, report.ID, report)
+	reportContent, err := campaignReportContract.ContentJSON(report.ID, report)
 	if err != nil {
 		return err
 	}
@@ -226,7 +217,7 @@ func publishCampaignDocument[T any](
 	contract artifact.DocumentContract,
 	value T,
 ) error {
-	content, err := contentFor(contract, id, value)
+	content, err := contract.ContentJSON(id, value)
 	if err != nil {
 		return err
 	}

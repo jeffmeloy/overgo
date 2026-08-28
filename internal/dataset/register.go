@@ -3,10 +3,8 @@ package dataset
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -145,7 +143,7 @@ func walkDirectoryInventory(root string) ([]InventoryFile, []string, uint64, err
 		if format == "" {
 			format = legacyUnknownFact
 		}
-		digest, err := fileDigest(path)
+		digest, err := HashFile(path)
 		if err != nil {
 			return err
 		}
@@ -173,19 +171,6 @@ func walkDirectoryInventory(root string) ([]InventoryFile, []string, uint64, err
 // fileDigest streams the file's bytes through sha256 so dataset
 // identity binds to content, bounded by the file, never the whole
 // directory in memory.
-func fileDigest(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
-}
-
 // modalitySet returns the distinct modalities present in the corpus,
 // sorted. It is the honest description of a mixed dataset -- every
 // class that appears, none discarded by a volume heuristic.

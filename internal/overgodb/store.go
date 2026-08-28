@@ -12,12 +12,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"sort"
 	"sync"
 
 	"overgo/internal/artifact"
+	"overgo/internal/fsatomic"
 	"overgo/internal/strictjson"
 )
 
@@ -246,12 +248,101 @@ func (s *Store) Refresh(ctx context.Context) error {
 	if !s.readOnly {
 		return nil
 	}
+	if info, statErr := os.Stat(filepath.Join(s.root, storeFilename)); statErr == nil && info.Size() < s.replayEnd {
+		// The writer sealed the active segment this reader was tailing;
+		// rebuild the view from the journal chain at the current head.
+		return s.reopenLocked()
+	}
 	result, err := s.log.refresh(replayAnchor{sequence: s.sequence, head: s.head}, s.replayEnd, s.applyRecord)
 	if err != nil {
 		s.fault = err
 		return err
 	}
 	s.head, s.sequence, s.replayEnd = result.head, result.sequence, result.validEnd
+	return nil
+}
+
+// reopenLocked rebuilds a read-only handle in place after the writer
+// rotated segments underneath it.
+func (s *Store) reopenLocked() error {
+	_ = s.log.Close()
+	s.state = newCatalogState()
+	log, replay, err := openRecordLog(s.root, true, replayAnchor{}, s.applyRecord)
+	if err != nil {
+		s.fault = err
+		return err
+	}
+	s.log = log
+	s.head, s.sequence, s.replayEnd = replay.head, replay.sequence, replay.validEnd
+	s.snapshot = SnapshotReplay{Fallback: "segment rotation reopen"}
+	return nil
+}
+
+// sealActiveSegment makes the active journal immutable and starts a
+// fresh one: the file is renamed into the sealed set -- named by its
+// last sequence so lexical order is chain order -- and a new active
+// segment begins at the same commit chain. Sealing refuses while any
+// catalog content still lives inline in the journal: legacy stores
+// migrate through Rebuild before they segment.
+func (s *Store) sealActiveSegment() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.ready(true); err != nil {
+		return err
+	}
+	if s.sequence == 0 {
+		return errors.New("overgodb: cannot seal an empty journal")
+	}
+	for id, locator := range s.state.contents.locators {
+		if !locator.blob {
+			return fmt.Errorf("overgodb: cannot seal: content %s is inline in the journal; migrate with Rebuild first", id)
+		}
+	}
+	directory := filepath.Join(s.root, segmentDirectory)
+	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {
+		return fmt.Errorf("overgodb: create segment directory: %w", err)
+	}
+	if err := s.log.file.Sync(); err != nil {
+		return fmt.Errorf("overgodb: sync active segment: %w", err)
+	}
+	// Copy-then-truncate keeps the active file handle stable for every
+	// concurrent reader (Windows refuses to rename a tailed file): the
+	// sealed bytes publish through a staged rename inside the segment
+	// directory, and only then does the active file shrink back to its
+	// header -- which is exactly the signal tailing readers rebuild on.
+	if _, err := s.log.file.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("overgodb: seek active segment: %w", err)
+	}
+	staging, err := os.CreateTemp(directory, ".staging-*")
+	if err != nil {
+		return fmt.Errorf("overgodb: stage sealed segment: %w", err)
+	}
+	stagingPath := staging.Name()
+	_, copyErr := io.Copy(staging, s.log.file)
+	syncErr := staging.Sync()
+	closeErr := staging.Close()
+	if err := errors.Join(copyErr, syncErr, closeErr); err != nil {
+		_ = os.Remove(stagingPath)
+		return fmt.Errorf("overgodb: copy sealed segment: %w", err)
+	}
+	sealed := filepath.Join(directory, fmt.Sprintf("%020d%s", s.sequence, segmentExtension))
+	if err := os.Rename(stagingPath, sealed); err != nil {
+		_ = os.Remove(stagingPath)
+		return fmt.Errorf("overgodb: publish sealed segment: %w", err)
+	}
+	if err := fsatomic.SyncDirectory(directory); err != nil {
+		return err
+	}
+	if err := s.log.file.Truncate(storeHeaderBytes); err != nil {
+		return fmt.Errorf("overgodb: reset active segment: %w", err)
+	}
+	if err := s.log.file.Sync(); err != nil {
+		return fmt.Errorf("overgodb: sync fresh active segment: %w", err)
+	}
+	if _, err := s.log.file.Seek(0, io.SeekEnd); err != nil {
+		return fmt.Errorf("overgodb: seek fresh active end: %w", err)
+	}
+	s.replayEnd = storeHeaderBytes
 	return nil
 }
 

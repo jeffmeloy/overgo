@@ -217,6 +217,12 @@
       "name": "subscribePublished",
       "reason": "Head-publication observer seam delivered by storage-projections/atomic-publication with its atomicity contract complete; live subscribers arrive with head-bound deltas.",
       "consumer_trigger": "interaction-efficiency/head-bound-deltas consumes the seam and retires this entry."
+    },
+    {
+      "package": "overgo/internal/overgodb",
+      "name": "sealActiveSegment",
+      "reason": "Journal rotation mechanism delivered by storage-segments/sealed-segments with chain, recovery, and reader-rotation contracts complete.",
+      "consumer_trigger": "storage-segments/refresh-backup wires rotation into the snapshot maintenance point and retires this entry."
     }
   ]
 }

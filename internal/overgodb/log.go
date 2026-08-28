@@ -9,11 +9,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"overgo/internal/artifact"
 )
 
 const (
+	segmentDirectory   = "segments"
+	segmentExtension   = ".segment"
 	storeFilename      = "overgodb.log"
 	lockFilename       = "overgodb.lock"
 	storeHeaderBytes   = 16
@@ -85,6 +88,52 @@ type replayAnchor struct {
 	digest   [sha256.Size]byte
 }
 
+// replaySealedSegments replays every immutable segment in order,
+// threading the commit chain across files. A torn or corrupt sealed
+// segment refuses: only the active segment may recover a tail.
+func replaySealedSegments(root string, apply func(logRecord) error) (replayResult, error) {
+	paths, err := filepath.Glob(filepath.Join(root, segmentDirectory, "*"+segmentExtension))
+	if err != nil {
+		return replayResult{}, fmt.Errorf("overgodb: list segments: %w", err)
+	}
+	sort.Strings(paths)
+	chain := replayResult{}
+	for _, path := range paths {
+		file, err := os.Open(path)
+		if err != nil {
+			return replayResult{}, fmt.Errorf("overgodb: open sealed segment: %w", err)
+		}
+		segment := &recordLog{file: file, readOnly: true}
+		result, err := segment.replaySealed(chain, apply)
+		_ = file.Close()
+		if err != nil {
+			return replayResult{}, fmt.Errorf("overgodb: sealed segment %s: %w", filepath.Base(path), err)
+		}
+		if result.recovered {
+			return replayResult{}, fmt.Errorf("overgodb: sealed segment %s is torn", filepath.Base(path))
+		}
+		chain = result
+	}
+	return chain, nil
+}
+
+// replaySealed replays one immutable segment file, continuing the
+// cross-segment commit chain the caller threads.
+func (l *recordLog) replaySealed(chain replayResult, apply func(logRecord) error) (replayResult, error) {
+	if _, err := l.file.Seek(0, io.SeekStart); err != nil {
+		return replayResult{}, fmt.Errorf("overgodb: seek sealed segment: %w", err)
+	}
+	header := make([]byte, storeHeaderBytes)
+	if _, err := io.ReadFull(l.file, header); err != nil {
+		return replayResult{}, fmt.Errorf("overgodb: read sealed header: %w", err)
+	}
+	if err := validateStoreHeader(header); err != nil {
+		return replayResult{}, err
+	}
+	result := replayResult{head: chain.head, sequence: chain.sequence, validEnd: storeHeaderBytes}
+	return l.replayFrames(result, replayAnchor{}, apply)
+}
+
 func openRecordLog(
 	root string,
 	readOnly bool,
@@ -92,13 +141,21 @@ func openRecordLog(
 	apply func(logRecord) error,
 ) (*recordLog, replayResult, error) {
 	path := filepath.Join(root, storeFilename)
+	chain := replayResult{}
+	if anchor.sequence == 0 {
+		sealed, err := replaySealedSegments(root, apply)
+		if err != nil {
+			return nil, replayResult{}, err
+		}
+		chain = sealed
+	}
 	if readOnly {
 		file, err := os.Open(path)
 		if err != nil {
 			return nil, replayResult{}, fmt.Errorf("overgodb: open read-only log: %w", err)
 		}
 		log := &recordLog{file: file, readOnly: true}
-		result, err := log.replay(anchor, apply)
+		result, err := log.replayActive(chain, anchor, apply)
 		if err != nil {
 			_ = file.Close()
 			return nil, replayResult{}, err
@@ -122,7 +179,7 @@ func openRecordLog(
 		_ = log.Close()
 		return nil, replayResult{}, err
 	}
-	result, err := log.replay(anchor, apply)
+	result, err := log.replayActive(chain, anchor, apply)
 	if err != nil {
 		_ = log.Close()
 		return nil, replayResult{}, err
@@ -185,6 +242,28 @@ func validateStoreHeader(header []byte) error {
 		return errors.New("overgodb: invalid log header checksum")
 	}
 	return nil
+}
+
+// replayActive replays the active segment, continuing the sealed
+// chain when the whole journal is replayed and honoring a snapshot or
+// checkpoint anchor -- which always addresses the active segment --
+// otherwise.
+func (l *recordLog) replayActive(chain replayResult, anchor replayAnchor, apply func(logRecord) error) (replayResult, error) {
+	if anchor.sequence != 0 {
+		return l.replay(anchor, apply)
+	}
+	if _, err := l.file.Seek(0, io.SeekStart); err != nil {
+		return replayResult{}, fmt.Errorf("overgodb: seek log start: %w", err)
+	}
+	header := make([]byte, storeHeaderBytes)
+	if _, err := io.ReadFull(l.file, header); err != nil {
+		return replayResult{}, fmt.Errorf("overgodb: read log header: %w", err)
+	}
+	if err := validateStoreHeader(header); err != nil {
+		return replayResult{}, err
+	}
+	result := replayResult{head: chain.head, sequence: chain.sequence, validEnd: storeHeaderBytes}
+	return l.replayFrames(result, replayAnchor{}, apply)
 }
 
 func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (replayResult, error) {

@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sealed-segments",
-          "title": "Add one active journal segment and immutable sealed segments with a continuous cross-segment hash chain",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestSegmentedJournalChainAndRecovery$' -count=1",
-          "rationale": "Segmentation bounds active-file recovery and permits incremental backup and replication. Rotation is derived from measured frame history or a typed store decision with a reopen trigger; no domain receives a separate log or head.",
-          "depends_on": [
-            "storage-projections"
-          ],
-          "capabilities": [
-            "overgodb",
-            "segmented-journal",
-            "hash-chain",
-            "magic-discipline"
-          ]
-        },
-        {
           "id": "refresh-backup",
           "title": "Teach read-only refresh and backup to capture a stable segment extent, required blobs, and checkpoint anchors",
           "status": "open",

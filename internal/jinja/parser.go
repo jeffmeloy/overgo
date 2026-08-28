@@ -358,10 +358,13 @@ func (p *eparser) cur() *etok {
 
 func (p *eparser) done() bool { return p.pos >= len(p.toks) }
 
-func (p *eparser) peekSym(s string) bool {
+// peekToken reports whether the current token has the kind and value.
+func (p *eparser) peekToken(kind etKind, s string) bool {
 	t := p.cur()
-	return t != nil && t.kind == etSym && t.val == s
+	return t != nil && t.kind == kind && t.val == s
 }
+
+func (p *eparser) peekSym(s string) bool { return p.peekToken(etSym, s) }
 
 func (p *eparser) matchSym(s string) bool {
 	if p.peekSym(s) {
@@ -371,10 +374,7 @@ func (p *eparser) matchSym(s string) bool {
 	return false
 }
 
-func (p *eparser) peekName(s string) bool {
-	t := p.cur()
-	return t != nil && t.kind == etName && t.val == s
-}
+func (p *eparser) peekName(s string) bool { return p.peekToken(etName, s) }
 
 func (p *eparser) matchName(s string) bool {
 	if p.peekName(s) {

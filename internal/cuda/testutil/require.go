@@ -17,11 +17,18 @@ const probeEnvironmentVariable = "OVERGO_PROBE_TEST"
 
 func Require(t testing.TB) {
 	t.Helper()
+	requireEnvironment(t, environmentVariable, "CUDA integration tests")
+}
+
+// requireEnvironment gates a test lane on one opt-in environment
+// variable; both gates share the short-mode skip and the hint shape.
+func requireEnvironment(t testing.TB, variable, lane string) {
+	t.Helper()
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
 	}
-	if os.Getenv(environmentVariable) == "" {
-		t.Skip("set " + environmentVariable + "=1 to run CUDA integration tests")
+	if os.Getenv(variable) == "" {
+		t.Skip("set " + variable + "=1 to run " + lane)
 	}
 }
 
@@ -30,10 +37,5 @@ func Require(t testing.TB) {
 // the device lane's bounded package runs.
 func RequireProbe(t testing.TB) {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
-	}
-	if os.Getenv(probeEnvironmentVariable) == "" {
-		t.Skip("set " + probeEnvironmentVariable + "=1 to run long experiment probes")
-	}
+	requireEnvironment(t, probeEnvironmentVariable, "long experiment probes")
 }

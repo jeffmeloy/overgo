@@ -4,7 +4,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -20,16 +19,12 @@ import (
 )
 
 func main() {
-	model := flag.String("model", "", "forecast model directory (safetensors + config.json)")
-	dataset := flag.String("dataset", "", "light-curve JSONL shard")
-	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed Muon steps")
-	records := clioptions.IntOverride(flag.CommandLine, "records", "leading record scan bound; omitted scans the shard")
-	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
-	flag.Parse()
-	if err := run(*model, *dataset, *steps, *records, *maxWall); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.TrainProbeMain(
+		"forecast model directory (safetensors + config.json)",
+		"light-curve JSONL shard",
+		"records", "leading record scan bound; omitted scans the shard",
+		run,
+	)
 }
 
 func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Duration) error {

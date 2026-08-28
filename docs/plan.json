@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "tighten-probe-harness",
-      "title": "Train-probe mains share one harness",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train-probe mains share one harness",
-          "status": "open",
-          "verify": "go build ./cmd/mixture-train-probe ./cmd/seriesforecast-train-probe"
-        }
-      ]
-    },
-    {
       "id": "tighten-small-pairs",
       "title": "Same-package duplicate pairs: testutil Require, jinja peek, diffusionimage close, runrecord constructors",
       "status": "open",

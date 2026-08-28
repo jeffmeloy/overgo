@@ -12,7 +12,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"math"
 	"os"
@@ -29,16 +28,12 @@ import (
 )
 
 func main() {
-	model := flag.String("model", "", "model directory (safetensors + config.json + tokenizer.json)")
-	dataset := flag.String("dataset", "", "UTF-8 training dataset")
-	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed Muon steps")
-	seq := clioptions.IntOverride(flag.CommandLine, "seq", "token window; omitted derives from model and dataset extents")
-	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
-	flag.Parse()
-	if err := run(*model, *dataset, *steps, *seq, *maxWall); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.TrainProbeMain(
+		"model directory (safetensors + config.json + tokenizer.json)",
+		"UTF-8 training dataset",
+		"seq", "token window; omitted derives from model and dataset extents",
+		run,
+	)
 }
 
 func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) error {

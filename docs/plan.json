@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "storage-classes",
-          "title": "Define typed canonical-fact, immutable-blob, rebuildable-projection, and operational-signal ownership rules",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/runrecord -run '^TestRSIStorageClassContract$' -count=1",
-          "rationale": "Attempts, decisions, durable transitions, and evidence enter OvergoDB; transcripts and observation chunks enter blobs; derived indexes enter projections; heartbeats, wakeups, polling state, and partial output remain bounded operational state unless they cause a durable transition.",
-          "depends_on": [
-            "storage-segments"
-          ],
-          "capabilities": [
-            "overgodb",
-            "rsi-evidence",
-            "operational-coordination"
-          ]
-        },
-        {
           "id": "transition-boundary",
           "title": "Centralize conversion of operational state into immutable attempt, lease, loss, recovery, and capability-change records",
           "status": "open",

@@ -17,7 +17,7 @@ const (
 	// AutomationTriggerPolicyMediaType identifies trigger policy documents.
 	AutomationTriggerPolicyMediaType = "application/vnd.overgo.automation-trigger-policy+json"
 	// AutomationTriggerPolicySchema identifies the trigger policy contract.
-	AutomationTriggerPolicySchema = "overgo/automation-trigger-policy/v1"
+	AutomationTriggerPolicySchema = "overgo/automation-trigger-policy/v2"
 	// AutomationDeliveryPolicyVersion is the delivery document revision.
 	AutomationDeliveryPolicyVersion = artifact.InitialDocumentVersion
 	// AutomationDeliveryPolicyMediaType identifies delivery policy documents.
@@ -34,7 +34,39 @@ const (
 	AutomationTriggerManual AutomationTriggerKind = "manual"
 	// AutomationTriggerSchedule admits scheduler-owned due-time invocation.
 	AutomationTriggerSchedule AutomationTriggerKind = "schedule"
+	// AutomationTriggerWebhook admits signed bounded HTTP delivery.
+	AutomationTriggerWebhook AutomationTriggerKind = "webhook"
 )
+
+// WebhookSignaturePolicy binds verification to an algorithm, header, and key authority.
+type WebhookSignaturePolicy struct {
+	Algorithm string      `json:"algorithm"`
+	Header    string      `json:"header"`
+	Key       artifact.ID `json:"key"`
+}
+
+// WebhookPayloadPolicy bounds and types accepted request bodies.
+type WebhookPayloadPolicy struct {
+	ContentType       string      `json:"content_type"`
+	Schema            artifact.ID `json:"schema"`
+	MaxBytes          uint64      `json:"max_bytes"`
+	IdempotencyHeader string      `json:"idempotency_header"`
+}
+
+// WebhookRatePolicy bounds accepted deliveries within one integral window.
+type WebhookRatePolicy struct {
+	WindowSeconds uint32 `json:"window_seconds"`
+	MaxDeliveries uint32 `json:"max_deliveries"`
+}
+
+// WebhookTriggerPolicy is exact ingress authority without secret material.
+type WebhookTriggerPolicy struct {
+	Signature WebhookSignaturePolicy `json:"signature"`
+	Payload   WebhookPayloadPolicy   `json:"payload"`
+	Rate      WebhookRatePolicy      `json:"rate"`
+	Authority artifact.ID            `json:"authority"`
+	Workflow  artifact.ID            `json:"workflow"`
+}
 
 // AutomationTriggerPolicy is immutable trigger authority. Schedule retains
 // the user-authored expression; the scheduler owns parsing and due-time logic.
@@ -44,6 +76,7 @@ type AutomationTriggerPolicy struct {
 	Schedule       string                    `json:"schedule,omitempty"`
 	AnchorUnixNano int64                     `json:"anchor_unix_nano,omitempty"`
 	Missed         AutomationMissedRunPolicy `json:"missed,omitempty"`
+	Webhook        *WebhookTriggerPolicy     `json:"webhook,omitempty"`
 	ID             artifact.ID               `json:"-"`
 }
 
@@ -91,17 +124,22 @@ var automationTriggerPolicyCodec = artifact.JSONDocumentCodec(
 		value.Schedule = strings.TrimSpace(value.Schedule)
 		switch value.Kind {
 		case AutomationTriggerManual:
-			if value.Schedule != "" || value.AnchorUnixNano != 0 || value.Missed != "" {
+			if value.Schedule != "" || value.AnchorUnixNano != 0 || value.Missed != "" || value.Webhook != nil {
 				return errors.New("recipe: manual trigger carries a schedule")
 			}
 		case AutomationTriggerSchedule:
-			if value.Schedule == "" || strings.ContainsAny(value.Schedule, "\x00\r\n") {
+			if value.Schedule == "" || strings.ContainsAny(value.Schedule, "\x00\r\n") || value.Webhook != nil {
 				return errors.New("recipe: scheduled trigger requires one bounded expression")
 			}
 			period, err := time.ParseDuration(value.Schedule)
 			if err != nil || period <= 0 || value.AnchorUnixNano < 0 ||
 				value.Missed != AutomationMissedLatest && value.Missed != AutomationMissedCatchUpOne {
 				return errors.New("recipe: scheduled trigger has invalid cadence authority")
+			}
+		case AutomationTriggerWebhook:
+			if value.Schedule != "" || value.AnchorUnixNano != 0 || value.Missed != "" || value.Webhook == nil ||
+				!validWebhookTrigger(*value.Webhook) {
+				return errors.New("recipe: webhook trigger authority is incomplete")
 			}
 		default:
 			return errors.New("recipe: unsupported automation trigger")
@@ -110,7 +148,13 @@ var automationTriggerPolicyCodec = artifact.JSONDocumentCodec(
 	},
 	func(value AutomationTriggerPolicy) artifact.ID { return value.ID },
 	func(value *AutomationTriggerPolicy, id artifact.ID) { value.ID = id },
-	func(value AutomationTriggerPolicy) AutomationTriggerPolicy { return value },
+	func(value AutomationTriggerPolicy) AutomationTriggerPolicy {
+		if value.Webhook != nil {
+			webhook := *value.Webhook
+			value.Webhook = &webhook
+		}
+		return value
+	},
 )
 
 var automationDeliveryPolicyCodec = artifact.JSONDocumentCodec(
@@ -173,6 +217,26 @@ func (value AutomationTriggerPolicy) ArtifactContent() (artifact.Content, error)
 // ValidateIdentity verifies trigger policy identity.
 func (value AutomationTriggerPolicy) ValidateIdentity() error {
 	return automationTriggerPolicyCodec.ValidateIdentity(value)
+}
+
+// Lineage binds webhook policy to workflow, signature key, payload schema, and approval authority.
+func (value AutomationTriggerPolicy) Lineage() []artifact.Lineage {
+	if value.Webhook == nil || !value.ID.Valid() {
+		return nil
+	}
+	return artifact.DependencyLineage(value.ID, value.Webhook.Workflow, value.Webhook.Signature.Key, value.Webhook.Payload.Schema, value.Webhook.Authority)
+}
+
+func validWebhookTrigger(value WebhookTriggerPolicy) bool {
+	validText := func(text string) bool {
+		return text != "" && strings.TrimSpace(text) == text && !strings.ContainsAny(text, "\x00\r\n\t")
+	}
+	return value.Signature.Algorithm == "hmac-sha256" && validText(value.Signature.Header) &&
+		value.Signature.Key.Kind() == artifact.KindProfile && validText(value.Payload.ContentType) &&
+		value.Payload.Schema.Kind() == artifact.KindProfile && value.Payload.MaxBytes > 0 &&
+		validText(value.Payload.IdempotencyHeader) && value.Payload.IdempotencyHeader != value.Signature.Header &&
+		value.Rate.WindowSeconds > 0 && value.Rate.MaxDeliveries > 0 &&
+		value.Authority.Kind() == artifact.KindEvidence && value.Workflow.Kind() == artifact.KindRecipe
 }
 
 // Due returns the deterministic schedule slot due at now. Previous is the

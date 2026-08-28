@@ -151,6 +151,9 @@ func (workspace *AutomationWorkspace) PublishAutomationDefinition(
 	if err != nil {
 		return recipe.AutomationDefinition{}, err
 	}
+	if trigger.Kind == recipe.AutomationTriggerWebhook && trigger.Webhook.Workflow != input.Recipe {
+		return recipe.AutomationDefinition{}, errors.New("server: webhook trigger names a different workflow")
+	}
 	delivery, err := input.Delivery.Identify()
 	if err != nil {
 		return recipe.AutomationDefinition{}, err
@@ -176,7 +179,7 @@ func (workspace *AutomationWorkspace) PublishAutomationDefinition(
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"automation/workspace/definition/"+definition.ID.String(),
-		[]artifact.Content{triggerContent, deliveryContent, definitionContent}, definition.Lineage(), nil,
+		[]artifact.Content{triggerContent, deliveryContent, definitionContent}, append(definition.Lineage(), trigger.Lineage()...), nil,
 	)
 	if err == nil {
 		_, err = artifact.CommitBatch(ctx, workspace.store, batch)

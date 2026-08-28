@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "trigger-contract",
-          "title": "Add a typed webhook trigger kind with immutable signature, payload, rate, authority, and workflow-binding policy",
-          "status": "open",
-          "verify": "go test ./internal/recipe ./internal/runrecord -run '^TestWebhookTriggerPolicyContract$' -count=1",
-          "rationale": "Webhook is another runtime-owned trigger, not a second automation system. Every accepted policy derives bounds from recorded decisions or store evidence and names the workflow authority it may invoke.",
-          "depends_on": [
-            "causal-execution"
-          ],
-          "capabilities": [
-            "automation",
-            "webhook",
-            "recipe-policy"
-          ]
-        },
-        {
           "id": "delivery-ledger",
           "title": "Publish durable accepted, ignored, skipped, duplicate, refused, and replay delivery records with payload blobs",
           "status": "open",

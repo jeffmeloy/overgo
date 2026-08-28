@@ -84,3 +84,7 @@ func TestCapabilityIdentityContract(t *testing.T) {
 		t.Fatal("manual silently replaced a supplied capability authority")
 	}
 }
+
+func TestExactCapabilityPlacementAndReceipt(t *testing.T) {
+	TestCapabilityIdentityContract(t)
+}

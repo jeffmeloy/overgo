@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "capability-bound-activation",
-      "title": "Bind executable, peer, model, and tool activation to exact discovered capabilities",
-      "status": "open",
-      "steps": [
-        {
-          "id": "placement-integration",
-          "title": "Use the shared capability identity in peer placement, agent-tool activation, model selection, and attempt receipts",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./internal/agenttool ./internal/agentloop -run '^TestExactCapabilityPlacementAndReceipt$' -count=1",
-          "rationale": "Planning and evidence must name the same implementation. Duplicate executable discovery, version parsing, and capability checks move to their existing common owners and displaced call-site caches are deleted.",
-          "depends_on": [
-            "capability-bound-activation/grant-binding"
-          ],
-          "capabilities": [
-            "capability-runtime",
-            "placement",
-            "common-code",
-            "attempt-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "activation-matrix",
       "title": "Register behavioral cases once and verify them across every activation profile",
       "status": "open",

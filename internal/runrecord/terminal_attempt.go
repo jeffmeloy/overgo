@@ -15,7 +15,7 @@ const (
 	// TerminalAttemptReceiptMediaType identifies terminal attempt receipts.
 	TerminalAttemptReceiptMediaType = "application/vnd.overgo.terminal-attempt-receipt+json"
 	// TerminalAttemptReceiptSchema is the receipt document version.
-	TerminalAttemptReceiptSchema = "overgo/terminal-attempt-receipt/v1"
+	TerminalAttemptReceiptSchema = "overgo/terminal-attempt-receipt/v2"
 	// TerminalAttemptAliasRoot scopes receipts per operation and attempt.
 	TerminalAttemptAliasRoot = "attempt/terminal/"
 )
@@ -63,10 +63,11 @@ func NewProcessTermination(receipt processcontrol.Receipt) ProcessTermination {
 // transcript and tool output, and recovery lineage back to the prior
 // attempt. Whatever optional evidence is absent is named in Gaps.
 type TerminalAttemptReceipt struct {
-	Version   uint16      `json:"version"`
-	Operation artifact.ID `json:"operation"`
-	Attempt   uint32      `json:"attempt,omitempty"`
-	Outcome   Outcome     `json:"outcome"`
+	Version    uint16      `json:"version"`
+	Operation  artifact.ID `json:"operation"`
+	Capability artifact.ID `json:"capability"`
+	Attempt    uint32      `json:"attempt,omitempty"`
+	Outcome    Outcome     `json:"outcome"`
 
 	FailureObservation   artifact.ID                   `json:"failure_observation,omitzero"`
 	FailureNormalization artifact.ID                   `json:"failure_normalization,omitzero"`
@@ -110,6 +111,9 @@ func PublishTerminalAttemptReceipt(ctx context.Context, repository artifact.Repo
 	if ctx == nil || repository == nil {
 		return TerminalAttemptReceipt{}, errors.New("run record: terminal attempt repository is absent")
 	}
+	if _, err := RequireCapabilityIdentity(ctx, repository, value.Capability); err != nil {
+		return TerminalAttemptReceipt{}, errors.Join(errors.New("run record: terminal attempt capability cannot be resolved exactly"), err)
+	}
 	if value.FailureObservation.Valid() {
 		if _, err := RequireFailureObservation(ctx, repository, value.FailureObservation); err != nil {
 			return TerminalAttemptReceipt{}, err
@@ -125,7 +129,7 @@ func PublishTerminalAttemptReceipt(ctx context.Context, repository artifact.Repo
 	if err != nil {
 		return TerminalAttemptReceipt{}, err
 	}
-	parents := []artifact.ID{identified.Operation}
+	parents := []artifact.ID{identified.Operation, identified.Capability}
 	for _, parent := range []artifact.ID{
 		identified.FailureObservation, identified.FailureNormalization,
 		identified.Transcript, identified.ToolOutput,
@@ -160,7 +164,7 @@ func terminalGapFields(value *TerminalAttemptReceipt) map[string]bool {
 
 func canonicalizeTerminalAttempt(value *TerminalAttemptReceipt) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
-		value.Operation.Kind() != artifact.KindEvidence || value.ObservedUnixNS <= 0 ||
+		value.Operation.Kind() != artifact.KindEvidence || value.Capability.Kind() != artifact.KindProfile || value.ObservedUnixNS <= 0 ||
 		!ValidOutcome(value.Outcome) {
 		return errors.New("run record: invalid terminal attempt receipt")
 	}

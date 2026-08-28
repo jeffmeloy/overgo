@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -24,10 +25,34 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "terminal-operation")
+	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-capability-implementation")
+	schema := testutil.ArtifactID(t, artifact.KindProfile, "terminal-capability-schema")
 	transcript := testutil.ArtifactID(t, artifact.KindFile, "terminal-transcript")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "terminal/fixture/authorities", Artifacts: []artifact.Descriptor{
-		{ID: operation}, {ID: transcript},
+		{ID: operation}, {ID: implementation}, {ID: schema}, {ID: transcript},
 	}}); err != nil {
+		t.Fatal(err)
+	}
+	capability, err := (CapabilityIdentity{
+		Implementation: implementation, Release: "1.0.0",
+		Transport: CapabilityTransport{Kind: CapabilityTransportBuiltin, Protocol: "terminal-attempt/1"},
+		Schema:    schema, Platform: CapabilityPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH},
+		Resources: CapabilityResourceEnvelope{
+			MaxInputBytes: 4096, MaxOutputBytes: 4096, MaxConcurrent: 1, CPUThreads: 1, HostBytes: 4096,
+		},
+	}).Identify()
+	if err != nil {
+		t.Fatal(err)
+	}
+	capabilityContent, err := capability.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	capabilityBatch, err := artifact.NewDocumentBatch("terminal/fixture/capability", []artifact.Content{capabilityContent}, capability.Lineage(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, capabilityBatch); err != nil {
 		t.Fatal(err)
 	}
 
@@ -50,7 +75,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	})
 
 	first, err := PublishTerminalAttemptReceipt(ctx, store, TerminalAttemptReceipt{
-		Operation: operation, Outcome: OutcomeFailed,
+		Operation: operation, Capability: capability.ID, Outcome: OutcomeFailed,
 		FailureObservation:   observation.ID,
 		FailureNormalization: normalization.ID,
 		Disposition:          &disposition,
@@ -67,7 +92,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	// The retry closes as a second attempt chained to the first, with
 	// only its outcome measured: every other facet is an explicit gap.
 	second, err := PublishTerminalAttemptReceipt(ctx, store, TerminalAttemptReceipt{
-		Operation: operation, Attempt: 1, Outcome: OutcomeSucceeded,
+		Operation: operation, Capability: capability.ID, Attempt: 1, Outcome: OutcomeSucceeded,
 		Previous:       first.ID,
 		Gaps:           []string{GapProcessTermination, GapResources, GapToolOutput, GapTranscript},
 		ObservedUnixNS: failureFixtureObservedNS + 1,
@@ -130,7 +155,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	}
 	for _, refusal := range refusals {
 		value := TerminalAttemptReceipt{
-			Operation: operation, Outcome: OutcomeFailed,
+			Operation: operation, Capability: capability.ID, Outcome: OutcomeFailed,
 			FailureObservation:   observation.ID,
 			FailureNormalization: normalization.ID,
 			Disposition:          &disposition,

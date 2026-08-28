@@ -79,17 +79,19 @@ func (s *Store) VisitDocuments(
 	}
 	page := DocumentPage{Head: s.head, Sequence: s.sequence}
 	aliases := s.state.aliasesByTarget(query.AliasPrefixes)
-	entries := make([]documentEntry, 0, min(query.MaxResults, len(s.state.bySequence)))
+	entries := make([]documentEntry, 0, min(query.MaxResults, s.state.artifacts.count()))
 	var last artifactSlotCursor
 	emitted := 0
-	for offset := range s.state.bySequence {
+	ordered := s.state.artifacts.bySequence
+	for offset := range ordered {
 		index := offset
 		if query.Order == DocumentNewestFirst {
-			index = len(s.state.bySequence) - offset - 1
+			index = len(ordered) - offset - 1
 		}
-		id := s.state.bySequence[index]
-		slot := s.state.slots[id]
-		if !slot.hasContent || !matchesDocumentContract(slot.descriptor, query.Contracts) {
+		id := ordered[index]
+		record, _ := s.state.artifacts.record(id)
+		locator, hasContent := s.state.contents.locator(id)
+		if !hasContent || !matchesDocumentContract(record.descriptor, query.Contracts) {
 			continue
 		}
 		names, selected := aliases[id]
@@ -97,7 +99,7 @@ func (s *Store) VisitDocuments(
 			continue
 		}
 		page.Matched++
-		cursor := artifactSlotCursor{sequence: slot.sequence, id: id}
+		cursor := artifactSlotCursor{sequence: record.sequence, id: id}
 		if query.Cursor != nil && !cursor.follows(*query.Cursor, query.Order) {
 			continue
 		}
@@ -106,7 +108,7 @@ func (s *Store) VisitDocuments(
 			continue
 		}
 		entries = append(entries, documentEntry{
-			descriptor: slot.descriptor, locator: slot.content, sequence: slot.sequence, aliases: slices.Clone(names),
+			descriptor: record.descriptor, locator: locator, sequence: record.sequence, aliases: slices.Clone(names),
 		})
 		last = cursor
 		emitted++
@@ -235,11 +237,11 @@ func (s catalogState) aliasesByTarget(prefixes []string) map[artifact.ID][]strin
 		return nil
 	}
 	result := map[artifact.ID][]string{}
-	for name, target := range s.aliases {
+	s.aliases.each(func(name string, target artifact.ID) {
 		if slices.ContainsFunc(prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) }) {
 			result[target] = append(result[target], name)
 		}
-	}
+	})
 	for target := range result {
 		slices.Sort(result[target])
 	}
@@ -270,16 +272,17 @@ func (s *Store) VisitAliases(ctx context.Context, prefix string, visit func(Alia
 }
 
 func (s catalogState) aliasViews(prefix string) []AliasView {
-	names := make([]string, 0, len(s.aliases))
-	for name := range s.aliases {
+	names := make([]string, 0, s.aliases.count())
+	s.aliases.each(func(name string, _ artifact.ID) {
 		if strings.HasPrefix(name, prefix) {
 			names = append(names, name)
 		}
-	}
+	})
 	slices.Sort(names)
 	aliases := make([]AliasView, len(names))
 	for index, name := range names {
-		aliases[index] = AliasView{Name: name, Target: s.aliases[name]}
+		target, _ := s.aliases.resolve(name)
+		aliases[index] = AliasView{Name: name, Target: target}
 	}
 	return aliases
 }

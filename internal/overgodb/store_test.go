@@ -28,8 +28,10 @@ const (
 
 func TestCanonicalCatalogOwnership(t *testing.T) {
 	state := newCatalogState()
-	if state.slots == nil || state.byMedia == nil || state.bySchema == nil || state.commitByKey == nil {
-		t.Fatal("catalog indexes are not initialized")
+	if state.artifacts.records == nil || state.artifacts.byMedia == nil || state.artifacts.bySchema == nil ||
+		state.contents.locators == nil || state.lineage.parents == nil || state.locations.byArtifact == nil ||
+		state.aliases.bindings == nil || state.commits.byKey == nil {
+		t.Fatal("catalog facet indexes are not initialized")
 	}
 }
 
@@ -64,10 +66,10 @@ func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
 	state.apply(batch, nil, 1)
 	edge := batch.Lineage[0]
 	key := relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}
-	if _, ok := slices.BinarySearchFunc(state.slots[edge.Child].parents, key, compareRelation); !ok {
+	if _, ok := slices.BinarySearchFunc(state.lineage.parentsOf(edge.Child), key, compareRelation); !ok {
 		t.Fatal("parent index lacks canonical edge key")
 	}
-	if _, ok := slices.BinarySearchFunc(state.slots[edge.Parent].children, key, compareRelation); !ok {
+	if _, ok := slices.BinarySearchFunc(state.lineage.childrenOf(edge.Parent), key, compareRelation); !ok {
 		t.Fatal("child index lacks canonical edge key")
 	}
 }
@@ -86,7 +88,8 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	descriptor.Schema = "fixture/canonical/v1"
-	store.state.slots[descriptor.ID].descriptor = descriptor
+	record, _ := store.state.artifacts.record(descriptor.ID)
+	record.descriptor = descriptor
 	got, ok, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
 	if err != nil || !ok || got.Descriptor != descriptor || !slices.Equal(got.Data, content.Data) {
 		t.Fatalf("content = (%+v, %v, %v)", got, ok, err)
@@ -106,7 +109,7 @@ func TestMetadataSnapshot(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	locator := store.state.slots[descriptor.ID].content
+	locator, _ := store.state.contents.locator(descriptor.ID)
 	if locator.size != int64(len(content.Data)) {
 		t.Fatalf("content locator = %+v", locator)
 	}

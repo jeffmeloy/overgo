@@ -48,7 +48,7 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	defer target.Close()
 
 	source.mu.RLock()
-	order := append([]artifact.ID(nil), source.state.bySequence...)
+	order := append([]artifact.ID(nil), source.state.artifacts.bySequence...)
 	source.mu.RUnlock()
 
 	report := RebuildReport{}
@@ -73,18 +73,17 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 
 	for _, id := range order {
 		source.mu.RLock()
-		slot, ok := source.state.slots[id]
+		record, ok := source.state.artifacts.record(id)
 		if !ok {
 			source.mu.RUnlock()
 			continue
 		}
-		descriptor := slot.descriptor
-		hasManifest := slot.manifest.ID.Valid()
-		manifest := slot.manifest
-		parents := append([]relationKey(nil), slot.parents...)
-		locations := append([]artifact.Location(nil), slot.locations...)
-		hasContent := slot.hasContent
-		locator := slot.content
+		descriptor := record.descriptor
+		hasManifest := record.manifest.ID.Valid()
+		manifest := record.manifest
+		parents := append([]relationKey(nil), source.state.lineage.parentsOf(id)...)
+		locations := append([]artifact.Location(nil), source.state.locations.of(id)...)
+		locator, hasContent := source.state.contents.locator(id)
 		source.mu.RUnlock()
 
 		report.Artifacts++
@@ -155,14 +154,15 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	}
 
 	source.mu.RLock()
-	names := make([]string, 0, len(source.state.aliases))
-	for name := range source.state.aliases {
+	names := make([]string, 0, source.state.aliases.count())
+	source.state.aliases.each(func(name string, _ artifact.ID) {
 		names = append(names, name)
-	}
+	})
 	sort.Strings(names)
 	bindings := make([]artifact.AliasBinding, 0, len(names))
 	for _, name := range names {
-		bindings = append(bindings, artifact.AliasBinding{Name: name, Target: source.state.aliases[name]})
+		target, _ := source.state.aliases.resolve(name)
+		bindings = append(bindings, artifact.AliasBinding{Name: name, Target: target})
 	}
 	source.mu.RUnlock()
 	for len(bindings) > 0 {

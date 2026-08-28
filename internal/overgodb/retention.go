@@ -36,15 +36,15 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 		source.mu.RUnlock()
 		return report, err
 	}
-	for id, slot := range source.state.slots {
-		descriptors[id] = slot.descriptor
-		parents[id] = slices.Clone(slot.parents)
-		locations[id] = slices.Clone(slot.locations)
-		if slot.hasContent {
+	for id, record := range source.state.artifacts.records {
+		descriptors[id] = record.descriptor
+		parents[id] = slices.Clone(source.state.lineage.parentsOf(id))
+		locations[id] = slices.Clone(source.state.locations.of(id))
+		if source.state.contents.has(id) {
 			contents[id] = true
 		}
-		if slot.hasManifest {
-			manifests[id] = slot.manifest.Clone()
+		if record.hasManifest {
+			manifests[id] = record.manifest.Clone()
 		}
 	}
 	aliases := source.state.aliasViews("")

@@ -138,7 +138,7 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 			return catalogState{}, errors.New("overgodb: invalid snapshot artifact sequence")
 		}
 		descriptors[index] = entry.Descriptor
-		state.addArtifact(entry.Descriptor, entry.Sequence)
+		state.artifacts.add(entry.Descriptor, entry.Sequence)
 	}
 	batch := artifact.Batch{
 		Key: "snapshot/state", Artifacts: descriptors,
@@ -162,13 +162,12 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	}
 	state.apply(normalized, nil, document.Sequence)
 	for _, content := range document.Contents {
-		slot := state.slots[content.Artifact]
-		if slot == nil || content.Offset < storeHeaderBytes || content.Size <= 0 ||
-			uint64(content.Size) != slot.descriptor.Size {
+		record, ok := state.artifacts.record(content.Artifact)
+		if !ok || content.Offset < storeHeaderBytes || content.Size <= 0 ||
+			uint64(content.Size) != record.descriptor.Size {
 			return catalogState{}, errors.New("overgodb: invalid snapshot content locator")
 		}
-		slot.content = contentLocator{offset: content.Offset, size: content.Size}
-		slot.hasContent = true
+		state.contents.set(content.Artifact, contentLocator{offset: content.Offset, size: content.Size})
 	}
 	for index, entry := range document.Commits {
 		if entry.Sequence != uint64(index)+1 {
@@ -280,36 +279,37 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.raw(`,"log_anchor":`)
 	stream.value(anchor)
 
-	stream.array("artifacts", len(state.bySequence), false, func(index int) {
-		slot := state.slots[state.bySequence[index]]
-		stream.value(snapshotArtifact{Descriptor: slot.descriptor, Sequence: slot.sequence})
+	stream.array("artifacts", len(state.artifacts.bySequence), false, func(index int) {
+		record, _ := state.artifacts.record(state.artifacts.bySequence[index])
+		stream.value(snapshotArtifact{Descriptor: record.descriptor, Sequence: record.sequence})
 	})
-	artifactIDs := snapshotArtifactIDs(state, func(*artifactSlot) bool { return true })
-	contentIDs := snapshotArtifactIDs(state, func(slot *artifactSlot) bool { return slot.hasContent })
+	artifactIDs := snapshotArtifactIDs(state, func(artifact.ID, *artifactRecord) bool { return true })
+	contentIDs := snapshotArtifactIDs(state, func(id artifact.ID, _ *artifactRecord) bool { return state.contents.has(id) })
 	stream.array("contents", len(contentIDs), true, func(index int) {
 		id := contentIDs[index]
-		locator := state.slots[id].content
+		locator, _ := state.contents.locator(id)
 		stream.value(snapshotContent{Artifact: id, Offset: locator.offset, Size: locator.size})
 	})
-	manifestIDs := snapshotArtifactIDs(state, func(slot *artifactSlot) bool { return slot.hasManifest })
+	manifestIDs := snapshotArtifactIDs(state, func(_ artifact.ID, record *artifactRecord) bool { return record.hasManifest })
 	stream.array("manifests", len(manifestIDs), true, func(index int) {
-		stream.value(state.slots[manifestIDs[index]].manifest)
+		record, _ := state.artifacts.record(manifestIDs[index])
+		stream.value(record.manifest)
 	})
-	aliases := make([]string, 0, len(state.aliases))
-	for name := range state.aliases {
+	aliases := make([]string, 0, state.aliases.count())
+	state.aliases.each(func(name string, _ artifact.ID) {
 		aliases = append(aliases, name)
-	}
+	})
 	slices.Sort(aliases)
 	stream.array("aliases", len(aliases), true, func(index int) {
 		name := aliases[index]
-		stream.value(snapshotAlias{Name: name, Target: state.aliases[name]})
+		target, _ := state.aliases.resolve(name)
+		stream.value(snapshotAlias{Name: name, Target: target})
 	})
-	lineage := make([]relationKey, 0, state.edgeCount)
+	lineage := make([]relationKey, 0, state.lineage.count())
 	locations := make([]artifact.Location, 0)
 	for _, id := range artifactIDs {
-		slot := state.slots[id]
-		lineage = append(lineage, slot.parents...)
-		locations = append(locations, slot.locations...)
+		lineage = append(lineage, state.lineage.parentsOf(id)...)
+		locations = append(locations, state.locations.of(id)...)
 	}
 	stream.array("lineage", len(lineage), true, func(index int) {
 		key := lineage[index]
@@ -318,8 +318,8 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.array("locations", len(locations), true, func(index int) {
 		stream.value(locations[index])
 	})
-	stream.array("commits", len(state.commits), false, func(index int) {
-		commit := state.commits[index]
+	stream.array("commits", state.commits.count(), false, func(index int) {
+		commit := state.commits.at(index)
 		stream.value(snapshotCommit{
 			Key: commit.key, ID: commit.id, Payload: hex.EncodeToString(commit.payload[:]), Sequence: commit.sequence,
 		})
@@ -328,10 +328,10 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	return stream.err
 }
 
-func snapshotArtifactIDs(state catalogState, include func(*artifactSlot) bool) []artifact.ID {
-	ids := make([]artifact.ID, 0, len(state.slots))
-	for id, slot := range state.slots {
-		if include(slot) {
+func snapshotArtifactIDs(state catalogState, include func(artifact.ID, *artifactRecord) bool) []artifact.ID {
+	ids := make([]artifact.ID, 0, state.artifacts.count())
+	for id, record := range state.artifacts.records {
+		if include(id, record) {
 			ids = append(ids, id)
 		}
 	}

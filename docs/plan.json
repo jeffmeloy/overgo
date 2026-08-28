@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "catalog-facets",
-          "title": "Split catalog state into concrete artifact, content-location, alias, lineage, location, and commit-key owners",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestCatalogFacetReplayEquivalence$' -count=1",
-          "rationale": "The current catalogState owns unrelated indexes and validation under one type. Concrete facets establish cohesive ownership while retaining one aggregate transaction view; no generic projector interface is introduced until checkpointing supplies a second real consumer.",
-          "depends_on": [
-            "storage-baseline",
-            "redundancy-interaction-baseline"
-          ],
-          "capabilities": [
-            "overgodb",
-            "common-code",
-            "deterministic-replay"
-          ]
-        },
-        {
           "id": "commit-coordinator",
           "title": "Make one commit coordinator own normalize, validate, delta, append, sync, apply, and fault transitions",
           "status": "open",

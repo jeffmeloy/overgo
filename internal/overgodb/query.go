@@ -150,8 +150,8 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if err := s.ready(false); err != nil {
 		return QueryResult{}, err
 	}
-	if query.MaxResults == 0 && (len(s.state.slots) != 0 || len(s.state.aliases) != 0 ||
-		s.state.edgeCount != 0 || len(s.state.commits) != 0) {
+	if query.MaxResults == 0 && (s.state.artifacts.count() != 0 || s.state.aliases.count() != 0 ||
+		s.state.lineage.count() != 0 || s.state.commits.count() != 0) {
 		return QueryResult{}, errors.New("overgodb: zero query bound requires an empty catalog")
 	}
 	contract, err := queryContractDigest(query)
@@ -169,18 +169,18 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	result.Truncated = truncated
 	result.Matched = matched
 	for _, id := range ids {
-		slot := s.state.slots[id]
-		if slot == nil {
+		record, ok := s.state.artifacts.record(id)
+		if !ok {
 			continue
 		}
 		if query.Projection.includes(ProjectArtifacts) {
-			result.Artifacts = append(result.Artifacts, slot.descriptor)
+			result.Artifacts = append(result.Artifacts, record.descriptor)
 		}
-		if slot.hasContent && query.Projection.includes(ProjectContentPresence) {
+		if s.state.contents.has(id) && query.Projection.includes(ProjectContentPresence) {
 			result.Contents = append(result.Contents, ContentView{Artifact: id})
 		}
-		if slot.hasManifest && query.Projection.includes(ProjectManifests) {
-			result.Manifests = append(result.Manifests, slot.manifest.Clone())
+		if record.hasManifest && query.Projection.includes(ProjectManifests) {
+			result.Manifests = append(result.Manifests, record.manifest.Clone())
 		}
 	}
 	if query.Projection.includes(ProjectAliases) {
@@ -380,37 +380,37 @@ func validDescriptorFilter(value string) bool {
 
 func (s catalogState) visitDescriptorCandidates(query Query, visit func(artifact.ID)) {
 	if query.MediaType != "" {
-		for _, id := range s.byMedia[query.MediaType] {
+		for _, id := range s.artifacts.byMedia[query.MediaType] {
 			visit(id)
 		}
 		return
 	}
 	if query.Schema != "" {
-		for _, id := range s.bySchema[query.Schema] {
+		for _, id := range s.artifacts.bySchema[query.Schema] {
 			visit(id)
 		}
 		return
 	}
-	for id := range s.slots {
+	for id := range s.artifacts.records {
 		visit(id)
 	}
 }
 
 func (s catalogState) descriptorCandidateCount(query Query) int {
 	if query.MediaType != "" {
-		return len(s.byMedia[query.MediaType])
+		return len(s.artifacts.byMedia[query.MediaType])
 	}
 	if query.Schema != "" {
-		return len(s.bySchema[query.Schema])
+		return len(s.artifacts.bySchema[query.Schema])
 	}
-	return len(s.slots)
+	return s.artifacts.count()
 }
 
 func (s catalogState) matchesDescriptor(query Query, id artifact.ID) bool {
-	slot, ok := s.slots[id]
+	record, ok := s.artifacts.record(id)
 	return ok && (query.Kind == artifact.KindInvalid || id.Kind() == query.Kind) &&
-		(query.MediaType == "" || slot.descriptor.MediaType == query.MediaType) &&
-		(query.Schema == "" || slot.descriptor.Schema == query.Schema)
+		(query.MediaType == "" || record.descriptor.MediaType == query.MediaType) &&
+		(query.Schema == "" || record.descriptor.Schema == query.Schema)
 }
 
 func (s catalogState) querySeed(query Query) (artifact.ID, bool, error) {
@@ -418,7 +418,7 @@ func (s catalogState) querySeed(query Query) (artifact.ID, bool, error) {
 	seeded := false
 	if query.Alias != "" {
 		var ok bool
-		seed, ok = s.aliases[query.Alias]
+		seed, ok = s.aliases.resolve(query.Alias)
 		if !ok {
 			return artifact.ID{}, false, errors.New("overgodb: query alias is not bound")
 		}
@@ -431,7 +431,7 @@ func (s catalogState) querySeed(query Query) (artifact.ID, bool, error) {
 		seed, seeded = *query.Artifact, true
 	}
 	if seeded {
-		if _, ok := s.slots[seed]; !ok {
+		if !s.artifacts.has(seed) {
 			return artifact.ID{}, false, errors.New("overgodb: query artifact is unknown")
 		}
 	}
@@ -448,15 +448,11 @@ func (s catalogState) followEdges(id artifact.ID, direction FollowDirection, rel
 			}
 		}
 	}
-	slot := s.slots[id]
-	if slot == nil {
-		return nil
-	}
 	if direction == FollowParents || direction == FollowBoth {
-		appendIndex(slot.parents)
+		appendIndex(s.lineage.parentsOf(id))
 	}
 	if direction == FollowChildren || direction == FollowBoth {
-		appendIndex(slot.children)
+		appendIndex(s.lineage.childrenOf(id))
 	}
 	sort.Slice(edges, func(i, j int) bool {
 		left, right := edges[i], edges[j]
@@ -474,7 +470,7 @@ func (s catalogState) followEdges(id artifact.ID, direction FollowDirection, rel
 func (s catalogState) lineageWithin(selected map[artifact.ID]struct{}, relation artifact.Relation) []artifact.Lineage {
 	edges := make([]artifact.Lineage, 0)
 	for id := range selected {
-		for _, key := range s.slots[id].parents {
+		for _, key := range s.lineage.parentsOf(id) {
 			if _, parent := selected[key.parent]; parent && (relation == artifact.RelationInvalid || key.relation == relation) {
 				edges = append(edges, artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation})
 			}
@@ -490,9 +486,9 @@ func (s catalogState) indexedLineage(
 ) []artifact.Lineage {
 	edges := make([]artifact.Lineage, 0)
 	for id := range selected {
-		index := s.slots[id].children
+		index := s.lineage.childrenOf(id)
 		if parents {
-			index = s.slots[id].parents
+			index = s.lineage.parentsOf(id)
 		}
 		for _, key := range index {
 			edge := artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation}
@@ -506,15 +502,15 @@ func (s catalogState) indexedLineage(
 
 func (s catalogState) queryAliases(query Query, selected map[artifact.ID]struct{}, truncated *bool) []AliasView {
 	aliases := make([]AliasView, 0)
-	for name, target := range s.aliases {
+	s.aliases.each(func(name string, target artifact.ID) {
 		if query.Alias != "" && name != query.Alias {
-			continue
+			return
 		}
 		if _, ok := selected[target]; !ok {
-			continue
+			return
 		}
 		aliases = append(aliases, AliasView{Name: name, Target: target})
-	}
+	})
 	sort.Slice(aliases, func(i, j int) bool { return aliases[i].Name < aliases[j].Name })
 	return truncateQuery(aliases, query.MaxResults, truncated)
 }
@@ -556,7 +552,7 @@ func (s catalogState) queryCommits(query Query, truncated *bool) []CommitView {
 		to = ^uint64(0)
 	}
 	commits := make([]CommitView, 0)
-	for _, commit := range s.commits {
+	for _, commit := range s.commits.all() {
 		if commit.sequence >= query.FromSequence && commit.sequence <= to {
 			commits = append(commits, CommitView{Key: commit.key, ID: commit.id, Sequence: commit.sequence})
 		}

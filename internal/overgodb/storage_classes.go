@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -54,9 +55,19 @@ func DocumentStorageClass(descriptor artifact.Descriptor) StorageClass {
 	return ClassImmutableBlob
 }
 
+// legacyOperationalExceptions grandfathers signal-shaped schemas that
+// predate the boundary, each with the row that retires it. The list
+// only shrinks: a new coordination-shaped schema is refused outright.
+var legacyOperationalExceptions = map[string]string{
+	"overgo/peer-heartbeat/v1": "interaction-efficiency/coalesced-coordination converts peer liveness to bounded operational state",
+}
+
 // IsOperationalSignalSchema reports a schema that names bounded
 // coordination rather than a durable fact.
 func IsOperationalSignalSchema(schema string) bool {
+	if _, grandfathered := legacyOperationalExceptions[schema]; grandfathered {
+		return false
+	}
 	lowered := strings.ToLower(schema)
 	for _, marker := range operationalSignalMarkers {
 		if strings.Contains(lowered, marker) {
@@ -83,4 +94,22 @@ func LayoutStorageClass(path string) StorageClass {
 		return ClassRebuildableProjection
 	}
 	return ClassOperationalSignal
+}
+
+// refuseOperationalSignals is the transition boundary's teeth: a
+// batch carrying a coordination-shaped schema cannot advance the
+// artifact head. A signal that matters converts into a typed
+// transition record first; the raw signal never commits.
+func refuseOperationalSignals(batch artifact.Batch) error {
+	for _, descriptor := range batch.Artifacts {
+		if IsOperationalSignalSchema(descriptor.Schema) {
+			return fmt.Errorf("overgodb: operational signal %s cannot become canonical; publish a typed transition instead", descriptor.ID)
+		}
+	}
+	for _, content := range batch.Contents {
+		if IsOperationalSignalSchema(content.Descriptor.Schema) {
+			return fmt.Errorf("overgodb: operational signal %s cannot become canonical; publish a typed transition instead", content.Descriptor.ID)
+		}
+	}
+	return nil
 }

@@ -55,6 +55,9 @@ func (c commitCoordinator) commit(
 	if normalized.ExpectedHead != nil && *normalized.ExpectedHead != head {
 		return commitAdvance{}, false, fmt.Errorf("%w: expected %s, have %s", ErrHeadConflict, *normalized.ExpectedHead, head)
 	}
+	if err := refuseOperationalSignals(normalized); err != nil {
+		return commitAdvance{}, false, err
+	}
 	if err := c.state.validate(normalized); err != nil {
 		return commitAdvance{}, false, err
 	}

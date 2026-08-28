@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "storage-operational-boundary",
-      "title": "Keep high-frequency coordination out of canonical RSI evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "transition-boundary",
-          "title": "Centralize conversion of operational state into immutable attempt, lease, loss, recovery, and capability-change records",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/workflowruntime ./internal/capabilityruntime -run '^TestOperationalTransitionPublication$' -count=1",
-          "rationale": "A noisy heartbeat or process stream cannot advance the artifact head directly. Only a typed state transition with authority, causal context, and bounded evidence produces a canonical batch.",
-          "depends_on": [
-            "storage-operational-boundary/storage-classes"
-          ],
-          "capabilities": [
-            "runrecord",
-            "workflow-runtime",
-            "peer-runtime",
-            "rsi-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "process-supervision",
       "title": "Create one Go process-tree supervisor for every external command",
       "status": "open",

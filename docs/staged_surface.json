@@ -219,28 +219,28 @@
       "consumer_trigger": "interaction-efficiency/head-bound-deltas consumes the seam and retires this entry."
     },
     {
-      "package": "overgo/internal/overgodb",
-      "name": "DocumentStorageClass",
-      "reason": "Storage-class ownership rule delivered by storage-operational-boundary/storage-classes; consumed by the runrecord contract and next by the transition boundary.",
-      "consumer_trigger": "storage-operational-boundary/transition-boundary enforces the class at the commit boundary and retires this entry."
+      "package": "overgo/internal/runrecord",
+      "name": "PublishOperationalTransition",
+      "reason": "The one conversion door from operational state to canonical records, proven across runrecord, workflowruntime, and capabilityruntime.",
+      "consumer_trigger": "execution-semantics and causal-execution rows route live attempt, lease, loss, recovery, and capability-change events through it."
     },
     {
-      "package": "overgo/internal/overgodb",
-      "name": "IsOperationalSignalSchema",
-      "reason": "Operational-signal shape rule; staged with its class owner.",
-      "consumer_trigger": "transition-boundary refuses signal schemas at the commit boundary."
+      "package": "overgo/internal/runrecord",
+      "name": "NewOperationalTransition",
+      "reason": "Constructor for the conversion door; staged with it.",
+      "consumer_trigger": "execution-semantics rows consume it in production."
     },
     {
-      "package": "overgo/internal/overgodb",
-      "name": "LayoutStorageClass",
-      "reason": "Store-layout class rule; staged with its class owner.",
-      "consumer_trigger": "interaction-efficiency and migration drills classify layout paths through it."
+      "package": "overgo/internal/runrecord",
+      "name": "ParseOperationalTransition",
+      "reason": "Reader for conversion records; staged with its constructor.",
+      "consumer_trigger": "causal-execution projections read committed transitions."
     },
     {
-      "package": "overgo/internal/overgodb",
-      "name": "StorageClass",
-      "reason": "Typed class enumeration; staged with its owner functions.",
-      "consumer_trigger": "transition-boundary consumes the classes at the commit boundary."
+      "package": "overgo/internal/runrecord",
+      "name": "OperationalTransition",
+      "reason": "Typed conversion record; staged with its owner functions.",
+      "consumer_trigger": "execution-semantics rows consume it in production."
     }
   ]
 }

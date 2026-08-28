@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "causal-context",
-          "title": "Add a typed causal context for trigger, root cause, parent attempt, retry, replay, delegation, recovery, and motivating evidence",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run '^TestCausalContextIdentityAndValidation$' -count=1",
-          "rationale": "Artifact lineage explains content derivation; causal context explains why execution occurred. Causality never grants authority, and copied root identity prevents delegation cycles from manufacturing a new causal principal.",
-          "depends_on": [
-            "execution-semantics"
-          ],
-          "capabilities": [
-            "runrecord",
-            "causality",
-            "authority-separation"
-          ]
-        },
-        {
           "id": "trigger-registry",
           "title": "Require every execution trigger kind to declare causal, authority, budget, idempotency, and evidence behavior",
           "status": "open",

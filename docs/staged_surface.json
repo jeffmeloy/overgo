@@ -349,6 +349,12 @@
       "name": "ReplayLoopObligations",
       "reason": "Store-backed replay lands ahead of the production ObligationWorld implementation.",
       "consumer_trigger": "cmd/loop world implements ObligationWorld over the repository store."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "NewCausalRoot",
+      "reason": "Root minting lands ahead of the trigger registry and integration rows.",
+      "consumer_trigger": "causal-execution/trigger-registry and causal-integration mint roots at every enqueue path."
     }
   ]
 }

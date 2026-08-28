@@ -40,6 +40,8 @@ type EvaluationEvidence struct {
 	CodeCommit      string                  `json:"code_commit"`
 	Phases          []runrecord.PhaseMetric `json:"phases"`
 	Metrics         []runrecord.Metric      `json:"metrics"`
+	// Causal explains why the evaluation ran.
+	Causal *runrecord.CausalContext `json:"causal,omitempty"`
 }
 
 var evaluationEvidenceCodec = artifact.JSONDocumentCodec(
@@ -304,6 +306,11 @@ func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {
 			return errors.New("evaluation: invalid evidence metric")
 		}
 	}
+	if value.Causal != nil {
+		if err := value.Causal.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -318,5 +325,10 @@ func cloneEvaluationEvidence(value EvaluationEvidence) EvaluationEvidence {
 	value.Shards = slices.Clone(value.Shards)
 	value.Phases = slices.Clone(value.Phases)
 	value.Metrics = slices.Clone(value.Metrics)
+	if value.Causal != nil {
+		cloned := *value.Causal
+		cloned.Motivation = slices.Clone(value.Causal.Motivation)
+		value.Causal = &cloned
+	}
 	return value
 }

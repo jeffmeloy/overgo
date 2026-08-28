@@ -66,14 +66,20 @@ type ExperimentLifecycle struct {
 	HeartbeatExpiry string `json:"heartbeat_expiry,omitempty"`
 	// Checkpoint is the recovery point a retried run resumes from.
 	Checkpoint *artifact.ID `json:"checkpoint,omitempty"`
-	ID         artifact.ID  `json:"-"`
+	// Causal explains why this transition's execution occurred.
+	Causal *CausalContext `json:"causal,omitempty"`
+	ID     artifact.ID    `json:"-"`
 }
 
 var experimentLifecycleCodec = artifact.JSONDocumentCodec(
 	"experiment lifecycle", artifact.KindEvidence, ExperimentLifecycleMediaType, ExperimentLifecycleSchema,
 	canonicalizeExperimentLifecycle,
 	func(value ExperimentLifecycle) artifact.ID { return value.ID },
-	func(value *ExperimentLifecycle, id artifact.ID) { value.ID = id }, nil,
+	func(value *ExperimentLifecycle, id artifact.ID) { value.ID = id },
+	func(value ExperimentLifecycle) ExperimentLifecycle {
+		value.Causal = cloneCausal(value.Causal)
+		return value
+	},
 )
 
 // NewExperimentLifecycle identifies one transition. prior is nil exactly for
@@ -147,6 +153,9 @@ func canonicalizeExperimentLifecycle(value *ExperimentLifecycle) error {
 	}
 	if value.Checkpoint != nil && value.Checkpoint.Kind() != artifact.KindCheckpoint {
 		return errors.New("run record: experiment checkpoint reference kind mismatch")
+	}
+	if err := validCausal(value.Causal); err != nil {
+		return err
 	}
 	return nil
 }

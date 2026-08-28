@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "causal-integration",
-          "title": "Bind attempts, experiments, evaluations, promotions, rollbacks, automations, and delegations to causal context",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/loop ./internal/evaluation ./internal/workflowruntime -run '^TestRSICausalChainClosure$' -count=1",
-          "rationale": "An RSI decision must traverse from motivating observation through proposal, attempt, evaluation, promotion, serving evidence, and rollback without guessing from chronology or aliases. Existing duplicate origin fields are migrated and deleted.",
-          "depends_on": [
-            "causal-execution/trigger-registry"
-          ],
-          "capabilities": [
-            "rsi-loop",
-            "causality",
-            "promotion",
-            "rollback"
-          ]
-        },
-        {
           "id": "causal-projection",
           "title": "Add a rebuildable causality projection for roots, descendants, retries, replays, and evidence jumps",
           "status": "open",

@@ -26,6 +26,7 @@ var servingObservationCodec = artifact.JSONDocumentCodec(
 	func(value ServingObservation) ServingObservation {
 		value.Phases = slices.Clone(value.Phases)
 		value.Hardware = slices.Clone(value.Hardware)
+		value.Causal = cloneCausal(value.Causal)
 		return value
 	},
 )
@@ -98,7 +99,9 @@ type ServingObservation struct {
 	Phases        []PhaseMetric           `json:"phases,omitempty"`
 	Hardware      []ServingHardwareSample `json:"hardware,omitempty"`
 	Failure       string                  `json:"failure,omitempty"`
-	ID            artifact.ID             `json:"-"`
+	// Causal explains why the serving execution occurred.
+	Causal *CausalContext `json:"causal,omitempty"`
+	ID     artifact.ID    `json:"-"`
 }
 
 func (value ServingObservation) ValidateIdentity() error {
@@ -247,7 +250,7 @@ func canonicalizeServingObservation(value *ServingObservation) error {
 	default:
 		return errors.New("run record: invalid serving outcome")
 	}
-	if err := canonicalizePhases(&value.Phases); err != nil {
+	if err := errors.Join(canonicalizePhases(&value.Phases), validCausal(value.Causal)); err != nil {
 		return err
 	}
 	var elapsed uint64

@@ -47,7 +47,9 @@ type AutomationDeliveryAttempt struct {
 	Result      artifact.ID             `json:"result,omitzero"`
 	Failure     string                  `json:"failure,omitempty"`
 	Prior       artifact.ID             `json:"prior,omitzero"`
-	ID          artifact.ID             `json:"-"`
+	// Causal explains why the delivery attempt occurred.
+	Causal *CausalContext `json:"causal,omitempty"`
+	ID     artifact.ID    `json:"-"`
 }
 
 var automationDeliveryAttemptCodec = artifact.JSONDocumentCodec(
@@ -58,6 +60,7 @@ var automationDeliveryAttemptCodec = artifact.JSONDocumentCodec(
 	func(value *AutomationDeliveryAttempt, id artifact.ID) { value.ID = id },
 	func(value AutomationDeliveryAttempt) AutomationDeliveryAttempt {
 		value.Outputs = slices.Clone(value.Outputs)
+		value.Causal = cloneCausal(value.Causal)
 		return value
 	},
 )
@@ -190,6 +193,9 @@ func canonicalizeAutomationDeliveryAttempt(value *AutomationDeliveryAttempt) err
 		if !output.Valid() {
 			return errors.New("run record: invalid automation delivery output")
 		}
+	}
+	if err := validCausal(value.Causal); err != nil {
+		return err
 	}
 	switch value.State {
 	case AutomationDeliveryAdmitted:

@@ -111,6 +111,24 @@ func (context CausalContext) Derive(trigger CausalTrigger, subject artifact.ID) 
 	return derived, nil
 }
 
+// validCausal validates an optional causal binding on a record.
+func validCausal(causal *CausalContext) error {
+	if causal == nil {
+		return nil
+	}
+	return causal.Validate()
+}
+
+// cloneCausal deep-copies an optional causal binding for codec clones.
+func cloneCausal(causal *CausalContext) *CausalContext {
+	if causal == nil {
+		return nil
+	}
+	cloned := *causal
+	cloned.Motivation = slices.Clone(causal.Motivation)
+	return &cloned
+}
+
 // Validate refuses contexts whose fields disagree with their trigger:
 // each derived trigger requires exactly its own subject field, an
 // originating trigger carries none of them, and retry ordinals exist

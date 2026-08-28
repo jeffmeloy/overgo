@@ -8,6 +8,7 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 )
 
 // CompiledDelegation is the executable projection of exact recipe authority.
@@ -54,6 +55,14 @@ func CompileDelegatedAgentInvocation(ctx context.Context, reader artifact.Reader
 		manuals = append(manuals, manual)
 	}
 	return CompiledDelegation{Invocation: invocation, Manuals: manuals}, nil
+}
+
+// DeriveCausal binds the delegated execution into the delegating
+// execution's causal chain: the child runs under the same causal root,
+// with the delegating execution as its causal subject. Authority is
+// unaffected -- it comes from the compiled grant, never from the chain.
+func (compiled CompiledDelegation) DeriveCausal(parent runrecord.CausalContext, delegator artifact.ID) (runrecord.CausalContext, error) {
+	return parent.Derive(runrecord.TriggerDelegation, delegator)
 }
 
 // ManualIDs returns the compiled manuals' identities in grant order.

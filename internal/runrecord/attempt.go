@@ -25,6 +25,8 @@ var attemptContract = artifact.DocumentContract{
 	Kind: artifact.KindEvidence, MediaType: AttemptMediaType, Schema: AttemptSchema,
 }
 
+const maxAttemptStrategyBytes = 128
+
 // AttemptSelection mirrors the gate's manifest selection measurements
 // without importing the selector package: counts of check dispositions
 // and the planning cost, exactly as measured.
@@ -66,15 +68,20 @@ type AttemptRecord struct {
 	Environment       artifact.ID      `json:"environment,omitzero"`
 	Trajectory        artifact.ID      `json:"trajectory,omitzero"`
 	CostUnits         uint64           `json:"cost_units,omitempty"`
-	Recovered         bool             `json:"recovered,omitempty"`
-	ID                artifact.ID      `json:"-"`
+	// Causal explains why the attempt ran; a recovery trigger here
+	// replaces the deleted duplicate recovered flag.
+	Causal *CausalContext `json:"causal,omitempty"`
+	ID     artifact.ID    `json:"-"`
 }
 
 var attemptCodec = artifact.JSONDocumentCodec(
 	"run record gate attempt", attemptContract.Kind, attemptContract.MediaType, attemptContract.Schema,
 	canonicalizeAttempt, func(value AttemptRecord) artifact.ID { return value.ID },
 	func(value *AttemptRecord, id artifact.ID) { value.ID = id },
-	func(value AttemptRecord) AttemptRecord { return value },
+	func(value AttemptRecord) AttemptRecord {
+		value.Causal = cloneCausal(value.Causal)
+		return value
+	},
 )
 
 func canonicalizeAttempt(value *AttemptRecord) error {
@@ -88,7 +95,7 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 	// Strategy is optional -- an interactive session declares none --
 	// but a declared identity is one bounded token, never free text.
 	if value.Strategy != "" &&
-		(len(value.Strategy) > 128 || strings.ContainsAny(value.Strategy, " /\x00\r\n\t")) {
+		(len(value.Strategy) > maxAttemptStrategyBytes || strings.ContainsAny(value.Strategy, " /\x00\r\n\t")) {
 		return errors.New("run record: attempt strategy must be one bounded token")
 	}
 	if value.Result.Kind() != artifact.KindEvidence {
@@ -123,6 +130,9 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 	}
 	if value.Diff.Files < 0 || value.Diff.Insertions < 0 || value.Diff.Deletions < 0 {
 		return errors.New("run record: attempt diff counts are not observations")
+	}
+	if err := validCausal(value.Causal); err != nil {
+		return err
 	}
 	for _, id := range []artifact.ID{value.StrategyID, value.TaskContract, value.Environment, value.Trajectory} {
 		if id.Valid() && id.Kind() != artifact.KindEvidence && id.Kind() != artifact.KindRecipe && id.Kind() != artifact.KindProfile {

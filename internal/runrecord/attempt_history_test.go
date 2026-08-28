@@ -14,8 +14,17 @@ func TestAttemptHistorySummary(t *testing.T) {
 	strategy := testutil.ArtifactID(t, artifact.KindProfile, "strategy")
 	trajectory := testutil.ArtifactID(t, artifact.KindEvidence, "trajectory")
 	first := fixtureAttempt(t)
-	first.StrategyID, first.Trajectory, first.CostUnits, first.Recovered = strategy, trajectory, 5, true
-	first, err := NewAttemptRecord(first)
+	first.StrategyID, first.Trajectory, first.CostUnits = strategy, trajectory, 5
+	recoveryRoot, err := NewCausalRoot(TriggerStageWakeup, testutil.ArtifactID(t, artifact.KindEvidence, "history-root"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := recoveryRoot.Derive(TriggerRecovery, testutil.ArtifactID(t, artifact.KindEvidence, "lost-attempt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Causal = &recovered
+	first, err = NewAttemptRecord(first)
 	if err != nil {
 		t.Fatal(err)
 	}

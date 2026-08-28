@@ -158,7 +158,7 @@ func SummarizeAttemptHistory(records []AttemptRecord, filter AttemptHistoryFilte
 		summary.CostUnits += record.CostUnits
 		summary.WallNS += record.WallNS
 		summary.Churn += uint64(record.Diff.Insertions) + uint64(record.Diff.Deletions)
-		if record.Recovered {
+		if record.Causal != nil && record.Causal.Trigger == TriggerRecovery {
 			summary.Recoveries++
 		}
 		if record.Trajectory.Valid() {

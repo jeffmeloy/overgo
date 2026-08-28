@@ -58,7 +58,9 @@ type ImprovementDecision struct {
 	Authority        artifact.ID              `json:"authority"`
 	Decider          artifact.ID              `json:"decider"`
 	Rollback         artifact.ID              `json:"rollback"`
-	ID               artifact.ID              `json:"-"`
+	// Causal explains why the decision's execution occurred.
+	Causal *CausalContext `json:"causal,omitempty"`
+	ID     artifact.ID    `json:"-"`
 }
 
 var improvementAdmissionCodec = artifact.JSONDocumentCodec(
@@ -72,7 +74,11 @@ var improvementDecisionCodec = artifact.JSONDocumentCodec(
 	"improvement decision", artifact.KindEvidence, ImprovementDecisionMediaType, ImprovementDecisionSchema,
 	canonicalizeImprovementDecision,
 	func(value ImprovementDecision) artifact.ID { return value.ID },
-	func(value *ImprovementDecision, id artifact.ID) { value.ID = id }, nil,
+	func(value *ImprovementDecision, id artifact.ID) { value.ID = id },
+	func(value ImprovementDecision) ImprovementDecision {
+		value.Causal = cloneCausal(value.Causal)
+		return value
+	},
 )
 
 func AdmitImprovement(
@@ -183,7 +189,7 @@ func canonicalizeImprovementDecision(value *ImprovementDecision) error {
 		!distinctIDs(value.Code, value.Proposer, value.Evaluator, value.Authority, value.Decider) {
 		return errors.New("run record: invalid improvement decision")
 	}
-	return nil
+	return validCausal(value.Causal)
 }
 
 func validateImprovementEvidence(

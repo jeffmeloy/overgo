@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "failure-normalization",
-          "title": "Add versioned structured failure observations that preserve raw evidence and deterministically normalize known causes",
-          "status": "open",
-          "verify": "go test ./internal/executionfailure ./internal/runrecord -run '^TestFailureNormalizationCorpus$' -count=1",
-          "rationale": "Context exhaustion, configuration, authorization, quota, capacity, network, model availability, timeout, missing executable, process failure, tool failure, and unknown remain distinct. Reclassification creates a new derived record naming classifier version; raw evidence is never overwritten.",
-          "depends_on": [
-            "execution-semantics/canonical-outcomes"
-          ],
-          "capabilities": [
-            "failure-taxonomy",
-            "mixed-version",
-            "rsi-evidence"
-          ]
-        },
-        {
           "id": "retry-session-policy",
           "title": "Derive retry, resume, fresh-session, retire-session, and refuse decisions from typed failure and bounded attempt history",
           "status": "open",

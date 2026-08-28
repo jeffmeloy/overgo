@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 10004 to 10015 for the canonical-outcome vocabulary: mapping helpers share switch shapes in the idiom classes the tightness-census exemption will cover.",
-  "duplicate_excess_nodes": 10015
+  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 10015 to 10031 for the failure-record codec surface: Parse/Require/Content/Resolve delegates join the repo-wide record idiom groups the tightness-census exemption will absorb.",
+  "duplicate_excess_nodes": 10031
 }

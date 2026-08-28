@@ -277,6 +277,42 @@
       "name": "OutcomeVocabulary",
       "reason": "String view of the canonical outcomes for vocabulary guards; staged with the vocabulary.",
       "consumer_trigger": "Vocabulary guards consume it wherever outcome forks must refuse."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "NormalizeFailureObservation",
+      "reason": "failure-record surface lands ahead of its retry-policy consumers",
+      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "ParseFailureObservation",
+      "reason": "failure-record surface lands ahead of its retry-policy consumers",
+      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "PublishFailureNormalization",
+      "reason": "failure-record surface lands ahead of its retry-policy consumers",
+      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "PublishFailureObservation",
+      "reason": "failure-record surface lands ahead of its retry-policy consumers",
+      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "RequireFailureNormalization",
+      "reason": "failure-record surface lands ahead of its retry-policy consumers",
+      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "ResolveFailureNormalization",
+      "reason": "failure-record surface lands ahead of its retry-policy consumers",
+      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
     }
   ]
 }

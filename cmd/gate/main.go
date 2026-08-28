@@ -994,7 +994,22 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	}
 	g.honesty = append(g.honesty, consumerCensusHonesty("commit", selection.Context, declarations, base, current))
 	if unconsumed := codeprofile.NewUnconsumedSurface(baseDeclarations, declarations); len(unconsumed) > 0 {
-		return fmt.Errorf("new unconsumed production surface: %s", consumerCandidates(unconsumed))
+		// docs/staged_surface.json is the reviewed acceptance for new
+		// surface whose consumer is deliberately deferred (owner ruling
+		// 2026-08-27: valuable new elements land declared, not blocked);
+		// undeclared new surface still refuses.
+		staged, err := codeprofile.LoadStagedSurface(filepath.Join(g.repo, "docs", "staged_surface.json"))
+		if err != nil {
+			return err
+		}
+		accepted, blocking := codeprofile.PartitionStagedSurface(unconsumed, staged)
+		if len(accepted) > 0 {
+			g.honesty = append(g.honesty, fmt.Sprintf(
+				"staged surface accepted per docs/staged_surface.json: %s", consumerCandidates(accepted)))
+		}
+		if len(blocking) > 0 {
+			return fmt.Errorf("new unconsumed production surface: %s", consumerCandidates(blocking))
+		}
 	}
 
 	mergeBase, err := command(g.repo, "git", "merge-base", "master", "HEAD")

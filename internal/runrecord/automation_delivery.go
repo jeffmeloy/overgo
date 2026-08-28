@@ -177,6 +177,9 @@ func (authority AutomationDeliveryAuthority) publish(
 	if err != nil {
 		return err
 	}
+	if err := BindCausality(&batch, value.ID, value.Causal); err != nil {
+		return err
+	}
 	_, err = artifact.CommitBatch(ctx, authority.Repository, batch)
 	return err
 }

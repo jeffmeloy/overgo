@@ -71,11 +71,6 @@ type FailureNormalization struct {
 	ID                artifact.ID            `json:"-"`
 }
 
-// ParseFailureObservation returns a validated observation from bytes.
-func ParseFailureObservation(content []byte) (FailureObservation, error) {
-	return failureObservationCodec.Parse(content)
-}
-
 // RequireFailureObservation returns a validated repository observation.
 func RequireFailureObservation(ctx context.Context, reader artifact.Reader, id artifact.ID) (FailureObservation, error) {
 	return failureObservationCodec.Require(ctx, reader, id)

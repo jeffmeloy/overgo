@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "causal-execution",
-      "title": "Record operational causality separately from artifact lineage and authority",
-      "status": "open",
-      "steps": [
-        {
-          "id": "causal-projection",
-          "title": "Add a rebuildable causality projection for roots, descendants, retries, replays, and evidence jumps",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/runrecord -run '^TestCausalityProjectionRebuild$' -count=1",
-          "rationale": "The projection accelerates explanation and audit but does not replace canonical causal records. Queries name the journal head and projection version, and cycles or missing required roots refuse publication.",
-          "depends_on": [
-            "causal-execution/causal-integration"
-          ],
-          "capabilities": [
-            "overgodb",
-            "causality-projection",
-            "explainability"
-          ]
-        }
-      ]
-    },
-    {
       "id": "stimulus-reconciliation",
       "title": "Bound agent context and reconcile inputs that arrive during execution",
       "status": "open",

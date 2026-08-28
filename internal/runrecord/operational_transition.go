@@ -85,11 +85,6 @@ func NewOperationalTransition(value OperationalTransition) (OperationalTransitio
 	return operationalTransitionCodec.New(value)
 }
 
-// ParseOperationalTransition decodes one canonical transition.
-func ParseOperationalTransition(data []byte) (OperationalTransition, error) {
-	return operationalTransitionCodec.Parse(data)
-}
-
 // Content returns the canonical committed bytes of the transition.
 func (value OperationalTransition) Content() (artifact.Content, error) {
 	return operationalTransitionCodec.Content(value)

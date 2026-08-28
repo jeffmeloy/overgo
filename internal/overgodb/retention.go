@@ -19,6 +19,7 @@ type RetentionReport struct {
 	RetainedContents  int
 	Aliases           int
 	Lineage           int
+	Causality         int
 	DroppedArtifacts  int
 	// ReclaimableBlobs and ReclaimableBlobBytes report source blob
 	// files no retained content references; retention rebuilds a
@@ -41,10 +42,14 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 	contents := map[artifact.ID]bool{}
 	parents := map[artifact.ID][]relationKey{}
 	locations := map[artifact.ID][]artifact.Location{}
+	causality := map[artifact.ID]artifact.CausalLink{}
 	source.mu.RLock()
 	if err := source.ready(false); err != nil {
 		source.mu.RUnlock()
 		return report, err
+	}
+	for execution, link := range source.state.causality.records {
+		causality[execution] = link.Clone()
 	}
 	for id, record := range source.state.artifacts.records {
 		descriptors[id] = record.descriptor
@@ -77,6 +82,15 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 		}
 		for _, edge := range parents[id] {
 			retain(edge.parent)
+		}
+		if link, found := causality[id]; found {
+			retain(link.Root)
+			if link.Subject.Valid() {
+				retain(link.Subject)
+			}
+			for _, evidence := range link.Motivation {
+				retain(evidence)
+			}
 		}
 	}
 	for _, alias := range aliases {
@@ -174,6 +188,17 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 				return report, err
 			}
 			report.Lineage++
+		}
+	}
+	if err := writer.flush(); err != nil {
+		return report, err
+	}
+	for _, id := range ids {
+		if link, found := causality[id]; found {
+			if err := writer.add(artifact.Batch{Causality: []artifact.CausalLink{link}}); err != nil {
+				return report, err
+			}
+			report.Causality++
 		}
 	}
 	if err := writer.flush(); err != nil {
@@ -301,12 +326,13 @@ func (writer *compactionWriter) nextKey() string {
 }
 
 func mergeCompactionItems(items []artifact.Batch) artifact.Batch {
-	var artifacts, contents, manifests, lineage, aliases, locations int
+	var artifacts, contents, manifests, lineage, causality, aliases, locations int
 	for _, item := range items {
 		artifacts += len(item.Artifacts)
 		contents += len(item.Contents)
 		manifests += len(item.Manifests)
 		lineage += len(item.Lineage)
+		causality += len(item.Causality)
 		aliases += len(item.Aliases)
 		locations += len(item.Locations)
 	}
@@ -315,15 +341,17 @@ func mergeCompactionItems(items []artifact.Batch) artifact.Batch {
 		Contents:  make([]artifact.Content, contents),
 		Manifests: make([]artifact.Manifest, manifests),
 		Lineage:   make([]artifact.Lineage, lineage),
+		Causality: make([]artifact.CausalLink, causality),
 		Aliases:   make([]artifact.AliasBinding, aliases),
 		Locations: make([]artifact.LocationEvent, locations),
 	}
-	var artifactAt, contentAt, manifestAt, lineageAt, aliasAt, locationAt int
+	var artifactAt, contentAt, manifestAt, lineageAt, causalityAt, aliasAt, locationAt int
 	for _, item := range items {
 		artifactAt += copy(merged.Artifacts[artifactAt:], item.Artifacts)
 		contentAt += copy(merged.Contents[contentAt:], item.Contents)
 		manifestAt += copy(merged.Manifests[manifestAt:], item.Manifests)
 		lineageAt += copy(merged.Lineage[lineageAt:], item.Lineage)
+		causalityAt += copy(merged.Causality[causalityAt:], item.Causality)
 		aliasAt += copy(merged.Aliases[aliasAt:], item.Aliases)
 		locationAt += copy(merged.Locations[locationAt:], item.Locations)
 	}
@@ -332,8 +360,8 @@ func mergeCompactionItems(items []artifact.Batch) artifact.Batch {
 
 // String renders the report.
 func (report RetentionReport) String() string {
-	return fmt.Sprintf("retained artifacts=%d manifests=%d contents=%d aliases=%d lineage=%d; dropped=%d reclaimable_blobs=%d reclaimable_blob_bytes=%d obsolete_checkpoints=%d",
+	return fmt.Sprintf("retained artifacts=%d manifests=%d contents=%d aliases=%d lineage=%d causality=%d; dropped=%d reclaimable_blobs=%d reclaimable_blob_bytes=%d obsolete_checkpoints=%d",
 		report.RetainedArtifacts, report.RetainedManifests, report.RetainedContents,
-		report.Aliases, report.Lineage, report.DroppedArtifacts,
+		report.Aliases, report.Lineage, report.Causality, report.DroppedArtifacts,
 		report.ReclaimableBlobs, report.ReclaimableBlobBytes, report.ObsoleteCheckpoints)
 }

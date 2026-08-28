@@ -139,7 +139,14 @@ func (value ServingObservation) Batch(key string) (artifact.Batch, error) {
 	if value.Operation.Valid() {
 		alias = servingAttemptAlias(value.Operation, value.Attempt)
 	}
-	return servingObservationCodec.Batch(key, value, value.Lineage(), []artifact.AliasBinding{{Name: alias, Target: value.ID}})
+	batch, err := servingObservationCodec.Batch(key, value, value.Lineage(), []artifact.AliasBinding{{Name: alias, Target: value.ID}})
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	if err := BindCausality(&batch, value.ID, value.Causal); err != nil {
+		return artifact.Batch{}, err
+	}
+	return batch, nil
 }
 
 // NewServingObservation validates and identifies one immutable serving fact

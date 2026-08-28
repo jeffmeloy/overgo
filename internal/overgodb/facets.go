@@ -8,7 +8,7 @@ import (
 	"overgo/internal/artifact"
 )
 
-// Catalog state is composed of six concrete facet owners. Each facet
+// Catalog state is composed of seven concrete facet owners. Each facet
 // owns one class of catalog fact together with its indexes, conflict
 // validation, batch delta, and application; catalogState remains the
 // single aggregate transaction view that drives them in commit order.
@@ -49,7 +49,7 @@ type registeredProjection struct {
 // its own version constant away from this shared origin.
 const initialProjectionVersion uint16 = 1
 
-// projections enumerates the six facet projections in commit-
+// projections enumerates the seven facet projections in commit-
 // application order; this table is the closed world and the single
 // owner of projection names and versions.
 func projections(state *catalogState) []registeredProjection {
@@ -57,6 +57,7 @@ func projections(state *catalogState) []registeredProjection {
 		{name: "artifacts", version: initialProjectionVersion, view: &state.artifacts},
 		{name: "contents", version: initialProjectionVersion, view: &state.contents},
 		{name: "lineage", version: initialProjectionVersion, view: &state.lineage},
+		{name: "causality", version: causalityProjectionVersion, view: &state.causality},
 		{name: "locations", version: initialProjectionVersion, view: &state.locations},
 		{name: "aliases", version: initialProjectionVersion, view: &state.aliases},
 		{name: "commits", version: initialProjectionVersion, view: &state.commits},

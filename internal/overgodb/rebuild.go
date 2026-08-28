@@ -19,6 +19,7 @@ type RebuildReport struct {
 	BytesDropped    uint64
 	Manifests       int
 	LineageEdges    int
+	CausalLinks     int
 	Locations       int
 	Aliases         int
 	Batches         int
@@ -26,7 +27,12 @@ type RebuildReport struct {
 
 // rebuildBatchBytes bounds one rebuild batch comfortably inside the
 // frame payload limit so a large kept content never overflows a frame.
-const rebuildBatchBytes = 16 << 20
+const (
+	rebuildBatchBytes        = 16 << 20
+	rebuildManifestChunkSize = 256
+	rebuildGraphChunkSize    = 2048
+	rebuildAliasChunkSize    = 512
+)
 
 // Rebuild writes the source store's projected state into a fresh store
 // at destination, in original creation order so every dependency
@@ -49,6 +55,13 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 
 	source.mu.RLock()
 	order := append([]artifact.ID(nil), source.state.artifacts.bySequence...)
+	causalLinks := make([]artifact.CausalLink, 0, len(source.state.causality.records))
+	for _, link := range source.state.causality.records {
+		causalLinks = append(causalLinks, link.Clone())
+	}
+	sort.Slice(causalLinks, func(i, j int) bool {
+		return artifact.CompareID(causalLinks[i].Execution, causalLinks[j].Execution) < 0
+	})
 	source.mu.RUnlock()
 
 	report := RebuildReport{}
@@ -58,7 +71,7 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	var batchBytes uint64
 	flush := func() error {
 		if len(batch.Artifacts) == 0 && len(batch.Contents) == 0 && len(batch.Manifests) == 0 &&
-			len(batch.Lineage) == 0 && len(batch.Locations) == 0 && len(batch.Aliases) == 0 {
+			len(batch.Lineage) == 0 && len(batch.Causality) == 0 && len(batch.Locations) == 0 && len(batch.Aliases) == 0 {
 			return nil
 		}
 		batch.Key = fmt.Sprintf("rebuild/%06d", report.Batches)
@@ -67,7 +80,7 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 		}
 		report.Batches++
 		batch = artifact.Batch{}
-		batchBytes = 0
+		batchBytes = uint64(len(batch.Contents))
 		return nil
 	}
 
@@ -126,8 +139,8 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	// an edge or component may join artifacts from different eras.
 	for len(manifests) > 0 {
 		chunk := manifests
-		if len(chunk) > 256 {
-			chunk = manifests[:256]
+		if len(chunk) > rebuildManifestChunkSize {
+			chunk = manifests[:rebuildManifestChunkSize]
 		}
 		batch = artifact.Batch{Manifests: chunk}
 		if err := flush(); err != nil {
@@ -138,8 +151,8 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	}
 	for len(edges) > 0 {
 		chunk := edges
-		if len(chunk) > 2048 {
-			chunk = edges[:2048]
+		if len(chunk) > rebuildGraphChunkSize {
+			chunk = edges[:rebuildGraphChunkSize]
 		}
 		lineage := make([]artifact.Lineage, len(chunk))
 		for index, edge := range chunk {
@@ -151,6 +164,18 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 		}
 		report.LineageEdges += len(chunk)
 		edges = edges[len(chunk):]
+	}
+	for len(causalLinks) > 0 {
+		chunk := causalLinks
+		if len(chunk) > rebuildGraphChunkSize {
+			chunk = causalLinks[:rebuildGraphChunkSize]
+		}
+		batch = artifact.Batch{Causality: chunk}
+		if err := flush(); err != nil {
+			return report, err
+		}
+		report.CausalLinks += len(chunk)
+		causalLinks = causalLinks[len(chunk):]
 	}
 
 	source.mu.RLock()
@@ -167,8 +192,8 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	source.mu.RUnlock()
 	for len(bindings) > 0 {
 		chunk := bindings
-		if len(chunk) > 512 {
-			chunk = bindings[:512]
+		if len(chunk) > rebuildAliasChunkSize {
+			chunk = bindings[:rebuildAliasChunkSize]
 		}
 		batch = artifact.Batch{Aliases: chunk}
 		if err := flush(); err != nil {

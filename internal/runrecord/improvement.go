@@ -96,9 +96,17 @@ func AdmitImprovement(
 func DecideImprovement(
 	admission ImprovementAdmission, child artifact.ID, run Run, evaluation Evaluation,
 	decider artifact.ID, state ImprovementDecisionState,
+	causal ...CausalContext,
 ) (ImprovementDecision, error) {
+	if len(causal) > 1 {
+		return ImprovementDecision{}, errors.New("run record: improvement decision has multiple causal contexts")
+	}
 	if err := validateImprovementEvidence(admission, child, run, evaluation, decider, state); err != nil {
 		return ImprovementDecision{}, err
+	}
+	var causalBinding *CausalContext
+	if len(causal) == 1 {
+		causalBinding = &causal[0]
 	}
 	return improvementDecisionCodec.New(ImprovementDecision{
 		Version: artifact.SecondDocumentVersion, State: state, Admission: admission.ID,
@@ -107,6 +115,7 @@ func DecideImprovement(
 		Recipe: admission.Recipe, Code: admission.Code, Evaluator: admission.Evaluator,
 		Run: run.ID, Evaluation: evaluation.ID, Proposer: admission.Proposer,
 		Authority: admission.Authority, Decider: decider, Rollback: admission.ParentModel,
+		Causal: causalBinding,
 	})
 }
 
@@ -155,7 +164,14 @@ func (value ImprovementAdmission) Batch(key string) (artifact.Batch, error) {
 }
 
 func (value ImprovementDecision) Batch(key string) (artifact.Batch, error) {
-	return improvementDecisionCodec.Batch(key, value, value.Lineage(), nil)
+	batch, err := improvementDecisionCodec.Batch(key, value, value.Lineage(), nil)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	if err := BindCausality(&batch, value.ID, value.Causal); err != nil {
+		return artifact.Batch{}, err
+	}
+	return batch, nil
 }
 
 func canonicalizeImprovementAdmission(value *ImprovementAdmission) error {

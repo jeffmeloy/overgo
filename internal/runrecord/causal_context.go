@@ -129,6 +129,45 @@ func cloneCausal(causal *CausalContext) *CausalContext {
 	return &cloned
 }
 
+// BindCausality appends the storage-neutral projection input derived from a
+// typed causal context. Nil contexts remain compatible with historical
+// records; non-nil contexts are validated before the batch can be published.
+func BindCausality(batch *artifact.Batch, execution artifact.ID, causal *CausalContext) error {
+	if batch == nil {
+		return errors.New("run record: causal batch is absent")
+	}
+	if causal == nil {
+		return nil
+	}
+	if err := causal.Validate(); err != nil {
+		return err
+	}
+	link := artifact.CausalLink{
+		Execution: execution, Root: causal.Root, Trigger: string(causal.Trigger),
+		Subject: causal.subject(), Motivation: slices.Clone(causal.Motivation),
+	}
+	if err := link.Validate(); err != nil {
+		return err
+	}
+	batch.Causality = append(batch.Causality, link)
+	return nil
+}
+
+func (context CausalContext) subject() artifact.ID {
+	switch context.Trigger {
+	case TriggerRetry:
+		return context.ParentAttempt
+	case TriggerRerun:
+		return context.ReplayOf
+	case TriggerDelegation:
+		return context.DelegatedFrom
+	case TriggerRecovery:
+		return context.RecoveredFrom
+	default:
+		return artifact.ID{}
+	}
+}
+
 // Validate refuses contexts whose fields disagree with their trigger:
 // each derived trigger requires exactly its own subject field, an
 // originating trigger carries none of them, and retry ordinals exist

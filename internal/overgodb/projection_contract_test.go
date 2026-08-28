@@ -33,7 +33,7 @@ func TestProjectionContractIsClosedAndVersioned(t *testing.T) {
 			t.Fatalf("projection %q has no compiled view", registered.name)
 		}
 	}
-	for _, required := range []string{"artifacts", "contents", "lineage", "locations", "aliases", "commits"} {
+	for _, required := range []string{"artifacts", "contents", "lineage", "causality", "locations", "aliases", "commits"} {
 		if !names[required] {
 			t.Fatalf("projection %q missing from the closed registry", required)
 		}

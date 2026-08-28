@@ -84,6 +84,7 @@ type catalogState struct {
 	artifacts artifactFacet
 	contents  contentFacet
 	lineage   lineageFacet
+	causality causalityFacet
 	locations locationFacet
 	aliases   aliasFacet
 	commits   commitFacet
@@ -92,7 +93,7 @@ type catalogState struct {
 func newCatalogState() catalogState {
 	return catalogState{
 		artifacts: newArtifactFacet(), contents: newContentFacet(), lineage: newLineageFacet(),
-		locations: newLocationFacet(), aliases: newAliasFacet(), commits: newCommitFacet(),
+		causality: newCausalityFacet(), locations: newLocationFacet(), aliases: newAliasFacet(), commits: newCommitFacet(),
 	}
 }
 
@@ -106,6 +107,9 @@ func (s catalogState) validate(batch artifact.Batch) error {
 		return err
 	}
 	if err := s.lineage.validate(batch, hasArtifact); err != nil {
+		return err
+	}
+	if err := s.causality.validate(batch, hasArtifact); err != nil {
 		return err
 	}
 	return s.locations.validate(batch, hasArtifact)
@@ -142,6 +146,7 @@ func (s catalogState) delta(batch artifact.Batch) artifact.Batch {
 	s.contents.delta(batch, &delta)
 	s.aliases.delta(batch, &delta)
 	s.lineage.delta(batch, &delta)
+	s.causality.delta(batch, &delta)
 	s.locations.delta(batch, &delta)
 	return delta
 }
@@ -838,6 +843,7 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		Contents:     cloneValues(batch.Contents),
 		Manifests:    cloneValues(batch.Manifests),
 		Lineage:      slices.Clone(batch.Lineage),
+		Causality:    cloneValues(batch.Causality),
 		Aliases:      artifact.CloneAliasBindings(batch.Aliases),
 		Locations:    slices.Clone(batch.Locations),
 	}
@@ -917,6 +923,20 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		previousEdge, haveEdge = edge, true
 	}
 	result.Lineage = lineage
+	sort.Slice(result.Causality, func(i, j int) bool {
+		return artifact.CompareID(result.Causality[i].Execution, result.Causality[j].Execution) < 0
+	})
+	causality := result.Causality[:0]
+	for _, link := range result.Causality {
+		if len(causality) != 0 && causality[len(causality)-1].Execution == link.Execution {
+			if !equalCausalLink(causality[len(causality)-1], link) {
+				return artifact.Batch{}, fmt.Errorf("overgodb: conflicting causal execution %s", link.Execution)
+			}
+			continue
+		}
+		causality = append(causality, link)
+	}
+	result.Causality = causality
 	sort.Slice(result.Locations, func(i, j int) bool {
 		left, right := result.Locations[i], result.Locations[j]
 		if left.Artifact != right.Artifact {

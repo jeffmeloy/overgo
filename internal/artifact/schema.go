@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -109,6 +110,45 @@ type Lineage struct {
 	Relation Relation `json:"relation"`
 }
 
+// CausalLink is the storage-neutral projection input for one execution.
+// Typed record packages own trigger semantics; repositories only index the
+// immutable artifact identities needed to traverse the operational chain.
+type CausalLink struct {
+	Execution  ID     `json:"execution"`
+	Root       ID     `json:"root"`
+	Trigger    string `json:"trigger"`
+	Subject    ID     `json:"subject,omitzero"`
+	Motivation []ID   `json:"motivation,omitempty"`
+}
+
+// Clone returns an isolated causal link.
+func (link CausalLink) Clone() CausalLink {
+	link.Motivation = slices.Clone(link.Motivation)
+	return link
+}
+
+// Validate checks repository-generic causal facts. Trigger-specific field
+// rules remain the canonical record owner's responsibility.
+func (link CausalLink) Validate() error {
+	if link.Execution.Kind() != KindEvidence || link.Root.Kind() != KindEvidence ||
+		strings.TrimSpace(link.Trigger) == "" || strings.TrimSpace(link.Trigger) != link.Trigger ||
+		strings.ContainsAny(link.Trigger, " /\x00\r\n\t") {
+		return errors.New("artifact: invalid causal link")
+	}
+	if link.Execution == link.Root || link.Subject.Valid() && link.Subject.Kind() != KindEvidence {
+		return errors.New("artifact: invalid causal endpoint")
+	}
+	if !slices.IsSortedFunc(link.Motivation, CompareID) {
+		return errors.New("artifact: causal motivation is not sorted")
+	}
+	for index, evidence := range link.Motivation {
+		if evidence.Kind() != KindEvidence || index > 0 && evidence == link.Motivation[index-1] {
+			return errors.New("artifact: invalid causal motivation")
+		}
+	}
+	return nil
+}
+
 func (l Lineage) Validate() error {
 	if !l.Child.Valid() || !l.Parent.Valid() {
 		return errors.New("artifact: lineage has invalid endpoint")
@@ -156,13 +196,14 @@ type Batch struct {
 	Contents     []Content       `json:"contents,omitempty"`
 	Manifests    []Manifest      `json:"manifests,omitempty"`
 	Lineage      []Lineage       `json:"lineage,omitempty"`
+	Causality    []CausalLink    `json:"causality,omitempty"`
 	Aliases      []AliasBinding  `json:"aliases,omitempty"`
 	Locations    []LocationEvent `json:"locations,omitempty"`
 }
 
 // Empty reports whether the batch carries no catalog mutation.
 func (b Batch) Empty() bool {
-	return len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Aliases)+len(b.Locations) == 0
+	return len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Causality)+len(b.Aliases)+len(b.Locations) == 0
 }
 
 func (b Batch) Validate() error {
@@ -184,6 +225,11 @@ func (b Batch) Validate() error {
 	}
 	for _, edge := range b.Lineage {
 		if err := edge.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, link := range b.Causality {
+		if err := link.Validate(); err != nil {
 			return err
 		}
 	}

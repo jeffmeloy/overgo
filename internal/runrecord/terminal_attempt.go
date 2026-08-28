@@ -96,11 +96,6 @@ var terminalAttemptCodec = artifact.JSONDocumentCodec(
 	},
 )
 
-// RequireTerminalAttemptReceipt returns a validated stored receipt.
-func RequireTerminalAttemptReceipt(ctx context.Context, reader artifact.Reader, id artifact.ID) (TerminalAttemptReceipt, error) {
-	return terminalAttemptCodec.Require(ctx, reader, id)
-}
-
 // ResolveTerminalAttemptReceipt returns one operation's receipt for one
 // attempt ordinal, when that attempt closed.
 func ResolveTerminalAttemptReceipt(ctx context.Context, reader artifact.Reader, operation artifact.ID, attempt uint32) (TerminalAttemptReceipt, bool, error) {

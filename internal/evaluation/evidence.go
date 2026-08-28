@@ -126,8 +126,9 @@ func PublishEvaluationEvidence(
 	report artifact.ID,
 	run runrecord.Run,
 	record runrecord.Evaluation,
+	causal ...runrecord.CausalContext,
 ) (EvaluationEvidence, error) {
-	if ctx == nil || repository == nil || report.Kind() != artifact.KindEvaluation ||
+	if len(causal) > 1 || ctx == nil || repository == nil || report.Kind() != artifact.KindEvaluation ||
 		acceptancePolicyCodec.ValidateIdentity(acceptance) != nil || evaluatorCodec.ValidateIdentity(evaluator) != nil ||
 		evaluator.Plan != plan.identity || evaluator.Acceptance != acceptance.ID || !acceptance.admits(record.Metrics) ||
 		run.ValidateIdentity() != nil || record.ValidateIdentity() != nil || run.Outcome != runrecord.OutcomeSucceeded ||
@@ -147,6 +148,10 @@ func PublishEvaluationEvidence(
 	if err != nil {
 		return EvaluationEvidence{}, err
 	}
+	var causalBinding *runrecord.CausalContext
+	if len(causal) == 1 {
+		causalBinding = &causal[0]
+	}
 	evidence, err := evaluationEvidenceCodec.New(EvaluationEvidence{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Acceptance: acceptance.ID, Evaluator: evaluator.ID,
 		Report: report, Run: run.ID, Evaluation: record.ID,
@@ -154,6 +159,7 @@ func PublishEvaluationEvidence(
 		Dataset: plan.body.Dataset, Split: plan.body.Split, Shards: shards,
 		Environment: plan.body.Environment, CodeCommit: plan.body.CodeCommit,
 		Phases: slices.Clone(run.Phases), Metrics: slices.Clone(record.Metrics),
+		Causal: causalBinding,
 	})
 	if err != nil {
 		return EvaluationEvidence{}, err
@@ -175,6 +181,9 @@ func PublishEvaluationEvidence(
 		evidence.Lineage(), nil,
 	)
 	if err != nil {
+		return EvaluationEvidence{}, err
+	}
+	if err := runrecord.BindCausality(&batch, evidence.ID, evidence.Causal); err != nil {
 		return EvaluationEvidence{}, err
 	}
 	_, err = artifact.CommitBatch(ctx, repository, batch)

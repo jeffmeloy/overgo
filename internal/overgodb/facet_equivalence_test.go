@@ -13,7 +13,7 @@ import (
 
 // catalogDigest reduces every facet to one deterministic digest:
 // artifacts in sequence order with manifests and content locators,
-// sorted aliases, sorted lineage edges, sorted locations, and the
+// sorted aliases, sorted lineage and causality, sorted locations, and the
 // ordered commit record. Two states with equal digests answer every
 // catalog read identically.
 func catalogDigest(t *testing.T, state catalogState) string {
@@ -35,6 +35,9 @@ func catalogDigest(t *testing.T, state catalogState) string {
 		}
 		for _, key := range state.lineage.parentsOf(id) {
 			write("lineage/%s/%s/%s\n", key.child, key.parent, key.relation)
+		}
+		if link, found := state.causality.records[id]; found {
+			write("causality/%s/%s/%s/%s/%v\n", link.Execution, link.Root, link.Trigger, link.Subject, link.Motivation)
 		}
 		for _, location := range state.locations.of(id) {
 			write("location/%s/%s/%s\n", id, location.Kind, location.Value)

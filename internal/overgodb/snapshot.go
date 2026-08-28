@@ -24,7 +24,7 @@ const (
 	snapshotDirectory         = "snapshots"
 	snapshotExtension         = ".snapshot"
 	snapshotHeaderBytes       = 92
-	snapshotVersion           = uint16(6)
+	snapshotVersion           = 7
 	snapshotPayloadMultiplier = 4
 	maxSnapshotPayload        = maxFramePayload * snapshotPayloadMultiplier
 
@@ -79,18 +79,19 @@ type snapshotArtifact struct {
 }
 
 type snapshotDocument struct {
-	Version   uint16              `json:"version"`
-	Sequence  uint64              `json:"sequence"`
-	Head      artifact.CommitID   `json:"head"`
-	LogOffset int64               `json:"log_offset"`
-	LogAnchor string              `json:"log_anchor"`
-	Artifacts []snapshotArtifact  `json:"artifacts"`
-	Contents  []snapshotContent   `json:"contents,omitempty"`
-	Manifests []artifact.Manifest `json:"manifests,omitempty"`
-	Aliases   []snapshotAlias     `json:"aliases,omitempty"`
-	Lineage   []artifact.Lineage  `json:"lineage,omitempty"`
-	Locations []artifact.Location `json:"locations,omitempty"`
-	Commits   []snapshotCommit    `json:"commits"`
+	Version   uint16                `json:"version"`
+	Sequence  uint64                `json:"sequence"`
+	Head      artifact.CommitID     `json:"head"`
+	LogOffset int64                 `json:"log_offset"`
+	LogAnchor string                `json:"log_anchor"`
+	Artifacts []snapshotArtifact    `json:"artifacts"`
+	Contents  []snapshotContent     `json:"contents,omitempty"`
+	Manifests []artifact.Manifest   `json:"manifests,omitempty"`
+	Aliases   []snapshotAlias       `json:"aliases,omitempty"`
+	Lineage   []artifact.Lineage    `json:"lineage,omitempty"`
+	Causality []artifact.CausalLink `json:"causality,omitempty"`
+	Locations []artifact.Location   `json:"locations,omitempty"`
+	Commits   []snapshotCommit      `json:"commits"`
 }
 
 // Snapshot writes one immutable, versioned state segment. On a
@@ -167,6 +168,7 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 		Key: "snapshot/state", Artifacts: descriptors,
 		Manifests: cloneValues(document.Manifests),
 		Lineage:   slices.Clone(document.Lineage),
+		Causality: cloneValues(document.Causality),
 	}
 	for _, alias := range document.Aliases {
 		batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: alias.Name, Target: alias.Target})
@@ -337,6 +339,16 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.array("lineage", len(lineage), true, func(index int) {
 		key := lineage[index]
 		stream.value(artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation})
+	})
+	causality := make([]artifact.CausalLink, 0, len(state.causality.records))
+	for _, link := range state.causality.records {
+		causality = append(causality, link.Clone())
+	}
+	slices.SortFunc(causality, func(left, right artifact.CausalLink) int {
+		return artifact.CompareID(left.Execution, right.Execution)
+	})
+	stream.array("causality", len(causality), true, func(index int) {
+		stream.value(causality[index])
 	})
 	stream.array("locations", len(locations), true, func(index int) {
 		stream.value(locations[index])

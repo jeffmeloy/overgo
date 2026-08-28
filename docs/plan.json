@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "storage-blob-split",
-      "title": "Move immutable content bytes out of the canonical metadata journal",
-      "status": "open",
-      "steps": [
-        {
-          "id": "legacy-read-new-write",
-          "title": "Read legacy inline frames while writing only the external-blob format and provide verified rebuild migration",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestLegacyInlineToBlobRebuildRoundTrip$' -count=1",
-          "rationale": "Legacy format support is the explicit immutable-format exception to immediate path deletion. It is read-only compatibility: no new inline frames, no topology-changing fallback, and rebuild produces a destination whose artifact, content, alias, lineage, location, and head semantics match the source corpus.",
-          "depends_on": [
-            "storage-blob-split/reference-transactions"
-          ],
-          "capabilities": [
-            "overgodb",
-            "format-migration",
-            "rebuild",
-            "rollback"
-          ]
-        }
-      ]
-    },
-    {
       "id": "storage-projections",
       "title": "Make compiled Go projections independently checkpointable and exactly rebuildable",
       "status": "open",

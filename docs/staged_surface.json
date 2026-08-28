@@ -175,6 +175,18 @@
       "name": "ModelArtifactDir",
       "reason": "Shared model-directory resolver for artifact-gated golden tests, consolidating the per-package copies; test-support surface is test-consumed by design.",
       "consumer_trigger": "Permanent test-support owner; retire only if artifact-gated suites stop resolving model roots."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "NewEfficiencyTrace",
+      "reason": "Interaction-efficiency baseline document delivered by redundancy-interaction-baseline/interaction-traces with contract and measured storage baseline complete.",
+      "consumer_trigger": "interaction-efficiency rows instrument live surfaces and commit their traces through this constructor."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "ParseEfficiencyTrace",
+      "reason": "Reader for the interaction-efficiency baseline document; staged with its constructor.",
+      "consumer_trigger": "interaction-efficiency projection-query-plans reads committed traces for comparison reports."
     }
   ]
 }

@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "redundancy-interaction-baseline",
-      "title": "Measure duplicate ownership and interaction cost before expanding the RSI control plane",
-      "status": "open",
-      "steps": [
-        {
-          "id": "interaction-traces",
-          "title": "Record representative storage, agent, tool, workflow, peer, evaluation, and UI interaction traces with exact work and round-trip counts",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/overgodb -run '^TestInteractionEfficiencyBaseline$' -count=1",
-          "rationale": "The trace records semantic transitions, commits, artifact and blob reads, scanned and returned facts, bytes, wakeups, retries, model turns, context bytes, repeated context identities, tool calls, and waits. It carries the completed task result and evidence so reducing interactions cannot receive credit for doing less work.",
-          "depends_on": [
-            "redundancy-interaction-baseline/ownership-census"
-          ],
-          "capabilities": [
-            "interaction-efficiency",
-            "measurement",
-            "runrecord",
-            "overgodb"
-          ]
-        }
-      ]
-    },
-    {
       "id": "storage-modular-core",
       "title": "Separate OvergoDB commit mechanics from concrete catalog state without changing the disk format",
       "status": "open",

@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "atomic-publication",
-          "title": "Publish a head-consistent projection view only after every required projector accepts the commit",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestProjectionPublicationIsAtomic$' -count=1",
-          "rationale": "Queries must never observe aliases at one head and lineage or catalog state at another. A projector failure faults publication and preserves the last complete view; callbacks do not run while the store lock is held.",
-          "depends_on": [
-            "storage-projections/projection-contract"
-          ],
-          "capabilities": [
-            "overgodb",
-            "snapshot-isolation",
-            "concurrency"
-          ]
-        },
-        {
           "id": "checkpoints",
           "title": "Write per-projection checkpoints anchored to journal head, sequence, projection version, and canonical digest",
           "status": "open",

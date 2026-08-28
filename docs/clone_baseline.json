@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 9970 to 9974 for the aliasFacet resolve accessor pairing with an unrelated two-line map accessor: accessor idiom class, exemption extends at architecture-closure/tightness-census.",
-  "duplicate_excess_nodes": 9974
+  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 9974 to 9983 for the five unconditional projection accept stubs: interface-required nil-return bodies are a contract-stub idiom class; the tightness-census exemption covers accessors and stubs together.",
+  "duplicate_excess_nodes": 9983
 }

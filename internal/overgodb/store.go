@@ -116,6 +116,17 @@ func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}
 	return ok
 }
 
+// acceptAll asks every registered projection to accept the commit;
+// the first refusal wins and nothing has been published.
+func (s *catalogState) acceptAll(batch artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) error {
+	for _, registered := range projections(s) {
+		if err := registered.view.accept(batch, locators, sequence); err != nil {
+			return fmt.Errorf("projection %s refuses commit: %w", registered.name, err)
+		}
+	}
+	return nil
+}
+
 func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) {
 	for _, registered := range projections(s) {
 		registered.view.applyCommit(batch, locators, sequence)
@@ -139,18 +150,22 @@ func (s *catalogState) addCommit(commit committedBatch) { s.commits.add(commit) 
 // Store is the hash-chained artifact catalog: a replayed record log
 // projected into slots, aliases, and lineage under one lock.
 type Store struct {
-	mu        sync.RWMutex
-	log       *recordLog
-	blobs     blobStore
-	state     catalogState
-	head      artifact.CommitID
-	sequence  uint64
-	replayEnd int64
-	readOnly  bool
-	closed    bool
-	fault     error
-	root      string
-	snapshot  SnapshotReplay
+	mu    sync.RWMutex
+	log   *recordLog
+	blobs blobStore
+	// onPublished runs after a commit's head-consistent view is
+	// published and the lock is released; subscribers may read the
+	// store reentrantly.
+	onPublished []func(artifact.CommitID, uint64)
+	state       catalogState
+	head        artifact.CommitID
+	sequence    uint64
+	replayEnd   int64
+	readOnly    bool
+	closed      bool
+	fault       error
+	root        string
+	snapshot    SnapshotReplay
 }
 
 // Open replays the store under root and returns a writable handle.
@@ -226,23 +241,48 @@ func (s *Store) Refresh(ctx context.Context) error {
 	return nil
 }
 
+// subscribePublished registers a head-publication observer. Callbacks
+// run outside the store lock, after every projection has applied, so
+// an observer reads one consistent head or a later one -- never a
+// mixed view.
+func (s *Store) subscribePublished(observer func(artifact.CommitID, uint64)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onPublished = append(s.onPublished, observer)
+}
+
 // Commit appends one effective transaction: the batch is normalized,
 // reduced to its delta against current state, and chained onto the head.
 func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.CommitID, error) {
+	id, advanced, err := s.commitPublished(ctx, batch)
+	if err != nil || !advanced {
+		return id, err
+	}
+	s.mu.RLock()
+	observers := slices.Clone(s.onPublished)
+	head, sequence := s.head, s.sequence
+	s.mu.RUnlock()
+	for _, observer := range observers {
+		observer(head, sequence)
+	}
+	return id, nil
+}
+
+func (s *Store) commitPublished(ctx context.Context, batch artifact.Batch) (artifact.CommitID, bool, error) {
 	if err := contextError(ctx); err != nil {
-		return artifact.CommitID{}, err
+		return artifact.CommitID{}, false, err
 	}
 	normalized, payloadHash, err := encodeBatch(batch)
 	if err != nil {
-		return artifact.CommitID{}, err
+		return artifact.CommitID{}, false, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.ready(true); err != nil {
-		return artifact.CommitID{}, err
+		return artifact.CommitID{}, false, err
 	}
 	if err := contextError(ctx); err != nil {
-		return artifact.CommitID{}, err
+		return artifact.CommitID{}, false, err
 	}
 	coordinator := commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}
 	advance, replayed, err := coordinator.commit(normalized, payloadHash, s.head, s.sequence)
@@ -250,17 +290,17 @@ func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.Comm
 		var fault appendFault
 		if errors.As(err, &fault) {
 			s.fault = fault.cause
-			return advance.id, fmt.Errorf("%w: %w", ErrStoreFaulted, fault.cause)
+			return advance.id, false, fmt.Errorf("%w: %w", ErrStoreFaulted, fault.cause)
 		}
-		return artifact.CommitID{}, err
+		return artifact.CommitID{}, false, err
 	}
 	if replayed {
-		return advance.id, nil
+		return advance.id, false, nil
 	}
 	s.sequence = advance.sequence
 	s.head = advance.id
 	s.replayEnd = advance.replayEnd
-	return advance.id, nil
+	return advance.id, true, nil
 }
 
 func (s *Store) transactionFits(batch artifact.Batch) (bool, error) {

@@ -211,6 +211,12 @@
       "name": "ContentPresence",
       "reason": "Optional presence-batch capability interface for mixed evidence lists.",
       "consumer_trigger": "Implemented by overgodb.Store; retire if presence moves onto the Reader interface."
+    },
+    {
+      "package": "overgo/internal/overgodb",
+      "name": "subscribePublished",
+      "reason": "Head-publication observer seam delivered by storage-projections/atomic-publication with its atomicity contract complete; live subscribers arrive with head-bound deltas.",
+      "consumer_trigger": "interaction-efficiency/head-bound-deltas consumes the seam and retires this entry."
     }
   ]
 }

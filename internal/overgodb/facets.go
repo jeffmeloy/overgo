@@ -23,6 +23,10 @@ import (
 // drives the contract now; per-projection checkpoints are its second
 // consumer.
 type projection interface {
+	// accept refuses a commit the projection could not apply exactly;
+	// it runs before anything becomes durable, so a refused commit
+	// publishes nothing anywhere.
+	accept(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) error
 	applyCommit(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64)
 }
 
@@ -121,6 +125,12 @@ func (f *artifactFacet) setManifest(manifest artifact.Manifest) {
 	record.manifest, record.hasManifest = manifest.Clone(), true
 }
 
+// accept has no conditions beyond aggregate validation: descriptor
+// and manifest conflicts were refused by validate.
+func (f *artifactFacet) accept(artifact.Batch, map[artifact.ID]contentLocator, uint64) error {
+	return nil
+}
+
 // applyCommit registers new descriptors and manifests in commit order.
 func (f *artifactFacet) applyCommit(delta artifact.Batch, _ map[artifact.ID]contentLocator, sequence uint64) {
 	for _, descriptor := range delta.Artifacts {
@@ -164,6 +174,17 @@ func (f contentFacet) locator(id artifact.ID) (contentLocator, bool) {
 }
 
 func (f *contentFacet) set(id artifact.ID, locator contentLocator) { f.locators[id] = locator }
+
+// accept refuses a commit whose content lacks a bound locator: bytes
+// that never became durable must not gain a committed descriptor.
+func (f *contentFacet) accept(delta artifact.Batch, locators map[artifact.ID]contentLocator, _ uint64) error {
+	for _, content := range delta.Contents {
+		if _, bound := locators[content.Descriptor.ID]; !bound {
+			return fmt.Errorf("overgodb: content %s has no durable locator", content.Descriptor.ID)
+		}
+	}
+	return nil
+}
 
 // applyCommit binds each committed content to its locator.
 func (f *contentFacet) applyCommit(delta artifact.Batch, locators map[artifact.ID]contentLocator, _ uint64) {
@@ -234,6 +255,12 @@ func (f *lineageFacet) add(key relationKey) {
 	f.parents[key.child] = insertRelation(f.parents[key.child], key)
 	f.children[key.parent] = insertRelation(f.children[key.parent], key)
 	f.edges++
+}
+
+// accept has no conditions beyond aggregate validation: cycles and
+// unknown endpoints were refused by validate.
+func (f *lineageFacet) accept(artifact.Batch, map[artifact.ID]contentLocator, uint64) error {
+	return nil
 }
 
 // applyCommit inserts each committed edge into both adjacencies.
@@ -325,6 +352,11 @@ func (f *locationFacet) apply(event artifact.LocationEvent) {
 	}
 }
 
+// accept has no conditions beyond aggregate validation.
+func (f *locationFacet) accept(artifact.Batch, map[artifact.ID]contentLocator, uint64) error {
+	return nil
+}
+
 // applyCommit replays each committed location event in order.
 func (f *locationFacet) applyCommit(delta artifact.Batch, _ map[artifact.ID]contentLocator, _ uint64) {
 	for _, event := range delta.Locations {
@@ -385,6 +417,10 @@ func (f *aliasFacet) apply(binding artifact.AliasBinding) {
 	}
 }
 
+// accept has no conditions beyond aggregate validation: compare-and-
+// set conflicts were refused by validate.
+func (f *aliasFacet) accept(artifact.Batch, map[artifact.ID]contentLocator, uint64) error { return nil }
+
 // applyCommit applies each committed binding in order.
 func (f *aliasFacet) applyCommit(delta artifact.Batch, _ map[artifact.ID]contentLocator, _ uint64) {
 	for _, binding := range delta.Aliases {
@@ -424,6 +460,11 @@ func (f commitFacet) at(index int) committedBatch { return f.ordered[index] }
 func (f *commitFacet) add(commit committedBatch) {
 	f.byKey[commit.key] = len(f.ordered)
 	f.ordered = append(f.ordered, commit)
+}
+
+// accept has no conditions: the commit record is coordinator-owned.
+func (f *commitFacet) accept(artifact.Batch, map[artifact.ID]contentLocator, uint64) error {
+	return nil
 }
 
 // applyCommit is a no-op on the delta: the commit record advances

@@ -76,6 +76,10 @@ func (c commitCoordinator) commit(
 	if err != nil {
 		return commitAdvance{}, false, err
 	}
+	next := sequence + 1
+	if err := c.state.acceptAll(delta, locators, next); err != nil {
+		return commitAdvance{}, false, err
+	}
 	// Blob bytes become durable BEFORE the journal frame that references
 	// them: a crash here leaves an unreachable blob, never a committed
 	// descriptor whose bytes are missing.
@@ -84,7 +88,6 @@ func (c commitCoordinator) commit(
 			return commitAdvance{}, false, err
 		}
 	}
-	next := sequence + 1
 	id, payloadOffset, replayEnd, err := c.log.append(next, head, payload)
 	if err != nil {
 		return commitAdvance{id: id}, false, appendFault{cause: err}
@@ -109,6 +112,9 @@ func (c commitCoordinator) replay(record logRecord) error {
 		return fmt.Errorf("%w: %q repeats in log", ErrBatchKeyConflict, batch.Key)
 	}
 	if err := c.state.validate(batch); err != nil {
+		return err
+	}
+	if err := c.state.acceptAll(batch, locators, record.sequence); err != nil {
 		return err
 	}
 	c.state.apply(batch, locators, record.sequence)

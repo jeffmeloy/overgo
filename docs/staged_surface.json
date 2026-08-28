@@ -319,6 +319,24 @@
       "name": "ValidDecision",
       "reason": "Membership guard for the decision vocabulary; staged with the vocabulary.",
       "consumer_trigger": "execution-semantics/attempt-receipt validates receipt dispositions with it."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "NewProcessTermination",
+      "reason": "Adapter from supervisor receipts into receipt evidence.",
+      "consumer_trigger": "execution-semantics boundary migration wires supervised lanes into terminal receipts."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "RequireTerminalAttemptReceipt",
+      "reason": "Typed read of one stored terminal receipt.",
+      "consumer_trigger": "causal-execution and evaluation read receipts for recovery and scoring."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "ResolveTerminalAttemptReceipt",
+      "reason": "Per-operation attempt-ordinal receipt lookup.",
+      "consumer_trigger": "causal-execution and evaluation read receipts for recovery and scoring."
     }
   ]
 }

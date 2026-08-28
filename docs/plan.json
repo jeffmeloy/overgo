@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "attempt-receipt",
-          "title": "Publish one terminal attempt receipt binding outcome, failure, process termination, resource summary, and recovery lineage",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/agentloop -run '^TestTerminalAttemptReceiptClosure$' -count=1",
-          "rationale": "A terminal attempt must be self-contained enough for evaluation and recovery without scraping text logs. Large transcript and tool output remain referenced blobs; missing optional measurements are explicit coverage gaps.",
-          "depends_on": [
-            "execution-semantics/retry-session-policy"
-          ],
-          "capabilities": [
-            "runrecord",
-            "attempt-evidence",
-            "content-closure"
-          ]
-        },
-        {
           "id": "obligation-records",
           "title": "Model cross-attempt obligations as durable records with explicit completion predicates replayed unconditionally",
           "status": "open",

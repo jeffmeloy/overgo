@@ -9,19 +9,139 @@
       "status": "open",
       "steps": [
         {
+          "id": "strategy-identity-binding",
+          "title": "Bind every automation attempt to its content-addressed strategy before cross-strategy comparison",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/loop ./internal/runrecord -run '^(TestGateAttemptBindsStrategyIdentity|TestStrategyComparisonRequiresIdentity)$' -count=1",
+          "rationale": "Gate-produced attempts bind the exact strategy profile ID; display labels are non-authoritative. Anonymous, label-only, or unresolved attempts remain recordable but are ineligible for cross-strategy claims, and the same strategy identity propagates into trajectory and evaluation evidence.",
+          "depends_on": [
+            "resource-coverage/coverage-projection"
+          ],
+          "capabilities": [
+            "strategy-identity",
+            "attempt-record",
+            "comparison-admission",
+            "coverage"
+          ]
+        },
+        {
+          "id": "reference-relevance-admission",
+          "title": "Require admitted references to prove role-specific semantic relevance",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram ./internal/modelrecipe ./internal/runrecord -run '^TestReferenceAdmissionRequiresSemanticRelevance$' -count=1",
+          "rationale": "Existence and kind are necessary but insufficient. The owning admission path parses each role-specific typed contract and requires exact subject, model, recipe, dataset, split, environment, and operation bindings, refusing well-formed foreign artifacts. Common mechanics are extracted only after a second real consumer demonstrates the shared contract.",
+          "depends_on": [
+            "resource-coverage/coverage-projection"
+          ],
+          "capabilities": [
+            "reference-relevance",
+            "admission",
+            "typed-authority",
+            "rsi-evidence"
+          ]
+        },
+        {
           "id": "fitness-integration",
           "title": "Require improvement comparisons to evaluate capability, quality, resource, and coverage deltas together",
           "status": "open",
           "verify": "go test ./internal/evaluation ./internal/loop ./internal/runrecord -run '^TestImprovementFitnessRejectsTransferredCost$' -count=1",
-          "rationale": "A candidate cannot improve by moving failures, latency, memory, retries, or unmeasured work into another subsystem. Promotion comparisons cite source chunks and materialize the exact aggregate contract used.",
+          "rationale": "A candidate cannot improve by moving failures, latency, memory, retries, or unmeasured work into another subsystem. Comparison eligibility requires exact strategy identity and semantically relevant typed references; promotion comparisons cite source chunks and materialize the exact aggregate contract used.",
           "depends_on": [
-            "resource-coverage/coverage-projection"
+            "resource-coverage/strategy-identity-binding",
+            "resource-coverage/reference-relevance-admission"
           ],
           "capabilities": [
             "rsi-loop",
             "evaluation",
             "resource-fitness",
             "coverage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "architecture-ratchets",
+      "title": "Install permanent authority and Go-only ratchets before RSI construction",
+      "status": "open",
+      "steps": [
+        {
+          "id": "completion-reference-authority",
+          "title": "Bind pruned dependency satisfaction to gated Git completion evidence and prevent identity reuse",
+          "status": "open",
+          "verify": "go test ./internal/plan ./cmd/plan ./cmd/gate -run '^(TestPrunedDependencyRequiresGatedCompletion|TestCompletedPlanIdentityCannotBeReused)$' -count=1",
+          "rationale": "An absent row is not sufficient proof of completion. Resolve each pruned item and step identity against an ancestor gate commit and its plan-transition trailers, refuse unknown or reused identities, and link the resulting development evidence to the existing OvergoDB attempt record without creating a second completion ledger in plan.json.",
+          "depends_on": [
+            "resource-coverage/fitness-integration"
+          ],
+          "capabilities": [
+            "plan-authority",
+            "git-evidence",
+            "dependency-ratchet",
+            "gate-ratchet"
+          ]
+        },
+        {
+          "id": "core-entry-guards",
+          "title": "Ratchet existing storage, process, capability, tool, trigger, and promotion entry authorities",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/overgodb ./internal/processcontrol ./internal/agenttool ./internal/inference ./internal/workflowruntime ./internal/loop -run '^(TestArchitectureRatchetAlwaysRequired|TestProductionAuthorityBoundaries)$' -count=1",
+          "rationale": "Register one manifest-owned, always-required gate ratchet, including documentation-only commits, by reusing the gate's existing candidate source and path inventories. Measure its wall cost and refuse bypasses around the authorities already established; retire it only when those authorities disappear. Every later construction row executes inside this ratchet without launching a redundant second test process.",
+          "depends_on": [
+            "architecture-ratchets/completion-reference-authority",
+            "storage-modular-core/repository-parity",
+            "common-publication-path/semantic-batches",
+            "storage-operational-boundary/transition-boundary",
+            "process-supervision/process-boundary-guard",
+            "causal-execution/causal-projection",
+            "stimulus-reconciliation/coalesced-followup",
+            "capability-bound-activation/placement-integration",
+            "webhook-ingress/workflow-dispatch",
+            "activation-matrix/profile-coverage"
+          ],
+          "capabilities": [
+            "architecture-guard",
+            "rsi-containment",
+            "single-authority",
+            "gate-ratchet"
+          ]
+        },
+        {
+          "id": "go-only-guard",
+          "title": "Extend the permanent architecture ratchet to Go-only runtime authority",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/recipe ./internal/agenttool ./internal/loop -run '^(TestArchitectureRatchetIncludesGoOnlyPolicy|TestRSIRuntimeIsGoOnly)$' -count=1",
+          "rationale": "Extend the same always-required manifest-owned check to refuse Markdown-discovered behavior, interpreted plugins, runtime scripts, filesystem capability discovery, and non-Go extension authority. Prompts and descriptions remain typed artifact data; this step adds no second guard process or policy owner.",
+          "depends_on": [
+            "architecture-ratchets/core-entry-guards"
+          ],
+          "capabilities": [
+            "go-only",
+            "architecture-guard",
+            "authority",
+            "gate-ratchet"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "campaign-concurrency",
+      "title": "Turn DAG slack into conflict-bound implementation lanes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "ready-frontier-leases",
+          "title": "Dispatch exact ready frontiers through role-owned worktree leases and merge gated pruned completions",
+          "status": "open",
+          "verify": "go test ./internal/plan ./cmd/plan ./cmd/gate -run '^(TestReadyFrontierLeaseIsolation|TestMergeAcceptsGatedPrunedCompletion|TestMergePreservesDependencyOrder)$' -count=1",
+          "rationale": "Keep Current as the deterministic single-lane compatibility selector, but expose the complete ordered ready frontier to role-owned leases with non-overlapping filesystem and resource claims. Concurrent implementation uses distinct worktrees; each worktree gates commits serially, and semantic merge accepts a pruned row only with ancestor gate evidence while preserving dependency order. Shared-worktree subagents remain limited to parallel audit, design, and testing.",
+          "depends_on": [
+            "architecture-ratchets/go-only-guard"
+          ],
+          "capabilities": [
+            "multi-agent",
+            "worktree-lease",
+            "semantic-merge",
+            "interaction-efficiency"
           ]
         }
       ]
@@ -38,9 +158,9 @@
           "verify": "go test ./internal/overgodb -run '^TestProjectionQueryPlanEfficiency$' -count=1",
           "rationale": "Kind, media, schema, sequence, alias, lineage, contract, and causal lookups use their owning projection rather than scanning the complete catalog. The planner is deterministic for a query contract and head; a missing index may refuse an unbounded request rather than silently perform a full scan.",
           "depends_on": [
-            "storage-projections",
-            "resource-coverage",
-            "redundancy-interaction-baseline"
+            "storage-projections/atomic-publication",
+            "redundancy-interaction-baseline/interaction-traces",
+            "campaign-concurrency/ready-frontier-leases"
           ],
           "capabilities": [
             "overgodb",
@@ -57,7 +177,7 @@
           "rationale": "Consumers stop reloading complete state or polling parallel authorities. A delta is derived from canonical commits, names previous and resulting heads, coalesces only commutative view changes, and forces a bounded snapshot resync when continuity or projection version differs.",
           "depends_on": [
             "interaction-efficiency/projection-query-plans",
-            "storage-operational-boundary"
+            "storage-operational-boundary/transition-boundary"
           ],
           "capabilities": [
             "overgodb",
@@ -74,8 +194,8 @@
           "rationale": "Repeated source content is referenced once and later occurrences preserve provenance without duplicating bytes. A runtime capability that proves session continuity may receive only the stable cursor delta; stateless or retired sessions deterministically rebuild the bounded full context. Optimization cannot omit an admitted stimulus.",
           "depends_on": [
             "interaction-efficiency/head-bound-deltas",
-            "stimulus-reconciliation",
-            "capability-bound-activation"
+            "stimulus-reconciliation/stable-cursors",
+            "capability-bound-activation/placement-integration"
           ],
           "capabilities": [
             "agent-loop",
@@ -92,7 +212,7 @@
           "rationale": "Reconnect flaps, repeated wake signals, duplicate deliveries, and unchanged capability probes produce one pending reconciliation rather than one run each. Claims and reads are batched within existing authority boundaries; every admitted item is processed once or remains visibly pending.",
           "depends_on": [
             "interaction-efficiency/incremental-context",
-            "webhook-ingress"
+            "webhook-ingress/workflow-dispatch"
           ],
           "capabilities": [
             "workflow-runtime",
@@ -147,10 +267,9 @@
           "verify": "go test ./internal/modelrecipe ./internal/trainingprogram -run '^TestModelPrototypeIdentityAndValidation$' -count=1",
           "rationale": "A prototype is a content-addressed hypothesis, not executable code, weights, or an active recipe. Its architecture name must resolve to a compiled Go registration; all policy and evidence dependencies are exact artifact IDs; code identity is evidence and cannot authorize execution.",
           "depends_on": [
-            "resource-coverage",
-            "interaction-efficiency",
-            "capability-bound-activation",
-            "causal-execution"
+            "campaign-concurrency/ready-frontier-leases",
+            "capability-bound-activation/capability-identity",
+            "causal-execution/causal-context"
           ],
           "capabilities": [
             "model-prototype",
@@ -222,7 +341,7 @@
           "verify": "go test ./internal/recipe ./internal/modelrecipe ./internal/workflowrecipe -run '^TestPrototypeRecipeDerivation$' -count=1",
           "rationale": "Recipes remain immutable recipe.Definition artifacts: closed-world node and edge graphs whose modules are compiled Go capabilities. They bind model definition, profile, processor, placement, residency, session, evaluation, and policy artifacts without embedding code or discovering filesystem instructions.",
           "depends_on": [
-            "model-prototypes"
+            "model-prototypes/prototype-materialization"
           ],
           "capabilities": [
             "recipe",
@@ -293,8 +412,7 @@
           "verify": "go test ./internal/modelrecipe ./internal/runrecord -run '^TestRoutingDecisionContract$' -count=1",
           "rationale": "A routing decision is a canonical fact: which verified model or recipe serves a task, derived from published evaluation and resource evidence with distribution-free bounds and no tunable weights. The record names the candidates considered, the evidence each was judged on, and the derivation, so selection is replayable and auditable like any other promotion.",
           "depends_on": [
-            "model-recipe-lifecycle",
-            "resource-coverage"
+            "model-recipe-lifecycle/recipe-validation"
           ],
           "capabilities": [
             "rsi-routing",
@@ -310,7 +428,8 @@
           "rationale": "Selection prefers the cheapest verified candidate whose published evidence meets the task threshold; evidence admission follows one ordered gate owner. Every live selection commits its decision record through the common publication path, turning the benchmark substrate from passive record into an active control input.",
           "depends_on": [
             "evidence-routing/decision-contract",
-            "capability-bound-activation"
+            "capability-bound-activation/placement-integration",
+            "model-recipe-lifecycle/recipe-evaluation"
           ],
           "capabilities": [
             "rsi-routing",
@@ -326,7 +445,7 @@
           "rationale": "A candidate selection policy is evaluated against the recorded decision corpus before any live rollout: identical inputs, both policies, published deltas with coverage. Counterfactual evidence is a required admission input for routing-policy rollout plans, so policy improvement is measured at near-zero cost before it is trusted with live work.",
           "depends_on": [
             "evidence-routing/evidence-selection",
-            "causal-execution"
+            "causal-execution/causal-projection"
           ],
           "capabilities": [
             "rsi-routing",
@@ -348,11 +467,10 @@
           "verify": "go test ./internal/runrecord ./internal/loop -run '^TestRolloutPlanIdentityAndValidation$' -count=1",
           "rationale": "A rollout is evidence-bearing promotion policy, not a mutable feature flag. Cohort size, observation requirements, and boundaries are derived from evaluation evidence or explicit typed decisions with reopen triggers.",
           "depends_on": [
-            "resource-coverage",
-            "interaction-efficiency",
-            "causal-execution",
-            "model-recipe-lifecycle",
-            "evidence-routing"
+            "resource-coverage/fitness-integration",
+            "causal-execution/causal-context",
+            "model-recipe-lifecycle/recipe-evaluation",
+            "evidence-routing/decision-contract"
           ],
           "capabilities": [
             "rsi-rollout",
@@ -420,7 +538,7 @@
           "verify": "go test ./internal/evaluation ./internal/runrecord -run '^TestLiveSafetyWindowDerivation$' -count=1",
           "rationale": "No Gaussian, stationary, or IID assumption is introduced. Small samples refuse decisions unless envelopes separate; larger histories use the repository doctrine's distribution-free summaries and record the derivation evidence.",
           "depends_on": [
-            "deterministic-rollout"
+            "deterministic-rollout/projection-evidence"
           ],
           "capabilities": [
             "live-evaluation",
@@ -450,7 +568,8 @@
           "verify": "go test ./internal/loop ./internal/overgodb -run '^TestAtomicCandidateRollback$' -count=1",
           "rationale": "Only the promotion authority can change the active binding. Concurrent promotion, rollback, or operator action has one winner; stale decisions refuse and preserve their evidence without overwriting a newer head.",
           "depends_on": [
-            "live-safety/circuit-breaker"
+            "live-safety/circuit-breaker",
+            "deterministic-rollout/promotion-binding"
           ],
           "capabilities": [
             "rollback",
@@ -483,39 +602,39 @@
       "steps": [
         {
           "id": "single-entry-guards",
-          "title": "Refuse production bypasses around process, model, tool, network, trigger, commit, and promotion authorities",
+          "title": "Extend and re-run the permanent authority ratchet over completed RSI entry points",
           "status": "open",
           "verify": "go test ./internal/overgodb ./internal/processcontrol ./internal/agenttool ./internal/inference ./internal/workflowruntime ./internal/loop -run '^TestProductionAuthorityBoundaries$' -count=1",
-          "rationale": "Self-modifying code must not create a second side-effect path. Architecture tests inspect production imports and constructors, permit narrow test exceptions, and require each new trigger to declare causal, authority, budget, idempotency, and evidence behavior.",
+          "rationale": "Extend the same early always-required, manifest-owned gate ratchet over the newly created model, recipe, routing, rollout, and safety authorities. Re-run its architecture contract after convergence; do not create a second guard process or policy owner.",
           "depends_on": [
-            "process-supervision",
-            "stimulus-reconciliation",
-            "capability-bound-activation",
-            "webhook-ingress",
-            "model-recipe-lifecycle",
-            "live-safety",
-            "evidence-routing",
-            "activation-matrix"
+            "architecture-ratchets/go-only-guard",
+            "interaction-efficiency/efficiency-gate",
+            "model-recipe-lifecycle/recipe-activation",
+            "evidence-routing/counterfactual-replay",
+            "deterministic-rollout/promotion-binding",
+            "live-safety/reentry"
           ],
           "capabilities": [
             "architecture-guard",
             "rsi-containment",
-            "single-authority"
+            "single-authority",
+            "gate-ratchet"
           ]
         },
         {
           "id": "go-only-guard",
-          "title": "Refuse Markdown-discovered behavior, interpreted plugins, runtime scripts, and non-Go extension authority",
+          "title": "Re-run the permanent Go-only ratchet against the completed RSI surface",
           "status": "open",
           "verify": "go test ./internal/recipe ./internal/agenttool ./internal/loop -run '^TestRSIRuntimeIsGoOnly$' -count=1",
-          "rationale": "Prompts and descriptions may remain typed artifact data, but files named as skills, plugin manifests, embedded interpreters, or filesystem discovery cannot grant capabilities or alter runtime semantics.",
+          "rationale": "Re-run the same early Go-only ratchet after every planned extension exists. Prompts and descriptions remain typed artifact data, but Markdown skills, plugin manifests, embedded interpreters, runtime scripts, and filesystem discovery cannot grant capabilities or alter runtime semantics; no duplicate check is introduced.",
           "depends_on": [
             "architecture-closure/single-entry-guards"
           ],
           "capabilities": [
             "go-only",
             "architecture-guard",
-            "authority"
+            "authority",
+            "gate-ratchet"
           ]
         },
         {
@@ -540,7 +659,7 @@
           "title": "Run one prototype through model and recipe materialization, execution, evaluation, rollout, live regression, atomic rollback, and reproducible explanation",
           "status": "open",
           "verify": "go test ./internal/loop ./internal/evaluation ./internal/runrecord ./internal/overgodb -run '^TestDeterministicRSIControlPlane$' -count=1",
-          "rationale": "Acceptance requires externally visible control behavior, not only new record types: admitted prototype, compiled Go construction, resolved model definition, validated task recipe, exact capability placement, bounded stimuli, terminal attempt evidence, resource and coverage comparison, measured interaction reduction without lost work, deterministic cohorting, live containment, and causal evidence reproduced after cold rebuild.",
+          "rationale": "Acceptance requires externally visible control behavior, not only new record types: admitted prototype, compiled Go construction, resolved model definition, validated task recipe, exact strategy identity, semantically relevant typed references, exact capability placement, bounded stimuli, terminal attempt evidence, explicit missing and degraded coverage states under shared fact, chunk, and raw-byte budgets, resource comparison, measured interaction reduction without lost work, deterministic cohorting, live containment, and causal evidence reproduced after cold rebuild.",
           "depends_on": [
             "architecture-closure/migration-drill"
           ],

@@ -68,9 +68,34 @@ func TestDependencyValidationRefusesCycles(t *testing.T) {
 	}
 }
 
-// TestDependencySameItemEdges pins the same-item contract: a step may
-// depend on a sibling step, but never on its own item or itself, and
-// mutually dependent siblings are a cycle.
+func TestDependencyValidationRequiresExactSteps(t *testing.T) {
+	for _, reference := range []string{"root", "/do", "root/", "root/do/extra", " root/do", "root/ do", "root\\do"} {
+		document := dependencyFixture()
+		document.Items[1].Steps[0].DependsOn = []string{reference}
+		if err := Validate(document); err == nil || !strings.Contains(err.Error(), "exact item/step") {
+			t.Errorf("depends_on %q error = %v, want exact-step refusal", reference, err)
+		}
+	}
+	completed := dependencyFixture()
+	completed.Items[1].Steps[0].DependsOn = []string{"completed/do", "root/completed-step"}
+	if err := Validate(completed); err != nil {
+		t.Fatalf("exact pruned step refused: %v", err)
+	}
+	for _, mutate := range []func(*Plan){
+		func(document *Plan) { document.Items[0].ID = "root/item" },
+		func(document *Plan) { document.Items[0].Steps[0].ID = "bad step" },
+	} {
+		document := dependencyFixture()
+		mutate(&document)
+		if err := Validate(document); err == nil || !strings.Contains(err.Error(), "invalid") {
+			t.Errorf("malformed plan identity accepted: %v", err)
+		}
+	}
+}
+
+// TestDependencySameItemEdges pins the same-item contract: a step may depend
+// on a sibling step, but never on itself, and mutually dependent siblings are
+// a cycle.
 func TestDependencySameItemEdges(t *testing.T) {
 	sibling := dependencyFixture()
 	sibling.Items[0].Steps = append(sibling.Items[0].Steps, Step{
@@ -82,13 +107,8 @@ func TestDependencySameItemEdges(t *testing.T) {
 	}
 	self := dependencyFixture()
 	self.Items[0].Steps[0].DependsOn = []string{"root/do"}
-	if err := Validate(self); err == nil || !strings.Contains(err.Error(), "own item") {
+	if err := Validate(self); err == nil || !strings.Contains(err.Error(), "itself") {
 		t.Fatalf("self step dependency accepted: %v", err)
-	}
-	ownItem := dependencyFixture()
-	ownItem.Items[0].Steps[0].DependsOn = []string{"root"}
-	if err := Validate(ownItem); err == nil || !strings.Contains(err.Error(), "own item") {
-		t.Fatalf("own-item dependency accepted: %v", err)
 	}
 	mutual := dependencyFixture()
 	mutual.Items[1].Steps[0].DependsOn = nil

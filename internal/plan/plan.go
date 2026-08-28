@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
@@ -110,8 +111,8 @@ func Validate(d Plan) error {
 	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
-		if item.ID == "" || items[item.ID] {
-			return fmt.Errorf("plan item id %q is empty or duplicated", item.ID)
+		if !validPlanID(item.ID) || items[item.ID] {
+			return fmt.Errorf("plan item id %q is invalid or duplicated", item.ID)
 		}
 		items[item.ID] = true
 		if item.Owner != "" && !validAutomationText(item.Owner) {
@@ -122,8 +123,8 @@ func Validate(d Plan) error {
 		}
 		steps := map[string]bool{}
 		for _, step := range item.Steps {
-			if step.ID == "" || steps[step.ID] {
-				return fmt.Errorf("plan step %s/%s is empty or duplicated", item.ID, step.ID)
+			if !validPlanID(step.ID) || steps[step.ID] {
+				return fmt.Errorf("plan step %s/%s is invalid or duplicated", item.ID, step.ID)
 			}
 			steps[step.ID] = true
 			if !validStatus(step.Status) {
@@ -140,10 +141,9 @@ func Validate(d Plan) error {
 	return validateDependencies(d)
 }
 
-// validateDependencies refuses dangling depends_on references and
-// dependency cycles: a reference that names nothing can never satisfy,
-// and a cycle deadlocks dispatch silently. References name an item or
-// an item/step pair.
+// validateDependencies requires exact item/step references and refuses
+// dependency cycles among retained steps. References to absent items or steps
+// remain satisfied because completion removes their plan rows.
 func validateDependencies(d Plan) error {
 	itemIndex := map[string]Item{}
 	for _, item := range d.Items {
@@ -152,27 +152,31 @@ func validateDependencies(d Plan) error {
 	edges := map[string][]string{}
 	for _, item := range d.Items {
 		for _, step := range item.Steps {
+			source := item.ID + "/" + step.ID
 			for _, reference := range step.DependsOn {
 				target, targetStep, hasStep := strings.Cut(reference, "/")
+				if !hasStep || !validPlanID(target) || !validPlanID(targetStep) {
+					return fmt.Errorf("plan step %s: depends_on %q must name one exact item/step", source, reference)
+				}
 				// A reference to an ABSENT item is a completed dependency
 				// (completion removes rows), so only present targets join
 				// the cycle graph.
-				if _, present := itemIndex[target]; !present {
+				targetItem, present := itemIndex[target]
+				if !present {
 					continue
 				}
-				if target != item.ID {
-					edges[item.ID] = append(edges[item.ID], target)
+				if !slices.ContainsFunc(targetItem.Steps, func(candidate Step) bool { return candidate.ID == targetStep }) {
+					// Completed steps are pruned even while later steps retain
+					// their item. Their exact references therefore satisfy just
+					// like references to wholly removed items.
 					continue
 				}
-				// A same-item reference must name a DIFFERENT step: a step
-				// depending on its own item (or itself) can never satisfy
-				// and would sit permanently undispatchable.
-				if !hasStep || targetStep == step.ID {
+				if target == item.ID && targetStep == step.ID {
 					return fmt.Errorf(
-						"plan step %s/%s: depends_on %q can never satisfy: a step cannot depend on its own item or itself",
-						item.ID, step.ID, reference)
+						"plan step %s: depends_on %q can never satisfy: a step cannot depend on itself",
+						source, reference)
 				}
-				edges[item.ID+"/"+step.ID] = append(edges[item.ID+"/"+step.ID], item.ID+"/"+targetStep)
+				edges[source] = append(edges[source], target+"/"+targetStep)
 			}
 		}
 	}
@@ -203,21 +207,16 @@ func validateDependencies(d Plan) error {
 }
 
 // dependenciesSatisfied reports whether every depends_on reference is
-// complete. Completion REMOVES rows, so a reference naming an item or
-// step absent from the plan is satisfied: it was completed and left
-// with its implementing commit. Only a reference to a still-present
-// open row blocks.
+// complete. Completion REMOVES rows, so an exact reference to an absent item
+// or step is satisfied: it completed and left with its implementing commit.
+// Only a still-present open step blocks.
 func dependenciesSatisfied(d Plan, step Step) bool {
 	for _, reference := range step.DependsOn {
-		itemID, stepID, hasStep := strings.Cut(reference, "/")
+		itemID, stepID, _ := strings.Cut(reference, "/")
 		satisfied := true
 		for _, item := range d.Items {
 			if item.ID != itemID {
 				continue
-			}
-			if !hasStep {
-				satisfied = item.Status == StatusDone
-				break
 			}
 			satisfied = !slices.ContainsFunc(item.Steps, func(candidate Step) bool {
 				return candidate.ID == stepID && candidate.Status != StatusDone
@@ -303,6 +302,11 @@ func AutomationRole(explicit string) (string, error) {
 
 func validAutomationText(value string) bool {
 	return textcheck.Bounded(value, automationRoleMaxBytes, "\x00\r\n")
+}
+
+func validPlanID(value string) bool {
+	return textcheck.Bounded(value, automationRoleMaxBytes, "/\\\x00\r\n") &&
+		strings.IndexFunc(value, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) < 0
 }
 
 func validAutomationDetail(value string) bool {

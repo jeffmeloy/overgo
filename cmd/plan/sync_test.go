@@ -59,7 +59,7 @@ func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
 	}
 
 	base.Items[0].Steps[0].Rationale = "why"
-	base.Items[0].Steps[0].DependsOn = []string{"base-upstream"}
+	base.Items[0].Steps[0].DependsOn = []string{"base-upstream/do"}
 	base.Items[0].Steps[0].Capabilities = []string{"runtime"}
 	base.Items[0].Steps[0].Outcome = json.RawMessage(`{"verdict":"pass"}`)
 	local = clonePlan(t, base)
@@ -71,7 +71,7 @@ func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
 		t.Fatal(err)
 	}
 	step := merged.Items[0].Steps[0]
-	if step.Rationale != "why" || !slices.Equal(step.DependsOn, []string{"base-upstream"}) ||
+	if step.Rationale != "why" || !slices.Equal(step.DependsOn, []string{"base-upstream/do"}) ||
 		!slices.Equal(step.Capabilities, []string{"runtime"}) || string(step.Outcome) != `{"verdict":"pass"}` {
 		t.Fatalf("merged step lost fields: %+v", step)
 	}

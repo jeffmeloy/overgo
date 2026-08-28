@@ -73,7 +73,8 @@ Overgo already combines the following components in one codebase:
 | Benchmarks and evaluation | Store-derived benchmark catalogs, native lm_eval-family suites, per-model prompt templates, domain-routed evaluation, and measured capability claims |
 | Human-directed work | External workbench for goals, chat and media, agent sessions, model and data operations, measurement review, intervention, and rollback |
 | RSI steering | Typed falsifiable proposals through deterministic admission, consumed by the driver under budget, saturation, and operator-stop conditions; shared with human-directed work |
-| Interfaces | Command line, HTTP APIs, scheduled jobs, and an external operator workbench over shared backend state |
+| Tool calling | UTCP-style manuals in the store: each tool declares its effect class, typed arguments, and native transport; unregistered tools are not callable |
+| Interfaces | Command line, HTTP APIs, scheduled jobs, and an external operator workbench over shared backend state; the whole public surface is enumerated in the generated [API manifest](docs/API_MANIFEST.md) |
 
 ## Operator workbench
 
@@ -154,6 +155,35 @@ afterward. Steering from the workbench — goals, priorities, interventions,
 approvals, rollback — enters through the same bounded interface the RSI
 path uses. Nothing is reachable from the browser that is not equally
 reachable, and equally checked, from the deterministic control plane.
+
+## Tool calling: UTCP, not MCP
+
+Agent tool calling follows the UTCP philosophy: describe each tool once, in a
+typed manual, and invoke it over its own native transport — no
+protocol-translation server sits between the agent and the tool, and there is
+deliberately no MCP bridge in the tree.
+
+A manual is a store document (`overgo/agent-tool-manual/v1`) declaring the
+tool's name, its **effect class** — `inspection` reads state, `mutation`
+changes it and is gated behind inspection — its typed arguments, and its
+transport binding: a built-in Go function or an http-json-stream endpoint.
+Manuals are published to OvergoDB under registered aliases; orchestration
+resolves tools from the store, never from code alone, so an unregistered tool
+is not callable and a mutation without a durable receipt does not execute.
+
+```bash
+go run ./cmd/agent-tool -manuals tools.json            # register manuals
+go run ./cmd/agent-tool -resolve <name>                # resolve one registered manual
+```
+
+Agent sessions in the workbench execute against this same catalog: the server
+derives each session's tool-manual set and layered authority map server-side,
+exceptional mutations queue as argument-bound approvals, and every invocation
+lands as a durable record. The `agent-tool-manuals` protocol row in the
+[API manifest](docs/API_MANIFEST.md) is the machine-readable statement of this
+contract; capability proxies that expose model recipes as agent tools are
+staged surface awaiting the delegation campaign
+([staged surface](docs/staged_surface.json)).
 
 ## Current state
 
@@ -288,6 +318,15 @@ An unavailable model or device is not counted as a successful verification.
 
 ## References
 
+- [API manifest](docs/API_MANIFEST.md) — the generated public surface: every
+  command binary, every typed store document contract, the UTCP tool
+  protocol, and content-digested automation authorities; canonical JSON at
+  [docs/api_manifest.json](docs/api_manifest.json); regenerate with
+  `go run ./cmd/api-manifest -update`, verify with `-check`
+- [Media capability report](docs/MEDIA_REPORT.md) — every media activation
+  with its measured verifier run, phase decomposition, peak device bytes,
+  and generated samples beside the requests that produced them; regenerate
+  with `go run ./cmd/compatibility -update-media`
 - [Model prototypes with verified models, nested](docs/model_compatibility.json) —
   structured JSON: each specific model's inference and training verification
   summaries inside the prototype it belongs to; regenerate with
@@ -295,6 +334,9 @@ An unavailable model or device is not counted as a successful verification.
 - [Compatibility and verified capabilities](docs/COMPATIBILITY.md)
 - [Training compatibility](docs/TRAINING_COMPATIBILITY.md)
 - [Machine-readable compatibility data](compatibility.json)
+- [Staged surface declarations](docs/staged_surface.json) — reviewed exported
+  symbols whose production consumers are deliberately deferred, each with the
+  trigger that retires it
 - [Current development plan](docs/plan.json)
 - [Development and verification doctrine](skill.md)
 - [Software bill of materials](SBOM.cdx.json)

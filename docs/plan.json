@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "tighten-revision-owner",
-      "title": "One owner for git revision facts",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "One owner for git revision facts",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "tighten-artifact-unmarshal",
       "title": "One text-unmarshal helper in artifact",
       "status": "open",

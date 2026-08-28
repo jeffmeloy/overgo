@@ -484,11 +484,7 @@ func cleanGoRevision() (string, error) {
 	if strings.TrimSpace(string(status)) != "" {
 		return "", errors.New("recipe verifier requires committed Go source")
 	}
-	revision, err := exec.Command("git", "rev-parse", "HEAD").Output()
-	if err != nil {
-		return "", fmt.Errorf("recipe verifier revision: %w", err)
-	}
-	return strings.TrimSpace(string(revision)), nil
+	return runrecord.HeadCommit(".")
 }
 
 func executeCapability(

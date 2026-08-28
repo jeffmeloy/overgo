@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -17,6 +16,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
 )
 
@@ -230,7 +230,7 @@ func runSynthesize(
 	if err != nil {
 		return err
 	}
-	revision, err := currentCommit()
+	revision, err := runrecord.HeadCommit(".")
 	if err != nil {
 		return err
 	}
@@ -254,14 +254,6 @@ func runSynthesize(
 	fmt.Fprintf(output, "reason: %s\n", outcome.Decision.Reason)
 	fmt.Fprintln(output, "honesty: the proposal stays promotion-blocked; this decision is evidence for the experiment plane, never an override")
 	return nil
-}
-
-func currentCommit() (string, error) {
-	data, err := exec.Command("git", "rev-parse", "HEAD").Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(data)), nil
 }
 
 // runChain executes the Tier-0 whole-model chain probe: both arms run through

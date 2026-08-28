@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"runtime/debug"
 	"slices"
-	"strings"
 	"time"
 
 	"overgo/internal/artifact"
@@ -29,11 +27,7 @@ func codeRevision() (string, error) {
 			}
 		}
 	}
-	out, err := exec.Command("git", "rev-parse", "HEAD").Output()
-	if err != nil {
-		return "", fmt.Errorf("VQA verifier code revision: %w", err)
-	}
-	return strings.TrimSpace(string(out)), nil
+	return runrecord.HeadCommit(".")
 }
 
 func cudaEnvironment() (runrecord.Environment, error) {

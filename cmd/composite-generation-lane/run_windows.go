@@ -656,7 +656,7 @@ func publishLaneEvidence(
 	if err != nil {
 		return composition.CompositeGenerationCUDAEvidence{}, err
 	}
-	codeCommit, err := currentCodeCommit()
+	codeCommit, err := runrecord.HeadCommit(".")
 	if err != nil {
 		return composition.CompositeGenerationCUDAEvidence{}, err
 	}

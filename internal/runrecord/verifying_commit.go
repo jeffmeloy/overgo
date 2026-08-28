@@ -7,6 +7,17 @@ import (
 	"strings"
 )
 
+// HeadCommit returns the repository HEAD revision with no cleanliness
+// requirement; callers that must bind to committed source use
+// VerifyingCommit instead.
+func HeadCommit(root string) (string, error) {
+	head, err := exec.Command("git", "-C", root, "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("resolve HEAD commit: %w", err)
+	}
+	return strings.TrimSpace(string(head)), nil
+}
+
 // VerifyingCommit returns HEAD only when tracked and untracked worktree
 // state is empty, so a claim cannot identify a commit that differs from
 // executed source or fixture bytes. Every capability claim carries this

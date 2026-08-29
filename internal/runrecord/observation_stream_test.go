@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -87,7 +88,7 @@ func TestLoadObservationStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	observedWork := InteractionWork{Retries: 2}
+	observedWork := InteractionWork{Failures: 1, Retries: 2}
 	second, err := NewObservationChunk(scope, firstSummary.ID, []ObservationSample{
 		{Ordinal: 3, ElapsedNS: 30, Kind: ObservationSampleMessage, Measures: []ResourceMeasure{
 			{Metric: ResourcePeakHostBytes, Value: 120},
@@ -240,6 +241,21 @@ func TestLoadObservationStream(t *testing.T) {
 				t.Fatalf("discontinuity refusal = (%v, %v)", found, err)
 			}
 		})
+	}
+
+	third, err := NewObservationChunk(scope, secondSummary.ID, []ObservationSample{{
+		Ordinal: 4, ElapsedNS: 40, Kind: ObservationSampleExecution,
+		Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 100}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := commitObservationChunk(t, ctx, store, third); err != nil {
+		t.Fatal(err)
+	}
+	historical, err := RequireObservationStream(ctx, store, scope.Attempt, secondSummary.ID, bounds)
+	if err != nil || !reflect.DeepEqual(historical, stream) {
+		t.Fatalf("exact historical stream after alias advance = (%+v, %v)", historical, err)
 	}
 
 	hardwareScope := scope

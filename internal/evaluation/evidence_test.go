@@ -65,6 +65,30 @@ func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	verified, err := RequireEvaluationEvidence(ctx, store, evidence.ID)
+	if err != nil || verified.ID != evidence.ID {
+		t.Fatalf("verified evidence = %+v err=%v", verified, err)
+	}
+	forged := cloneEvaluationEvidence(evidence)
+	forged.ID = artifact.ID{}
+	forged.CodeCommit = "fedcba9876543210fedcba9876543210fedcba98"
+	forged, err = evaluationEvidenceCodec.New(forged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	forgedBatch, err := evaluationEvidenceCodec.Batch(
+		"evaluation/evidence-test/forged-bypass", forged, forged.Lineage(), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, forgedBatch); err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := RequireEvaluationEvidence(ctx, store, forged.ID)
+	if err == nil || rejected.ID.Valid() || rejected.Metrics != nil {
+		t.Fatalf("read-side verification accepted forged evidence: %+v err=%v", rejected, err)
+	}
 	stored, found, err := evaluationEvidenceCodec.Read(ctx, store, evidence.ID)
 	if err != nil || !found || stored.Plan != plan.identity || stored.Acceptance != policy.ID ||
 		stored.Report != report || stored.Run != run.ID || stored.Evaluation != record.ID ||

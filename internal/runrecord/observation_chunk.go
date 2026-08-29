@@ -629,6 +629,7 @@ func addInteractionWork(total *InteractionWork, delta InteractionWork) bool {
 		{&total.ReturnedFacts, delta.ReturnedFacts},
 		{&total.Bytes, delta.Bytes},
 		{&total.Wakeups, delta.Wakeups},
+		{&total.Failures, delta.Failures},
 		{&total.Retries, delta.Retries},
 		{&total.ModelTurns, delta.ModelTurns},
 		{&total.ContextBytes, delta.ContextBytes},

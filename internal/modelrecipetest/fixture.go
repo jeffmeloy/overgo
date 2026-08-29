@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/model"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -21,6 +23,97 @@ type Capability struct {
 	Model   artifact.ID
 	Program recipe.Program
 	Runtime *workflowruntime.Runtime
+}
+
+// PublishModelDefinition publishes a small, fully typed model-definition
+// authority suitable for tests that must reject descriptor-only model claims.
+func PublishModelDefinition(
+	ctx context.Context,
+	store artifact.Repository,
+	key string,
+	modelID artifact.ID,
+) (modelrecipe.ResolvedModelDefinition, error) {
+	if ctx == nil || store == nil || modelID.Kind() != artifact.KindModel {
+		return modelrecipe.ResolvedModelDefinition{}, fmt.Errorf("model recipe fixture: invalid model-definition publication")
+	}
+	profile, found := model.LookupArchitecture("llama")
+	if !found {
+		return modelrecipe.ResolvedModelDefinition{}, fmt.Errorf("model recipe fixture: llama profile is absent")
+	}
+	profileDocument, err := modelrecipe.NewProfileDocument(profile)
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	tensors, err := modelartifact.NewTensorInventoryDocument(
+		modelID,
+		modelartifact.TensorFormatGGUF,
+		[]modelartifact.TensorFact{{Name: "weight", Shape: []uint64{}, Storage: "f32", Bytes: 4}},
+	)
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	spec := model.Spec{
+		CommonSpec: model.CommonSpec{
+			Architecture: "llama", BlockCount: 1, ContextLength: 128,
+			EmbeddingLength: 8, FeedForwardLength: 16, RMSNormEpsilon: 1e-5,
+		},
+		AttentionSpec: model.AttentionSpec{
+			HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10_000,
+		},
+	}
+	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, tensors, spec)
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	resolved, err := document.Resolve(profileDocument, tensors)
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	profileData, err := profileDocument.Content()
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	profileContent, err := (artifact.DocumentContract{
+		Kind: artifact.KindProfile, MediaType: modelrecipe.ProfileMediaType, Schema: modelrecipe.ProfileSchema,
+	}).Content(profileDocument.ID, profileData)
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	derivation, err := modelrecipe.NewCatalogProfileDerivation(profile)
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	derivationContent, err := derivation.Content()
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	tensorContent, err := tensors.Content()
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	definitionContent, err := document.Content()
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		key,
+		[]artifact.Content{derivationContent, profileContent, tensorContent, definitionContent},
+		[]artifact.Lineage{
+			{Child: profileDocument.ID, Parent: derivation.ID, Relation: artifact.RelationDerivedFrom},
+			{Child: tensors.ID, Parent: modelID, Relation: artifact.RelationDerivedFrom},
+			{Child: document.ID, Parent: modelID, Relation: artifact.RelationDerivedFrom},
+			{Child: document.ID, Parent: profileDocument.ID, Relation: artifact.RelationDependsOn},
+			{Child: document.ID, Parent: tensors.ID, Relation: artifact.RelationDependsOn},
+		},
+		nil,
+	)
+	if err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return modelrecipe.ResolvedModelDefinition{}, err
+	}
+	return resolved, nil
 }
 
 func PublishVerification(

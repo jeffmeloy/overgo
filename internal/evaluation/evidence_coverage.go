@@ -44,6 +44,11 @@ type CoverageRequirement struct {
 // CoverageUnit is one exact attempt and its required evidence axes.
 type CoverageUnit struct {
 	Attempt artifact.ID `json:"attempt"`
+	// ObservationHead optionally pins the exact immutable summary at the end
+	// of Attempt's observation stream. A zero identity preserves live alias
+	// resolution for exploratory coverage queries; persisted fitness evidence
+	// always supplies the head so later alias advances cannot rewrite history.
+	ObservationHead artifact.ID `json:"observation_head,omitzero"`
 	// Terminal names the exact immutable terminal fact used for outcome
 	// coverage. A zero identity makes no terminal claim. Run and AttemptRecord
 	// terminals are self-identifying; a TerminalAttemptReceipt names Attempt as
@@ -140,6 +145,24 @@ func NewEvidenceCoverageQuery(
 // Project reads only bounded indexes for the query's explicit units and binds
 // the result to one exact journal head. A concurrent head change is refused.
 func (query CoverageQuery) Project(ctx context.Context, store *overgodb.Store) (CoverageProjection, error) {
+	return query.project(ctx, store, nil)
+}
+
+type coverageObservationKey struct {
+	attempt artifact.ID
+	head    artifact.ID
+}
+
+type coverageObservationCache map[coverageObservationKey]runrecord.ObservationStream
+
+// project accepts exact streams already replayed by a stronger containing
+// proof. The cache is private so public coverage callers cannot substitute
+// unchecked materialized aggregates for owner-verified observation content.
+func (query CoverageQuery) project(
+	ctx context.Context,
+	store *overgodb.Store,
+	observations coverageObservationCache,
+) (CoverageProjection, error) {
 	if ctx == nil || store == nil {
 		return CoverageProjection{}, errors.New("evaluation: evidence coverage store is absent")
 	}
@@ -150,7 +173,7 @@ func (query CoverageQuery) Project(ctx context.Context, store *overgodb.Store) (
 		!slices.Equal(query.Pairs, canonical.Pairs) {
 		return CoverageProjection{}, errors.Join(err, errors.New("evaluation: evidence coverage query is not canonical"))
 	}
-	return projectEvidenceCoverage(ctx, store, canonical)
+	return projectEvidenceCoverage(ctx, store, canonical, observations)
 }
 
 func canonicalizeCoverageQuery(query *CoverageQuery) error {
@@ -175,6 +198,9 @@ func canonicalizeCoverageQuery(query *CoverageQuery) error {
 		}
 		if unit.Attempt.Kind() != artifact.KindRun && unit.Attempt.Kind() != artifact.KindEvidence {
 			return errors.New("evaluation: invalid evidence coverage unit")
+		}
+		if unit.ObservationHead.Valid() && unit.ObservationHead.Kind() != artifact.KindEvidence {
+			return errors.New("evaluation: invalid evidence coverage observation head")
 		}
 		if unit.Terminal.Valid() && unit.Terminal.Kind() != artifact.KindRun &&
 			unit.Terminal.Kind() != artifact.KindEvidence {
@@ -288,7 +314,7 @@ func cloneCoverageUnits(units []CoverageUnit) []CoverageUnit {
 }
 
 func equalCoverageUnit(left, right CoverageUnit) bool {
-	return left.Attempt == right.Attempt && left.Terminal == right.Terminal &&
+	return left.Attempt == right.Attempt && left.ObservationHead == right.ObservationHead && left.Terminal == right.Terminal &&
 		slices.Equal(left.EvaluationEvidence, right.EvaluationEvidence) &&
 		slices.Equal(left.FailureObservations, right.FailureObservations) &&
 		equalCoverageRequirements(left.Required, right.Required)
@@ -391,7 +417,7 @@ type coveragePlanContext struct {
 	codeCommit      string
 }
 
-func (context coveragePlanContext) matches(evidence EvaluationEvidence) bool {
+func (context coveragePlanContext) matches(evidence coverageEvaluationAuthority) bool {
 	return context.modelDefinition == evidence.ModelDefinition && context.recipe == evidence.Recipe &&
 		context.pair.dataset == evidence.Dataset && context.pair.split == evidence.Split &&
 		context.pair.environment == evidence.Environment && context.codeCommit == evidence.CodeCommit
@@ -416,11 +442,76 @@ type coverageEvaluationFacts struct {
 	pair             coveragePairContext
 }
 
+type coverageEvaluationAuthority struct {
+	ID              artifact.ID
+	Plan            artifact.ID
+	ModelDefinition artifact.ID
+	Recipe          artifact.ID
+	Dataset         artifact.ID
+	Split           artifact.ID
+	Environment     artifact.ID
+	CodeCommit      string
+	Causal          *runrecord.CausalContext
+}
+
+type coverageEvaluationRelevance struct {
+	run        runrecord.Run
+	evaluation runrecord.Evaluation
+}
+
+func (relevance coverageEvaluationRelevance) verify(
+	_ context.Context,
+	_ artifact.Reader,
+	evidence EvaluationEvidence,
+) error {
+	if relevance.run.ID != evidence.Run || relevance.run.Outcome != runrecord.OutcomeSucceeded ||
+		relevance.evaluation.ID != evidence.Evaluation || relevance.evaluation.Run != relevance.run.ID ||
+		relevance.run.Recipe != evidence.Recipe || relevance.evaluation.Recipe != evidence.Recipe ||
+		relevance.evaluation.Dataset != evidence.Dataset || relevance.run.Environment != evidence.Environment ||
+		relevance.run.CodeCommit != evidence.CodeCommit || !slices.Contains(relevance.run.Inputs, evidence.Plan) {
+		return errors.New("evaluation: coverage evidence differs from unit")
+	}
+	return nil
+}
+
+// requireCoverageEvaluationEvidence verifies only claims consumed by this
+// bounded projection. The metered plan and causality reads below prove its
+// remaining comparison and causal claims; quality authorities stay under the
+// full RequireEvaluationEvidence owner.
+func requireCoverageEvaluationEvidence(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+	relevance coverageEvaluationRelevance,
+) (coverageEvaluationAuthority, error) {
+	evidence, err := evaluationEvidenceCodec.RequireVerified(ctx, reader, id, relevance.verify)
+	if err != nil {
+		return coverageEvaluationAuthority{}, err
+	}
+	return coverageAuthorityFromEvidence(evidence), nil
+}
+
+func coverageAuthorityFromEvidence(evidence EvaluationEvidence) coverageEvaluationAuthority {
+	var causal *runrecord.CausalContext
+	if evidence.Causal != nil {
+		cloned := *evidence.Causal
+		cloned.Motivation = slices.Clone(evidence.Causal.Motivation)
+		causal = &cloned
+	}
+	return coverageEvaluationAuthority{
+		ID: evidence.ID, Plan: evidence.Plan, ModelDefinition: evidence.ModelDefinition,
+		Recipe: evidence.Recipe, Dataset: evidence.Dataset, Split: evidence.Split,
+		Environment: evidence.Environment, CodeCommit: evidence.CodeCommit, Causal: causal,
+	}
+}
+
 type coverageUnitFacts struct {
 	outcomeKnown         bool
 	failed               bool
 	recovered            bool
 	runTerminal          bool
+	wallMeasured         bool
+	wallNS               uint64
 	causalAuthoritative  bool
 	costed               bool
 	costUnits            uint64
@@ -428,12 +519,14 @@ type coverageUnitFacts struct {
 	causal               *runrecord.CausalContext
 	failureObservation   artifact.ID
 	failureNormalization artifact.ID
+	run                  runrecord.Run
 }
 
 func projectEvidenceCoverage(
 	ctx context.Context,
 	store *overgodb.Store,
 	query CoverageQuery,
+	observations coverageObservationCache,
 ) (CoverageProjection, error) {
 	head, sequence := store.Head()
 	projection := CoverageProjection{
@@ -446,7 +539,7 @@ func projectEvidenceCoverage(
 	budget := newCoverageBudget(query.Bounds)
 	units := make(map[artifact.ID]projectedCoverageUnit, len(query.Units))
 	for _, unit := range query.Units {
-		projected, sources, err := projectCoverageUnit(ctx, store, unit, head, sequence, &budget)
+		projected, sources, err := projectCoverageUnit(ctx, store, unit, head, sequence, &budget, observations)
 		if err != nil {
 			return CoverageProjection{}, err
 		}
@@ -499,9 +592,23 @@ func projectCoverageUnit(
 	head artifact.CommitID,
 	sequence uint64,
 	budget *coverageBudget,
+	observations coverageObservationCache,
 ) (projectedCoverageUnit, []artifact.ID, error) {
 	projected := projectedCoverageUnit{axes: make(map[CoverageAxis]coverageState, len(unit.Required))}
-	stream, foundStream, err := runrecord.LoadObservationStream(ctx, store, unit.Attempt, budget.observation)
+	var stream runrecord.ObservationStream
+	var foundStream bool
+	var err error
+	if unit.ObservationHead.Valid() {
+		stream, foundStream = observations[coverageObservationKey{attempt: unit.Attempt, head: unit.ObservationHead}]
+		if !foundStream {
+			stream, err = runrecord.RequireObservationStream(
+				ctx, store, unit.Attempt, unit.ObservationHead, budget.observation,
+			)
+			foundStream = err == nil
+		}
+	} else {
+		stream, foundStream, err = runrecord.LoadObservationStream(ctx, store, unit.Attempt, budget.observation)
+	}
 	if err != nil {
 		return projectedCoverageUnit{}, nil, err
 	}
@@ -511,6 +618,7 @@ func projectCoverageUnit(
 		}
 	}
 	streamCost, streamCosted := stream.Aggregate.Measure(runrecord.ResourceCostUnits)
+	streamWall, streamWallMeasured := stream.Aggregate.Measure(runrecord.ResourceWallNS)
 	facts, err := loadCoverageUnitFacts(
 		ctx, store, unit, budget,
 	)
@@ -520,8 +628,11 @@ func projectCoverageUnit(
 	if streamCosted && facts.costed && streamCost != facts.costUnits {
 		return projectedCoverageUnit{}, nil, errors.New("evaluation: typed and observed attempt cost differ")
 	}
+	if streamWallMeasured && facts.wallMeasured && streamWall != facts.wallNS {
+		return projectedCoverageUnit{}, nil, errors.New("evaluation: typed and observed attempt wall time differ")
+	}
 	projected.costed = streamCosted || facts.costed
-	evaluationFacts, err := coverageEvaluationSources(ctx, store, unit, budget)
+	evaluationFacts, err := coverageEvaluationSources(ctx, store, unit, facts.run, budget)
 	if err != nil {
 		return projectedCoverageUnit{}, nil, err
 	}
@@ -726,6 +837,10 @@ func loadCoverageUnitFacts(
 			return coverageUnitFacts{}, requireErr
 		}
 		facts.outcomeKnown, facts.failed, facts.runTerminal = true, record.Outcome == runrecord.OutcomeFailed, true
+		if record.Version == artifact.SecondDocumentVersion {
+			facts.wallMeasured, facts.wallNS = true, record.MeasuredNS
+		}
+		facts.run = record
 	case descriptor.MediaType == runrecord.AttemptMediaType && descriptor.Schema == runrecord.AttemptSchema:
 		if unit.Terminal != unit.Attempt {
 			return coverageUnitFacts{}, errors.New("evaluation: attempt terminal differs from coverage unit")
@@ -766,6 +881,7 @@ func coverageEvaluationSources(
 	ctx context.Context,
 	store *overgodb.Store,
 	unit CoverageUnit,
+	terminalRun runrecord.Run,
 	budget *coverageBudget,
 ) (coverageEvaluationFacts, error) {
 	if unit.Attempt.Kind() != artifact.KindRun {
@@ -784,6 +900,7 @@ func coverageEvaluationSources(
 	}
 	facts := coverageEvaluationFacts{observed: found}
 	var evaluation runrecord.Evaluation
+	var execution runrecord.Run
 	if found {
 		if err := budget.takeFact(); err != nil {
 			return coverageEvaluationFacts{}, err
@@ -793,6 +910,18 @@ func coverageEvaluationSources(
 			return coverageEvaluationFacts{}, errors.Join(requireErr, errors.New("evaluation: coverage evaluation differs from unit"))
 		}
 		evaluation = record
+		if terminalRun.ID == unit.Attempt {
+			execution = terminalRun
+		} else {
+			if err := budget.takeFact(); err != nil {
+				return coverageEvaluationFacts{}, err
+			}
+			execution, requireErr = runrecord.RequireRun(ctx, store, unit.Attempt)
+		}
+		if requireErr != nil || execution.ID != unit.Attempt || execution.Outcome != runrecord.OutcomeSucceeded ||
+			evaluation.Run != execution.ID || evaluation.Recipe != execution.Recipe {
+			return coverageEvaluationFacts{}, errors.Join(requireErr, errors.New("evaluation: coverage run differs from exact evaluation"))
+		}
 	} else if len(unit.EvaluationEvidence) != 0 {
 		return coverageEvaluationFacts{}, errors.New("evaluation: selected evidence lacks the unit's exact evaluation")
 	}
@@ -801,10 +930,10 @@ func coverageEvaluationSources(
 		if err := budget.takeFact(); err != nil {
 			return coverageEvaluationFacts{}, err
 		}
-		evidence, requireErr := evaluationEvidenceCodec.Require(ctx, store, id)
-		if requireErr != nil || evidence.ID != id || evidence.Run != unit.Attempt ||
-			evidence.Evaluation != evaluationID || evidence.Recipe != evaluation.Recipe ||
-			evidence.Dataset != evaluation.Dataset {
+		evidence, requireErr := requireCoverageEvaluationEvidence(ctx, store, id, coverageEvaluationRelevance{
+			run: execution, evaluation: evaluation,
+		})
+		if requireErr != nil {
 			return coverageEvaluationFacts{}, errors.Join(requireErr, errors.New("evaluation: coverage evidence differs from unit"))
 		}
 		pair, pairErr := coverageEvaluationPairContext(ctx, store, evidence, budget)
@@ -816,7 +945,7 @@ func coverageEvaluationSources(
 		}
 		facts.pair = pair
 		facts.causalExecutions = append(facts.causalExecutions, coverageCausalExecution{
-			id: id, typed: evidence.Causal, requiresTyped: true,
+			id: evidence.ID, typed: evidence.Causal, requiresTyped: true,
 		})
 	}
 	return facts, nil
@@ -825,7 +954,7 @@ func coverageEvaluationSources(
 func coverageEvaluationPairContext(
 	ctx context.Context,
 	store *overgodb.Store,
-	evidence EvaluationEvidence,
+	evidence coverageEvaluationAuthority,
 	budget *coverageBudget,
 ) (coveragePairContext, error) {
 	if cached, found := budget.plans[evidence.Plan]; found {

@@ -367,6 +367,24 @@
       "name": "ValidateTriggerRegistry",
       "reason": "Registry closure validation lands ahead of admission wiring.",
       "consumer_trigger": "causal-execution/causal-integration validates the registry at admission construction."
+    },
+    {
+      "package": "overgo/internal/evaluation",
+      "name": "PublishImprovementFitness",
+      "reason": "Exact multidimensional fitness publication lands with resource-coverage/fitness-integration and its read-side authority ratchets complete.",
+      "consumer_trigger": "deterministic-rollout/promotion-binding publishes the exact fitness proof required by each promotion decision."
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "CompareResourceFitness",
+      "reason": "Exact persisted resource comparison lands with resource-coverage/fitness-integration ahead of live candidate evaluation.",
+      "consumer_trigger": "model-recipe-lifecycle/recipe-evaluation publishes resource comparisons for prototype-produced recipe candidates."
+    },
+    {
+      "package": "overgo/internal/modelrecipetest",
+      "name": "PublishModelDefinition",
+      "reason": "Shared cross-package model-definition fixture replaces divergent descriptor-only test setup; test-support surface is test-consumed by design.",
+      "consumer_trigger": "Permanent test-support owner; retire when model-definition authority tests consume a shared production materialization fixture."
     }
   ]
 }

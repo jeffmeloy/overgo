@@ -16,8 +16,27 @@ func ResolveProfileDependency[T any](
 	role recipe.DependencyRole,
 	codec artifact.DocumentCodec[T],
 ) (T, error) {
+	return resolveProfileDependency(ctx, reader, definition, role, codec.Require)
+}
+
+func resolveProfileDocumentDependency(
+	ctx context.Context,
+	reader artifact.Reader,
+	definition recipe.Definition,
+	role recipe.DependencyRole,
+) (ProfileDocument, error) {
+	return resolveProfileDependency(ctx, reader, definition, role, loadProfile)
+}
+
+func resolveProfileDependency[T any](
+	ctx context.Context,
+	reader artifact.Reader,
+	definition recipe.Definition,
+	role recipe.DependencyRole,
+	require func(context.Context, artifact.Reader, artifact.ID) (T, error),
+) (T, error) {
 	var zero T
-	if !componentProfileRole(role) {
+	if require == nil || !componentProfileRole(role) {
 		return zero, errors.New("model recipe: dependency role is not a component profile")
 	}
 	if err := definition.ValidateIdentity(); err != nil {
@@ -27,7 +46,7 @@ func ResolveProfileDependency[T any](
 	if !ok {
 		return zero, errors.New("model recipe: required component profile is absent")
 	}
-	return codec.Require(ctx, reader, id)
+	return require(ctx, reader, id)
 }
 
 func componentProfileRole(role recipe.DependencyRole) bool {

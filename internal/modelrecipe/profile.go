@@ -133,12 +133,5 @@ func profileContent(document ProfileDocument) (artifact.Content, error) {
 }
 
 func loadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (ProfileDocument, error) {
-	document, err := profileCodec.Require(ctx, store, id)
-	if err != nil {
-		return ProfileDocument{}, err
-	}
-	if err := validateStoredProfileProvenance(ctx, store, document); err != nil {
-		return ProfileDocument{}, err
-	}
-	return document, nil
+	return profileCodec.RequireVerified(ctx, store, id, validateStoredProfileProvenance)
 }

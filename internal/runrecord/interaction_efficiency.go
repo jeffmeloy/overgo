@@ -61,6 +61,7 @@ type InteractionWork struct {
 	ReturnedFacts       uint64 `json:"returned_facts,omitempty"`
 	Bytes               uint64 `json:"bytes,omitempty"`
 	Wakeups             uint64 `json:"wakeups,omitempty"`
+	Failures            uint64 `json:"failures,omitempty"`
 	Retries             uint64 `json:"retries,omitempty"`
 	ModelTurns          uint64 `json:"model_turns,omitempty"`
 	ContextBytes        uint64 `json:"context_bytes,omitempty"`

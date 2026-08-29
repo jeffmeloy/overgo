@@ -3,6 +3,8 @@ package overgodb
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -86,6 +88,103 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 	if len(commits.Commits) != 1 || commits.Commits[0].Key != "fixture/query/output" || len(commits.Artifacts) != 0 {
 		t.Fatalf("commit query = %+v", commits)
 	}
+}
+
+func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
+	root := t.TempDir()
+	store, err := Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	introduced := fixtureDescriptor(t, artifact.KindEvidence, "introduced")
+	content := artifact.Content{Descriptor: introduced, Data: []byte("introduced")}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "fixture/introduction/descriptor", Artifacts: []artifact.Descriptor{introduced},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if authority, found, err := store.ArtifactIntroduction(ctx, introduced.ID); err != nil || found {
+		t.Fatalf("descriptor reservation established introduction: (%+v, %v, %v)", authority, found, err)
+	}
+	contentCommit, err := store.Commit(ctx, artifact.Batch{
+		Key: "fixture/introduction/content", Contents: []artifact.Content{content},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := artifact.Content{
+		Descriptor: fixtureDescriptor(t, artifact.KindEvidence, "introduced-later"),
+		Data:       []byte("introduced-later"),
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "fixture/introduction/repeated", Contents: []artifact.Content{content, other},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	requireIntroduction := func(t *testing.T, store *Store) {
+		t.Helper()
+		authority, found, err := store.ArtifactIntroduction(ctx, introduced.ID)
+		if err != nil || !found {
+			t.Fatalf("artifact introduction = (%+v, %v): %v", authority, found, err)
+		}
+		if authority.Artifact != introduced.ID || authority.Commit != contentCommit || authority.Sequence != 2 {
+			t.Fatalf("artifact introduction = %+v, want %s at %s@2", authority, introduced.ID, contentCommit)
+		}
+		missing := testutil.ArtifactID(t, artifact.KindEvidence, "not-introduced")
+		if _, found, err := store.ArtifactIntroduction(ctx, missing); err != nil || found {
+			t.Fatalf("missing artifact introduction found=%v err=%v", found, err)
+		}
+	}
+	requireIntroduction(t, store)
+	snapshot, err := store.Snapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replay := store.SnapshotReplay(); !replay.Loaded || replay.Path != filepath.Join(root, checkpointDirectory) {
+		t.Fatalf("content checkpoint was not replayed: %+v", replay)
+	}
+	requireIntroduction(t, store)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.RemoveAll(filepath.Join(root, checkpointDirectory)); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replay := store.SnapshotReplay(); !replay.Loaded || replay.Path != snapshot.Path {
+		t.Fatalf("content snapshot was not replayed: %+v", replay)
+	}
+	requireIntroduction(t, store)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.RemoveAll(filepath.Join(root, snapshotDirectory)); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if replay := store.SnapshotReplay(); replay.Loaded {
+		t.Fatalf("journal replay unexpectedly used an anchor: %+v", replay)
+	}
+	requireIntroduction(t, store)
 }
 
 func TestQueryBoundsAndCycleRejection(t *testing.T) {

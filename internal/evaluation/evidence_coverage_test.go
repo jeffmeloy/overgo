@@ -39,7 +39,14 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	dataset := id(artifact.KindDataset, "dataset")
 	hardware := id(artifact.KindEvidence, "hardware")
 	causalRoot := id(artifact.KindEvidence, "causal root")
-	complete := id(artifact.KindRun, "complete")
+	completeOutput := id(artifact.KindOutput, "complete output")
+	completeRun, err := runrecord.NewRun(
+		recipe, runrecord.OutcomeSucceeded, nil, []artifact.ID{completeOutput}, "",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	complete := completeRun.ID
 	partial := id(artifact.KindRun, "partial")
 	classifiedRun, err := runrecord.NewRun(recipe, runrecord.OutcomeFailed, nil, nil, "classified_failure")
 	if err != nil {
@@ -120,7 +127,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	}
 	recovery, retry, missingCausal := recoveryAttempt.ID, retryAttempt.ID, missingCausalAttempt.ID
 	all := []artifact.ID{
-		recipe, otherRecipe, dataset, hardware, causalRoot, complete, partial,
+		recipe, otherRecipe, dataset, hardware, causalRoot, partial, completeOutput,
 		receiptAttempt, receiptImplementation, receiptSchema, attemptResult, succeededOutput,
 		taskContract, attemptEnvironment, recoveryResult, retryResult, missingCausalResult,
 		splitBrainResult, costMismatchResult,
@@ -214,6 +221,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 		name   string
 		record runrecord.Run
 	}{
+		{name: "complete", record: completeRun},
 		{name: "classified-failure", record: classifiedRun},
 		{name: "unclassified-failure", record: unclassifiedRun},
 		{name: "contradictory-success", record: succeededRun},
@@ -439,11 +447,28 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	if err != nil || selectedProjection.Evaluation.Observed != 1 || selectedProjection.Causal.Observed != 1 {
 		t.Fatalf("selected evaluation coverage = %+v err=%v", selectedProjection, err)
 	}
+	selectedUnit := CoverageUnit{
+		Attempt: selectedRun.ID, EvaluationEvidence: []artifact.ID{selectedEvidence.ID},
+		Required: []CoverageRequirement{{Axis: CoverageEvaluation}},
+	}
+	exactEvaluationBudget := newCoverageBudget(coverageTestBounds(3, 1))
+	if _, err := coverageEvaluationSources(ctx, store, selectedUnit, selectedRun, &exactEvaluationBudget); err != nil || exactEvaluationBudget.facts != 0 {
+		t.Fatalf("selected evaluation facts were not charged exactly once: remaining=%d err=%v", exactEvaluationBudget.facts, err)
+	}
+	truncatedEvaluationBudget := newCoverageBudget(coverageTestBounds(2, 1))
+	if _, err := coverageEvaluationSources(ctx, store, selectedUnit, selectedRun, &truncatedEvaluationBudget); err == nil {
+		t.Fatal("selected evaluation escaped its fact budget")
+	}
+	uncachedRunBudget := newCoverageBudget(coverageTestBounds(4, 1))
+	if _, err := coverageEvaluationSources(ctx, store, selectedUnit, runrecord.Run{}, &uncachedRunBudget); err != nil || uncachedRunBudget.facts != 0 {
+		t.Fatalf("uncached evaluation run was not charged exactly once: remaining=%d err=%v", uncachedRunBudget.facts, err)
+	}
 	planCacheBudget := newCoverageBudget(coverageTestBounds(2, 1))
-	if _, err := coverageEvaluationPairContext(ctx, store, selectedEvidence, &planCacheBudget); err != nil {
+	selectedAuthority := coverageAuthorityFromEvidence(selectedEvidence)
+	if _, err := coverageEvaluationPairContext(ctx, store, selectedAuthority, &planCacheBudget); err != nil {
 		t.Fatal(err)
 	}
-	cacheMismatch := selectedEvidence
+	cacheMismatch := selectedAuthority
 	cacheMismatch.Environment = id(artifact.KindEvidence, "cached plan foreign environment")
 	if _, err := coverageEvaluationPairContext(ctx, store, cacheMismatch, &planCacheBudget); err == nil {
 		t.Fatal("cached plan context bypassed current evidence compatibility")

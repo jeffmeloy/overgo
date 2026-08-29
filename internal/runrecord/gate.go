@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -99,6 +100,11 @@ func NewGateRecord(
 // ParseGateResult decodes and validates a gate result.
 func ParseGateResult(content []byte) (GateResult, error) {
 	return gateCodec.Parse(content)
+}
+
+// RequireGateResult loads one exact typed gate outcome.
+func RequireGateResult(ctx context.Context, reader artifact.Reader, id artifact.ID) (GateResult, error) {
+	return gateCodec.Require(ctx, reader, id)
 }
 
 func (g GateResult) ValidateIdentity() error {

@@ -7,9 +7,9 @@ import (
 
 // TestProjectionContractIsClosedAndVersioned holds the projection
 // registry to its contract: every facet field of catalogState is
-// enumerated exactly once, names are unique and explicit, every
-// version starts at the shared origin, and registry-driven
-// application is the one apply path (the facet equivalence and
+// enumerated exactly once, names are unique and explicit, every version starts
+// at the shared origin or advances with its checkpoint schema, and registry-
+// driven application is the one apply path (the facet equivalence and
 // coordinator tests prove its behavior). Reflection appears only
 // here, to prove the compiled registry is closed over the aggregate.
 func TestProjectionContractIsClosedAndVersioned(t *testing.T) {
@@ -25,9 +25,13 @@ func TestProjectionContractIsClosedAndVersioned(t *testing.T) {
 			t.Fatalf("projection name %q is empty or repeated", registered.name)
 		}
 		names[registered.name] = true
-		if registered.version != initialProjectionVersion {
-			t.Fatalf("projection %q version %d; every projection starts at %d",
-				registered.name, registered.version, initialProjectionVersion)
+		expectedVersion := initialProjectionVersion
+		if registered.name == "contents" {
+			expectedVersion = contentProjectionVersion
+		}
+		if registered.version != expectedVersion {
+			t.Fatalf("projection %q version %d, want %d",
+				registered.name, registered.version, expectedVersion)
 		}
 		if registered.view == nil {
 			t.Fatalf("projection %q has no compiled view", registered.name)

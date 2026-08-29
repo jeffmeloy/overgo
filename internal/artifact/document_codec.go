@@ -123,6 +123,28 @@ func (c DocumentCodec[T]) Require(ctx context.Context, reader Reader, id ID) (T,
 	return value, nil
 }
 
+// RequireVerified requires one canonical document and applies its owner's
+// stored-authority verification before returning it.
+func (c DocumentCodec[T]) RequireVerified(
+	ctx context.Context,
+	reader Reader,
+	id ID,
+	verify func(context.Context, Reader, T) error,
+) (T, error) {
+	var zero T
+	if verify == nil {
+		return zero, errors.New("artifact: nil document verifier")
+	}
+	value, err := c.Require(ctx, reader, id)
+	if err != nil {
+		return zero, err
+	}
+	if err := verify(ctx, reader, c.clone(value)); err != nil {
+		return zero, err
+	}
+	return value, nil
+}
+
 // Resolve requires the typed document targeted by one alias.
 func (c DocumentCodec[T]) Resolve(ctx context.Context, reader Reader, alias string) (T, bool, error) {
 	var zero T

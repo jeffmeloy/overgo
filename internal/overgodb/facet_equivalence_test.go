@@ -31,7 +31,7 @@ func catalogDigest(t *testing.T, state catalogState) string {
 			write("manifest/%s/%d\n", record.manifest.ID, len(record.manifest.Components))
 		}
 		if locator, ok := state.contents.locator(id); ok {
-			write("content/%s/%d/%d\n", id, locator.offset, locator.size)
+			write("content/%s/%d/%d/%d\n", id, locator.offset, locator.size, locator.sequence)
 		}
 		for _, key := range state.lineage.parentsOf(id) {
 			write("lineage/%s/%s/%s\n", key.child, key.parent, key.relation)

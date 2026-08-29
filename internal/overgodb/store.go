@@ -71,8 +71,9 @@ type persistedTransaction struct {
 }
 
 type contentLocator struct {
-	offset int64
-	size   int64
+	offset   int64
+	size     int64
+	sequence uint64
 	// blob marks content whose bytes live in the content-addressed
 	// blob store rather than inline in the journal frame.
 	blob bool

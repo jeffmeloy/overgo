@@ -59,7 +59,7 @@ func ResolveActiveGGUF(
 	if !ok {
 		return fail(errors.New("model recipe: active recipe has no model definition"))
 	}
-	profile, err := ResolveProfileDependency(ctx, store, definition, recipe.DependencyProfile, profileCodec)
+	profile, err := resolveProfileDocumentDependency(ctx, store, definition, recipe.DependencyProfile)
 	if err != nil {
 		return fail(err)
 	}

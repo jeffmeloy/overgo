@@ -116,6 +116,15 @@ type CommitView struct {
 	Sequence uint64            `json:"sequence"`
 }
 
+// ArtifactIntroduction identifies the exact commit that first made an
+// artifact's content bytes durable. Descriptor declarations do not establish
+// this authority, and repeated content never moves it.
+type ArtifactIntroduction struct {
+	Artifact artifact.ID       `json:"artifact"`
+	Commit   artifact.CommitID `json:"commit"`
+	Sequence uint64            `json:"sequence"`
+}
+
 // ContentView carries projected payload identity.
 type ContentView struct {
 	Artifact artifact.ID `json:"artifact"`
@@ -135,6 +144,39 @@ type QueryResult struct {
 	Commits   []CommitView          `json:"commits,omitempty"`
 	Truncated bool                  `json:"truncated,omitempty"`
 	Next      *QueryCursor          `json:"next,omitempty"`
+}
+
+// ArtifactIntroduction returns the immutable first-durable-content commit
+// authority for one artifact. It is a constant-time lookup over the content
+// and commit projections rather than an unbounded document scan.
+func (s *Store) ArtifactIntroduction(
+	ctx context.Context,
+	id artifact.ID,
+) (ArtifactIntroduction, bool, error) {
+	if !id.Valid() {
+		return ArtifactIntroduction{}, false, errors.New("overgodb: invalid artifact introduction identity")
+	}
+	if err := contextError(ctx); err != nil {
+		return ArtifactIntroduction{}, false, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return ArtifactIntroduction{}, false, err
+	}
+	locator, found := s.state.contents.locator(id)
+	if !found {
+		return ArtifactIntroduction{}, false, nil
+	}
+	record, described := s.state.artifacts.record(id)
+	if !described || locator.sequence < record.sequence || locator.sequence > uint64(s.state.commits.count()) {
+		return ArtifactIntroduction{}, false, errors.New("overgodb: content introduction sequence is corrupt")
+	}
+	commit := s.state.commits.at(int(locator.sequence - 1))
+	if commit.sequence != locator.sequence || !commit.id.Valid() {
+		return ArtifactIntroduction{}, false, errors.New("overgodb: content introduction commit is corrupt")
+	}
+	return ArtifactIntroduction{Artifact: id, Commit: commit.id, Sequence: locator.sequence}, true, nil
 }
 
 // Query evaluates one filtered, bounded catalog read against current state.

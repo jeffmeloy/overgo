@@ -4,30 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "resource-coverage",
-      "title": "Make resource fitness and evidence coverage first-class RSI inputs",
-      "status": "open",
-      "steps": [
-        {
-          "id": "fitness-integration",
-          "title": "Require improvement comparisons to evaluate capability, quality, resource, and coverage deltas together",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/loop ./internal/runrecord -run '^TestImprovementFitnessRejectsTransferredCost$' -count=1",
-          "rationale": "A candidate cannot improve by moving failures, latency, memory, retries, or unmeasured work into another subsystem. Comparison eligibility requires exact strategy identity and semantically relevant typed references; promotion comparisons cite source chunks and materialize the exact aggregate contract used.",
-          "depends_on": [
-            "resource-coverage/strategy-identity-binding",
-            "resource-coverage/reference-relevance-admission"
-          ],
-          "capabilities": [
-            "rsi-loop",
-            "evaluation",
-            "resource-fitness",
-            "coverage"
-          ]
-        }
-      ]
-    },
-    {
       "id": "architecture-ratchets",
       "title": "Install permanent authority and Go-only ratchets before RSI construction",
       "status": "open",

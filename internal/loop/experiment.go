@@ -1,60 +1,51 @@
 package loop
 
 import (
+	"context"
 	"errors"
 	"slices"
-	"sort"
-	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
-// StrategyHardOutcome carries the deterministic hard facts of one candidate
-// execution; no model judgment participates.
-type StrategyHardOutcome struct {
-	TaskSucceeded     bool   `json:"task_succeeded"`
-	EvidenceComplete  bool   `json:"evidence_complete"`
-	GatePassed        bool   `json:"gate_passed"`
-	UnsupportedClaims uint64 `json:"unsupported_claims"`
-}
-
-// StrategyExperimentCandidate binds one strategy to its isolated lease,
-// attempt, trajectory, evaluation records, and hard outcome.
+// StrategyExperimentCandidate names only stored comparison authorities. The
+// comparison loads their typed documents; callers cannot attach replacement
+// records or derived outcome flags after those documents were identified.
 type StrategyExperimentCandidate struct {
-	Strategy           Strategy                `json:"strategy"`
-	Lease              plan.WorkLease          `json:"lease"`
-	Attempt            runrecord.AttemptRecord `json:"attempt"`
-	Trajectory         artifact.ID             `json:"trajectory"`
-	EvaluationPlan     artifact.ID             `json:"evaluation_plan"`
-	EvaluationEvidence artifact.ID             `json:"evaluation_evidence"`
-	Hard               StrategyHardOutcome     `json:"hard"`
+	Strategy           artifact.ID `json:"strategy"`
+	Lease              artifact.ID `json:"lease"`
+	Attempt            artifact.ID `json:"attempt"`
+	EvaluationEvidence artifact.ID `json:"evaluation_evidence"`
 }
 
-// StrategyExperiment identifies one comparison of competing strategies over
-// the same task and baseline commit.
+// StrategyExperiment identifies one comparison of competing strategy
+// executions over the same task and baseline commit.
 type StrategyExperiment struct {
-	ID         artifact.ID   `json:"-"`
-	Task       artifact.ID   `json:"task"`
-	Baseline   string        `json:"baseline"`
-	Strategies []artifact.ID `json:"strategies"`
+	ID         artifact.ID                  `json:"-"`
+	Task       artifact.ID                  `json:"task"`
+	Baseline   string                       `json:"baseline"`
+	Candidates []StrategyComparisonEvidence `json:"candidates"`
 }
 
-// StrategyComparisonEvidence keeps one strategy's execution evidence grouped;
-// consumers never have to infer which trajectory or evaluation belongs to an
-// attempt from position in a flat ID list.
+// StrategyComparisonEvidence keeps one stored execution's authorities
+// grouped. Trajectory and evaluation plan are derived from the stored attempt
+// and evidence rather than repeated in the candidate request.
 type StrategyComparisonEvidence struct {
 	Strategy           artifact.ID `json:"strategy"`
+	Lease              artifact.ID `json:"lease"`
 	Attempt            artifact.ID `json:"attempt"`
 	Trajectory         artifact.ID `json:"trajectory"`
 	EvaluationPlan     artifact.ID `json:"evaluation_plan"`
 	EvaluationEvidence artifact.ID `json:"evaluation_evidence"`
 }
 
-// StrategyComparison ranks an experiment's strategies by hard facts before
-// cost, naming a winner only when the clean best strictly beats the runner-up.
+// StrategyComparison presents candidates in deterministic identity order.
+// Fitness records are directed dominance proofs; presentation order never
+// grants one strategy an advantage.
 type StrategyComparison struct {
 	ID              artifact.ID                  `json:"-"`
 	Experiment      artifact.ID                  `json:"experiment"`
@@ -62,84 +53,261 @@ type StrategyComparison struct {
 	Winner          *artifact.ID                 `json:"winner,omitempty"`
 	Counterexamples []artifact.ID                `json:"counterexamples,omitempty"`
 	Evidence        []StrategyComparisonEvidence `json:"evidence"`
+	Fitness         []artifact.ID                `json:"fitness,omitempty"`
 }
 
-// CompareStrategyExperiment validates isolated executions and ranks hard facts
-// before cost. It consumes existing lease, attempt, trajectory, and evaluation
-// records and schedules nothing.
-func CompareStrategyExperiment(task recipe.AgentTaskContract, baseline string, candidates []StrategyExperimentCandidate) (StrategyExperiment, StrategyComparison, error) {
+type resolvedStrategyCandidate struct {
+	strategy   Strategy
+	lease      plan.WorkLease
+	attempt    runrecord.AttemptRecord
+	trajectory runrecord.InteractionTrace
+	evaluation evaluation.EvaluationEvidence
+}
+
+type directedStrategyPair struct {
+	baseline  artifact.ID
+	candidate artifact.ID
+}
+
+func (candidate resolvedStrategyCandidate) evidence() StrategyComparisonEvidence {
+	return StrategyComparisonEvidence{
+		Strategy: candidate.strategy.ID, Lease: candidate.lease.ID, Attempt: candidate.attempt.ID,
+		Trajectory: candidate.trajectory.ID, EvaluationPlan: candidate.evaluation.Plan,
+		EvaluationEvidence: candidate.evaluation.ID,
+	}
+}
+
+func (candidate resolvedStrategyCandidate) matches(endpoint evaluation.ImprovementFitnessEndpoint) bool {
+	return endpoint.Strategy == candidate.strategy.ID && endpoint.Attempt == candidate.attempt.ID &&
+		endpoint.Trajectory == candidate.trajectory.ID && endpoint.Evidence == candidate.evaluation.ID &&
+		endpoint.Plan == candidate.evaluation.Plan && endpoint.Run == candidate.evaluation.Run &&
+		endpoint.Evaluation == candidate.evaluation.Evaluation
+}
+
+// CompareStrategyExperiment loads exact execution authorities and admits only
+// persisted pairwise fitness as evidence of improvement. A winner exists only
+// when one strategy has an improved directed edge from every peer. Missing or
+// incomparable edges produce a valid no-winner comparison; malformed or
+// foreign edges are refused.
+func CompareStrategyExperiment(
+	ctx context.Context,
+	reader artifact.Reader,
+	task recipe.AgentTaskContract,
+	baseline string,
+	candidates []StrategyExperimentCandidate,
+	fitnessIDs []artifact.ID,
+) (StrategyExperiment, StrategyComparison, error) {
+	if ctx == nil || reader == nil {
+		return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: strategy experiment repository is absent")
+	}
 	if err := task.ValidateIdentity(); err != nil {
 		return StrategyExperiment{}, StrategyComparison{}, err
 	}
-	if baseline == "" || len(candidates) < int(artifact.SecondDocumentVersion) {
+	storedTask, err := recipe.RequireAgentTaskContract(ctx, reader, task.ID)
+	if err != nil || storedTask.ID != task.ID {
+		return StrategyExperiment{}, StrategyComparison{}, errors.Join(err, errors.New("loop: strategy experiment task authority differs"))
+	}
+	if baseline == "" || len(candidates) < int(artifact.SecondDocumentVersion) ||
+		len(candidates) > runrecord.MaximumAttemptPopulation || len(fitnessIDs) > runrecord.MaximumAttemptPopulation {
 		return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: strategy experiment requires a baseline and competing candidates")
 	}
-	worktrees := map[string]bool{}
-	seenStrategies := map[artifact.ID]bool{}
-	strategies := make([]artifact.ID, len(candidates))
-	for index, candidate := range candidates {
-		if err := candidate.Strategy.ValidateIdentity(); err != nil {
-			return StrategyExperiment{}, StrategyComparison{}, err
+
+	resolved := make(map[artifact.ID]resolvedStrategyCandidate, len(candidates))
+	worktrees := make(map[string]struct{}, len(candidates))
+	leaseIDs := make(map[artifact.ID]struct{}, len(candidates))
+	attemptIDs := make(map[artifact.ID]struct{}, len(candidates))
+	trajectoryIDs := make(map[artifact.ID]struct{}, len(candidates))
+	evidenceIDs := make(map[artifact.ID]struct{}, len(candidates))
+	for _, request := range candidates {
+		candidate, resolveErr := resolveStrategyCandidate(ctx, reader, task, baseline, request)
+		if resolveErr != nil {
+			return StrategyExperiment{}, StrategyComparison{}, resolveErr
 		}
-		if err := candidate.Attempt.ValidateIdentity(); err != nil {
-			return StrategyExperiment{}, StrategyComparison{}, err
+		worktree, _ := plan.ResolveWorkspaceClaims(candidate.lease.Worktree, nil, nil)
+		worktreeIdentity := plan.WorkLeaseAlias(worktree)
+		_, duplicateStrategy := resolved[candidate.strategy.ID]
+		_, duplicateWorktree := worktrees[worktreeIdentity]
+		_, duplicateLease := leaseIDs[candidate.lease.ID]
+		_, duplicateAttempt := attemptIDs[candidate.attempt.ID]
+		_, duplicateTrajectory := trajectoryIDs[candidate.trajectory.ID]
+		_, duplicateEvidence := evidenceIDs[candidate.evaluation.ID]
+		if duplicateStrategy || duplicateWorktree || duplicateLease || duplicateAttempt || duplicateTrajectory || duplicateEvidence {
+			return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: strategy candidate authority or isolation is reused")
 		}
-		if err := candidate.Lease.ValidateIdentity(); err != nil {
-			return StrategyExperiment{}, StrategyComparison{}, err
-		}
-		if candidate.Lease.TargetHead != baseline || worktrees[strings.ToLower(candidate.Lease.Worktree)] || seenStrategies[candidate.Strategy.ID] || candidate.Attempt.StrategyID != candidate.Strategy.ID || candidate.Attempt.Trajectory != candidate.Trajectory ||
-			candidate.Trajectory.Kind() != artifact.KindEvidence || candidate.EvaluationPlan.Kind() != artifact.KindProfile || candidate.EvaluationEvidence.Kind() != artifact.KindEvidence {
-			return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: strategy candidate authority or isolation differs")
-		}
-		worktrees[strings.ToLower(candidate.Lease.Worktree)] = true
-		seenStrategies[candidate.Strategy.ID] = true
-		strategies[index] = candidate.Strategy.ID
+		resolved[candidate.strategy.ID] = candidate
+		worktrees[worktreeIdentity] = struct{}{}
+		leaseIDs[candidate.lease.ID] = struct{}{}
+		attemptIDs[candidate.attempt.ID] = struct{}{}
+		trajectoryIDs[candidate.trajectory.ID] = struct{}{}
+		evidenceIDs[candidate.evaluation.ID] = struct{}{}
+	}
+
+	strategies := make([]artifact.ID, 0, len(resolved))
+	for strategy := range resolved {
+		strategies = append(strategies, strategy)
 	}
 	slices.SortFunc(strategies, artifact.CompareID)
-	experimentID, err := artifact.JSONID(artifact.KindEvidence, struct {
-		Task       artifact.ID   `json:"task"`
-		Baseline   string        `json:"baseline"`
-		Strategies []artifact.ID `json:"strategies"`
-	}{task.ID, baseline, strategies})
+	experiment := StrategyExperiment{
+		Task: task.ID, Baseline: baseline, Candidates: make([]StrategyComparisonEvidence, len(strategies)),
+	}
+	for index, strategy := range strategies {
+		experiment.Candidates[index] = resolved[strategy].evidence()
+	}
+	experiment.ID, err = artifact.JSONID(artifact.KindEvidence, experiment)
 	if err != nil {
 		return StrategyExperiment{}, StrategyComparison{}, err
 	}
-	experiment := StrategyExperiment{ID: experimentID, Task: task.ID, Baseline: baseline, Strategies: strategies}
-	ordered := slices.Clone(candidates)
-	sort.SliceStable(ordered, func(i, j int) bool { return strategyCandidateBetter(ordered[i], ordered[j]) })
-	comparison := StrategyComparison{Experiment: experiment.ID, Ranked: make([]artifact.ID, len(ordered))}
-	for index, candidate := range ordered {
-		comparison.Ranked[index] = candidate.Strategy.ID
-		comparison.Evidence = append(comparison.Evidence, StrategyComparisonEvidence{
-			Strategy: candidate.Strategy.ID, Attempt: candidate.Attempt.ID, Trajectory: candidate.Trajectory,
-			EvaluationPlan: candidate.EvaluationPlan, EvaluationEvidence: candidate.EvaluationEvidence,
-		})
-		if !candidate.Hard.TaskSucceeded || !candidate.Hard.EvidenceComplete || !candidate.Hard.GatePassed {
-			comparison.Counterexamples = append(comparison.Counterexamples, candidate.Attempt.ID)
+
+	comparison := StrategyComparison{
+		Experiment: experiment.ID, Ranked: slices.Clone(strategies),
+		Evidence: slices.Clone(experiment.Candidates),
+	}
+	for _, strategy := range strategies {
+		candidate := resolved[strategy]
+		if candidate.attempt.Outcome != runrecord.OutcomeSucceeded || candidate.trajectory.Terminal != runrecord.OutcomeSucceeded {
+			comparison.Counterexamples = append(comparison.Counterexamples, candidate.attempt.ID)
 		}
 	}
-	best := ordered[0]
-	if best.Hard.TaskSucceeded && best.Hard.EvidenceComplete && best.Hard.GatePassed && best.Hard.UnsupportedClaims == 0 && strategyCandidateBetter(best, ordered[1]) {
-		winner := best.Strategy.ID
+
+	dominates := make(map[artifact.ID]map[artifact.ID]struct{}, len(strategies))
+	seenFitness := make(map[artifact.ID]struct{}, len(fitnessIDs))
+	seenPairs := make(map[directedStrategyPair]struct{}, len(fitnessIDs))
+	for _, fitnessID := range fitnessIDs {
+		if fitnessID.Kind() != artifact.KindEvidence {
+			return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: invalid improvement fitness identity")
+		}
+		if _, duplicate := seenFitness[fitnessID]; duplicate {
+			return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: duplicate improvement fitness identity")
+		}
+		fitness, requireErr := evaluation.RequireImprovementFitness(ctx, reader, fitnessID)
+		if requireErr != nil || fitness.ID != fitnessID {
+			return StrategyExperiment{}, StrategyComparison{}, errors.Join(requireErr, errors.New("loop: improvement fitness authority differs"))
+		}
+		baselineCandidate, baselineFound := resolved[fitness.Baseline.Strategy]
+		improvedCandidate, candidateFound := resolved[fitness.Candidate.Strategy]
+		if !baselineFound || !candidateFound || fitness.Baseline.Strategy == fitness.Candidate.Strategy ||
+			!baselineCandidate.matches(fitness.Baseline) || !improvedCandidate.matches(fitness.Candidate) {
+			return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: improvement fitness endpoints differ from experiment candidates")
+		}
+		pair := directedStrategyPair{baseline: fitness.Baseline.Strategy, candidate: fitness.Candidate.Strategy}
+		if _, duplicate := seenPairs[pair]; duplicate {
+			return StrategyExperiment{}, StrategyComparison{}, errors.New("loop: duplicate directed improvement fitness")
+		}
+		seenFitness[fitnessID] = struct{}{}
+		seenPairs[pair] = struct{}{}
+		comparison.Fitness = append(comparison.Fitness, fitnessID)
+		if fitness.Improved {
+			if dominates[fitness.Candidate.Strategy] == nil {
+				dominates[fitness.Candidate.Strategy] = make(map[artifact.ID]struct{})
+			}
+			dominates[fitness.Candidate.Strategy][fitness.Baseline.Strategy] = struct{}{}
+		}
+	}
+	slices.SortFunc(comparison.Fitness, artifact.CompareID)
+
+	var winners []artifact.ID
+	for _, strategy := range strategies {
+		complete := true
+		for _, peer := range strategies {
+			if peer == strategy {
+				continue
+			}
+			if _, found := dominates[strategy][peer]; !found {
+				complete = false
+				break
+			}
+		}
+		if complete {
+			winners = append(winners, strategy)
+		}
+	}
+	if len(winners) == 1 {
+		winner := winners[0]
 		comparison.Winner = &winner
 	}
 	comparison.ID, err = artifact.JSONID(artifact.KindEvidence, comparison)
 	return experiment, comparison, err
 }
 
-func strategyCandidateBetter(left, right StrategyExperimentCandidate) bool {
-	leftHard := []bool{left.Hard.TaskSucceeded, left.Hard.EvidenceComplete, left.Hard.GatePassed}
-	rightHard := []bool{right.Hard.TaskSucceeded, right.Hard.EvidenceComplete, right.Hard.GatePassed}
-	for index := range leftHard {
-		if leftHard[index] != rightHard[index] {
-			return leftHard[index]
-		}
+func resolveStrategyCandidate(
+	ctx context.Context,
+	reader artifact.Reader,
+	task recipe.AgentTaskContract,
+	baseline string,
+	request StrategyExperimentCandidate,
+) (resolvedStrategyCandidate, error) {
+	if request.Strategy.Kind() != artifact.KindProfile || request.Lease.Kind() != artifact.KindEvidence ||
+		request.Attempt.Kind() != artifact.KindEvidence || request.EvaluationEvidence.Kind() != artifact.KindEvidence {
+		return resolvedStrategyCandidate{}, errors.New("loop: invalid strategy candidate identity")
 	}
-	if left.Hard.UnsupportedClaims != right.Hard.UnsupportedClaims {
-		return left.Hard.UnsupportedClaims < right.Hard.UnsupportedClaims
+	strategy, err := RequireStrategy(ctx, reader, request.Strategy)
+	if err != nil {
+		return resolvedStrategyCandidate{}, err
 	}
-	if left.Attempt.CostUnits != right.Attempt.CostUnits {
-		return left.Attempt.CostUnits < right.Attempt.CostUnits
+	worker, err := recipe.RequireAgentDefinition(ctx, reader, strategy.Worker)
+	if err != nil {
+		return resolvedStrategyCandidate{}, err
 	}
-	return artifact.CompareID(left.Strategy.ID, right.Strategy.ID) < 0
+	modelRecipe, err := recipe.RequireDefinition(ctx, reader, strategy.ModelRecipe)
+	if err != nil {
+		return resolvedStrategyCandidate{}, err
+	}
+	lease, found, err := plan.ReadWorkLease(ctx, reader, request.Lease)
+	if err != nil || !found || lease.ID != request.Lease {
+		return resolvedStrategyCandidate{}, errors.Join(err, errors.New("loop: strategy candidate lease is absent or incompatible"))
+	}
+	attempt, err := runrecord.RequireAttemptRecord(ctx, reader, request.Attempt)
+	if err != nil {
+		return resolvedStrategyCandidate{}, err
+	}
+	if attempt.CodeCommit != baseline {
+		return resolvedStrategyCandidate{}, errors.New("loop: strategy candidate attempt commit differs from experiment baseline")
+	}
+	if attempt.WorkLease != lease.ID {
+		return resolvedStrategyCandidate{}, errors.New("loop: strategy candidate attempt work lease differs")
+	}
+	gate, err := runrecord.RequireGateResult(ctx, reader, attempt.Result)
+	if err != nil {
+		return resolvedStrategyCandidate{}, err
+	}
+	trajectory, err := runrecord.RequireInteractionTrace(ctx, reader, attempt.Trajectory)
+	if err != nil {
+		return resolvedStrategyCandidate{}, err
+	}
+	evidence, err := evaluation.RequireEvaluationEvidence(ctx, reader, request.EvaluationEvidence)
+	if err != nil {
+		return resolvedStrategyCandidate{}, err
+	}
+	planContent, found, err := artifact.ReadContent(ctx, reader, evidence.Plan)
+	if err != nil || !found {
+		return resolvedStrategyCandidate{}, errors.Join(err, errors.New("loop: strategy evaluation plan content is absent"))
+	}
+	planContract := artifact.DocumentContract{
+		Kind: artifact.KindProfile, MediaType: evaluation.EvaluationPlanMediaType, Schema: evaluation.EvaluationPlanSchema,
+	}
+	if err := planContract.ValidateContent(planContent, evidence.Plan); err != nil {
+		return resolvedStrategyCandidate{}, err
+	}
+	evaluationPlan, err := evaluation.ParsePlan(planContent.Data)
+	if err != nil || evaluationPlan.Identity() != evidence.Plan {
+		return resolvedStrategyCandidate{}, errors.Join(err, errors.New("loop: strategy evaluation plan identity differs"))
+	}
+	agentAuthorities, agentPlan := evaluationPlan.AgentTrajectoryAuthorities()
+	if strategy.ID != request.Strategy || task.Agent != strategy.Worker ||
+		worker.Prompt != strategy.Prompt || worker.ModelRecipe != strategy.ModelRecipe ||
+		!slices.Equal(worker.Policies, strategy.Policies) || modelRecipe.Model != trajectory.Model ||
+		lease.TargetHead != baseline ||
+		attempt.ID != request.Attempt || attempt.StrategyID != strategy.ID || attempt.TaskContract != task.ID ||
+		attempt.Trajectory != trajectory.ID || trajectory.Strategy != strategy.ID || trajectory.TaskContract != task.ID ||
+		trajectory.Recipe != strategy.ModelRecipe || trajectory.Terminal != attempt.Outcome ||
+		gate.Recipe != attempt.Recipe || gate.Environment != attempt.Environment || gate.CodeCommit != attempt.CodeCommit ||
+		gate.Outcome != attempt.Outcome || gate.Failure != attempt.Failure ||
+		evidence.ID != request.EvaluationEvidence || evidence.CodeCommit != attempt.CodeCommit ||
+		evidence.Environment != attempt.Environment || !agentPlan || len(agentAuthorities.Trajectories) != 1 ||
+		agentAuthorities.Trajectories[0] != trajectory.ID {
+		return resolvedStrategyCandidate{}, errors.New("loop: strategy candidate authority or isolation differs")
+	}
+	return resolvedStrategyCandidate{
+		strategy: strategy, lease: lease, attempt: attempt, trajectory: trajectory, evaluation: evidence,
+	}, nil
 }

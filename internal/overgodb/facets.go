@@ -2,6 +2,7 @@ package overgodb
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -49,13 +50,18 @@ type registeredProjection struct {
 // its own version constant away from this shared origin.
 const initialProjectionVersion uint16 = 1
 
+// contentProjectionVersion advances when the content projection gains a new
+// persisted fact. Older checkpoints remain acceleration hints and fall back to
+// snapshot or journal replay.
+const contentProjectionVersion = initialProjectionVersion + 1
+
 // projections enumerates the seven facet projections in commit-
 // application order; this table is the closed world and the single
 // owner of projection names and versions.
 func projections(state *catalogState) []registeredProjection {
 	return []registeredProjection{
 		{name: "artifacts", version: initialProjectionVersion, view: &state.artifacts},
-		{name: "contents", version: initialProjectionVersion, view: &state.contents},
+		{name: "contents", version: contentProjectionVersion, view: &state.contents},
 		{name: "lineage", version: initialProjectionVersion, view: &state.lineage},
 		{name: "causality", version: CausalityProjectionVersion, view: &state.causality},
 		{name: "locations", version: initialProjectionVersion, view: &state.locations},
@@ -179,11 +185,17 @@ func (f contentFacet) locator(id artifact.ID) (contentLocator, bool) {
 	return locator, ok
 }
 
-func (f *contentFacet) set(id artifact.ID, locator contentLocator) { f.locators[id] = locator }
+func (f *contentFacet) set(id artifact.ID, locator contentLocator, sequence uint64) {
+	locator.sequence = sequence
+	f.locators[id] = locator
+}
 
 // accept refuses a commit whose content lacks a bound locator: bytes
 // that never became durable must not gain a committed descriptor.
-func (f *contentFacet) accept(delta artifact.Batch, locators map[artifact.ID]contentLocator, _ uint64) error {
+func (f *contentFacet) accept(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) error {
+	if len(delta.Contents) != 0 && sequence == 0 {
+		return errors.New("overgodb: durable content requires a commit sequence")
+	}
 	for _, content := range delta.Contents {
 		if _, bound := locators[content.Descriptor.ID]; !bound {
 			return fmt.Errorf("overgodb: content %s has no durable locator", content.Descriptor.ID)
@@ -193,9 +205,9 @@ func (f *contentFacet) accept(delta artifact.Batch, locators map[artifact.ID]con
 }
 
 // applyCommit binds each committed content to its locator.
-func (f *contentFacet) applyCommit(delta artifact.Batch, locators map[artifact.ID]contentLocator, _ uint64) {
+func (f *contentFacet) applyCommit(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) {
 	for _, content := range delta.Contents {
-		f.set(content.Descriptor.ID, locators[content.Descriptor.ID])
+		f.set(content.Descriptor.ID, locators[content.Descriptor.ID], sequence)
 	}
 }
 

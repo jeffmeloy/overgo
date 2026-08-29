@@ -69,6 +69,7 @@ type AttemptRecord struct {
 	Diff              AttemptDiff      `json:"diff"`
 	StrategyID        artifact.ID      `json:"strategy_id,omitzero"`
 	TaskContract      artifact.ID      `json:"task_contract,omitzero"`
+	WorkLease         artifact.ID      `json:"work_lease,omitzero"`
 	Environment       artifact.ID      `json:"environment,omitzero"`
 	Trajectory        artifact.ID      `json:"trajectory,omitzero"`
 	CostUnits         uint64           `json:"cost_units,omitempty"`
@@ -144,6 +145,7 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 	}{
 		{value.StrategyID, artifact.KindProfile},
 		{value.TaskContract, artifact.KindRecipe},
+		{value.WorkLease, artifact.KindEvidence},
 		{value.Environment, artifact.KindEvidence},
 		{value.Trajectory, artifact.KindEvidence},
 	} {
@@ -190,7 +192,7 @@ func (a AttemptRecord) Lineage() []artifact.Lineage {
 			})
 		}
 	}
-	for _, parent := range []artifact.ID{a.StrategyID, a.TaskContract, a.Environment, a.Trajectory} {
+	for _, parent := range []artifact.ID{a.StrategyID, a.TaskContract, a.WorkLease, a.Environment, a.Trajectory} {
 		if parent.Valid() {
 			lineage = append(lineage, artifact.Lineage{Child: a.ID, Parent: parent, Relation: artifact.RelationDependsOn})
 		}

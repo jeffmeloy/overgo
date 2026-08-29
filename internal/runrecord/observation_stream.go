@@ -15,18 +15,18 @@ import (
 // complete chunk stream. MeasuredSamples counts the union of samples carrying
 // at least one resource measure; observed zero measures remain included.
 type ObservationStreamCoverage struct {
-	RawBytes                uint64
-	Samples                 uint32
-	MeasuredSamples         uint32
-	HardwareMeasuredSamples uint32
-	FirstOrdinal            uint32
-	LastOrdinal             uint32
-	FirstElapsedNS          uint64
-	LastElapsedNS           uint64
-	Metrics                 []ObservationMetricSamples
-	HardwareMetrics         []ObservationMetricSamples
-	Kinds                   []ObservationKindSamples
-	InteractionSamples      uint32
+	RawBytes                uint64                     `json:"raw_bytes"`
+	Samples                 uint32                     `json:"samples"`
+	MeasuredSamples         uint32                     `json:"measured_samples"`
+	HardwareMeasuredSamples uint32                     `json:"hardware_measured_samples"`
+	FirstOrdinal            uint32                     `json:"first_ordinal"`
+	LastOrdinal             uint32                     `json:"last_ordinal"`
+	FirstElapsedNS          uint64                     `json:"first_elapsed_ns"`
+	LastElapsedNS           uint64                     `json:"last_elapsed_ns"`
+	Metrics                 []ObservationMetricSamples `json:"metrics,omitempty"`
+	HardwareMetrics         []ObservationMetricSamples `json:"hardware_metrics,omitempty"`
+	Kinds                   []ObservationKindSamples   `json:"kinds"`
+	InteractionSamples      uint32                     `json:"interaction_samples,omitempty"`
 }
 
 // ObservationStreamBounds limits one complete verified stream load. Raw bytes
@@ -39,11 +39,11 @@ type ObservationStreamBounds struct {
 // ObservationStream is a verified oldest-to-newest view of the current alias
 // for one attempt. The final SummaryIDs entry is the exact alias target.
 type ObservationStream struct {
-	Scope      ResourceScope
-	SummaryIDs []artifact.ID
-	ChunkIDs   []artifact.ID
-	Coverage   ObservationStreamCoverage
-	Aggregate  ResourceFitness
+	Scope      ResourceScope             `json:"scope"`
+	SummaryIDs []artifact.ID             `json:"summary_ids"`
+	ChunkIDs   []artifact.ID             `json:"chunk_ids"`
+	Coverage   ObservationStreamCoverage `json:"coverage"`
+	Aggregate  ResourceFitness           `json:"aggregate"`
 }
 
 type observationStreamPair struct {
@@ -69,19 +69,39 @@ func LoadObservationStream(
 	if err != nil || !found {
 		return ObservationStream{}, found, err
 	}
+	stream, err := RequireObservationStream(ctx, reader, attempt, head, bounds)
+	return stream, true, err
+}
+
+// RequireObservationStream verifies the complete immutable stream ending at
+// summaryHead. Unlike LoadObservationStream it never consults the mutable
+// attempt alias, so evidence remains reproducible after newer chunks advance
+// that alias.
+func RequireObservationStream(
+	ctx context.Context,
+	reader artifact.Reader,
+	attempt artifact.ID,
+	summaryHead artifact.ID,
+	bounds ObservationStreamBounds,
+) (ObservationStream, error) {
+	if ctx == nil || reader == nil || bounds.MaxChunks < 0 ||
+		(attempt.Kind() != artifact.KindRun && attempt.Kind() != artifact.KindEvidence) ||
+		summaryHead.Kind() != artifact.KindEvidence {
+		return ObservationStream{}, errors.New("run record: invalid exact observation stream query")
+	}
 	if bounds.MaxChunks == 0 {
-		return ObservationStream{}, true, errors.New("run record: observation stream exceeds chunk read bound")
+		return ObservationStream{}, errors.New("run record: observation stream exceeds chunk read bound")
 	}
 	if bounds.MaxRawBytes == 0 {
-		return ObservationStream{}, true, errors.New("run record: observation stream exceeds raw byte read bound")
+		return ObservationStream{}, errors.New("run record: observation stream exceeds raw byte read bound")
 	}
 	var rawBytes uint64
-	pair, rawBytes, err := requireObservationStreamPair(ctx, reader, head, rawBytes, bounds.MaxRawBytes)
+	pair, rawBytes, err := requireObservationStreamPair(ctx, reader, summaryHead, rawBytes, bounds.MaxRawBytes)
 	if err != nil {
-		return ObservationStream{}, true, err
+		return ObservationStream{}, err
 	}
 	if pair.summary.Aggregate.Scope.Attempt != attempt {
-		return ObservationStream{}, true, errors.New("run record: observation stream alias changes attempt")
+		return ObservationStream{}, errors.New("run record: observation stream head changes attempt")
 	}
 
 	reverse := []observationStreamPair{pair}
@@ -89,22 +109,22 @@ func LoadObservationStream(
 	ordinalBound := uint64(pair.summary.Stats.LastOrdinal)
 	for pair.chunk.Previous.Valid() {
 		if len(reverse) >= bounds.MaxChunks {
-			return ObservationStream{}, true, errors.New("run record: observation stream exceeds chunk read bound")
+			return ObservationStream{}, errors.New("run record: observation stream exceeds chunk read bound")
 		}
 		if uint64(len(reverse)) >= ordinalBound {
-			return ObservationStream{}, true, errors.New("run record: observation stream exceeds ordinal integrity bound")
+			return ObservationStream{}, errors.New("run record: observation stream exceeds ordinal integrity bound")
 		}
 		if _, duplicate := seen[pair.chunk.Previous]; duplicate {
-			return ObservationStream{}, true, errors.New("run record: observation stream contains summary cycle")
+			return ObservationStream{}, errors.New("run record: observation stream contains summary cycle")
 		}
 		prior, nextRawBytes, requireErr := requireObservationStreamPair(
 			ctx, reader, pair.chunk.Previous, rawBytes, bounds.MaxRawBytes,
 		)
 		if requireErr != nil {
-			return ObservationStream{}, true, requireErr
+			return ObservationStream{}, requireErr
 		}
 		if err := validateObservationChunkContinuation(pair.chunk, prior.summary, true); err != nil {
-			return ObservationStream{}, true, err
+			return ObservationStream{}, err
 		}
 		seen[prior.summary.ID] = struct{}{}
 		reverse = append(reverse, prior)
@@ -112,14 +132,14 @@ func LoadObservationStream(
 		rawBytes = nextRawBytes
 	}
 	if err := validateObservationChunkContinuation(pair.chunk, ObservationChunkSummary{}, false); err != nil {
-		return ObservationStream{}, true, err
+		return ObservationStream{}, err
 	}
 	slices.Reverse(reverse)
 	stream, err := aggregateObservationStream(reverse)
 	if err == nil && stream.Coverage.RawBytes != rawBytes {
-		return ObservationStream{}, true, errors.New("run record: observation stream raw byte count changed after preflight")
+		return ObservationStream{}, errors.New("run record: observation stream raw byte count changed after preflight")
 	}
-	return stream, true, err
+	return stream, err
 }
 
 func requireObservationStreamPair(

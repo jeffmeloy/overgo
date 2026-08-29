@@ -24,7 +24,7 @@ const (
 	snapshotDirectory         = "snapshots"
 	snapshotExtension         = ".snapshot"
 	snapshotHeaderBytes       = 92
-	snapshotVersion           = 7
+	snapshotVersion           = 8
 	snapshotPayloadMultiplier = 4
 	maxSnapshotPayload        = maxFramePayload * snapshotPayloadMultiplier
 
@@ -70,6 +70,7 @@ type snapshotContent struct {
 	Artifact artifact.ID `json:"artifact"`
 	Offset   int64       `json:"offset"`
 	Size     int64       `json:"size"`
+	Sequence uint64      `json:"sequence"`
 	Blob     bool        `json:"blob,omitempty"`
 }
 
@@ -189,10 +190,15 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 	for _, content := range document.Contents {
 		record, ok := state.artifacts.record(content.Artifact)
 		if !ok || content.Size <= 0 || uint64(content.Size) != record.descriptor.Size ||
+			content.Sequence < record.sequence || content.Sequence > document.Sequence ||
 			!content.Blob && content.Offset < storeHeaderBytes {
 			return catalogState{}, errors.New("overgodb: invalid snapshot content locator")
 		}
-		state.contents.set(content.Artifact, contentLocator{offset: content.Offset, size: content.Size, blob: content.Blob})
+		state.contents.set(
+			content.Artifact,
+			contentLocator{offset: content.Offset, size: content.Size, blob: content.Blob},
+			content.Sequence,
+		)
 	}
 	for index, entry := range document.Commits {
 		if entry.Sequence != uint64(index)+1 {
@@ -313,7 +319,9 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 	stream.array("contents", len(contentIDs), true, func(index int) {
 		id := contentIDs[index]
 		locator, _ := state.contents.locator(id)
-		stream.value(snapshotContent{Artifact: id, Offset: locator.offset, Size: locator.size, Blob: locator.blob})
+		stream.value(snapshotContent{
+			Artifact: id, Offset: locator.offset, Size: locator.size, Sequence: locator.sequence, Blob: locator.blob,
+		})
 	})
 	manifestIDs := snapshotArtifactIDs(state, func(_ artifact.ID, record *artifactRecord) bool { return record.hasManifest })
 	stream.array("manifests", len(manifestIDs), true, func(index int) {

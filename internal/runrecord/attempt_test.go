@@ -14,6 +14,7 @@ func fixtureAttempt(t *testing.T) AttemptRecord {
 		PlanItem: "attempt-records", PlanStep: "do",
 		Result:     testutil.ArtifactID(t, artifact.KindEvidence, "gate-result"),
 		Recipe:     testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe"),
+		WorkLease:  testutil.ArtifactID(t, artifact.KindEvidence, "work-lease"),
 		CodeCommit: strings.Repeat("ab", 20),
 		Outcome:    OutcomeSucceeded, WallNS: 42,
 		Selection: AttemptSelection{Defined: 17, Selected: 12, Excluded: 5, CacheEligible: 3, CacheHits: 2, PlanningNS: 7},
@@ -37,7 +38,7 @@ func TestAttemptRecordRoundTrip(t *testing.T) {
 		parsed.Selection.Excluded != 5 || parsed.Diff.Insertions != 40 {
 		t.Fatalf("parsed attempt = (%+v, %v)", parsed, err)
 	}
-	if lineage := record.Lineage(); len(lineage) != 2 || lineage[0].Parent != record.Result {
+	if lineage := record.Lineage(); len(lineage) != 3 || lineage[0].Parent != record.Result || lineage[2].Parent != record.WorkLease {
 		t.Fatalf("lineage = %+v", lineage)
 	}
 }
@@ -59,6 +60,9 @@ func TestAttemptRecordRefusesNonObservations(t *testing.T) {
 		"free-text strategy":   func(a *AttemptRecord) { a.Strategy = "two words" },
 		"strategy not profile": func(a *AttemptRecord) { a.StrategyID = testutil.ArtifactID(t, artifact.KindEvidence, "strategy") },
 		"task not recipe":      func(a *AttemptRecord) { a.TaskContract = testutil.ArtifactID(t, artifact.KindProfile, "task") },
+		"work lease not evidence": func(a *AttemptRecord) {
+			a.WorkLease = testutil.ArtifactID(t, artifact.KindProfile, "work-lease")
+		},
 		"environment not evidence": func(a *AttemptRecord) {
 			a.Environment = testutil.ArtifactID(t, artifact.KindProfile, "environment")
 		},

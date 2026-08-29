@@ -97,18 +97,27 @@ func validateKnownOutcomeOrder(contract []MetricContract, outcomes []KnownOutcom
 }
 
 func orderedMetricsDominate(better, worse []runrecord.Metric) bool {
-	strict := false
+	noRegression, strict := orderedMetricRelation(better, worse)
+	return noRegression && strict
+}
+
+// orderedMetricRelation compares two already-canonical metric vectors without
+// scalarizing distinct quality dimensions.
+func orderedMetricRelation(candidate, baseline []runrecord.Metric) (noRegression, strict bool) {
+	if len(candidate) == 0 || len(candidate) != len(baseline) {
+		return false, false
+	}
 	var neutral float64
-	for index := range better {
-		left, right := better[index], worse[index]
+	for index := range candidate {
+		left, right := candidate[index], baseline[index]
 		if left.Name != right.Name || left.Unit != right.Unit || left.Direction != right.Direction {
-			return false
+			return false, false
 		}
 		advantage, ok := left.Direction.Advantage(left.Value, right.Value)
 		if !ok || advantage < neutral {
-			return false
+			return false, false
 		}
 		strict = strict || advantage > neutral
 	}
-	return strict
+	return true, strict
 }

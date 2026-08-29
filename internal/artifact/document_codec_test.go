@@ -3,6 +3,7 @@ package artifact
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"slices"
 	"testing"
@@ -90,6 +91,38 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	required, err := codec.Require(context.Background(), documentReader{content: content}, document.ID)
 	if err != nil || required.ID != document.ID {
 		t.Fatalf("required document = %+v/%v", required, err)
+	}
+	verified, err := codec.RequireVerified(
+		context.Background(), documentReader{content: content}, document.ID,
+		func(_ context.Context, _ Reader, value codecFixture) error {
+			if value.ID != document.ID {
+				return errors.New("unexpected verified document")
+			}
+			return nil
+		},
+	)
+	if err != nil || verified.ID != document.ID {
+		t.Fatalf("verified document = %+v/%v", verified, err)
+	}
+	verified, err = codec.RequireVerified(
+		context.Background(), documentReader{content: content}, document.ID,
+		func(_ context.Context, _ Reader, value codecFixture) error {
+			value.Names[0] = "mutated"
+			return nil
+		},
+	)
+	if err != nil || !slices.Equal(verified.Names, document.Names) {
+		t.Fatalf("verifier mutated returned document = %+v/%v", verified, err)
+	}
+	verified, err = codec.RequireVerified(
+		context.Background(), documentReader{content: content}, document.ID,
+		func(context.Context, Reader, codecFixture) error { return errors.New("rejected") },
+	)
+	if err == nil || verified.ID.Valid() || verified.Names != nil {
+		t.Fatalf("rejected verified document = %+v/%v", verified, err)
+	}
+	if _, err := codec.RequireVerified(context.Background(), documentReader{content: content}, document.ID, nil); err == nil {
+		t.Fatal("nil document verifier accepted")
 	}
 	if _, err := codec.Require(context.Background(), absentDocumentReader{}, document.ID); err == nil {
 		t.Fatal("absent required document accepted")

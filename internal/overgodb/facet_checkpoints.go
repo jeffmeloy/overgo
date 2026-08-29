@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -55,6 +56,7 @@ type contentCheckpointEntry struct {
 	Artifact artifact.ID `json:"artifact"`
 	Offset   int64       `json:"offset"`
 	Size     int64       `json:"size"`
+	Sequence uint64      `json:"sequence"`
 	Blob     bool        `json:"blob,omitempty"`
 }
 
@@ -62,7 +64,7 @@ func (f *contentFacet) checkpoint() ([]byte, error) {
 	entries := make([]contentCheckpointEntry, 0, len(f.locators))
 	for id, locator := range f.locators {
 		entries = append(entries, contentCheckpointEntry{
-			Artifact: id, Offset: locator.offset, Size: locator.size, Blob: locator.blob,
+			Artifact: id, Offset: locator.offset, Size: locator.size, Sequence: locator.sequence, Blob: locator.blob,
 		})
 	}
 	sort.Slice(entries, func(i, j int) bool {
@@ -78,7 +80,10 @@ func (f *contentFacet) restore(data []byte) error {
 	}
 	*f = newContentFacet()
 	for _, entry := range entries {
-		f.set(entry.Artifact, contentLocator{offset: entry.Offset, size: entry.Size, blob: entry.Blob})
+		if entry.Sequence == 0 {
+			return errors.New("contents checkpoint: invalid introduction sequence")
+		}
+		f.set(entry.Artifact, contentLocator{offset: entry.Offset, size: entry.Size, blob: entry.Blob}, entry.Sequence)
 	}
 	return nil
 }

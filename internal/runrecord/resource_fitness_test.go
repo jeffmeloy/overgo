@@ -17,7 +17,7 @@ func TestResourceFitnessContract(t *testing.T) {
 	}
 	work := InteractionWork{
 		SemanticTransitions: 1, Commits: 2, ArtifactReads: 3, BlobReads: 4,
-		ScannedFacts: 5, ReturnedFacts: 6, Bytes: 7, Wakeups: 8, Retries: 9,
+		ScannedFacts: 5, ReturnedFacts: 6, Bytes: 7, Wakeups: 8, Failures: 15, Retries: 9,
 		ModelTurns: 10, ContextBytes: 11, RepeatedContextIDs: 12, ToolCalls: 13, Waits: 14,
 	}
 	fixture := ResourceFitness{

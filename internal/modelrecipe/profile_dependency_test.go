@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/model"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 )
@@ -77,5 +78,44 @@ func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {
 	}
 	if _, err := ResolveProfileDependency(ctx, store, definition, recipe.DependencyMemory, componentProfileFixtureCodec); err == nil {
 		t.Fatal("non-profile dependency role accepted")
+	}
+}
+
+func TestResolvedProfileDocumentDependencyRequiresStoredDerivationLineage(t *testing.T) {
+	ctx := context.Background()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	profile, _ := model.LookupArchitecture("llama")
+	document, err := NewProfileDocument(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := profileContent(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("fixture/profile/unbound-dependency", []artifact.Content{content}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		t.Fatal(err)
+	}
+	modelID, err := artifact.JSONID(artifact.KindModel, "profile dependency model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := inference([]recipe.Dependency{
+		{Role: recipe.DependencyModel, Artifact: modelID},
+		{Role: recipe.DependencyProfile, Artifact: document.ID},
+	}, recipe.PlacementHost, DecodeSessionRequest, recipe.ResidencyHostCache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveProfileDocumentDependency(ctx, store, definition, recipe.DependencyProfile); err == nil {
+		t.Fatal("profile dependency without derivation lineage loaded")
 	}
 }

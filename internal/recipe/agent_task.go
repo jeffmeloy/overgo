@@ -1,6 +1,7 @@
 package recipe
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sort"
@@ -59,6 +60,11 @@ var agentTaskContractCodec = artifact.JSONDocumentCodec(
 func NewAgentTaskContract(value AgentTaskContract) (AgentTaskContract, error) {
 	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
 	return agentTaskContractCodec.New(value)
+}
+
+// RequireAgentTaskContract loads one canonical task contract.
+func RequireAgentTaskContract(ctx context.Context, reader artifact.Reader, id artifact.ID) (AgentTaskContract, error) {
+	return agentTaskContractCodec.Require(ctx, reader, id)
 }
 
 // Content returns the canonical committed bytes of the contract.

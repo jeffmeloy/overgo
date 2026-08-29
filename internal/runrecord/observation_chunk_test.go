@@ -83,7 +83,7 @@ func TestObservationChunkPublication(t *testing.T) {
 	}
 
 	observedZero := InteractionWork{}
-	observedWork := InteractionWork{Commits: 1, Retries: 2}
+	observedWork := InteractionWork{Commits: 1, Failures: 3, Retries: 2}
 	first, err := NewObservationChunk(scope, artifact.ID{}, []ObservationSample{
 		{Ordinal: 1, ElapsedNS: 10, Kind: ObservationSampleToken, Measures: []ResourceMeasure{
 			{Metric: ResourcePeakHostBytes, Value: 100},
@@ -391,7 +391,7 @@ func TestObservationChunkPublication(t *testing.T) {
 	}); err == nil {
 		t.Fatal("resource aggregate overflow accepted")
 	}
-	maxWork, oneWork := InteractionWork{Retries: math.MaxUint64}, InteractionWork{Retries: 1}
+	maxWork, oneWork := InteractionWork{Failures: math.MaxUint64}, InteractionWork{Failures: 1}
 	if _, err := NewObservationChunk(scope, artifact.ID{}, []ObservationSample{
 		{Ordinal: 1, Kind: ObservationSampleExecution, Interactions: &maxWork},
 		{Ordinal: 2, Kind: ObservationSampleExecution, Interactions: &oneWork},

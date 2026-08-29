@@ -55,6 +55,17 @@ func ParseEvaluationEvidence(content []byte) (EvaluationEvidence, error) {
 	return evaluationEvidenceCodec.Parse(content)
 }
 
+// RequireEvaluationEvidence loads one canonical evidence document and proves
+// that every typed plan, run, metric, report, and shard authority it cites is
+// still the exact immutable authority recorded by the document.
+func RequireEvaluationEvidence(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (EvaluationEvidence, error) {
+	return evaluationEvidenceCodec.RequireVerified(ctx, reader, id, ValidateEvaluationEvidence)
+}
+
 // Content returns the native OvergoDB evidence document.
 func (value EvaluationEvidence) Content() (artifact.Content, error) {
 	return evaluationEvidenceCodec.Content(value)

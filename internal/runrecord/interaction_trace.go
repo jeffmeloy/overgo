@@ -126,6 +126,59 @@ func (value InteractionTrace) ValidateIdentity() error {
 	return interactionTraceCodec.ValidateIdentity(value)
 }
 
+// ToolExchanges returns the exact calls only when the ordered trace contains
+// one later, unique result for every unique call identity. Manual and argument
+// authority remain with the tool owner.
+func (value InteractionTrace) ToolExchanges() ([]InteractionToolCall, uint64, error) {
+	calls := make([]InteractionToolCall, 0)
+	issued := make(map[string]struct{})
+	resolved := make(map[string]struct{})
+	var failures uint64
+	for _, event := range value.Events {
+		message := event.Message
+		switch event.Kind {
+		case InteractionEventToolCall:
+			if message.Role != "assistant" || len(message.ToolCalls) == 0 ||
+				message.ToolCallID != "" || message.ToolResultError {
+				return nil, 0, errors.New("run record: invalid tool-call event")
+			}
+			for _, call := range message.ToolCalls {
+				if call.ID == "" || call.Type != "function" {
+					return nil, 0, errors.New("run record: invalid tool call identity or type")
+				}
+				if _, duplicate := issued[call.ID]; duplicate {
+					return nil, 0, errors.New("run record: duplicate tool call identity")
+				}
+				issued[call.ID] = struct{}{}
+				calls = append(calls, call)
+			}
+		case InteractionEventToolResult:
+			if message.Role != "tool" || len(message.ToolCalls) != 0 || message.ToolCallID == "" {
+				return nil, 0, errors.New("run record: invalid tool-result event")
+			}
+			if _, found := issued[message.ToolCallID]; !found {
+				return nil, 0, errors.New("run record: tool result precedes or lacks its exact call")
+			}
+			if _, duplicate := resolved[message.ToolCallID]; duplicate {
+				return nil, 0, errors.New("run record: duplicate tool result")
+			}
+			resolved[message.ToolCallID] = struct{}{}
+			if message.ToolResultError {
+				failures++
+			}
+		default:
+			if len(message.ToolCalls) != 0 || message.ToolCallID != "" ||
+				message.ToolResultError || message.Role == "tool" {
+				return nil, 0, errors.New("run record: non-tool event contains tool protocol fields")
+			}
+		}
+	}
+	if len(issued) != len(resolved) {
+		return nil, 0, errors.New("run record: tool call lacks exactly one result")
+	}
+	return slices.Clone(calls), failures, nil
+}
+
 func canonicalizeInteractionTrace(value *InteractionTrace) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
 		value.Recipe.Kind() != artifact.KindRecipe || value.Model.Kind() != artifact.KindModel ||

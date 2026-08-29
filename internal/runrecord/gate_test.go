@@ -93,6 +93,10 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
+	required, err := RequireGateResult(ctx, store, record.Result.ID)
+	if err != nil || required.ID != record.Result.ID || required.Outcome != OutcomeCancelled {
+		t.Fatalf("required gate result = (%+v, %v)", required, err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}

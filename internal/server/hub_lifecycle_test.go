@@ -20,7 +20,7 @@ func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
 	release := make(chan struct{})
 	digest := sha256.Sum256([]byte("w"))
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(response).Encode(map[string]any{
 			"id": "acme/tiny", "sha": "rev0",
 			"siblings": []map[string]any{{"rfilename": "weights.bin", "lfs": map[string]any{
@@ -28,7 +28,7 @@ func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
 			}}},
 		})
 	})
-	mux.HandleFunc("/acme/tiny/resolve/rev0/weights.bin", func(response http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("GET /acme/tiny/resolve/rev0/weights.bin", func(response http.ResponseWriter, request *http.Request) {
 		select {
 		case <-release:
 		case <-request.Context().Done():

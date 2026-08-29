@@ -1,6 +1,6 @@
 {
   "campaign": "Deterministic RSI storage and execution control plane",
-  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. RSI additions use typed versioned Go records, existing Overgo owners, derived distribution-free decisions, explicit missing-data coverage, and architecture tests that refuse bypasses. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, projection scans, bytes, wakeups, context repetitions, model turns, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit.",
+  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. RSI additions use typed versioned Go records, existing Overgo owners, derived decisions that are distribution-free where justified and otherwise bind their distribution assumptions, explicit missing-data coverage, and architecture tests that refuse bypasses. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, projection scans, bytes, wakeups, context repetitions, model turns, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit.",
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
@@ -8,31 +8,6 @@
       "title": "Install permanent authority and Go-only ratchets before RSI construction",
       "status": "open",
       "steps": [
-        {
-          "id": "core-entry-guards",
-          "title": "Ratchet existing storage, process, capability, tool, trigger, and promotion entry authorities",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/overgodb ./internal/processcontrol ./internal/agenttool ./internal/inference ./internal/workflowruntime ./internal/loop -run '^(TestArchitectureRatchetAlwaysRequired|TestProductionAuthorityBoundaries)$' -count=1",
-          "rationale": "Register one manifest-owned, always-required gate ratchet, including documentation-only commits, by reusing the gate's existing candidate source and path inventories. Measure its wall cost and refuse bypasses around the authorities already established; retire it only when those authorities disappear. Every later construction row executes inside this ratchet without launching a redundant second test process.",
-          "depends_on": [
-            "architecture-ratchets/completion-reference-authority",
-            "storage-modular-core/repository-parity",
-            "common-publication-path/semantic-batches",
-            "storage-operational-boundary/transition-boundary",
-            "process-supervision/process-boundary-guard",
-            "causal-execution/causal-projection",
-            "stimulus-reconciliation/coalesced-followup",
-            "capability-bound-activation/placement-integration",
-            "webhook-ingress/workflow-dispatch",
-            "activation-matrix/profile-coverage"
-          ],
-          "capabilities": [
-            "architecture-guard",
-            "rsi-containment",
-            "single-authority",
-            "gate-ratchet"
-          ]
-        },
         {
           "id": "go-only-guard",
           "title": "Extend the permanent architecture ratchet to Go-only runtime authority",
@@ -180,6 +155,23 @@
             "coverage",
             "rsi-gate"
           ]
+        },
+        {
+          "id": "tool-call-propensity-control",
+          "title": "Admit or refuse recipe-bound residual control of tool-call propensity from exact-model Pareto evidence",
+          "status": "open",
+          "verify": "go test ./internal/representation ./internal/inference ./internal/modelrecipe ./internal/evaluation ./internal/runrecord ./internal/agenttool ./internal/agentloop ./internal/plan ./internal/loop -run '^(TestToolCallResidualDirection|TestRecipeBoundToolCallPropensityControl|TestToolCallPropensityPreservesEffectAuthority|TestToolBudgetProposalAdmission)$' -count=1",
+          "rationale": "Treat residual tool-call control as training-free but distribution- and harness-dependent. Publish a content-addressed ResidualDirection bound to the exact TapLayerInput contract, model and definition, tool manuals, readout, corpus and split, quantiles, extraction run, and environment. Activate it only through a model recipe whose alpha is derived by a predeclared objective-constrained selector with explicit normalization, target, and tie-break; alpha is never a request knob. Admission requires alpha-zero identity, signed monotonic realized call rate, cached and device parity, well-formed authorized tool proposals, and nondominated quality and cost evidence on the exact harness. Missing, unstable, dominated, malformed, unsupported, or authority-bypassing behavior is refused or verification-only; the intervention may affect proposal likelihood but never grant, approve, dispatch, or receipt authority.",
+          "depends_on": [
+            "interaction-efficiency/efficiency-gate"
+          ],
+          "capabilities": [
+            "interaction-efficiency",
+            "residual-intervention",
+            "model-recipe",
+            "agent-tool",
+            "rsi-proposal"
+          ]
         }
       ]
     },
@@ -295,13 +287,31 @@
           ]
         },
         {
+          "id": "isolated-performance-evidence",
+          "title": "Publish identity-bound model performance observations from isolated supervised processes",
+          "status": "open",
+          "verify": "go test ./internal/processcontrol ./internal/runrecord ./internal/evaluation ./internal/modelrecipe -run '^(TestIsolatedModelProcess|TestIsolatedModelPerformanceEvidence)$' -count=1",
+          "rationale": "Acquire performance evidence in one supervised process or session per exact validated model and recipe. Bind model definition, dataset and split digest, environment, recipe and placement, and attempt identity; publish existing ResourceFitness and ObservationChunk records through one semantic batch. Refuse missing identity, ambiguous peak reset, child or cleanup failure, and partial coverage. Existing fitness authority owns comparisons; this step creates no baseline JSON, new evidence schema, or parallel publication path.",
+          "depends_on": [
+            "model-recipe-lifecycle/recipe-validation",
+            "resource-coverage/fitness-integration",
+            "process-supervision/process-boundary-guard"
+          ],
+          "capabilities": [
+            "performance-evidence",
+            "process-isolation",
+            "resource-fitness",
+            "artifact-identity"
+          ]
+        },
+        {
           "id": "recipe-evaluation",
           "title": "Evaluate prototype-produced recipes on development and promotion evidence while separating model, recipe, and system deltas",
           "status": "open",
           "verify": "go test ./internal/evaluation ./internal/modelrecipe ./internal/loop -run '^TestRecipeCandidateEvaluationAttribution$' -count=1",
           "rationale": "The RSI loop must identify whether a gain came from weights, architecture, derivation policy, recipe graph, placement, or another system change. Comparisons bind the same model and split where recipe behavior is the candidate variable and report capability, quality, resources, and coverage.",
           "depends_on": [
-            "model-recipe-lifecycle/recipe-validation"
+            "model-recipe-lifecycle/isolated-performance-evidence"
           ],
           "capabilities": [
             "recipe-evaluation",
@@ -536,7 +546,7 @@
           "rationale": "Extend the same early always-required, manifest-owned gate ratchet over the newly created model, recipe, routing, rollout, and safety authorities. Re-run its architecture contract after convergence; do not create a second guard process or policy owner.",
           "depends_on": [
             "architecture-ratchets/go-only-guard",
-            "interaction-efficiency/efficiency-gate",
+            "interaction-efficiency/tool-call-propensity-control",
             "model-recipe-lifecycle/recipe-activation",
             "evidence-routing/counterfactual-replay",
             "deterministic-rollout/promotion-binding",

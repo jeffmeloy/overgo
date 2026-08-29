@@ -263,6 +263,12 @@ func (runtime AutomationRuntime) deliverAutomation(
 	if err != nil {
 		return err
 	}
+	// A delivery plan binds the immutable manual, while argv policy is a
+	// mutable execution authority. Recheck the current policy before creating
+	// approval or attempt evidence so a tightened policy refuses stale plans.
+	if err := agenttool.CheckArgvAuthority(ctx, runtime.Store, manual); err != nil {
+		return err
+	}
 	idempotency, err := artifact.JSONID(artifact.KindEvidence, struct {
 		Plan        artifact.ID   `json:"plan"`
 		Operation   artifact.ID   `json:"operation"`

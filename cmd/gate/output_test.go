@@ -89,7 +89,7 @@ func TestMergeGateRunsAuthorityPreflightBeforeBroadTests(t *testing.T) {
 	for index, step := range steps {
 		positions[step.Descriptor.Name] = index
 	}
-	for _, authority := range []string{"fmt", "style", "manifest", "sbom", "claims", "docs", "magics"} {
+	for _, authority := range []string{"architecture", "fmt", "style", "manifest", "sbom", "claims", "docs", "magics"} {
 		for _, expensive := range []string{"acceptance", "vet", "build", "test", "device"} {
 			if positions[authority] >= positions[expensive] {
 				t.Fatalf("authority step %s at %d follows %s at %d", authority, positions[authority], expensive, positions[expensive])
@@ -108,6 +108,10 @@ func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
 		if len(byName[name].Triggers) == 0 || byName[name].Inapplicable == "" {
 			t.Errorf("%s lacks modular applicability: %+v", name, byName[name])
 		}
+	}
+	architecture := byName["architecture"]
+	if !architecture.Always || architecture.Ownership.Fact != "" || len(architecture.Triggers) != 0 {
+		t.Fatalf("architecture ratchet must be always-required and ownership-free: %+v", architecture)
 	}
 	resources := byName["device"].Resources
 	if len(resources) != 1 || resources[0].Name != "device" || !resources[0].Exclusive {

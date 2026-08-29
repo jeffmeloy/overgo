@@ -330,6 +330,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	published := automationcheck.PublishedCheck(g.repo, command)
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
+		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2], published,
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
@@ -338,7 +339,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 	dependencies := map[string][]string{
-		"scope": {"protection"}, "profile": {"scope"}, "fmt": {"profile"}, "style": {"fmt"},
+		"scope": {"protection"}, "architecture": {"scope"}, "profile": {"architecture"}, "fmt": {"profile"}, "style": {"fmt"},
 		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
 		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "acceptance": {"magics"},
 		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
@@ -947,6 +948,30 @@ func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
 		g.source = &snapshot
 	}
 	return snapshot, err
+}
+
+// stepArchitectureRatchet audits the complete candidate source on every gate
+// run, including documentation-only changes. It is deliberately in-process:
+// the manifest already binds this check to the candidate tree, and a second
+// test process would only repeat source discovery while weakening ordering.
+func (g *gateContext) stepArchitectureRatchet() (bool, error) {
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	report, err := repoanalysis.AuditProductionAuthorityBoundaries(snapshot)
+	if err != nil {
+		return false, err
+	}
+	if err := runrecord.ValidateTriggerRegistry(); err != nil {
+		return false, err
+	}
+	report.Rules++
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"architecture ratchet: source=%s paths=%d rules=%d sites=%d findings=%d",
+		report.SourceIdentity, len(g.paths), report.Rules, report.Sites, len(report.Findings),
+	))
+	return false, report.Error()
 }
 
 func (g *gateContext) stepProfile() (bool, error) {

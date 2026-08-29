@@ -79,6 +79,12 @@ func RegisterCapabilityProxy(executor *Executor, reader artifact.Reader, admit E
 			if manual.Name == CapabilityProxyName {
 				return nil, errors.New("agent tool: capability proxy cannot call itself")
 			}
+			// The active catalog proves which manual may run, but argv policy
+			// remains live authority. Recheck it at dispatch so a catalog
+			// published before a policy tightening cannot retain execution.
+			if err := CheckArgvAuthority(ctx, reader, manual); err != nil {
+				return nil, err
+			}
 			planned, err := DeriveInvocationEffect(manual, request.Arguments, nil)
 			if err != nil {
 				return nil, err

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -12,8 +13,10 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/operatoraction"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/workflowcontract"
 )
 
 type deliveryAutomationFixture struct {
@@ -96,6 +99,38 @@ func TestAutomationDeliveryIdempotency(t *testing.T) {
 	if err != nil || secondStatus.State != operation.StateCompleted || fixture.calls.Load() != 1 ||
 		len(firstStatus.Outputs) != len(secondStatus.Outputs) {
 		t.Fatalf("idempotent delivery = (%+v, calls=%d, err=%v)", secondStatus, fixture.calls.Load(), err)
+	}
+}
+
+func TestAutomationDeliveryRechecksArgvAuthority(t *testing.T) {
+	ctx := context.Background()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	manual, err := agenttool.NewManual(agenttool.Manual{
+		Name: "automation.argv", Description: "Exercise live argv delivery authority.",
+		Effect:    agenttool.EffectMutation,
+		Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "overgo-deliver"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishArgvPolicy(ctx, store, []string{"overgo-deliver"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{manual}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishArgvPolicy(ctx, store, nil); err != nil {
+		t.Fatal(err)
+	}
+	runtime := AutomationRuntime{Store: store, Tools: agenttool.NewOperatorExecutor()}
+	plan := workflowcontract.AutomationExecutionPlan{Delivery: recipe.AutomationDeliveryPolicy{Tool: manual.ID}}
+	if err := runtime.deliverAutomation(ctx, artifact.ID{}, plan, "", nil); err == nil ||
+		!strings.Contains(err.Error(), "outside the committed policy") {
+		t.Fatalf("tightened argv delivery result = %v", err)
 	}
 }
 

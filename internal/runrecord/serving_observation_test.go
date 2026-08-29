@@ -177,3 +177,76 @@ func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T)
 		t.Fatal("branched serving attempt accepted")
 	}
 }
+
+func TestOperationBoundServingObservationRequiresCurrentAlias(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	fixture := servingObservationFixture(t)
+	parents := []artifact.ID{fixture.Model, fixture.Recipe, fixture.Environment}
+	descriptors := make([]artifact.Descriptor, len(parents))
+	for index, id := range parents {
+		descriptors[index] = artifact.Descriptor{ID: id}
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "serving/operation-bound/authorities", Artifacts: descriptors,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	current, err := PublishServingObservation(ctx, store, fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if required, err := RequireServingAttemptObservation(ctx, store, current.ID); err != nil || required.ID != current.ID {
+		t.Fatalf("current operation-bound observation = (%s, %v)", required.ID, err)
+	}
+
+	foreign := fixture
+	foreign.MeasuredNS++
+	foreign, err = NewServingObservation(foreign)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignContent, err := foreign.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignBatch, err := artifact.NewDocumentBatch(
+		"serving/operation-bound/foreign", []artifact.Content{foreignContent}, foreign.Lineage(), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, foreignBatch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RequireServingObservation(ctx, store, foreign.ID); err != nil {
+		t.Fatalf("well-formed historical observation was unreadable: %v", err)
+	}
+	if _, err := RequireServingAttemptObservation(ctx, store, foreign.ID); err == nil {
+		t.Fatal("foreign observation sharing an operation ordinal was admitted")
+	}
+
+	unbound := fixture
+	unbound.Operation = artifact.ID{}
+	unbound.MeasuredNS += 2
+	unbound, err = NewServingObservation(unbound)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unboundBatch, err := unbound.Batch("serving/operation-bound/unbound")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, unboundBatch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RequireServingAttemptObservation(ctx, store, unbound.ID); err == nil {
+		t.Fatal("serving observation without an operation was admitted")
+	}
+}

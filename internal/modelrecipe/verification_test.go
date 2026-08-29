@@ -6,7 +6,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
-	"overgo/internal/testutil"
 )
 
 func publishVerification(
@@ -16,8 +15,7 @@ func publishVerification(
 	key string,
 ) Verification {
 	t.Helper()
-	environment := testutil.ArtifactID(t, artifact.KindEvidence, key+"/environment")
-	testutil.PublishArtifact(t, store, environment)
+	environment := publishVerificationEnvironment(t, store, key+"/environment")
 	record, err := runrecord.NewGateRecord(
 		definitionID, environment, lifecycleDecisionCommit,
 		runrecord.OutcomeSucceeded, "", 1,
@@ -46,8 +44,7 @@ func publishFailedVerification(
 	key string,
 ) Verification {
 	t.Helper()
-	environment := testutil.ArtifactID(t, artifact.KindEvidence, key+"/environment")
-	testutil.PublishArtifact(t, store, environment)
+	environment := publishVerificationEnvironment(t, store, key+"/environment")
 	record, err := runrecord.NewGateRecord(
 		definitionID, environment, lifecycleDecisionCommit,
 		runrecord.OutcomeFailed, "exact-mismatch", 1,
@@ -67,4 +64,22 @@ func publishFailedVerification(
 		t.Fatal(err)
 	}
 	return Verification{Gate: record.Result.ID, Run: record.Run.ID}
+}
+
+func publishVerificationEnvironment(t testing.TB, store artifact.Repository, key string) artifact.ID {
+	t.Helper()
+	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+		Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := environment.Batch(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
+		t.Fatal(err)
+	}
+	return environment.ID
 }

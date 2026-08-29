@@ -62,12 +62,7 @@ func PublishRemotePeerAuthority(
 		!slices.Contains(identifiedCapability.Tasks, identifiedCompatibility.Task) {
 		return RemotePeerCompatibility{}, errors.Join(errors.New("model recipe: remote peer authority differs"), err)
 	}
-	if err := validatePeerObservation(ctx, repository, identifiedCompatibility.LocalObservation,
-		identifiedCompatibility.LocalEnvironment, identifiedCompatibility); err != nil {
-		return RemotePeerCompatibility{}, err
-	}
-	if err := validatePeerObservation(ctx, repository, identifiedCompatibility.PeerObservation,
-		identifiedCompatibility.PeerEnvironment, identifiedCompatibility); err != nil {
+	if err := validatePeerCompatibilityReferences(ctx, repository, identifiedCompatibility); err != nil {
 		return RemotePeerCompatibility{}, err
 	}
 	capabilityContent, err := remotePeerCapabilityCodec.Content(identifiedCapability)
@@ -137,22 +132,42 @@ func resolveRemotePeerCompatibility(
 		return RemotePeerCompatibility{}, errors.Join(errors.New("model recipe: remote peer capability differs"), err)
 	}
 	compatibility.Capability = capability
-	if err := validatePeerObservation(ctx, store, compatibility.LocalObservation, compatibility.LocalEnvironment, compatibility); err != nil {
-		return RemotePeerCompatibility{}, err
-	}
-	if err := validatePeerObservation(ctx, store, compatibility.PeerObservation, compatibility.PeerEnvironment, compatibility); err != nil {
+	if err := validatePeerCompatibilityReferences(ctx, store, compatibility); err != nil {
 		return RemotePeerCompatibility{}, err
 	}
 	return compatibility, nil
 }
 
-func validatePeerObservation(
+func validatePeerCompatibilityReferences(
+	ctx context.Context,
+	store artifact.Reader,
+	compatibility RemotePeerCompatibility,
+) error {
+	definition, err := recipe.RequireDefinition(ctx, store, compatibility.Recipe)
+	if err != nil || definition.ID != compatibility.Recipe || definition.Model != compatibility.Model ||
+		definition.Task != compatibility.Task {
+		return errors.Join(errors.New("model recipe: peer recipe definition differs"), err)
+	}
+	if err := requirePeerObservation(
+		ctx, store, compatibility.LocalObservation, compatibility.LocalEnvironment, compatibility,
+	); err != nil {
+		return err
+	}
+	if err := requirePeerObservation(
+		ctx, store, compatibility.PeerObservation, compatibility.PeerEnvironment, compatibility,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func requirePeerObservation(
 	ctx context.Context,
 	store artifact.Reader,
 	observationID, environment artifact.ID,
 	compatibility RemotePeerCompatibility,
 ) error {
-	observation, err := runrecord.RequireServingObservation(ctx, store, observationID)
+	observation, err := runrecord.RequireServingAttemptObservation(ctx, store, observationID)
 	if err != nil || observation.Outcome != runrecord.OutcomeSucceeded || observation.Model != compatibility.Model ||
 		observation.Recipe != compatibility.Recipe || observation.Task != compatibility.Task ||
 		observation.Environment != environment {

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
 )
@@ -406,6 +407,27 @@ func CompileTrainingRunPlanFromRepository(ctx context.Context, reader artifact.R
 	plan, err := CompileTrainingRunPlan(spec)
 	if err != nil {
 		return TrainingRunPlan{}, err
+	}
+	definition, err := recipe.RequireDefinition(ctx, reader, spec.Recipe)
+	if err != nil {
+		return TrainingRunPlan{}, fmt.Errorf("training objective: require recipe definition: %w", err)
+	}
+	if definition.Task != recipe.TaskTraining {
+		return TrainingRunPlan{}, errors.New("training objective: recipe is not a training recipe")
+	}
+	// A resume spec carries only a checkpoint identity; ValidateResume closes
+	// its model binding against the typed checkpoint immediately after this
+	// compilation boundary. Pretrained and scratch plans expose their model
+	// directly and must agree with the stored recipe definition here.
+	if plan.InitialMode() != InitialResume && definition.Model != plan.Model() {
+		return TrainingRunPlan{}, errors.New("training objective: recipe model differs from run authority")
+	}
+	boundPolicies, err := PoliciesFromRecipe(definition)
+	if err != nil {
+		return TrainingRunPlan{}, err
+	}
+	if boundPolicies != spec.Policies {
+		return TrainingRunPlan{}, errors.New("training objective: recipe policy bindings differ from run authority")
 	}
 	for _, id := range []artifact.ID{
 		spec.Policies.Precision, spec.Policies.Placement, spec.Policies.Memory,

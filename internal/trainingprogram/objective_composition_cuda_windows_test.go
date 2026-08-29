@@ -151,7 +151,6 @@ func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repos
 	}
 	profile := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindProfile, name) }
 	spec := trainingprogram.RunSpec{
-		Recipe:  testutil.ArtifactID(t, artifact.KindRecipe, "composed training"),
 		Initial: trainingprogram.InitialStateSpec{Model: testutil.ArtifactID(t, artifact.KindModel, "incumbent")},
 		Dataset: objective.Dataset, Split: objective.Split, Signature: objective.Signature,
 		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
@@ -163,6 +162,30 @@ func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repos
 		},
 		Program: program,
 	}
+	definition, err := recipe.NewDefinitionWithDependencies(
+		recipe.TaskTraining,
+		[]recipe.Dependency{
+			{Role: recipe.DependencyModel, Artifact: spec.Initial.Model},
+			{Role: recipe.DependencyObjective, Artifact: spec.Policies.Objective},
+			{Role: recipe.DependencyPrecision, Artifact: spec.Policies.Precision},
+			{Role: recipe.DependencyPlacement, Artifact: spec.Policies.Placement},
+			{Role: recipe.DependencyMemory, Artifact: spec.Policies.Memory},
+			{Role: recipe.DependencyOptimizer, Artifact: spec.Policies.Optimizer},
+			{Role: recipe.DependencyCheckpointPolicy, Artifact: spec.Policies.Checkpoint},
+			{Role: recipe.DependencyEvaluation, Artifact: spec.Policies.Evaluation},
+			{Role: recipe.DependencyPromotion, Artifact: spec.Policies.Promotion},
+		},
+		[]recipe.Node{{ID: "train", Module: "train", Placement: recipe.PlacementHost}}, nil, nil,
+		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "train", Port: "checkpoint"}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec.Recipe = definition.ID
+	definitionContent, err := definition.ArtifactContent()
+	if err != nil {
+		t.Fatal(err)
+	}
 	optimizerContent, err := trainingprogram.BuiltinOptimizerPolicy().Content()
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +193,7 @@ func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repos
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "composed-run-policies", Artifacts: []artifact.Descriptor{
 		{ID: spec.Policies.Precision}, {ID: spec.Policies.Placement}, {ID: spec.Policies.Memory},
 		{ID: spec.Policies.Checkpoint}, {ID: spec.Policies.Promotion},
-	}, Contents: []artifact.Content{optimizerContent}}); err != nil {
+	}, Contents: []artifact.Content{optimizerContent, definitionContent}}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = trainingprogram.CompileTrainingRunPlanFromRepository(ctx, store, spec)

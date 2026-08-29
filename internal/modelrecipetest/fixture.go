@@ -29,24 +29,26 @@ func PublishVerification(
 	key string,
 	recipeID artifact.ID,
 ) (modelrecipe.Verification, error) {
-	environment, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte(key+"/environment"))
+	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+		Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
+	})
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key: key + "/environment",
-		Artifacts: []artifact.Descriptor{{
-			ID: environment, Size: uint64(len(key + "/environment")),
-		}},
-	}); err != nil {
+	environmentBatch, err := environment.Batch(key + "/environment")
+	if err != nil {
 		return modelrecipe.Verification{}, err
 	}
+	if _, err := artifact.CommitBatch(ctx, store, environmentBatch); err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	durationNS := uint64(len(key))
 	record, err := runrecord.NewGateRecord(
-		recipeID, environment, verificationCodeCommit,
-		runrecord.OutcomeSucceeded, "", 1,
+		recipeID, environment.ID, verificationCodeCommit,
+		runrecord.OutcomeSucceeded, "", durationNS,
 		[]runrecord.GateStep{{
 			Name: "verify", Phase: runrecord.PhaseValidate,
-			Outcome: runrecord.StepSucceeded, DurationNS: 1,
+			Outcome: runrecord.StepSucceeded, DurationNS: durationNS,
 		}},
 	)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 )
@@ -95,9 +96,9 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	}
 	identity := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	profile := func(name string) artifact.ID { return identity(artifact.KindProfile, name) }
+	modelID := identity(artifact.KindModel, "model")
 	spec := RunSpec{
-		Recipe:  identity(artifact.KindRecipe, "run"),
-		Initial: InitialStateSpec{Model: identity(artifact.KindModel, "model")},
+		Initial: InitialStateSpec{Model: modelID},
 		Dataset: objective.Dataset, Split: objective.Split, Signature: objective.Signature,
 		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
 		Policies: PolicySpec{
@@ -108,10 +109,16 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 		},
 		Program: program,
 	}
+	definition := trainingRunRecipeFixture(t, recipe.TaskTraining, modelID, spec.Policies)
+	spec.Recipe = definition.ID
+	definitionContent, err := definition.ArtifactContent()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "run-policies", Artifacts: []artifact.Descriptor{
 		{ID: spec.Policies.Precision}, {ID: spec.Policies.Placement}, {ID: spec.Policies.Memory},
 		{ID: spec.Policies.Checkpoint}, {ID: spec.Policies.Promotion},
-	}, Contents: []artifact.Content{mustOptimizerPolicyContent(t)}}); err != nil {
+	}, Contents: []artifact.Content{mustOptimizerPolicyContent(t), definitionContent}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := CompileTrainingRunPlanFromRepository(ctx, store, spec); err != nil {
@@ -121,6 +128,126 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	if _, err := CompileTrainingRunPlanFromRepository(ctx, store, spec); err == nil {
 		t.Fatal("run with a different modality signature accepted")
 	}
+}
+
+func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	objective := objectiveFixture(t, recipecontract.ModalityText, recipecontract.ModalityText, false)
+	objectiveContent, err := objective.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	muon, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := CompileTrainingProgram(ProgramSpec{
+		Objective: ObjectiveTokenPrediction,
+		Operators: []OperatorSpec{
+			{ID: "forward", Phase: PhaseForward},
+			{ID: "backward", Phase: PhaseBackward},
+			{ID: "muon", Phase: PhaseOptimize},
+		},
+		Parameters: []ParameterSpec{{Name: "weight", Rows: 1, Cols: 1, Trainable: true}},
+		Optimizer:  muon,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
+	profile := func(name string) artifact.ID { return id(artifact.KindProfile, name) }
+	modelID := id(artifact.KindModel, "bound-model")
+	policies := PolicySpec{
+		Objective: objective.ID, Precision: profile("bound-precision"), Placement: profile("bound-placement"),
+		Memory: profile("bound-memory"), Optimizer: BuiltinOptimizerPolicy().ID,
+		Checkpoint: profile("bound-checkpoint"), Evaluation: objective.Evaluation,
+		Promotion: profile("bound-promotion"),
+	}
+	exact := trainingRunRecipeFixture(t, recipe.TaskTraining, modelID, policies)
+	foreignPolicies := policies
+	foreignPolicies.Precision = profile("foreign-precision")
+	foreignDataset := id(artifact.KindDataset, "foreign-dataset")
+	foreignSplit := id(artifact.KindDatasetShard, "foreign-split")
+	foreignPolicyRecipe := trainingRunRecipeFixture(t, recipe.TaskTraining, modelID, foreignPolicies)
+	foreignModelRecipe := trainingRunRecipeFixture(t, recipe.TaskTraining, id(artifact.KindModel, "foreign-model"), policies)
+	foreignTaskRecipe := trainingRunRecipeFixture(t, recipe.TaskInference, modelID, policies)
+
+	contents := []artifact.Content{objectiveContent, mustOptimizerPolicyContent(t)}
+	for _, definition := range []recipe.Definition{exact, foreignPolicyRecipe, foreignModelRecipe, foreignTaskRecipe} {
+		content, contentErr := definition.ArtifactContent()
+		if contentErr != nil {
+			t.Fatal(contentErr)
+		}
+		contents = append(contents, content)
+	}
+	descriptors := objectiveReferences(objective)
+	for _, reference := range []artifact.ID{
+		policies.Precision, policies.Placement, policies.Memory, policies.Checkpoint, policies.Promotion,
+		foreignPolicies.Precision, foreignDataset, foreignSplit,
+	} {
+		descriptors = append(descriptors, artifact.Descriptor{ID: reference})
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "semantic-reference-fixture", Artifacts: descriptors, Contents: contents}); err != nil {
+		t.Fatal(err)
+	}
+
+	spec := RunSpec{
+		Recipe: exact.ID, Initial: InitialStateSpec{Model: modelID},
+		Dataset: objective.Dataset, Split: objective.Split, Signature: objective.Signature,
+		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
+		Policies: policies, Program: program,
+	}
+	if _, err := CompileTrainingRunPlanFromRepository(ctx, store, spec); err != nil {
+		t.Fatalf("exact recipe authority refused: %v", err)
+	}
+
+	for name, mutate := range map[string]func(*RunSpec){
+		"foreign recipe policy": func(value *RunSpec) { value.Recipe = foreignPolicyRecipe.ID },
+		"foreign run policy":    func(value *RunSpec) { value.Policies.Precision = foreignPolicies.Precision },
+		"foreign dataset":       func(value *RunSpec) { value.Dataset = foreignDataset },
+		"foreign split":         func(value *RunSpec) { value.Split = foreignSplit },
+		"foreign model":         func(value *RunSpec) { value.Recipe = foreignModelRecipe.ID },
+		"foreign task":          func(value *RunSpec) { value.Recipe = foreignTaskRecipe.ID },
+	} {
+		t.Run(name, func(t *testing.T) {
+			foreign := spec
+			mutate(&foreign)
+			if _, err := CompileTrainingRunPlanFromRepository(ctx, store, foreign); err == nil {
+				t.Fatal("well-formed foreign authority entered the training run")
+			}
+		})
+	}
+}
+
+func trainingRunRecipeFixture(t *testing.T, task recipe.Task, model artifact.ID, policies PolicySpec) recipe.Definition {
+	t.Helper()
+	dependencies := []recipe.Dependency{
+		{Role: recipe.DependencyModel, Artifact: model},
+		{Role: recipe.DependencyObjective, Artifact: policies.Objective},
+		{Role: recipe.DependencyPrecision, Artifact: policies.Precision},
+		{Role: recipe.DependencyPlacement, Artifact: policies.Placement},
+		{Role: recipe.DependencyMemory, Artifact: policies.Memory},
+		{Role: recipe.DependencyOptimizer, Artifact: policies.Optimizer},
+		{Role: recipe.DependencyCheckpointPolicy, Artifact: policies.Checkpoint},
+		{Role: recipe.DependencyEvaluation, Artifact: policies.Evaluation},
+		{Role: recipe.DependencyPromotion, Artifact: policies.Promotion},
+	}
+	definition, err := recipe.NewDefinitionWithDependencies(
+		task, dependencies,
+		[]recipe.Node{{ID: "train", Module: "train", Placement: recipe.PlacementHost}}, nil, nil,
+		[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "train", Port: "checkpoint"}}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return definition
 }
 
 func mustOptimizerPolicyContent(t *testing.T) artifact.Content {

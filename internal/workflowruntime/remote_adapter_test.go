@@ -180,10 +180,14 @@ func newRemoteAdapterFixture(t *testing.T) remoteAdapterFixture {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	operations := map[artifact.ID]artifact.ID{
+		local: testutil.ArtifactID(t, artifact.KindEvidence, "remote-local-operation"),
+		peer:  testutil.ArtifactID(t, artifact.KindEvidence, "remote-peer-operation"),
+	}
 	observe := func(environment artifact.ID) runrecord.ServingObservation {
 		observation, publishErr := runrecord.PublishServingObservation(ctx, store, runrecord.ServingObservation{
 			Model: model.ID, Recipe: definition.ID, Environment: environment,
-			Task: definition.Task, Outcome: runrecord.OutcomeSucceeded,
+			Operation: operations[environment], Task: definition.Task, Outcome: runrecord.OutcomeSucceeded,
 			StartedUnixNS: 1, MeasuredNS: 1,
 		})
 		if publishErr != nil {
@@ -228,17 +232,21 @@ func publishRemoteVerification(
 	store artifact.Repository,
 	recipeID artifact.ID,
 ) (modelrecipe.Verification, error) {
-	environment, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("remote-verification-environment"))
+	environment, err := runrecord.NewEnvironment(runrecord.Environment{
+		Host: "remote-verification", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
+	})
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key: "remote/verification/environment", Artifacts: []artifact.Descriptor{{ID: environment}},
-	}); err != nil {
+	environmentBatch, err := environment.Batch("remote/verification/environment")
+	if err != nil {
+		return modelrecipe.Verification{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, environmentBatch); err != nil {
 		return modelrecipe.Verification{}, err
 	}
 	record, err := runrecord.NewGateRecord(
-		recipeID, environment, remoteVerificationCodeCommit, runrecord.OutcomeSucceeded, "", 1,
+		recipeID, environment.ID, remoteVerificationCodeCommit, runrecord.OutcomeSucceeded, "", 1,
 		[]runrecord.GateStep{{Name: "verify", Phase: runrecord.PhaseValidate, Outcome: runrecord.StepSucceeded, DurationNS: 1}},
 	)
 	if err != nil {

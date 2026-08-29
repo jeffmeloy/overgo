@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "reference-relevance-admission",
-          "title": "Require admitted references to prove role-specific semantic relevance",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/modelrecipe ./internal/runrecord -run '^TestReferenceAdmissionRequiresSemanticRelevance$' -count=1",
-          "rationale": "Existence and kind are necessary but insufficient. The owning admission path parses each role-specific typed contract and requires exact subject, model, recipe, dataset, split, environment, and operation bindings, refusing well-formed foreign artifacts. Common mechanics are extracted only after a second real consumer demonstrates the shared contract.",
-          "depends_on": [
-            "resource-coverage/coverage-projection"
-          ],
-          "capabilities": [
-            "reference-relevance",
-            "admission",
-            "typed-authority",
-            "rsi-evidence"
-          ]
-        },
-        {
           "id": "fitness-integration",
           "title": "Require improvement comparisons to evaluate capability, quality, resource, and coverage deltas together",
           "status": "open",

@@ -156,10 +156,14 @@ func TestRemoteCapabilityAdmission(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	operations := map[artifact.ID]artifact.ID{
+		local: testutil.ArtifactID(t, artifact.KindEvidence, "selector-local-operation"),
+		peer:  testutil.ArtifactID(t, artifact.KindEvidence, "selector-peer-operation"),
+	}
 	observe := func(environment artifact.ID) runrecord.ServingObservation {
 		observation, err := runrecord.PublishServingObservation(ctx, fixture.store, runrecord.ServingObservation{
 			Model: fixture.model, Recipe: fixture.definition.ID, Environment: environment,
-			Task: recipe.TaskGeneration, Outcome: runrecord.OutcomeSucceeded,
+			Operation: operations[environment], Task: recipe.TaskGeneration, Outcome: runrecord.OutcomeSucceeded,
 			StartedUnixNS: time.Now().UnixNano(), MeasuredNS: uint64(time.Nanosecond),
 		})
 		if err != nil {

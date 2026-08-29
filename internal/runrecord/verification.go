@@ -38,6 +38,22 @@ func verifyGateRunOutcome(
 	recipeID, gateID, runID artifact.ID,
 	want Outcome,
 ) (Verification, error) {
+	verified, err := loadGateRunOutcome(ctx, store, recipeID, gateID, runID, want)
+	if err != nil {
+		return Verification{}, err
+	}
+	if _, err := RequireEnvironment(ctx, store, verified.Gate.Environment); err != nil {
+		return Verification{}, errors.Join(errors.New("run record: verifier environment cannot be required exactly"), err)
+	}
+	return verified, nil
+}
+
+func loadGateRunOutcome(
+	ctx context.Context,
+	store artifact.Reader,
+	recipeID, gateID, runID artifact.ID,
+	want Outcome,
+) (Verification, error) {
 	gate, err := gateCodec.Require(ctx, store, gateID)
 	if err != nil {
 		return Verification{}, err
@@ -87,7 +103,12 @@ func VerifyEvidence(
 	}
 	for _, gate := range gates {
 		for _, run := range runs {
-			if verified, err := VerifyGateRun(ctx, store, recipeID, gate, run); err == nil {
+			// Lifecycle evidence is immutable and includes records published
+			// before Environment acquired a typed document contract. New
+			// admission always enters through VerifyGateRun; replay preserves
+			// those exact historical gate/run bindings without admitting new
+			// identity-only environments.
+			if verified, err := loadGateRunOutcome(ctx, store, recipeID, gate, run, OutcomeSucceeded); err == nil {
 				return verified, nil
 			}
 		}

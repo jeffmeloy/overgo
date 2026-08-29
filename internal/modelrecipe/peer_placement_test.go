@@ -118,6 +118,10 @@ func newPeerPlacementFixture(t *testing.T, publishRemoteLocation bool) peerPlace
 	}); err != nil {
 		t.Fatal(err)
 	}
+	operations := map[artifact.ID]artifact.ID{
+		localEnvironment: testutil.ArtifactID(t, artifact.KindEvidence, "placement-local-operation"),
+		peerEnvironment:  testutil.ArtifactID(t, artifact.KindEvidence, "placement-peer-operation"),
+	}
 	modelPath := filepath.Join(t.TempDir(), "model.bin")
 	if err := os.WriteFile(modelPath, []byte("placement-model"), 0o600); err != nil {
 		t.Fatal(err)
@@ -136,7 +140,7 @@ func newPeerPlacementFixture(t *testing.T, publishRemoteLocation bool) peerPlace
 	}
 	observe := func(environment artifact.ID, measured, peak uint64) runrecord.ServingObservation {
 		observation, err := runrecord.PublishServingObservation(ctx, fixture.store, runrecord.ServingObservation{
-			Model: fixture.model, Recipe: fixture.definition.ID, Environment: environment, Task: recipe.TaskGeneration,
+			Model: fixture.model, Recipe: fixture.definition.ID, Environment: environment, Operation: operations[environment], Task: recipe.TaskGeneration,
 			Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: placementApprovedUnixNS,
 			MeasuredNS: measured, Resources: runrecord.ServingResources{PeakDeviceBytes: peak},
 		})

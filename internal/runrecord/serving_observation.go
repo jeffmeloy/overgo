@@ -116,6 +116,34 @@ func RequireServingObservation(ctx context.Context, reader artifact.Reader, id a
 	return servingObservationCodec.Require(ctx, reader, id)
 }
 
+// RequireServingAttemptObservation loads one serving fact and proves that its
+// operation and attempt ordinal select that exact immutable fact. Callers that
+// only need to inspect historical content may continue to use
+// RequireServingObservation.
+func RequireServingAttemptObservation(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (ServingObservation, error) {
+	observation, err := RequireServingObservation(ctx, reader, id)
+	if err != nil {
+		return ServingObservation{}, err
+	}
+	if !observation.Operation.Valid() {
+		return ServingObservation{}, errors.New("run record: serving observation has no operation binding")
+	}
+	current, found, err := artifact.ResolveAlias(
+		ctx, reader, servingAttemptAlias(observation.Operation, observation.Attempt),
+	)
+	if err != nil {
+		return ServingObservation{}, err
+	}
+	if !found || current != observation.ID {
+		return ServingObservation{}, errors.New("run record: serving observation differs from the operation attempt authority")
+	}
+	return observation, nil
+}
+
 func (value ServingObservation) Content() (artifact.Content, error) {
 	return servingObservationCodec.Content(value)
 }

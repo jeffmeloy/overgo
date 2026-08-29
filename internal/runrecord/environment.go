@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"os"
 	"runtime"
@@ -38,6 +39,12 @@ func NewEnvironment(environment Environment) (Environment, error) {
 	environment.Version = artifact.InitialDocumentVersion
 	environment.ID = artifact.ID{}
 	return environmentCodec.New(environment)
+}
+
+// RequireEnvironment loads one exact execution-platform identity through the
+// environment's owning document contract.
+func RequireEnvironment(ctx context.Context, reader artifact.Reader, id artifact.ID) (Environment, error) {
+	return environmentCodec.Require(ctx, reader, id)
 }
 
 // CurrentEnvironment returns the process runtime identity.

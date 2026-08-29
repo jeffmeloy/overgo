@@ -191,7 +191,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:116b33800d48dc64d63f87c992f50a3036a00376582eae8fba36bfa2b90004de"
+     "identity": "file:sha256:834ebe69d24c97c12240ce39ff7f5ff690b76719f62a0f7c2e9a2be371e56161"
     },
     {
      "contains": "func AudioProcessor(",
@@ -219,7 +219,7 @@
      "contains": "func CompileTrainingObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:116b33800d48dc64d63f87c992f50a3036a00376582eae8fba36bfa2b90004de"
+     "identity": "file:sha256:834ebe69d24c97c12240ce39ff7f5ff690b76719f62a0f7c2e9a2be371e56161"
     },
     {
      "contains": "func CompileObjectiveProgram(",

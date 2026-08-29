@@ -136,10 +136,10 @@ func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 	}
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "verified-recipe")
-	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "verified-environment")
+	environmentID := publishGateTestEnvironment(t, ctx, store, "verified-environment")
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "fixture/verification/facts",
-		Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: environmentID}},
+		Artifacts: []artifact.Descriptor{{ID: recipeID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -182,9 +182,8 @@ func TestVerifyFailedGateRun(t *testing.T) {
 	}
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "failed-recipe")
-	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "failed-environment")
+	environmentID := publishGateTestEnvironment(t, ctx, store, "failed-environment")
 	testutil.PublishArtifact(t, store, recipeID)
-	testutil.PublishArtifact(t, store, environmentID)
 	record, err := NewGateRecord(
 		recipeID, environmentID, fixtureCodeCommit, OutcomeFailed, "exact-mismatch", 1,
 		[]GateStep{{Name: "verify", Phase: PhaseTest, Outcome: StepFailed, DurationNS: 1}},
@@ -205,4 +204,115 @@ func TestVerifyFailedGateRun(t *testing.T) {
 	if _, err := VerifyGateRun(ctx, store, recipeID, record.Result.ID, record.Run.ID); err == nil {
 		t.Fatal("failed evidence accepted as successful")
 	}
+}
+
+func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
+	ctx := context.Background()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "relevant-environment-recipe")
+	foreignRecipeID := testutil.ArtifactID(t, artifact.KindRecipe, "foreign-environment-recipe")
+	testutil.PublishArtifact(t, store, recipeID)
+	testutil.PublishArtifact(t, store, foreignRecipeID)
+	exactEnvironment := publishGateTestEnvironment(t, ctx, store, "relevant-environment")
+	foreignEnvironment := publishGateTestEnvironment(t, ctx, store, "foreign-environment")
+	exact, err := NewGateRecord(
+		recipeID, exactEnvironment, fixtureCodeCommit, OutcomeSucceeded, "", 1,
+		[]GateStep{{Name: "verify", Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: 1}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exactBatch, err := exact.Batch("fixture/reference-relevance/exact")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, exactBatch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyGateRun(ctx, store, recipeID, exact.Result.ID, exact.Run.ID); err != nil {
+		t.Fatalf("exact typed environment was rejected: %v", err)
+	}
+	foreignSubject, err := NewGateRecord(
+		foreignRecipeID, exactEnvironment, fixtureCodeCommit, OutcomeSucceeded, "", 1,
+		[]GateStep{{Name: "verify", Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: 1}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignSubjectBatch, err := foreignSubject.Batch("fixture/reference-relevance/foreign-subject")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, foreignSubjectBatch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyGateRun(ctx, store, recipeID, foreignSubject.Result.ID, foreignSubject.Run.ID); err == nil {
+		t.Fatal("well-formed gate and run for a foreign subject were admitted")
+	}
+
+	descriptorOnly := testutil.ArtifactID(t, artifact.KindEvidence, "descriptor-only-environment")
+	testutil.PublishArtifact(t, store, descriptorOnly)
+	untyped, err := NewGateRecord(
+		recipeID, descriptorOnly, fixtureCodeCommit, OutcomeSucceeded, "", 1,
+		[]GateStep{{Name: "verify", Phase: PhaseValidate, Outcome: StepSucceeded, DurationNS: 1}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	untypedBatch, err := untyped.Batch("fixture/reference-relevance/descriptor-only")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, untypedBatch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyGateRun(ctx, store, recipeID, untyped.Result.ID, untyped.Run.ID); err == nil {
+		t.Fatal("descriptor-only environment was admitted")
+	}
+
+	foreignRun, err := NewBoundRun(
+		recipeID, OutcomeSucceeded, nil, []artifact.ID{exact.Result.ID}, "", fixtureCodeCommit,
+		foreignEnvironment, exact.Run.MeasuredNS, exact.Run.Phases,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignRunBatch, err := foreignRun.Batch("fixture/reference-relevance/foreign-environment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, foreignRunBatch); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyGateRun(ctx, store, recipeID, exact.Result.ID, foreignRun.ID); err == nil {
+		t.Fatal("well-formed run bound to a foreign environment was admitted")
+	}
+}
+
+func publishGateTestEnvironment(
+	t testing.TB,
+	ctx context.Context,
+	store artifact.Repository,
+	name string,
+) artifact.ID {
+	t.Helper()
+	environment, err := NewEnvironment(Environment{
+		Host: name, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := environment.Batch("fixture/environment/" + environment.ID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		t.Fatal(err)
+	}
+	return environment.ID
 }

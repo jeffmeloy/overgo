@@ -34,6 +34,13 @@ func TestVerdictClassificationAndRepeatAgreement(t *testing.T) {
 		if got := ClassifyVerifyCommand(c.command); got != c.want {
 			t.Errorf("ClassifyVerifyCommand(%q) = %s, want %s", c.command, got, c.want)
 		}
+		got, err := ClassifyVerifyCommandForPolicy(VerifyPolicyV1, c.command)
+		if err != nil || got != c.want {
+			t.Errorf("ClassifyVerifyCommandForPolicy(v1, %q) = (%s, %v), want %s", c.command, got, err, c.want)
+		}
+	}
+	if _, err := ClassifyVerifyCommandForPolicy(VerifyPolicy("verify-classifier-v2"), "go test ./..."); err == nil {
+		t.Fatal("unknown future verify classifier policy accepted")
 	}
 
 	if err := RepeatAgreement(verdictEvidence("pass"), verdictEvidence("pass")); err != nil {

@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "completion-reference-authority",
-          "title": "Bind pruned dependency satisfaction to gated Git completion evidence and prevent identity reuse",
-          "status": "open",
-          "verify": "go test ./internal/plan ./cmd/plan ./cmd/gate -run '^(TestPrunedDependencyRequiresGatedCompletion|TestCompletedPlanIdentityCannotBeReused)$' -count=1",
-          "rationale": "An absent row is not sufficient proof of completion. Resolve each pruned item and step identity against an ancestor gate commit and its plan-transition trailers, refuse unknown or reused identities, and link the resulting development evidence to the existing OvergoDB attempt record without creating a second completion ledger in plan.json.",
-          "depends_on": [
-            "resource-coverage/fitness-integration"
-          ],
-          "capabilities": [
-            "plan-authority",
-            "git-evidence",
-            "dependency-ratchet",
-            "gate-ratchet"
-          ]
-        },
-        {
           "id": "core-entry-guards",
           "title": "Ratchet existing storage, process, capability, tool, trigger, and promotion entry authorities",
           "status": "open",

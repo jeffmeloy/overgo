@@ -40,6 +40,7 @@ import (
 	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
 	"overgo/internal/finding"
+	"overgo/internal/gitauthority"
 	"overgo/internal/guard"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
@@ -55,6 +56,7 @@ import (
 const (
 	gateRecipeSeed   = "overgo-gate/v1"
 	gateWorkloadSeed = "overgo-gate-workload/v1"
+	gateStorePath    = "overgodb-store"
 	// Gate state lives in tmp/, the sanctioned scrap home: bin/ holds
 	// executables only and the release refuses anything else in it.
 	gateDebtFile      = "tmp/gate_debt.json"
@@ -64,36 +66,39 @@ const (
 )
 
 type gateContext struct {
-	repo              string
-	paths             []string
-	planRef           string
-	messageFile       string
-	storePath         string
-	steps             []runrecord.GateStep
-	honesty           []string
-	start             time.Time
-	environment       runrecord.Environment
-	preparation       runrecord.GateLifecycle
-	source            *repoanalysis.SourceSnapshot
-	baseSource        *repoanalysis.SourceSnapshot
-	profile           *codeprofile.Profile
-	profileDirty      bool
-	stepEvidence      map[string]string
-	cachePaths        []string
-	retryCache        *automationcheck.EvidenceCache
-	structural        *codeprofile.FunctionImpact
-	packageGraph      *packageInputGraph
-	selection         automationcheck.SelectionMetrics
-	selectionID       string
-	manifestPlan      *automationcheck.ManifestPlan
-	terminal          map[string]automationcheck.Evidence
-	baseManifest      *codemanifest.Manifest
-	candidateManifest *codemanifest.Manifest
-	manifestDelta     *codemanifest.Delta
-	manifestImpact    *codemanifest.Impact
-	manifestMetrics   automationcheck.ManifestMeasurements
-	strategy          *loop.Strategy
-	diff              runrecord.AttemptDiff
+	repo                string
+	paths               []string
+	planRef             string
+	messageFile         string
+	storePath           string
+	steps               []runrecord.GateStep
+	honesty             []string
+	start               time.Time
+	environment         runrecord.Environment
+	preparation         runrecord.GateLifecycle
+	preparationCommit   artifact.CommitID
+	completionAuthority plan.CompletionAuthority
+	planHead            string
+	source              *repoanalysis.SourceSnapshot
+	baseSource          *repoanalysis.SourceSnapshot
+	profile             *codeprofile.Profile
+	profileDirty        bool
+	stepEvidence        map[string]string
+	cachePaths          []string
+	retryCache          *automationcheck.EvidenceCache
+	structural          *codeprofile.FunctionImpact
+	packageGraph        *packageInputGraph
+	selection           automationcheck.SelectionMetrics
+	selectionID         string
+	manifestPlan        *automationcheck.ManifestPlan
+	terminal            map[string]automationcheck.Evidence
+	baseManifest        *codemanifest.Manifest
+	candidateManifest   *codemanifest.Manifest
+	manifestDelta       *codemanifest.Delta
+	manifestImpact      *codemanifest.Impact
+	manifestMetrics     automationcheck.ManifestMeasurements
+	strategy            *loop.Strategy
+	diff                runrecord.AttemptDiff
 }
 
 func main() {
@@ -103,7 +108,7 @@ func main() {
 func run() error {
 	messageFile := flag.String("message-file", "", "commit message file (required; never -m: the shell eats backticks)")
 	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships (required unless -merge)")
-	storePath := flag.String("store", "overgodb-store", "OvergoDB store directory (relative to repo root)")
+	storePath := flag.String("store", gateStorePath, "canonical OvergoDB store directory")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the current open step, including for -merge. Off-plan commits are refused.")
 	reconcile := flag.Bool("reconcile", false, "finalize the deterministic OvergoDB batch in tmp/gate_debt.json")
@@ -120,6 +125,10 @@ func run() error {
 	cleanStore := filepath.Clean(*storePath)
 	if cleanStore == "." || filepath.IsAbs(cleanStore) || cleanStore == ".." || strings.HasPrefix(cleanStore, ".."+string(filepath.Separator)) {
 		return errors.New("gate: store path must stay below the repository root")
+	}
+	writesAuthority := *reconcile || *recordFailure || *admitReview == "" && !*watchdog && !*inspectPlan
+	if err := requireCanonicalGateStore(cleanStore, writesAuthority); err != nil {
+		return err
 	}
 	if *reconcile {
 		preparation, err := reconcileGateDebt(repo, cleanStore)
@@ -158,14 +167,18 @@ func run() error {
 	// Every commit -- including a merge finalize -- is bound to the plan's current
 	// open step. Merges are no longer exempt: a sync/merge is a first-class plan
 	// task (inject it with `plan -add`, then finalize with -plan <item>/do).
+	var completionAuthority plan.CompletionAuthority
+	var planHead string
 	if !*inspectPlan {
-		if err := checkPlanBinding(repo, *planRef); err != nil {
+		completionAuthority, planHead, err = resolvePlanBinding(repo, cleanStore, *planRef)
+		if err != nil {
 			return err
 		}
 	}
 	g := &gateContext{
 		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
+		completionAuthority: completionAuthority, planHead: planHead,
 	}
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
@@ -256,33 +269,59 @@ func run() error {
 // step. This is the enforcement that makes off-plan work impossible to commit:
 // the shared internal/plan.Current is the same "current step" cmd/plan dispatches
 // and verifies, so the gate and the dispatcher can never disagree.
+func requireCanonicalGateStore(path string, writesAuthority bool) error {
+	if writesAuthority && filepath.ToSlash(filepath.Clean(path)) != gateStorePath {
+		return fmt.Errorf("gate: completion authority requires the canonical %s store", gateStorePath)
+	}
+	return nil
+}
+
 func checkPlanBinding(repo, ref string) error {
+	_, _, err := resolvePlanBinding(repo, gateStorePath, ref)
+	return err
+}
+
+func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, error) {
 	if ref == "" {
-		return fmt.Errorf("gate: -plan <item>/<step> is required (the plan's current open step; run `go run ./cmd/plan -next`)")
+		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan <item>/<step> is required (the plan's current open step; run `go run ./cmd/plan -next`)")
 	}
 	item, stepID, ok := strings.Cut(ref, "/")
 	if !ok || item == "" || stepID == "" {
-		return fmt.Errorf("gate: -plan must be <item>/<step>, got %q", ref)
+		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan must be <item>/<step>, got %q", ref)
 	}
 	document, err := plan.Load(filepath.Join(repo, plan.Path))
 	if err != nil {
-		return err
+		return plan.CompletionAuthority{}, "", err
 	}
 	if err := plan.Validate(document); err != nil {
-		return err
+		return plan.CompletionAuthority{}, "", err
 	}
 	role, err := plan.AutomationRole("")
 	if err != nil {
-		return err
+		return plan.CompletionAuthority{}, "", err
 	}
-	it, st, open := plan.Current(document, role)
+	head, err := command(repo, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return plan.CompletionAuthority{}, "", err
+	}
+	head = strings.TrimSpace(head)
+	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
+	if err != nil {
+		return plan.CompletionAuthority{}, "", err
+	}
+	defer store.Close()
+	authority, err := plan.ResolveCompletionAuthority(context.Background(), repo, head, document, store)
+	if err != nil {
+		return plan.CompletionAuthority{}, "", err
+	}
+	it, st, open := plan.Current(document, role, authority)
 	if !open {
-		return fmt.Errorf("gate: -plan %s given but the plan is COMPLETE (no open step) -- nothing to commit against", ref)
+		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan %s given but the plan is COMPLETE (no open step) -- nothing to commit against", ref)
 	}
 	if item != it.ID || stepID != st.ID {
-		return fmt.Errorf("gate: -plan %s does NOT match the plan's current open step %s/%s -- commit only the dispatched step (off-plan commit REFUSED). If the plan is wrong, fix the plan first; do not commit around it", ref, it.ID, st.ID)
+		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan %s does NOT match the plan's current open step %s/%s -- commit only the dispatched step (off-plan commit REFUSED). If the plan is wrong, fix the plan first; do not commit around it", ref, it.ID, st.ID)
 	}
-	return nil
+	return authority, head, nil
 }
 
 func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck.Check {
@@ -1806,27 +1845,45 @@ func (g *gateContext) stepAcceptance() (bool, error) {
 	// (bitwise-deterministic / tolerance-bounded / stochastic-multi-seed) and
 	// repeats deterministic go-test claims requiring per-test agreement. The
 	// gate records the class alongside the plan reference.
-	g.stepEvidence["acceptance"] = g.planRef + " verdict=" + string(acceptanceVerdictClass(g.repo))
-	_, err := command(g.repo, "go", "run", "./cmd/plan", "-verify")
+	evidence, err := completionAcceptanceEvidence(g.repo, g.planRef, g.completionAuthority)
+	if err != nil {
+		return false, err
+	}
+	g.stepEvidence["acceptance"] = evidence
+	_, err = command(g.repo, "go", "run", "./cmd/plan", "-verify")
 	return false, err
 }
 
-// acceptanceVerdictClass classifies the current step's verify command; an
-// unreadable plan defaults to the strictest class.
-func acceptanceVerdictClass(repo string) testevidence.VerdictClass {
+func completionAcceptanceEvidence(
+	repo, reference string,
+	authority plan.CompletionAuthority,
+) (string, error) {
 	document, err := plan.Load(filepath.Join(repo, plan.Path))
 	if err != nil {
-		return testevidence.VerdictBitwiseDeterministic
+		return "", err
 	}
+	return completionAcceptanceEvidenceForPlan(document, reference, authority)
+}
+
+func completionAcceptanceEvidenceForPlan(
+	document plan.Plan,
+	reference string,
+	authority plan.CompletionAuthority,
+) (string, error) {
 	role, roleErr := plan.AutomationRole("")
 	if roleErr != nil {
-		return testevidence.VerdictBitwiseDeterministic
+		return "", roleErr
 	}
-	_, step, open := plan.Current(document, role)
+	item, step, open := plan.Current(document, role, authority)
 	if !open {
-		return testevidence.VerdictBitwiseDeterministic
+		return "", errors.New("acceptance: plan has no current open step")
 	}
-	return testevidence.ClassifyVerifyCommand(step.Verify)
+	if current := item.ID + "/" + step.ID; current != reference {
+		return "", fmt.Errorf("acceptance: current plan step %s differs from gate authority %s", current, reference)
+	}
+	return runrecord.FormatCompletionAcceptanceEvidence(
+		testevidence.CurrentVerifyPolicy, reference, step.Verify,
+	)
 }
 
 func (g *gateContext) stepCommit() (bool, error) {
@@ -1853,15 +1910,58 @@ func (g *gateContext) stepCommit() (bool, error) {
 	); err != nil {
 		return false, fmt.Errorf("pre-commit record validation: %w", err)
 	}
-	// Structured completion trailers make Git the completion record:
-	// the row leaves the plan in this same commit, and the trailers
-	// carry what completed and how it was verified. The gate record
-	// published after commit binds the evidence by commit SHA.
-	messageFile, err := g.completionMessageFile()
+	planFile := filepath.Join(g.repo, filepath.FromSlash(plan.Path))
+	document, err := plan.Load(planFile)
 	if err != nil {
 		return false, err
 	}
-	rollbackPlan, err := advancePlanFile(g.repo, g.planRef)
+	acceptance, err := completionAcceptanceEvidenceForPlan(document, g.planRef, g.completionAuthority)
+	if err != nil {
+		return false, fmt.Errorf("commit admission: plan changed after acceptance: %w", err)
+	}
+	if acceptance != g.stepEvidence["acceptance"] {
+		return false, errors.New("commit admission: plan verifier changed after acceptance")
+	}
+	planHead, err := command(g.repo, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return false, err
+	}
+	if planHead = strings.TrimSpace(planHead); planHead != g.planHead {
+		return false, fmt.Errorf("commit admission: plan authority moved from %.12s to %.12s", g.planHead, planHead)
+	}
+	completionStore, err := overgodb.OpenReadOnly(filepath.Join(g.repo, g.storePath))
+	if err != nil {
+		return false, fmt.Errorf("commit admission: open completion store: %w", err)
+	}
+	defer completionStore.Close()
+	if err := requireGatePreparationReceipt(
+		context.Background(), completionStore, g.preparation, g.preparationCommit,
+	); err != nil {
+		return false, fmt.Errorf("commit admission: recheck gate preparation authority: %w", err)
+	}
+	completionAuthority, err := plan.ResolveCompletionAuthority(
+		context.Background(), g.repo, g.planHead, document, completionStore,
+	)
+	if err != nil {
+		return false, fmt.Errorf("commit admission: recheck completion authority: %w", err)
+	}
+	role, err := plan.AutomationRole("")
+	if err != nil {
+		return false, err
+	}
+	item, step, open := plan.Current(document, role, completionAuthority)
+	if !open || item.ID+"/"+step.ID != g.planRef {
+		return false, errors.New("commit admission: completion authority no longer selects the gated row")
+	}
+	planHead, err = command(g.repo, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return false, err
+	}
+	if planHead = strings.TrimSpace(planHead); planHead != g.planHead {
+		return false, fmt.Errorf("commit admission: plan authority moved from %.12s to %.12s", g.planHead, planHead)
+	}
+	g.completionAuthority = completionAuthority
+	preAdvance, rollbackPlan, err := advancePlanFile(g.repo, g.planRef)
 	if err != nil {
 		return false, err
 	}
@@ -1873,6 +1973,38 @@ func (g *gateContext) stepCommit() (bool, error) {
 		_ = rollbackPlan()
 		_, _ = command(g.repo, "git", "add", "-A", "--", plan.Path)
 	}()
+	acceptance, err = completionAcceptanceEvidenceForPlan(preAdvance, g.planRef, completionAuthority)
+	if err != nil {
+		return false, fmt.Errorf("commit admission: advanced plan differs from accepted authority: %w", err)
+	}
+	if acceptance != g.stepEvidence["acceptance"] {
+		return false, errors.New("commit admission: advanced plan differs from accepted verifier")
+	}
+	// Structured completion trailers make Git the completion record. They are
+	// derived from the exact pre-advance document consumed above, never from a
+	// second mutable plan read.
+	messageFile, err := g.completionMessageFile(preAdvance)
+	if err != nil {
+		return false, err
+	}
+	defer os.Remove(messageFile)
+	child, err := plan.Load(planFile)
+	if err != nil {
+		return false, fmt.Errorf("commit admission: load advanced plan: %w", err)
+	}
+	parents, mergeBase, err := prospectiveCompletionParents(g.repo, g.planHead)
+	if err != nil {
+		return false, fmt.Errorf("commit admission: resolve prospective completion parents: %w", err)
+	}
+	completionMessage, err := os.ReadFile(messageFile)
+	if err != nil {
+		return false, fmt.Errorf("commit admission: read completion message: %w", err)
+	}
+	if err := plan.VerifyProspectiveCompletionTransition(
+		parents, mergeBase, preAdvance, child, string(completionMessage),
+	); err != nil {
+		return false, fmt.Errorf("commit admission: verify prospective completion transition: %w", err)
+	}
 	// Add only paths with UNSTAGED changes: git refuses an add pathspec for a
 	// file that is gone with its deletion already fully staged (observed on
 	// the .ps1 retirement commit, under both plain and -A forms). Fully
@@ -1942,38 +2074,27 @@ func validateManifestCommitAdmission(manifest automationcheck.ManifestPlan, term
 // structured completion trailers to a temporary file: the plan item
 // and step this commit completes, and the verify command that gated
 // it. Git carries completion history; the plan keeps only open work.
-func (g *gateContext) completionMessageFile() (string, error) {
+func (g *gateContext) completionMessageFile(document plan.Plan) (string, error) {
 	message, err := os.ReadFile(g.messageFile)
 	if err != nil {
 		return "", err
 	}
 	itemID, stepID, _ := strings.Cut(g.planRef, "/")
-	trailers := "\nOvergo-Plan-Item: " + itemID + "\nOvergo-Plan-Step: " + stepID + "\n"
-	if g.manifestPlan != nil {
-		trailers += "Overgo-Manifest-Plan: " + g.manifestPlan.ID.String() + "\n"
+	if g.manifestPlan == nil || g.candidateManifest == nil {
+		return "", errors.New("completion message: manifest authorities are absent")
 	}
-	if g.candidateManifest != nil {
-		trailers += "Overgo-Code-Manifest: " + g.candidateManifest.ID.String() + "\n"
+	augmented, err := plan.CompletionCommitMessage(
+		message, document, itemID, stepID, g.manifestPlan.ID, g.candidateManifest.ID,
+		g.preparation.ID, g.preparationCommit,
+	)
+	if err != nil {
+		return "", err
 	}
-	document, err := plan.Load(filepath.Join(g.repo, filepath.FromSlash(plan.Path)))
-	if err == nil {
-		for _, item := range document.Items {
-			if item.ID != itemID {
-				continue
-			}
-			for _, step := range item.Steps {
-				if step.ID == stepID && step.Verify != "" {
-					trailers += "Overgo-Verify: " + step.Verify + "\n"
-				}
-			}
-		}
-	}
-	augmented := strings.TrimRight(string(message), "\n") + "\n" + trailers
 	file, err := os.CreateTemp("", "gate-message-*.txt")
 	if err != nil {
 		return "", err
 	}
-	if _, err := file.WriteString(augmented); err != nil {
+	if _, err := file.Write(augmented); err != nil {
 		file.Close()
 		return "", err
 	}
@@ -1983,32 +2104,113 @@ func (g *gateContext) completionMessageFile() (string, error) {
 	return file.Name(), nil
 }
 
-func advancePlanFile(repo, ref string) (func() error, error) {
+func prospectiveCompletionParents(repository, head string) ([]plan.Plan, *plan.Plan, error) {
+	local, err := historicalCompletionPlan(repository, head)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load local parent plan: %w", err)
+	}
+	incomingRevision, found, err := optionalCompletionRevision(repository, "MERGE_HEAD")
+	if err != nil {
+		return nil, nil, err
+	}
+	if !found {
+		return []plan.Plan{local}, nil, nil
+	}
+	incoming, err := historicalCompletionPlan(repository, incomingRevision)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load incoming parent plan: %w", err)
+	}
+	mergeBaseOutput, err := completionGitOutput(repository, "merge-base", "--all", head, incomingRevision)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve merge base: %w", err)
+	}
+	mergeBases := strings.Fields(string(mergeBaseOutput))
+	if len(mergeBases) != 1 {
+		return nil, nil, fmt.Errorf("prospective completion requires exactly one merge base, found %d", len(mergeBases))
+	}
+	mergeBase, err := historicalCompletionPlan(repository, mergeBases[0])
+	if err != nil {
+		return nil, nil, fmt.Errorf("load merge-base plan: %w", err)
+	}
+	return []plan.Plan{local, incoming}, &mergeBase, nil
+}
+
+func historicalCompletionPlan(repository, revision string) (plan.Plan, error) {
+	data, err := completionGitOutput(repository, "cat-file", "blob", revision+":"+plan.Path)
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	document, err := plan.ParseHistorical(data)
+	if err != nil {
+		return plan.Plan{}, fmt.Errorf("validate plan at %.12s: %w", revision, err)
+	}
+	return document, nil
+}
+
+func optionalCompletionRevision(repository, revision string) (string, bool, error) {
+	arguments := []string{
+		"--no-replace-objects", "rev-parse", "--verify", "-q", "--end-of-options", revision + "^{commit}",
+	}
+	cmd := exec.Command("git", arguments...)
+	cmd.Dir = repository
+	cmd.Env = gitauthority.ReaderEnvironment()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) && exitError.ExitCode() == 1 && strings.TrimSpace(string(output)) == "" {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf(
+			"git %s: %w: %s", strings.Join(arguments[1:], " "), err, strings.TrimSpace(string(output)),
+		)
+	}
+	fields := strings.Fields(string(output))
+	if len(fields) != 1 {
+		return "", false, fmt.Errorf("git resolved %s to %d revisions", revision, len(fields))
+	}
+	return fields[0], true, nil
+}
+
+func completionGitOutput(repository string, arguments ...string) ([]byte, error) {
+	gitArguments := append([]string{"--no-replace-objects"}, arguments...)
+	cmd := exec.Command("git", gitArguments...)
+	cmd.Dir = repository
+	cmd.Env = gitauthority.ReaderEnvironment()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf(
+			"git %s: %w: %s", strings.Join(arguments, " "), err, strings.TrimSpace(string(output)),
+		)
+	}
+	return output, nil
+}
+
+func advancePlanFile(repo, ref string) (plan.Plan, func() error, error) {
 	itemID, stepID, ok := strings.Cut(ref, "/")
 	if !ok || itemID == "" || stepID == "" {
-		return nil, fmt.Errorf("advance plan: invalid reference %q", ref)
+		return plan.Plan{}, nil, fmt.Errorf("advance plan: invalid reference %q", ref)
 	}
 	path := filepath.Join(repo, filepath.FromSlash(plan.Path))
 	original, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return plan.Plan{}, nil, err
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, err
+		return plan.Plan{}, nil, err
 	}
-	document, err := plan.Load(path)
+	document, err := plan.Parse(original)
 	if err != nil {
-		return nil, err
+		return plan.Plan{}, nil, err
 	}
 	updated, err := plan.Advance(document, itemID, stepID)
 	if err != nil {
-		return nil, err
+		return plan.Plan{}, nil, err
 	}
 	if err := plan.Save(path, updated); err != nil {
-		return nil, err
+		return plan.Plan{}, nil, err
 	}
-	return func() error { return os.WriteFile(path, original, info.Mode().Perm()) }, nil
+	return document, func() error { return os.WriteFile(path, original, info.Mode().Perm()) }, nil
 }
 
 func (g *gateContext) prepare() error {
@@ -2047,8 +2249,46 @@ func (g *gateContext) prepare() error {
 	}
 	defer store.Close()
 	g.resolveAttemptStrategy(store)
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	preparationCommit, err := store.Commit(context.Background(), batch)
+	if err != nil {
 		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
+	}
+	introduction, found, err := store.ArtifactIntroduction(context.Background(), g.preparation.ID)
+	if err != nil {
+		return fmt.Errorf("prepare gate lifecycle introduction: %w", err)
+	}
+	if !found || introduction.Commit != preparationCommit {
+		return errors.New("prepare gate lifecycle introduction differs from its durable commit")
+	}
+	g.preparationCommit = introduction.Commit
+	return nil
+}
+
+func requireGatePreparationReceipt(
+	ctx context.Context,
+	store *overgodb.Store,
+	preparation runrecord.GateLifecycle,
+	preparationCommit artifact.CommitID,
+) error {
+	if ctx == nil || store == nil || preparation.State != runrecord.GatePrepared || !preparationCommit.Valid() {
+		return errors.New("gate: exact preparation authority is absent")
+	}
+	if err := preparation.ValidateIdentity(); err != nil {
+		return err
+	}
+	stored, err := runrecord.RequireGateLifecycle(ctx, store, preparation.ID)
+	if err != nil {
+		return err
+	}
+	if stored.ID != preparation.ID || stored.State != runrecord.GatePrepared {
+		return errors.New("gate: preparation differs from its typed store authority")
+	}
+	introduction, found, err := store.ArtifactIntroduction(ctx, preparation.ID)
+	if err != nil {
+		return err
+	}
+	if !found || introduction.Commit != preparationCommit {
+		return errors.New("gate: preparation differs from its durable introduction receipt")
 	}
 	return nil
 }

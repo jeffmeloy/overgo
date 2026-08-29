@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
 
@@ -24,6 +25,7 @@ func TestEnforcePlanBindingRefusesOffPlan(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "docs", "plan.json"), []byte(js), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	initializePlanBindingRepo(t, dir)
 
 	if err := checkPlanBinding(dir, "r0/first"); err != nil {
 		t.Fatalf("the current open step must pass: %v", err)
@@ -46,11 +48,28 @@ func TestPlanBindingRole(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "docs", "plan.json"), []byte(js), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	initializePlanBindingRepo(t, dir)
 	t.Setenv(plan.AutomationRoleEnvironment, "sqa")
 	if err := checkPlanBinding(dir, "sqa/do"); err != nil {
 		t.Fatalf("owned plan binding: %v", err)
 	}
 	if err := checkPlanBinding(dir, "developer/do"); err == nil {
 		t.Fatal("foreign role plan binding passed")
+	}
+}
+
+func initializePlanBindingRepo(t *testing.T, repository string) {
+	t.Helper()
+	runGitFixture(t, repository, "init", "-q")
+	runGitFixture(t, repository, "config", "user.email", "binding@example.invalid")
+	runGitFixture(t, repository, "config", "user.name", "Binding Test")
+	runGitFixture(t, repository, "add", "--", plan.Path)
+	runGitFixture(t, repository, "commit", "-q", "-m", "baseline")
+	store, err := overgodb.Open(filepath.Join(repository, gateStorePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

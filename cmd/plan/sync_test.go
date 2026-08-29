@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -168,6 +169,68 @@ func TestPrepareMergeSourceAdvance(t *testing.T) {
 	}
 	if err := verifySourceSnapshot("HEAD", first, latest, nil); err == nil {
 		t.Fatal("advanced source snapshot was accepted")
+	}
+}
+
+func TestPrepareMergeRejectsAmbiguousMergeBaseBeforeProjection(t *testing.T) {
+	repository, runGit := mergeTestRepository(t)
+	root := runGit("rev-parse", "HEAD")
+	tree := runGit("rev-parse", "HEAD^{tree}")
+	commitTree := func(message string, parents ...string) string {
+		t.Helper()
+		arguments := []string{"commit-tree", tree}
+		for _, parent := range parents {
+			arguments = append(arguments, "-p", parent)
+		}
+		arguments = append(arguments, "-m", message)
+		return runGit(arguments...)
+	}
+	left := commitTree("left", root)
+	right := commitTree("right", root)
+	leftMerge := commitTree("left merge", left, right)
+	rightMerge := commitTree("right merge", right, left)
+
+	_, err := uniqueMergeBase(repository, leftMerge, rightMerge)
+	if err == nil || !strings.Contains(err.Error(), "exactly one merge base, found 2") {
+		t.Fatalf("ambiguous prepare-merge base error = %v", err)
+	}
+}
+
+func TestPlanGitAuthorityIgnoresAmbientRepositoryOverrides(t *testing.T) {
+	repository, runGit := mergeTestRepository(t)
+	foreign, _ := mergeTestRepository(t)
+	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
+	t.Setenv("GIT_WORK_TREE", foreign)
+
+	root, err := gitOutput(repository, "rev-parse", "--show-toplevel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := os.Stat(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.Stat(strings.TrimSpace(string(root)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(got, want) {
+		t.Fatalf("Git authority root = %q, want %q", strings.TrimSpace(string(root)), repository)
+	}
+	if head := runGit("rev-parse", "HEAD"); head == "" {
+		t.Fatal("repository head is absent")
+	}
+}
+
+func TestPrepareMergeRequiresExactRepositoryRoot(t *testing.T) {
+	repository, _ := mergeTestRepository(t)
+	subdirectory := filepath.Join(repository, "nested")
+	if err := os.Mkdir(subdirectory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := prepareMerge(subdirectory, "HEAD", plan.Plan{}, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "exact repository root") {
+		t.Fatalf("subdirectory prepare merge error = %v", err)
 	}
 }
 

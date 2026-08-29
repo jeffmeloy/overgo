@@ -1,72 +1,18 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/plan"
 )
-
-// TestEnforceAdvanceGate pins that a step cannot be advanced without its verify
-// passing -- the machine-checked "done" that replaces self-declared prose. The
-// no-verify and force paths return before invoking a shell, so this is portable.
-func TestEnforceAdvanceGate(t *testing.T) {
-	// No verify command defined + no force: refused.
-	if err := gateAdvance(plan.Item{ID: "i"}, plan.Step{ID: "s"}, ""); err == nil {
-		t.Fatal("advance with no verify and no force must be refused")
-	}
-	// -force overrides (the loud escape for genuinely-manual steps).
-	if err := gateAdvance(plan.Item{ID: "i"}, plan.Step{ID: "s"}, "manual: owner sign-off"); err != nil {
-		t.Fatalf("-force must override the verify gate: %v", err)
-	}
-}
-
-// TestAdvanceRemovesCompletedStep pins the plan contract at the CLI:
-// an advanced step leaves the saved plan, which then holds only the
-// remaining open work.
-func TestAdvanceRemovesCompletedStep(t *testing.T) {
-	old, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := t.TempDir()
-	if err := os.Mkdir(filepath.Join(root, "docs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(root); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(old) })
-	document := plan.Plan{Items: []plan.Item{{
-		ID: "item", Status: "open", Steps: []plan.Step{
-			{ID: "first", Status: "open", Verify: "go test ./..."},
-			{ID: "second", Status: "open", Verify: "go test ./..."},
-		},
-	}}}
-	if err := advanceStep(document, "item", "first", "test-verified", plan.UnassignedRole, nil); err != nil {
-		t.Fatal(err)
-	}
-	saved, err := plan.Load("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := plan.Validate(saved); err != nil {
-		t.Fatal(err)
-	}
-	if len(saved.Items) != 1 || len(saved.Items[0].Steps) != 1 ||
-		saved.Items[0].Steps[0].ID != "second" {
-		t.Fatalf("advanced plan = %+v", saved)
-	}
-}
 
 // TestEnforceAddInsertsTask pins the mechanical task-injection: -add creates a
 // top-priority (or -before) open item with a "do" step + verify, and the new item
 // becomes the current step -- no hand-editing plan.json.
 func TestEnforceAddInsertsTask(t *testing.T) {
 	base := plan.Plan{Items: []plan.Item{
-		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open"}}},
-		{ID: "b", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open"}}},
+		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
+		{ID: "b", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
 	}}
 	top, err := insertItem(base, "new", "do the thing", "", "go test ./...")
 	if err != nil {
@@ -75,7 +21,8 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	if top.Items[0].ID != "new" || top.Items[0].Steps[0].ID != "do" || top.Items[0].Steps[0].Verify != "go test ./..." {
 		t.Fatalf("insert-at-top produced %+v", top.Items[0])
 	}
-	if it, st, ok := plan.Current(top, plan.UnassignedRole); !ok || it.ID != "new" || st.ID != "do" {
+	authority := mustTestCompletionAuthority(t, top)
+	if it, st, ok := plan.Current(top, plan.UnassignedRole, authority); !ok || it.ID != "new" || st.ID != "do" {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
 	mid, err := insertItem(base, "x", "t", "b", "")
@@ -90,6 +37,23 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	}
 	if _, err := insertItem(base, "z", "t", "nope", ""); err == nil {
 		t.Fatal("unknown -before must be rejected")
+	}
+}
+
+// TestPrunedDependencyRequiresGatedCompletion pins the CLI selector as a
+// consumer of the same fail-closed authority as the plan package.
+func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
+	document := plan.Plan{Items: []plan.Item{{
+		ID: "dependent", Status: plan.StatusOpen, Steps: []plan.Step{{
+			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
+			DependsOn: []string{"missing/do"},
+		}},
+	}}}
+	if _, err := testCompletionAuthority(t, document); err == nil {
+		t.Fatal("unknown pruned dependency produced completion authority")
+	}
+	if action, open := nextAction(document, plan.UnassignedRole, plan.CompletionAuthority{}); open {
+		t.Fatalf("unknown pruned dependency dispatched as %q", action)
 	}
 }
 

@@ -27,16 +27,19 @@ func TestGateCommitAdvancesPlanAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rollback, err := advancePlanFile(repo, "automation/first")
+	preAdvance, rollback, err := advancePlanFile(repo, "automation/first")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if preAdvance.Items[0].Steps[0].ID != "first" {
+		t.Fatalf("pre-advance plan = %+v", preAdvance.Items)
 	}
 	advanced, err := plan.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if item, step, ok := plan.Current(advanced, plan.UnassignedRole); !ok || item.ID != "automation" || step.ID != "second" {
-		t.Fatalf("advanced current = %s/%s, open=%v", item.ID, step.ID, ok)
+	if len(advanced.Items) != 1 || len(advanced.Items[0].Steps) != 1 || advanced.Items[0].Steps[0].ID != "second" {
+		t.Fatalf("advanced plan = %+v", advanced.Items)
 	}
 	if err := rollback(); err != nil {
 		t.Fatal(err)

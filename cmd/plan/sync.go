@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/gitauthority"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
 
@@ -18,6 +21,11 @@ const (
 )
 
 func prepareMerge(root, source string, local plan.Plan, output io.Writer) error {
+	canonicalRoot, err := gitauthority.RepositoryRoot(context.Background(), root)
+	if err != nil {
+		return err
+	}
+	root = canonicalRoot
 	status, err := gitOutput(root, "status", "--porcelain=v1", "--untracked-files=all")
 	if err != nil {
 		return err
@@ -25,6 +33,11 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 	if strings.TrimSpace(string(status)) != "" {
 		return errors.New("prepare-merge requires a clean worktree")
 	}
+	localRaw, err := gitOutput(root, "rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil {
+		return err
+	}
+	localRevision := strings.TrimSpace(string(localRaw))
 	sourceRaw, err := gitOutput(root, "rev-parse", "--verify", source+"^{commit}")
 	if err != nil {
 		return err
@@ -37,17 +50,18 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 	if closureSnapshot.cleanup != nil {
 		defer closureSnapshot.cleanup()
 	}
-	contains := exec.Command("git", "merge-base", "--is-ancestor", snapshot, "HEAD")
+	contains := exec.Command("git", "--no-replace-objects", "merge-base", "--is-ancestor", snapshot, "HEAD")
 	contains.Dir = root
+	contains.Env = gitauthority.RepositoryEnvironment()
 	if contains.Run() == nil {
 		fmt.Fprintf(output, "prepare-merge: HEAD already contains %s at %s\n", source, snapshot)
 		return nil
 	}
-	baseRef, err := gitOutput(root, "merge-base", "HEAD", snapshot)
+	baseRef, err := uniqueMergeBase(root, localRevision, snapshot)
 	if err != nil {
 		return err
 	}
-	base, err := planAtRef(root, strings.TrimSpace(string(baseRef)))
+	base, err := planAtRef(root, baseRef)
 	if err != nil {
 		return err
 	}
@@ -64,12 +78,26 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 	if err != nil {
 		return err
 	}
+	if err := verifyProspectiveMergeAuthority(
+		root, localRevision, snapshot, local, incoming, merged,
+	); err != nil {
+		return fmt.Errorf("prepare-merge completion authority: %w", err)
+	}
+	latestLocal, err := gitOutput(root, "rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil || strings.TrimSpace(string(latestLocal)) != localRevision {
+		return fmt.Errorf("prepare-merge local HEAD moved from snapshot %s", localRevision)
+	}
 	_, mergeErr := commandOutput(root, "git", "merge", "--no-ff", "--no-commit", snapshot)
+	postMergeHead, headErr := gitOutput(root, "rev-parse", "--verify", "HEAD^{commit}")
+	if headErr != nil || strings.TrimSpace(string(postMergeHead)) != localRevision {
+		return fmt.Errorf("prepare-merge local HEAD moved during merge from snapshot %s", localRevision)
+	}
 	keepMerge := false
 	defer func() {
 		if !keepMerge {
-			abort := exec.Command("git", "merge", "--abort")
+			abort := exec.Command("git", "--no-replace-objects", "merge", "--abort")
 			abort.Dir = root
+			abort.Env = gitauthority.RepositoryEnvironment()
 			_ = abort.Run()
 		}
 	}()
@@ -112,6 +140,45 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 	return nil
 }
 
+func uniqueMergeBase(root, localRevision, incomingRevision string) (string, error) {
+	output, err := gitOutput(root, "merge-base", "--all", localRevision, incomingRevision)
+	if err != nil {
+		return "", err
+	}
+	bases := strings.Fields(string(output))
+	if len(bases) != 1 {
+		return "", fmt.Errorf("prepare-merge requires exactly one merge base, found %d", len(bases))
+	}
+	return bases[0], nil
+}
+
+func verifyProspectiveMergeAuthority(
+	root, localRevision, incomingRevision string,
+	local, incoming, merged plan.Plan,
+) (returnErr error) {
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
+	if err != nil {
+		return err
+	}
+	defer func() { returnErr = errors.Join(returnErr, store.Close()) }()
+	localAuthority, err := plan.ResolveCompletionAuthority(
+		context.Background(), root, localRevision, local, store,
+	)
+	if err != nil {
+		return fmt.Errorf("local parent %.12s: %w", localRevision, err)
+	}
+	incomingAuthority, err := plan.ResolveCompletionAuthority(
+		context.Background(), root, incomingRevision, incoming, store,
+	)
+	if err != nil {
+		return fmt.Errorf("incoming parent %.12s is not proven by the target authority store: %w", incomingRevision, err)
+	}
+	return plan.VerifyProspectiveMergeAuthority(
+		root, localRevision, incomingRevision,
+		local, incoming, merged, localAuthority, incomingAuthority,
+	)
+}
+
 func verifySourceSnapshot(source, snapshot string, latest []byte, resolveErr error) error {
 	if resolveErr != nil || strings.TrimSpace(string(latest)) != snapshot {
 		return fmt.Errorf("prepare-merge source %s moved from snapshot %s", source, snapshot)
@@ -124,7 +191,7 @@ func planAtRef(root, ref string) (plan.Plan, error) {
 	if err != nil {
 		return plan.Plan{}, err
 	}
-	return plan.Parse(bytes.TrimSpace(data))
+	return plan.ParseHistorical(bytes.TrimSpace(data))
 }
 
 func gitOutput(root string, args ...string) ([]byte, error) {
@@ -132,8 +199,15 @@ func gitOutput(root string, args ...string) ([]byte, error) {
 }
 
 func commandOutput(root, name string, args ...string) ([]byte, error) {
-	command := exec.Command(name, args...)
+	commandArgs := args
+	if name == "git" {
+		commandArgs = append([]string{"--no-replace-objects"}, args...)
+	}
+	command := exec.Command(name, commandArgs...)
 	command.Dir = root
+	if name == "git" {
+		command.Env = gitauthority.RepositoryEnvironment()
+	}
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return output, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))

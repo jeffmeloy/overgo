@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"time"
@@ -67,6 +68,11 @@ func NewGateFinalization(preparation GateLifecycle, codeCommit string, result ar
 
 func ParseGateLifecycle(content []byte) (GateLifecycle, error) {
 	return gateLifecycleCodec.Parse(content)
+}
+
+// RequireGateLifecycle loads one exact typed gate lifecycle document.
+func RequireGateLifecycle(ctx context.Context, reader artifact.Reader, id artifact.ID) (GateLifecycle, error) {
+	return gateLifecycleCodec.Require(ctx, reader, id)
 }
 
 func (l GateLifecycle) Content() (artifact.Content, error) {

@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"unicode"
 
 	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
@@ -86,11 +85,23 @@ func Load(path string) (Plan, error) {
 
 // Parse decodes an in-memory plan document.
 func Parse(data []byte) (Plan, error) {
+	return parsePlan(data, Validate)
+}
+
+func parsePlan(data []byte, validate func(Plan) error) (Plan, error) {
 	var document Plan
 	if err := strictjson.DecodeBytes(data, &document); err != nil {
 		return Plan{}, err
 	}
-	return document, Validate(document)
+	return document, validate(document)
+}
+
+// ParseHistorical decodes one immutable Git plan snapshot without applying
+// current live-plan lifecycle rules. Historical rows may retain completion
+// states or old dependency syntax; their exact Git transition remains the
+// completion authority.
+func ParseHistorical(data []byte) (Plan, error) {
+	return parsePlan(data, validatePlanGraph)
 }
 
 // Save writes the plan back to path (Path when empty).
@@ -106,6 +117,23 @@ func Save(path string, d Plan) error {
 
 // Validate checks retained plan state.
 func Validate(d Plan) error {
+	if err := validatePlanGraph(d); err != nil {
+		return err
+	}
+	for _, item := range d.Items {
+		if item.Status == StatusDone {
+			return fmt.Errorf("plan item %s retains completed state", item.ID)
+		}
+		for _, step := range item.Steps {
+			if step.Status == StatusDone {
+				return fmt.Errorf("plan step %s/%s retains completed state", item.ID, step.ID)
+			}
+		}
+	}
+	return validateDependencies(d)
+}
+
+func validatePlanGraph(d Plan) error {
 	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
 		return errors.New("plan: census authority is not evidence")
 	}
@@ -133,17 +161,21 @@ func Validate(d Plan) error {
 			if step.Status == StatusOpen && strings.TrimSpace(step.Verify) == "" {
 				return fmt.Errorf("plan step %s/%s is open without a verifier", item.ID, step.ID)
 			}
+			if step.Verify != "" && !validAutomationDetail(step.Verify) {
+				return fmt.Errorf("plan step %s/%s has an invalid verifier", item.ID, step.ID)
+			}
 		}
 		if item.Status == StatusDone && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.Status != StatusDone }) {
 			return fmt.Errorf("plan item %s is done with unfinished steps", item.ID)
 		}
 	}
-	return validateDependencies(d)
+	return nil
 }
 
 // validateDependencies requires exact item/step references and refuses
-// dependency cycles among retained steps. References to absent items or steps
-// remain satisfied because completion removes their plan rows.
+// dependency cycles among retained steps. References to absent rows remain
+// structurally representable because completion prunes them; dispatch requires
+// ResolveCompletionAuthority to prove each such reference independently.
 func validateDependencies(d Plan) error {
 	itemIndex := map[string]Item{}
 	for _, item := range d.Items {
@@ -158,17 +190,16 @@ func validateDependencies(d Plan) error {
 				if !hasStep || !validPlanID(target) || !validPlanID(targetStep) {
 					return fmt.Errorf("plan step %s: depends_on %q must name one exact item/step", source, reference)
 				}
-				// A reference to an ABSENT item is a completed dependency
-				// (completion removes rows), so only present targets join
-				// the cycle graph.
+				// Only present targets join the retained cycle graph. An
+				// absent target is not presumed complete here; the runtime
+				// completion authority decides whether it may dispatch.
 				targetItem, present := itemIndex[target]
 				if !present {
 					continue
 				}
 				if !slices.ContainsFunc(targetItem.Steps, func(candidate Step) bool { return candidate.ID == targetStep }) {
-					// Completed steps are pruned even while later steps retain
-					// their item. Their exact references therefore satisfy just
-					// like references to wholly removed items.
+					// Pruned sibling steps likewise leave the retained graph;
+					// their Git-and-store proof is checked at dispatch.
 					continue
 				}
 				if target == item.ID && targetStep == step.ID {
@@ -207,21 +238,29 @@ func validateDependencies(d Plan) error {
 }
 
 // dependenciesSatisfied reports whether every depends_on reference is
-// complete. Completion REMOVES rows, so an exact reference to an absent item
-// or step is satisfied: it completed and left with its implementing commit.
-// Only a still-present open step blocks.
-func dependenciesSatisfied(d Plan, step Step) bool {
+// complete. A retained done row is self-evident; a pruned row is satisfied
+// only by the derived Git-and-store completion authority. Absence alone is
+// never completion evidence.
+func dependenciesSatisfied(d Plan, step Step, authority CompletionAuthority) bool {
 	for _, reference := range step.DependsOn {
 		itemID, stepID, _ := strings.Cut(reference, "/")
-		satisfied := true
+		present := false
+		satisfied := false
 		for _, item := range d.Items {
 			if item.ID != itemID {
 				continue
 			}
-			satisfied = !slices.ContainsFunc(item.Steps, func(candidate Step) bool {
-				return candidate.ID == stepID && candidate.Status != StatusDone
-			})
+			for _, candidate := range item.Steps {
+				if candidate.ID == stepID {
+					present = true
+					satisfied = candidate.Status == StatusDone
+					break
+				}
+			}
 			break
+		}
+		if !present {
+			satisfied = authority.completed(reference)
 		}
 		if !satisfied {
 			return false
@@ -250,17 +289,24 @@ func validStatus(status string) bool {
 // Current returns the role-owned open step, then the first unowned step.
 // An open item with no open step yields the sentinel step "." (open the rung).
 // ok is false when no open item remains.
-func Current(d Plan, role string) (Item, Step, bool) {
+func Current(d Plan, role string, authority CompletionAuthority) (Item, Step, bool) {
+	if !authority.resolves(d) {
+		return Item{}, Step{}, false
+	}
+	return currentResolved(d, role, authority)
+}
+
+func currentResolved(d Plan, role string, authority CompletionAuthority) (Item, Step, bool) {
 	role = normalizedRole(role)
 	if role != UnassignedRole {
-		if item, step, ok := currentOwned(d, role); ok {
+		if item, step, ok := currentOwned(d, role, authority); ok {
 			return item, step, true
 		}
 	}
-	return currentOwned(d, "")
+	return currentOwned(d, "", authority)
 }
 
-func currentOwned(d Plan, owner string) (Item, Step, bool) {
+func currentOwned(d Plan, owner string, authority CompletionAuthority) (Item, Step, bool) {
 	for _, it := range d.Items {
 		if it.Status != StatusOpen || it.Owner != owner {
 			continue
@@ -273,7 +319,7 @@ func currentOwned(d Plan, owner string) (Item, Step, bool) {
 			// depends_on is enforced, not descriptive: a step whose
 			// dependencies are not done cannot dispatch, whatever the
 			// file order says.
-			if dependenciesSatisfied(d, s) {
+			if dependenciesSatisfied(d, s, authority) {
 				return it, s, true
 			}
 			blocked = true
@@ -305,8 +351,7 @@ func validAutomationText(value string) bool {
 }
 
 func validPlanID(value string) bool {
-	return textcheck.Bounded(value, automationRoleMaxBytes, "/\\\x00\r\n") &&
-		strings.IndexFunc(value, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) < 0
+	return textcheck.BoundedToken(value, automationRoleMaxBytes, "/\\\x00\r\n")
 }
 
 func validAutomationDetail(value string) bool {
@@ -320,7 +365,6 @@ func normalizedRole(role string) string {
 	return role
 }
 
-// Advance retains and completes one open row.
 // Advance completes one step by REMOVING it: the plan holds only
 // future, blocked, and in-progress work, and completion history lives
 // in Git through the gate's structured trailers, not as retained rows.

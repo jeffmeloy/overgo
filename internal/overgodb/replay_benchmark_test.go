@@ -38,7 +38,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		opened, openErr := OpenReadOnly(root)
 		if openErr != nil {
 			b.Fatal(openErr)
@@ -82,7 +82,7 @@ func BenchmarkCompaction(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		if _, err := Compact(ctx, source, b.TempDir()); err != nil {
 			b.Fatal(err)
 		}

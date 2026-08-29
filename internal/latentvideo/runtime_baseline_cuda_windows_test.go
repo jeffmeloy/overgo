@@ -67,7 +67,7 @@ func BenchmarkWanRealArtifactLeadership(b *testing.B) {
 	uncond := loadRawContext(b, fixtureDir, "raw/g1_uncond_context.f32le", contextElements)
 
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		started := time.Now()
 		denoiser, err := NewDenoiserCUDASession(program, 0)
 		if err != nil {

@@ -24,7 +24,6 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
-
 	"overgo/internal/sampling"
 
 	"overgo/internal/tokenizer"

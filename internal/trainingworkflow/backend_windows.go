@@ -9,9 +9,9 @@ import (
 	"overgo/internal/densecausal"
 )
 
-func runTrainingState(model *densecausal.Model, batches [][]int, learningRate, momentum float64, preferDevice, freezeLexical bool, resume *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, string, densecausal.TrainState, error) {
+func runTrainingState(model *densecausal.Model, batches [][]int, learningRate, momentum float64, preferDevice, freezeLexical bool, resume *densecausal.TrainState, observe densecausal.TrainObserver, observeRouter densecausal.MoERouterObserver) ([]float64, string, densecausal.TrainState, error) {
 	if !preferDevice {
-		losses, state, err := model.Train(batches, learningRate, momentum, resume, observe)
+		losses, state, err := model.TrainWithRouterObservations(batches, learningRate, momentum, resume, observe, observeRouter)
 		return losses, "host", state, err
 	}
 	if ok, reason := densecausal.DeviceTrainingSupported(model.Dims); !ok {

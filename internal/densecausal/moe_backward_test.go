@@ -36,7 +36,7 @@ func tinyMixture(seed uint32, hidden, inter, experts int, shared bool) moeWeight
 // mixtureLoss: scalar objective sum(out * probe) for finite differencing.
 func mixtureLoss(t *testing.T, x []float32, w moeWeights, rows, hidden int, policy MoERouterPolicy, probe []float32) float64 {
 	t.Helper()
-	out, _, err := moeForward(x, w, rows, hidden, policy)
+	out, _, _, err := moeForward(x, w, rows, hidden, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestMoEBackwardMatchesFiniteDifference(t *testing.T) {
 				x[i] = (float32(seed%2000)/1000 - 1) * 0.5
 				probe[i] = (float32(seed%701)/350 - 1)
 			}
-			_, route, err := moeForward(x, w, rows, hidden, tc.policy)
+			_, route, _, err := moeForward(x, w, rows, hidden, tc.policy)
 			if err != nil {
 				t.Fatal(err)
 			}

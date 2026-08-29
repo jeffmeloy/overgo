@@ -1,6 +1,6 @@
 {
   "campaign": "Deterministic RSI storage and execution control plane",
-  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. Modern and Marin Overgo source integrations remain subordinate to the same common owners and ratchets; repository, commit, license, path, mechanism, or transform provenance is evidence only and can never grant capability or execution authority. docs/plan.json is the sole live execution plan; imported branch plans, roadmaps, design records, staged-surface manifests, and historical Git snapshots are evidence or inventories only and cannot schedule work, satisfy dependencies, or grant completion. RSI uses four shared components rather than domain platforms: one typed and falsifiable cross-domain candidate spine, one evidence-gated promotion and rollback lifecycle, one evidence-driven budget and stop driver, and one transport-neutral UTCP effect, approval, and receipt contract. Model, composition, mechanism, dataset, routing, steering, and code logic enter only as compiled Go candidate-source, realization, or evaluator plugins. AgentTaskContract or DelegatedAgentInvocation provides the task ceiling, active AutomationPolicyLifecycle provides a standing unattended grant within that ceiling, and operatoraction HumanDecision is the argument-bound per-action grant; the shared StageReceipt binds whichever exact authority was consumed. Agent-initiated and cross-process or peer calls may resolve the invocation contract through UTCP transports; deterministic in-process orchestration calls existing Go owners directly and shares only the contract and receipt shape, never the tool transport. Derived decisions are distribution-free where justified and otherwise bind their distribution assumptions, explicit missing-data coverage, and architecture tests that refuse bypasses. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, journal documents, lineage edges, projection scans, decoded blobs, bytes, wakeups, context repetitions, model turns, capability invocations, approval rounds, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit.",
+  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. Modern and Marin Overgo source integrations remain subordinate to the same common owners and ratchets; repository, commit, license, path, mechanism, or transform provenance is evidence only and can never grant capability or execution authority. docs/plan.json is the sole live execution plan; imported branch plans, roadmaps, design records, staged-surface manifests, and historical Git snapshots are evidence or inventories only and cannot schedule work, satisfy dependencies, or grant completion. RSI uses four shared components rather than domain platforms: one typed and falsifiable cross-domain candidate spine, one evidence-gated promotion and rollback lifecycle, one evidence-driven budget and stop driver, and one transport-neutral UTCP effect, approval, and receipt contract. Model, composition, mechanism, dataset, routing, steering, and code logic enter only as compiled Go candidate-source, realization, or evaluator plugins. AgentTaskContract or DelegatedAgentInvocation provides the task ceiling, active AutomationPolicyLifecycle provides a standing unattended grant within that ceiling, and operatoraction HumanDecision is the argument-bound per-action grant; the shared StageReceipt binds whichever exact authority was consumed. Agent-initiated and cross-process or peer calls may resolve the invocation contract through UTCP transports; deterministic in-process orchestration calls existing Go owners directly and shares only the contract and receipt shape, never the tool transport. Derived decisions are distribution-free where justified and otherwise bind their distribution assumptions, explicit missing-data coverage, and architecture tests that refuse bypasses. The first capability proof is one local same-base composite advanced only to a supervised non-serving verified state while the production incumbent and unattended grant remain unchanged; advanced plugins, optimization, peer transport, rollout, live safety, concurrency, and closure are built from its persisted trace rather than ahead of it. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, journal documents, lineage edges, projection scans, decoded blobs, bytes, wakeups, context repetitions, model turns, capability invocations, approval rounds, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit.",
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
@@ -10,10 +10,10 @@
       "steps": [
         {
           "id": "go-only-guard",
-          "title": "Ratchet all four shared RSI spines and complete outward capability invocation",
+          "title": "Ratchet all four shared RSI spines and the Go-only invocation boundary",
           "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/agent-tool ./internal/plan ./internal/repoanalysis ./internal/recipe ./internal/agenttool ./internal/agentloop ./internal/operatoraction ./internal/operation ./internal/workflowruntime ./internal/capabilityruntime ./internal/modelrecipe ./internal/loop ./internal/runrecord ./internal/dataset ./internal/trainingprogram ./internal/trainingworkflow -run '^(TestSingleCanonicalCampaignPlan|TestGateAlwaysRunsModernGoRatchet|TestModernGoRatchetAtClosure|TestModernGoPublishedCensusMatchesSource|TestArchitectureRatchetIncludesGoOnlyPolicy|TestArchitectureRatchetClassifiesCapabilityInvocationBoundaries|TestRSIMutationEffectApprovalReceiptRatchet|TestMutationRequiresBoundPreflightInspection|TestInternalOrchestrationDoesNotInvokeUTCPTransport|TestCrossDomainCandidateHasSingleAdmissionOwner|TestCrossDomainPromotionLifecycleHasOneTransitionOwner|TestEvidenceDriverHasSingleDecisionOwner|TestDelegatedCapabilityRuntimeConsumesStagedOwners|TestAgentDelegationStagedSurfaceRetired|TestPeerCapabilityManualAndPlacement|TestPeerHTTPJSONStreamInvocationReceipt|TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode|TestStagedSurfaceResolvesOnlyCanonicalPlanSteps|TestStagedSurfaceRetainedClassification|TestRSIRuntimeIsGoOnly|TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted|TestDatasetTransformIdentityRejectsCallableAndAdvisoryVersionSemantics)$' -count=1",
-          "rationale": "Extend the same always-required manifest-owned check to own source modernization and refuse Markdown-discovered behavior, interpreted plugins, runtime scripts, filesystem capability discovery, non-Go extension authority, and any second live plan file. Install the single-owner ratchets for Candidate admission, promotion and rollback lifecycle, DriverDecision, and invocation effect, approval, and StageReceipt before any domain construction; later plugins extend manifest classifications rather than introducing owners. Imported source plans and design manifests remain historical evidence mapped into docs/plan.json, never schedulers or completion authorities. Replace every staged-surface free-text future trigger with an exact retire_with plan step or an evidence-bound retained classification; reject references to missing or historical campaigns, and remove the staged entry when its canonical consumer lands. JSON specifications, external source paths, mechanism provenance, dataset-transform identities, and routing policies remain typed evidence or recipe data; only compiled Go registrations may implement them. Factor the transport-neutral effect, exact argument and target, action-bound preflight inspection, and receipt inputs out of agenttool into one dependency-neutral Go contract while existing execution, operatoraction approval, and OvergoDB publication owners remain authoritative. Reuse runrecord.StageReceipt as the admitted, running, waiting, and terminal invocation envelope, binding manual or capability, canonical arguments, effect, inspection, task or delegation ceiling, active AutomationPolicyLifecycle or HumanDecision, causal context, and head. Finish, wire, and retire the staged CapabilityProxyManual and RegisterCapabilityProxy, NewDelegatedCoordinator, CompileDelegatedAgentInvocation, and NewMutationCheckpointRuntime surfaces through the existing command, server, and runtime owners instead of creating another registry. Bind PeerCapabilityPublication, enrollment, heartbeat, compatibility, and placement to the exact active CatalogSnapshot, Manual, and CapabilityIdentity; recheck publication and lease immediately before bounded no-redirect http-json-stream dispatch, then publish the shared StageReceipt. The ratchet inventories agent-initiated and peer transport boundaries plus the closed mutation kinds training-launch, promotion, model-activation, containment, retry, and rollback. Domain health, promotion, peer, and result documents remain typed evidence or outputs, never parallel receipt lifecycles. Delete caller approval booleans, generic prior-inspection flags, uncommitted stream terminals, and duplicate attempt lifecycles as each owner migrates. Deterministic internal orchestration continues to call existing Go owners directly and must not route through UTCP resolution or transport. This step adds no second admission, lifecycle, driver, execution, approval, receipt-publication, guard, registry, or policy owner.",
+          "verify": "go test ./cmd/gate ./internal/plan ./internal/repoanalysis ./internal/recipe ./internal/agenttool ./internal/operatoraction ./internal/modelrecipe ./internal/loop ./internal/runrecord ./internal/dataset ./internal/trainingprogram ./internal/trainingworkflow -run '^(TestSingleCanonicalCampaignPlan|TestGateAlwaysRunsModernGoRatchet|TestModernGoRatchetAtClosure|TestModernGoPublishedCensusMatchesSource|TestArchitectureRatchetIncludesGoOnlyPolicy|TestArchitectureRatchetClassifiesCapabilityInvocationBoundaries|TestRSIMutationEffectApprovalReceiptRatchet|TestMutationRequiresBoundPreflightInspection|TestInternalOrchestrationDoesNotInvokeUTCPTransport|TestCrossDomainCandidateHasSingleAdmissionOwner|TestCrossDomainPromotionLifecycleHasOneTransitionOwner|TestEvidenceDriverHasSingleDecisionOwner|TestStagedSurfaceResolvesOnlyCanonicalPlanSteps|TestStagedSurfaceRetainedClassification|TestRSIRuntimeIsGoOnly|TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted|TestDatasetTransformIdentityRejectsCallableAndAdvisoryVersionSemantics)$' -count=1",
+          "rationale": "Extend the same always-required manifest-owned check to own source modernization and refuse Markdown-discovered behavior, interpreted plugins, runtime scripts, filesystem capability discovery, non-Go extension authority, and any second live plan file. Install the single-owner ratchets for Candidate admission, promotion and rollback lifecycle, DriverDecision, and invocation effect, approval, and StageReceipt before any domain construction; later plugins extend manifest classifications rather than introducing owners. Imported source plans and design manifests remain historical evidence mapped into docs/plan.json, never schedulers or completion authorities. Replace every staged-surface free-text future trigger with an exact retire_with plan step or an evidence-bound retained classification; reject references to missing or historical campaigns, and remove each staged entry only when its canonical consumer lands. JSON specifications, external source paths, mechanism provenance, dataset-transform identities, and routing policies remain typed evidence or recipe data; only compiled Go registrations may implement them. Factor the transport-neutral effect, exact argument and target, action-bound preflight inspection, and receipt inputs out of agenttool into one dependency-neutral Go contract while existing execution, operatoraction approval, and OvergoDB publication owners remain authoritative. Reuse runrecord.StageReceipt as the admitted, running, waiting, and terminal invocation envelope, binding manual or capability, canonical arguments, effect, inspection, task or delegation ceiling, active AutomationPolicyLifecycle or HumanDecision, causal context, and head. Inventory agent-initiated and cross-boundary transport separately from deterministic internal calls, plus the closed mutation kinds training-launch, promotion, model-activation, containment, retry, and rollback. Domain health, promotion, peer, and result documents remain typed evidence or outputs, never parallel receipt lifecycles. Delete caller approval booleans, generic prior-inspection flags, uncommitted terminals, and duplicate attempt lifecycles as each owner migrates. Deterministic internal orchestration continues to call existing Go owners directly and must not route through UTCP resolution or transport. This early ratchet defines and refuses bypasses; the post-proof outward-capability step completes staged delegation and peer transport without adding another admission, lifecycle, driver, execution, approval, receipt-publication, guard, registry, or policy owner.",
           "depends_on": [
             "architecture-ratchets/core-entry-guards"
           ],
@@ -29,8 +29,7 @@
             "direct-go-orchestration",
             "candidate-spine",
             "promotion-spine",
-            "evidence-driver",
-            "utcp-peer"
+            "evidence-driver"
           ]
         }
       ]
@@ -45,9 +44,10 @@
           "title": "Dispatch exact ready frontiers through role-owned worktree leases and merge gated pruned completions",
           "status": "open",
           "verify": "go test ./internal/plan ./cmd/plan ./cmd/gate -run '^(TestReadyFrontierLeaseIsolation|TestMergeAcceptsGatedPrunedCompletion|TestMergePreservesDependencyOrder)$' -count=1",
-          "rationale": "Keep Current as the deterministic single-lane compatibility selector, but expose the complete ordered ready frontier to role-owned leases with non-overlapping filesystem and resource claims. Concurrent implementation uses distinct worktrees; each worktree gates commits serially, and semantic merge accepts a pruned row only with ancestor gate evidence while preserving dependency order. Scheduling has no runtime capability, transport, approval, or receipt authority. Shared-worktree subagents remain limited to parallel audit, design, and testing.",
+          "rationale": "Only after the supervised first-win trace proves the single-lane vertical slice, keep Current as the deterministic compatibility selector but expose the complete ordered post-proof ready frontier to role-owned leases with non-overlapping filesystem and resource claims. Concurrent implementation uses distinct worktrees; each worktree gates commits serially, and semantic merge accepts a pruned row only with ancestor gate evidence while preserving dependency order. Scheduling has no runtime capability, transport, approval, or receipt authority. Shared-worktree subagents remain limited to parallel audit, design, and testing.",
           "depends_on": [
-            "architecture-ratchets/go-only-guard"
+            "architecture-ratchets/go-only-guard",
+            "supervised-composite/first-win"
           ],
           "capabilities": [
             "multi-agent",
@@ -68,12 +68,13 @@
           "title": "Normalize high-volume training evidence through one reusable bounded chunk owner",
           "status": "open",
           "verify": "go test ./cmd/gate ./internal/runrecord ./internal/trainingworkflow ./internal/overgodb -run '^(TestBoundedTrainingEvidencePreservesFacts|TestTrainingEvidenceSinglePublicationAuthority|TestTrainingEvidenceJournalAmplificationBound)$' -count=1",
-          "rationale": "Measure the merged Marin training path against an exact representative trace, then replace per-step and per-layer router documents and whole-run health arrays with one reusable Go chunk mechanic: bounded immutable payload blobs, ordinal and previous linkage, compact typed coverage summaries, and one workflow-owned atomic publication. Preserve every admitted router selection, margin, acceptance, health sample, authority, and explicit missing state under shared fact, chunk, and raw-byte budgets. The metadata journal and head deltas carry summaries and chunk identities only; projections decode no raw blob unless the query contract requests exact samples. Delete or route standalone publication paths through the same owner in this step.",
+          "rationale": "Start from the exact representative execution and interaction trace persisted by the supervised composite first win, then measure the merged Marin training path and replace per-step and per-layer router documents and whole-run health arrays with one reusable Go chunk mechanic: bounded immutable payload blobs, ordinal and previous linkage, compact typed coverage summaries, and one workflow-owned atomic publication. Preserve every admitted router selection, margin, acceptance, health sample, authority, and explicit missing state under shared fact, chunk, and raw-byte budgets. The metadata journal and head deltas carry summaries and chunk identities only; projections decode no raw blob unless the query contract requests exact samples. Delete or route standalone publication paths through the same owner in this step; no efficiency claim may precede the real loop trace.",
           "depends_on": [
             "storage-projections/atomic-publication",
             "resource-coverage/fitness-integration",
             "redundancy-interaction-baseline/interaction-traces",
-            "architecture-ratchets/go-only-guard"
+            "architecture-ratchets/go-only-guard",
+            "supervised-composite/first-win"
           ],
           "capabilities": [
             "overgodb",
@@ -219,8 +220,8 @@
           "id": "prototype-contract",
           "title": "Define one immutable cross-domain candidate contract with typed components, predicted benefit and cost, falsifier, relevant references, budgets, and code evidence",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/trainingprogram ./internal/runrecord ./internal/dataset ./internal/composition ./internal/tensorcatalog ./internal/representation -run '^(TestCrossDomainCandidateIdentityAndValidation|TestCompositeCandidateBindsModelRoutingSteeringAndTransform|TestModelPrototypeIdentityAndValidation|TestCanonicalComponentDescriptorComparable|TestSeamAlignmentResidual|TestMarinMechanismCensusBindsExistingOwnersAndFalsifiers|TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted|TestDatasetTransformIdentityRejectsCallableAndAdvisoryVersionSemantics)$' -count=1",
-          "rationale": "Create one content-addressed Candidate envelope whose typed component graph can describe a model prototype, composition or alignment residual, Marin mechanism or router change, dataset transform, residual steering direction, code change, or a combination of them. The common fields bind subject and parent, predicted benefit and cost with units and uncertainty, falsifiable check, semantically relevant references, development and promotion splits, budgets, and exact code and environment evidence. A composition component uses one fixed-schema unit-normalized descriptor over its typed contract and a content-addressed seam alignment residual; these are comparable retrieval and viability evidence, not a separate catalog or admission authority. Domain specifications remain immutable plugin data, not executable code, weights, active recipes, or capability grants. Every executable architecture, transform, controller, evaluator, or realization path resolves to a compiled Go registration; source and provenance identities remain evidence only.",
+          "verify": "go test ./internal/modelrecipe ./internal/trainingprogram ./internal/runrecord ./internal/dataset ./internal/composition ./internal/representation -run '^(TestCrossDomainCandidateIdentityAndValidation|TestCompositeCandidateBindsModelRoutingSteeringAndTransform|TestModelPrototypeIdentityAndValidation|TestMarinMechanismCensusBindsExistingOwnersAndFalsifiers|TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted|TestDatasetTransformIdentityRejectsCallableAndAdvisoryVersionSemantics)$' -count=1",
+          "rationale": "Create one content-addressed Candidate envelope whose typed component graph can describe a model prototype, composition, Marin mechanism or router change, dataset transform, residual steering direction, code change, or a combination of them. The common fields bind subject and parent, predicted benefit and cost with units and uncertainty, falsifiable check, semantically relevant references, development and promotion splits, budgets, and exact code and environment evidence. Domain specifications remain immutable plugin data, not executable code, weights, active recipes, or capability grants. Every executable architecture, transform, controller, evaluator, or realization path resolves to a compiled Go registration; source and provenance identities remain evidence only. Normalized component catalogs, cross-basis seam residuals, and adapter search are post-proof plugins, not fields or authorities forced into the common envelope.",
           "depends_on": [
             "architecture-ratchets/go-only-guard",
             "capability-bound-activation/capability-identity",
@@ -243,8 +244,8 @@
           "id": "prototype-admission",
           "title": "Admit every domain candidate through one grounded, relevant, budgeted, and falsifiable decision owner",
           "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/controlleraction ./internal/runrecord -run '^(TestCrossDomainCandidateAdmissionUsesOneOwner|TestModelPrototypeAdmissionContract|TestMarinCandidateAdmissionRequiresGapCostBenefitAndFalsifier|TestMarinCandidateAdmissionRequiresRelevantTypedEvidence|TestMechanismAdmissionRejectsUnrelatedEvidence|TestDatasetPipelineCandidateRequiresMeasuredExistingOwnerFailure|TestExpertParallelCandidateRequiresMeasuredScaleBlockerAndExecutionAuthority|TestFrontierArchitectureCandidatesRemainIndependentAblations|TestModelAuthoredCandidatePredictionCalibration)$' -count=1",
-          "rationale": "One admission owner evaluates every Candidate envelope against causal context, exact incumbent, relevant typed evidence, measured gap, predicted benefit and cost, falsifier, independent promotion split, resource ceiling, saturation and stop policy, registered Go plugins, and an objective that can reject the whole composite hypothesis. Marin MechanismEvidence and MechanismCandidateAdmission, model prototypes, composition proposals, dataset-pipeline candidates, steering proposals, and code proposals become thin adapters to this contract and resolve authority through the existing AdmissionBinding. Model-authored and human-authored proposals use the same contract; predictions, uncertainty, admission verdict, measured outcome, and calibration error remain linked so proposal quality is itself evidence for the driver rather than a second admission policy. Expert parallelism refuses unless exact single-device placement, memory, or throughput evidence proves a scale blocker and an authorized multi-device target exists. Gated normalization, cross-layer attention, short convolution, sigmoid top-k normalization, shared experts, attention-layout, and optimizer changes remain independent candidates with component ablations; a bundled Frontier label carries no admission evidence. A composite candidate is admitted or refused as one causal subject while retaining component-level ablation obligations. Admission grants eligibility only; it cannot construct, execute, activate, or promote.",
+          "verify": "go test ./internal/trainingprogram ./internal/controlleraction ./internal/runrecord -run '^(TestCrossDomainCandidateAdmissionUsesOneOwner|TestModelPrototypeAdmissionContract|TestMarinCandidateAdmissionRequiresGapCostBenefitAndFalsifier|TestMarinCandidateAdmissionRequiresRelevantTypedEvidence|TestMechanismAdmissionRejectsUnrelatedEvidence|TestDatasetPipelineCandidateRequiresMeasuredExistingOwnerFailure)$' -count=1",
+          "rationale": "One admission owner evaluates every Candidate envelope against causal context, exact incumbent, subject-relevant typed evidence, measured gap, predicted benefit and cost, falsifier, independent promotion split, resource ceiling, saturation and stop policy, registered Go plugins, and an objective that can reject the whole composite hypothesis. Marin MechanismEvidence and MechanismCandidateAdmission, model prototypes, composition proposals, dataset-pipeline candidates, steering proposals, and code proposals become thin adapters to this contract and resolve authority through the existing AdmissionBinding. A composite candidate is admitted or refused as one causal subject while retaining its declared component-level ablation obligations. Admission grants eligibility only; it cannot construct, execute, activate, or promote. Model-authored calibration, frontier architecture families, expert parallelism, and their extra evidence requirements remain post-proof domain-plugin work.",
           "depends_on": [
             "model-prototypes/prototype-contract",
             "resource-coverage/reference-relevance-admission"
@@ -266,8 +267,8 @@
           "id": "prototype-compile",
           "title": "Compile an admitted candidate through registered Go domain plugins into one closed-world trial and evaluation plan",
           "status": "open",
-          "verify": "go test ./internal/scratchmodel ./internal/modelrecipe ./internal/trainingprogram ./internal/evaluation ./internal/dataset ./internal/densecausal ./internal/composition ./internal/tensorcatalog ./internal/representation -run '^(TestCandidateDomainPluginsCompileWithoutParallelRuntime|TestPrototypeCompilesClosedWorldTrial|TestExactComponentRetrievalDeterministic|TestCompositionCandidateEnumerationRanksByResidualAndFitness|TestDatasetPipelineStreamsWithinBudgetAndResumesExactStages|TestExpertPlacementDoesNotChangeDeclaredRouterSemantics|TestMoERoutingTargetRequiresDeclaredPriorStrataAndReopenTriggers|TestQuantileEstimatorReportsRankErrorSmallSampleAndStratumFailures|TestQuantileBiasChangesSelectionButNotUnbiasedCombineWeights)$' -count=1",
-          "rationale": "The candidate compiler dispatches typed components to registered Go realization and evaluator plugins while one common owner builds the trial, ablation matrix, budgets, saturation and stop conditions, and causal evidence plan. Model construction reuses scratchmodel and trainingprogram; composition uses exact deterministic retrieval over normalized descriptors, enumerates donor, seam, and adapter rungs, and ranks them by alignment residual plus predicted multidimensional fitness before reusing bridgetrain and synthesis. HDC search remains shelved until exact retrieval is a measured bottleneck. Deterministic data changes bind exact transform inputs and outputs, memory and intermediate-storage budgets, durable per-stage checkpoint authority, idempotent exact resume, and transient-versus-permanent failure classification without adding a scheduler. An admitted expert-parallel realization keeps model and router semantics separate from placement, transport, sender and receiver capacity, and drop policy; it is a domain plugin, not a distributed platform. MoE targets and quantile estimates remain evidence-bound objectives; steering remains a rank-one inference intervention. Unsupported combinations refuse before compute. Plugins contribute domain logic only and cannot create their own candidate, lifecycle, driver, invocation, publication, or runtime platform.",
+          "verify": "go test ./internal/scratchmodel ./internal/modelrecipe ./internal/trainingprogram ./internal/evaluation ./internal/composition ./internal/modelmerge -run '^(TestCandidateDomainPluginsCompileWithoutParallelRuntime|TestPrototypeCompilesClosedWorldTrial|TestCompatiblePassthroughAndTaskArithmetic)$' -count=1",
+          "rationale": "The candidate compiler dispatches typed components to registered Go realization and evaluator plugins while one common owner builds the trial, declared delta ablations, budgets, stop conditions, and causal evidence plan. The first plugin is deliberately narrow: exact same-base task arithmetic or model soup only when every parent binds the same base ModelDefinition and compatible tensor inventory. Coefficients, inputs, outputs, memory, and artifact budgets are explicit and unsupported lineage or layouts refuse before compute. It reuses modelmerge and composition directly; it adds no adapter training, normalized descriptor catalog, cross-basis alignment, DenseToMoE conversion, router change, dataset pipeline, remote placement, scheduler, or runtime. Those rungs remain post-proof plugins. Every plugin contributes domain logic only and cannot create its own candidate, lifecycle, driver, invocation, publication, or platform.",
           "depends_on": [
             "model-prototypes/prototype-admission"
           ],
@@ -287,11 +288,10 @@
           "id": "prototype-materialization",
           "title": "Atomically publish domain outputs, ablations, receipts, and candidate recipes from one successful cross-domain trial",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/trainingworkflow ./internal/runrecord ./internal/overgodb ./internal/composition ./internal/bridgetrain ./internal/representation -run '^(TestCrossDomainTrialMaterializesThroughOnePublicationOwner|TestPrototypeMaterializationClosure|TestCandidateRealizationFreezesDonorsTrainsAdapter|TestDatasetTrialPublishesExactStageResumeAndFailureEvidence|TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics|TestMoERouterObservationIdentityCoverageAndValidation|TestRouterObservationCoverageAndRetentionFailClosed|TestTrainingRequestCannotOverrideExecutableCodeRevision)$' -count=1",
-          "rationale": "One semantic publication binds the Candidate, compiled trial, component and joint ablations, receipts, evaluation inputs, and immutable domain outputs. Model trials may add weights, tensor inventory, and ModelDefinitionDocument. Composition initializes the interface adapter from admitted seam alignment, freezes every donor, trains only the adapter through bridgetrain, and assembles through synthesis; it adds no composition runtime or publisher. Data plugins add transform lineage plus exact completed-stage, checkpoint, retry, and classified-failure evidence; routing adds an exact controller checkpoint and references compact coverage produced only by the common bounded training-evidence owner; steering adds the verified direction. Candidate recipes cite the resolved outputs and exact trial evidence. No raw router or health observation, output, document named promotion, alias-only mutation, or plugin-specific publisher can activate the candidate.",
+          "verify": "go test ./internal/modelrecipe ./internal/trainingworkflow ./internal/runrecord ./internal/overgodb ./internal/composition ./internal/modelmerge -run '^(TestCrossDomainTrialMaterializesThroughOnePublicationOwner|TestPrototypeMaterializationClosure|TestStreamingTaskArithmetic|TestOfflineArtifactGenerationTaskArithmetic|TestTrainingRequestCannotOverrideExecutableCodeRevision)$' -count=1",
+          "rationale": "One semantic publication binds the Candidate, compiled trial, declared delta ablations, receipts, evaluation inputs, and immutable domain outputs. The first composition plugin streams the exact same-base task-arithmetic plan through the existing modelmerge and composition owners into content-addressed weights, tensor inventory, ModelDefinitionDocument, generation evidence, and candidate recipe without training or a plugin-specific publisher. Plan identity, coefficients, source lineage, output bytes, resource peaks, and deterministic rerun evidence are preserved. No raw observation, output, document named promotion, alias-only mutation, or plugin-specific publisher can activate the candidate. Adapter training, dataset stages, router observations, and other high-volume domain outputs remain behind the supervised proof and their shared bounded-evidence owner.",
           "depends_on": [
-            "model-prototypes/prototype-compile",
-            "interaction-efficiency/bounded-training-evidence"
+            "model-prototypes/prototype-compile"
           ],
           "capabilities": [
             "model-definition",
@@ -316,8 +316,8 @@
           "id": "recipe-derivation",
           "title": "Derive immutable execution and evaluation recipes from a candidate's resolved outputs and compiled domain-plugin catalogs",
           "status": "open",
-          "verify": "go test ./internal/recipe ./internal/modelrecipe ./internal/workflowrecipe ./internal/trainingprogram ./internal/dataset ./internal/composition ./internal/representation -run '^(TestCandidateRecipeDerivationUsesSharedSpine|TestPrototypeRecipeDerivation|TestRecipeDerivationBindsDatasetTransformRouterAndCheckpoint)$' -count=1",
-          "rationale": "Recipes remain immutable recipe.Definition artifacts produced by the shared candidate compiler: closed-world node and edge graphs whose modules are compiled Go capabilities. Model, composition, routing, data, steering, and code plugins contribute typed modules and ports to the same graph; they do not define parallel recipe formats. Recipes bind resolved outputs, placement, residency, session, evaluator, ablation, observation, checkpoint-resume, effect ceiling, and policy artifacts without embedding code or discovering filesystem instructions.",
+          "verify": "go test ./internal/recipe ./internal/modelrecipe ./internal/workflowrecipe ./internal/trainingprogram ./internal/composition -run '^(TestCandidateRecipeDerivationUsesSharedSpine|TestPrototypeRecipeDerivation)$' -count=1",
+          "rationale": "Recipes remain immutable recipe.Definition artifacts produced by the shared candidate compiler: closed-world node and edge graphs whose modules are compiled Go capabilities. The first same-base composition plugin contributes its typed local module and ports to that graph; every later model, routing, data, steering, and code plugin must extend the same format rather than define another recipe. Recipes bind resolved outputs, local placement, evaluator, declared delta ablations, observation contract, effect ceiling, and policy artifacts without embedding code or discovering filesystem instructions.",
           "depends_on": [
             "model-prototypes/prototype-materialization"
           ],
@@ -330,13 +330,12 @@
         },
         {
           "id": "recipe-validation",
-          "title": "Compile each candidate recipe against exact local, peer, tool, domain-plugin, and runtime capabilities and publish verification evidence",
+          "title": "Compile each candidate recipe against exact local domain-plugin and runtime capabilities and publish verification evidence",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/capabilityruntime ./internal/agenttool ./internal/trainingprogram ./internal/dataset -run '^(TestCandidateRecipeCapabilityClosure|TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint|TestRemoteRecipeCapabilityRequiresExactUTCPManual)$' -count=1",
-          "rationale": "A recipe candidate is not runnable because it parses. Validation proves every module, port, dependency, placement, residency, session policy, tool grant, deterministic transform, routing target, estimator, controller, observation contract, checkpoint state, and resource requirement against exact capability identities. A remote module additionally requires an active peer placement and exact effect-classed UTCP manual bound to its http-json-stream capability; a local module keeps the direct Go path. Unsupported, mismatched, advisory-versioned, or incomplete identities record refusal rather than selecting a fallback topology.",
+          "verify": "go test ./internal/modelrecipe ./internal/capabilityruntime ./internal/trainingprogram ./internal/dataset -run '^(TestCandidateRecipeCapabilityClosure|TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint)$' -count=1",
+          "rationale": "A recipe candidate is not runnable because it parses. Validation proves every local module, port, dependency, placement, residency, session policy, deterministic transform, routing target, estimator, controller, observation contract, checkpoint state, and resource requirement against exact compiled capability identities. The supervised first win remains local and direct-Go. Unsupported, mismatched, advisory-versioned, or incomplete identities record refusal rather than selecting a fallback topology; remote UTCP validation is added only by the post-proof outward-capability step.",
           "depends_on": [
-            "model-recipe-lifecycle/recipe-derivation",
-            "interaction-efficiency/tool-call-propensity-control"
+            "model-recipe-lifecycle/recipe-derivation"
           ],
           "capabilities": [
             "recipe-validation",
@@ -349,12 +348,11 @@
           "id": "isolated-performance-evidence",
           "title": "Publish identity-bound cross-domain performance observations from isolated supervised processes",
           "status": "open",
-          "verify": "go test ./internal/processcontrol ./internal/runrecord ./internal/evaluation ./internal/modelrecipe ./internal/trainingworkflow -run '^(TestIsolatedModelProcess|TestIsolatedModelPerformanceEvidence|TestIsolatedTrainingEvidenceUsesBoundedOwner|TestTrainingLaunchUsesDirectOwnerWithCapabilityReceipt|TestScalingAccountingBindsTotalActiveMeasuredAndAnalyticCosts|TestScalingStudyRungsBindConfigsSeedsDataAndEvaluators|TestTrainingHealthObservationsBindPhaseStepAndAuthority|TestExpertParallelEvidenceAttributesTransportCapacityAndDrops)$' -count=1",
-          "rationale": "Acquire performance evidence in one supervised process or session per exact validated candidate and recipe. Launch training by calling the supervised Go owner directly after deriving the closed training-launch effect, exact arguments and targets, action-bound preflight inspection, task or delegation ceiling, active AutomationPolicyLifecycle standing grant or argument-bound HumanDecision, and shared admitted-running-terminal StageReceipt; no UTCP transport is inserted inward. Bind candidate, resolved model or composition, dataset and split digest, environment, recipe, placement, checkpoint, code, attempt, accounting methods, and coverage identity. Raw router and health samples use the common bounded training-evidence owner; the journal retains compact coverage, scaling, health, ObservationChunk, and ResourceFitness summaries in one semantic publication. An admitted expert-parallel trial additionally measures assignments, bytes, collectives, topology, imbalance, sender and receiver overflow, drops, synchronization, and memory without changing declared router semantics. Domain summaries may describe derived facts but cannot duplicate raw telemetry or create comparison, promotion, retry, or rollback authority. Refuse ambiguous peak reset, child or cleanup failure, mixed observation scope, incomplete coverage, or partial publication.",
+          "verify": "go test ./internal/processcontrol ./internal/runrecord ./internal/evaluation ./internal/modelrecipe ./internal/operation -run '^(TestIsolatedModelProcess|TestIsolatedModelPerformanceEvidence|TestTrainingLaunchUsesDirectOwnerWithCapabilityReceipt)$' -count=1",
+          "rationale": "Acquire performance evidence in one supervised process or session per exact validated candidate and local recipe. Execute through the existing operation and process-supervision owners after deriving the closed evaluation or training-launch effect, canonical arguments and targets, action-bound preflight inspection, task or delegation ceiling, argument-bound HumanDecision, and shared admitted-running-terminal StageReceipt; no UTCP transport is inserted inward. Bind candidate, resolved model or composition, held-out dataset and split digest, environment, recipe, placement, code, attempt, ResourceFitness, and explicit missing coverage in one semantic publication. Domain summaries may describe derived facts but cannot create comparison, promotion, retry, or rollback authority. Refuse child or cleanup failure, mixed observation scope, stale operation heads, unrelated or argument-drifted preflight evidence, or partial publication. High-volume training, scaling, health, MoE, and expert-parallel evidence are post-proof plugins of this owner.",
           "depends_on": [
             "evidence-routing/evidence-selection",
-            "process-supervision/process-boundary-guard",
-            "interaction-efficiency/bounded-training-evidence"
+            "process-supervision/process-boundary-guard"
           ],
           "capabilities": [
             "performance-evidence",
@@ -370,8 +368,8 @@
           "id": "recipe-evaluation",
           "title": "Evaluate candidates and their component ablations while separating model, composition, routing, steering, data, recipe, and system deltas",
           "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/modelrecipe ./internal/loop ./internal/trainingworkflow ./internal/composition ./internal/representation -run '^(TestCrossDomainCandidateEvaluationAndAblationAttribution|TestRecipeCandidateEvaluationAttribution|TestAlignmentResidualBiasAudit|TestFitnessScoredCompositeSelection|TestSelectionEmitsAblationGatedPromotion|TestScalingFitRefusesUnsupportedExtrapolationAndRegimeMixing|TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits|TestEffectiveSpeedupCanonicalOrderIsPermutationInvariant|TestMoERoutingBaselineMatrixHasExactPairedAuthorities|TestCapacityEvaluationPairsConstrainedAndDroplessRuns|TestMoERoutingEvaluationDetectsNonIIDMixtureAndLagFailures|TestExpertParallelPrototypeIsBoundedPairedAndExactlyResumable|TestArchitecturePromotionRequiresPairedBenefitAndNoHiddenRegression)$' -count=1",
-          "rationale": "One evaluator spine consumes the exact DriverDecision and scores candidate, incumbent, joint combination, and predeclared component ablations under the same exact inputs, splits, budgets, coverage, and multidimensional fitness contract. This attributes gains or regressions to weights, architecture, composition, routing, steering, dataset transform, recipe graph, placement, or interaction changes and lets cross-domain components multiply rather than sit in siloed stacks. A composition evaluator bias-audits pretraining Procrustes or OT seam residual against post-training bridge parity, scores held-out multidimensional fitness without scalarization, and requires dropped-source and shuffled-source ablations before emitting a promotion request. Reuse exact scaling accounting, non-extrapolating fit envelopes, effective-speedup pairs at identical observed quality, MoE paired arms and shift/capacity evidence, and representation viability signals. If the scale gate admitted expert parallelism, choose exactly one evidence-selected bounded transport, compare it with the local reference and paired constrained-versus-dropless arms, and require exact checkpoint and retry recovery; do not implement a menu of distributed strategies. Independent architecture candidates require paired local benefit with no hidden stratum, stability, resume, or cost regression; a Frontier label is not evidence. Domain evaluators emit facts only; a document named promotion cannot mutate an active alias.",
+          "verify": "go test ./internal/evaluation ./internal/modelrecipe ./internal/loop ./internal/composition -run '^(TestCrossDomainCandidateEvaluationAndAblationAttribution|TestRecipeCandidateEvaluationAttribution)$' -count=1",
+          "rationale": "One evaluator spine consumes the exact DriverDecision and scores the same-base candidate, production incumbent, parent specialists, joint merge, and predeclared dropped-delta ablations under identical inputs, independent promotion split, budgets, coverage, and multidimensional fitness contract. A capability win requires the predeclared measurable Pareto improvement or explicit accepted tradeoff; a scalarized best score, development-split reuse, missing arm, or regression records refusal. The same evaluator contracts later attribute model, architecture, composition, routing, steering, dataset, recipe, placement, and interaction deltas through plugins rather than siloed comparison stacks. Evaluators emit immutable facts only; a document named promotion cannot mutate any lifecycle or alias.",
           "depends_on": [
             "model-recipe-lifecycle/isolated-performance-evidence"
           ],
@@ -390,10 +388,10 @@
         },
         {
           "id": "recipe-activation",
-          "title": "Factor one shared lifecycle and transition owner before promotion, containment, activation, or rollback",
+          "title": "Factor one shared lifecycle and transition owner before supervised verification, production promotion, containment, activation, or rollback",
           "status": "open",
           "verify": "go test ./internal/modelrecipe ./internal/runrecord ./internal/overgodb ./internal/composition -run '^(TestCrossDomainPromotionLifecycleHasOneTransitionOwner|TestPrototypeRecipeLifecycleAndRollback|TestRecipeActivationRequiresCapabilityInvocationReceipt)$' -count=1",
-          "rationale": "Factor the repeated declared, experimental, verified, active, contained, superseded, refused, retired, and rolled-back transition mechanics into one evidence-gated lifecycle and direct Go compare-and-set owner before any rollout promotion, containment, activation, or rollback adapter can mutate state. Modelrecipe, composition, mechanism, routing, steering, code, experiment, agent, and automation paths supply typed subject validation, evidence, requested transition, and scoped alias bindings only; migrate and delete their parallel transition, approval, and receipt mechanics in the same step. The shared owner accepts no transition without the exact closed mutation effect, arguments, targets, action-bound inspection, task or delegation ceiling, active policy or HumanDecision authority, and StageReceipt published atomically with the alias change. Validation, ablations, evaluation, rollout, promotion, and safety documents remain evidence or requests and cannot activate themselves; no UTCP transport is inserted inward.",
+          "rationale": "Factor the repeated declared, experimental, validated or verified, active, contained, superseded, refused, retired, and rolled-back transition mechanics into one evidence-gated lifecycle and direct Go compare-and-set owner before any supervised verification, rollout promotion, containment, activation, or rollback adapter can mutate state. Modelrecipe, composition, mechanism, routing, steering, code, experiment, agent, and automation paths supply typed subject validation, evidence, requested transition, and scoped alias bindings only; migrate and delete their parallel transition, approval, and receipt mechanics in the same step. The shared owner accepts no transition without the exact closed mutation effect, arguments, targets, action-bound inspection, task or delegation ceiling, active policy or HumanDecision authority, and StageReceipt published atomically with the lifecycle compare-and-set. The early supervised class may advance only the candidate's non-serving verified binding and must preserve the production active alias; production activation and unattended authority widening remain owned by the later rollout adapter. Validation, ablations, evaluation, rollout, promotion, and safety documents remain evidence or requests and cannot activate themselves; no UTCP transport is inserted inward.",
           "depends_on": [
             "model-recipe-lifecycle/recipe-evaluation"
           ],
@@ -419,10 +417,12 @@
           "id": "decision-contract",
           "title": "Define one typed driver decision binding goal, incumbent and admitted candidates, evidence, budgets, saturation, stop state, and derived action",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/runrecord ./internal/loop ./internal/controlleraction ./internal/evaluation ./internal/composition -run '^(TestEvidenceDriverDecisionContract|TestRoutingDecisionContract|TestCapabilityGapTargetsFromEvalStore)$' -count=1",
-          "rationale": "A DriverDecision is the canonical fact for what the RSI loop does next: select the active incumbent or an admitted validated or experimental candidate, run an evaluator or ablation, request evidence, stop at saturation, or refuse under budget. It binds goal and causal context, considered cross-domain candidates, exact evidence and missing states, capability placement, interaction and resource budgets, saturation and stop derivation, selected action, and tie-break. A composition adapter derives typed weakest-domain, regression, and frontier-gap targets from the evaluation store; the driver remains the decision owner. Task-to-model routing is another driver adapter. The imported MoE router remains intra-model token routing and is never a parallel task or model-dispatch authority. Targets, estimates, admissions, and evaluations remain evidence only; decisions cannot bypass the shared promotion lifecycle or placement owner.",
+          "verify": "go test ./internal/modelrecipe ./internal/runrecord ./internal/loop ./internal/controlleraction ./internal/evaluation -run '^(TestEvidenceDriverDecisionContract|TestRoutingDecisionContract)$' -count=1",
+          "rationale": "A DriverDecision is the canonical fact for what the RSI loop does next: select the active incumbent or an admitted validated or experimental candidate, run an evaluator or declared ablation, request evidence, stop at saturation, or refuse under budget. It binds goal and causal context, considered cross-domain candidates, exact evidence and missing states, capability placement, interaction and resource budgets, saturation and stop derivation, selected action, and tie-break. This contract is independent of any particular candidate compiler and can be built in parallel with it. Task-to-model routing is another driver adapter; the imported MoE router remains intra-model token routing and is never a parallel task or model-dispatch authority. Targets, estimates, admissions, and evaluations remain evidence only; decisions cannot bypass the shared promotion lifecycle or placement owner.",
           "depends_on": [
-            "model-recipe-lifecycle/recipe-validation"
+            "architecture-ratchets/go-only-guard",
+            "resource-coverage/fitness-integration",
+            "resource-coverage/reference-relevance-admission"
           ],
           "capabilities": [
             "rsi-routing",
@@ -439,10 +439,11 @@
           "id": "evidence-selection",
           "title": "Drive pre-promotion evidence work and active dispatch through one evidence-derived decision owner",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/evaluation ./internal/capabilityruntime ./internal/loop ./internal/controlleraction ./internal/composition -run '^(TestEvidenceDriverConsumesCrossDomainCandidates|TestEvidenceDerivedSelection|TestCompositionImprovementLoopClosesUnderBudget|TestCompositionLoopSaturationStops)$' -count=1",
-          "rationale": "The shared driver considers the active incumbent plus admitted validated or experimental candidates. Before promotion it chooses the least-cost missing-evidence request, evaluator, component ablation, trial, refusal, or saturation stop; after promotion it may select a promotion-resolved active candidate for live dispatch. The composition adapter sequences gap target, exact donor and seam enumeration, adapter realization, evaluation, and promote-or-refuse through those same actions and records every attempt. It applies one ordered subject-relevance gate, budget ledger, history-derived saturation rule, and stop owner across model, composition, mechanism, data, routing, steering, and code domains; no composition loop or free knob is added. Local actions call compiled Go owners directly; remote actions resolve the exact staged UTCP capability and receipt path. Every action publishes one DriverDecision through the common publication path and creates no candidate, lifecycle, placement, token-routing, or promotion authority.",
+          "verify": "go test ./internal/modelrecipe ./internal/evaluation ./internal/capabilityruntime ./internal/loop ./internal/controlleraction -run '^(TestEvidenceDriverConsumesCrossDomainCandidates|TestEvidenceDerivedSelection)$' -count=1",
+          "rationale": "The shared driver considers the active incumbent plus admitted validated or experimental candidates. Before supervised verification it chooses the least-cost missing-evidence request, evaluator, declared delta ablation, trial, refusal, or saturation stop; after production promotion it may select a promotion-resolved active candidate for live dispatch. The first local same-base composition follows those actions with one ordered subject-relevance gate, budget ledger, and stop owner. Model, composition, mechanism, data, routing, steering, and code plugins must reuse that driver; no domain loop or free knob is added. Local actions call compiled Go owners directly. Cross-boundary resolution is a post-proof extension of the invocation spine, not an early dependency. Every action publishes one DriverDecision through the common publication path and creates no candidate, lifecycle, placement, token-routing, or promotion authority.",
           "depends_on": [
             "evidence-routing/decision-contract",
+            "model-recipe-lifecycle/recipe-validation",
             "capability-bound-activation/placement-integration",
             "resource-coverage/reference-relevance-admission"
           ],
@@ -460,11 +461,12 @@
           "id": "counterfactual-replay",
           "title": "Replay recorded driver decisions under a candidate policy and publish measured counterfactual deltas",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/overgodb ./internal/loop -run '^(TestDriverCounterfactualReplay|TestRoutingCounterfactualReplay|TestCompositionDriverLearningCurve|TestCompositionCandidateCalibration)$' -count=1",
-          "rationale": "Replay a candidate driver or domain policy against the recorded DriverDecision corpus with identical inputs, budgets, stop conditions, and fixed evidence identities. Aggregate strategy-tagged attempts into fitness delta per compute, candidate hit rate, adapter-training cost, and predicted-versus-actual candidate calibration without fitting a hidden threshold. For routing changes, reuse exact router-observation coverage, paired baseline arms, declared targets, and homogeneous, mixed, imbalanced, and transition-window strata; hidden-stratum failure or controller lag remains explicit. For composite changes, replay component ablations and capability placement. Publish coverage, learning curve, calibration, and deltas without granting live dispatch. Counterfactual evidence becomes an additional rollout input only for the behavior it changes.",
+          "verify": "go test ./internal/modelrecipe ./internal/overgodb ./internal/loop -run '^(TestDriverCounterfactualReplay|TestRoutingCounterfactualReplay)$' -count=1",
+          "rationale": "Only after the supervised trace exists, replay a candidate driver or domain policy against the recorded DriverDecision corpus with identical inputs, budgets, stop conditions, and fixed evidence identities. For routing changes, reuse exact router-observation coverage, paired baseline arms, declared targets, and homogeneous, mixed, imbalanced, and transition-window strata; hidden-stratum failure or controller lag remains explicit. Publish coverage and deltas without granting live dispatch. Counterfactual evidence becomes an additional rollout input only for the behavior it changes; composition search and calibration extend this owner in their own post-proof step.",
           "depends_on": [
             "evidence-routing/evidence-selection",
-            "causal-execution/causal-projection"
+            "causal-execution/causal-projection",
+            "supervised-composite/first-win"
           ],
           "capabilities": [
             "rsi-routing",
@@ -473,6 +475,144 @@
             "paired-evidence",
             "moe-routing-shift",
             "evidence-driver"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "supervised-composite",
+      "title": "Prove a measurable model capability win before optimizing or widening autonomy",
+      "status": "open",
+      "steps": [
+        {
+          "id": "first-win",
+          "title": "Run one same-base composite through admission, realization, held-out evaluation, and supervised non-serving verification",
+          "status": "open",
+          "verify": "go test ./internal/loop ./internal/overgodb -run '^TestSupervisedCompositeFirstWin$' -count=1",
+          "rationale": "Close the first vertical RSI slice with exactly one local, already-admitted same-base task-arithmetic candidate. Resolve the production incumbent and every parent definition and tensor inventory; let DriverDecision select the declared realization, promotion-split evaluation, and dropped-delta ablations; bind the exact strategy identity on the attempt; materialize deterministic content-addressed output; and compare the candidate with the unchanged incumbent and parent specialists under the same held-out inputs, budgets, coverage, and multidimensional fitness. A win requires the predeclared measurable Pareto improvement or accepted tradeoff; missing evidence or regression persists a refusal, never a ceremonial success. This is human-watched and non-serving: derive one closed supervised-verification effect with canonical arguments and targets, action-bound preflight evidence, exact task ceiling, and argument-bound HumanDecision; publish admitted, running, and terminal StageReceipt states; and submit only the candidate or experimental to validated or verified compare-and-set to the shared lifecycle. The production active alias and unattended AutomationPolicyLifecycle remain unchanged. Persist Candidate, DriverDecision, strategy-tagged attempt, materialization, evaluation, ablations, HumanDecision, receipt chain, lifecycle transition, and the representative execution and interaction trace in OvergoDB, then cold-reopen and reproduce every identity, result, and incumbent binding. No live traffic, rollout, autonomy widening, peer transport, residual steering, advanced composition, or high-volume training is admitted by this milestone, and it creates no new admission, driver, process, publication, lifecycle, approval, receipt, or promotion owner.",
+          "depends_on": [
+            "model-recipe-lifecycle/recipe-activation"
+          ],
+          "capabilities": [
+            "rsi-loop",
+            "supervised-composite",
+            "capability-win",
+            "held-out-evaluation",
+            "human-decision",
+            "stage-receipt",
+            "alias-cas",
+            "cold-reopen",
+            "interaction-trace"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "composition-expansion",
+      "title": "Add harder composition rungs through the same spines only after the same-base proof",
+      "status": "open",
+      "steps": [
+        {
+          "id": "alignment-adapter",
+          "title": "Add deterministic component retrieval and one bounded frozen-donor alignment-adapter ladder",
+          "status": "open",
+          "verify": "go test ./internal/tensorcatalog ./internal/composition ./internal/bridgetrain ./internal/evaluation ./internal/modelrecipe -run '^(TestCanonicalComponentDescriptorComparable|TestSeamAlignmentResidual|TestExactComponentRetrievalDeterministic|TestCompositionCandidateEnumerationRanksByResidualAndFitness|TestCandidateRealizationFreezesDonorsTrainsAdapter|TestAlignmentResidualBiasAudit|TestFitnessScoredCompositeSelection|TestSelectionEmitsAblationGatedPromotion)$' -count=1",
+          "rationale": "Only after the reproducible held-out same-base win, extend the existing projection with fixed-schema unit-normalized component descriptors, exact deterministic retrieval, content-addressed Procrustes or OT seam evidence, and one bounded donor-to-seam-to-adapter ladder. Freeze donors, train only the interface adapter through bridgetrain, assemble through synthesis, bias-audit the pretraining residual against post-training parity, and require target, composed, dropped-source, and shuffled-source arms under multidimensional fitness. These are Candidate source, realization, and evaluator plugins of the shared spines, not a normalized-catalog service, composition runtime, admission owner, publisher, or lifecycle. HDC and broad cross-architecture search remain refused until exact retrieval is a measured blocker with an explicit reopen trigger.",
+          "depends_on": [
+            "supervised-composite/first-win"
+          ],
+          "capabilities": [
+            "composition-plugin",
+            "deterministic-retrieval",
+            "alignment-residual",
+            "adapter-training",
+            "multidimensional-fitness"
+          ]
+        },
+        {
+          "id": "search-ratchet",
+          "title": "Admit bounded composition search and budget widening only from measured learning and calibration",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/composition ./internal/modelrecipe ./internal/runrecord ./internal/loop ./internal/controlleraction -run '^(TestCapabilityGapTargetsFromEvalStore|TestCompositionImprovementLoopClosesUnderBudget|TestCompositionLoopSaturationStops|TestCompositionDriverLearningCurve|TestCompositionCandidateCalibration|TestCompositionAutonomyRatchetGatesOnCurveAndSafety)$' -count=1",
+          "rationale": "Extend the shared DriverDecision only after the alignment ladder exists and generic counterfactual replay can measure it. Derive weakest-domain, regression, and frontier-gap requests from immutable evaluations; aggregate strategy-tagged attempts into held-out fitness delta per compute, candidate hit rate, adapter cost, refusal and saturation history, and predicted-versus-actual calibration without a hidden threshold. A composition budget may widen only after a positive held-out learning curve, calibrated predictions, complete ablations, and quiet safety evidence; otherwise the driver remains supervised, narrows, or stops. This step adds no composition loop, free search knob, policy, activation path, or lifecycle authority; any later production request still traverses the shared rollout and promotion adapter.",
+          "depends_on": [
+            "composition-expansion/alignment-adapter",
+            "evidence-routing/counterfactual-replay"
+          ],
+          "capabilities": [
+            "composition-plugin",
+            "evidence-driver",
+            "counterfactual-evidence",
+            "calibration",
+            "autonomy-ratchet"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "advanced-domain-plugins",
+      "title": "Adapt data, routing, scale, health, and architecture mechanisms after the first proven loop",
+      "status": "open",
+      "steps": [
+        {
+          "id": "realization",
+          "title": "Extend candidate compilation and materialization with evidence-gated data, MoE, DenseToMoE, architecture, and expert-placement plugins",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram ./internal/controlleraction ./internal/dataset ./internal/densecausal ./internal/modelmerge ./internal/trainingworkflow ./internal/runrecord ./internal/modelrecipe -run '^(TestExpertParallelCandidateRequiresMeasuredScaleBlockerAndExecutionAuthority|TestFrontierArchitectureCandidatesRemainIndependentAblations|TestModelAuthoredCandidatePredictionCalibration|TestDatasetPipelineStreamsWithinBudgetAndResumesExactStages|TestExpertPlacementDoesNotChangeDeclaredRouterSemantics|TestMoERoutingTargetRequiresDeclaredPriorStrataAndReopenTriggers|TestQuantileEstimatorReportsRankErrorSmallSampleAndStratumFailures|TestQuantileBiasChangesSelectionButNotUnbiasedCombineWeights|TestDatasetTrialPublishesExactStageResumeAndFailureEvidence|TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics|TestMoERouterObservationIdentityCoverageAndValidation|TestRouterObservationCoverageAndRetentionFailClosed|TestRecipeDerivationBindsDatasetTransformRouterAndCheckpoint|TestDenseToMoEEvidenceScreen|TestDenseToMoEExpertInventory|TestDenseToMoEPromotionRefusal)$' -count=1",
+          "rationale": "After the simple composite proves the shared loop, add Marin-derived and model-architecture mechanisms only as registered Go Candidate source and realization plugins. Deterministic data stages bind memory and intermediate-byte budgets, durable stage checkpoints, exact resume, and classified failure. MoE targets and quantile estimates remain evidence-bound; controller code alone changes routing; router semantics stay separate from placement and transport. DenseToMoE is a later architecture-change rung requiring exact screen and expert inventory evidence and cannot self-promote. Expert parallelism refuses without a measured single-device placement, memory, or throughput blocker and one authorized multi-device target. Model-authored predictions retain measured outcome and calibration; frontier mechanisms remain independent candidates with component ablations rather than a bundled label. Plugins reuse the common compiler, publication, recipe, driver, and lifecycle owners and introduce no distributed platform or scheduler.",
+          "depends_on": [
+            "supervised-composite/first-win"
+          ],
+          "capabilities": [
+            "candidate-plugin",
+            "dataset-transform",
+            "moe-routing-controller",
+            "dense-to-moe",
+            "expert-parallel",
+            "architecture-candidate"
+          ]
+        },
+        {
+          "id": "evidence",
+          "title": "Extend isolated evaluation with bounded scaling, training-health, router-coverage, and expert-parallel evidence",
+          "status": "open",
+          "verify": "go test ./internal/processcontrol ./internal/runrecord ./internal/evaluation ./internal/modelrecipe ./internal/trainingworkflow -run '^(TestIsolatedTrainingEvidenceUsesBoundedOwner|TestScalingAccountingBindsTotalActiveMeasuredAndAnalyticCosts|TestScalingStudyRungsBindConfigsSeedsDataAndEvaluators|TestTrainingHealthObservationsBindPhaseStepAndAuthority|TestExpertParallelEvidenceAttributesTransportCapacityAndDrops|TestScalingFitRefusesUnsupportedExtrapolationAndRegimeMixing|TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits|TestEffectiveSpeedupCanonicalOrderIsPermutationInvariant|TestMoERoutingBaselineMatrixHasExactPairedAuthorities|TestCapacityEvaluationPairsConstrainedAndDroplessRuns|TestMoERoutingEvaluationDetectsNonIIDMixtureAndLagFailures|TestExpertParallelPrototypeIsBoundedPairedAndExactlyResumable|TestArchitecturePromotionRequiresPairedBenefitAndNoHiddenRegression)$' -count=1",
+          "rationale": "Extend the already-proven isolated process and evaluator owners, using the post-proof bounded training-evidence mechanic for raw router and health samples. Bind exact scaling rungs, configurations, seeds, datasets, evaluators, active and measured costs, health phases, controller checkpoints, router scope coverage, assignments, bytes, collectives, topology, sender and receiver overflow, drops, synchronization, and memory. Fits refuse extrapolation or regime mixing; effective speedup compares identical observed quality and compatible units; MoE arms include paired baseline, constrained, dropless, shift, and lag cases. Expert-parallel evidence selects at most one bounded transport against the local reference and proves checkpoint and retry recovery. Plugin summaries cannot duplicate raw telemetry or create comparison, promotion, retry, rollback, or lifecycle authority; incomplete coverage or partial publication refuses.",
+          "depends_on": [
+            "advanced-domain-plugins/realization",
+            "interaction-efficiency/bounded-training-evidence"
+          ],
+          "capabilities": [
+            "shared-evaluator",
+            "scaling-evidence",
+            "training-health",
+            "moe-router-coverage",
+            "expert-parallel-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "outward-capabilities",
+      "title": "Use the shared invocation contract for agent-initiated and cross-boundary capability reuse",
+      "status": "open",
+      "steps": [
+        {
+          "id": "peer-invocation",
+          "title": "Complete staged delegation and receipted peer capability invocation without routing internal Go through UTCP",
+          "status": "open",
+          "verify": "go test ./cmd/agent-tool ./internal/plan ./internal/agenttool ./internal/agentloop ./internal/operatoraction ./internal/operation ./internal/workflowruntime ./internal/capabilityruntime ./internal/modelrecipe ./internal/loop ./internal/runrecord -run '^(TestDelegatedCapabilityRuntimeConsumesStagedOwners|TestAgentDelegationStagedSurfaceRetired|TestPeerCapabilityManualAndPlacement|TestPeerHTTPJSONStreamInvocationReceipt|TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode|TestRemoteRecipeCapabilityRequiresExactUTCPManual)$' -count=1",
+          "rationale": "Complete and retire the staged CapabilityProxyManual and RegisterCapabilityProxy, NewDelegatedCoordinator, CompileDelegatedAgentInvocation, and NewMutationCheckpointRuntime surfaces through existing command, server, runtime, approval, execution, and receipt owners. A lane or peer exposes a compiled Go capability as an exact effect-classed UTCP manual; consumers invoke it across the boundary instead of importing or duplicating runtime code. Bind PeerCapabilityPublication, enrollment, heartbeat, compatibility, and placement to the active CatalogSnapshot, Manual, and CapabilityIdentity; recheck publication and lease immediately before bounded no-redirect http-json-stream dispatch; then publish the shared StageReceipt with canonical arguments, effect, targets, inspection, task or delegation ceiling, HumanDecision or active policy, causal context, and head. Remote recipe validation requires that exact manual and placement. Inspection propensity may later be steered only while every resolved capability is inspection-class; mutation stays alpha zero and behind approval. Deterministic in-process orchestration continues to call Go owners directly and never enters UTCP resolution or transport. This adds no second registry, admission, placement, execution, approval, receipt, lifecycle, or policy owner.",
+          "depends_on": [
+            "supervised-composite/first-win"
+          ],
+          "capabilities": [
+            "utcp-peer",
+            "delegated-capability",
+            "http-json-stream",
+            "cross-lane-reuse",
+            "mutation-receipt",
+            "direct-go-orchestration"
           ]
         }
       ]
@@ -490,7 +630,8 @@
           "rationale": "A rollout is evidence for the shared promotion spine, not a mutable feature flag or domain-specific lifecycle. It binds incumbent, composite candidate and component ablations, cohort key, hash version, observation and interaction contract, rollback authority, and plugin-specific evidence requirements. A MoE component additionally binds routing target, exact router coverage, paired baseline and capacity authorities, shift cases, and applicable counterfactual evidence; composition, steering, data, model, and code components bind their own typed evaluator facts through the same plan. Cohort size and boundaries remain derived from evaluation evidence or explicit decisions with reopen triggers.",
           "depends_on": [
             "model-recipe-lifecycle/recipe-evaluation",
-            "evidence-routing/evidence-selection"
+            "evidence-routing/evidence-selection",
+            "supervised-composite/first-win"
           ],
           "capabilities": [
             "rsi-rollout",
@@ -538,8 +679,8 @@
           "id": "promotion-binding",
           "title": "Bind one evidence-gated promotion and autonomy-widening decision to rollout, ablation, coverage, receipt, and rollback closure",
           "status": "open",
-          "verify": "go test ./cmd/gate ./internal/runrecord ./internal/loop ./internal/trainingworkflow ./internal/evaluation -run '^(TestPromotionRequiresRolloutEvidenceClosure|TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions|TestPromotionRequiresCapabilityInvocationReceipt|TestAutonomyWideningRequiresPolicyLifecycleEvidence|TestCompositionAutonomyRatchetGatesOnCurveAndSafety)$' -count=1",
-          "rationale": "Offline evaluation admits a candidate to rollout, not activation. Model, composition, mechanism, routing, steering, code, and automation evidence feeds one typed promotion request; documents named promotion remain evidence only. This adapter derives the exact promotion effect, action-bound inspection, task or DelegatedAgentInvocation ceiling, active AutomationPolicyLifecycle standing grant or argument-bound HumanDecision, and shared StageReceipt after rollout, incumbent, candidate, ablation, coverage, rollback, and causal closure are present, then submits the request to the already-established shared lifecycle owner. Unattended authority is an exact predicate and set lattice, never a scalar: adding a mutation kind, capability, or target, relaxing a predicate, or increasing a budget is widening and traverses that same lifecycle compare-and-set with rollout evidence and rollback. A composition-budget widening additionally requires a positive learning curve, held predicted-versus-actual calibration, complete ablations, and quiet live-safety evidence; regression narrows through the same lifecycle. StageReceipt binds the exact arguments, effect, and active policy identity whose predicate admitted that invocation; no caller boolean, second approval document, or promotion-specific transition owner is authority.",
+          "verify": "go test ./cmd/gate ./internal/runrecord ./internal/loop ./internal/trainingworkflow ./internal/evaluation -run '^(TestPromotionRequiresRolloutEvidenceClosure|TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions|TestPromotionRequiresCapabilityInvocationReceipt|TestAutonomyWideningRequiresPolicyLifecycleEvidence)$' -count=1",
+          "rationale": "The early supervised milestone verifies a non-serving candidate and preserves the production incumbent; only this later adapter may request production rollout activation or unattended authority widening. Model, composition, mechanism, routing, steering, code, and automation evidence feeds one typed promotion request; documents named promotion remain evidence only. The adapter derives the exact promotion effect, action-bound inspection, task or DelegatedAgentInvocation ceiling, active AutomationPolicyLifecycle standing grant or argument-bound HumanDecision, and shared StageReceipt after rollout, incumbent, candidate, ablation, coverage, rollback, and causal closure are present, then submits the request to the already-established shared lifecycle owner. Unattended authority is an exact predicate and set lattice, never a scalar: adding a mutation kind, capability, or target, relaxing a predicate, or increasing a budget is widening and traverses that same lifecycle compare-and-set with rollout evidence and rollback. Plugin-specific learning, calibration, and safety requirements remain typed evidence inputs. StageReceipt binds the exact arguments, effect, and active policy identity whose predicate admitted that invocation; no caller boolean, second approval document, or promotion-specific transition owner is authority.",
           "depends_on": [
             "deterministic-rollout/projection-evidence",
             "model-recipe-lifecycle/recipe-activation"
@@ -567,7 +708,8 @@
           "verify": "go test ./internal/evaluation ./internal/runrecord ./internal/trainingworkflow -run '^(TestLiveSafetyWindowDerivation|TestTrainingHealthClassifiersArePhaseAwareRobustAndReopenable)$' -count=1",
           "rationale": "Derive comparison windows from exact metric history with explicit coverage. Reuse phase-bound training-health observations and classifier facts for absent telemetry, stall, nonfinite values, and sustained regression, together with MoE shift and scaling-regime evidence. Window, persistence, boundary, uncertainty, assumption, and reopen-trigger identities remain explicit. Small samples refuse decisions unless declared envelopes separate; fitted evidence cannot extrapolate outside its observed range.",
           "depends_on": [
-            "model-recipe-lifecycle/isolated-performance-evidence"
+            "model-recipe-lifecycle/isolated-performance-evidence",
+            "supervised-composite/first-win"
           ],
           "capabilities": [
             "live-evaluation",
@@ -651,7 +793,10 @@
             "architecture-ratchets/go-only-guard",
             "interaction-efficiency/tool-call-propensity-control",
             "evidence-routing/counterfactual-replay",
-            "live-safety/reentry"
+            "live-safety/reentry",
+            "composition-expansion/search-ratchet",
+            "advanced-domain-plugins/evidence",
+            "outward-capabilities/peer-invocation"
           ],
           "capabilities": [
             "architecture-guard",

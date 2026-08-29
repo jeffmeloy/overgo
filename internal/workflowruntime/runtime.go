@@ -380,7 +380,8 @@ func (r *Runtime) executeReadySet(
 		}
 	}
 	if active != 0 {
-		runContext, cancel := context.WithCancel(ctx)
+		runContext, cancel := context.WithCancelCause(ctx)
+		defer cancel(nil)
 		results := make(chan stageResult, active)
 		for index := range stages {
 			if stages[index].recovered {
@@ -393,7 +394,7 @@ func (r *Runtime) executeReadySet(
 				select {
 				case r.slots <- struct{}{}:
 				case <-runContext.Done():
-					results <- stageResult{index: index, err: runContext.Err()}
+					results <- stageResult{index: index, err: context.Cause(runContext)}
 					return
 				}
 				defer func() { <-r.slots }()
@@ -410,10 +411,9 @@ func (r *Runtime) executeReadySet(
 			stages[result.index].outputs, stages[result.index].err = result.outputs, result.err
 			stages[result.index].wallNS = result.wallNS
 			if result.err != nil {
-				cancel()
+				cancel(result.err)
 			}
 		}
-		cancel()
 	}
 	var executeErr error
 	for index := range stages {

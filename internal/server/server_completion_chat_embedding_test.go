@@ -328,6 +328,30 @@ func TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame(t *testing.T) {
 	}
 }
 
+func TestContextAfterFuncDoesNotLeak(t *testing.T) {
+	response := &signalingRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		flushed:          make(chan struct{}),
+	}
+	stream := newSynchronizedSSE(response, response)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	stop := stream.startHeartbeat(ctx, time.Hour)
+	cancel(errors.New("request completed"))
+	done := make(chan struct{})
+	go func() {
+		stop()
+		stop()
+		close(done)
+	}()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		t.Fatal("heartbeat cleanup did not complete")
+	}
+}
+
 func TestNativeCompletionAuthenticationAndTimeout(t *testing.T) {
 	authenticated, err := New(Config{
 		ModelID:            testModelID,

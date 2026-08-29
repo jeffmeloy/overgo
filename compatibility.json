@@ -252,7 +252,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:95d6a2194906902226a74d287f6d5dc516de834b11f2ac90fd405e7032ae44ce"
+     "identity": "evidence:sha256:96d68d9c0549856feb6d6852048d3f419805e9806cef8b301e8e6cbbdd2f742a"
     }
    ],
    "id": "bounded-server-media",
@@ -611,7 +611,7 @@
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
+     "identity": "evidence:sha256:c4eae8307a95b39b2aa58c0cab70b53191832ad9945434ef0e4fb9b65533e958"
     }
    ],
    "id": "media-history",
@@ -632,7 +632,7 @@
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
+     "identity": "evidence:sha256:c4eae8307a95b39b2aa58c0cab70b53191832ad9945434ef0e4fb9b65533e958"
     }
    ],
    "id": "mixed-media-history",
@@ -737,7 +737,7 @@
      "contains": "func TestMultimodalInputTokenCounting(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
+     "identity": "evidence:sha256:c4eae8307a95b39b2aa58c0cab70b53191832ad9945434ef0e4fb9b65533e958"
     }
    ],
    "id": "multimodal-token-counting",
@@ -764,7 +764,7 @@
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
+     "identity": "evidence:sha256:c4eae8307a95b39b2aa58c0cab70b53191832ad9945434ef0e4fb9b65533e958"
     }
    ],
    "id": "unified-prompt-preparation",
@@ -869,7 +869,7 @@
      "contains": "func TestResponsesContinuationRestart(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dec2dc195552d4bb45d00badc478657c3ce972f18621fc678207d5151842ede2"
+     "identity": "evidence:sha256:c4eae8307a95b39b2aa58c0cab70b53191832ad9945434ef0e4fb9b65533e958"
     }
    ],
    "id": "responses-continuation",

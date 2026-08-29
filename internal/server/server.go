@@ -637,7 +637,7 @@ func (h *Handler) releaseSession(lease *requestSession) {
 
 func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if h.config.RequestTimeout > 0 {
-		ctx, cancel := context.WithTimeout(request.Context(), h.config.RequestTimeout)
+		ctx, cancel := context.WithTimeoutCause(request.Context(), h.config.RequestTimeout, errRequestTimeoutCause)
 		defer cancel()
 		request = request.WithContext(ctx)
 	}

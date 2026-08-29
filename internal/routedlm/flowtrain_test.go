@@ -78,7 +78,7 @@ func TestFlowHeadTrainerDescendsAndDerivesHyperparameters(t *testing.T) {
 	}
 	x, z, target := flowStimulus(3, plan.Hidden, plan.FlowDim)
 	var first, last FlowHeadStepResult
-	for step := 0; step < 12; step++ {
+	for step := range 12 {
 		result, err := trainer.Step(x, z, target, 0.25)
 		if err != nil {
 			t.Fatal(err)
@@ -149,7 +149,7 @@ func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {
 		numeric := (plus - minus) / (2 * epsilon)
 		_ = fresh.Close()
 		got := float64(analytic[index])
-		scale := math.Max(1, math.Max(math.Abs(numeric), math.Abs(got)))
+		scale := max(1, max(math.Abs(numeric), math.Abs(got)))
 		if math.Abs(numeric-got)/scale > limit {
 			t.Fatalf("gradient[%d]: analytic=%.6g numeric=%.6g", index, got, numeric)
 		}

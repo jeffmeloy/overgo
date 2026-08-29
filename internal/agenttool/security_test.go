@@ -1,7 +1,6 @@
 package agenttool
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +12,7 @@ import (
 // policy: the serving executor never reaches loopback or private
 // addresses on a manual's behalf, while the operator executor may.
 func TestTransportSecurityRefusesPrivateEndpoints(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"reached":true}`))
 	}))
@@ -34,7 +33,7 @@ func TestTransportSecurityRefusesPrivateEndpoints(t *testing.T) {
 // refuse a steering endpoint: a manual binds one endpoint, and a
 // redirect is a different endpoint the manual never declared.
 func TestTransportSecurityRefusesRedirects(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /steer", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/elsewhere", http.StatusFound)

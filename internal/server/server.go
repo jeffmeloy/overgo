@@ -11,7 +11,6 @@ import (
 	"math"
 	"net/http"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -899,7 +898,7 @@ func (h *Handler) parseLogitBias(raw json.RawMessage) ([]sampling.LogitBias, err
 	for key := range object {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	result := make([]sampling.LogitBias, 0, len(keys))
 	for _, key := range keys {
 		var encodedKey []byte

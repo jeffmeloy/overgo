@@ -63,7 +63,7 @@ type ExperimentLifecycle struct {
 	Evidence artifact.ID `json:"evidence"`
 	// HeartbeatExpiry bounds leased and running states; past the bound the
 	// record is recoverable, never silently live.
-	HeartbeatExpiry string `json:"heartbeat_expiry,omitempty"`
+	HeartbeatExpiry string `json:"heartbeat_expiry,omitzero"`
 	// Checkpoint is the recovery point a retried run resumes from.
 	Checkpoint *artifact.ID `json:"checkpoint,omitempty"`
 	// Causal explains why this transition's execution occurred.

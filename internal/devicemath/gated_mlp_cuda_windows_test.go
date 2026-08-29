@@ -14,10 +14,10 @@ import (
 // matmulF64 computes row-major A·B in full float64 (A[m,k], B[k,n]).
 func matmulF64(a, b []float32, m, k, n int) []float64 {
 	out := make([]float64, m*n)
-	for i := 0; i < m; i++ {
-		for j := 0; j < n; j++ {
+	for i := range m {
+		for j := range n {
 			var s float64
-			for p := 0; p < k; p++ {
+			for p := range k {
 				s += float64(a[i*k+p]) * float64(b[p*n+j])
 			}
 			out[i*n+j] = s
@@ -36,7 +36,7 @@ func gatedMLPLossF64(x, wGate, wUp, wDown, dY []float32, rows, d, inter int) flo
 		u := 0.0
 		// u = (X·Wup)[i]
 		r, c := i/inter, i%inter
-		for p := 0; p < d; p++ {
+		for p := range d {
 			u += float64(x[r*d+p]) * float64(wUp[p*inter+c])
 		}
 		h[i] = float32(a * u)
@@ -111,9 +111,9 @@ func TestGatedMLPBackwardGradCheck(t *testing.T) {
 	}
 	const tolerance = 3e-3 // device fp32 across the composed ops
 	worst := gradCheck("dX", x, grads.DX)
-	worst = math.Max(worst, gradCheck("dWgate", wGate, grads.DWGate))
-	worst = math.Max(worst, gradCheck("dWup", wUp, grads.DWUp))
-	worst = math.Max(worst, gradCheck("dWdown", wDown, grads.DWDown))
+	worst = max(worst, gradCheck("dWgate", wGate, grads.DWGate))
+	worst = max(worst, gradCheck("dWup", wUp, grads.DWUp))
+	worst = max(worst, gradCheck("dWdown", wDown, grads.DWDown))
 	if worst > tolerance {
 		t.Fatalf("worst grad-check %.3e > %.1e", worst, tolerance)
 	}
@@ -122,10 +122,10 @@ func TestGatedMLPBackwardGradCheck(t *testing.T) {
 // matmulTF64 computes row-major A·Bᵀ in float64 (A[m,k], B[n,k] -> [m,n]).
 func matmulTF64(a, b []float32, m, k, n int) []float64 {
 	out := make([]float64, m*n)
-	for i := 0; i < m; i++ {
-		for j := 0; j < n; j++ {
+	for i := range m {
+		for j := range n {
 			var s float64
-			for p := 0; p < k; p++ {
+			for p := range k {
 				s += float64(a[i*k+p]) * float64(b[j*k+p])
 			}
 			out[i*n+j] = s
@@ -211,9 +211,9 @@ func TestGatedMLPBackwardTGradCheck(t *testing.T) {
 	}
 	const tolerance = 3e-3
 	worst := gradCheck("dX", x, grads.DX)
-	worst = math.Max(worst, gradCheck("dWgate", wGate, grads.DWGate))
-	worst = math.Max(worst, gradCheck("dWup", wUp, grads.DWUp))
-	worst = math.Max(worst, gradCheck("dWdown", wDown, grads.DWDown))
+	worst = max(worst, gradCheck("dWgate", wGate, grads.DWGate))
+	worst = max(worst, gradCheck("dWup", wUp, grads.DWUp))
+	worst = max(worst, gradCheck("dWdown", wDown, grads.DWDown))
 	if worst > tolerance {
 		t.Fatalf("worst grad-check %.3e > %.1e", worst, tolerance)
 	}

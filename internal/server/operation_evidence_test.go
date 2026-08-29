@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -73,7 +72,7 @@ func TestOperationProjectionBounds(t *testing.T) {
 	fixture, execution, status := operationEvidenceFixture(t)
 	defer fixture.store.Close()
 	publishOperationInteraction(t, fixture, execution.Operation, *status.Run, "resp_operation_second", "second private payload")
-	projection, err := fixture.handler.operationEvidenceSnapshot(context.Background(), execution.Operation, 1)
+	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), execution.Operation, 1)
 	if err != nil || len(projection.Interactions) != 1 || !projection.Truncated {
 		t.Fatalf("bounded projection=(%+v, %v)", projection, err)
 	}
@@ -82,7 +81,7 @@ func TestOperationProjectionBounds(t *testing.T) {
 func TestTracePayloadRedaction(t *testing.T) {
 	fixture, execution, _ := operationEvidenceFixture(t)
 	defer fixture.store.Close()
-	projection, err := fixture.handler.operationEvidenceSnapshot(context.Background(), execution.Operation, fixture.handler.config.MaxStoredResponses)
+	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), execution.Operation, fixture.handler.config.MaxStoredResponses)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,13 +115,13 @@ func operationEvidenceFixture(
 		fixture.store.Close()
 		t.Fatalf("run status=%d body=%s", run.Code, run.Body.String())
 	}
-	status, err := fixture.handler.operations.Wait(context.Background(), execution.Operation)
+	status, err := fixture.handler.operations.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateCompleted || status.Run == nil {
 		fixture.store.Close()
 		t.Fatalf("operation=(%+v, %v)", status, err)
 	}
 	model := fixture.definition.Dependencies[0].Artifact
-	if _, err := runrecord.PublishServingObservation(context.Background(), fixture.store, runrecord.ServingObservation{
+	if _, err := runrecord.PublishServingObservation(t.Context(), fixture.store, runrecord.ServingObservation{
 		Model: model, Recipe: fixture.definition.ID,
 		Environment: fixture.handler.environment.ID,
 		Operation:   execution.Operation, Run: *status.Run, Task: recipe.TaskGeneration,
@@ -142,7 +141,7 @@ func operationEvidenceFixture(
 	}
 	decision, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
 	if err == nil {
-		err = runrecord.PublishHumanDecision(context.Background(), fixture.store, request, decision)
+		err = runrecord.PublishHumanDecision(t.Context(), fixture.store, request, decision)
 	}
 	if err != nil {
 		fixture.store.Close()
@@ -159,7 +158,7 @@ func publishOperationInteraction(
 	response, privatePayload string,
 ) {
 	t.Helper()
-	if _, err := runrecord.PublishInteraction(context.Background(), fixture.store, runrecord.Interaction{
+	if _, err := runrecord.PublishInteraction(t.Context(), fixture.store, runrecord.Interaction{
 		Response: response, Recipe: fixture.definition.ID, Model: fixture.definition.Dependencies[0].Artifact,
 		Node: fixture.definition.Nodes[0].ID, Operation: operationID, Run: run,
 	}, []runrecord.InteractionMessage{{Role: "user", Content: privatePayload}, {Role: "assistant", Content: "answer"}}); err != nil {

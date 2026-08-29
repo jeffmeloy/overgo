@@ -7,7 +7,6 @@ import (
 	"hash/fnv"
 	"math"
 	"slices"
-	"sort"
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/statecodec"
@@ -196,7 +195,7 @@ func configSignature(config Config) uint64 {
 			for token := range transitions {
 				tokens = append(tokens, token)
 			}
-			sort.Ints(tokens)
+			slices.Sort(tokens)
 			writeUint64(uint64(len(tokens)))
 			for _, token := range tokens {
 				writeUint64(uint64(token))

@@ -99,7 +99,7 @@ func ParseCatalog(data []byte) (catalog Catalog, err error) {
 	return Catalog{Tensors: p.tensors, Scalars: p.scalars}, nil
 }
 
-type pickleValue interface{}
+type pickleValue any
 
 type pickleMark struct{}
 type pickleGlobal struct{ module, name string }
@@ -715,11 +715,11 @@ func (r *Reader) decodeAt(byteOffset, elemBytes int64, convert func(uint16) floa
 			return err
 		}
 		if convert == nil {
-			for i := 0; i < n; i++ {
+			for i := range n {
 				out[start+i] = math.Float32frombits(binary.LittleEndian.Uint32(buf[i*4:]))
 			}
 		} else {
-			for i := 0; i < n; i++ {
+			for i := range n {
 				out[start+i] = convert(binary.LittleEndian.Uint16(buf[i*2:]))
 			}
 		}

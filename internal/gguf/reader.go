@@ -235,7 +235,7 @@ func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 		tensorByName:  make(map[string]int, int(tensorCount)),
 	}
 
-	for i := uint64(0); i < metadataCount; i++ {
+	for i := range metadataCount {
 		key, readErr := cursor.string()
 		if readErr != nil {
 			return nil, fmt.Errorf("read metadata key %d: %w", i, readErr)
@@ -270,7 +270,7 @@ func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 	}
 
 	var expectedOffset uint64
-	for i := uint64(0); i < tensorCount; i++ {
+	for i := range tensorCount {
 		tensor, readErr := cursor.tensor()
 		if readErr != nil {
 			return nil, fmt.Errorf("read tensor %d: %w", i, readErr)
@@ -778,7 +778,7 @@ func (c *cursor) tensor() (TensorInfo, error) {
 	}
 	tensor := TensorInfo{Name: name, Dimensions: dimensions, Shape: [MaxDimensions]uint64{1, 1, 1, 1}}
 	var elements uint64 = 1
-	for i := uint32(0); i < dimensions; i++ {
+	for i := range dimensions {
 		dimension, readErr := c.uint64()
 		if readErr != nil {
 			return TensorInfo{}, readErr

@@ -9,7 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"overgo/internal/artifact"
 )
@@ -96,7 +96,7 @@ func replaySealedSegments(root string, apply func(logRecord) error) (replayResul
 	if err != nil {
 		return replayResult{}, fmt.Errorf("overgodb: list segments: %w", err)
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	chain := replayResult{}
 	for _, path := range paths {
 		file, err := os.Open(path)

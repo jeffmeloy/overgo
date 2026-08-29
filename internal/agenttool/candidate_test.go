@@ -1,7 +1,6 @@
 package agenttool
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 )
 
 func TestCandidateCatalogStagesVerifiesAndActivatesExactly(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +51,7 @@ func TestCandidateCatalogStagesVerifiesAndActivatesExactly(t *testing.T) {
 }
 
 func TestCandidateGrantRejectsDrift(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +118,7 @@ func TestCandidateGrantRejectsDrift(t *testing.T) {
 }
 
 func TestActiveCatalogExcludesStaleRegisteredAliases(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +138,7 @@ func TestActiveCatalogExcludesStaleRegisteredAliases(t *testing.T) {
 
 func activateTestCandidate(t *testing.T, store *overgodb.Store, manual Manual, sourceText string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	source, err := openAPISourceContent(sourceText)
 	if err != nil {
 		t.Fatal(err)

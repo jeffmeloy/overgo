@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -22,14 +21,14 @@ func TestPublishArchitectureProfileCatalogCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	coverage, err := modelrecipe.InspectArchitectureProfileCatalog(context.Background(), store)
+	coverage, err := modelrecipe.InspectArchitectureProfileCatalog(t.Context(), store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !coverage.Complete || coverage.Registered == 0 || coverage.Published != coverage.Registered {
 		t.Fatalf("coverage = %+v", coverage)
 	}
-	if _, err := scratchmodel.ResolveActiveDerivationProfile(context.Background(), store); err != nil {
+	if _, err := scratchmodel.ResolveActiveDerivationProfile(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(output.String(), "changed=true") {

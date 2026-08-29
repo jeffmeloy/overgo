@@ -49,7 +49,7 @@ func AssemblePaddedSequence(prefix, prompt, suffix []int, maximumPromptTokens, p
 	}
 	written := copy(result.IDs, prefix)
 	written += copy(result.IDs[written:], prompt)
-	for index := 0; index < written; index++ {
+	for index := range written {
 		result.Mask[index] = true
 	}
 	copy(result.IDs[padded:], suffix)

@@ -35,9 +35,7 @@ func tokenBatchesResume(ctx context.Context, raw []byte, steps, maximumSequence 
 		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	units := materialized.Records()
-	if steps == 0 {
-		steps = units
-	}
+	steps = cmp.Or(steps, units)
 	batches := make([][]int, steps)
 	for step := range batches {
 		batch, err := batcher.Next(ctx)

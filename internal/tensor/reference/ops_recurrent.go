@@ -59,7 +59,7 @@ func ssmScan(shape tensor.Shape, inputs []Value) (Value, error) {
 			for token := range tokens {
 				delta := dt.Data[head+heads*(token+tokens*sequence)]
 				absolute := math.Abs(float64(delta))
-				delta = float32(math.Max(float64(delta), 0) + math.Log1p(math.Exp(-absolute)))
+				delta = float32(max(float64(delta), 0) + math.Log1p(math.Exp(-absolute)))
 				for inner := range dimension {
 					xIndex := inner + dimension*(head+heads*(token+tokens*sequence))
 					xDelta := x.Data[xIndex] * delta

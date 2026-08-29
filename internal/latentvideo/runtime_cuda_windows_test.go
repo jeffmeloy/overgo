@@ -40,7 +40,7 @@ func TestWanProductionRuntime(t *testing.T) {
 	wantLatent := loadG1Tensor(t, fixtureDirectory, manifest.FinalLatent)
 	var firstMemory uint64
 	var warmCaptures uint64
-	for run := 0; run < 3; run++ {
+	for run := range 3 {
 		var frames [][]float32
 		request.Sink = func(index int, frame []float32, height, width int) error {
 			frames = append(frames, append([]float32(nil), frame...))

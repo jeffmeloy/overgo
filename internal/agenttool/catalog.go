@@ -35,7 +35,7 @@ type CatalogCoverageEntry struct {
 	Expected artifact.ID        `json:"expected"`
 	Actual   *artifact.ID       `json:"actual,omitempty"`
 	Status   CatalogEntryStatus `json:"status"`
-	Detail   string             `json:"detail,omitempty"`
+	Detail   string             `json:"detail,omitzero"`
 }
 
 // CatalogCoverage reports registry-to-store parity for tool manuals.

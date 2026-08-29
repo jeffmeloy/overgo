@@ -54,7 +54,7 @@ func buildFixtureAttn(rng *rand.Rand, c fixtureDecodeConfig, sparse bool) *Compr
 		SinkLogits: randSlice(rng, nh, 0.5),
 		NormEps:    referenceRMSNormEps,
 	}
-	for i := 0; i < dh; i++ {
+	for i := range dh {
 		a.QNorm[i] += 1
 		a.KVNorm[i] += 1
 	}
@@ -118,10 +118,10 @@ func buildFixtureModel(seed int64) (*FastWeightBankLMWeights, fixtureDecodeConfi
 		},
 		NormEps: referenceRMSNormEps,
 	}
-	for i := 0; i < d; i++ {
+	for i := range d {
 		m.NormOut[i] += 1
 	}
-	for l := 0; l < 2; l++ {
+	for l := range 2 {
 		sparse := l%2 == 0
 		moe := &sharedRoutedMoEWeights{
 			DModel: d, DFF: c.dFF, NExperts: c.nExperts,
@@ -154,7 +154,7 @@ func buildFixtureModel(seed int64) (*FastWeightBankLMWeights, fixtureDecodeConfi
 			ReadBank:  true,
 			NormEps:   referenceRMSNormEps,
 		}
-		for i := 0; i < d; i++ {
+		for i := range d {
 			blk.NormAttn[i] += 1
 			blk.NormMoE[i] += 1
 			blk.Bank.NormWeight[i] += 1
@@ -203,7 +203,7 @@ func runDecodeOracle(t *testing.T, tag string, w *FastWeightBankLMWeights, ids [
 
 	var worst float64
 	argMismatch := 0
-	for tpos := 0; tpos < len(ids); tpos++ {
+	for tpos := range len(ids) {
 		want := ref.Logits[tpos*vocab : (tpos+1)*vocab]
 		if m := testutil.MaxAbsDiff(got[tpos], want); m > worst {
 			worst = m

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -23,7 +22,7 @@ import (
 )
 
 func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
 	store, err := overgodb.Open(filepath.Join(root, "store"))
@@ -202,7 +201,7 @@ func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			root := t.TempDir()
 			store, err := overgodb.Open(filepath.Join(root, "store"))
 			if err != nil {

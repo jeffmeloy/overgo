@@ -2,7 +2,8 @@ package jinja
 
 import (
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -41,9 +42,7 @@ func rangeGlobal(args []any, _ map[string]any) (any, error) {
 
 func namespaceGlobal(_ []any, kwargs map[string]any) (any, error) {
 	ns := map[string]any{}
-	for k, v := range kwargs {
-		ns[k] = v
-	}
+	maps.Copy(ns, kwargs)
 	return ns, nil
 }
 
@@ -53,7 +52,7 @@ func dictGlobal(_ []any, kwargs map[string]any) (any, error) {
 	for k := range kwargs {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, k := range keys {
 		d.set(k, kwargs[k])
 	}
@@ -228,7 +227,7 @@ func dictMethod(self map[string]any, name string, args []any, _ map[string]any) 
 		for k := range self {
 			keys = append(keys, k)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 		out := make([]any, len(keys))
 		for i, k := range keys {
 			out[i] = k
@@ -239,7 +238,7 @@ func dictMethod(self map[string]any, name string, args []any, _ map[string]any) 
 		for k := range self {
 			keys = append(keys, k)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 		out := make([]any, len(keys))
 		for i, k := range keys {
 			out[i] = self[k]
@@ -250,7 +249,7 @@ func dictMethod(self map[string]any, name string, args []any, _ map[string]any) 
 		for k := range self {
 			keys = append(keys, k)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 		out := make([]any, len(keys))
 		for i, k := range keys {
 			out[i] = []any{k, self[k]}

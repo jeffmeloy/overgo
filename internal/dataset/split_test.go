@@ -1,7 +1,6 @@
 package dataset
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -50,7 +49,7 @@ func TestGroupSplitIsDeterministicAndGroupSafe(t *testing.T) {
 }
 
 func TestGroupSplitPublishesMembershipSelectors(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

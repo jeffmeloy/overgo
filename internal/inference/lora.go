@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"sort"
 
 	"overgo/internal/model"
 	"overgo/internal/tensor"
@@ -92,7 +91,7 @@ func loRAStaticSignature(adapter *model.LoRAAdapter) [32]byte {
 	for name := range adapter.Weights {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		writeFingerprintString(hasher, name)
 		weight := adapter.Weights[name]

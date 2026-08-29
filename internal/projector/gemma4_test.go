@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"encoding/binary"
 	"encoding/json"
 	"image"
@@ -63,12 +62,12 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 	}
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
-	for y := 0; y < 3; y++ {
-		for x := 0; x < 3; x++ {
+	for y := range 3 {
+		for x := range 3 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: fixtureOpaqueAlpha})
 		}
 	}
-	output, err := runner.EncodeImage(context.Background(), input)
+	output, err := runner.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +84,7 @@ func TestGemma4RunnerTinyFixture(t *testing.T) {
 
 func TestGemma4ArtifactAdmitsAudioContract(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := OpenAs[Projector](context.Background(), path, OpenOptions{})
+	runner, err := OpenAs[Projector](t.Context(), path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +100,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		context.Background(), gemma4PromptTokenizer{}, []image.Image{input, input},
+		t.Context(), gemma4PromptTokenizer{}, []image.Image{input, input},
 		[]string{"", "", "Compare."}, PromptOptions{},
 	)
 	if err != nil {
@@ -112,7 +111,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 		t.Fatalf("multi-image prompt = blocks %v indices %d embeddings %d", prompt.AttentionBlocks, len(prompt.EmbeddingTokenIndices), len(prompt.Embeddings))
 	}
 	if _, err := testSession(t, runner).BuildImagesPrompt(
-		context.Background(), gemma4PromptTokenizer{}, []image.Image{input, input},
+		t.Context(), gemma4PromptTokenizer{}, []image.Image{input, input},
 		[]string{"text", "", "Compare."}, PromptOptions{},
 	); err == nil {
 		t.Fatal("Gemma 4 accepted text before images")
@@ -133,35 +132,35 @@ func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
-	for y := 0; y < 3; y++ {
-		for x := 0; x < 3; x++ {
+	for y := range 3 {
+		for x := range 3 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 50), G: uint8(y * 50), B: 70, A: fixtureOpaqueAlpha})
 		}
 	}
-	wantImage, err := cpu.EncodeImage(context.Background(), input)
+	wantImage, err := cpu.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotImage, err := cuda.EncodeImage(context.Background(), input)
+	gotImage, err := cuda.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
 	compareExactFloat32(t, "image", gotImage.Embeddings.Data, wantImage.Embeddings.Data)
-	wantVideo, err := cpu.EncodeVideoFrames(context.Background(), []image.Image{input, input})
+	wantVideo, err := cpu.EncodeVideoFrames(t.Context(), []image.Image{input, input})
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotVideo, err := cuda.EncodeVideoFrames(context.Background(), []image.Image{input, input})
+	gotVideo, err := cuda.EncodeVideoFrames(t.Context(), []image.Image{input, input})
 	if err != nil {
 		t.Fatal(err)
 	}
 	compareExactFloat32(t, "video", gotVideo.Embeddings.Data, wantVideo.Embeddings.Data)
 	samples := []float32{1, 2, 3, 4}
-	wantAudio, err := cpu.EncodeAudio(context.Background(), samples)
+	wantAudio, err := cpu.EncodeAudio(t.Context(), samples)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotAudio, err := cuda.EncodeAudio(context.Background(), samples)
+	gotAudio, err := cuda.EncodeAudio(t.Context(), samples)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +188,7 @@ func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 	defer runner.Close()
 	frame := image.NewRGBA(image.Rect(0, 0, 3, 3))
 	prompt, err := testSession(t, runner).BuildVideoPrompt(
-		context.Background(), gemma4PromptTokenizer{}, []image.Image{frame, frame}, "", "Describe.", 2, false,
+		t.Context(), gemma4PromptTokenizer{}, []image.Image{frame, frame}, "", "Describe.", 2, false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +232,7 @@ func TestGemma4AudioTinyFixture(t *testing.T) {
 	if rows != 2 || len(frames) != 6 || frames[3] != 4 || frames[4] != 0 || frames[5] != 0 {
 		t.Fatalf("audio frames = %v rows=%d", frames, rows)
 	}
-	output, err := runner.EncodeAudio(context.Background(), []float32{1, 2, 3, 4})
+	output, err := runner.EncodeAudio(t.Context(), []float32{1, 2, 3, 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,8 +253,8 @@ func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 		LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), G: 20, B: 40, A: fixtureOpaqueAlpha})
 		}
 	}
@@ -398,7 +397,7 @@ func TestGemma4RealFixture(t *testing.T) {
 		"pre_projection_norm":  golden.ProjectorIntermediates.PreProjectionNorm,
 		"embedding_projection": golden.ProjectorIntermediates.EmbeddingProjection,
 	}
-	output, err := runner.encodeWithTrace(context.Background(), processed, func(name string, values []float32) {
+	output, err := runner.encodeWithTrace(t.Context(), processed, func(name string, values []float32) {
 		if name == "patch_ln1" {
 			values = gemma4InterleavePatchRows(values, runner.Spec().PatchWidth)
 		}
@@ -449,9 +448,9 @@ func gemma4InterleavePatchRows(values []float32, width int) []float32 {
 	}
 	result := make([]float32, len(values))
 	area := width / 3
-	for row := 0; row < len(values)/width; row++ {
-		for pixel := 0; pixel < area; pixel++ {
-			for channel := 0; channel < 3; channel++ {
+	for row := range len(values) / width {
+		for pixel := range area {
+			for channel := range 3 {
 				result[row*width+pixel*3+channel] = values[row*width+channel*area+pixel]
 			}
 		}
@@ -556,7 +555,7 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 		t.Fatalf("audio spec=%+v rows=%d, want width=%d rows=%d", spec, rows, golden.SamplesPerToken, golden.NumAudioTokens)
 	}
 	compareProbes(t, "Gemma 4 audio frames", frames, golden.InputFeatures, 1e-6)
-	output, err := runner.EncodeAudio(context.Background(), samples)
+	output, err := runner.EncodeAudio(t.Context(), samples)
 	if err != nil {
 		t.Fatal(err)
 	}

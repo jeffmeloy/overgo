@@ -44,7 +44,7 @@ type Progress struct {
 type Metric struct {
 	Name  string  `json:"name"`
 	Value float64 `json:"value"`
-	Unit  string  `json:"unit,omitempty"`
+	Unit  string  `json:"unit,omitzero"`
 }
 
 type Status struct {
@@ -57,7 +57,7 @@ type Status struct {
 	Outputs        []artifact.ID            `json:"outputs,omitempty"`
 	Attempts       []artifact.ID            `json:"attempts,omitempty"`
 	Run            *artifact.ID             `json:"run,omitempty"`
-	Failure        string                   `json:"failure,omitempty"`
+	Failure        string                   `json:"failure,omitzero"`
 	Recovery       *operatoraction.Block    `json:"recovery,omitempty"`
 	WorkspaceClaim *WorkspaceClaimLifecycle `json:"workspace_claim,omitempty"`
 }

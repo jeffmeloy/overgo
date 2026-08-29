@@ -132,7 +132,7 @@ func (r *blobReader) Read(buffer []byte) (int, error) {
 	}
 	count, err := r.file.Read(buffer)
 	r.remaining -= int64(count)
-	if (err == io.EOF || r.remaining <= 0) && !r.done {
+	if (errors.Is(err, io.EOF) || r.remaining <= 0) && !r.done {
 		r.done = true
 		_ = r.file.Close()
 		if err == nil {

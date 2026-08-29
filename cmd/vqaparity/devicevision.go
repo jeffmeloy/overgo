@@ -11,6 +11,7 @@ package main
 // reference tolerances, then measured for wall + peak MiB.
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"math"
@@ -237,9 +238,7 @@ func runDeviceVision(l *campaignContext) error {
 		detail, err := probeCheck("device "+p.name, p.dev, p.golden, p.class)
 		if err != nil {
 			l.Log("DEVICE vision GOLDEN FAIL " + err.Error())
-			if probeErr == nil {
-				probeErr = err
-			}
+			probeErr = cmp.Or(probeErr, err)
 			continue
 		}
 		l.Log("DEVICE vision GOLDEN " + detail)

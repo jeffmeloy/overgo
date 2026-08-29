@@ -22,12 +22,12 @@ func TestOrchestrationRestartRecovery(t *testing.T) {
 	}
 	first := fixture.runtime(t, firstManager, generationAutomationAdapters(t, true, nil))
 	execution, fired, err := first.ScheduleAutomation(
-		context.Background(), fixture.name, fixedAutomationClock{now: anchor.Add(time.Hour)}, fixture.inputs,
+		t.Context(), fixture.name, fixedAutomationClock{now: anchor.Add(time.Hour)}, fixture.inputs,
 	)
 	if err != nil || !fired || !execution.Claim.Valid() {
 		t.Fatalf("restart schedule admission=(%+v, %t, %v)", execution, fired, err)
 	}
-	failed, err := firstManager.Wait(context.Background(), execution.Operation)
+	failed, err := firstManager.Wait(t.Context(), execution.Operation)
 	firstManager.Close()
 	if err != nil || failed.State != operation.StateFailed || failed.Run == nil {
 		t.Fatalf("restart prerequisite=(%+v, %v)", failed, err)
@@ -43,16 +43,16 @@ func TestOrchestrationRestartRecovery(t *testing.T) {
 		return nil, errors.New("completed stage reran after restart")
 	})
 	second := fixture.runtime(t, secondManager, adapters)
-	recovered, err := second.RecoverScheduledAutomation(context.Background(), execution.Claim, fixture.inputs)
+	recovered, err := second.RecoverScheduledAutomation(t.Context(), execution.Claim, fixture.inputs)
 	if err != nil || recovered.Operation != execution.Operation || recovered.Plan.ID != execution.Plan.ID || recovered.Claim != execution.Claim {
 		t.Fatalf("restart recovery identity=(%+v, %v)", recovered, err)
 	}
-	completed, err := secondManager.Wait(context.Background(), recovered.Operation)
+	completed, err := secondManager.Wait(t.Context(), recovered.Operation)
 	if err != nil || completed.State != operation.StateCompleted || completed.Run == nil || len(completed.Outputs) == 0 {
 		t.Fatalf("restart recovery result=(%+v, %v)", completed, err)
 	}
 	for _, node := range fixture.definition.Nodes {
-		receipt, found, err := runrecord.ResolveStageReceipt(context.Background(), fixture.store, execution.Operation, node.ID)
+		receipt, found, err := runrecord.ResolveStageReceipt(t.Context(), fixture.store, execution.Operation, node.ID)
 		if err != nil || !found || receipt.State != runrecord.StageCompleted {
 			t.Fatalf("restart stage %s=(%+v, %t, %v)", node.ID, receipt, found, err)
 		}

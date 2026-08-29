@@ -47,7 +47,7 @@ type ComposedModelDocument struct {
 	Components    []artifact.ID               `json:"components,omitempty"`
 	Adapter       artifact.ID                 `json:"adapter,omitzero"`
 	Checkpoint    artifact.ID                 `json:"checkpoint,omitzero"`
-	Operation     OfflineCompositionOperation `json:"operation,omitempty"`
+	Operation     OfflineCompositionOperation `json:"operation,omitzero"`
 	Compatibility []artifact.ID               `json:"compatibility,omitempty"`
 	Arithmetic    []TaskArithmeticTerm        `json:"arithmetic,omitempty"`
 	ID            artifact.ID                 `json:"-"`

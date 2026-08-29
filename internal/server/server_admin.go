@@ -180,11 +180,11 @@ type slotStatusItem struct {
 	NCtx                   uint32             `json:"n_ctx"`
 	Speculative            bool               `json:"speculative"`
 	IsProcessing           bool               `json:"is_processing"`
-	NPromptTokens          uint64             `json:"n_prompt_tokens,omitempty"`
-	NPromptTokensProcessed uint64             `json:"n_prompt_tokens_processed,omitempty"`
-	NPromptTokensCache     uint64             `json:"n_prompt_tokens_cache,omitempty"`
-	Prompt                 string             `json:"prompt,omitempty"`
-	Generated              string             `json:"generated,omitempty"`
+	NPromptTokens          uint64             `json:"n_prompt_tokens,omitzero"`
+	NPromptTokensProcessed uint64             `json:"n_prompt_tokens_processed,omitzero"`
+	NPromptTokensCache     uint64             `json:"n_prompt_tokens_cache,omitzero"`
+	Prompt                 string             `json:"prompt,omitzero"`
+	Generated              string             `json:"generated,omitzero"`
 	Params                 *slotStatusParams  `json:"params,omitempty"`
 	NextToken              *slotNextToken     `json:"next_token,omitempty"`
 	Timings                *slotStatusTimings `json:"timings,omitempty"`

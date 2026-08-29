@@ -78,7 +78,7 @@ func canonicalizeAdmissionBinding(value *AdmissionBinding) error {
 			return errors.New("run record: authority domain requires a name and an evidence identity")
 		}
 	}
-	for i := 0; i < len(domains); i++ {
+	for i := range domains {
 		for j := i + 1; j < len(domains); j++ {
 			if domains[i].Name == domains[j].Name {
 				return fmt.Errorf("run record: authority domains %q are not independent", domains[i].Name)

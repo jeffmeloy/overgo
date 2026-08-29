@@ -35,7 +35,7 @@ func padToPatches(series, masks []float32, patchLen int) ([]float32, []float32, 
 	front := (patchLen - len(series)%patchLen) % patchLen
 	elements := front + len(series)
 	paddedMasks := make([]float32, elements)
-	for i := 0; i < front; i++ {
+	for i := range front {
 		paddedMasks[i] = 1
 	}
 	copy(paddedMasks[front:], masks)
@@ -53,7 +53,7 @@ func patchStats(series, masks []float32, patchLen int, mu, sigma []float64) {
 	var n, runningMu, runningSigma float64
 	for i := range mu {
 		var incN, incSum float64
-		for j := 0; j < patchLen; j++ {
+		for j := range patchLen {
 			if masks[i*patchLen+j] == 0 {
 				incN++
 				incSum += float64(series[i*patchLen+j])
@@ -64,7 +64,7 @@ func patchStats(series, masks []float32, patchLen int, mu, sigma []float64) {
 			incMu = incSum / incN
 		}
 		var incVarNum float64
-		for j := 0; j < patchLen; j++ {
+		for j := range patchLen {
 			if masks[i*patchLen+j] == 0 {
 				d := float64(series[i*patchLen+j]) - incMu
 				incVarNum += d * d
@@ -105,7 +105,7 @@ func (m *Model) patchEmbed(out, series, masks []float32, mu, sigma []float64) er
 		if denom < revinTolerance {
 			denom = 1
 		}
-		for j := 0; j < p; j++ {
+		for j := range p {
 			normed := (float64(series[i*p+j]) - mu[i]) / denom
 			if masks[i*p+j] != 0 {
 				normed = 0

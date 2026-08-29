@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"image"
 	"image/color"
 	"slices"
@@ -36,7 +35,7 @@ func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +51,7 @@ func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesLlama4(t *testing.T) {
-	projector, err := OpenAs[Projector](context.Background(), writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
+	projector, err := OpenAs[Projector](t.Context(), writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,8 +63,8 @@ func TestOpenImageProjectorDispatchesLlama4(t *testing.T) {
 
 func TestPreprocessLlama4VisionUHDOrder(t *testing.T) {
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 8; x++ {
+	for y := range 4 {
+		for x := range 8 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 30), G: uint8(y * 50), A: fixtureOpaqueAlpha})
 		}
 	}
@@ -91,7 +90,7 @@ func TestLlama4MultipleImagePrompt(t *testing.T) {
 	}
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		context.Background(), llama4PromptTokenizer{},
+		t.Context(), llama4PromptTokenizer{},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
@@ -141,16 +140,16 @@ func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 8; x++ {
+	for y := range 4 {
+		for x := range 8 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	want, err := cpu.EncodeImage(context.Background(), input)
+	want, err := cpu.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := cuda.EncodeImage(context.Background(), input)
+	got, err := cuda.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}

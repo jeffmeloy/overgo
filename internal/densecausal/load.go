@@ -337,8 +337,8 @@ func attnBiasName(name string) bool {
 	if !ok {
 		return false
 	}
-	if dot := strings.IndexByte(rest, '.'); dot >= 0 {
-		rest = rest[dot+1:]
+	if _, after, ok := strings.Cut(rest, "."); ok {
+		rest = after
 	}
 	return rest == "self_attn.q_proj.bias" || rest == "self_attn.k_proj.bias" || rest == "self_attn.v_proj.bias"
 }

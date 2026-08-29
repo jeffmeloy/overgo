@@ -32,10 +32,7 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 	if err != nil {
 		return BuildSelection{}, err
 	}
-	args := append([]string{"list", "-e", "-json"}, patterns...)
-	command := exec.Command("go", args...)
-	command.Dir = root
-	output, err := command.Output()
+	output, err := goListJSON(root, patterns...)
 	if err != nil {
 		return BuildSelection{}, err
 	}
@@ -69,6 +66,13 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 		}
 	}
 	return selection, nil
+}
+
+func goListJSON(root string, patterns ...string) ([]byte, error) {
+	args := append([]string{"list", "-e", "-json"}, patterns...)
+	command := exec.Command("go", args...)
+	command.Dir = root
+	return command.Output()
 }
 
 func recordBuildFile(root, directory, packagePath, name string, selected bool, selection BuildSelection) error {

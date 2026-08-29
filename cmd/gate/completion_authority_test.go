@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,7 +112,7 @@ func TestAcceptanceEvidenceRejectsPlanMutationBeforeCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	authority, err := plan.ResolveCompletionAuthority(context.Background(), repository, "HEAD", document, store)
+	authority, err := plan.ResolveCompletionAuthority(t.Context(), repository, "HEAD", document, store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +155,7 @@ func TestGatePreparationReceiptBindsStoreCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	commit, err := store.Commit(context.Background(), artifact.Batch{
+	commit, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "completion-authority/preparation",
 		Artifacts: []artifact.Descriptor{{ID: environment}},
 		Contents:  []artifact.Content{content},
@@ -165,14 +164,14 @@ func TestGatePreparationReceiptBindsStoreCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := requireGatePreparationReceipt(context.Background(), store, preparation, commit); err != nil {
+	if err := requireGatePreparationReceipt(t.Context(), store, preparation, commit); err != nil {
 		t.Fatal(err)
 	}
 	wrong := artifact.CommitID{1}
 	if wrong == commit {
 		wrong = artifact.CommitID{2}
 	}
-	if err := requireGatePreparationReceipt(context.Background(), store, preparation, wrong); err == nil {
+	if err := requireGatePreparationReceipt(t.Context(), store, preparation, wrong); err == nil {
 		t.Fatal("preparation receipt accepted the wrong store commit")
 	}
 }

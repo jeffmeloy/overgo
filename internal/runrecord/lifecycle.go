@@ -40,9 +40,9 @@ type GateLifecycle struct {
 	Environment artifact.ID        `json:"environment"`
 	Started     string             `json:"started"`
 	Preparation *artifact.ID       `json:"preparation,omitempty"`
-	CodeCommit  string             `json:"code_commit,omitempty"`
+	CodeCommit  string             `json:"code_commit,omitzero"`
 	Result      *artifact.ID       `json:"result,omitempty"`
-	Outcome     Outcome            `json:"outcome,omitempty"`
+	Outcome     Outcome            `json:"outcome,omitzero"`
 	ID          artifact.ID        `json:"-"`
 }
 

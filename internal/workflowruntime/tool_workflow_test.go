@@ -1,7 +1,6 @@
 package workflowruntime
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -42,13 +41,13 @@ func TestToolWorkflowExecutesCompiledOrderWithDurableRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "tool-workflow/model", Artifacts: []artifact.Descriptor{{ID: model}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	result, err := ExecuteToolWorkflow(
-		context.Background(), store, workflow, agenttool.NewOperatorExecutor(), "test",
+		t.Context(), store, workflow, agenttool.NewOperatorExecutor(), "test",
 		map[recipe.NodeID]json.RawMessage{"inspect": json.RawMessage(`{}`), "update": json.RawMessage(`{}`)},
 	)
 	if err != nil {

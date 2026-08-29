@@ -309,7 +309,7 @@ func (o *deviceOps) runNewtonSchulz(
 	}
 
 	iterations := stage1Iterations + newtonSchulzStage2Iterations
-	for iteration := 0; iteration < iterations; iteration++ {
+	for iteration := range iterations {
 		coefficients := newtonSchulzStage1
 		if iteration >= stage1Iterations {
 			coefficients = newtonSchulzStage2

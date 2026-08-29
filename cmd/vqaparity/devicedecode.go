@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 
 	"overgo/internal/cuda/device"
@@ -386,7 +387,7 @@ func runDeviceDecode(l *campaignContext) error {
 	}
 	generated := []int{tokenID}
 	var worstDevHost float64
-	for step := 0; step < steps; step++ {
+	for step := range steps {
 		tokenPos := h.promptLen + step
 		golden := h.dg.DecodeSteps[step]
 		if golden.Position != tokenPos || golden.TokenIn != tokenID {
@@ -426,7 +427,7 @@ func runDeviceDecode(l *campaignContext) error {
 		devTop := argmaxF32(devLogits)
 
 		// device-vs-host logits at the golden probe + top indices.
-		probeIDs := append([]int{}, golden.Logits.ProbeIndex...)
+		probeIDs := slices.Clone(golden.Logits.ProbeIndex)
 		probeIDs = append(probeIDs, golden.Logits.TopIndex...)
 		_, hostProbe, err := routedlm.TerminalProbeValues(hostRow, cfg, h.terminal, tensor.FirstOffset, nil, probeIDs)
 		if err != nil {

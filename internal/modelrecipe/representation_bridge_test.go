@@ -47,7 +47,7 @@ func TestComponentSessionPlanRepresentationBridge(t *testing.T) {
 	}
 	extents := map[artifact.ID]uint64{sourceModel: 13, targetModel: 17}
 	resources, err := CompileComponentSessionPlanWithExtents(
-		context.Background(), program,
+		t.Context(), program,
 		func(_ context.Context, id artifact.ID) (uint64, error) { return extents[id], nil },
 	)
 	if err != nil {

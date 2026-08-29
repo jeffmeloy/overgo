@@ -107,8 +107,8 @@ func serve(location string) error {
 		Text string `json:"text"`
 	}
 	trimmed := string(out)
-	if index := strings.Index(trimmed, "{"); index >= 0 {
-		trimmed = trimmed[index:]
+	if before, _, ok := strings.Cut(trimmed, "{"); ok {
+		trimmed = trimmed[len(before):]
 	}
 	if json.Unmarshal([]byte(trimmed), &payload) != nil || strings.TrimSpace(payload.Text) == "" {
 		return fmt.Errorf("serve produced no text")

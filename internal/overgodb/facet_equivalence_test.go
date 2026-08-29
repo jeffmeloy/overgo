@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -45,7 +45,7 @@ func catalogDigest(t *testing.T, state catalogState) string {
 	}
 	names := make([]string, 0, state.aliases.count())
 	state.aliases.each(func(name string, _ artifact.ID) { names = append(names, name) })
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		target, _ := state.aliases.resolve(name)
 		write("alias/%s/%s\n", name, target)

@@ -55,7 +55,7 @@ func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, 
 	audioRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "native-audio-recipe")
 	imageRun := testutil.ArtifactID(t, artifact.KindRun, "native-image-run")
 	audioRun := testutil.ArtifactID(t, artifact.KindRun, "native-audio-run")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "native/media/outputs",
 		Artifacts: []artifact.Descriptor{
 			{ID: imageRecipe}, {ID: audioRecipe}, {ID: imageRun}, {ID: audioRun},

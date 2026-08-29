@@ -311,7 +311,7 @@ func TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame(t *testing.T) {
 		flushed:          make(chan struct{}),
 	}
 	stream := newSynchronizedSSE(response, response)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	stop := stream.startHeartbeat(ctx, time.Millisecond)
 	select {
 	case <-response.flushed:
@@ -1872,7 +1872,7 @@ func TestChatImageHistoryPreservesTurnPositionAndReplay(t *testing.T) {
 		"<chat><user>See ",
 		" now</user><assistant>seen</assistant><user>recall</user><assistant>",
 	}
-	for run := 0; run < 2; run++ {
+	for run := range 2 {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)))
 		if response.Code != http.StatusOK {

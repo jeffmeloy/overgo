@@ -38,7 +38,7 @@ func (*observedRuntime) ScoreContinuations(
 }
 
 func TestRecipeEvaluationRuntimeAndLedger(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -23,7 +23,7 @@ const (
 	parallelOutputPort   recipe.PortName = "output"
 )
 
-func TestJoinInputOrder(t *testing.T) {
+func TestDelegatedLoopInputsRemainDistinct(t *testing.T) {
 	fixture := newParallelFixture(t)
 	release := map[string]chan struct{}{"left": make(chan struct{}), "right": make(chan struct{})}
 	started := make(chan string, len(release))
@@ -39,7 +39,7 @@ func TestJoinInputOrder(t *testing.T) {
 	done := make(chan Result, 1)
 	errorsOut := make(chan error, 1)
 	go func() {
-		result, err := fixture.execute(context.Background())
+		result, err := fixture.execute(t.Context())
 		done <- result
 		errorsOut <- err
 	}()
@@ -76,7 +76,7 @@ func TestResourceDerivedConcurrency(t *testing.T) {
 	})
 	done := make(chan error, 1)
 	go func() {
-		_, err := fixture.execute(context.Background())
+		_, err := fixture.execute(t.Context())
 		done <- err
 	}()
 	for range fixture.program.ReadySets()[0] {
@@ -121,11 +121,11 @@ func TestCancellationCauseReachesTerminalReceipt(t *testing.T) {
 func TestSingleLifecycleMutator(t *testing.T) {
 	fixture := newParallelFixture(t)
 	registerParallelAdapters(t, fixture, func(_ context.Context, value string) (string, error) { return value, nil })
-	if _, err := fixture.execute(context.Background()); err != nil {
+	if _, err := fixture.execute(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	for _, stage := range fixture.program.Stages() {
-		receipt, found, err := runrecord.ResolveStageReceipt(context.Background(), fixture.store, fixture.operation, stage.Node.ID)
+		receipt, found, err := runrecord.ResolveStageReceipt(t.Context(), fixture.store, fixture.operation, stage.Node.ID)
 		if err != nil || !found || receipt.State != runrecord.StageCompleted || receipt.Attempt != 1 {
 			t.Fatalf("stage %s receipt = (%+v, %t, %v)", stage.Node.ID, receipt, found, err)
 		}
@@ -136,7 +136,7 @@ func TestDeterministicParallelReceipts(t *testing.T) {
 	for range 2 {
 		fixture := newParallelFixture(t)
 		registerParallelAdapters(t, fixture, func(_ context.Context, value string) (string, error) { return value, nil })
-		result, err := fixture.execute(context.Background())
+		result, err := fixture.execute(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -168,7 +168,7 @@ func newParallelFixtureModules(t *testing.T, leftModule, rightModule recipe.Modu
 	}
 	t.Cleanup(func() { store.Close() })
 	model := testutil.ArtifactID(t, artifact.KindModel, "parallel-model")
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "parallel/model", Artifacts: []artifact.Descriptor{{ID: model}}}); err != nil {
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "parallel/model", Artifacts: []artifact.Descriptor{{ID: model}}}); err != nil {
 		t.Fatal(err)
 	}
 	branchModule := func(id recipe.ModuleID) recipe.Module {
@@ -289,7 +289,7 @@ func TestAdapterEntrySerialized(t *testing.T) {
 		active.Add(-1)
 		return value, nil
 	})
-	if _, err := fixture.execute(context.Background()); err != nil {
+	if _, err := fixture.execute(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if maximum.Load() != 1 {

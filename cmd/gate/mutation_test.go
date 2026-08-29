@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/automationcheck"
@@ -187,12 +188,7 @@ func mutationImpact(t *testing.T, candidate map[string]string) codemanifest.Impa
 }
 
 func mutationHasFact(facts []automationcheck.Fact, wanted automationcheck.Fact) bool {
-	for _, fact := range facts {
-		if fact == wanted {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(facts, wanted)
 }
 
 func mutationHasExclusion(exclusions []automationcheck.Exclusion, check string) bool {

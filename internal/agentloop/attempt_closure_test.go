@@ -1,7 +1,6 @@
 package agentloop
 
 import (
-	"context"
 	"runtime"
 	"testing"
 
@@ -17,7 +16,7 @@ import (
 // receipt resolves back through the coordinator's own store.
 func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	coordinator, store := coordinatorFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "attempt-capability-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "attempt-capability-schema")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "attempt/capability/parents", Artifacts: []artifact.Descriptor{{ID: implementation}, {ID: schema}}}); err != nil {

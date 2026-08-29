@@ -109,10 +109,10 @@ func (h *Handler) catalogCoverage(ctx context.Context) map[string]any {
 type catalogModel struct {
 	Model        string              `json:"model"`
 	Recipe       string              `json:"recipe"`
-	Tier         string              `json:"tier,omitempty"`
+	Tier         string              `json:"tier,omitzero"`
 	Location     string              `json:"location"`
 	Present      bool                `json:"present"`
-	Stale        string              `json:"stale,omitempty"`
+	Stale        string              `json:"stale,omitzero"`
 	Capabilities []catalogCapability `json:"capabilities,omitempty"`
 	// Benchmark and Evals surface the model's committed evidence beside
 	// its entry: perf from the latest benchmark claim, quality from the
@@ -125,8 +125,8 @@ type catalogModel struct {
 type catalogCapability struct {
 	Task   string `json:"task"`
 	Recipe string `json:"recipe"`
-	Tier   string `json:"tier,omitempty"`
-	Stale  string `json:"stale,omitempty"`
+	Tier   string `json:"tier,omitzero"`
+	Stale  string `json:"stale,omitzero"`
 }
 
 func idText(id artifact.ID) string {
@@ -173,11 +173,11 @@ type DownloadJob struct {
 	ID          uint64 `json:"id"`
 	Kind        string `json:"kind"`
 	Repository  string `json:"repository"`
-	Revision    string `json:"revision,omitempty"`
+	Revision    string `json:"revision,omitzero"`
 	Destination string `json:"destination"`
 	State       string `json:"state"`
-	Error       string `json:"error,omitempty"`
-	File        string `json:"file,omitempty"`
+	Error       string `json:"error,omitzero"`
+	File        string `json:"file,omitzero"`
 	Received    int64  `json:"received"`
 	Total       int64  `json:"total"`
 	Files       int    `json:"files"`

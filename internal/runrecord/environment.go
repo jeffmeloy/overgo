@@ -30,7 +30,7 @@ type Environment struct {
 	Device  string      `json:"device"`
 	Backend string      `json:"backend"`
 	Driver  string      `json:"driver"`
-	Runtime string      `json:"runtime,omitempty"`
+	Runtime string      `json:"runtime,omitzero"`
 	ID      artifact.ID `json:"-"`
 }
 

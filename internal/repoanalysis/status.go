@@ -13,7 +13,7 @@ type DirtyPath struct {
 	Path           string `json:"path"`
 	IndexStatus    string `json:"index_status"`
 	WorktreeStatus string `json:"worktree_status"`
-	OriginalPath   string `json:"original_path,omitempty"`
+	OriginalPath   string `json:"original_path,omitzero"`
 }
 
 // NormalizeDirty canonicalizes and orders repository-relative paths.

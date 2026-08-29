@@ -190,7 +190,7 @@ func projectNativeResponse(
 	for _, path := range paths {
 		var current any = source
 		valid := true
-		for _, component := range strings.Split(path, "/") {
+		for component := range strings.SplitSeq(path, "/") {
 			object, ok := current.(map[string]any)
 			if !ok {
 				valid = false
@@ -244,12 +244,12 @@ func (h *Handler) nativeGenerationSettings(
 		"dry_base":              config.DryBase,
 		"dry_allowed_length":    config.DryAllowedLength,
 		"dry_penalty_last_n":    config.DryPenaltyLastN,
-		"dry_sequence_breakers": append([]string{}, body.DryBreakers...),
+		"dry_sequence_breakers": slices.Clone(body.DryBreakers),
 		"mirostat":              config.Mirostat,
 		"mirostat_tau":          config.MirostatTau,
 		"mirostat_eta":          config.MirostatEta,
 		"samplers":              slices.Clone(config.Samplers),
-		"stop":                  append([]string{}, stops...),
+		"stop":                  slices.Clone(stops),
 		"ignore_eos":            body.IgnoreEOS,
 		"stream":                body.Stream,
 		"return_tokens":         body.ReturnTokens,

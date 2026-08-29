@@ -3,7 +3,6 @@
 package densecausal
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -74,7 +73,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	if _, err := warmModel.TrainDeviceResident(worker, carbonAdaptiveCausalWindows[:1], 1.33179e-5, 0.95, DeviceTrainingOptions{FrozenLexical: true}); err != nil {
 		t.Fatalf("Carbon warm-up: %v", err)
 	}
-	if err := worker.Do(context.Background(), func(state *device.State) error {
+	if err := worker.Do(t.Context(), func(state *device.State) error {
 		state.Driver.ResetPeakBytes()
 		return nil
 	}); err != nil {
@@ -88,7 +87,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	}
 	trajectory, measurement := result.Losses, result.Measurement
 	t.Logf("matched Carbon trajectory: %.9f", trajectory)
-	memory, err := worker.MemoryStats(context.Background())
+	memory, err := worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +168,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	for index, probe := range probes {
 		before[index] = embed[probe]
 	}
-	if err := worker.Do(context.Background(), func(state *device.State) error {
+	if err := worker.Do(t.Context(), func(state *device.State) error {
 		state.Driver.ResetPeakBytes()
 		return nil
 	}); err != nil {
@@ -182,7 +181,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	trajectory := result.Losses
-	memory, err := worker.MemoryStats(context.Background())
+	memory, err := worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

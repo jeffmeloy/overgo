@@ -587,7 +587,7 @@ func decodeRLEHybrid(data []byte, bitWidth, count int) ([]uint64, error) {
 				return nil, errors.New("dataset: parquet RLE run exceeds the buffer")
 			}
 			var value uint64
-			for index := 0; index < byteWidth; index++ {
+			for index := range byteWidth {
 				value |= uint64(data[offset+index]) << (8 * index)
 			}
 			offset += byteWidth
@@ -604,7 +604,7 @@ func decodeRLEHybrid(data []byte, bitWidth, count int) ([]uint64, error) {
 			packed := data[offset : offset+needed]
 			for index := 0; index < groups*8 && len(values) < count; index++ {
 				var value uint64
-				for bit := 0; bit < bitWidth; bit++ {
+				for bit := range bitWidth {
 					byteIndex := (bitOffset + bit) / 8
 					if packed[byteIndex]&(1<<((bitOffset+bit)%8)) != 0 {
 						value |= 1 << bit
@@ -638,7 +638,7 @@ func snappyDecode(data []byte) ([]byte, error) {
 					return nil, errors.New("dataset: snappy literal header is truncated")
 				}
 				size = 0
-				for index := 0; index < extra; index++ {
+				for index := range extra {
 					size |= int(data[offset+index]) << (8 * index)
 				}
 				offset += extra
@@ -691,7 +691,7 @@ func snappyCopy(output *[]byte, distance, size int) error {
 	if distance <= 0 || distance > len(*output) {
 		return errors.New("dataset: snappy copy distance is invalid")
 	}
-	for index := 0; index < size; index++ {
+	for range size {
 		*output = append(*output, (*output)[len(*output)-distance])
 	}
 	return nil
@@ -871,7 +871,7 @@ func (c *thriftCursor) skip(fieldType byte) error {
 		if err != nil {
 			return err
 		}
-		for index := uint64(0); index < size; index++ {
+		for range size {
 			if err := c.skip(kinds >> 4); err != nil {
 				return err
 			}

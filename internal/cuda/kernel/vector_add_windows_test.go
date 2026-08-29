@@ -3,7 +3,6 @@
 package kernel
 
 import (
-	"context"
 	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 
@@ -23,7 +22,7 @@ func TestVectorAddIntegration(t *testing.T) {
 	inputB := []float32{9, -2, 0.25, 4, -0.5}
 	want := []float32{10, 0, 3.25, 0, 100}
 	var output []float32
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err = worker.Do(t.Context(), func(state *device.State) error {
 		var launchErr error
 		output, launchErr = VectorAdd(state.Driver, state.Stream, inputA, inputB)
 		return launchErr

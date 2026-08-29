@@ -45,7 +45,7 @@ func IndexedCount(shapes map[string][]int, prefix, suffix string) (int, error) {
 	if len(indices) == 0 {
 		return 0, fmt.Errorf("no indexed tensors under %q", prefix)
 	}
-	sort.Ints(indices)
+	slices.Sort(indices)
 	for expected, index := range indices {
 		if index != expected {
 			return 0, fmt.Errorf("tensor indices under %q are not contiguous from zero: %v", prefix, indices)

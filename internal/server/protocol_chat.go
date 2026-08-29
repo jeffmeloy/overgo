@@ -709,21 +709,21 @@ type chatStreamChoice struct {
 
 type chatStreamDelta struct {
 	Role             inference.ChatRole   `json:"role,omitempty"`
-	Content          string               `json:"content,omitempty"`
-	ReasoningContent string               `json:"reasoning_content,omitempty"`
+	Content          string               `json:"content,omitzero"`
+	ReasoningContent string               `json:"reasoning_content,omitzero"`
 	ToolCalls        []chatStreamToolCall `json:"tool_calls,omitempty"`
 }
 
 type chatStreamToolCall struct {
 	Index    int                    `json:"index"`
-	ID       string                 `json:"id,omitempty"`
+	ID       string                 `json:"id,omitzero"`
 	Type     inference.ChatToolType `json:"type,omitempty"`
 	Function chatStreamToolFunction `json:"function"`
 }
 
 type chatStreamToolFunction struct {
-	Name      string `json:"name,omitempty"`
-	Arguments string `json:"arguments,omitempty"`
+	Name      string `json:"name,omitzero"`
+	Arguments string `json:"arguments,omitzero"`
 }
 
 type chatStreamResponse struct {

@@ -144,7 +144,7 @@ func patchRasterImage(source image.Image, patchSize int, mean, std [media.RGBCha
 
 func resizeFitBicubic(source image.Image, width, height int, fill color.Color) image.Image {
 	bounds := source.Bounds()
-	scale := math.Min(float64(width)/float64(bounds.Dx()), float64(height)/float64(bounds.Dy()))
+	scale := min(float64(width)/float64(bounds.Dx()), float64(height)/float64(bounds.Dy()))
 	resizedW := max(tensor.SingletonExtent, min(width, int(math.Ceil(float64(bounds.Dx())*scale))))
 	resizedH := max(tensor.SingletonExtent, min(height, int(math.Ceil(float64(bounds.Dy())*scale))))
 	resized := media.ResizeBicubic(source, resizedW, resizedH)

@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/gguf"
@@ -14,9 +13,9 @@ func TestSelectedModelTensorsIncludesCohere2MTP(t *testing.T) {
 	privateHead := info("blk.2.nextn.shared_head_head.weight")
 	mtp := &model.SingleDraftWeights{
 		Layer: model.LayerWeights{
-			AttentionNorm:     pointerTensorInfo(info("blk.2.attn_norm.weight")),
-			AttentionQ:        pointerTensorInfo(info("blk.2.attn_q.weight")),
-			FeedForwardRouter: pointerTensorInfo(info("blk.2.ffn_gate_inp.weight")),
+			AttentionNorm:     new(info("blk.2.attn_norm.weight")),
+			AttentionQ:        new(info("blk.2.attn_q.weight")),
+			FeedForwardRouter: new(info("blk.2.ffn_gate_inp.weight")),
 		},
 		EHProjection:  info("blk.2.nextn.eh_proj.weight"),
 		EmbeddingNorm: info("blk.2.nextn.enorm.weight"),
@@ -53,15 +52,11 @@ func TestCohere2MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 	if err := draft.validateMTPTarget(target); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := draft.forwardCachedLocked(context.Background(), []tokenizer.TokenID{0}, nil); err == nil {
+	if _, _, err := draft.forwardCachedLocked(t.Context(), []tokenizer.TokenID{0}, nil); err == nil {
 		t.Fatal("ordinary forward accepted Cohere2-MoE MTP-only model")
 	}
 	target.vocab = &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "c"}}}
 	if err := draft.validateMTPTarget(target); err == nil {
 		t.Fatal("Cohere2-MoE MTP sidecar accepted mismatched target vocabulary")
 	}
-}
-
-func pointerTensorInfo(info gguf.TensorInfo) *gguf.TensorInfo {
-	return &info
 }

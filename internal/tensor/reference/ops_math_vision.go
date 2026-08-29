@@ -24,11 +24,11 @@ func loraMerge(shape tensor.Shape, inputs []Value, attributes tensor.LoRAMergeAt
 	if k <= 0 || m <= 0 || rank <= 0 || len(a.Data) != k*rank*groups || len(b.Data) != rank*m*groups {
 		return Value{}, errors.New("LoRA merge pair shape is invalid")
 	}
-	for group := 0; group < groups; group++ {
-		for row := 0; row < m; row++ {
-			for column := 0; column < k; column++ {
+	for group := range groups {
+		for row := range m {
+			for column := range k {
 				var delta float64
-				for inner := 0; inner < rank; inner++ {
+				for inner := range rank {
 					aIndex := (group*rank+inner)*k + column
 					bIndex := (group*m+row)*rank + inner
 					delta += float64(a.Data[aIndex]) * float64(b.Data[bIndex])
@@ -47,10 +47,10 @@ func conv1DSame(shape tensor.Shape, input, weight, bias Value, depthwise bool) (
 	channelsOut := int(weight.Shape.Dims[2])
 	output := make([]float32, channelsOut*tokens)
 	padding := kernel / 2
-	for token := 0; token < tokens; token++ {
-		for channelOut := 0; channelOut < channelsOut; channelOut++ {
+	for token := range tokens {
+		for channelOut := range channelsOut {
 			sum := float64(bias.Data[channelOut])
-			for tap := 0; tap < kernel; tap++ {
+			for tap := range kernel {
 				sourceToken := token + tap - padding
 				if sourceToken < 0 || sourceToken >= tokens {
 					continue
@@ -60,7 +60,7 @@ func conv1DSame(shape tensor.Shape, input, weight, bias Value, depthwise bool) (
 						float64(weight.Data[channelOut*kernel+tap])
 					continue
 				}
-				for channelIn := 0; channelIn < channelsIn; channelIn++ {
+				for channelIn := range channelsIn {
 					weightOffset := (channelOut*channelsIn+channelIn)*kernel + tap
 					sum += float64(input.Data[sourceToken*channelsIn+channelIn]) * float64(weight.Data[weightOffset])
 				}
@@ -77,19 +77,19 @@ func conv2D(shape tensor.Shape, input, weight, bias Value, attributes tensor.Con
 	weightChannels, channelsOut := int(weight.Shape.Dims[2]), int(weight.Shape.Dims[3])
 	outputW, outputH := int(shape.Dims[1]), int(shape.Dims[2])
 	output := make([]float32, channelsOut*outputW*outputH)
-	for y := 0; y < outputH; y++ {
-		for x := 0; x < outputW; x++ {
-			for channelOut := 0; channelOut < channelsOut; channelOut++ {
+	for y := range outputH {
+		for x := range outputW {
+			for channelOut := range channelsOut {
 				var sum float64
 				if attributes.HasBias {
 					sum = float64(bias.Data[channelOut])
 				}
-				for ky := 0; ky < kernelH; ky++ {
+				for ky := range kernelH {
 					sourceY := y*int(attributes.StrideY) + ky - int(attributes.PadTop)
 					if sourceY < 0 || sourceY >= inputH {
 						continue
 					}
-					for kx := 0; kx < kernelW; kx++ {
+					for kx := range kernelW {
 						sourceX := x*int(attributes.StrideX) + kx - int(attributes.PadLeft)
 						if sourceX < 0 || sourceX >= inputW {
 							continue
@@ -100,7 +100,7 @@ func conv2D(shape tensor.Shape, input, weight, bias Value, attributes tensor.Con
 							sum += float64(input.Data[inputOffset]) * float64(weight.Data[weightOffset])
 							continue
 						}
-						for channelIn := 0; channelIn < channelsIn; channelIn++ {
+						for channelIn := range channelsIn {
 							inputOffset := channelIn + channelsIn*(sourceX+inputW*sourceY)
 							weightOffset := kx + kernelW*(ky+kernelH*(channelIn+weightChannels*channelOut))
 							sum += float64(input.Data[inputOffset]) * float64(weight.Data[weightOffset])
@@ -123,16 +123,16 @@ func windowPartition2D(shape tensor.Shape, input Value, attributes tensor.Window
 	windowsX := (width + window - 1) / window
 	output := make([]float32, mustElements(shape))
 	if !reverse {
-		for windowY := 0; windowY < (height+window-1)/window; windowY++ {
-			for windowX := 0; windowX < windowsX; windowX++ {
+		for windowY := range (height + window - 1) / window {
+			for windowX := range windowsX {
 				batch := windowX + windowsX*windowY
-				for localY := 0; localY < window; localY++ {
-					for localX := 0; localX < window; localX++ {
+				for localY := range window {
+					for localX := range window {
 						x, y := windowX*window+localX, windowY*window+localY
 						if x >= width || y >= height {
 							continue
 						}
-						for channel := 0; channel < channels; channel++ {
+						for channel := range channels {
 							output[channel+channels*(localX+window*(localY+window*batch))] =
 								input.Data[channel+channels*(x+width*y)]
 						}
@@ -142,12 +142,12 @@ func windowPartition2D(shape tensor.Shape, input Value, attributes tensor.Window
 		}
 		return Value{Shape: shape, Data: output}, nil
 	}
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
+	for y := range height {
+		for x := range width {
 			windowX, windowY := x/window, y/window
 			localX, localY := x%window, y%window
 			batch := windowX + windowsX*windowY
-			for channel := 0; channel < channels; channel++ {
+			for channel := range channels {
 				output[channel+channels*(x+width*y)] =
 					input.Data[channel+channels*(localX+window*(localY+window*batch))]
 			}
@@ -215,32 +215,32 @@ func samAttention(shape tensor.Shape, inputs []Value, attributes tensor.SAMAtten
 	group := queryHeads / keyHeads
 	output := make([]float32, mustElements(shape))
 	scores := make([]float64, tokens)
-	for batch := 0; batch < batches; batch++ {
-		for queryToken := 0; queryToken < tokens; queryToken++ {
+	for batch := range batches {
+		for queryToken := range tokens {
 			queryX, queryY := queryToken%spatial, queryToken/spatial
-			for head := 0; head < queryHeads; head++ {
+			for head := range queryHeads {
 				keyHead := head / group
 				queryBase := keyWidth * (head + queryHeads*(queryToken+tokens*batch))
 				maximum := math.Inf(-1)
-				for keyToken := 0; keyToken < tokens; keyToken++ {
+				for keyToken := range tokens {
 					keyX, keyY := keyToken%spatial, keyToken/spatial
 					keyBase := keyWidth * (keyHead + keyHeads*(keyToken+tokens*batch))
 					var score float64
-					for channel := 0; channel < keyWidth; channel++ {
+					for channel := range keyWidth {
 						q := float64(query.Data[queryBase+channel])
 						score += q*float64(key.Data[keyBase+channel])*float64(attributes.Scale) +
 							q*samRelativeValue(relativeW, channel, queryX-keyX+spatial-1, 2*spatial-1)*float64(attributes.RelativeScale) +
 							q*samRelativeValue(relativeH, channel, queryY-keyY+spatial-1, 2*spatial-1)*float64(attributes.RelativeScale)
 					}
 					scores[keyToken] = score
-					maximum = math.Max(maximum, score)
+					maximum = max(maximum, score)
 				}
 				var sum float64
 				for keyToken := range tokens {
 					scores[keyToken] = math.Exp(scores[keyToken] - maximum)
 					sum += scores[keyToken]
 				}
-				for channel := 0; channel < valueWidth; channel++ {
+				for channel := range valueWidth {
 					var result float64
 					for keyToken := range tokens {
 						valueBase := valueWidth * (keyHead + keyHeads*(keyToken+tokens*batch))
@@ -263,21 +263,21 @@ func groupNorm(shape tensor.Shape, input, weight, bias Value, groups uint32, eps
 	for group := 0; group < int(groups); group++ {
 		firstChannel := group * channelsPerGroup
 		var mean float64
-		for token := 0; token < tokens; token++ {
+		for token := range tokens {
 			for channel := firstChannel; channel < firstChannel+channelsPerGroup; channel++ {
 				mean += float64(input.Data[token*channels+channel])
 			}
 		}
 		mean /= float64(valuesPerGroup)
 		var variance float64
-		for token := 0; token < tokens; token++ {
+		for token := range tokens {
 			for channel := firstChannel; channel < firstChannel+channelsPerGroup; channel++ {
 				delta := float64(input.Data[token*channels+channel]) - mean
 				variance += delta * delta
 			}
 		}
 		inverse := 1 / math.Sqrt(variance/float64(valuesPerGroup)+float64(epsilon))
-		for token := 0; token < tokens; token++ {
+		for token := range tokens {
 			for channel := firstChannel; channel < firstChannel+channelsPerGroup; channel++ {
 				offset := token*channels + channel
 				output[offset] = float32((float64(input.Data[offset])-mean)*inverse)*weight.Data[channel] + bias.Data[channel]
@@ -457,7 +457,7 @@ func l2Norm(shape tensor.Shape, input Value, epsilon float32) (Value, error) {
 		for _, value := range input.Data[row : row+width] {
 			sumSquares += float64(value) * float64(value)
 		}
-		denominator := math.Max(math.Sqrt(sumSquares), float64(epsilon))
+		denominator := max(math.Sqrt(sumSquares), float64(epsilon))
 		inverse := float32(1 / denominator)
 		for column, value := range input.Data[row : row+width] {
 			output[row+column] = value * inverse

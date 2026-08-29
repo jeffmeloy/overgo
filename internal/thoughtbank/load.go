@@ -2,7 +2,7 @@ package thoughtbank
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 
 	"overgo/internal/checked"
 	"overgo/internal/pytorchzip"
@@ -107,7 +107,7 @@ func validateInventory(metas []pytorchzip.TensorMeta, expected []string) error {
 	for index, meta := range metas {
 		actual[index] = meta.Name
 	}
-	sort.Strings(actual)
+	slices.Sort(actual)
 	if len(actual) != len(expected) {
 		return fmt.Errorf("thoughtbank inventory: checkpoint has %d tensors, runtime requires %d", len(actual), len(expected))
 	}

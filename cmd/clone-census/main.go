@@ -7,6 +7,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -47,11 +48,19 @@ func run() error {
 			Doc:                  "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening.",
 			DuplicateExcessNodes: profile.DuplicateExcessNodes,
 		}
+		baselinePath := filepath.FromSlash(codeprofile.CloneBaselineFile)
+		previous, present, err := codeprofile.LoadCloneBaseline(baselinePath)
+		if err != nil {
+			return err
+		}
+		if present {
+			baseline.Doc = previous.Doc
+		}
 		encoded, err := json.MarshalIndent(baseline, "", "  ")
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.FromSlash(codeprofile.CloneBaselineFile), append(encoded, '\n'), 0o644); err != nil {
+		if err := os.WriteFile(baselinePath, append(encoded, '\n'), 0o644); err != nil {
 			return err
 		}
 		fmt.Printf("clone-census: baseline written to %s at %d\n", codeprofile.CloneBaselineFile, profile.DuplicateExcessNodes)
@@ -82,9 +91,7 @@ func run() error {
 			continue
 		}
 		class := clone.AdvisoryClass
-		if class == "" {
-			class = "runtime"
-		}
+		class = cmp.Or(class, "runtime")
 		fmt.Printf("%5d nodes  %-8s  %v\n", clone.Nodes, class, clone.Functions)
 	}
 	return nil

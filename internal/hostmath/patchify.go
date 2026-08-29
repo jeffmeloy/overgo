@@ -22,15 +22,15 @@ func patchifyChannelMajorIndexed(channels, frames, height, width, p0, p1, p2 int
 	grid1, grid2 := height/p1, width/p2
 	seq := frames / p0 * grid1 * grid2
 	patchIn := channels * p0 * p1 * p2
-	for token := 0; token < seq; token++ {
+	for token := range seq {
 		ft := token / (grid1 * grid2)
 		remainder := token % (grid1 * grid2)
 		hy, wx := remainder/grid2, remainder%grid2
 		base := token * patchIn
-		for channel := 0; channel < channels; channel++ {
-			for kt := 0; kt < p0; kt++ {
-				for kh := 0; kh < p1; kh++ {
-					for kw := 0; kw < p2; kw++ {
+		for channel := range channels {
+			for kt := range p0 {
+				for kh := range p1 {
+					for kw := range p2 {
 						latentIndex := (((channel*frames+ft*p0+kt)*height + hy*p1 + kh) * width) + wx*p2 + kw
 						visit(base+((channel*p0+kt)*p1+kh)*p2+kw, latentIndex)
 					}
@@ -61,15 +61,15 @@ func unpatchifyChannelMajorIndexed(channels, frames, height, width, p0, p1, p2 i
 	grid1, grid2 := height/p1, width/p2
 	seq := frames / p0 * grid1 * grid2
 	patchOut := channels * p0 * p1 * p2
-	for token := 0; token < seq; token++ {
+	for token := range seq {
 		frame := token / (grid1 * grid2)
 		remainder := token % (grid1 * grid2)
 		row, column := remainder/grid2, remainder%grid2
 		base := token * patchOut
-		for kt := 0; kt < p0; kt++ {
-			for kh := 0; kh < p1; kh++ {
-				for kw := 0; kw < p2; kw++ {
-					for channel := 0; channel < channels; channel++ {
+		for kt := range p0 {
+			for kh := range p1 {
+				for kw := range p2 {
+					for channel := range channels {
 						latentIndex := (((channel*frames+frame*p0+kt)*height + row*p1 + kh) * width) + column*p2 + kw
 						visit(base+((kt*p1+kh)*p2+kw)*channels+channel, latentIndex)
 					}

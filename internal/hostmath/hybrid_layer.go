@@ -98,15 +98,15 @@ func attentionMixForward(x []float32, w AttentionMixWeights, d AttentionMixDims)
 	c.kr = make([]float32, T*kvDim)
 	copy(c.qs, qn)
 	copy(c.kr, kn)
-	for t := 0; t < T; t++ {
-		for h := 0; h < heads; h++ {
+	for t := range T {
+		for h := range heads {
 			row := c.qs[(t*heads+h)*hd : (t*heads+h+1)*hd]
 			ApplyRotaryHalf(row[:rd], c.invFreq, t)
 			for i := range row {
 				row[i] *= float32(c.scale)
 			}
 		}
-		for h := 0; h < kv; h++ {
+		for h := range kv {
 			base := (t*kv + h) * hd
 			ApplyRotaryHalf(c.kr[base:base+rd], c.invFreq, t)
 		}

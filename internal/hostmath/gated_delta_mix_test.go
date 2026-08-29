@@ -60,9 +60,7 @@ func TestGatedDeltaMixBackwardFD(t *testing.T) {
 			arr[i] = o
 			fd := (lp - lm) / (2 * step)
 			ad := math.Abs(fd - float64(grad[i]))
-			if ad > maxd {
-				maxd = ad
-			}
+			maxd = max(maxd, ad)
 			if den := math.Abs(fd) + math.Abs(float64(grad[i])) + 1e-6; ad/den > maxrel {
 				maxrel = ad / den
 			}

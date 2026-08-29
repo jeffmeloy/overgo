@@ -91,7 +91,7 @@ func flattenHostState(state hostState) []HostGroup {
 	for name := range state {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	groups := make([]HostGroup, len(names))
 	for index, name := range names {
 		matrix := state[name]

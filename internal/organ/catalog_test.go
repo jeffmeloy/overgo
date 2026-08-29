@@ -41,7 +41,7 @@ func TestOrganCatalogIndexesComponents(t *testing.T) {
 	// Numeric layer identity: with 12 layers, ordinal 2 is layer 2 and
 	// ordinal 10 is layer 10 -- lexical ordering would invert them.
 	var wide []string
-	for layer := 0; layer < 12; layer++ {
+	for layer := range 12 {
 		prefix := "blk." + itoa(layer)
 		wide = append(wide, prefix+".ffn_gate.weight", prefix+".ffn_up.weight", prefix+".ffn_down.weight")
 	}

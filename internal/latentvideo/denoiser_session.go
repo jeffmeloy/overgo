@@ -2,6 +2,7 @@
 package latentvideo
 
 import (
+	"cmp"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -136,9 +137,7 @@ func (s *DenoiserCUDASession) uploadWeights() error {
 		contextNode := s.Program.contextWeightInputs.Node(name)
 		stepNode := s.Program.stepWeightInputs.Node(name)
 		node := stepNode
-		if node == nil {
-			node = contextNode
-		}
+		node = cmp.Or(node, contextNode)
 		if node == nil {
 			continue
 		}

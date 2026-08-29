@@ -36,7 +36,7 @@ func TestTypedToolExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := executor.ExecuteTool(context.Background(), call)
+	result, err := executor.ExecuteTool(t.Context(), call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestLongRunningToolOperation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		_, executeErr := executor.ExecuteTool(ctx, call)
@@ -81,7 +81,7 @@ func toolExecutorFixture(
 		t.Fatal(err)
 	}
 	model := testutil.ArtifactID(t, artifact.KindModel, "tool-model")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "tool/model", Artifacts: []artifact.Descriptor{{ID: model}},
 	}); err != nil {
 		t.Fatal(err)

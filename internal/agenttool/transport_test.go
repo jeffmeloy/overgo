@@ -35,7 +35,7 @@ func inspectionManual(t *testing.T, name string, transport Transport) Manual {
 }
 
 func TestTransportBuiltinRoundTripAndRefusals(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	executor := NewExecutor()
 	manual := inspectionManual(t, "echo.args", Transport{Kind: TransportBuiltin})
 	if err := executor.registerBuiltin("echo.args", func(_ context.Context, arguments json.RawMessage) (json.RawMessage, error) {
@@ -60,7 +60,7 @@ func TestTransportBuiltinRoundTripAndRefusals(t *testing.T) {
 }
 
 func TestTransportArgumentValidation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	executor := NewExecutor()
 	manual := inspectionManual(t, "echo.args", Transport{Kind: TransportBuiltin})
 	if err := executor.registerBuiltin("echo.args", func(_ context.Context, arguments json.RawMessage) (json.RawMessage, error) {
@@ -85,7 +85,7 @@ func TestTransportArgumentValidation(t *testing.T) {
 }
 
 func TestTransportHTTPBoundedStrictJSON(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	executor := NewOperatorExecutor()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -157,7 +157,7 @@ func TestTransportMCPHTTPBindsProtocolToolAndResponse(t *testing.T) {
 		Kind: TransportMCPHTTP, URL: server.URL, Target: "weather.lookup", Protocol: "2025-06-18",
 	})
 	result, err := NewOperatorExecutor().Invoke(
-		context.Background(), manual, json.RawMessage(`{"pattern":"Boston"}`),
+		t.Context(), manual, json.RawMessage(`{"pattern":"Boston"}`),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestTransportMCPHTTPBindsProtocolToolAndResponse(t *testing.T) {
 }
 
 func TestTransportArgvReturnsStdoutAsJSONString(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	executor := NewExecutor()
 	manual := inspectionManual(t, "go.env", Transport{
 		Kind: TransportArgv, Program: "go", Args: []string{"env", "GOOS"},
@@ -194,7 +194,7 @@ func TestTransportArgvReturnsStdoutAsJSONString(t *testing.T) {
 func TestExecutorAdmissionStateIsFixed(t *testing.T) {
 	executor := NewExecutor()
 	seen := map[chan struct{}]bool{}
-	for index := 0; index < len(executor.entries)*len(executor.entries); index++ {
+	for index := range len(executor.entries) * len(executor.entries) {
 		seen[executor.manualEntry(fmt.Sprintf("tool.%d", index))] = true
 	}
 	if len(seen) > len(executor.entries) {

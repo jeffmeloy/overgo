@@ -2,6 +2,7 @@ package overgodb
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -71,7 +72,7 @@ type snapshotContent struct {
 	Offset   int64       `json:"offset"`
 	Size     int64       `json:"size"`
 	Sequence uint64      `json:"sequence"`
-	Blob     bool        `json:"blob,omitempty"`
+	Blob     bool        `json:"blob,omitzero"`
 }
 
 type snapshotArtifact struct {
@@ -288,7 +289,7 @@ func (s *snapshotStream) array(name string, count int, omitEmpty bool, emit func
 		return
 	}
 	s.raw(`,"` + name + `":[`)
-	for index := 0; index < count; index++ {
+	for index := range count {
 		if index > 0 {
 			s.raw(",")
 		}
@@ -419,9 +420,7 @@ func writeSnapshot(ctx context.Context, root string, sequence uint64, head artif
 		err = temporary.Sync()
 	}
 	closeErr := temporary.Close()
-	if err == nil {
-		err = closeErr
-	}
+	err = cmp.Or(err, closeErr)
 	if err != nil {
 		return "", fmt.Errorf("overgodb: write snapshot: %w", err)
 	}

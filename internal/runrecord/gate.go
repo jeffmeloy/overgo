@@ -46,8 +46,8 @@ type GateStep struct {
 	Name       string      `json:"name"`
 	Phase      Phase       `json:"phase"`
 	Outcome    StepOutcome `json:"outcome"`
-	DurationNS uint64      `json:"duration_ns,omitempty"`
-	Evidence   string      `json:"evidence,omitempty"`
+	DurationNS uint64      `json:"duration_ns,omitzero"`
+	Evidence   string      `json:"evidence,omitzero"`
 }
 
 // GateResult defines immutable named-step gate verdict.
@@ -57,7 +57,7 @@ type GateResult struct {
 	Environment artifact.ID `json:"environment"`
 	CodeCommit  string      `json:"code_commit"`
 	Outcome     Outcome     `json:"outcome"`
-	Failure     string      `json:"failure,omitempty"`
+	Failure     string      `json:"failure,omitzero"`
 	Steps       []GateStep  `json:"steps"`
 	ID          artifact.ID `json:"-"`
 }

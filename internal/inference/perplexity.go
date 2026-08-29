@@ -285,9 +285,7 @@ func negativeLogProbability(logits []float32, target int) (float64, error) {
 		if math.IsNaN(converted) {
 			return 0, errors.New("logits contain NaN")
 		}
-		if converted > maximum {
-			maximum = converted
-		}
+		maximum = max(maximum, converted)
 	}
 	if math.IsInf(maximum, -1) {
 		return 0, errors.New("all logits are negative infinity")

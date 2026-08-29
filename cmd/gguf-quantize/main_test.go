@@ -46,7 +46,7 @@ func TestQuantizeModelCreatesOutputWithoutOverwrite(t *testing.T) {
 	inputPath := filepath.Join(directory, "input.gguf")
 	outputPath := filepath.Join(directory, "output.gguf")
 	values := make([]byte, 32*2*4)
-	for index := 0; index < 64; index++ {
+	for index := range 64 {
 		value := float32(math.Sin(float64(index) * 0.13))
 		binary.LittleEndian.PutUint32(values[index*4:], math.Float32bits(value))
 	}

@@ -90,5 +90,5 @@ func cloneSamplerOrder(order []SamplerStage) []SamplerStage {
 	if order == nil {
 		return nil
 	}
-	return append([]SamplerStage{}, order...)
+	return slices.Clone(order)
 }

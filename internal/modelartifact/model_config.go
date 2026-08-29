@@ -41,7 +41,7 @@ type SequenceExtensionConfig struct {
 type GenerationEssentials struct {
 	BOSTokens     []int64 `json:"bos_tokens,omitempty"`
 	EOSTokens     []int64 `json:"eos_tokens,omitempty"`
-	ContextLength uint64  `json:"context_length,omitempty"`
+	ContextLength uint64  `json:"context_length,omitzero"`
 }
 
 // ConfigSource names one source file and its content digest, so the

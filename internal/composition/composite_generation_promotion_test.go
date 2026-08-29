@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -10,7 +9,7 @@ import (
 
 func TestCompositeGenerationPromotionGate(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	activation, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composite-generation/promotion-activate", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +77,7 @@ func TestCompositeGenerationPromotionGate(t *testing.T) {
 
 func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	activation, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composite-generation/refusal-activate", nil)
 	if err != nil {
 		t.Fatal(err)

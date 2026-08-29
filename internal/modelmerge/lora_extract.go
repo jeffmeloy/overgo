@@ -4,7 +4,6 @@ import (
 	"errors"
 	"math"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -56,7 +55,7 @@ func ExtractLoRA(base, tuned Snapshot, policy LoRAExtractionPolicy) (LoRAExtract
 	for name := range base.Tensors {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		baseWeight, tunedWeight := base.Tensors[name], tuned.Tensors[name]
 		if slices.Equal(baseWeight.Values, tunedWeight.Values) {

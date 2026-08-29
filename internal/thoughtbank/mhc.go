@@ -112,13 +112,13 @@ func HyperConnectionForward(x []float32, rows int, w *HyperConnectionWeights, la
 	aGate := make([]float32, rows*n)     // sigmoid(A_raw)
 	cGate := make([]float32, rows*n)     // 2*sigmoid(C_raw)
 	bLogits := make([]float32, rows*n*n) // pre-Sinkhorn
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hat := xHat[r*flat : (r+1)*flat]
-		for i := 0; i < n; i++ {
+		for i := range n {
 			aGate[r*n+i] = float32(sigmoid(aPre*dot(w.WPre[i*flat:(i+1)*flat], hat) + float64(w.SPre[i])))
 			cGate[r*n+i] = float32(2.0 * sigmoid(aPost*dot(w.WPost[i*flat:(i+1)*flat], hat)+float64(w.SPost[i])))
 		}
-		for i := 0; i < n*n; i++ {
+		for i := range n * n {
 			// Inner tanh before the alpha gate: see the type comment.
 			inner := math.Tanh(dot(w.WRes[i*flat:(i+1)*flat], hat))
 			bLogits[r*n*n+i] = float32(aRes*inner + float64(w.SRes[i]))
@@ -129,9 +129,9 @@ func HyperConnectionForward(x []float32, rows int, w *HyperConnectionWeights, la
 
 	// h_in = sum_n A[n] * X[n]  -- collapse the streams into the sub-layer input.
 	hIn := make([]float32, rows*d)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		out := hIn[r*d : (r+1)*d]
-		for s := 0; s < n; s++ {
+		for s := range n {
 			g := float64(aGate[r*n+s])
 			if g == 0 {
 				continue
@@ -150,11 +150,11 @@ func HyperConnectionForward(x []float32, rows int, w *HyperConnectionWeights, la
 
 	// X_new = B_ds X + C (x) h_out
 	res := make([]float32, rows*flat)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		bm := bLogits[r*n*n : (r+1)*n*n]
-		for i := 0; i < n; i++ {
+		for i := range n {
 			dst := res[r*flat+i*d : r*flat+(i+1)*d]
-			for j := 0; j < n; j++ {
+			for j := range n {
 				coeff := float64(bm[i*n+j])
 				if coeff == 0 {
 					continue

@@ -155,10 +155,10 @@ func TestRowMajorGEMMF32Integration(t *testing.T) {
 	a := []float32{1, 2, 3, 4, 5, 6}
 	b := []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 	want := make([]float32, m*n)
-	for i := 0; i < m; i++ {
-		for j := 0; j < n; j++ {
+	for i := range m {
+		for j := range n {
 			var sum float32
-			for p := 0; p < k; p++ {
+			for p := range k {
 				sum += a[i*k+p] * b[p*n+j]
 			}
 			want[i*n+j] = sum
@@ -196,10 +196,10 @@ func TestRowMajorGEMMExF32TransposeIntegration(t *testing.T) {
 	x := []float32{1, 2, 3, 4, 5, 6} // row-major [3x2]
 	// Host X^T*X [cols, cols].
 	wantXtX := make([]float32, cols*cols)
-	for i := 0; i < cols; i++ {
-		for j := 0; j < cols; j++ {
+	for i := range cols {
+		for j := range cols {
 			var s float32
-			for r := 0; r < rows; r++ {
+			for r := range rows {
 				s += x[r*cols+i] * x[r*cols+j]
 			}
 			wantXtX[i*cols+j] = s
@@ -207,10 +207,10 @@ func TestRowMajorGEMMExF32TransposeIntegration(t *testing.T) {
 	}
 	// Host X*X^T [rows, rows].
 	wantXXt := make([]float32, rows*rows)
-	for i := 0; i < rows; i++ {
-		for j := 0; j < rows; j++ {
+	for i := range rows {
+		for j := range rows {
 			var s float32
-			for c := 0; c < cols; c++ {
+			for c := range cols {
 				s += x[i*cols+c] * x[j*cols+c]
 			}
 			wantXXt[i*rows+j] = s

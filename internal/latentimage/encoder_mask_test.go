@@ -58,7 +58,7 @@ func TestAttentionKeyBiasMaskMath(t *testing.T) {
 	// hand-rolled f64 causal softmax over head 0, optionally skipping a masked key.
 	oracle := func(padKey int) []float32 {
 		out := make([]float32, headDim*tokens)
-		for i := 0; i < tokens; i++ {
+		for i := range tokens {
 			scores := make([]float64, i+1)
 			mx := math.Inf(-1)
 			for j := 0; j <= i; j++ {
@@ -67,11 +67,11 @@ func TestAttentionKeyBiasMaskMath(t *testing.T) {
 					continue
 				}
 				var dot float64
-				for c := 0; c < headDim; c++ {
+				for c := range headDim {
 					dot += float64(q[(i)*headDim+c]) * float64(k[(j)*headDim+c])
 				}
 				scores[j] = dot * float64(scale)
-				mx = math.Max(mx, scores[j])
+				mx = max(mx, scores[j])
 			}
 			var sum float64
 			for j := 0; j <= i; j++ {
@@ -82,7 +82,7 @@ func TestAttentionKeyBiasMaskMath(t *testing.T) {
 				scores[j] = math.Exp(scores[j] - mx)
 				sum += scores[j]
 			}
-			for c := 0; c < headDim; c++ {
+			for c := range headDim {
 				var w float64
 				for j := 0; j <= i; j++ {
 					w += scores[j] / sum * float64(v[j*headDim+c])
@@ -105,7 +105,7 @@ func TestAttentionKeyBiasMaskMath(t *testing.T) {
 	masked, want := run(1, false), oracle(1)
 	maxAbs := 0.0
 	for i := range masked {
-		maxAbs = math.Max(maxAbs, math.Abs(float64(masked[i]-want[i])))
+		maxAbs = max(maxAbs, math.Abs(float64(masked[i]-want[i])))
 	}
 	if maxAbs > 1e-6 {
 		t.Fatalf("masked attention vs masked oracle max_abs=%.3e exceeds 1e-6", maxAbs)
@@ -160,7 +160,7 @@ func TestEncoderProgramMaskedMatchesHostReference(t *testing.T) {
 		if math.IsNaN(got.Data[i]) || math.IsInf(got.Data[i], 0) {
 			t.Fatalf("masked selected[%d] non-finite", i)
 		}
-		maxAbs = math.Max(maxAbs, math.Abs(host.Data[i]-got.Data[i]))
+		maxAbs = max(maxAbs, math.Abs(host.Data[i]-got.Data[i]))
 	}
 	if maxAbs > 1e-3 {
 		t.Fatalf("masked encoder graph/host divergence max_abs=%.3e exceeds 1e-3", maxAbs)
@@ -177,7 +177,7 @@ func TestEncoderProgramMaskedMatchesHostReference(t *testing.T) {
 	}
 	diff := 0.0
 	for i := range plain.Data {
-		diff = math.Max(diff, math.Abs(plain.Data[i]-got.Data[i]))
+		diff = max(diff, math.Abs(plain.Data[i]-got.Data[i]))
 	}
 	if diff < 1e-4 {
 		t.Fatalf("masked and maskless encoder agree (max_abs=%.3e); mask is inert", diff)

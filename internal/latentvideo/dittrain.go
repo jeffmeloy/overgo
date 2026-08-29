@@ -467,8 +467,8 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 	hostmath.RMSNormInto(a.kNorm, a.kProj, t.view(self+"norm_k.weight"), seq, d, eps)
 	a.qRope = append([]float32(nil), a.qNorm...)
 	a.kRope = append([]float32(nil), a.kNorm...)
-	for token := 0; token < seq; token++ {
-		for head := 0; head < heads; head++ {
+	for token := range seq {
+		for head := range heads {
 			offset := token*d + head*hd
 			hostmath.ApplyAxisRotaryInterleaved(a.qRope[offset:offset+hd], t.axisChannels, t.invFreq, t.positions[token])
 			hostmath.ApplyAxisRotaryInterleaved(a.kRope[offset:offset+hd], t.axisChannels, t.invFreq, t.positions[token])
@@ -480,8 +480,8 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 	hostmath.LinearF64(a.selfPro, a.attnOut, t.view(self+"o.weight"), t.view(self+"o.bias"), seq, d, d)
 	a.selfRes = make([]float32, seq*d)
 	gate2 := a.mVec[offsets.PreGate]
-	for r := 0; r < seq; r++ {
-		for i := 0; i < d; i++ {
+	for r := range seq {
+		for i := range d {
 			a.selfRes[r*d+i] = input[r*d+i] + a.selfPro[r*d+i]*gate2[i]
 		}
 	}
@@ -514,8 +514,8 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 	hostmath.LinearF64(a.ffnOut, a.ffnAct, t.view(prefix+"ffn.2.weight"), t.view(prefix+"ffn.2.bias"), seq, f, d)
 	a.output = make([]float32, seq*d)
 	gate5 := a.mVec[offsets.PostGate]
-	for r := 0; r < seq; r++ {
-		for i := 0; i < d; i++ {
+	for r := range seq {
+		for i := range d {
 			a.output[r*d+i] = a.crossRes[r*d+i] + a.ffnOut[r*d+i]*gate5[i]
 		}
 	}
@@ -538,7 +538,7 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	gradModulation := t.gradView(prefix + "modulation")
 	offsets := media.PairedShiftFirstGateOffsets()
 	chunkGrad := func(chunk int, add []float32) {
-		for i := 0; i < d; i++ {
+		for i := range d {
 			gradModulation[chunk*d+i] += add[i]
 			dBlockE[chunk*d+i] += add[i]
 		}
@@ -549,8 +549,8 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	dFFNOut := make([]float32, seq*d)
 	dGate := make([]float32, d)
 	gate5 := a.mVec[offsets.PostGate]
-	for r := 0; r < seq; r++ {
-		for i := 0; i < d; i++ {
+	for r := range seq {
+		for i := range d {
 			g := dOutput[r*d+i]
 			dFFNOut[r*d+i] = g * gate5[i]
 			dGate[i] += g * a.ffnOut[r*d+i]
@@ -622,8 +622,8 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	dSelfPro := make([]float32, seq*d)
 	clear(dGate)
 	gate2 := a.mVec[offsets.PreGate]
-	for r := 0; r < seq; r++ {
-		for i := 0; i < d; i++ {
+	for r := range seq {
+		for i := range d {
 			g := dSelfRes[r*d+i]
 			dSelfPro[r*d+i] = g * gate2[i]
 			dGate[i] += g * a.selfPro[r*d+i]
@@ -641,8 +641,8 @@ func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE,
 	dKRope := make([]float32, seq*d)
 	dVProj := make([]float32, seq*d)
 	hostmath.ScaledMaskedBidirectionalAttentionBackward(dQRope, dKRope, dVProj, a.qRope, a.kRope, a.vProj, dAttnOut, seq, seq, heads, heads, hd, t.attentionScale(), nil)
-	for token := 0; token < seq; token++ {
-		for head := 0; head < heads; head++ {
+	for token := range seq {
+		for head := range heads {
 			offset := token*d + head*hd
 			hostmath.AxisRotaryInterleavedBackward(dQRope[offset:offset+hd], t.axisChannels, t.invFreq, t.positions[token])
 			hostmath.AxisRotaryInterleavedBackward(dKRope[offset:offset+hd], t.axisChannels, t.invFreq, t.positions[token])
@@ -843,7 +843,7 @@ func (t *DiTTrainer) lossAndGradients(batch DiTTrainBatch) (float64, float64, er
 	hostmath.AdaptiveShiftScaleBackward(dLNHead, dShift, dScale, state.lnHead, state.headScale, dModulated, seq, d)
 	gradHeadModulation := t.gradView("head.modulation")
 	dHeadE := make([]float32, d)
-	for i := 0; i < d; i++ {
+	for i := range d {
 		gradHeadModulation[i] += dShift[i]
 		gradHeadModulation[d+i] += dScale[i]
 		dHeadE[i] = dShift[i] + dScale[i]

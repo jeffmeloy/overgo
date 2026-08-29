@@ -64,7 +64,7 @@ func parseOrderedJSON(input []byte) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if token, trailingErr := decoder.Token(); trailingErr != io.EOF {
+	if token, trailingErr := decoder.Token(); !errors.Is(trailingErr, io.EOF) {
 		if trailingErr != nil {
 			return nil, trailingErr
 		}

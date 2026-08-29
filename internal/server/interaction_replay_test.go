@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -13,7 +12,7 @@ import (
 
 func TestReplayGUI(t *testing.T) {
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
-	handler.publishResponseInteraction(context.Background(), "resp_trace", artifact.ID{}, []inference.ChatMessage{
+	handler.publishResponseInteraction(t.Context(), "resp_trace", artifact.ID{}, []inference.ChatMessage{
 		{Role: inference.ChatRoleUser, Content: "question"},
 		{Role: inference.ChatRoleAssistant, Content: "answer"},
 	})

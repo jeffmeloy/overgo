@@ -23,11 +23,11 @@ func OTLinearFlowPathInto(xT, target, x1, x0, t []float32, batch, elemsPerSample
 		return fmt.Errorf("ot flow: len t=%d want=%d", len(t), batch)
 	}
 	oneMinusSigmaMin := 1 - sigmaMin
-	for bi := 0; bi < batch; bi++ {
+	for bi := range batch {
 		tv := float64(t[bi])
 		sigmaT := 1 - oneMinusSigmaMin*tv
 		base := bi * elemsPerSample
-		for i := 0; i < elemsPerSample; i++ {
+		for i := range elemsPerSample {
 			j := base + i
 			x0v, x1v := float64(x0[j]), float64(x1[j])
 			xT[j] = float32(sigmaT*x0v + tv*x1v)
@@ -175,14 +175,13 @@ func (m *Model) muonGeometry() optimizer.TensorGeometry {
 		if name == "final_proj.weight" {
 			return m.Cfg.BaseChannels, length / m.Cfg.BaseChannels, nil
 		}
-		if strings.HasSuffix(name, ".weight") {
-			base := strings.TrimSuffix(name, ".weight")
+		if base, ok := strings.CutSuffix(name, ".weight"); ok {
 			if bias, ok := m.raw[base+".bias"]; ok && len(bias) > 0 && length%len(bias) == 0 {
 				return len(bias), length / len(bias), nil
 			}
 			for _, marker := range []string{".attn.", ".mlp."} {
-				if at := strings.Index(name, marker); at >= 0 {
-					hidden := len(m.raw[name[:at]+".norm1.weight"])
+				if before, _, ok := strings.Cut(name, marker); ok {
+					hidden := len(m.raw[before+".norm1.weight"])
 					if hidden > 0 && length%hidden == 0 {
 						if strings.HasSuffix(name, ".mlp.1.weight") {
 							return hidden, length / hidden, nil

@@ -14,12 +14,12 @@ import (
 
 type corpusCase struct {
 	Name            string `json:"name"`
-	Tool            string `json:"tool,omitempty"`
+	Tool            string `json:"tool,omitzero"`
 	Command         string `json:"command"`
 	Expect          string `json:"expect"`
 	Rule            string `json:"rule"`
-	GateEnv         bool   `json:"gate_env,omitempty"`
-	MergeInProgress bool   `json:"merge_in_progress,omitempty"`
+	GateEnv         bool   `json:"gate_env,omitzero"`
+	MergeInProgress bool   `json:"merge_in_progress,omitzero"`
 }
 
 type corpus struct {

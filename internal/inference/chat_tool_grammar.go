@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -146,7 +146,7 @@ func hermesToolGrammar(
 			}
 			propertyNames = append(propertyNames, name)
 		}
-		sort.Strings(propertyNames)
+		slices.Sort(propertyNames)
 		parameterRules := make([]string, len(propertyNames))
 		for propertyIndex, name := range propertyNames {
 			ruleName := fmt.Sprintf(
@@ -188,7 +188,7 @@ func hermesToolGrammar(
 			`) space "</tool_call>"`,
 		toolRoot,
 	)
-	sort.Strings(rules)
+	slices.Sort(rules)
 	return strings.Join(rules, "\n"), nil
 }
 

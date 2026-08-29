@@ -3,11 +3,12 @@ package testscope
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -28,7 +29,7 @@ func DecodePackages(r io.Reader) ([]Package, error) {
 	for {
 		var pkg Package
 		if err := decoder.Decode(&pkg); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return packages, nil
 			}
 			return nil, fmt.Errorf("decode go list package: %w", err)
@@ -63,7 +64,7 @@ func DirectPackages(repo string, changed []string, packages []Package) []string 
 			out = append(out, owner)
 		}
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 

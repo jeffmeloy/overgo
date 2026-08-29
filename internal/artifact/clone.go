@@ -2,7 +2,7 @@ package artifact
 
 import "slices"
 
-func IDPointer(id ID) *ID { return &id }
+func IDPointer(id ID) *ID { return new(id) }
 
 func CloneID(id *ID) *ID {
 	if id == nil {

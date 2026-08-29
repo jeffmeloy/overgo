@@ -101,13 +101,13 @@ func canonicalizeAgentTaskContract(value *AgentTaskContract) error {
 			}
 		}
 	}
-	sort.Strings(value.Scope)
+	slices.Sort(value.Scope)
 	value.Scope = slices.Compact(value.Scope)
-	sort.Strings(value.NonGoals)
+	slices.Sort(value.NonGoals)
 	value.NonGoals = slices.Compact(value.NonGoals)
-	sort.Strings(value.AllowedEffects)
+	slices.Sort(value.AllowedEffects)
 	value.AllowedEffects = slices.Compact(value.AllowedEffects)
-	sort.Strings(value.PauseConditions)
+	slices.Sort(value.PauseConditions)
 	value.PauseConditions = slices.Compact(value.PauseConditions)
 	for _, criterion := range value.Acceptance {
 		if !textcheck.LowerIdentifier(criterion.Name, len(criterion.Name)) || !boundedStatement(criterion.Scope) || !criterion.Verifier.Valid() {

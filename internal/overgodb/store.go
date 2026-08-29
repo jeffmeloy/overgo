@@ -410,10 +410,9 @@ func (s *Store) commitPublished(ctx context.Context, batch artifact.Batch) (arti
 	coordinator := commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}
 	advance, replayed, err := coordinator.commit(normalized, payloadHash, s.head, s.sequence)
 	if err != nil {
-		var fault appendFault
-		if errors.As(err, &fault) {
+		if fault, ok := errors.AsType[appendFault](err); ok {
 			s.fault = fault.cause
-			return advance.id, false, fmt.Errorf("%w: %w", ErrStoreFaulted, fault.cause)
+			return advance.id, false, errors.Join(ErrStoreFaulted, fault.cause)
 		}
 		return artifact.CommitID{}, false, err
 	}
@@ -723,7 +722,7 @@ func (s *Store) ready(write bool) error {
 		return ErrClosed
 	}
 	if s.fault != nil {
-		return fmt.Errorf("%w: %w", ErrStoreFaulted, s.fault)
+		return errors.Join(ErrStoreFaulted, s.fault)
 	}
 	if write && s.readOnly {
 		return ErrReadOnly
@@ -976,8 +975,7 @@ func cloneCommitID(value *artifact.CommitID) *artifact.CommitID {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func cloneValues[T interface{ Clone() T }](values []T) []T {

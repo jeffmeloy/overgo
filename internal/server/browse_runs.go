@@ -26,7 +26,7 @@ type browseRunEntry struct {
 	ID         string           `json:"id"`
 	Recipe     string           `json:"recipe"`
 	Outcome    string           `json:"outcome"`
-	Failure    string           `json:"failure,omitempty"`
+	Failure    string           `json:"failure,omitzero"`
 	CodeCommit string           `json:"code_commit"`
 	MeasuredMS float64          `json:"measured_ms"`
 	Inputs     int              `json:"inputs"`
@@ -38,7 +38,7 @@ type browseRunsResponse struct {
 	Count     int              `json:"count"`
 	Limit     int              `json:"limit"`
 	Truncated bool             `json:"truncated"`
-	Next      string           `json:"next,omitempty"`
+	Next      string           `json:"next,omitzero"`
 	Runs      []browseRunEntry `json:"runs"`
 }
 
@@ -46,10 +46,10 @@ type browseRunDetail struct {
 	ID          artifact.ID             `json:"id"`
 	Recipe      artifact.ID             `json:"recipe"`
 	Outcome     runrecord.Outcome       `json:"outcome"`
-	Failure     string                  `json:"failure,omitempty"`
-	CodeCommit  string                  `json:"code_commit,omitempty"`
+	Failure     string                  `json:"failure,omitzero"`
+	CodeCommit  string                  `json:"code_commit,omitzero"`
 	Environment *artifact.ID            `json:"environment,omitempty"`
-	MeasuredNS  uint64                  `json:"measured_ns,omitempty"`
+	MeasuredNS  uint64                  `json:"measured_ns,omitzero"`
 	Inputs      []artifact.ID           `json:"inputs,omitempty"`
 	Outputs     []artifact.ID           `json:"outputs,omitempty"`
 	Phases      []runrecord.PhaseMetric `json:"phases,omitempty"`
@@ -86,9 +86,7 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 	if limit <= 0 {
 		limit = browseRunsDefaultLimit
 	}
-	if limit > browseRunsMaxLimit {
-		limit = browseRunsMaxLimit
-	}
+	limit = min(limit, browseRunsMaxLimit)
 	documents := overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{
 			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},

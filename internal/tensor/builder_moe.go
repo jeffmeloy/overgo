@@ -1,6 +1,7 @@
 package tensor
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math"
@@ -74,9 +75,7 @@ func (b *Builder) buildMoE(
 	options moeOptions,
 ) *Tensor {
 	routerInput := options.routerInput
-	if routerInput == nil {
-		routerInput = input
-	}
+	routerInput = cmp.Or(routerInput, input)
 	gate := options.gate
 	selectionBias := options.selectionBias
 	expertScale := options.expertScale

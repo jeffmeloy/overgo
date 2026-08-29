@@ -173,7 +173,7 @@ func (m *Model) classTargetLoss(image []float32, dImage []float32) float64 {
 	var loss float64
 	for class := 0; class < m.Cfg.NClasses; class++ {
 		target := classTargetBase + classTargetStride*float64(class)
-		for i := 0; i < dim; i++ {
+		for i := range dim {
 			index := class*dim + i
 			delta := float64(image[index]) - target
 			loss += delta * delta

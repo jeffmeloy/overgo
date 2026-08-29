@@ -50,8 +50,8 @@ func GatedDeltaNetBackward(
 		return float64(gate[base+c])
 	}
 
-	for sequence := 0; sequence < sequences; sequence++ {
-		for head := 0; head < heads; head++ {
+	for sequence := range sequences {
+		for head := range heads {
 			index := sequence*heads + head
 			queryHead := head % queryHeads
 			keyHead := head % keyHeads
@@ -63,29 +63,29 @@ func GatedDeltaNetBackward(
 			gbase := func(t int) int { return ((sequence*tokens + t) * heads * gateWidth) + head*gateWidth }
 			bbase := func(t int) int { return (sequence*tokens+t)*heads + head }
 
-			for r := 0; r < size; r++ {
+			for r := range size {
 				// Forward recompute for this row, saving s' and s per token.
 				src := inputState[index*size*size+r*size:]
-				for c := 0; c < size; c++ {
+				for c := range size {
 					s[c] = float64(src[c])
 				}
-				for t := 0; t < tokens; t++ {
+				for t := range tokens {
 					gb, kb, vb := gbase(t), base(t, keyHeads, keyHead), base(t, heads, head)
 					betaValue := float64(beta[bbase(t)])
 					var dot float64
-					for c := 0; c < size; c++ {
+					for c := range size {
 						sp := s[c] * math.Exp(gateAt(gb, c))
 						sprime[t][c] = sp
 						dot += sp * float64(key[kb+c])
 					}
 					delta := (float64(value[vb+r]) - dot) * betaValue
-					for c := 0; c < size; c++ {
+					for c := range size {
 						s[c] = sprime[t][c] + delta*float64(key[kb+c])
 						safter[t][c] = s[c]
 					}
 				}
 				// Backward reverse over tokens.
-				for c := 0; c < size; c++ {
+				for c := range size {
 					ds[c] = 0
 				}
 				for t := tokens - 1; t >= 0; t-- {
@@ -96,14 +96,14 @@ func GatedDeltaNetBackward(
 					goVal := float64(dOutput[vb+r]) * scale
 					// dSnew = ds + goVal*q ; dQ += goVal*s_t
 					var dDelta float64
-					for c := 0; c < size; c++ {
+					for c := range size {
 						dsnew[c] = ds[c] + goVal*float64(query[qb+c])
 						dQuery[qb+c] += float32(goVal * safter[t][c])
 						dDelta += dsnew[c] * float64(key[kb+c])
 					}
 					// recompute dot_t from s'_t for dBeta
 					var dot float64
-					for c := 0; c < size; c++ {
+					for c := range size {
 						dot += sprime[t][c] * float64(key[kb+c])
 					}
 					delta := (float64(value[vb+r]) - dot) * betaValue
@@ -111,12 +111,12 @@ func GatedDeltaNetBackward(
 					dBeta[bb] += float32(dDelta * (float64(value[vb+r]) - dot))
 					dDot := -dDelta * betaValue
 					// dSp = dSnew + dDot*k ; dK += delta*dSnew + dDot*s'
-					for c := 0; c < size; c++ {
+					for c := range size {
 						dsp[c] = dsnew[c] + dDot*float64(key[kb+c])
 						dKey[kb+c] += float32(delta*dsnew[c] + dDot*sprime[t][c])
 					}
 					// s'_t = s_{t-1} ⊙ exp(gate): dGate += dSp*s' ; ds = dSp*exp(gate)
-					for c := 0; c < size; c++ {
+					for c := range size {
 						gexp[c] = math.Exp(gateAt(gb, c))
 						if gateWidth == 1 {
 							dGate[gb] += float32(dsp[c] * sprime[t][c])
@@ -126,7 +126,7 @@ func GatedDeltaNetBackward(
 						ds[c] = dsp[c] * gexp[c]
 					}
 				}
-				for c := 0; c < size; c++ {
+				for c := range size {
 					dInputState[index*size*size+r*size+c] = float32(ds[c])
 				}
 			}

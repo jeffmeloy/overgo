@@ -51,7 +51,7 @@ func TestRunReturnsTypedFailureEvidence(t *testing.T) {
 	planned[0].runner = func(context.Context, Invocation) (bool, string, error) {
 		return false, "probe failed", runrecord.LaneError(runrecord.LaneUnavailable, "device unavailable")
 	}
-	evidence, err := Run(context.Background(), planned[0])
+	evidence, err := Run(t.Context(), planned[0])
 	if err == nil || evidence.Outcome != runrecord.LaneUnavailable || evidence.Detail != "probe failed" || !evidence.ID.Valid() || evidence.DurationNS == 0 {
 		t.Fatalf("evidence = %+v, err = %v", evidence, err)
 	}

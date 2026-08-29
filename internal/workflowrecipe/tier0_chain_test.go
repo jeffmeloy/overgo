@@ -21,7 +21,7 @@ import (
 // through the generic workflow runtime with every node dispatched against the
 // model its declared slot resolves to.
 func TestTier0ChainExecutesThroughTypedPorts(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	modelA := testutil.ArtifactID(t, artifact.KindModel, "chain-model-a")
 	modelB := testutil.ArtifactID(t, artifact.KindModel, "chain-model-b")
 	definition := chainDefinition(t, modelA, modelB)

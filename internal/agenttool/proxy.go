@@ -43,9 +43,9 @@ func RegisterCapabilityProxy(executor *Executor, reader artifact.Reader, admit E
 	return executor.registerBuiltin(CapabilityProxyName, func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 		var request struct {
 			Action    string          `json:"action"`
-			Query     string          `json:"query,omitempty"`
-			Limit     int             `json:"limit,omitempty"`
-			Manual    string          `json:"manual,omitempty"`
+			Query     string          `json:"query,omitzero"`
+			Limit     int             `json:"limit,omitzero"`
+			Manual    string          `json:"manual,omitzero"`
 			Arguments json.RawMessage `json:"arguments,omitempty"`
 		}
 		if err := strictjson.DecodeBytes(raw, &request); err != nil {

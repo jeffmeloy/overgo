@@ -188,7 +188,7 @@ type builder struct {
 
 // randn appends configured bootstrap draws.
 func (b *builder) randn(dst *[]float32, n int) {
-	for i := 0; i < n; i++ {
+	for range n {
 		*dst = append(*dst, float32(b.rng.NormFloat64()*0.3))
 	}
 }

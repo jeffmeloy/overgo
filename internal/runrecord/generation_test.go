@@ -1,7 +1,7 @@
 package runrecord
 
 import (
-	"context"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -88,17 +88,17 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 	for index, value := range static {
 		descriptors[index] = artifact.Descriptor{ID: value}
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "generation/fixture/static", Artifacts: descriptors}); err != nil {
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "generation/fixture/static", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
 	batch, err := record.Batch("generation/fixture/v1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	parents, err := store.Parents(context.Background(), record.Child)
+	parents, err := store.Parents(t.Context(), record.Child)
 	if err != nil || len(parents) == 0 {
 		t.Fatalf("child lineage not queryable: (%v, %v)", parents, err)
 	}
@@ -121,9 +121,9 @@ func TestGenerationRecordBindsFullProvenance(t *testing.T) {
 	}
 	for _, refusal := range refusals {
 		candidate := valid
-		candidate.Parents = append([]artifact.ID{}, valid.Parents...)
-		candidate.Components = append([]artifact.ID{}, valid.Components...)
-		candidate.Seeds = append([]uint64{}, valid.Seeds...)
+		candidate.Parents = slices.Clone(valid.Parents)
+		candidate.Components = slices.Clone(valid.Components)
+		candidate.Seeds = slices.Clone(valid.Seeds)
 		refusal.mutate(&candidate)
 		if _, err := generationCodec.New(withGenerationVersion(candidate)); err == nil {
 			t.Errorf("%s: accepted", refusal.name)

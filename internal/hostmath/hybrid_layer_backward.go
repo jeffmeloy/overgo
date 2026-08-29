@@ -53,12 +53,12 @@ func attentionMixBackward(x []float32, w AttentionMixWeights, d AttentionMixDims
 		dqs[i] = float32(float64(dqs[i]) * c.scale)
 	}
 	rd := RopeWidth(d.RopeDim, hd)
-	for t := 0; t < T; t++ {
-		for h := 0; h < heads; h++ {
+	for t := range T {
+		for h := range heads {
 			base := (t*heads + h) * hd
 			RotaryHalfBackward(dqs[base:base+rd], c.invFreq, t)
 		}
-		for h := 0; h < kv; h++ {
+		for h := range kv {
 			base := (t*kv + h) * hd
 			RotaryHalfBackward(dkr[base:base+rd], c.invFreq, t)
 		}

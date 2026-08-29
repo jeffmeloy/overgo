@@ -1,6 +1,10 @@
 package model
 
-import "overgo/internal/tensor"
+import (
+	"slices"
+
+	"overgo/internal/tensor"
+)
 
 func loadRecurrentMixerLayer(
 	catalog weightCatalog,
@@ -164,7 +168,7 @@ func loadRecurrentMixerLayer(
 		}
 		inner, width := uint64(spec.SSMInnerSize), uint64(spec.EmbeddingLength)
 		convShape := []uint64{uint64(spec.SSMConvKernel), tensor.SingletonExtent, inner}
-		convShape4D := append(append([]uint64(nil), convShape...), tensor.SingletonExtent)
+		convShape4D := append(slices.Clone(convShape), tensor.SingletonExtent)
 		if itemErr := bindTensorProgram(catalog, prefix, []tensorBinding{
 			requiredTensorPointer(attentionQueryWeightTensor, &layer.AttentionQ, width, inner),
 			requiredTensorPointer(attentionKeyWeightTensor, &layer.AttentionK, width, inner),

@@ -105,23 +105,23 @@ func FastWeightBankRead(h, bank []float32, rows, slots int, w *FastWeightBankWei
 	a := make([]float64, na*r*d)
 	bmat := make([]float64, d*r)
 	z := make([]float64, r)
-	for s := 0; s < slots; s++ {
+	for s := range slots {
 		slot := bank[s*w.MemDim : (s+1)*w.MemDim]
-		for i := 0; i < na*r*d; i++ {
+		for i := range na * r * d {
 			a[i] = dot(w.FWA[i*w.MemDim:(i+1)*w.MemDim], slot)
 		}
-		for i := 0; i < d*r; i++ {
+		for i := range d * r {
 			bmat[i] = dot(w.FWB[i*w.MemDim:(i+1)*w.MemDim], slot)
 		}
 
 		ds := 1.0 / math.Sqrt(float64(d))
 		rs := 1.0 / math.Sqrt(float64(r))
-		for t := 0; t < rows; t++ {
+		for t := range rows {
 			row := y[t*d : (t+1)*d]
-			for k := 0; k < r; k++ {
+			for k := range r {
 				if w.SwiGLU {
 					var zg, zv float64
-					for j := 0; j < d; j++ {
+					for j := range d {
 						yv := float64(row[j])
 						zg += a[k*d+j] * yv
 						zv += a[r*d+k*d+j] * yv
@@ -138,14 +138,14 @@ func FastWeightBankRead(h, bank []float32, rows, slots int, w *FastWeightBankWei
 					continue
 				}
 				var acc float64
-				for j := 0; j < d; j++ {
+				for j := range d {
 					acc += a[k*d+j] * float64(row[j])
 				}
 				z[k] = hostmath.GELUErf(acc * ds)
 			}
-			for j := 0; j < d; j++ {
+			for j := range d {
 				var upd float64
-				for k := 0; k < r; k++ {
+				for k := range r {
 					upd += bmat[j*r+k] * z[k]
 				}
 				row[j] += float32(upd * rs)
@@ -156,13 +156,13 @@ func FastWeightBankRead(h, bank []float32, rows, slots int, w *FastWeightBankWei
 	// Delta form: only the CHANGE the bank produced is projected back.
 	out := make([]float32, rows*d)
 	delta := make([]float64, d)
-	for t := 0; t < rows; t++ {
-		for j := 0; j < d; j++ {
+	for t := range rows {
+		for j := range d {
 			delta[j] = float64(y[t*d+j]) - float64(y0[t*d+j])
 		}
-		for j := 0; j < d; j++ {
+		for j := range d {
 			var acc float64
-			for k := 0; k < d; k++ {
+			for k := range d {
 				acc += float64(w.FWO[j*d+k]) * delta[k]
 			}
 			out[t*d+j] = h[t*d+j] + float32(acc)

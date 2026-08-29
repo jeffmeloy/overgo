@@ -376,9 +376,7 @@ func runDevicePrefill(l *campaignContext) error {
 				worst = d
 			}
 		}
-		if worst > chainWorst {
-			chainWorst = worst
-		}
+		chainWorst = max(chainWorst, worst)
 	}
 	chainWall := time.Since(chainStart)
 

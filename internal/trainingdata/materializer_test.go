@@ -18,7 +18,7 @@ import (
 
 func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	firstPath := filepath.Join(root, "first.jsonl")
 	secondPath := filepath.Join(root, "second.jsonl")
@@ -156,7 +156,7 @@ func TestWeightedStreamResumeAndPacking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := batcher.Next(context.Background())
+	first, err := batcher.Next(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestWeightedStreamResumeAndPacking(t *testing.T) {
 		t.Fatalf("packed examples=%d, want 2", len(first.Examples))
 	}
 	state := first.State
-	want, err := batcher.Next(context.Background())
+	want, err := batcher.Next(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestWeightedStreamResumeAndPacking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := resumedBatcher.Next(context.Background())
+	got, err := resumedBatcher.Next(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestBatcherRestoresStreamAfterDecodeFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := stream.Snapshot()
-	if _, err := batcher.Next(context.Background()); err == nil {
+	if _, err := batcher.Next(t.Context()); err == nil {
 		t.Fatal("expected decode failure")
 	}
 	if after := stream.Snapshot(); after != before {

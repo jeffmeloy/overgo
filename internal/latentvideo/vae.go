@@ -13,7 +13,7 @@ package latentvideo
 import (
 	"fmt"
 	"runtime"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -113,7 +113,7 @@ func (c *vaePlanCompiler) finish(owned func(string) bool) (vaePlanStats, error) 
 		}
 	}
 	if checked.Nonempty(unexpected) {
-		sort.Strings(unexpected)
+		slices.Sort(unexpected)
 		return vaePlanStats{}, fmt.Errorf("%s: unconsumed tensors %v", c.scope, unexpected)
 	}
 	bindings, err := pytorchzip.CompileBindings(c.metas, c.names)

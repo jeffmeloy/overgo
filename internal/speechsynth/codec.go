@@ -257,14 +257,14 @@ func (c *CodecDecoder) Upsample(latent []float32, T int) []float32 {
 func (c *CodecDecoder) TransformInPlace(x []float32, T int) {
 	d := c.d
 	tm := make([]float32, len(x))
-	for ch := 0; ch < d; ch++ {
-		for t := 0; t < T; t++ {
+	for ch := range d {
+		for t := range T {
 			tm[t*d+ch] = x[ch*T+t]
 		}
 	}
 	c.forwardTimeMajor(tm, T)
-	for ch := 0; ch < d; ch++ {
-		for t := 0; t < T; t++ {
+	for ch := range d {
+		for t := range T {
 			x[ch*T+t] = tm[t*d+ch]
 		}
 	}
@@ -297,7 +297,7 @@ func (c *CodecDecoder) forwardTimeMajor(x []float32, T int) {
 			hostmath.LayerNormInto(xn, cur, l.norm1W, l.norm1B, tensor.SingletonExtent, d, c.normalization.TransformerLayer)
 			hostmath.Linear(qkv, xn, l.inProj, tensor.SingletonExtent, d, tensor.TripleExtent*d)
 			q, k, v := qkv[:d], qkv[d:tensor.PairedExtent*d], qkv[tensor.PairedExtent*d:]
-			for head := 0; head < h; head++ {
+			for head := range h {
 				hostmath.ApplyRotaryInterleaved(q[head*hd:(head+tensor.SingletonExtent)*hd], c.invFreq, t)
 				hostmath.ApplyRotaryInterleaved(k[head*hd:(head+tensor.SingletonExtent)*hd], c.invFreq, t)
 			}

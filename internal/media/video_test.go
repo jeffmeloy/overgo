@@ -2,7 +2,6 @@ package media
 
 import (
 	"bytes"
-	"context"
 	"image"
 	"image/color"
 	"image/gif"
@@ -92,7 +91,7 @@ func TestDecodeEncodedVideoGIF(t *testing.T) {
 	if err := gif.EncodeAll(&data, frames); err != nil {
 		t.Fatal(err)
 	}
-	decoded, err := DecodeEncodedVideo(context.Background(), data.Bytes(), "", tensor.PairedExtent, tensor.SingletonExtent)
+	decoded, err := DecodeEncodedVideo(t.Context(), data.Bytes(), "", tensor.PairedExtent, tensor.SingletonExtent)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"image"
 	"image/color"
 	"slices"
@@ -36,7 +35,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 4, 4)), RasterPatchOptions{
+	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)), RasterPatchOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -54,7 +53,7 @@ func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
-	projector, err := OpenAs[Projector](context.Background(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
+	projector, err := OpenAs[Projector](t.Context(), writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +70,7 @@ func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
 	}
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		context.Background(), hunyuanVLPromptTokenizer{},
+		t.Context(), hunyuanVLPromptTokenizer{},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
@@ -107,8 +106,8 @@ func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
 func TestPreprocessRasterPatchOrder(t *testing.T) {
 	spec := tinyHunyuanVLSpec()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(y*16 + x), A: fixtureOpaqueAlpha})
 		}
 	}
@@ -181,17 +180,17 @@ func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 8; x++ {
+	for y := range 4 {
+		for x := range 8 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
 	options := RasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
-	want, err := cpu.EncodeImage(context.Background(), input, options)
+	want, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := cuda.EncodeImage(context.Background(), input, options)
+	got, err := cuda.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}

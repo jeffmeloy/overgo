@@ -35,7 +35,7 @@ type ProfileCatalogEntry struct {
 	Expected     artifact.ID          `json:"expected"`
 	Actual       *artifact.ID         `json:"actual,omitempty"`
 	Status       ProfileCatalogStatus `json:"status"`
-	Detail       string               `json:"detail,omitempty"`
+	Detail       string               `json:"detail,omitzero"`
 }
 
 // ProfileCatalogCoverage reports registry-to-OvergoDB parity.

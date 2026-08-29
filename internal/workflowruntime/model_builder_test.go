@@ -70,7 +70,7 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 	}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "builder-operation")
 	store := testRepository(t)
-	result, err := ExecuteModelBuild(context.Background(), store, operation, fixture)
+	result, err := ExecuteModelBuild(t.Context(), store, operation, fixture)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,14 +79,14 @@ func TestModelBuildUsesRecipeStageReceipts(t *testing.T) {
 		t.Fatalf("builder result=%+v phases=%d", result, fixture.phase)
 	}
 	for _, stage := range ModelBuildStages() {
-		receipt, found, err := runrecord.ResolveStageReceipt(context.Background(), store, operation, stage.Node.ID)
+		receipt, found, err := runrecord.ResolveStageReceipt(t.Context(), store, operation, stage.Node.ID)
 		if err != nil || !found || receipt.State != runrecord.StageCompleted {
 			t.Fatalf("stage %s receipt = (%+v, %t, %v)", stage.Node.ID, receipt, found, err)
 		}
 	}
 	fixture.changeAuthority = true
 	operation = testutil.ArtifactID(t, artifact.KindEvidence, "builder-invalid-operation")
-	if _, err := ExecuteModelBuild(context.Background(), testRepository(t), operation, fixture); err == nil {
+	if _, err := ExecuteModelBuild(t.Context(), testRepository(t), operation, fixture); err == nil {
 		t.Fatal("builder accepted stage authority mutation")
 	}
 }

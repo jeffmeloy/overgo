@@ -48,7 +48,7 @@ func (reader *failingReader) Read(buffer []byte) (int, error) {
 
 func TestStreamPublicationContract(t *testing.T) {
 	t.Run("large stream is installed before catalog publication", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		root := t.TempDir()
 		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
 		if err != nil {
@@ -96,7 +96,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	})
 
 	t.Run("retry is content idempotent", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		root := t.TempDir()
 		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
 		if err != nil {
@@ -121,7 +121,7 @@ func TestStreamPublicationContract(t *testing.T) {
 	})
 
 	t.Run("failed and mismatched streams stay unpublished", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		root := t.TempDir()
 		repository, err := overgodb.Open(filepath.Join(root, "repodb"))
 		if err != nil {

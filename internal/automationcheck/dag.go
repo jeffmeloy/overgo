@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 )
 
@@ -25,9 +26,7 @@ func ExecuteDAG(ctx context.Context, invocations []Invocation, satisfied map[str
 		return nil, errors.New("automation check: DAG requires context and executor")
 	}
 	done := make(map[string]bool, len(satisfied)+len(invocations))
-	for name, complete := range satisfied {
-		done[name] = complete
-	}
+	maps.Copy(done, satisfied)
 	seen := make(map[string]bool, len(invocations))
 	for _, invocation := range invocations {
 		if invocation.Check.Name == "" || seen[invocation.Check.Name] {
@@ -47,7 +46,6 @@ func ExecuteDAG(ctx context.Context, invocations []Invocation, satisfied map[str
 		}
 		var wait sync.WaitGroup
 		for _, index := range wave {
-			index := index
 			delete(pending, index)
 			wait.Go(func() {
 				evidence, err := execute(ctx, invocations[index])

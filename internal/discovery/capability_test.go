@@ -1,7 +1,6 @@
 package discovery
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +20,7 @@ import (
 // but must appear in the capability catalog beside chat models, carrying
 // its task and tier.
 func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

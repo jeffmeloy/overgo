@@ -15,7 +15,7 @@ import (
 type Measured struct {
 	Output          any                        `json:"output"`
 	Phases          []workflowruntime.NodeWall `json:"phases,omitempty"`
-	PeakDeviceBytes uint64                     `json:"peak_device_bytes,omitempty"`
+	PeakDeviceBytes uint64                     `json:"peak_device_bytes,omitzero"`
 }
 
 // Unwrap returns the output inside a measured envelope, or the value

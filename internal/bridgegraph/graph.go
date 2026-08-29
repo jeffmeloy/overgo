@@ -47,19 +47,19 @@ type Definition struct {
 	Source           artifact.ID   `json:"source"`
 	Target           artifact.ID   `json:"target"`
 	Operator         Operator      `json:"operator"`
-	Intermediate     uint64        `json:"intermediate,omitempty"`
-	Bias             bool          `json:"bias,omitempty"`
+	Intermediate     uint64        `json:"intermediate,omitzero"`
+	Bias             bool          `json:"bias,omitzero"`
 	Vocabulary       artifact.ID   `json:"vocabulary,omitzero"`
 	VocabularyHead   artifact.ID   `json:"vocabulary_head,omitzero"`
 	TargetEmbedding  artifact.ID   `json:"target_embedding,omitzero"`
-	VocabularySize   uint64        `json:"vocabulary_size,omitempty"`
-	VocabularyLimit  uint64        `json:"vocabulary_limit,omitempty"`
-	EmbeddingMode    EmbeddingMode `json:"embedding_mode,omitempty"`
-	LatentCount      uint64        `json:"latent_count,omitempty"`
-	HeadCount        uint64        `json:"head_count,omitempty"`
-	SourceTokenLimit uint64        `json:"source_token_limit,omitempty"`
-	LoRARank         uint64        `json:"lora_rank,omitempty"`
-	ScaleLimit       float32       `json:"scale_limit,omitempty"`
+	VocabularySize   uint64        `json:"vocabulary_size,omitzero"`
+	VocabularyLimit  uint64        `json:"vocabulary_limit,omitzero"`
+	EmbeddingMode    EmbeddingMode `json:"embedding_mode,omitzero"`
+	LatentCount      uint64        `json:"latent_count,omitzero"`
+	HeadCount        uint64        `json:"head_count,omitzero"`
+	SourceTokenLimit uint64        `json:"source_token_limit,omitzero"`
+	LoRARank         uint64        `json:"lora_rank,omitzero"`
+	ScaleLimit       float32       `json:"scale_limit,omitzero"`
 }
 
 // Valid reports whether the operator belongs to the sealed bridge vocabulary.

@@ -35,7 +35,7 @@ const (
 type InteractionTraceEvent struct {
 	Sequence uint32               `json:"sequence"`
 	Kind     InteractionEventKind `json:"kind"`
-	Branch   string               `json:"branch,omitempty"`
+	Branch   string               `json:"branch,omitzero"`
 	Message  InteractionMessage   `json:"message"`
 }
 
@@ -59,7 +59,7 @@ type InteractionTrace struct {
 	WorkspaceClaims   []artifact.ID           `json:"workspace_claims,omitempty"`
 	Attempts          []artifact.ID           `json:"attempts,omitempty"`
 	BudgetCharges     []artifact.ID           `json:"budget_charges,omitempty"`
-	Terminal          Outcome                 `json:"terminal,omitempty"`
+	Terminal          Outcome                 `json:"terminal,omitzero"`
 	ID                artifact.ID             `json:"-"`
 }
 

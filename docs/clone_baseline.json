@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 10031 to 10047 for the terminal-attempt receipt: its alias/Resolve/Require delegates join the record-codec idiom groups the tightness-census exemption will absorb.",
-  "duplicate_excess_nodes": 10047
+  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 10047 to 10206 because converting 1120 distinct classic numeric loop headers to the uniform Go integer-range form removed 3572 runtime AST nodes while making four existing kernel-loop shapes normalize as clone groups. Raised 10206 to 10431 because 152 exact fallback, ticker, clone, and typed-sort rewrites normalized formerly distinct control flow into shared standard-library forms while the complete manual sweep lowered measured modern-Go candidates from 743 to 581; no production surface was added.",
+  "duplicate_excess_nodes": 10431
 }

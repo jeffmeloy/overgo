@@ -8,13 +8,13 @@ import "math"
 // gated-delta recurrence.
 func L2NormForward(x []float32, rows, width int, eps float64) []float32 {
 	out := make([]float32, len(x))
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := x[r*width : r*width+width]
 		var ss float64
 		for _, v := range row {
 			ss += float64(v) * float64(v)
 		}
-		inv := 1.0 / math.Max(math.Sqrt(ss), eps)
+		inv := 1.0 / max(math.Sqrt(ss), eps)
 		for c, v := range row {
 			out[r*width+c] = float32(float64(v) * inv)
 		}
@@ -27,14 +27,14 @@ func L2NormForward(x []float32, rows, width int, eps float64) []float32 {
 // clamped region inv is constant so dX = inv*dY.
 func L2NormBackward(x, dY []float32, rows, width int, eps float64) []float32 {
 	dX := make([]float32, len(x))
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := x[r*width : r*width+width]
 		var ss float64
 		for _, v := range row {
 			ss += float64(v) * float64(v)
 		}
 		norm := math.Sqrt(ss)
-		inv := 1.0 / math.Max(norm, eps)
+		inv := 1.0 / max(norm, eps)
 		clamped := norm <= eps
 		var dot float64
 		if !clamped {

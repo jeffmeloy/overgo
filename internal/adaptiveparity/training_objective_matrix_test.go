@@ -1,7 +1,6 @@
 package adaptiveparity
 
 import (
-	"context"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -17,7 +16,7 @@ import (
 const adaptiveObjectiveSource = "214950b3b0316bcdcab38a3b95127a927c0ab5be"
 
 func TestTrainingObjectiveMatrix(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "objective-breadth"))
 	if err != nil {
 		t.Fatal(err)

@@ -1,7 +1,6 @@
 package runrecord_test
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -14,7 +13,7 @@ import (
 )
 
 func TestEvaluationPromotesCapabilityRecipe(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

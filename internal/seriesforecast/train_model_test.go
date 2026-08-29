@@ -14,7 +14,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
-	"overgo/internal/optimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
@@ -160,7 +159,7 @@ func TestTimesFMRealSupernovaTrainingSmoke(t *testing.T) {
 
 	start := time.Now()
 	var first TrainStepResult
-	for step := 0; step < steps; step++ {
+	for step := range steps {
 		stepStart := time.Now()
 		result, err := trainer.Step(input, target)
 		if err != nil {

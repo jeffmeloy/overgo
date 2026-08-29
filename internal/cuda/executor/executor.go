@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -777,9 +778,7 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 		initial.QueryStart, next.QueryStart = 0, 0
 		initial.KeyValueTokens, next.KeyValueTokens = 0, 0
 		capacity := node.Inputs[1].Shape.Dims[2]
-		if logicalTokens == 0 {
-			logicalTokens = capacity
-		}
+		logicalTokens = cmp.Or(logicalTokens, capacity)
 		queryTokens := node.Inputs[0].Shape.Dims[2]
 		if initial != next || logicalTokens > capacity ||
 			(next.Causal && queryStart+queryTokens > logicalTokens) {

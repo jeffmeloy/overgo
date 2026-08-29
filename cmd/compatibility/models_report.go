@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -51,11 +52,11 @@ type claimRecord struct {
 	Capability      string `json:"capability"`
 	Tier            string `json:"tier"`
 	Commit          string `json:"commit"`
-	ContextTokens   uint64 `json:"context_tokens,omitempty"`
-	SpanSteps       uint64 `json:"span_steps,omitempty"`
-	SpanTokens      uint64 `json:"span_tokens,omitempty"`
-	WallNS          uint64 `json:"wall_ns,omitempty"`
-	PeakDeviceBytes uint64 `json:"peak_device_bytes,omitempty"`
+	ContextTokens   uint64 `json:"context_tokens,omitzero"`
+	SpanSteps       uint64 `json:"span_steps,omitzero"`
+	SpanTokens      uint64 `json:"span_tokens,omitzero"`
+	WallNS          uint64 `json:"wall_ns,omitzero"`
+	PeakDeviceBytes uint64 `json:"peak_device_bytes,omitzero"`
 }
 
 // generateModelsReport nests the strongest verified claims of every
@@ -132,7 +133,7 @@ func loadVerificationInventory(root string) (verificationInventory, error) {
 	if err != nil {
 		return verificationInventory{}, err
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	var records []runrecord.ModelVerification
 	files := map[artifact.ID]string{}
 	for _, path := range paths {

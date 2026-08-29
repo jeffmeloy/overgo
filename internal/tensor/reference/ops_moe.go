@@ -1,6 +1,7 @@
 package reference
 
 import (
+	"cmp"
 	"errors"
 	"math"
 
@@ -71,9 +72,7 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	tokens := int(input.Shape.Dims[1])
 	experts := int(attributes.Experts)
 	expertIndexDivisor := int(attributes.ExpertIndexDivisor)
-	if expertIndexDivisor == 0 {
-		expertIndexDivisor = 1
-	}
+	expertIndexDivisor = cmp.Or(expertIndexDivisor, 1)
 	topK := int(attributes.TopK)
 	intermediate := int(up.Shape.Dims[1])
 	if attributes.FusedGateUp {
@@ -92,20 +91,20 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 	selected := make([]int, topK)
 	weights := make([]float64, topK)
 	used := make([]bool, experts)
-	for token := 0; token < tokens; token++ {
+	for token := range tokens {
 		x := input.Data[token*hidden : (token+1)*hidden]
 		routerX := routerInput.Data[token*routerHidden : (token+1)*routerHidden]
 		maximum := math.Inf(-1)
-		for expert := 0; expert < experts; expert++ {
+		for expert := range experts {
 			var dot float64
-			for channel := 0; channel < routerHidden; channel++ {
+			for channel := range routerHidden {
 				dot += float64(routerX[channel]) * float64(router.Data[expert*routerHidden+channel])
 			}
 			if routerBias != nil {
 				dot += float64(routerBias[expert])
 			}
 			logits[expert] = dot
-			maximum = math.Max(maximum, dot)
+			maximum = max(maximum, dot)
 		}
 		var denominator float64
 		if attributes.Routing == tensor.MoERoutingSoftmax {
@@ -122,7 +121,7 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 			case tensor.MoERoutingSelectedSoftmax:
 				probabilities[expert] = logit
 			case tensor.MoERoutingSqrtSoftplus:
-				probabilities[expert] = math.Sqrt(math.Max(logit, 0) + math.Log1p(math.Exp(-math.Abs(logit))))
+				probabilities[expert] = math.Sqrt(max(logit, 0) + math.Log1p(math.Exp(-math.Abs(logit))))
 			default:
 				return Value{}, errors.New("invalid MoE routing function")
 			}
@@ -133,7 +132,7 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 		}
 		clear(used)
 		var selectedSum float64
-		for slot := 0; slot < topK; slot++ {
+		for slot := range topK {
 			if fixedExperts != nil {
 				expert := int(fixedExperts[token*topK+slot])
 				if expert < 0 || expert >= experts || used[expert] {
@@ -160,7 +159,7 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 		if attributes.Routing == tensor.MoERoutingSelectedSoftmax {
 			selectedMaximum := math.Inf(-1)
 			for _, weight := range weights {
-				selectedMaximum = math.Max(selectedMaximum, weight)
+				selectedMaximum = max(selectedMaximum, weight)
 			}
 			selectedSum = 0
 			for slot, weight := range weights {
@@ -173,17 +172,17 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 		}
 		for slot := range topK {
 			if attributes.NormalizeTopKProb {
-				weights[slot] = weights[slot] / math.Max(selectedSum, 6.103515625e-5) * float64(attributes.Scale)
+				weights[slot] = weights[slot] / max(selectedSum, 6.103515625e-5) * float64(attributes.Scale)
 			} else {
 				weights[slot] *= float64(attributes.Scale)
 			}
 		}
-		for outputChannel := 0; outputChannel < hidden; outputChannel++ {
+		for outputChannel := range hidden {
 			var routed float64
 			for slot, routedExpert := range selected {
 				expert := routedExpert / expertIndexDivisor
 				var expertOutput float64
-				for inner := 0; inner < intermediate; inner++ {
+				for inner := range intermediate {
 					gateBase := (expert*intermediate + inner) * hidden
 					upBase := gateBase
 					if attributes.FusedGateUp {
@@ -191,7 +190,7 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 						upBase = gateBase + intermediate*hidden
 					}
 					var gateDot, upDot float64
-					for channel := 0; channel < hidden; channel++ {
+					for channel := range hidden {
 						if attributes.Gated {
 							gateDot += float64(x[channel]) * float64(gate.Data[gateBase+channel])
 						}
@@ -208,24 +207,24 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 						if attributes.Gated {
 							if attributes.SwiGLUClamp > 0 {
 								limit := float64(attributes.SwiGLUClamp)
-								upDot = math.Max(-limit, math.Min(limit, upDot))
+								upDot = max(-limit, min(limit, upDot))
 								if attributes.Routing == tensor.MoERoutingSqrtSoftplus {
-									gateDot = math.Min(limit, gateDot)
+									gateDot = min(limit, gateDot)
 								}
 							}
 							gateActivation := gateDot / (1 + math.Exp(-gateDot))
 							if attributes.SwiGLUClamp > 0 && attributes.Routing != tensor.MoERoutingSqrtSoftplus {
-								gateActivation = math.Min(float64(attributes.SwiGLUClamp), gateActivation)
+								gateActivation = min(float64(attributes.SwiGLUClamp), gateActivation)
 							}
 							activation = gateActivation * upDot
 						}
 					case tensor.MoEActivationReLU:
-						activation = math.Max(upDot, 0)
+						activation = max(upDot, 0)
 						if attributes.Gated {
-							activation = math.Max(gateDot, 0) * upDot
+							activation = max(gateDot, 0) * upDot
 						}
 					case tensor.MoEActivationReLUSquared:
-						activation = math.Max(upDot, 0)
+						activation = max(upDot, 0)
 						activation *= activation
 					case tensor.MoEActivationGELU:
 						activation = moeGELU(upDot)
@@ -233,8 +232,8 @@ func moe(shape tensor.Shape, inputs []Value, attributes tensor.MoEAttributes) (V
 							activation = moeGELU(gateDot) * upDot
 						}
 					case tensor.MoEActivationSwiGLUOAI:
-						x := math.Min(gateDot, 7)
-						y := math.Max(-7, math.Min(7, upDot))
+						x := min(gateDot, 7)
+						y := max(-7, min(7, upDot))
 						activation = hostmath.QuickGELU(x) * (y + 1)
 					default:
 						return Value{}, errors.New("invalid MoE activation")

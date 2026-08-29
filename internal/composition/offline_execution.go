@@ -223,9 +223,7 @@ func deriveOfflineTensorOperations(
 		if outputBytes > policy.MaxShardBytes {
 			return nil, nil, 0, fmt.Errorf("composition: offline tensor %q exceeds shard policy", fact.Name)
 		}
-		if residentBytes > peak {
-			peak = residentBytes
-		}
+		peak = max(peak, residentBytes)
 		shard := len(shards)
 		if shard == 0 || shards[shard-tensor.SingletonExtent].Bytes > policy.MaxShardBytes-outputBytes {
 			shards = append(shards, OfflineTensorShard{Index: uint32(shard)})

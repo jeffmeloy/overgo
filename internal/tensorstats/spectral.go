@@ -27,10 +27,10 @@ func SingularValues(data []float64, rows, cols int) ([]float64, bool) {
 	if cols <= rows {
 		k = cols
 		gram = make([]float64, k*k)
-		for i := 0; i < cols; i++ {
+		for i := range cols {
 			for j := i; j < cols; j++ {
 				var s float64
-				for r := 0; r < rows; r++ {
+				for r := range rows {
 					s += data[r*cols+i] * data[r*cols+j]
 				}
 				gram[i*k+j], gram[j*k+i] = s, s
@@ -39,10 +39,10 @@ func SingularValues(data []float64, rows, cols int) ([]float64, bool) {
 	} else {
 		k = rows
 		gram = make([]float64, k*k)
-		for i := 0; i < rows; i++ {
+		for i := range rows {
 			for j := i; j < rows; j++ {
 				var s float64
-				for c := 0; c < cols; c++ {
+				for c := range cols {
 					s += data[i*cols+c] * data[j*cols+c]
 				}
 				gram[i*k+j], gram[j*k+i] = s, s
@@ -53,7 +53,7 @@ func SingularValues(data []float64, rows, cols int) ([]float64, bool) {
 	values := make([]float64, k)
 	var zero float64
 	for i, lambda := range eigenvalues {
-		values[i] = math.Sqrt(math.Max(zero, lambda))
+		values[i] = math.Sqrt(max(zero, lambda))
 	}
 	sort.Sort(sort.Reverse(sort.Float64Slice(values)))
 	return values, true
@@ -85,19 +85,19 @@ func symmetricEigenvalues(symmetric []float64, k int) []float64 {
 	epsilon := math.Nextafter(1, 2) - 1
 	for sweep, sweepLimit := 0, k*k; sweep < sweepLimit; sweep++ {
 		var off float64
-		for p := 0; p < k; p++ {
+		for p := range k {
 			for q := p + 1; q < k; q++ {
 				off += s[p*k+q] * s[p*k+q]
 			}
 		}
 		scale := off
-		for diagonal := 0; diagonal < k; diagonal++ {
+		for diagonal := range k {
 			scale += s[diagonal*k+diagonal] * s[diagonal*k+diagonal]
 		}
 		if off <= epsilon*epsilon*scale {
 			break
 		}
-		for p := 0; p < k; p++ {
+		for p := range k {
 			for q := p + 1; q < k; q++ {
 				apq := s[p*k+q]
 				if apq == 0 {
@@ -108,13 +108,13 @@ func symmetricEigenvalues(symmetric []float64, k int) []float64 {
 				c := 1 / math.Sqrt(1+t*t)
 				sn := t * c
 				// Left rotation: rows p, q.
-				for j := 0; j < k; j++ {
+				for j := range k {
 					rp, rq := s[p*k+j], s[q*k+j]
 					s[p*k+j] = c*rp - sn*rq
 					s[q*k+j] = sn*rp + c*rq
 				}
 				// Right rotation: columns p, q.
-				for i := 0; i < k; i++ {
+				for i := range k {
 					cp, cq := s[i*k+p], s[i*k+q]
 					s[i*k+p] = c*cp - sn*cq
 					s[i*k+q] = sn*cp + c*cq
@@ -123,7 +123,7 @@ func symmetricEigenvalues(symmetric []float64, k int) []float64 {
 		}
 	}
 	eigenvalues := make([]float64, k)
-	for i := 0; i < k; i++ {
+	for i := range k {
 		eigenvalues[i] = s[i*k+i]
 	}
 	return eigenvalues

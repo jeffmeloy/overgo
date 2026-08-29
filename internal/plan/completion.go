@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -102,7 +103,7 @@ func CompletionCommitMessage(
 	if strings.ContainsRune(message, '\x00') {
 		return nil, errors.New("plan: completion message contains NUL")
 	}
-	for _, line := range strings.Split(message, "\n") {
+	for line := range strings.SplitSeq(message, "\n") {
 		key, _, found := strings.Cut(line, ":")
 		if !found {
 			continue
@@ -300,9 +301,7 @@ func VerifyProspectiveMergeAuthority(
 	}
 
 	completed := make(map[string]completionEvidence, len(localAuthority.completedReferences)+len(incomingAuthority.completedReferences))
-	for reference, evidence := range localAuthority.completedReferences {
-		completed[reference] = evidence
-	}
+	maps.Copy(completed, localAuthority.completedReferences)
 	for reference, evidence := range incomingAuthority.completedReferences {
 		if previous, found := completed[reference]; found && previous != evidence {
 			return fmt.Errorf("plan: prospective merge has ambiguous completion authority for %s", reference)
@@ -310,9 +309,7 @@ func VerifyProspectiveMergeAuthority(
 		completed[reference] = evidence
 	}
 	retired := make(map[string]completionEvidence, len(localAuthority.retiredItems)+len(incomingAuthority.retiredItems))
-	for item, evidence := range localAuthority.retiredItems {
-		retired[item] = evidence
-	}
+	maps.Copy(retired, localAuthority.retiredItems)
 	for item, evidence := range incomingAuthority.retiredItems {
 		if previous, found := retired[item]; found && previous != evidence {
 			return fmt.Errorf("plan: prospective merge has ambiguous retirement authority for %s", item)
@@ -485,16 +482,11 @@ func ResolveCompletionAuthority(
 		if len(commit.parents) < completionParentCount {
 			continue
 		}
-		commonSeeds := make(map[string]bool, len(protectionSeeds[commit.parents[completionLocalParentIndex]]))
-		for seed := range protectionSeeds[commit.parents[completionLocalParentIndex]] {
-			commonSeeds[seed] = true
-		}
+		commonSeeds := maps.Clone(protectionSeeds[commit.parents[completionLocalParentIndex]])
 		for _, parent := range commit.parents[1:] {
-			for seed := range commonSeeds {
-				if !protectionSeeds[parent][seed] {
-					delete(commonSeeds, seed)
-				}
-			}
+			maps.DeleteFunc(commonSeeds, func(seed string, _ bool) bool {
+				return !protectionSeeds[parent][seed]
+			})
 		}
 		if len(commonSeeds) == 0 {
 			return CompletionAuthority{}, fmt.Errorf(
@@ -823,7 +815,7 @@ func parseRawCompletionCommit(hash string, object []byte) ([]string, string, err
 		return nil, "", fmt.Errorf("plan: raw Git completion commit %.12s lacks its message separator", hash)
 	}
 	var parents []string
-	for _, line := range bytes.Split(header, []byte{'\n'}) {
+	for line := range bytes.SplitSeq(header, []byte{'\n'}) {
 		if !bytes.HasPrefix(line, []byte("parent ")) {
 			continue
 		}
@@ -848,7 +840,7 @@ func parseCompletionTrailers(message string) (completionTrailers, bool, error) {
 	known := map[string][]string{}
 	hasCompletion := false
 	noncanonical := ""
-	for _, line := range strings.Split(block, "\n") {
+	for line := range strings.SplitSeq(block, "\n") {
 		key, value, found := strings.Cut(line, ":")
 		if !found {
 			continue

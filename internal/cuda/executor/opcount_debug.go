@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 
 	"overgo/internal/tensor"
@@ -104,7 +105,7 @@ func dumpOpCounts(compiled *CompiledGraph) {
 	for key := range counts {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	fmt.Fprintf(os.Stderr, "[op-counts] graph nodes=%d launched=%d\n", len(compiled.order), launches)
 	for _, key := range keys {
 		fmt.Fprintf(os.Stderr, "[op-counts]   %-40s %d\n", key, counts[key])

@@ -14,7 +14,7 @@ func TestPadToPatchesFrontPadsWithMaskOnes(t *testing.T) {
 	if len(padded) != 8 || len(masks) != 8 {
 		t.Fatalf("padded=%d masks=%d, want 8", len(padded), len(masks))
 	}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if masks[i] != 1 || padded[i] != 0 {
 			t.Fatalf("front element %d: padded=%v mask=%v, want 0/1", i, padded[i], masks[i])
 		}

@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -16,7 +15,7 @@ import (
 // durable nowhere: the journal, the head, and every facet stay at the
 // last complete view.
 func TestProjectionPublicationIsAtomic(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

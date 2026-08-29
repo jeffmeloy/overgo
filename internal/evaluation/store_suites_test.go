@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -142,7 +141,7 @@ func TestDeriveStoreSuites(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, _, err := CatalogHFCacheBenchmarks(ctx, store, root); err != nil {
 		t.Fatal(err)
 	}

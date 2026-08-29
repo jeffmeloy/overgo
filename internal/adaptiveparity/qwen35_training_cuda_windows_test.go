@@ -3,7 +3,6 @@
 package adaptiveparity_test
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -64,7 +63,7 @@ func TestQwen35RealTraining(t *testing.T) {
 
 	loaded := time.Now()
 	trained, err := hybridtrain.LoadRecurrentLayerArtifact(
-		context.Background(), checkpoint, 0, serving.Cases[0].PromptIDs,
+		t.Context(), checkpoint, 0, serving.Cases[0].PromptIDs,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +79,7 @@ func TestQwen35RealTraining(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
-	if err := worker.Do(context.Background(), func(state *device.State) error {
+	if err := worker.Do(t.Context(), func(state *device.State) error {
 		state.Driver.ResetPeakBytes()
 		return nil
 	}); err != nil {
@@ -101,7 +100,7 @@ func TestQwen35RealTraining(t *testing.T) {
 		residency.WeightReads != 0 || residency.FinalWeightRead != 1 || residency.GradUploads != 2 {
 		t.Fatalf("Qwen3.5 residency differs: %+v", residency)
 	}
-	memory, err := worker.MemoryStats(context.Background())
+	memory, err := worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

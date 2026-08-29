@@ -99,7 +99,7 @@ func StackForwardBackwardResidentWeights(
 		}
 		// Matrix grads stay resident in dG; only norm-vector grads + dxEmbed come back.
 		downloads := make([]cudaDownload, 0, nL*2+1)
-		for i := 0; i < nL; i++ {
+		for i := range nL {
 			downloads = append(downloads,
 				cudaDownload{vectorGrads[i].InLN, gp[i].dInLN}, cudaDownload{vectorGrads[i].PostLN, gp[i].dPostLN})
 			if offsets[i].AttnBias {

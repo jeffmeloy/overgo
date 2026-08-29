@@ -9,7 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"overgo/internal/checked"
@@ -79,7 +79,7 @@ func ListCaptionedClips(root string, limit int) ([]CaptionedClip, error) {
 	for name := range captions {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	clips := make([]CaptionedClip, 0, min(limit, len(names)))
 	for _, name := range names {
 		if len(clips) == limit {
@@ -139,8 +139,8 @@ func DecodeClipSource(ctx context.Context, ffmpeg, path string, shape SourceVide
 			return nil, fmt.Errorf("vidgen: decode %q frame %d/%d: %w: %s",
 				filepath.Base(path), frame, shape.Frames, err, strings.TrimSpace(stderr.String()))
 		}
-		for pixel := 0; pixel < spatial; pixel++ {
-			for channel := 0; channel < 3; channel++ {
+		for pixel := range spatial {
+			for channel := range 3 {
 				pixels[(channel*shape.Frames+frame)*spatial+pixel] = float32(frameBytes[3*pixel+channel]) / 255
 			}
 		}

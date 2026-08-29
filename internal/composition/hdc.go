@@ -38,9 +38,7 @@ func HypervectorDimensionsFor(n int) int {
 	}
 	need := 2 * math.Log(float64(n)) / (hdcResolvableScoreMargin * hdcResolvableScoreMargin)
 	words := int(math.Ceil(need / hdcWordBits))
-	if words < hdcDefaultWordCount {
-		words = hdcDefaultWordCount
-	}
+	words = max(words, hdcDefaultWordCount)
 	return words * hdcWordBits
 }
 
@@ -259,7 +257,7 @@ func mix(x uint64) uint64 {
 func encodeTermsInto(terms []string, dimensions int, pos, neg []uint64) int {
 	for _, term := range terms {
 		base := termHash(term)
-		for slot := 0; slot < hdcBitsPerTerm; slot++ {
+		for slot := range hdcBitsPerTerm {
 			h := mix(base + uint64(slot)*hdcMixB)
 			dim := int(h % uint64(dimensions))
 			mask := uint64(1) << uint(dim%hdcWordBits)
@@ -287,7 +285,7 @@ func signedSimilarity(aPos, aNeg []uint64, aLit int, bPos, bNeg []uint64, bLit i
 		return 0
 	}
 	matches, conflicts := 0, 0
-	for i := 0; i < n; i++ {
+	for i := range n {
 		matches += bits.OnesCount64(aPos[i]&bPos[i]) + bits.OnesCount64(aNeg[i]&bNeg[i])
 		conflicts += bits.OnesCount64(aPos[i]&bNeg[i]) + bits.OnesCount64(aNeg[i]&bPos[i])
 	}

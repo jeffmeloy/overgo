@@ -75,9 +75,9 @@ func CausalConv3DInto(out, x, cache, w, bias []float32, cacheT int, shape Conv3D
 // dispatch calibration times. Stable (ci,kt,kh,kw) accumulation order.
 func causalConv3DChannels(out, x, cache, w, bias []float32, cacheT int, s Conv3DShape, outT, outH, outW, coLo, coHi int) {
 	for co := coLo; co < coHi; co++ {
-		for ot := 0; ot < outT; ot++ {
-			for oh := 0; oh < outH; oh++ {
-				for ow := 0; ow < outW; ow++ {
+		for ot := range outT {
+			for oh := range outH {
+				for ow := range outW {
 					acc := float64(0)
 					if bias != nil {
 						acc = float64(bias[co])
@@ -165,20 +165,20 @@ func ResizeConv2DInto(out, x, w, bias []float32, cIn, cOut, t, h, wd int) error 
 			for i := range acc {
 				acc[i] = fill
 			}
-			for ci := 0; ci < cIn; ci++ {
+			for ci := range cIn {
 				weightBase := (co*cIn + ci) * kernel * kernel
-				for ky := 0; ky < kernel; ky++ {
+				for ky := range kernel {
 					dy := ky - kernel/2
-					for kx := 0; kx < kernel; kx++ {
+					for kx := range kernel {
 						dx := kx - kernel/2
 						wv := float64(w[weightBase+ky*kernel+kx])
-						for y := 0; y < oh; y++ {
+						for y := range oh {
 							sy := y + dy
 							if sy < 0 || sy >= oh {
 								continue
 							}
 							inputRow := ((ci*t+ti)*h + sy/scale) * wd
-							for xOut := 0; xOut < ow; xOut++ {
+							for xOut := range ow {
 								sx := xOut + dx
 								if sx >= 0 && sx < ow {
 									acc[y*ow+xOut] += float64(x[inputRow+sx/scale]) * wv

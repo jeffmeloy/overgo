@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -39,7 +38,7 @@ func TestGateDebtReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), prepareBatch); err != nil {
+	if _, err := store.Commit(t.Context(), prepareBatch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

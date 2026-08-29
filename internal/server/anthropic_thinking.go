@@ -16,8 +16,8 @@ const anthropicThinkingSignaturePrefix = "local_v1."
 
 type anthropicThinkingConfig struct {
 	Type         string `json:"type"`
-	BudgetTokens int    `json:"budget_tokens,omitempty"`
-	Display      string `json:"display,omitempty"`
+	BudgetTokens int    `json:"budget_tokens,omitzero"`
+	Display      string `json:"display,omitzero"`
 }
 
 type anthropicThinkingSigner struct {

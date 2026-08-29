@@ -188,7 +188,7 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 		t.Fatalf("stream status = %d body=%s", response.Code, response.Body.String())
 	}
 	var terminal chatStreamResponse
-	for _, line := range strings.Split(response.Body.String(), "\n") {
+	for line := range strings.SplitSeq(response.Body.String(), "\n") {
 		if !strings.HasPrefix(line, "data: ") || strings.HasSuffix(line, "[DONE]") {
 			continue
 		}

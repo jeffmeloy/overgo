@@ -52,9 +52,7 @@ func (h *Handler) analyzeVocab(response http.ResponseWriter, request *http.Reque
 	if limit <= 0 {
 		limit = analyzeVocabDefaultLimit
 	}
-	if limit > analyzeVocabMaxLimit {
-		limit = analyzeVocabMaxLimit
-	}
+	limit = min(limit, analyzeVocabMaxLimit)
 	needle := strings.ToLower(strings.TrimSpace(query.Get("query")))
 
 	// One linear pass over the vocabulary: count matches and collect the page
@@ -62,7 +60,7 @@ func (h *Handler) analyzeVocab(response http.ResponseWriter, request *http.Reque
 	// per request is fine and keeps the endpoint stateless.
 	matched := 0
 	tokens := make([]analyzeVocabToken, 0, limit)
-	for id := 0; id < size; id++ {
+	for id := range size {
 		token, present := api.VocabularyToken(tokenizer.TokenID(id))
 		if !present {
 			continue

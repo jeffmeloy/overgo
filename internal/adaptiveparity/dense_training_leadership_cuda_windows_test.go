@@ -3,7 +3,6 @@
 package adaptiveparity_test
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -98,7 +97,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := worker.Do(context.Background(), func(state *device.State) error {
+	if err := worker.Do(t.Context(), func(state *device.State) error {
 		state.Driver.ResetPeakBytes()
 		return nil
 	}); err != nil {
@@ -119,7 +118,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	}
 	cold := measurement.ForwardBackwardSteps[qwenInitialStep] + measurement.DeviceUpdateSteps[qwenInitialStep]
 	warmStep := measurement.ForwardBackwardSteps[qwenUpdatedStep] + measurement.DeviceUpdateSteps[qwenUpdatedStep]
-	memory, err := worker.MemoryStats(context.Background())
+	memory, err := worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

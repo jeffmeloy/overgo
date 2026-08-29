@@ -2,7 +2,6 @@ package overgodb
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -83,7 +82,7 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 	defer store.Close()
 	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
 	content := artifact.Content{Descriptor: descriptor, Data: []byte(fixturePayload)}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/content-authority/v1", Contents: []artifact.Content{content},
 	}); err != nil {
 		t.Fatal(err)
@@ -91,7 +90,7 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 	descriptor.Schema = "fixture/canonical/v1"
 	record, _ := store.state.artifacts.record(descriptor.ID)
 	record.descriptor = descriptor
-	got, ok, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
+	got, ok, err := artifact.ReadContent(t.Context(), store, descriptor.ID)
 	if err != nil || !ok || got.Descriptor != descriptor || !slices.Equal(got.Data, content.Data) {
 		t.Fatalf("content = (%+v, %v, %v)", got, ok, err)
 	}
@@ -105,7 +104,7 @@ func TestMetadataSnapshot(t *testing.T) {
 	}
 	descriptor := fixtureDescriptor(t, artifact.KindEvidence, fixturePayload)
 	content := artifact.Content{Descriptor: descriptor, Data: []byte(fixturePayload)}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/lazy-content/v1", Contents: []artifact.Content{content},
 	}); err != nil {
 		t.Fatal(err)
@@ -114,7 +113,7 @@ func TestMetadataSnapshot(t *testing.T) {
 	if locator.size != int64(len(content.Data)) {
 		t.Fatalf("content locator = %+v", locator)
 	}
-	snapshot, err := store.Snapshot(context.Background())
+	snapshot, err := store.Snapshot(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +135,7 @@ func TestMetadataSnapshot(t *testing.T) {
 	if status := store.SnapshotReplay(); !status.Loaded || status.Path != filepath.Join(root, checkpointDirectory) || status.Fallback != "" {
 		t.Fatalf("snapshot replay = %+v", status)
 	}
-	gotDescriptor, reader, found, err := store.OpenContent(context.Background(), descriptor.ID)
+	gotDescriptor, reader, found, err := store.OpenContent(t.Context(), descriptor.ID)
 	if err != nil || !found || gotDescriptor != descriptor {
 		t.Fatalf("open content = (%+v, %v, %v)", gotDescriptor, found, err)
 	}
@@ -173,7 +172,7 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch := fixtureBatch(t)
-	commit, err := store.Commit(context.Background(), batch)
+	commit, err := store.Commit(t.Context(), batch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,15 +188,15 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	resolved, ok, err := store.ResolveAlias(context.Background(), fixtureAlias)
+	resolved, ok, err := store.ResolveAlias(t.Context(), fixtureAlias)
 	if err != nil || !ok || resolved != batch.Aliases[0].Target {
 		t.Fatalf("resolve = (%s, %v, %v)", resolved, ok, err)
 	}
-	parents, err := store.Parents(context.Background(), resolved)
+	parents, err := store.Parents(t.Context(), resolved)
 	if err != nil || len(parents) != 1 || parents[0] != batch.Lineage[0] {
 		t.Fatalf("parents = (%v, %v)", parents, err)
 	}
-	children, err := store.Children(context.Background(), batch.Lineage[0].Parent)
+	children, err := store.Children(t.Context(), batch.Lineage[0].Parent)
 	if err != nil || len(children) != 1 || children[0] != batch.Lineage[0] {
 		t.Fatalf("children = (%v, %v)", children, err)
 	}
@@ -205,7 +204,7 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 	if head != commit || sequence != 1 {
 		t.Fatalf("head = (%s, %d), want (%s, 1)", head, sequence, commit)
 	}
-	if _, err := store.Commit(context.Background(), batch); !errors.Is(err, ErrReadOnly) {
+	if _, err := store.Commit(t.Context(), batch); !errors.Is(err, ErrReadOnly) {
 		t.Fatalf("read-only commit error = %v", err)
 	}
 }
@@ -217,7 +216,7 @@ func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer writer.Close()
-	if _, err := writer.Commit(context.Background(), fixtureBatch(t)); err != nil {
+	if _, err := writer.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
 	reader, err := OpenReadOnly(root)
@@ -227,18 +226,18 @@ func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
 	defer reader.Close()
 
 	descriptor := fixtureDescriptor(t, artifact.KindOutput, fixturePayload)
-	if _, err := writer.Commit(context.Background(), artifact.Batch{
+	if _, err := writer.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/refresh/v1", Artifacts: []artifact.Descriptor{descriptor},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, found, err := reader.Artifact(context.Background(), descriptor.ID); err != nil || found {
+	if _, found, err := reader.Artifact(t.Context(), descriptor.ID); err != nil || found {
 		t.Fatalf("artifact before refresh = (%v, %v)", found, err)
 	}
-	if err := reader.Refresh(context.Background()); err != nil {
+	if err := reader.Refresh(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if got, found, err := reader.Artifact(context.Background(), descriptor.ID); err != nil || !found || got != descriptor {
+	if got, found, err := reader.Artifact(t.Context(), descriptor.ID); err != nil || !found || got != descriptor {
 		t.Fatalf("artifact after refresh = (%+v, %v, %v)", got, found, err)
 	}
 }
@@ -249,7 +248,7 @@ func TestReadOnlyRefreshRejectsFork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := writer.Commit(context.Background(), fixtureBatch(t)); err != nil {
+	if _, err := writer.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
 	if err := writer.Close(); err != nil {
@@ -286,7 +285,7 @@ func TestReadOnlyRefreshRejectsFork(t *testing.T) {
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := reader.Refresh(context.Background()); err == nil {
+	if err := reader.Refresh(t.Context()); err == nil {
 		t.Fatal("forked tail accepted")
 	}
 	if got, gotSequence := reader.Head(); got != head || gotSequence != sequence {
@@ -301,11 +300,11 @@ func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 	}
 	defer store.Close()
 	batch := fixtureBatch(t)
-	first, err := store.Commit(context.Background(), batch)
+	first, err := store.Commit(t.Context(), batch)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.Commit(context.Background(), batch)
+	second, err := store.Commit(t.Context(), batch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,12 +312,12 @@ func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 		t.Fatalf("idempotent commits differ: %s != %s", first, second)
 	}
 	slices.Reverse(batch.Artifacts)
-	third, err := store.Commit(context.Background(), batch)
+	third, err := store.Commit(t.Context(), batch)
 	if err != nil || third != first {
 		t.Fatalf("reordered commit = (%s, %v), want (%s, nil)", third, err, first)
 	}
 	batch.Artifacts[0].Schema = "changed"
-	if _, err := store.Commit(context.Background(), batch); !errors.Is(err, ErrBatchKeyConflict) {
+	if _, err := store.Commit(t.Context(), batch); !errors.Is(err, ErrBatchKeyConflict) {
 		t.Fatalf("changed batch error = %v", err)
 	}
 	_, sequence := store.Head()
@@ -334,7 +333,7 @@ func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
 	}
 	defer store.Close()
 	base := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), base); err != nil {
+	if _, err := store.Commit(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 	added := fixtureDescriptor(t, artifact.KindOutput, "delta-output")
@@ -351,7 +350,7 @@ func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
 	if !slices.Equal(delta.Artifacts, []artifact.Descriptor{added}) || len(delta.Lineage) != 0 {
 		t.Fatalf("delta = %+v", delta)
 	}
-	if _, err := store.Commit(context.Background(), request); err != nil {
+	if _, err := store.Commit(t.Context(), request); err != nil {
 		t.Fatal(err)
 	}
 	if committed, found := store.state.commit(request.Key); !found || committed.payload != requestDigest {
@@ -366,7 +365,7 @@ func TestRepeatedFactsDoNotAdvance(t *testing.T) {
 	}
 	defer store.Close()
 	base := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), base); err != nil {
+	if _, err := store.Commit(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 	head, sequence := store.Head()
@@ -376,7 +375,7 @@ func TestRepeatedFactsDoNotAdvance(t *testing.T) {
 	repeated.Aliases = []artifact.AliasBinding{{
 		Name: fixtureAlias, Target: previous, Previous: &previous,
 	}}
-	if _, err := store.Commit(context.Background(), repeated); !errors.Is(err, ErrNoChange) {
+	if _, err := store.Commit(t.Context(), repeated); !errors.Is(err, ErrNoChange) {
 		t.Fatalf("repeated commit error = %v, want ErrNoChange", err)
 	}
 	if current, currentSequence := store.Head(); current != head || currentSequence != sequence {
@@ -391,7 +390,7 @@ func TestFailedBatchPublishesNothing(t *testing.T) {
 	}
 	defer store.Close()
 	base := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), base); err != nil {
+	if _, err := store.Commit(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 	added := fixtureDescriptor(t, artifact.KindAdapter, "adapter")
@@ -403,10 +402,10 @@ func TestFailedBatchPublishesNothing(t *testing.T) {
 			Name: fixtureAlias, Target: added.ID, Previous: &wrong,
 		}},
 	}
-	if _, err := store.Commit(context.Background(), failed); !errors.Is(err, ErrAliasConflict) {
+	if _, err := store.Commit(t.Context(), failed); !errors.Is(err, ErrAliasConflict) {
 		t.Fatalf("failed batch error = %v", err)
 	}
-	if _, ok, err := store.Artifact(context.Background(), added.ID); err != nil || ok {
+	if _, ok, err := store.Artifact(t.Context(), added.ID); err != nil || ok {
 		t.Fatalf("failed artifact published: ok=%v err=%v", ok, err)
 	}
 	_, sequence := store.Head()
@@ -422,7 +421,7 @@ func TestAliasCompareAndSet(t *testing.T) {
 	}
 	defer store.Close()
 	base := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), base); err != nil {
+	if _, err := store.Commit(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 	next := fixtureDescriptor(t, artifact.KindModel, "next-model")
@@ -434,10 +433,10 @@ func TestAliasCompareAndSet(t *testing.T) {
 			Name: fixtureAlias, Target: next.ID, Previous: &previous,
 		}},
 	}
-	if _, err := store.Commit(context.Background(), update); err != nil {
+	if _, err := store.Commit(t.Context(), update); err != nil {
 		t.Fatal(err)
 	}
-	resolved, ok, err := store.ResolveAlias(context.Background(), fixtureAlias)
+	resolved, ok, err := store.ResolveAlias(t.Context(), fixtureAlias)
 	if err != nil || !ok || resolved != next.ID {
 		t.Fatalf("updated alias = (%s, %v, %v)", resolved, ok, err)
 	}
@@ -450,7 +449,7 @@ func TestAliasTransitionRequiresExpectedBinding(t *testing.T) {
 	}
 	defer store.Close()
 	base := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), base); err != nil {
+	if _, err := store.Commit(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 
@@ -460,10 +459,10 @@ func TestAliasTransitionRequiresExpectedBinding(t *testing.T) {
 		Artifacts: []artifact.Descriptor{next},
 		Aliases:   []artifact.AliasBinding{{Name: fixtureAlias, Target: next.ID}},
 	}
-	if _, err := store.Commit(context.Background(), withoutExpected); !errors.Is(err, ErrAliasConflict) {
+	if _, err := store.Commit(t.Context(), withoutExpected); !errors.Is(err, ErrAliasConflict) {
 		t.Fatalf("unguarded alias transition error = %v, want ErrAliasConflict", err)
 	}
-	if _, ok, err := store.Artifact(context.Background(), next.ID); err != nil || ok {
+	if _, ok, err := store.Artifact(t.Context(), next.ID); err != nil || ok {
 		t.Fatalf("failed transition published immutable content: ok=%v err=%v", ok, err)
 	}
 
@@ -471,10 +470,10 @@ func TestAliasTransitionRequiresExpectedBinding(t *testing.T) {
 	withExpected := withoutExpected
 	withExpected.Key = "fixture/alias/with-expected"
 	withExpected.Aliases[0].Previous = &previous
-	if _, err := store.Commit(context.Background(), withExpected); err != nil {
+	if _, err := store.Commit(t.Context(), withExpected); err != nil {
 		t.Fatal(err)
 	}
-	resolved, ok, err := store.ResolveAlias(context.Background(), fixtureAlias)
+	resolved, ok, err := store.ResolveAlias(t.Context(), fixtureAlias)
 	if err != nil || !ok || resolved != next.ID {
 		t.Fatalf("guarded alias transition = (%s, %v, %v)", resolved, ok, err)
 	}
@@ -487,17 +486,17 @@ func TestAliasCompareAndSetRetirement(t *testing.T) {
 	}
 	defer store.Close()
 	base := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), base); err != nil {
+	if _, err := store.Commit(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 	previous := base.Aliases[0].Target
 	retire := artifact.Batch{Key: "fixture/alias/retire", Aliases: []artifact.AliasBinding{{
 		Name: fixtureAlias, Target: previous, Previous: &previous, Remove: true,
 	}}}
-	if _, err := store.Commit(context.Background(), retire); err != nil {
+	if _, err := store.Commit(t.Context(), retire); err != nil {
 		t.Fatal(err)
 	}
-	if resolved, ok, err := store.ResolveAlias(context.Background(), fixtureAlias); err != nil || ok {
+	if resolved, ok, err := store.ResolveAlias(t.Context(), fixtureAlias); err != nil || ok {
 		t.Fatalf("retired alias = (%s, %v, %v)", resolved, ok, err)
 	}
 }
@@ -509,7 +508,7 @@ func TestLineageCycleRejected(t *testing.T) {
 	}
 	defer store.Close()
 	base := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), base); err != nil {
+	if _, err := store.Commit(t.Context(), base); err != nil {
 		t.Fatal(err)
 	}
 	reverse := artifact.Batch{
@@ -519,7 +518,7 @@ func TestLineageCycleRejected(t *testing.T) {
 			Relation: artifact.RelationDerivedFrom,
 		}},
 	}
-	if _, err := store.Commit(context.Background(), reverse); !errors.Is(err, ErrLineageCycle) {
+	if _, err := store.Commit(t.Context(), reverse); !errors.Is(err, ErrLineageCycle) {
 		t.Fatalf("cycle error = %v", err)
 	}
 }
@@ -540,7 +539,7 @@ func TestLineageCycleWithinBatchRejected(t *testing.T) {
 			{Child: second.ID, Parent: first.ID, Relation: artifact.RelationDerivedFrom},
 		},
 	}
-	if _, err := store.Commit(context.Background(), batch); !errors.Is(err, ErrLineageCycle) {
+	if _, err := store.Commit(t.Context(), batch); !errors.Is(err, ErrLineageCycle) {
 		t.Fatalf("cycle error = %v", err)
 	}
 }
@@ -573,7 +572,7 @@ func TestReadOnlyStoreCanOpenBesideWriter(t *testing.T) {
 	}
 	defer writer.Close()
 	batch := fixtureBatch(t)
-	if _, err := writer.Commit(context.Background(), batch); err != nil {
+	if _, err := writer.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	reader, err := OpenReadOnly(root)
@@ -581,7 +580,7 @@ func TestReadOnlyStoreCanOpenBesideWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reader.Close()
-	if _, ok, err := reader.Artifact(context.Background(), batch.Artifacts[0].ID); err != nil || !ok {
+	if _, ok, err := reader.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !ok {
 		t.Fatalf("read beside writer = (%v, %v)", ok, err)
 	}
 }
@@ -593,7 +592,7 @@ func TestTornTailRecovered(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -634,7 +633,7 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), fixtureBatch(t)); err != nil {
+	if _, err := store.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -673,7 +672,7 @@ func TestConcurrentCommitsSerialize(t *testing.T) {
 	defer store.Close()
 	var wait sync.WaitGroup
 	errorsByWorker := make(chan error, fixtureWorkerCount)
-	for worker := 0; worker < fixtureWorkerCount; worker++ {
+	for worker := range fixtureWorkerCount {
 		wait.Add(1)
 		go func(index int) {
 			defer wait.Done()
@@ -684,7 +683,7 @@ func TestConcurrentCommitsSerialize(t *testing.T) {
 				return
 			}
 			descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: fixtureMediaType}
-			_, err = store.Commit(context.Background(), artifact.Batch{
+			_, err = store.Commit(t.Context(), artifact.Batch{
 				Key:       fmt.Sprintf("fixture/worker/%d", index),
 				Artifacts: []artifact.Descriptor{descriptor},
 			})

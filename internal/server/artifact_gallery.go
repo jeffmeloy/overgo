@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"io"
@@ -24,7 +25,7 @@ type artifactGalleryResponse struct {
 	Count     int               `json:"count"`
 	Limit     int               `json:"limit"`
 	Truncated bool              `json:"truncated"`
-	Next      string            `json:"next,omitempty"`
+	Next      string            `json:"next,omitzero"`
 	Artifacts []artifactSummary `json:"artifacts"`
 }
 
@@ -86,9 +87,7 @@ func (h *Handler) artifactContent(response http.ResponseWriter, request *http.Re
 		return
 	}
 	mediaType := descriptor.MediaType
-	if mediaType == "" {
-		mediaType = "application/octet-stream"
-	}
+	mediaType = cmp.Or(mediaType, "application/octet-stream")
 	response.Header().Set("Content-Type", mediaType)
 	response.Header().Set("Content-Length", strconv.FormatUint(descriptor.Size, 10))
 	response.WriteHeader(http.StatusOK)

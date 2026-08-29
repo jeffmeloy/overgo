@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -81,7 +80,7 @@ func TestRecursiveImprovementLineageAndExternalPromotion(t *testing.T) {
 	if _, err := decision.Batch("fixture/improvement/decision"); err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

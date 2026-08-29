@@ -57,7 +57,7 @@ func TestVideoProductionActivation(t *testing.T) {
 	}
 	defer store.Close()
 	publishArtifactExtent(t, store, modelID, edit)
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "test/video-profile", Contents: []artifact.Content{profileContent},
 	}); err != nil {
 		t.Fatal(err)

@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"image"
 	"image/color"
 	"slices"
@@ -37,7 +36,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 	}
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	output, err := runner.EncodeImage(context.Background(), input, RasterPatchOptions{
+	output, err := runner.EncodeImage(t.Context(), input, RasterPatchOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -56,7 +55,7 @@ func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
-	projector, err := OpenAs[Projector](context.Background(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
+	projector, err := OpenAs[Projector](t.Context(), writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +74,7 @@ func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
 	first := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	second := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		context.Background(), paddleOCRPromptTokenizer{}, []image.Image{first, second},
+		t.Context(), paddleOCRPromptTokenizer{}, []image.Image{first, second},
 		[]string{"OCR:", " and ", "Table Recognition:"}, PromptOptions{},
 	)
 	if err != nil {
@@ -128,17 +127,17 @@ func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 8; x++ {
+	for y := range 4 {
+		for x := range 8 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
 	options := RasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
-	want, err := cpu.EncodeImage(context.Background(), input, options)
+	want, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := cuda.EncodeImage(context.Background(), input, options)
+	got, err := cuda.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}

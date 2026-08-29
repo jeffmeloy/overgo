@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"context"
 	"reflect"
 	"slices"
 	"testing"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestScheduleByArtifactLocality(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

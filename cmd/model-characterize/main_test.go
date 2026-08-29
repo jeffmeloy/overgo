@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,7 +26,7 @@ func TestCharacterizeCatalogEmptyStore(t *testing.T) {
 	defer store.Close()
 
 	count, err := characterizeCatalog(
-		context.Background(), store, 4096,
+		t.Context(), store, 4096,
 		modelartifact.MeasurementPolicy{MaxSamplesPerTensor: 256, MaxReadBytes: 1 << 20},
 	)
 	if err != nil {

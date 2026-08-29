@@ -23,7 +23,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "terminal-operation")
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-capability-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "terminal-capability-schema")
@@ -163,7 +163,7 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-reference-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "terminal-reference-schema")
@@ -402,7 +402,7 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-recovery-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "terminal-recovery-schema")

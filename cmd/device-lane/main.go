@@ -86,13 +86,12 @@ func splitPaths(csv string) []string {
 
 func deviceHeartbeat(step []string, index, total int, began time.Time, done <-chan struct{}, stopped chan<- struct{}) {
 	defer close(stopped)
-	ticker := time.NewTicker(runrecord.DefaultHeartbeatStaleAfter / 2)
-	defer ticker.Stop()
+	ticker := time.Tick(runrecord.DefaultHeartbeatStaleAfter / 2)
 	for {
 		select {
 		case <-done:
 			return
-		case <-ticker.C:
+		case <-ticker:
 			fmt.Println(deviceProgress(step, index, total, time.Since(began)))
 		}
 	}

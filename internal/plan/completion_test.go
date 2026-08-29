@@ -87,7 +87,7 @@ func newCompletionFixture(t *testing.T, parent Plan, item, step string) *complet
 	if err != nil {
 		t.Fatal(err)
 	}
-	preparationCommit, err := store.Commit(context.Background(), artifact.Batch{
+	preparationCommit, err := store.Commit(t.Context(), artifact.Batch{
 		Key:      "completion/prepared/" + preparation.ID.String(),
 		Contents: []artifact.Content{environmentContent, preparationContent},
 		Lineage:  preparation.Lineage(),
@@ -252,7 +252,7 @@ func publishCompletionAttemptWithManifestAnalysis(
 	atomicAnalysis bool,
 ) runrecord.AttemptRecord {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	environment := preparation.Environment
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "completion/dependencies/" + commit,
@@ -541,7 +541,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 	})
 	t.Run("foreign valid preparation introduction commit", func(t *testing.T) {
 		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		foreign, err := fixture.store.Commit(context.Background(), artifact.Batch{
+		foreign, err := fixture.store.Commit(t.Context(), artifact.Batch{
 			Key: "completion/foreign-preparation-commit",
 			Artifacts: []artifact.Descriptor{{
 				ID: testutil.ArtifactID(t, artifact.KindEvidence, "foreign-preparation-commit"),
@@ -662,7 +662,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		source.commit(source.canonicalMessage(), true)
 		other := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 		if _, err := ResolveCompletionAuthority(
-			context.Background(), other.repository, "HEAD", source.child, source.store,
+			t.Context(), other.repository, "HEAD", source.child, source.store,
 		); err == nil || !strings.Contains(err.Error(), "lacks gated ancestor") {
 			t.Fatalf("cross-repository completion evidence error = %v", err)
 		}

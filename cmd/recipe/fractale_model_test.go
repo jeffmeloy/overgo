@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"

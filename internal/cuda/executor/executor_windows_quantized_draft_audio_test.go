@@ -270,7 +270,7 @@ func TestExecutorUsesPersistentDeviceFeed(t *testing.T) {
 	output := builder.Add(left, right)
 	rightValue, _ := reference.NewValue(shape, []float32{10, 20, 30, 40})
 	got, err := cuda.executeWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{right: rightValue},
 		map[*tensor.Tensor]driver.DevicePtr{left: pointer},
@@ -291,7 +291,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 	storage := make([]byte, 68)
 	binary.LittleEndian.PutUint16(storage[0:], 0x3800)  // 0.5
 	binary.LittleEndian.PutUint16(storage[34:], 0x3800) // 0.5
-	for index := 0; index < q8FixtureBlockSize; index++ {
+	for index := range q8FixtureBlockSize {
 		storage[2+index] = byte(int8(index - 16))
 		storage[36+index] = 2
 	}
@@ -315,7 +315,7 @@ func TestExecutorQ8DeviceEmbeddingAndMulMat(t *testing.T) {
 	}
 	inputValue, _ := reference.NewValue(input.Shape, inputData)
 	results, err := cuda.executeWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{rows, dynamicRows, product},
 		map[*tensor.Tensor]reference.Value{
 			input:   inputValue,
@@ -346,9 +346,9 @@ func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {
 	cudatest.Require(t)
 	worker := newFixtureWorker(t)
 	storage := make([]byte, 420)
-	for row := 0; row < 2; row++ {
+	for row := range 2 {
 		offset := row * 210
-		for index := 0; index < 16; index++ {
+		for index := range 16 {
 			storage[offset+192+index] = 1
 		}
 		binary.LittleEndian.PutUint16(storage[offset+208:], 0x3c00)
@@ -371,7 +371,7 @@ func TestExecutorQ6KDeviceEmbeddingAndMulMat(t *testing.T) {
 	}
 	inputValue, _ := reference.NewValue(input.Shape, ones)
 	results, err := cuda.executeWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{rows, product},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
 		map[*tensor.Tensor]driver.DevicePtr{weights: pointer},
@@ -467,10 +467,10 @@ func testExecutorSmallQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type)
 		t.Fatalf("missing traits for %s", dataType)
 	}
 	storage := make([]byte, int(traits.TypeSize)*2)
-	for row := 0; row < 2; row++ {
+	for row := range 2 {
 		offset := row * int(traits.TypeSize)
 		if dataType == dtype.NVFP4 {
-			for index := 0; index < 4; index++ {
+			for index := range 4 {
 				storage[offset+index] = byte(64 + row + index)
 			}
 			for index := 4; index < int(traits.TypeSize); index++ {
@@ -510,7 +510,7 @@ func testExecutorSmallQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type)
 	}
 	inputValue, _ := reference.NewValue(input.Shape, ones)
 	results, err := cuda.executeWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{rows, product},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
 		map[*tensor.Tensor]driver.DevicePtr{weights: pointer},
@@ -536,7 +536,7 @@ func testExecutorClassicQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Typ
 		t.Fatalf("missing traits for %s", dataType)
 	}
 	storage := make([]byte, int(traits.TypeSize)*2)
-	for row := 0; row < 2; row++ {
+	for row := range 2 {
 		offset := row * int(traits.TypeSize)
 		binary.LittleEndian.PutUint16(storage[offset:], uint16(0x3800+row*0x0400))
 		quantizedOffset := 2
@@ -551,18 +551,18 @@ func testExecutorClassicQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Typ
 			binary.LittleEndian.PutUint16(storage[offset+2:], uint16(0xbc00+row*0x0400))
 			quantizedOffset = 4
 		case dtype.Q5_0:
-			for index := 0; index < 4; index++ {
+			for index := range 4 {
 				storage[offset+2+index] = byte(index*37 + row)
 			}
 			quantizedOffset = 6
 		case dtype.Q5_1:
 			binary.LittleEndian.PutUint16(storage[offset+2:], uint16(0xbc00+row*0x0400))
-			for index := 0; index < 4; index++ {
+			for index := range 4 {
 				storage[offset+4+index] = byte(index*37 + row)
 			}
 			quantizedOffset = 8
 		}
-		for index := 0; index < 16; index++ {
+		for index := range 16 {
 			storage[offset+quantizedOffset+index] = byte(index | (15-index)<<4)
 		}
 	}
@@ -589,7 +589,7 @@ func testExecutorClassicQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Typ
 	}
 	inputValue, _ := reference.NewValue(input.Shape, ones)
 	results, err := cuda.executeWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{rows, product},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
 		map[*tensor.Tensor]driver.DevicePtr{weights: pointer},
@@ -615,11 +615,11 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 		t.Fatalf("missing traits for %s", dataType)
 	}
 	storage := make([]byte, int(traits.TypeSize)*2)
-	for row := 0; row < 2; row++ {
+	for row := range 2 {
 		offset := row * int(traits.TypeSize)
 		switch dataType {
 		case dtype.TQ1_0:
-			for index := 0; index < 52; index++ {
+			for index := range 52 {
 				storage[offset+index] = byte(index*13 + row)
 			}
 			binary.LittleEndian.PutUint16(
@@ -627,7 +627,7 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 				uint16(0x3800+row*0x0400),
 			)
 		case dtype.TQ2_0:
-			for index := 0; index < 64; index++ {
+			for index := range 64 {
 				storage[offset+index] = byte(index*13 + row)
 			}
 			binary.LittleEndian.PutUint16(
@@ -639,16 +639,16 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 				storage[offset:],
 				math.Float32bits(0.25+float32(row)*0.25),
 			)
-			for index := 0; index < 256; index++ {
+			for index := range 256 {
 				storage[offset+4+index] = byte(int8((index+row)%127 - 63))
 			}
 		case dtype.IQ4XS:
 			binary.LittleEndian.PutUint16(storage[offset:], 0x3800)
 			binary.LittleEndian.PutUint16(storage[offset+2:], uint16(0xaaaa+row))
-			for index := 0; index < 4; index++ {
+			for index := range 4 {
 				storage[offset+4+index] = byte(index*17 + row)
 			}
-			for index := 0; index < 128; index++ {
+			for index := range 128 {
 				storage[offset+8+index] = byte(index*11 + row)
 			}
 		case dtype.IQ2XXS, dtype.IQ2XS, dtype.IQ2S,
@@ -675,22 +675,22 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 				storage[offset+55] &= 0x0f
 			}
 		case dtype.Q2K:
-			for index := 0; index < 16; index++ {
+			for index := range 16 {
 				storage[offset+index] = byte(0x21 + row)
 			}
-			for index := 0; index < 64; index++ {
+			for index := range 64 {
 				storage[offset+16+index] = byte((index + row) % 4)
 			}
 			binary.LittleEndian.PutUint16(storage[offset+80:], 0x3c00)
 			binary.LittleEndian.PutUint16(storage[offset+82:], 0x3c00)
 		case dtype.Q3K:
-			for index := 0; index < 32; index++ {
+			for index := range 32 {
 				storage[offset+index] = byte(index*3 + row)
 			}
-			for index := 0; index < 64; index++ {
+			for index := range 64 {
 				storage[offset+32+index] = byte(index*5 + row)
 			}
-			for index := 0; index < 12; index++ {
+			for index := range 12 {
 				storage[offset+96+index] = byte(index*7 + row)
 			}
 			binary.LittleEndian.PutUint16(storage[offset+108:], 0x3c00)
@@ -704,7 +704,7 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 				quantizedOffset = 48
 				storage[offset+16] = byte(row)
 			}
-			for index := 0; index < 32; index++ {
+			for index := range 32 {
 				storage[offset+quantizedOffset+index] = byte(index % 16)
 			}
 		}
@@ -732,7 +732,7 @@ func testExecutorKQuantEmbeddingAndMulMat(t *testing.T, dataType dtype.Type) {
 	}
 	inputValue, _ := reference.NewValue(input.Shape, ones)
 	results, err := cuda.executeWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{rows, product},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
 		map[*tensor.Tensor]driver.DevicePtr{weights: pointer},

@@ -102,6 +102,25 @@ func TestVerifyGoTestEvidenceWithoutRun(t *testing.T) {
 	}
 }
 
+func TestVerifyGoTestEvidenceClassifiesExplicitShortExclusions(t *testing.T) {
+	passing := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestOne\"}\n" +
+		"{\"Action\":\"pass\",\"Package\":\"x\"}\n"
+	classified := fmt.Sprintf(
+		"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestIntegration\",\"Output\":%q}\n"+
+			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestIntegration\"}\n",
+		ShortIntegrationSkip+"\n",
+	)
+	if err := VerifyGoTestEvidence("go test -race -short ./x", passing+classified); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyGoTestEvidence("go test -race ./x", passing+classified); err == nil {
+		t.Fatal("non-short verifier accepted a short exclusion")
+	}
+	if err := VerifyGoTestEvidence("go test -race -short ./x", passing+"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n"); err == nil {
+		t.Fatal("short verifier accepted an unclassified skip")
+	}
+}
+
 func TestVerifyGoTestEvidenceMixedCommand(t *testing.T) {
 	passing := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestOne\"}\n" +
 		"{\"Action\":\"pass\",\"Package\":\"x\"}\n"

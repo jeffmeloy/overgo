@@ -8,7 +8,7 @@ import (
 // Symbol is one package function or method owned by a check.
 type Symbol struct {
 	Package  string `json:"package"`
-	Receiver string `json:"receiver,omitempty"`
+	Receiver string `json:"receiver,omitzero"`
 	Name     string `json:"name"`
 }
 

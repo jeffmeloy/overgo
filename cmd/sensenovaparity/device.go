@@ -152,7 +152,7 @@ func runDevice(l *parity.Campaign, modelDir, fixturesDir string) error {
 		// (H,W) rasterization (image block) exactly as compileCausalPrefixInput.
 		const tokenWidth = 4
 		mask := []int{0, 0, 0}
-		for i := 0; i < tokenWidth*tokenWidth; i++ {
+		for range tokenWidth * tokenWidth {
 			mask = append(mask, 1)
 		}
 		mask = append(mask, 0, 0)
@@ -329,7 +329,7 @@ func runDevice(l *parity.Campaign, modelDir, fixturesDir string) error {
 		mid := b.BF16Round(b.Add(b.MulMat(w0, hiddenT), b0))
 		mid = b.BF16Round(b.GELUErf(mid))
 		out := b.BF16Round(b.Add(b.MulMat(w2, mid), b2))
-		denom := float32(math.Max(1-0, flowPlan.TEps))
+		denom := float32(max(1-0, flowPlan.TEps))
 		vel := b.BF16Round(b.Scale(b.Add(out, b.Scale(zT, -1)), 1/denom))
 		compiled, err := executor.Compile(vel)
 		if err != nil {
@@ -375,13 +375,13 @@ func runDevice(l *parity.Campaign, modelDir, fixturesDir string) error {
 
 		// measurement: denoise-step TERMINAL latency (flow head over 64 tokens).
 		const warm, iters = 3, 30
-		for i := 0; i < warm; i++ {
+		for range warm {
 			if _, err := exe.ExecuteCompiled(ctx, compiled, host, inputs); err != nil {
 				return "", math.NaN(), "", err
 			}
 		}
 		start := time.Now()
-		for i := 0; i < iters; i++ {
+		for range iters {
 			if _, err := exe.ExecuteCompiled(ctx, compiled, host, inputs); err != nil {
 				return "", math.NaN(), "", err
 			}

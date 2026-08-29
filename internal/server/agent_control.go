@@ -52,7 +52,7 @@ type AgentInventoryEntry struct {
 	Datasets    []artifact.ID               `json:"datasets,omitempty"`
 	Automations []AgentAutomationAttachment `json:"automations,omitempty"`
 	Policies    []artifact.ID               `json:"policies"`
-	Refusal     string                      `json:"refusal,omitempty"`
+	Refusal     string                      `json:"refusal,omitzero"`
 }
 
 // AgentObservable is a structured tool event; model hidden reasoning is never projected.
@@ -73,7 +73,7 @@ type AgentToolCallObservable struct {
 // AgentToolResultObservable projects one durable tool result without model reasoning.
 type AgentToolResultObservable struct {
 	ToolCallID string `json:"tool_call_id"`
-	Error      bool   `json:"error,omitempty"`
+	Error      bool   `json:"error,omitzero"`
 }
 
 type agentDefinitionRequest struct {
@@ -96,8 +96,8 @@ type agentRetrievalRequest struct {
 type agentAutomationRequest struct {
 	Agent       string                     `json:"agent"`
 	Automation  artifact.ID                `json:"automation"`
-	Key         string                     `json:"key,omitempty"`
-	Destination string                     `json:"destination,omitempty"`
+	Key         string                     `json:"key,omitzero"`
+	Destination string                     `json:"destination,omitzero"`
 	Inputs      map[string]json.RawMessage `json:"inputs"`
 }
 

@@ -183,7 +183,7 @@ func (s *Source) Names() []string {
 	for name := range s.Tensors {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 
@@ -228,7 +228,7 @@ func (s *Source) Shards() []string {
 	for shard := range seen {
 		shards = append(shards, shard)
 	}
-	sort.Strings(shards)
+	slices.Sort(shards)
 	return shards
 }
 
@@ -323,7 +323,7 @@ func shardPaths(directory string, limits Limits) ([]string, map[string]string, e
 	for name := range shards {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	paths := make([]string, len(names))
 	for index, name := range names {
 		paths[index] = shards[name]
@@ -372,7 +372,7 @@ func unindexedShardPaths(directory string, limits Limits) ([]string, map[string]
 			paths = append(paths, path)
 		}
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	if len(paths) == 0 {
 		return nil, nil, errors.New("safetensors: no .safetensors files found")
 	}

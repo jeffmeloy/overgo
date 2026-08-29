@@ -40,7 +40,7 @@ type HarnessSurfaceRegression struct {
 	Metric string `json:"metric"`
 	Base   int    `json:"base"`
 	Value  int    `json:"value"`
-	Detail string `json:"detail,omitempty"`
+	Detail string `json:"detail,omitzero"`
 }
 
 type harnessLayer uint8

@@ -167,16 +167,16 @@ func attentionWeights(capture inference.AttentionCapture, tokens int) ([][][]flo
 
 	weights := make([][][]float64, heads)
 	logits := make([]float64, tokens)
-	for head := 0; head < heads; head++ {
+	for head := range heads {
 		kvHead := head / group
 		matrix := make([][]float64, tokens)
-		for queryPos := 0; queryPos < tokens; queryPos++ {
+		for queryPos := range tokens {
 			row := make([]float64, tokens)
 			// Causal: query at position i attends to keys 0..i only.
 			maxLogit := math.Inf(-1)
 			for keyPos := 0; keyPos <= queryPos; keyPos++ {
 				dot := 0.0
-				for d := 0; d < headDim; d++ {
+				for d := range headDim {
 					q := float64(query[d+head*headDim+queryPos*headDim*heads])
 					k := float64(key[d+kvHead*headDim+keyPos*headDim*kvHeads])
 					if math.IsNaN(q) || math.IsInf(q, 0) || math.IsNaN(k) || math.IsInf(k, 0) {

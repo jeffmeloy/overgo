@@ -157,23 +157,23 @@ func validateRemoteMediaPolicy(policy *RemoteMediaPolicy) error {
 
 func normalizeAllowedHost(value string) (string, error) {
 	value = strings.ToLower(strings.TrimSpace(value))
-	if strings.HasSuffix(value, ".") {
-		value = strings.TrimSuffix(value, ".")
+	if before, ok := strings.CutSuffix(value, "."); ok {
+		value = before
 	}
 	if address, err := netip.ParseAddr(value); err == nil {
 		return address.Unmap().String(), nil
 	}
-	if strings.HasPrefix(value, "*.") {
+	if host, ok := strings.CutPrefix(value, "*."); ok {
 		if strings.Count(value, "*") != 1 {
 			return "", errors.New("wildcard must be one leading '*.'")
 		}
-		value = "*." + strings.TrimPrefix(value, "*.")
+		value = "*." + host
 	}
-	host := strings.TrimPrefix(value, "*.")
+	host, _ := strings.CutPrefix(value, "*.")
 	if host == "" || len(host) > maxRemoteMediaHostBytes || strings.ContainsAny(host, "/:@?#%") {
 		return "", errors.New("host pattern is invalid")
 	}
-	for _, label := range strings.Split(host, ".") {
+	for label := range strings.SplitSeq(host, ".") {
 		if label == "" || len(label) > maxRemoteMediaLabelBytes || label[0] == '-' || label[len(label)-1] == '-' {
 			return "", errors.New("host label is invalid")
 		}

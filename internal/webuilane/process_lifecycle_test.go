@@ -1,7 +1,6 @@
 package webuilane
 
 import (
-	"context"
 	"runtime"
 	"testing"
 
@@ -16,11 +15,11 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		path, args = "cmd", []string{"/c", "exit 0"}
 	}
-	supervised, err := processcontrol.Start(context.Background(), processcontrol.Command{Path: path, Args: args})
+	supervised, err := processcontrol.Start(t.Context(), processcontrol.Command{Path: path, Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := waitDevToolsPort(context.Background(), t.TempDir(), supervised); err == nil {
+	if _, err := waitDevToolsPort(t.Context(), t.TempDir(), supervised); err == nil {
 		t.Fatal("exited browser reported a DevTools port")
 	}
 }

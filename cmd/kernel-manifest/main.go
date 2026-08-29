@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -158,7 +157,7 @@ func run(root string, update bool) error {
 		}
 		gotFunctions := ptxEntries(assetData)
 		wantFunctions := append([]string(nil), item.Functions...)
-		sort.Strings(wantFunctions)
+		slices.Sort(wantFunctions)
 		if !slices.Equal(gotFunctions, wantFunctions) {
 			return fmt.Errorf(
 				"kernel manifest: PTX entries for %q differ: got %v want %v",
@@ -247,7 +246,7 @@ func ptxEntries(data []byte) []string {
 	for index, match := range matches {
 		result[index] = string(match[1])
 	}
-	sort.Strings(result)
+	slices.Sort(result)
 	return result
 }
 

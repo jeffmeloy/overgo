@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)

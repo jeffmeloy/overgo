@@ -158,8 +158,8 @@ func (r *patchPermutationReader) Read(destination []byte) (int, error) {
 			return written, err
 		}
 		area := r.width / rgbChannelCount
-		for pixel := 0; pixel < area; pixel++ {
-			for channel := 0; channel < rgbChannelCount; channel++ {
+		for pixel := range area {
+			for channel := range rgbChannelCount {
 				sourceOffset := (pixel*rgbChannelCount + channel) * bf16StorageBytes
 				destinationOffset := (channel*area + pixel) * bf16StorageBytes
 				copy(

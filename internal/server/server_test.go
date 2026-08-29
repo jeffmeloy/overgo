@@ -290,9 +290,9 @@ func (g *reasoningGenerator) ParseChatOutput(
 		return g.fakeGenerator.ParseChatOutput(output, tools)
 	}
 	message := inference.ChatMessage{Role: "assistant", Content: output}
-	if closeIndex := strings.Index(output, "</think>"); closeIndex >= 0 {
-		message.ReasoningContent = strings.TrimSpace(output[:closeIndex])
-		message.Content = strings.TrimSpace(output[closeIndex+len("</think>"):])
+	if before, after, ok := strings.Cut(output, "</think>"); ok {
+		message.ReasoningContent = strings.TrimSpace(before)
+		message.Content = strings.TrimSpace(after)
 	}
 	return message, nil
 }
@@ -639,17 +639,24 @@ func TestServerRequestTimeoutCancelsGeneration(t *testing.T) {
 	}
 }
 
-func TestTimeoutCauseClassification(t *testing.T) {
+func TestWrappedErrorClassification(t *testing.T) {
 	ctx, cancel := context.WithTimeoutCause(t.Context(), time.Millisecond, errRequestTimeoutCause)
 	defer cancel()
 	<-ctx.Done()
-	if cause := context.Cause(ctx); !errors.Is(cause, errRequestTimeoutCause) {
+	cause := context.Cause(ctx)
+	if !errors.Is(cause, errRequestTimeoutCause) {
 		t.Fatalf("timeout cause = %v", cause)
 	}
-	response := httptest.NewRecorder()
-	writeGenerationError(response, context.Cause(ctx))
-	if response.Code != http.StatusRequestTimeout || !strings.Contains(response.Body.String(), `"request_cancelled"`) {
-		t.Fatalf("timeout classification = %d %s", response.Code, response.Body.String())
+	for name, classified := range map[string]error{
+		"direct":  cause,
+		"wrapped": fmt.Errorf("generation boundary: %w", cause),
+		"joined":  errors.Join(errors.New("secondary cleanup failure"), cause),
+	} {
+		response := httptest.NewRecorder()
+		writeGenerationError(response, classified)
+		if response.Code != http.StatusRequestTimeout || !strings.Contains(response.Body.String(), `"request_cancelled"`) {
+			t.Fatalf("%s timeout classification = %d %s", name, response.Code, response.Body.String())
+		}
 	}
 }
 
@@ -1298,9 +1305,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 	var wait sync.WaitGroup
 	responses := make([]*httptest.ResponseRecorder, 2)
 	for index := range responses {
-		wait.Add(1)
-		go func(index int) {
-			defer wait.Done()
+		wait.Go(func() {
 			request := httptest.NewRequest(
 				http.MethodPost,
 				"/v1/completions",
@@ -1309,7 +1314,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 			request.Header.Set("Authorization", testBearerToken)
 			responses[index] = httptest.NewRecorder()
 			handler.ServeHTTP(responses[index], request)
-		}(index)
+		})
 	}
 	deadline := time.Now().Add(time.Second)
 	for handler.sessions.Available() != 0 && time.Now().Before(deadline) {

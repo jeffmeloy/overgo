@@ -73,7 +73,7 @@ func routeTopK(x, router []float32, rows, hidden, experts int, policy MoERouterP
 	}
 	scores := make([]float32, rows*experts)
 	hostmath.Linear(scores, x, router, rows, hidden, experts)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := scores[r*experts : (r+1)*experts]
 		switch policy.Scoring {
 		case MoEScoringSoftmax:
@@ -88,7 +88,7 @@ func routeTopK(x, router []float32, rows, hidden, experts int, policy MoERouterP
 	}
 	route := moeRoute{indices: make([]int, rows*policy.TopK), weights: make([]float32, rows*policy.TopK)}
 	used := make([]bool, experts)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := scores[r*experts : (r+1)*experts]
 		clear(used)
 		var selectedSum float64
@@ -144,7 +144,7 @@ func moeForward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPol
 		return nil, moeRoute{}, err
 	}
 	out := make([]float32, rows*hidden)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := x[r*hidden : (r+1)*hidden]
 		for k := 0; k < policy.TopK; k++ {
 			position := r*policy.TopK + k

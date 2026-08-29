@@ -47,7 +47,7 @@ func TestDenoiserProgramCUDAMatchesReference(t *testing.T) {
 	}
 	defer exec.Close()
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
-		return exec.Execute(context.Background(), outputs, feeds)
+		return exec.Execute(context.WithoutCancel(t.Context()), outputs, feeds)
 	}
 	got, err := prog.Forward(cudaRun, d, latent, enc, sigma)
 	if err != nil {

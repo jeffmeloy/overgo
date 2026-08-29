@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -12,7 +11,7 @@ import (
 func TestEncoderDecoderBatchRejectsInvalidSourceMask(t *testing.T) {
 	runner := &Runner{}
 	_, _, err := runner.DecodeEncoderDecoderBatch(
-		context.Background(),
+		t.Context(),
 		&EncoderDecoderBatchSession{Sequences: []*EncoderDecoderSession{{}}},
 		tokenizer.PaddedBatch{
 			Tokens: [][]tokenizer.TokenID{{1}}, Lengths: []uint32{1},

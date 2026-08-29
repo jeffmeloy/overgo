@@ -416,8 +416,7 @@ func TestCompileModelPlanBoundsAndArchitecture(t *testing.T) {
 		t.Fatal("out-of-range layer accepted")
 	}
 	_, err = compileFixtureModelPlan(Spec{CommonSpec: CommonSpec{Architecture: "missing"}}, Weights{})
-	var unsupported *UnsupportedArchitectureError
-	if !errors.As(err, &unsupported) {
+	if _, ok := errors.AsType[*UnsupportedArchitectureError](err); !ok {
 		t.Fatalf("error = %v", err)
 	}
 }

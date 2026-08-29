@@ -1,7 +1,6 @@
 package modelswap
 
 import (
-	"context"
 	"runtime"
 	"testing"
 	"time"
@@ -17,13 +16,13 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		path, args = "cmd", []string{"/c", "ping -n 60 127.0.0.1 >nul"}
 	}
-	supervised, err := processcontrol.Start(context.Background(), processcontrol.Command{Path: path, Args: args})
+	supervised, err := processcontrol.Start(t.Context(), processcontrol.Command{Path: path, Args: args})
 	if err != nil {
 		t.Fatal(err)
 	}
 	exited := make(chan error, 1)
 	go func() {
-		_, waitErr := supervised.Wait(context.Background())
+		_, waitErr := supervised.Wait(t.Context())
 		exited <- waitErr
 		close(exited)
 	}()

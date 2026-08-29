@@ -224,7 +224,7 @@ const (
 
 type mcpRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      string          `json:"id,omitempty"`
+	ID      string          `json:"id,omitzero"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params,omitempty"`
 }
@@ -251,7 +251,7 @@ type mcpInitializeResult struct {
 	ProtocolVersion string          `json:"protocolVersion"`
 	Capabilities    json.RawMessage `json:"capabilities"`
 	ServerInfo      json.RawMessage `json:"serverInfo"`
-	Instructions    string          `json:"instructions,omitempty"`
+	Instructions    string          `json:"instructions,omitzero"`
 }
 
 type mcpResponse struct {

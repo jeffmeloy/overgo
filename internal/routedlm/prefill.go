@@ -152,8 +152,8 @@ func RenderVisionQAPrompt(tok Encoder, specials PromptSpecials, question string,
 		return nil, fmt.Errorf("routed lm vqa prompt: invalid grid h=%d w=%d merge=%d", gridH, gridW, merge)
 	}
 	ids := []int{specials.BOS, specials.User, specials.ImageStart}
-	for row := 0; row < gridH/merge; row++ {
-		for col := 0; col < gridW/merge; col++ {
+	for range gridH / merge {
+		for range gridW / merge {
 			ids = append(ids, specials.Image)
 		}
 		ids = append(ids, specials.NewLine)

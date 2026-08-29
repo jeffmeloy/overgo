@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
@@ -196,7 +197,7 @@ func findSplitFile(subsetRoot, base, split string) (path, revision string, found
 				names = append(names, fingerprint.Name())
 			}
 		}
-		sort.Strings(names)
+		slices.Sort(names)
 		for _, fingerprint := range names {
 			candidate := filepath.Join(subsetRoot, version.Name(), fingerprint, wanted)
 			if _, err := os.Stat(candidate); err == nil {

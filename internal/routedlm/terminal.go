@@ -68,7 +68,7 @@ func streamedArgmaxDot(terminal TerminalWeights, cfg Config, vector []float32) (
 		if _, err := terminal.Head.ReadAt(chunk, int64(start)*int64(rowBytes)); err != nil {
 			return 0, 0, fmt.Errorf("routed lm terminal head read: %w", err)
 		}
-		for row := 0; row < count; row++ {
+		for row := range count {
 			rowRaw := chunk[row*rowBytes : (row+1)*rowBytes]
 			var sum float64
 			if elemBytes == 2 {

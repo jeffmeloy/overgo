@@ -63,7 +63,7 @@ type LifecycleEvent struct {
 	Recipe        artifact.ID   `json:"recipe"`
 	Model         artifact.ID   `json:"model"`
 	Task          Task          `json:"task"`
-	From          Status        `json:"from,omitempty"`
+	From          Status        `json:"from,omitzero"`
 	To            Status        `json:"to"`
 	PreviousEvent *artifact.ID  `json:"previous_event,omitempty"`
 	Supersedes    *artifact.ID  `json:"supersedes,omitempty"`
@@ -75,7 +75,7 @@ type lifecycleBody struct {
 	Recipe        artifact.ID   `json:"recipe"`
 	Model         artifact.ID   `json:"model"`
 	Task          Task          `json:"task"`
-	From          Status        `json:"from,omitempty"`
+	From          Status        `json:"from,omitzero"`
 	To            Status        `json:"to"`
 	PreviousEvent *artifact.ID  `json:"previous_event,omitempty"`
 	Supersedes    *artifact.ID  `json:"supersedes,omitempty"`

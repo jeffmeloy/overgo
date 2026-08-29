@@ -1,6 +1,7 @@
 package sampling
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math"
@@ -46,14 +47,14 @@ func (s *Sampler) SpeculativeSample(
 	targetProbability := target[proposed]
 	accepted := targetProbability >= draftProbability
 	if len(candidates) > 1 {
-		accepted = s.random.Float64() < math.Min(1, targetProbability/draftProbability)
+		accepted = s.random.Float64() < min(1, targetProbability/draftProbability)
 	}
 	chosen := proposed
 	if !accepted {
 		residual := make([]candidate, 0, len(candidates))
 		var residualTotal float64
 		for _, item := range candidates {
-			probability := math.Max(0, target[item.id]-draftDense[item.id])
+			probability := max(0, target[item.id]-draftDense[item.id])
 			if probability == 0 {
 				continue
 			}
@@ -169,9 +170,7 @@ func (s *Sampler) speculativeMirostatCandidates(logits []float32) ([]candidate, 
 			}
 			keep = index + 1
 		}
-		if keep == 0 {
-			keep = 1
-		}
+		keep = cmp.Or(keep, 1)
 	}
 	candidates = candidates[:keep]
 	total = 0

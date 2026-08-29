@@ -98,7 +98,7 @@ func philox4x32x10(counter philoxCounter, seed uint64) (uint32, uint32, uint32, 
 		bumpB       = 0xBB67AE85
 	)
 	keyA, keyB := uint32(seed), uint32(seed>>32)
-	for round := 0; round < 10; round++ {
+	for range 10 {
 		productA := uint64(multiplierA) * uint64(counter.x)
 		productB := uint64(multiplierB) * uint64(counter.z)
 		hiA, loA := uint32(productA>>32), uint32(productA)

@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -16,7 +15,7 @@ import (
 const lifecycleDecisionCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestAtomicEvidenceGatedActivation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +88,7 @@ func TestAtomicEvidenceGatedActivation(t *testing.T) {
 }
 
 func TestLifecyclePromotionAndSupersession(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +172,7 @@ func TestLifecyclePromotionAndSupersession(t *testing.T) {
 }
 
 func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -229,7 +228,7 @@ func TestActivateCapabilityRequiresBoundVerification(t *testing.T) {
 }
 
 func TestRetireActiveCapabilityRequiresFailedEvidence(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -278,7 +277,7 @@ func TestRetireActiveCapabilityRequiresFailedEvidence(t *testing.T) {
 }
 
 func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -357,7 +356,7 @@ func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {
 }
 
 func TestActiveRecordRejectsLegacyIntentEvidence(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -432,7 +431,7 @@ func publishDecision(t *testing.T, store artifact.Repository, key string, decisi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: key, Contents: []artifact.Content{content},
 		Lineage: []artifact.Lineage{{
 			Child: decision.ID, Parent: decision.Subject, Relation: artifact.RelationDependsOn,

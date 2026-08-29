@@ -63,8 +63,8 @@ func GatedDeltaMixForward(x []float32, w GatedDeltaMixWeights, d GatedDeltaMixDi
 	}
 	c.alpha = Linear2(x, w.Walpha, T, H, hv)
 	c.gate = make([]float32, T*hv)
-	for t := 0; t < T; t++ {
-		for h := 0; h < hv; h++ {
+	for t := range T {
+		for h := range hv {
 			sp := softplus(float64(c.alpha[t*hv+h]) + float64(w.TimeStep[h]))
 			c.gate[t*hv+h] = float32(sp * float64(w.A[h]))
 		}
@@ -98,7 +98,7 @@ func softplus(x float64) float64 {
 // weightedRMSNorm: per row (length width) y = x/sqrt(mean(x^2)+eps) * weight.
 func weightedRMSNorm(x, weight []float32, rows, width int, eps float64) []float32 {
 	out := make([]float32, len(x))
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := x[r*width : r*width+width]
 		var ss float64
 		for _, v := range row {

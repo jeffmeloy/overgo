@@ -64,7 +64,7 @@ func TestExecutorImplicitZeroFeed(t *testing.T) {
 	input := builder.Input("zero", dtype.F32, tensor.MustShape(4))
 	output := builder.Scale(input, 3)
 	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
+	got, err := cuda.Execute(context.WithoutCancel(t.Context()), []*tensor.Tensor{output}, map[*tensor.Tensor]reference.Value{
 		input: reference.ZeroValue(input.Shape),
 	})
 	if err != nil {
@@ -965,7 +965,7 @@ func testExecutorNativeQuantizedMoE(t *testing.T, dataType dtype.Type) {
 	}
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	got, err := cuda.executeWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{output, fusedOutput, squaredOutput},
 		map[*tensor.Tensor]reference.Value{
 			input: inputValue, router: routerValue, wideRouterInput: wideRouterInputValue,

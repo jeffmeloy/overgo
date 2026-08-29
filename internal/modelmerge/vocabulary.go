@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -213,7 +212,7 @@ func exactEmbeddingTensorNames(source Snapshot, names []string) ([]string, error
 		return nil, errors.New("model merge: embedding tensor inventory is empty")
 	}
 	result := slices.Clone(names)
-	sort.Strings(result)
+	slices.Sort(result)
 	for index, name := range result {
 		if name == "" || index > 0 && name == result[index-1] {
 			return nil, errors.New("model merge: embedding tensor name is empty or duplicated")

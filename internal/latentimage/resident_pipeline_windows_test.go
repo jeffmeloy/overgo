@@ -1,7 +1,6 @@
 package latentimage
 
 import (
-	"context"
 	"math"
 	"os"
 	"path/filepath"
@@ -55,7 +54,7 @@ func TestResidentImagePipelineRetainsTextAndLatentOnDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	pipeline, err := NewResidentImagePipeline(ctx, encoder, fusion, denoiser, vae, fixtureTimestepProgram(transformerSpec), modelDir, 0)
 	if err != nil {
 		t.Fatal(err)

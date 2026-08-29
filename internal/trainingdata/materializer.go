@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -121,7 +120,7 @@ func (record recordRef) read() ([]byte, error) {
 	}
 	data := make([]byte, length)
 	n, err := record.file.file.ReadAt(data, record.offset)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 	if n != length {
@@ -503,7 +502,7 @@ func openIndexedFile(path string, expectedBytes, records uint64) (*indexedFile, 
 			})
 			offset += int64(len(line))
 		}
-		if readErr == io.EOF {
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
 		if readErr != nil {
@@ -533,7 +532,7 @@ func fileLocation(locations []artifact.Location) string {
 			paths = append(paths, location.Value)
 		}
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	if len(paths) == 0 {
 		return ""
 	}

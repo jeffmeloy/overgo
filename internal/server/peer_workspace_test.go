@@ -72,7 +72,7 @@ func TestPeerControlAPI(t *testing.T) {
 	planID := testutil.ArtifactID(t, artifact.KindProfile, "peer-control-plan")
 	targetID := testutil.ArtifactID(t, artifact.KindProfile, "peer-control-target")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "peer-control-model")
-	if _, err := runrecord.PublishPeerReplicaReceipt(context.Background(), fixture.store, runrecord.PeerReplicaReceipt{
+	if _, err := runrecord.PublishPeerReplicaReceipt(t.Context(), fixture.store, runrecord.PeerReplicaReceipt{
 		Plan: planID, Operation: operationID, Target: targetID, Artifacts: []artifact.ID{modelID},
 		Phase: runrecord.PeerReplicaStage, Attempt: 1, Outcome: runrecord.PeerReplicaSucceeded,
 	}); err != nil {
@@ -136,7 +136,7 @@ func newPeerWorkspaceFixture(t *testing.T, name, apiKey string) peerWorkspaceFix
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	environment := testutil.ArtifactID(t, artifact.KindEvidence, name+"-environment")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "peer/workspace/environment/" + name, Artifacts: []artifact.Descriptor{{ID: environment}},
 	}); err != nil {
 		t.Fatal(err)

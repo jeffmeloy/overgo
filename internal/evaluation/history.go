@@ -17,9 +17,9 @@ type HistoryEntry struct {
 	Dataset    artifact.ID        `json:"dataset"`
 	Recipe     artifact.ID        `json:"recipe"`
 	Outcome    runrecord.Outcome  `json:"outcome"`
-	Failure    string             `json:"failure,omitempty"`
-	CodeCommit string             `json:"code_commit,omitempty"`
-	MeasuredNS uint64             `json:"measured_ns,omitempty"`
+	Failure    string             `json:"failure,omitzero"`
+	CodeCommit string             `json:"code_commit,omitzero"`
+	MeasuredNS uint64             `json:"measured_ns,omitzero"`
 	Metrics    []runrecord.Metric `json:"metrics"`
 	Inputs     []artifact.ID      `json:"inputs,omitempty"`
 	Outputs    []artifact.ID      `json:"outputs,omitempty"`

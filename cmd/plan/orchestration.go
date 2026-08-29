@@ -282,8 +282,8 @@ func recordExperimentTransition(root, inputPath string, output io.Writer) error 
 		Experiment      artifact.ID  `json:"experiment"`
 		Evidence        artifact.ID  `json:"evidence"`
 		Prior           *artifact.ID `json:"prior,omitempty"`
-		Retry           uint32       `json:"retry,omitempty"`
-		HeartbeatExpiry string       `json:"heartbeat_expiry,omitempty"`
+		Retry           uint32       `json:"retry,omitzero"`
+		HeartbeatExpiry string       `json:"heartbeat_expiry,omitzero"`
 		Checkpoint      *artifact.ID `json:"checkpoint,omitempty"`
 	}
 	if err := jsonfile.Decode(inputPath, &specification); err != nil {
@@ -349,5 +349,5 @@ type explorationBalance struct {
 	Proposer            string `json:"proposer"`
 	IssuedGPUMinutes    uint64 `json:"issued_gpu_minutes"`
 	RemainingGPUMinutes uint64 `json:"remaining_gpu_minutes"`
-	Violation           string `json:"violation,omitempty"`
+	Violation           string `json:"violation,omitzero"`
 }

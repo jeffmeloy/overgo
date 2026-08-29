@@ -191,8 +191,7 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 		StderrBytes:    s.stderrBytes,
 		WallNS:         time.Since(s.started).Nanoseconds(),
 	}
-	var exit *exec.ExitError
-	if waitErr != nil && !errors.As(waitErr, &exit) {
+	if _, ok := errors.AsType[*exec.ExitError](waitErr); waitErr != nil && !ok {
 		return s.receipt, fmt.Errorf("processcontrol: wait: %w", waitErr)
 	}
 	if ctx.Err() != nil {

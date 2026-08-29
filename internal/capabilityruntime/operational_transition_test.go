@@ -1,7 +1,6 @@
 package capabilityruntime
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -16,7 +15,7 @@ import (
 // publishes exactly one canonical transition batch, never a raw
 // signal.
 func TestOperationalTransitionPublication(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

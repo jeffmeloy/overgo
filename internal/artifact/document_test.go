@@ -93,6 +93,19 @@ func TestCloneAliasBindingsOwnsCompareAndSetPointers(t *testing.T) {
 	}
 }
 
+func TestPublicPointerHelpersHaveConsumers(t *testing.T) {
+	var id ID
+	pointer := IDPointer(id)
+	switch pointer {
+	case nil:
+		t.Fatal("IDPointer returned nil")
+	default:
+	}
+	if *pointer != id {
+		t.Fatal("IDPointer changed its input")
+	}
+}
+
 func TestRepositoryKeysShareOneBound(t *testing.T) {
 	target, err := IdentifyBytes(KindModel, []byte("target"))
 	if err != nil {
@@ -152,19 +165,19 @@ func TestArtifactRepositoryGatesValidateInputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	repository := &documentRepository{alias: id}
-	if _, err := CommitBatch(context.Background(), repository, batch); err != nil || repository.commits != 1 {
+	if _, err := CommitBatch(t.Context(), repository, batch); err != nil || repository.commits != 1 {
 		t.Fatalf("commit gate = (%d, %v)", repository.commits, err)
 	}
-	resolved, ok, err := ResolveAlias(context.Background(), repository, "dataset")
+	resolved, ok, err := ResolveAlias(t.Context(), repository, "dataset")
 	if err != nil || !ok || resolved != id {
 		t.Fatalf("alias gate = (%s, %v, %v)", resolved, ok, err)
 	}
-	if _, err := CommitBatch(context.Background(), nil, batch); err == nil {
+	if _, err := CommitBatch(t.Context(), nil, batch); err == nil {
 		t.Fatal("nil repository accepted")
 	}
 	invalid := batch
 	invalid.Key = ""
-	if _, err := CommitBatch(context.Background(), repository, invalid); err == nil || repository.commits != 1 {
+	if _, err := CommitBatch(t.Context(), repository, invalid); err == nil || repository.commits != 1 {
 		t.Fatal("invalid batch reached repository")
 	}
 }

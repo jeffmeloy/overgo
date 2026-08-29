@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -25,7 +26,7 @@ type AutomationInventoryEntry struct {
 	Definition artifact.ID                               `json:"definition"`
 	Activation artifact.ID                               `json:"activation"`
 	Plan       *workflowcontract.AutomationExecutionPlan `json:"plan,omitempty"`
-	Refusal    string                                    `json:"refusal,omitempty"`
+	Refusal    string                                    `json:"refusal,omitzero"`
 }
 
 // AutomationDefinitionInput is the typed editing boundary shared by API and GUI.
@@ -41,8 +42,8 @@ type AutomationDefinitionInput struct {
 // AutomationExecutionInput is one manual or scheduled invocation.
 type AutomationExecutionInput struct {
 	Name        string                     `json:"name"`
-	Key         string                     `json:"key,omitempty"`
-	Destination string                     `json:"destination,omitempty"`
+	Key         string                     `json:"key,omitzero"`
+	Destination string                     `json:"destination,omitzero"`
 	Inputs      map[string]json.RawMessage `json:"inputs"`
 }
 
@@ -51,7 +52,7 @@ type AutomationHistoryEntry struct {
 	ID      artifact.ID       `json:"id"`
 	Recipe  artifact.ID       `json:"recipe"`
 	Outcome runrecord.Outcome `json:"outcome"`
-	Failure string            `json:"failure,omitempty"`
+	Failure string            `json:"failure,omitzero"`
 	Inputs  []artifact.ID     `json:"inputs,omitempty"`
 	Outputs []artifact.ID     `json:"outputs,omitempty"`
 }
@@ -309,8 +310,6 @@ func (workspace *AutomationWorkspace) runtime(operations *operation.Manager) wor
 
 func cloneAutomationAdapters(values map[recipe.ModuleID]workflowruntime.Adapter) map[recipe.ModuleID]workflowruntime.Adapter {
 	cloned := make(map[recipe.ModuleID]workflowruntime.Adapter, len(values))
-	for key, value := range values {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, values)
 	return cloned
 }

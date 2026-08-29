@@ -48,13 +48,13 @@ func TestContinuousBatchSequenceLifecycle(t *testing.T) {
 	if batch.sequences[8].host.Layers[0].Key.Data[0] != 1 {
 		t.Fatal("fork shares host cache storage")
 	}
-	if err := batch.Remove(context.Background(), 7); err != nil {
+	if err := batch.Remove(t.Context(), 7); err != nil {
 		t.Fatal(err)
 	}
 	if len(batch.Snapshot()) != 1 || batch.Snapshot()[0].ID != 8 {
 		t.Fatalf("post-remove states = %+v", batch.Snapshot())
 	}
-	if err := batch.Close(context.Background()); err != nil {
+	if err := batch.Close(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if len(batch.Snapshot()) != 0 {
@@ -68,17 +68,17 @@ func TestContinuousBatchCloseReportsDeferredCleanup(t *testing.T) {
 		sequences:  make(map[SequenceID]*continuousSequence),
 		cleanupErr: want,
 	}
-	if err := batch.Close(context.Background()); !errors.Is(err, want) {
+	if err := batch.Close(t.Context()); !errors.Is(err, want) {
 		t.Fatalf("close cleanup error = %v, want %v", err, want)
 	}
-	if err := batch.Close(context.Background()); err != nil {
+	if err := batch.Close(t.Context()); err != nil {
 		t.Fatalf("repeated close error = %v", err)
 	}
 }
 
 func TestContinuousBatchCloseRetriesDeferredDeviceCleanup(t *testing.T) {
 	cache := &deviceKVCache{owner: newDeviceCacheOwner(&executor.RetainedOutputs{}, 1)}
-	firstErr := cache.Release(context.Background())
+	firstErr := cache.Release(t.Context())
 	if firstErr == nil {
 		t.Fatal("invalid retained owner cleanup succeeded")
 	}
@@ -87,13 +87,13 @@ func TestContinuousBatchCloseRetriesDeferredDeviceCleanup(t *testing.T) {
 		deferred:   []*deviceKVCache{cache},
 		cleanupErr: firstErr,
 	}
-	if err := batch.Close(context.Background()); err == nil {
+	if err := batch.Close(t.Context()); err == nil {
 		t.Fatal("deferred cleanup failure was not reported")
 	}
 	if len(batch.deferred) != 0 || cache.owner != nil {
 		t.Fatalf("deferred cleanup was not retried: %d pending", len(batch.deferred))
 	}
-	if err := batch.Close(context.Background()); err != nil {
+	if err := batch.Close(t.Context()); err != nil {
 		t.Fatalf("repeated close error = %v", err)
 	}
 }
@@ -101,7 +101,7 @@ func TestContinuousBatchCloseRetriesDeferredDeviceCleanup(t *testing.T) {
 func TestDeviceCacheReleaseCancellationIsAtomic(t *testing.T) {
 	owner := newDeviceCacheOwner(&executor.RetainedOutputs{}, 1)
 	cache := &deviceKVCache{owner: owner}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := cache.Release(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled release error = %v", err)
@@ -114,7 +114,7 @@ func TestDeviceCacheReleaseCancellationIsAtomic(t *testing.T) {
 
 func TestDeviceCacheStorageReleaseCancellationIsAtomic(t *testing.T) {
 	storage := &deviceCacheStorage{refs: 1}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := storage.release(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled release error = %v", err)
@@ -138,7 +138,7 @@ func TestContinuousBatchAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = batch.Step(context.Background(), []SequenceBatchInput{
+	_, err = batch.Step(t.Context(), []SequenceBatchInput{
 		{ID: 1, Tokens: []tokenizer.TokenID{1}},
 		{ID: 1, Tokens: []tokenizer.TokenID{2}},
 	})
@@ -153,7 +153,7 @@ func TestContinuousBatchAdmission(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "preloaded") {
 		t.Fatalf("device admission error = %v", err)
 	}
-	if _, err := batch.StepGreedy(context.Background(), []SequenceBatchInput{{
+	if _, err := batch.StepGreedy(t.Context(), []SequenceBatchInput{{
 		ID: 2, Tokens: []tokenizer.TokenID{1},
 	}}); err == nil || !strings.Contains(err.Error(), "device batch") {
 		t.Fatalf("host greedy feedback error = %v", err)

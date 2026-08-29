@@ -16,7 +16,7 @@ func ForecastLoss(forecast, target []float32, levels []float64, horizon, quantil
 	grad = make([]float32, len(forecast))
 	invH := 1.0 / float64(horizon)
 	invHQ := 1.0 / float64(horizon*(quantiles-1))
-	for t := 0; t < horizon; t++ {
+	for t := range horizon {
 		y := float64(target[t])
 		point := float64(forecast[t*quantiles])
 		diff := point - y

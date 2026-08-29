@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -34,7 +33,7 @@ var componentProfileFixtureCodec = artifact.JSONDocumentCodec(
 )
 
 func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +81,7 @@ func TestResolvedComponentProfilesUseTypedRecipeDependencies(t *testing.T) {
 }
 
 func TestResolvedProfileDocumentDependencyRequiresStoredDerivationLineage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -2,7 +2,6 @@ package inference
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"math"
 	"strings"
@@ -91,7 +90,7 @@ func TestProjectRankScoresHost(t *testing.T) {
 		t.Fatal("classifier tensor is missing")
 	}
 	runner := &Runner{preparedModel: preparedModel{file: file, weights: model.Weights{ClassifierOutput: &info}}}
-	scores, err := runner.projectRankScores(context.Background(), []float32{2, 3})
+	scores, err := runner.projectRankScores(t.Context(), []float32{2, 3})
 	if err != nil {
 		t.Fatal(err)
 	}

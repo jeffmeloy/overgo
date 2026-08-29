@@ -57,9 +57,7 @@ func segmentRange(segments [][2]int, tokenPos, limit int) (int, int) {
 	if start < 0 {
 		start = 0
 	}
-	if end > limit {
-		end = limit
-	}
+	end = min(end, limit)
 	return start, end
 }
 
@@ -157,7 +155,7 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 	hd := cfg.HeadDim
 	s.QHeads = append([]float32(nil), s.QProj...)
 	s.KHeads = append([]float32(nil), s.KProj...)
-	for token := 0; token < tokens; token++ {
+	for token := range tokens {
 		branch := branchIndex(mask[token])
 		pos := RowPosition{Branch: branch, Time: token}
 		for head := 0; head < cfg.NumAttentionHeads; head++ {
@@ -189,19 +187,17 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 				for keyPos := start; keyPos < end; keyPos++ {
 					k := s.KHeads[keyPos*kvOut+kvHead*hd : keyPos*kvOut+(kvHead+1)*hd]
 					var dot float64
-					for i := 0; i < hd; i++ {
+					for i := range hd {
 						dot += float64(q[i]) * float64(k[i])
 					}
 					window[keyPos-start] = float32(dot * scale)
 				}
 				hostmath.SoftmaxInPlace(window)
 				out := s.Context[tokenPos*qOut+head*hd : tokenPos*qOut+(head+1)*hd]
-				for i := range out {
-					out[i] = 0
-				}
+				clear(out)
 				for keyPos, prob := range window {
 					v := s.VProj[(start+keyPos)*kvOut+kvHead*hd : (start+keyPos)*kvOut+(kvHead+1)*hd]
-					for i := 0; i < hd; i++ {
+					for i := range hd {
 						out[i] += prob * v[i]
 					}
 				}
@@ -230,7 +226,7 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 			residualRow := residual[token*d : (token+1)*d]
 			inputRow := hidden[token*d : (token+1)*d]
 			projectedRow := projected[i*d : (i+1)*d]
-			for c := 0; c < d; c++ {
+			for c := range d {
 				residualRow[c] = dtype.RoundBF16(inputRow[c] + projectedRow[c])
 			}
 			rmsNormRounded(postNorm[token*d:(token+1)*d], residualRow, post, 1, d, cfg.RMSNormEps)
@@ -253,7 +249,7 @@ func PromptLayerForward(hidden []float32, mask []int, cfg Config, w LayerWeights
 			outRow := s.Output[token*d : (token+1)*d]
 			residualRow := residual[token*d : (token+1)*d]
 			downRow := downValues[i*d : (i+1)*d]
-			for c := 0; c < d; c++ {
+			for c := range d {
 				outRow[c] = dtype.RoundBF16(residualRow[c] + downRow[c])
 			}
 		}

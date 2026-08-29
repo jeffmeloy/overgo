@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -193,7 +194,7 @@ func buildArchive(root string) ([]byte, error) {
 		if readErr != nil {
 			return nil, readErr
 		}
-		entries = append(entries, archiveEntry{Name: name, Data: data, Mode: 0o644})
+		entries = append(entries, archiveEntry{Name: name, Data: data, Mode: clioptions.OutputFileMode})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	var checksums strings.Builder
@@ -204,7 +205,7 @@ func buildArchive(root string) ([]byte, error) {
 	entries = append(entries, archiveEntry{
 		Name: "SHA256SUMS",
 		Data: []byte(checksums.String()),
-		Mode: 0o644,
+		Mode: clioptions.OutputFileMode,
 	})
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return createArchive(entries)
@@ -227,31 +228,25 @@ func releaseArchiveName(version string) string {
 }
 
 func executableOutsideBin(root string) (string, error) {
-	absoluteRoot, err := filepath.Abs(root)
+	raw, err := clioptions.CombinedOutputIn(
+		root, os.Environ(), "git", "ls-files", "-co", "--exclude-standard", "-z", "--", ".",
+	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("release: enumerate eligible repository files: %w", err)
 	}
-	binRoot := filepath.Join(absoluteRoot, "bin")
-	gitRoot := filepath.Join(absoluteRoot, ".git")
-	var result string
-	err = filepath.WalkDir(absoluteRoot, func(current string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	var candidates []string
+	for name := range strings.SplitSeq(raw, "\x00") {
+		name = filepath.ToSlash(name)
+		if name == "" || strings.HasPrefix(name, "bin/") || !strings.EqualFold(path.Ext(name), ".exe") {
+			continue
 		}
-		if entry.IsDir() && (current == binRoot || current == gitRoot) {
-			return filepath.SkipDir
-		}
-		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".exe") {
-			return nil
-		}
-		relative, err := filepath.Rel(absoluteRoot, current)
-		if err != nil {
-			return err
-		}
-		result = filepath.ToSlash(relative)
-		return filepath.SkipAll
-	})
-	return result, err
+		candidates = append(candidates, name)
+	}
+	slices.Sort(candidates)
+	if len(candidates) == 0 {
+		return "", nil
+	}
+	return candidates[0], nil
 }
 
 // foreignFileInBin reports the first non-executable file under bin/.

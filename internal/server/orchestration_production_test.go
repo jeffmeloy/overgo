@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -71,7 +70,7 @@ func TestOrchestrationProductionVerticals(t *testing.T) {
 			scheduledEvidence.Code, scheduledEvidence.Body.String(), gui.Code)
 	}
 	_, fired, err := fixture.handler.generator.(*automationWorkspaceGenerator).ScheduleAutomation(
-		context.Background(), fixture.handler.operations, AutomationExecutionInput{
+		t.Context(), fixture.handler.operations, AutomationExecutionInput{
 			Name: "scheduled-report", Inputs: map[string]json.RawMessage{"tokens": json.RawMessage(`"scheduled"`)},
 		},
 	)
@@ -117,7 +116,7 @@ func runAutomationFromAPI(t *testing.T, handler *Handler, path string, request m
 
 func waitAutomationOperation(t *testing.T, handler *Handler, id artifact.ID) operation.Status {
 	t.Helper()
-	status, err := handler.operations.Wait(context.Background(), id)
+	status, err := handler.operations.Wait(t.Context(), id)
 	if err != nil || status.State != operation.StateCompleted || status.Run == nil || len(status.Outputs) == 0 {
 		t.Fatalf("automation operation=(%+v, %v)", status, err)
 	}

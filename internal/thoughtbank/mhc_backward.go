@@ -80,15 +80,15 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 	postZ := make([]float64, rows*n)
 	inner := make([]float64, rows*n*n) // tanh(W_res . xHat), before the alpha gate
 	bLogits := make([]float32, rows*n*n)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hat := xHat[r*flat : (r+1)*flat]
-		for i := 0; i < n; i++ {
+		for i := range n {
 			preZ[r*n+i] = aPre*dot(w.WPre[i*flat:(i+1)*flat], hat) + float64(w.SPre[i])
 			aGate[r*n+i] = sigmoid(preZ[r*n+i])
 			postZ[r*n+i] = aPost*dot(w.WPost[i*flat:(i+1)*flat], hat) + float64(w.SPost[i])
 			cGate[r*n+i] = 2.0 * sigmoid(postZ[r*n+i])
 		}
-		for i := 0; i < n*n; i++ {
+		for i := range n * n {
 			inner[r*n*n+i] = math.Tanh(dot(w.WRes[i*flat:(i+1)*flat], hat))
 			bLogits[r*n*n+i] = float32(aRes*inner[r*n*n+i] + float64(w.SRes[i]))
 		}
@@ -115,11 +115,11 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 	var dAlphaPreAcc, dAlphaResAcc, dAlphaPostAcc float64
 
 	// res[r,i,:] = sum_j B[i,j] X[r,j,:] + cGate[r,i] hOut[r,:]
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		bm := bDS[r*n*n : (r+1)*n*n]
-		for i := 0; i < n; i++ {
+		for i := range n {
 			dst := dRes[r*flat+i*d : r*flat+(i+1)*d]
-			for j := 0; j < n; j++ {
+			for j := range n {
 				src := x[r*flat+j*d : r*flat+(j+1)*d]
 				dsrc := g.DX[r*flat+j*d : r*flat+(j+1)*d]
 				coeff := float64(bm[i*n+j])
@@ -152,9 +152,9 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 		return nil, fmt.Errorf("mHC backward: sub-layer returned %d values for dHIn, want %d",
 			len(dHIn), rows*d)
 	}
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		din := dHIn[r*d : (r+1)*d]
-		for s := 0; s < n; s++ {
+		for s := range n {
 			src := x[r*flat+s*d : r*flat+(s+1)*d]
 			dsrc := g.DX[r*flat+s*d : r*flat+(s+1)*d]
 			gate := aGate[r*n+s]
@@ -174,10 +174,10 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 	}
 	dLogits := hostmath.SinkhornFromLogitsBackward(bLogits, dBDS32, rows, n, w.SinkhornIters)
 
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hat := xHat[r*flat : (r+1)*flat]
 		dhat := dXHat[r*flat : (r+1)*flat]
-		for i := 0; i < n*n; i++ {
+		for i := range n * n {
 			dl := float64(dLogits[r*n*n+i])
 			if dl == 0 {
 				continue
@@ -188,12 +188,12 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 			dInner := dl * aRes * (1 - in*in)
 			wrow := w.WRes[i*flat : (i+1)*flat]
 			drow := g.DWRes[i*flat : (i+1)*flat]
-			for j := 0; j < flat; j++ {
+			for j := range flat {
 				drow[j] += float32(dInner * float64(hat[j]))
 				dhat[j] += float32(dInner * float64(wrow[j]))
 			}
 		}
-		for i := 0; i < n; i++ {
+		for i := range n {
 			// cGate = 2*sigmoid(z): the 2 is in the forward and must be here.
 			s := sigmoid(postZ[r*n+i])
 			dz := dCGate[r*n+i] * 2 * s * (1 - s)
@@ -202,7 +202,7 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 			dAlphaPostAcc += dz * dot(w.WPost[i*flat:(i+1)*flat], hat)
 			wrow := w.WPost[i*flat : (i+1)*flat]
 			drow := g.DWPost[i*flat : (i+1)*flat]
-			for j := 0; j < flat; j++ {
+			for j := range flat {
 				drow[j] += float32(dz * aPost * float64(hat[j]))
 				dhat[j] += float32(dz * aPost * float64(wrow[j]))
 			}
@@ -213,7 +213,7 @@ func HyperConnectionBackward(x, hOut, dRes []float32, rows int,
 			dAlphaPreAcc += dza * dot(w.WPre[i*flat:(i+1)*flat], hat)
 			wrowA := w.WPre[i*flat : (i+1)*flat]
 			drowA := g.DWPre[i*flat : (i+1)*flat]
-			for j := 0; j < flat; j++ {
+			for j := range flat {
 				drowA[j] += float32(dza * aPre * float64(hat[j]))
 				dhat[j] += float32(dza * aPre * float64(wrowA[j]))
 			}

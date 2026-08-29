@@ -51,7 +51,7 @@ func timePerOpNs(op func()) float64 {
 	reps := 1
 	for measured := 0; measured < qualifyingBatches; {
 		t0 := time.Now()
-		for i := 0; i < reps; i++ {
+		for range reps {
 			op()
 		}
 		elapsed := float64(time.Since(t0).Nanoseconds())
@@ -147,18 +147,14 @@ func dispatchWorkers(n, unitMACs int, rate macRate) int {
 		return 1
 	}
 	limit := poolWorkerLimit()
-	if limit > n {
-		limit = n
-	}
+	limit = min(limit, n)
 	if limit < 2 {
 		return 1
 	}
 	cal := dispatchOnce()
 	s := float64(n) * float64(unitMACs) * cal.macNs[rate]
 	w := int(math.Sqrt(s / cal.perTaskNs))
-	if w > limit {
-		w = limit
-	}
+	w = min(w, limit)
 	if w < 2 {
 		return 1
 	}

@@ -56,12 +56,12 @@ type AttemptRecord struct {
 	Version           uint16           `json:"version"`
 	PlanItem          string           `json:"plan_item"`
 	PlanStep          string           `json:"plan_step"`
-	Strategy          string           `json:"strategy,omitempty"`
+	Strategy          string           `json:"strategy,omitzero"`
 	Result            artifact.ID      `json:"result"`
 	Recipe            artifact.ID      `json:"recipe"`
 	CodeCommit        string           `json:"code_commit"`
 	Outcome           Outcome          `json:"outcome"`
-	Failure           string           `json:"failure,omitempty"`
+	Failure           string           `json:"failure,omitzero"`
 	WallNS            uint64           `json:"wall_ns"`
 	BaseManifest      artifact.ID      `json:"base_manifest,omitzero"`
 	CandidateManifest artifact.ID      `json:"candidate_manifest,omitzero"`
@@ -72,7 +72,7 @@ type AttemptRecord struct {
 	WorkLease         artifact.ID      `json:"work_lease,omitzero"`
 	Environment       artifact.ID      `json:"environment,omitzero"`
 	Trajectory        artifact.ID      `json:"trajectory,omitzero"`
-	CostUnits         uint64           `json:"cost_units,omitempty"`
+	CostUnits         uint64           `json:"cost_units,omitzero"`
 	// Causal explains why the attempt ran; a recovery trigger here
 	// replaces the deleted duplicate recovered flag.
 	Causal *CausalContext `json:"causal,omitempty"`

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -18,7 +17,7 @@ func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := scratchmodel.PublishDerivationProfileCatalog(ctx, store); err != nil {
 		t.Fatal(err)
 	}

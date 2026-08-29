@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +19,7 @@ import (
 // journal rebuilds at the current head, and a store carrying inline
 // legacy content refuses to seal.
 func TestSegmentedJournalChainAndRecovery(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	segmented := t.TempDir()
 	plain := t.TempDir()
 	segmentedStore, err := Open(segmented)
@@ -143,7 +142,7 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 // extent as a parameter, for corpora smaller than the scale contract.
 func querySurfaceDigestBounded(t *testing.T, store *Store, commits int) string {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var out string
 	for ordinal := 0; ordinal < commits; ordinal += scaleAliasStride {
 		id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))

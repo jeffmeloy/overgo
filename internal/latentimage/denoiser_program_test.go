@@ -102,9 +102,7 @@ func TestDenoiserProgramMatchesHostReference(t *testing.T) {
 			t.Fatalf("velocity[%d] non-finite: %v", i, got)
 		}
 		abs := math.Abs(g - got)
-		if abs > maxAbs {
-			maxAbs = abs
-		}
+		maxAbs = max(maxAbs, abs)
 		if rel := abs / (math.Abs(g) + 1e-6); rel > maxRel {
 			maxRel = rel
 		}

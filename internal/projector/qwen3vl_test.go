@@ -2,7 +2,6 @@ package projector
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"errors"
 	"image"
@@ -106,7 +105,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 	if os.Getenv("OVERGO_QWEN35_PROJECTOR_FULL") == "" {
 		return
 	}
-	output, err := runner.EncodeImage(context.Background(), input, fixtureMediaPreprocessProfile(t).Image)
+	output, err := runner.EncodeImage(t.Context(), input, fixtureMediaPreprocessProfile(t).Image)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,12 +153,12 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 	}
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	output, err := runner.EncodeImage(context.Background(), input, Qwen3VLPreprocessOptions{
+	output, err := runner.EncodeImage(t.Context(), input, Qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -193,7 +192,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 		t.Fatalf("deepstack flags = %v", runner.Spec().DeepstackLayers)
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	output, err := runner.EncodeImage(context.Background(), input, Qwen3VLPreprocessOptions{
+	output, err := runner.EncodeImage(t.Context(), input, Qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -223,11 +222,11 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
-	want, err := cpu.EncodeImage(context.Background(), input, options)
+	want, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := cuda.EncodeImage(context.Background(), input, options)
+	got, err := cuda.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +256,7 @@ func TestQwen3VLSessionRendersImagePrompt(t *testing.T) {
 	session := testSession(t, runner)
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	tok := &capturingQwen3VLTokenizer{}
-	if _, err := session.BuildImagePrompt(context.Background(), tok, input, "before", "after", true); err != nil {
+	if _, err := session.BuildImagePrompt(t.Context(), tok, input, "before", "after", true); err != nil {
 		t.Fatal(err)
 	}
 	if len(tok.texts) == 0 ||
@@ -266,7 +265,7 @@ func TestQwen3VLSessionRendersImagePrompt(t *testing.T) {
 		t.Fatalf("thinking prompt = %q", tok.texts)
 	}
 	tok.texts = nil
-	if _, err := session.BuildImagePrompt(context.Background(), tok, input, "", "Describe.", false); err != nil {
+	if _, err := session.BuildImagePrompt(t.Context(), tok, input, "", "Describe.", false); err != nil {
 		t.Fatal(err)
 	}
 	if len(tok.texts) == 0 || !strings.HasSuffix(tok.texts[0], "<think>\n\n</think>\n\n") {
@@ -295,7 +294,7 @@ func TestQwen3VLMultipleImagePrompt(t *testing.T) {
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		context.Background(), qwen3VLPromptTokenizer{}, []image.Image{input, input},
+		t.Context(), qwen3VLPromptTokenizer{}, []image.Image{input, input},
 		[]string{"A", "B", "C"}, PromptOptions{Thinking: true},
 	)
 	if err != nil {
@@ -328,27 +327,27 @@ func TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
 	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
-	wantImage, err := cpu.EncodeImage(context.Background(), input, options)
+	wantImage, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotImage, err := cuda.EncodeImage(context.Background(), input, options)
+	gotImage, err := cuda.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	compareFloat32Tolerance(t, "Qwen3-VL image", gotImage.Embeddings.Data, wantImage.Embeddings.Data, 2e-3)
 	frames := []image.Image{input, input, input, input}
-	wantVideo, err := cpu.EncodeFrames(context.Background(), frames, options)
+	wantVideo, err := cpu.EncodeFrames(t.Context(), frames, options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotVideo, err := cuda.EncodeFrames(context.Background(), frames, options)
+	gotVideo, err := cuda.EncodeFrames(t.Context(), frames, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,8 +372,8 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 		MergerIntermediate: 16, OutputHidden: 6, MergeSize: fixtureSpatialMerge,
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), A: fixtureOpaqueAlpha})
 		}
 	}
@@ -404,8 +403,8 @@ func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 	frames := make([]image.Image, 3)
 	for index, red := range []uint8{10, 20, 30} {
 		frame := image.NewRGBA(image.Rect(0, 0, 4, 4))
-		for y := 0; y < 4; y++ {
-			for x := 0; x < 4; x++ {
+		for y := range 4 {
+			for x := range 4 {
 				frame.SetRGBA(x, y, color.RGBA{R: red, A: fixtureOpaqueAlpha})
 			}
 		}
@@ -457,8 +456,8 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 	frames := make([]image.Image, 16)
 	for temporal := range frames {
 		frame := image.NewRGBA(image.Rect(0, 0, 224, 224))
-		for y := 0; y < 224; y++ {
-			for x := 0; x < 224; x++ {
+		for y := range 224 {
+			for x := range 224 {
 				frame.SetRGBA(x, y, color.RGBA{
 					R: uint8((x*4 + temporal*8) % fixtureChannelModulus),
 					G: uint8((y*5 + temporal*4) % fixtureChannelModulus),
@@ -489,7 +488,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 	if os.Getenv("OVERGO_QWEN35_VIDEO_FULL") == "" {
 		return
 	}
-	output, err := runner.EncodeFrames(context.Background(), frames, fixtureMediaPreprocessProfile(t).Video)
+	output, err := runner.EncodeFrames(t.Context(), frames, fixtureMediaPreprocessProfile(t).Video)
 	if err != nil {
 		t.Fatal(err)
 	}

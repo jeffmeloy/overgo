@@ -19,27 +19,25 @@ func hostCausalSoftmaxGQA(q, k []float32, seq, nh, nkv, hd int) []float32 {
 	group := nh / nkv
 	p := make([]float32, nh*seq*seq)
 	row := make([]float64, seq)
-	for h := 0; h < nh; h++ {
+	for h := range nh {
 		kv := h / group
-		for qi := 0; qi < seq; qi++ {
+		for qi := range seq {
 			nk := qi + 1
 			mx := math.Inf(-1)
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				var dot float64
-				for x := 0; x < hd; x++ {
+				for x := range hd {
 					dot += float64(q[(qi*nh+h)*hd+x]) * float64(k[(m*nkv+kv)*hd+x])
 				}
 				row[m] = dot
-				if dot > mx {
-					mx = dot
-				}
+				mx = max(mx, dot)
 			}
 			var sum float64
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				row[m] = math.Exp(row[m] - mx)
 				sum += row[m]
 			}
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				p[h*seq*seq+qi*seq+m] = float32(row[m] / sum)
 			}
 		}

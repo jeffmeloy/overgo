@@ -148,7 +148,7 @@ const (
 
 type Dependency struct {
 	Role     DependencyRole `json:"role"`
-	Slot     uint32         `json:"slot,omitempty"`
+	Slot     uint32         `json:"slot,omitzero"`
 	Artifact artifact.ID    `json:"artifact"`
 }
 
@@ -162,7 +162,7 @@ type Port struct {
 type ArtifactRequirement struct {
 	Name     PortName      `json:"name"`
 	Kind     artifact.Kind `json:"kind"`
-	Preserve bool          `json:"preserve,omitempty"`
+	Preserve bool          `json:"preserve,omitzero"`
 }
 
 type Module struct {
@@ -172,8 +172,8 @@ type Module struct {
 	Inputs         []Port                `json:"inputs,omitempty"`
 	Outputs        []Port                `json:"outputs,omitempty"`
 	Postconditions []ArtifactRequirement `json:"postconditions,omitempty"`
-	StageNode      NodeID                `json:"stage_node,omitempty"`
-	Next           ModuleID              `json:"next,omitempty"`
+	StageNode      NodeID                `json:"stage_node,omitzero"`
+	Next           ModuleID              `json:"next,omitzero"`
 }
 
 // SessionPolicy defines decode cache/graph lifetime.
@@ -217,14 +217,14 @@ type Node struct {
 	ID        NodeID          `json:"id"`
 	Module    ModuleID        `json:"module"`
 	Placement Placement       `json:"placement"`
-	Session   SessionPolicy   `json:"session,omitempty"`
-	Residency ResidencyPolicy `json:"residency,omitempty"`
+	Session   SessionPolicy   `json:"session,omitzero"`
+	Residency ResidencyPolicy `json:"residency,omitzero"`
 	// ModelSlot selects which model dependency the node executes against,
 	// keyed by Dependency{Role: DependencyModel, Slot: ModelSlot}. Slot 0 is
 	// the definition's primary model; a multi-model chain binds later nodes
 	// to higher slots so composition stays typed port wiring, never latent
 	// bridging.
-	ModelSlot uint32 `json:"model_slot,omitempty"`
+	ModelSlot uint32 `json:"model_slot,omitzero"`
 }
 
 type Endpoint struct {

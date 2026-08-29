@@ -65,7 +65,7 @@ type BenchmarkImportSpec struct {
 	// Limit bounds a corpus-slice import (parquet-text only): the spec
 	// declares exactly how many rows the slice holds, so the import is
 	// reproducible against the same bytes.
-	Limit uint64 `json:"limit,omitempty"`
+	Limit uint64 `json:"limit,omitzero"`
 }
 
 type BenchmarkField struct {

@@ -2,7 +2,6 @@
 package overgodb_test
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -11,7 +10,7 @@ import (
 )
 
 func TestProfileCatalogCompactionRetainsArchitectureAuthority(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	source, err := overgodb.Open(filepath.Join(root, "source"))
 	if err != nil {

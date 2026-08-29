@@ -2,7 +2,6 @@ package dataset
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,7 +32,7 @@ func registerFixture(t *testing.T) string {
 // catalog carries the entry beside existing ones, re-registration is
 // idempotent, and coverage reports the dataset available on disk.
 func TestRegisterDirectoryDataset(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +89,7 @@ func TestRegisterDirectoryDataset(t *testing.T) {
 // produce different dataset identities, because identity follows a
 // content digest, not path plus metadata.
 func TestRegisterContentIdentity(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	build := func(payload []byte) artifact.ID {
 		store, err := overgodb.Open(t.TempDir())
 		if err != nil {
@@ -124,7 +123,7 @@ func TestRegisterContentIdentity(t *testing.T) {
 // the dataset identity untouched -- re-registration after a touch is
 // an idempotent no-op, because identity follows bytes alone.
 func TestRegisterTouchDoesNotReidentify(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +156,7 @@ func TestRegisterTouchDoesNotReidentify(t *testing.T) {
 // the primary when present and is refused when absent, and the primary
 // of an undeclared mixed corpus is "mixed", never a byte-volume winner.
 func TestRegisterModalitySetAndDeclaration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	mixedCorpus := func() string {
 		root := t.TempDir()
 		if err := os.WriteFile(filepath.Join(root, "a.mp4"), make([]byte, 2048), 0o600); err != nil {

@@ -51,7 +51,7 @@ type StageReceipt struct {
 	Inputs    []StageBinding `json:"inputs,omitempty"`
 	Outputs   []StageBinding `json:"outputs,omitempty"`
 	Previous  artifact.ID    `json:"previous,omitzero"`
-	Failure   string         `json:"failure,omitempty"`
+	Failure   string         `json:"failure,omitzero"`
 	ID        artifact.ID    `json:"-"`
 }
 

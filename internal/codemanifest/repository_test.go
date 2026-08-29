@@ -1,7 +1,6 @@
 package codemanifest
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/overgodb"
@@ -27,10 +26,10 @@ func TestPublishAndLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := Publish(context.Background(), store, manifest); err != nil {
+	if _, err := Publish(t.Context(), store, manifest); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := Load(context.Background(), store, manifest.ID)
+	loaded, err := Load(t.Context(), store, manifest.ID)
 	if err != nil || loaded.ID != manifest.ID || loaded.SourceIdentity != snapshot.Identity() {
 		t.Fatalf("loaded = %+v, %v", loaded, err)
 	}
@@ -58,19 +57,19 @@ func TestDigestPublicationKeepsClaimNotCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := PublishDigest(context.Background(), store, manifest); err != nil {
+	if _, err := PublishDigest(t.Context(), store, manifest); err != nil {
 		t.Fatal(err)
 	}
 	// Idempotent republication must not error.
-	if _, err := PublishDigest(context.Background(), store, manifest); err != nil {
+	if _, err := PublishDigest(t.Context(), store, manifest); err != nil {
 		t.Fatal(err)
 	}
-	digest, err := LoadDigest(context.Background(), store, manifest.ID)
+	digest, err := LoadDigest(t.Context(), store, manifest.ID)
 	if err != nil || digest.ID != manifest.ID || digest.SourceIdentity != snapshot.Identity() || digest.Files == 0 {
 		t.Fatalf("digest = %+v, %v", digest, err)
 	}
 	// The cache itself must be absent: only the claim is durable.
-	if _, err := Load(context.Background(), store, manifest.ID); err == nil {
+	if _, err := Load(t.Context(), store, manifest.ID); err == nil {
 		t.Fatal("digest publication stored the full manifest content")
 	}
 }

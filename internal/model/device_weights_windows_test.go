@@ -4,7 +4,6 @@ package model
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	cudatest "overgo/internal/cuda/testutil"
 	"testing"
@@ -33,20 +32,20 @@ func TestDeviceWeightsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := weights.Load(context.Background(), file, file.Tensors); err != nil {
+	if err := weights.Load(t.Context(), file, file.Tensors); err != nil {
 		t.Fatal(err)
 	}
 	if _, loaded := weights.Lookup("weight"); !loaded {
 		t.Fatal("weight was not loaded")
 	}
 	var downloaded = make([]byte, 16)
-	err = weights.Do(context.Background(), func(state *device.State, tensors map[string]DeviceTensor) error {
+	err = weights.Do(t.Context(), func(state *device.State, tensors map[string]DeviceTensor) error {
 		return state.Driver.MemcpyDtoH(downloaded, tensors["weight"].Pointer)
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for index := 0; index < 4; index++ {
+	for index := range 4 {
 		value := binary.LittleEndian.Uint32(downloaded[index*4:])
 		if value != uint32(index+1) {
 			t.Fatalf("downloaded value %d = %d, want %d", index, value, index+1)

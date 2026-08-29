@@ -1,6 +1,7 @@
 package sampling
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math"
@@ -663,12 +664,12 @@ func (s *Sampler) adaptiveCandidates(candidates []candidate, vocabularySize int)
 		original[item.id] = item.probability / total
 	}
 	if s.config.AdaptiveTarget >= 0 {
-		target := math.Max(0, math.Min(1, float64(s.config.AdaptiveTarget)))
+		target := max(0, min(1, float64(s.config.AdaptiveTarget)))
 		adapted := target
 		if s.adaptiveWeight != 0 {
 			adapted = 2*target - s.adaptiveSum/s.adaptiveWeight
 		}
-		adapted = math.Max(0, math.Min(1, adapted))
+		adapted = max(0, min(1, adapted))
 		for index := range candidates {
 			if math.IsInf(candidates[index].scaledLogit, -1) {
 				continue
@@ -712,7 +713,7 @@ func (s *Sampler) applySamplerStage(
 			valid := 0
 			for _, item := range candidates {
 				if !math.IsInf(item.scaledLogit, -1) {
-					maximum = math.Max(maximum, item.scaledLogit)
+					maximum = max(maximum, item.scaledLogit)
 					sum += item.scaledLogit
 					valid++
 				}
@@ -854,7 +855,7 @@ func (s *Sampler) applySamplerStage(
 				}
 			}
 			normalizedEntropy := entropy / math.Log(float64(len(candidates)))
-			minimum := math.Max(
+			minimum := max(
 				0,
 				float64(s.config.Temperature-s.config.DynatempRange),
 			)
@@ -914,7 +915,7 @@ func (s *Sampler) applyInfill(
 		}
 		return probabilitiesAsLogits(result)
 	}
-	for left := 0; left < len(candidates); left++ {
+	for left := range len(candidates) {
 		if math.IsInf(candidates[left].scaledLogit, -1) {
 			continue
 		}
@@ -922,7 +923,7 @@ func (s *Sampler) applyInfill(
 		if leftPiece == "" {
 			continue
 		}
-		for right := 0; right < len(candidates); right++ {
+		for right := range len(candidates) {
 			if left == right ||
 				math.IsInf(candidates[right].scaledLogit, -1) {
 				continue
@@ -1293,9 +1294,7 @@ func (s *Sampler) sampleMirostatV2(logits []float32) (int, error) {
 		}
 		keep = index + 1
 	}
-	if keep == 0 {
-		keep = 1
-	}
+	keep = cmp.Or(keep, 1)
 	candidates = candidates[:keep]
 	total = 0
 	for index := range candidates {
@@ -1521,7 +1520,7 @@ func (s *Sampler) applyDry(logits []float32, history []int) {
 	}
 	s.dryMaxRepeat = resetScratchMap(s.dryMaxRepeat, lastN)
 	maxRepeat := s.dryMaxRepeat
-	for index := 0; index < lastN-1; index++ {
+	for index := range lastN - 1 {
 		repeatLength := repeatCount[index]
 		if repeatLength < s.config.DryAllowedLength {
 			continue

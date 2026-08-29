@@ -443,7 +443,7 @@ func LoadLayerWeights(src *safetensors.Source, cfg Config, b BranchBinding, laye
 	mat(&w.QKV.KVision, 1, suffixKProj, h, kvOut)
 	mat(&w.QKV.VVision, 1, suffixVProj, h, kvOut)
 	mat(&w.QKV.OVision, 1, suffixOProj, qOut, h)
-	for branch := 0; branch < 2; branch++ {
+	for branch := range 2 {
 		sections(&w.QKV.QNorm[branch], branch, b.QNormSections)
 		sections(&w.QKV.KNorm[branch], branch, b.KNormSections)
 	}

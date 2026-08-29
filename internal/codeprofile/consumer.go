@@ -16,13 +16,13 @@ type ConsumerDeclaration struct {
 	File                 string `json:"file"`
 	Package              string `json:"package"`
 	Name                 string `json:"name"`
-	Receiver             string `json:"receiver,omitempty"`
+	Receiver             string `json:"receiver,omitzero"`
 	Kind                 string `json:"kind"`
-	Exported             bool   `json:"exported,omitempty"`
-	ProductionReferences int    `json:"production_references,omitempty"`
-	TestReferences       int    `json:"test_references,omitempty"`
-	ExternalReferences   int    `json:"external_references,omitempty"`
-	Boundary             string `json:"boundary,omitempty"`
+	Exported             bool   `json:"exported,omitzero"`
+	ProductionReferences int    `json:"production_references,omitzero"`
+	TestReferences       int    `json:"test_references,omitzero"`
+	ExternalReferences   int    `json:"external_references,omitzero"`
+	Boundary             string `json:"boundary,omitzero"`
 }
 
 type ConsumerSummary struct {

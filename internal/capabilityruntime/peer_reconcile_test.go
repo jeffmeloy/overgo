@@ -117,7 +117,7 @@ func TestPeerDrainCompletion(t *testing.T) {
 	peer := newPeerLifecycleFixture(t, "reconcile-drain")
 	defer peer.store.Close()
 	if _, err := peer.authority.Transition(
-		context.Background(), peer.enrollment.ID, runrecord.PeerDraining, peerReconcileChangedNS-1,
+		t.Context(), peer.enrollment.ID, runrecord.PeerDraining, peerReconcileChangedNS-1,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestPeerDrainCompletion(t *testing.T) {
 	current := peerReplicaFixture(t, artifact.ID{}, peer.enrollment.Environment, "drain-current")
 	previous := peerReplicaFixture(t, peer.enrollment.ID, peer.enrollment.Environment, "drain-previous")
 	status := runPeerReconciliation(t, reconciler, manager, peerReconcilePlan(t, current), []modelrecipe.PeerReplicaPlacement{previous})
-	state, found, err := runrecord.ResolvePeerState(context.Background(), peer.store, peer.enrollment.ID)
+	state, found, err := runrecord.ResolvePeerState(t.Context(), peer.store, peer.enrollment.ID)
 	if err != nil || !found || status.State != operation.StateCompleted || state.State != runrecord.PeerRetired {
 		t.Fatalf("drain status=%+v state=%+v found=%t err=%v", status, state, found, err)
 	}
@@ -144,14 +144,14 @@ func TestPeerReconcileRecovery(t *testing.T) {
 	backend := &peerReconcileBackend{loadStarted: make(chan struct{}), cancelFirstLoad: true}
 	fixture := newPeerReconcileFixture(t, backend)
 	plan := peerReconcilePlan(t, fixture.localReplica(t, "recovery"))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	id, err := fixture.reconciler.Reconcile(ctx, peerReconcileRequest(plan, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	<-backend.loadStarted
 	cancel()
-	status, err := fixture.manager.Wait(context.Background(), id)
+	status, err := fixture.manager.Wait(t.Context(), id)
 	if err != nil || status.State != operation.StateCancelled {
 		t.Fatalf("cancelled reconciliation=%+v err=%v", status, err)
 	}
@@ -167,10 +167,10 @@ func TestPeerReconcileRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reconciler.Recover(context.Background(), id, peerReconcileRequest(plan, nil)); err != nil {
+	if _, err := reconciler.Recover(t.Context(), id, peerReconcileRequest(plan, nil)); err != nil {
 		t.Fatal(err)
 	}
-	status, err = restarted.Wait(context.Background(), id)
+	status, err = restarted.Wait(t.Context(), id)
 	calls := backend.snapshot()
 	if err != nil || status.State != operation.StateCompleted || len(calls) != 3 ||
 		calls[0].phase != runrecord.PeerReplicaStage || calls[1].phase != runrecord.PeerReplicaLoad ||
@@ -227,11 +227,11 @@ func runPeerReconciliation(
 	previous []modelrecipe.PeerReplicaPlacement,
 ) operation.Status {
 	t.Helper()
-	id, err := reconciler.Reconcile(context.Background(), peerReconcileRequest(plan, previous))
+	id, err := reconciler.Reconcile(t.Context(), peerReconcileRequest(plan, previous))
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := manager.Wait(context.Background(), id)
+	status, err := manager.Wait(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}

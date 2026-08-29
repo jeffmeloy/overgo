@@ -86,7 +86,7 @@ func TestAgentWorkspaceSSE(t *testing.T) {
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil))
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, agentWorkspaceCandidates)}
 	done := make(chan struct{})
 	go func() {
@@ -115,7 +115,7 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 	source := testutil.ArtifactID(t, artifact.KindFile, "agent-retrieval-source")
 	model := testutil.ArtifactID(t, artifact.KindModel, "agent-retrieval-model")
 	policy := testutil.ArtifactID(t, artifact.KindProfile, "agent-rerank-policy")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/workspace/retrieval-dependencies",
 		Artifacts: []artifact.Descriptor{{ID: datasetID}, {ID: source}, {ID: model}, {ID: policy}},
 	}); err != nil {
@@ -123,7 +123,7 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 	}
 	embedder := agentWorkspaceEmbedder{model: model}
 	reranker := agentWorkspaceReranker{policy: policy}
-	projection, err := (dataset.AgentRetrievalBuilder{Repository: store}).Build(context.Background(), dataset.AgentRetrievalBuild{
+	projection, err := (dataset.AgentRetrievalBuilder{Repository: store}).Build(t.Context(), dataset.AgentRetrievalBuild{
 		Dataset: datasetID, Documents: []dataset.AgentRetrievalDocument{{Source: source, Text: "cited evidence for retrieval"}},
 		Policy:   dataset.AgentRetrievalPolicy{MaximumChunkRunes: agentWorkspaceChunkRunes, CandidateLimit: agentWorkspaceCandidates},
 		Embedder: embedder, RerankPolicy: policy,
@@ -186,7 +186,7 @@ func TestAgentWorkspaceAutomationAttachment(t *testing.T) {
 	if err := json.Unmarshal(run.Body.Bytes(), &execution); err != nil || !execution.Operation.Valid() {
 		t.Fatalf("agent automation execution=(%+v, %v)", execution, err)
 	}
-	status, err := fixture.handler.operations.Wait(context.Background(), execution.Operation)
+	status, err := fixture.handler.operations.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("agent automation operation=(%+v, %v)", status, err)
 	}
@@ -252,7 +252,7 @@ func newAgentWorkspaceFixtureWithGenerator(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/workspace/serving-recipe/" + description.Identity.Recipe.String(),
 		Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}},
 	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
@@ -262,7 +262,7 @@ func newAgentWorkspaceFixtureWithGenerator(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := agenttool.PublishManualCatalog(context.Background(), store, manuals); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		t.Fatal(err)
 	}
 	prompt := commitAutomationServerBlob(t, store, artifact.KindFile, "agent-workspace-prompt")

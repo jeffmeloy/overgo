@@ -150,8 +150,8 @@ func Recoverable(cause error, block Block) error {
 }
 
 func Recovery(err error) (Block, bool) {
-	var failure *recoverableError
-	if !errors.As(err, &failure) || failure == nil {
+	failure, ok := errors.AsType[*recoverableError](err)
+	if !ok || failure == nil {
 		return Block{}, false
 	}
 	return failure.block.Clone(), true

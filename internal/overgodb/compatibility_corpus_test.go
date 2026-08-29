@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,7 +36,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 			t.Fatal(idErr)
 		}
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
-		if _, commitErr := tailWriter.Commit(context.Background(), artifact.Batch{
+		if _, commitErr := tailWriter.Commit(t.Context(), artifact.Batch{
 			Key:      fmt.Sprintf("compatibility/tail/%d", ordinal),
 			Contents: []artifact.Content{{Descriptor: descriptor, Data: payload}},
 		}); commitErr != nil {
@@ -132,7 +131,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 			t.Fatal(err)
 		}
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(content)), MediaType: "text/plain"}
-		if _, err := store.Commit(context.Background(), artifact.Batch{
+		if _, err := store.Commit(t.Context(), artifact.Batch{
 			Key:       "compatibility/post-recovery",
 			Artifacts: []artifact.Descriptor{descriptor},
 			Contents:  []artifact.Content{{Descriptor: descriptor, Data: content}},
@@ -177,7 +176,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 			t.Fatal(err)
 		}
 		descriptor := artifact.Descriptor{ID: id, Size: uint64(len(content)), MediaType: "text/plain"}
-		written, err := writer.Commit(context.Background(), artifact.Batch{
+		written, err := writer.Commit(t.Context(), artifact.Batch{
 			Key:       "compatibility/refresh",
 			Artifacts: []artifact.Descriptor{descriptor},
 			Contents:  []artifact.Content{{Descriptor: descriptor, Data: content}},
@@ -185,7 +184,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := reader.Refresh(context.Background()); err != nil {
+		if err := reader.Refresh(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 		refreshed, sequence := reader.Head()
@@ -223,7 +222,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		}
 		defer store.Close()
 		destination := filepath.Join(t.TempDir(), "compacted")
-		if _, err := Compact(context.Background(), store, destination); err != nil {
+		if _, err := Compact(t.Context(), store, destination); err != nil {
 			t.Fatal(err)
 		}
 		compacted, err := OpenReadOnly(destination)
@@ -231,7 +230,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer compacted.Close()
-		ctx := context.Background()
+		ctx := t.Context()
 		for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
 			id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
 			if err != nil {

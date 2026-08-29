@@ -99,7 +99,7 @@ type Decision struct {
 	Subject  artifact.ID     `json:"subject"`
 	Outcome  DecisionOutcome `json:"outcome"`
 	Tier     EvidenceTier    `json:"tier"`
-	Reason   string          `json:"reason,omitempty"`
+	Reason   string          `json:"reason,omitzero"`
 	Decider  Decider         `json:"decider"`
 	Evidence []artifact.ID   `json:"evidence,omitempty"`
 }

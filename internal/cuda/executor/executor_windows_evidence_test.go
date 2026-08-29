@@ -3,7 +3,6 @@
 package executor
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/tensor"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestGraphReplayMetrics(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(8)
 	input := builder.Input("input", dtype.F32, shape)
@@ -67,7 +66,7 @@ func TestGraphReplayMetrics(t *testing.T) {
 }
 
 func TestArenaMetrics(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	cuda := newFixtureExecutor(t)
 	large := compileScaleFixture(t, tensor.MustShape(1024))
 	small := compileScaleFixture(t, tensor.MustShape(4))
@@ -98,7 +97,7 @@ func TestArenaMetrics(t *testing.T) {
 }
 
 func TestExecutorReplayMatchesReference(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	builder := tensor.NewBuilder()
 	shape := tensor.MustShape(8)
 	input := builder.Input("input", dtype.F32, shape)

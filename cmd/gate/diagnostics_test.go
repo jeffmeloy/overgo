@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,7 +88,7 @@ func magicGateFixture(t *testing.T, publish bool) (string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "magic/dependency", Artifacts: []artifact.Descriptor{{ID: binding.Owner}},
 	}); err != nil {
 		t.Fatal(err)
@@ -110,7 +109,7 @@ func magicGateFixture(t *testing.T, publish bool) (string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	return root, path

@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -117,9 +118,7 @@ func (r *Runner) EmbedTokensAdvanced(
 		return EmbeddingResult{}, err
 	}
 	pooling := options.Pooling
-	if pooling == "" {
-		pooling = EmbeddingPoolingMean
-	}
+	pooling = cmp.Or(pooling, EmbeddingPoolingMean)
 	if pooling != EmbeddingPoolingNone {
 		for _, vector := range vectors {
 			normalizeEmbedding(vector, options.Normalize)
@@ -215,17 +214,12 @@ func poolEmbeddings(
 		return nil, errors.New("inference: hidden state has invalid embedding shape")
 	}
 	pooling := options.Pooling
-	if pooling == "" {
-		pooling = EmbeddingPoolingMean
-	}
+	pooling = cmp.Or(pooling, EmbeddingPoolingMean)
 	switch pooling {
 	case EmbeddingPoolingNone:
 		result := make([][]float32, tokens)
 		for tokenIndex := range tokens {
-			result[tokenIndex] = append(
-				[]float32(nil),
-				hidden.Data[tokenIndex*width:(tokenIndex+1)*width]...,
-			)
+			result[tokenIndex] = slices.Clone(hidden.Data[tokenIndex*width : (tokenIndex+1)*width])
 		}
 		return result, nil
 	case EmbeddingPoolingLast:

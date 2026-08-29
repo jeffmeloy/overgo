@@ -22,8 +22,8 @@ var (
 type Descriptor struct {
 	ID        ID     `json:"id"`
 	Size      uint64 `json:"size"`
-	MediaType string `json:"media_type,omitempty"`
-	Schema    string `json:"schema,omitempty"`
+	MediaType string `json:"media_type,omitzero"`
+	Schema    string `json:"schema,omitzero"`
 }
 
 func (d Descriptor) Validate() error {
@@ -174,7 +174,7 @@ type AliasBinding struct {
 	Name     string `json:"name"`
 	Target   ID     `json:"target"`
 	Previous *ID    `json:"previous,omitempty"`
-	Remove   bool   `json:"remove,omitempty"`
+	Remove   bool   `json:"remove,omitzero"`
 }
 
 func (b AliasBinding) Validate() error {

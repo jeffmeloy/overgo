@@ -1,7 +1,6 @@
 package diffusionimage
 
 import (
-	"context"
 	"testing"
 )
 
@@ -21,7 +20,7 @@ func TestResBlockProgramMatchesTinyReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := program.execute(context.Background(), nil, input)
+	got, err := program.execute(t.Context(), nil, input)
 	if err != nil {
 		t.Fatal(err)
 	}

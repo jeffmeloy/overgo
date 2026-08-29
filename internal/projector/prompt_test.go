@@ -52,7 +52,7 @@ func TestMixedMediaPromptPlan(t *testing.T) {
 		}
 	}
 	prompt, err := executeMixedMediaPromptPlan(
-		context.Background(), gemma4PromptTokenizer{}, media, []string{"a", "b", "c"},
+		t.Context(), gemma4PromptTokenizer{}, media, []string{"a", "b", "c"},
 		mixedMediaPromptPlan{
 			Family: "test", AddSpecial: true, EmbeddingWidth: 2, PromptLabel: "test history", Render: renderMixedMediaHistory,
 			Kinds: map[MediaKind]mixedMediaKindPlan{
@@ -76,7 +76,7 @@ func TestCompiledImagePromptPrograms(t *testing.T) {
 		"fixture", "<|image|>", "fixture image placeholder", true, 2, "<i>", "</i>",
 	)
 	prompt, err := executeImagePromptPlan(
-		context.Background(), gemma4PromptTokenizer{},
+		t.Context(), gemma4PromptTokenizer{},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 1, 1))}, []string{"a", "b"}, plan,
 		func(context.Context, image.Image) (imagePromptItem, error) {
 			return imagePromptItem{Embeddings: make([]float32, 4), Count: 2, RunCount: 2}, nil

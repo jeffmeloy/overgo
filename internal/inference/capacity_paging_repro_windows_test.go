@@ -3,7 +3,6 @@
 package inference
 
 import (
-	"context"
 	"os"
 	"slices"
 	"testing"
@@ -26,7 +25,7 @@ func generateCapacityPagingRepro(
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenWithProgram(context.Background(), &loaded, OpenOptions{})
+	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +37,7 @@ func generateCapacityPagingRepro(
 	if !greedy.IsRawGreedy() {
 		t.Fatal("sampler is not raw greedy")
 	}
-	ids, _, err := runner.Generate(context.Background(), "", GenerateOptions{
+	ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   300,
 		Sampler:        greedy,
 		PromptTokenIDs: []tokenizer.TokenID{1, 2, 3, 4},

@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"image"
 	"image/png"
 	"net/http"
@@ -79,14 +78,14 @@ func TestRemoteMediaFetcherAllowlistRedirectAndContentType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := fetcher.fetch(context.Background(), server.URL+"/redirect", "image")
+	data, err := fetcher.fetch(t.Context(), server.URL+"/redirect", "image")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(data, encoded.Bytes()) {
 		t.Fatal("remote image bytes changed")
 	}
-	if _, err := fetcher.fetch(context.Background(), server.URL+"/text", "image"); err == nil {
+	if _, err := fetcher.fetch(t.Context(), server.URL+"/text", "image"); err == nil {
 		t.Fatal("non-image content type accepted")
 	}
 }
@@ -100,7 +99,7 @@ func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fetcher.fetch(context.Background(), server.URL, "image"); err == nil {
+	if _, err := fetcher.fetch(t.Context(), server.URL, "image"); err == nil {
 		t.Fatal("private DNS resolution accepted")
 	}
 }
@@ -145,7 +144,7 @@ func TestRemoteMediaFetcherEnforcesResponseByteLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fetcher.fetch(context.Background(), server.URL, "image"); err == nil {
+	if _, err := fetcher.fetch(t.Context(), server.URL, "image"); err == nil {
 		t.Fatal("oversized remote media response accepted")
 	}
 }

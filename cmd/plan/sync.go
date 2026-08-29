@@ -106,7 +106,7 @@ func prepareMerge(root, source string, local plan.Plan, output io.Writer) error 
 		if conflictErr != nil {
 			return conflictErr
 		}
-		for _, path := range strings.Fields(string(conflicts)) {
+		for path := range strings.FieldsSeq(string(conflicts)) {
 			if path != plan.Path && path != compatibilityDocumentPath && path != trainingCompatibilityDocumentPath {
 				return fmt.Errorf("prepare-merge source conflict; merge aborted: %w", mergeErr)
 			}

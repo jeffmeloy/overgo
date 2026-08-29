@@ -146,6 +146,7 @@ func FailureSummary(out string) string {
 }
 
 var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
+var goTestShortFlag = regexp.MustCompile(`(?:^|[ \t])-short(?:=true)?(?:[ \t;&|]|$)`)
 
 // JSONCommand enables structured events for every go test in a verifier.
 func JSONCommand(command string) string {
@@ -159,7 +160,7 @@ func JSONCommand(command string) string {
 // broad run that executed tests. Targeted runs do not credit unrelated skips;
 // broad runs own and therefore reject every skip or unavailable fixture.
 func VerifyGoTestEvidence(command, out string) error {
-	report, err := goTestJSONReport(out, false, hasNonTestCommand(command))
+	report, err := goTestJSONReport(out, goTestShortFlag.MatchString(command), hasNonTestCommand(command))
 	if err != nil {
 		return err
 	}

@@ -30,8 +30,8 @@ func parityRunners[T Projector](t *testing.T, path string) (T, T) {
 // so parity inputs exercise every channel without random state.
 func patternedRGBA(width, height int, pixel func(x, y int) color.RGBA) *image.RGBA {
 	input := image.NewRGBA(image.Rect(0, 0, width, height))
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
+	for y := range height {
+		for x := range width {
 			input.SetRGBA(x, y, pixel(x, y))
 		}
 	}
@@ -47,11 +47,11 @@ func referenceParityCase[T interface {
 }](t *testing.T, name, path string, input image.Image, tolerance float32) {
 	t.Helper()
 	cpu, cuda := parityRunners[T](t, path)
-	want, err := cpu.EncodeImage(context.Background(), input)
+	want, err := cpu.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := cuda.EncodeImage(context.Background(), input)
+	got, err := cuda.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}

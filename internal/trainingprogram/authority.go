@@ -320,9 +320,9 @@ func CompileTrainingRunPlan(spec RunSpec) (TrainingRunPlan, error) {
 	body := struct {
 		Recipe     artifact.ID                      `json:"recipe"`
 		Mode       InitialStateMode                 `json:"initial_mode"`
-		Model      string                           `json:"model,omitempty"`
-		Checkpoint string                           `json:"checkpoint,omitempty"`
-		Scratch    string                           `json:"scratch,omitempty"`
+		Model      string                           `json:"model,omitzero"`
+		Checkpoint string                           `json:"checkpoint,omitzero"`
+		Scratch    string                           `json:"scratch,omitzero"`
 		Dataset    artifact.ID                      `json:"dataset"`
 		Split      artifact.ID                      `json:"split"`
 		Signature  recipecontract.ModalitySignature `json:"signature"`

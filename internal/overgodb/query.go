@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -60,7 +61,7 @@ type QueryCursor struct {
 	Head          artifact.CommitID `json:"head"`
 	Contract      [sha256.Size]byte `json:"contract"`
 	After         artifact.ID       `json:"after"`
-	AfterSequence uint64            `json:"after_sequence,omitempty"`
+	AfterSequence uint64            `json:"after_sequence,omitzero"`
 }
 
 // EncodeQueryCursor encodes a URL-safe continuation.
@@ -142,7 +143,7 @@ type QueryResult struct {
 	Aliases   []AliasView           `json:"aliases,omitempty"`
 	Lineage   []artifact.Lineage    `json:"lineage,omitempty"`
 	Commits   []CommitView          `json:"commits,omitempty"`
-	Truncated bool                  `json:"truncated,omitempty"`
+	Truncated bool                  `json:"truncated,omitzero"`
 	Next      *QueryCursor          `json:"next,omitempty"`
 }
 
@@ -402,17 +403,15 @@ func (s catalogState) querySelection(query Query) (map[artifact.ID]struct{}, []a
 		}
 	}
 	if query.MediaType != "" || query.Schema != "" {
-		for id := range selected {
-			if !s.matchesDescriptor(query, id) {
-				delete(selected, id)
-			}
-		}
+		maps.DeleteFunc(selected, func(id artifact.ID, _ struct{}) bool {
+			return !s.matchesDescriptor(query, id)
+		})
 	}
-	ids := make([]artifact.ID, 0, len(selected))
-	for id := range selected {
-		ids = append(ids, id)
+	ids := slices.SortedFunc(maps.Keys(selected), artifact.CompareID)
+	switch {
+	case ids == nil:
+		ids = []artifact.ID{}
 	}
-	slices.SortFunc(ids, artifact.CompareID)
 	return selected, ids, edges, len(selected), truncated, nil
 }
 
@@ -573,16 +572,7 @@ func sortedQueryLineage(edges []artifact.Lineage, limit int, truncated *bool) []
 }
 
 func compactLineage(edges []artifact.Lineage) []artifact.Lineage {
-	if len(edges) < 2 {
-		return edges
-	}
-	result := edges[:1]
-	for _, edge := range edges[1:] {
-		if edge != result[len(result)-1] {
-			result = append(result, edge)
-		}
-	}
-	return result
+	return slices.Compact(edges)
 }
 
 func (s catalogState) queryCommits(query Query, truncated *bool) []CommitView {

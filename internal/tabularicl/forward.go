@@ -68,7 +68,7 @@ func (h *Head) Predict(x, y []float32, rows, cols, trainRows int, catCols []int)
 	}
 	if h.Dims.IsClassifier {
 		// MaxClasses is an artifact bound.
-		for t := 0; t < trainRows; t++ {
+		for t := range trainRows {
 			cls := int(y[t])
 			if float32(cls) != y[t] {
 				return nil, fmt.Errorf("tabularicl: train row %d has invalid class %g", t, y[t])
@@ -142,7 +142,7 @@ func supportPrefixMask(totalKeys, supportKeys int) []bool {
 		return nil
 	}
 	mask := make([]bool, totalKeys)
-	for i := 0; i < supportKeys; i++ {
+	for i := range supportKeys {
 		mask[i] = true
 	}
 	return mask
@@ -163,7 +163,7 @@ func mlp2(x []float32, rows int, l0w, l0b, l1w, l1b []float32, inDim int) []floa
 
 // addBiasRows broadcasts one bias row over a [rows, d] matrix.
 func addBiasRows(v, bias []float32, rows, d int) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(v[r*d:(r+1)*d], bias)
 	}
 }
@@ -175,7 +175,7 @@ func (h *Head) cellYEmbed(y []float32, rows int) []float32 {
 	e := h.Dims.EmbedDim
 	if h.Dims.IsClassifier {
 		out := make([]float32, rows*e)
-		for row := 0; row < rows; row++ {
+		for row := range rows {
 			cls := min(max(int(y[row]), 0), h.Dims.MaxClasses-1)
 			copy(out[row*e:(row+1)*e], h.cellYLookup[cls*e:(cls+1)*e])
 		}
@@ -193,29 +193,29 @@ func (h *Head) cellEmbed(x, yEmb []float32, rows, cols, trainRows int, catMask [
 	out := make([]float32, rows*cols*e)
 	feats := make([]float32, 2*nf)
 	member := make([]float32, e)
-	for t := 0; t < rows; t++ {
-		for c := 0; c < cols; c++ {
+	for t := range rows {
+		for c := range cols {
 			cell := out[(t*cols+c)*e : (t*cols+c+1)*e]
-			for i := 0; i < fgs; i++ {
+			for i := range fgs {
 				src := (c + (1 << i) - 1) % cols
 				g := x[t*cols+src]
 				freqs, w, b := h.ff, h.wNum, h.bNum
 				if catMask[src] {
 					freqs, w, b = h.ffCat, h.wCat, h.bCat
 				}
-				for f := 0; f < nf; f++ {
+				for f := range nf {
 					arg := g * freqs[i*nf+f] // fp32 multiply, then fp32-rounded trig
 					feats[f] = float32(math.Sin(float64(arg)))
 					feats[nf+f] = float32(math.Cos(float64(arg)))
 				}
 				hostmath.Linear(member, feats, w, 1, 2*nf, e)
 				hostmath.AddBias(member, b)
-				for j := 0; j < e; j++ {
+				for j := range e {
 					cell[j] += member[j]
 				}
 			}
 			if t < trainRows {
-				for j := 0; j < e; j++ {
+				for j := range e {
 					cell[j] += yEmb[t*e+j]
 				}
 			}
@@ -243,30 +243,30 @@ func mabForward(w *mabWeights, q, kv []float32, tq, tk, d, nhead int, keyMask []
 	hostmath.Linear(vp, kvn, w.vw, tk, d, d)
 	addBiasRows(vp, w.vb, tk, d)
 	if rope != nil {
-		for t := 0; t < tq; t++ {
-			for n := 0; n < nhead; n++ {
+		for t := range tq {
+			for n := range nhead {
 				hostmath.ApplyRotaryInterleaved(qp[(t*nhead+n)*hd:(t*nhead+n+1)*hd], rope, t)
 			}
 		}
-		for t := 0; t < tk; t++ {
-			for n := 0; n < nhead; n++ {
+		for t := range tk {
+			for n := range nhead {
 				hostmath.ApplyRotaryInterleaved(kp[(t*nhead+n)*hd:(t*nhead+n+1)*hd], rope, t)
 			}
 		}
 	}
 	// Per-head QK norm; the learned softplus query scale folds into q so the
 	// attention core runs with scale 1.
-	for t := 0; t < tq; t++ {
-		for n := 0; n < nhead; n++ {
+	for t := range tq {
+		for n := range nhead {
 			slice := qp[t*d+n*hd : t*d+(n+1)*hd]
 			hostmath.RMSNormInto(slice, slice, w.qLN, 1, hd, rmsEps)
-			for j := 0; j < hd; j++ {
+			for j := range hd {
 				slice[j] *= w.scale[j]
 			}
 		}
 	}
-	for t := 0; t < tk; t++ {
-		for n := 0; n < nhead; n++ {
+	for t := range tk {
+		for n := range nhead {
 			slice := kp[t*d+n*hd : t*d+(n+1)*hd]
 			hostmath.RMSNormInto(slice, slice, w.kLN, 1, hd, rmsEps)
 		}
@@ -317,8 +317,8 @@ func colTowers(blocks []*isabBlock, outW, outB, lnW, x []float32, rows, cols, tr
 	keyMask := supportPrefixMask(rows, trainRows)
 	out := make([]float32, rows*cols*e)
 	seq := make([]float32, rows*e)
-	for c := 0; c < cols; c++ {
-		for t := 0; t < rows; t++ {
+	for c := range cols {
+		for t := range rows {
 			copy(seq[t*e:(t+1)*e], x[(t*cols+c)*e:(t*cols+c+1)*e])
 		}
 		cur := seq
@@ -329,7 +329,7 @@ func colTowers(blocks []*isabBlock, outW, outB, lnW, x []float32, rows, cols, tr
 		hostmath.Linear(projected, cur, outW, rows, e, e)
 		addBiasRows(projected, outB, rows, e)
 		hostmath.RMSNormInto(projected, projected, lnW, rows, e, rmsEps)
-		for t := 0; t < rows; t++ {
+		for t := range rows {
 			copy(out[(t*cols+c)*e:(t*cols+c+1)*e], projected[t*e:(t+1)*e])
 		}
 	}
@@ -349,7 +349,7 @@ func (enc *encoder) forward(seq []float32, t, d, nhead int, keyMask []bool) []fl
 // first tokens and norm them.
 func rowTowers(enc *encoder, x []float32, rows, colsTot, keep, e, nhead int) []float32 {
 	out := make([]float32, rows*keep*e)
-	for t := 0; t < rows; t++ {
+	for t := range rows {
 		res := enc.forward(x[t*colsTot*e:(t+1)*colsTot*e], colsTot, e, nhead, nil)
 		res = res[:keep*e]
 		hostmath.RMSNormInto(res, res, enc.outLN, keep, e, rmsEps)
@@ -362,7 +362,7 @@ func rowTowers(enc *encoder, x []float32, rows, colsTot, keep, e, nhead int) []f
 func concatCLS(x, tokens []float32, rows, cols, cls, e int) []float32 {
 	tot := cls + cols
 	out := make([]float32, rows*tot*e)
-	for t := 0; t < rows; t++ {
+	for t := range rows {
 		copy(out[t*tot*e:t*tot*e+cls*e], tokens)
 		copy(out[t*tot*e+cls*e:(t+1)*tot*e], x[t*cols*e:(t+1)*cols*e])
 	}
@@ -375,9 +375,9 @@ func concatCLS(x, tokens []float32, rows, cols, cls, e int) []float32 {
 func (h *Head) yEncode(y []float32, rows, d int) []float32 {
 	if h.Dims.IsClassifier {
 		out := make([]float32, rows*d)
-		for row := 0; row < rows; row++ {
+		for row := range rows {
 			cls := int(y[row])
-			for column := 0; column < d; column++ {
+			for column := range d {
 				value := float64(h.iclYProjB[column])
 				if cls >= 0 && cls < h.Dims.MaxClasses {
 					value += float64(h.iclYProjW[column*h.Dims.MaxClasses+cls])
@@ -393,7 +393,7 @@ func (h *Head) yEncode(y []float32, rows, d int) []float32 {
 // iclContext: support-conditioned rows after the final norm.
 func iclContext(enc *encoder, reps, yEnc []float32, rows, trainRows, d, nhead int) []float32 {
 	for row := 0; row < trainRows && row < rows; row++ {
-		for j := 0; j < d; j++ {
+		for j := range d {
 			reps[row*d+j] += yEnc[row*d+j]
 		}
 	}

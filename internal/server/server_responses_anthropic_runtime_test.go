@@ -1666,7 +1666,7 @@ func TestServerParksBoundedGenerationRequests(t *testing.T) {
 func TestCancellationPropagates(t *testing.T) {
 	blocking := &fakeGenerator{started: make(chan struct{}), release: make(chan struct{})}
 	handler := newTestHandler(t, blocking)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/v1/completions",

@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +18,7 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 	}
 	defer store.Close()
 	batch := fixtureBatch(t)
-	commit, err := store.Commit(context.Background(), batch)
+	commit, err := store.Commit(t.Context(), batch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +41,7 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 	if replicaHead != head || replicaSequence != sequence {
 		t.Fatalf("replica head = %s@%d, want %s@%d", replicaHead, replicaSequence, head, sequence)
 	}
-	resolved, ok, err := replica.ResolveAlias(context.Background(), fixtureAlias)
+	resolved, ok, err := replica.ResolveAlias(t.Context(), fixtureAlias)
 	if err != nil || !ok || resolved != batch.Aliases[0].Target {
 		t.Fatalf("replica resolve = (%s, %v, %v)", resolved, ok, err)
 	}
@@ -70,7 +69,7 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 }
 
 func TestConcurrentBackupExtent(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

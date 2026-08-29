@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"embed"
 	"io/fs"
 	"net/http"
@@ -105,9 +106,7 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 		return
 	}
 	name := strings.TrimPrefix(request.URL.Path, "/")
-	if name == "" {
-		name = "index.html"
-	}
+	name = cmp.Or(name, "index.html")
 	name = path.Clean(name)
 	// path.Clean on a rooted-then-trimmed name cannot escape, but reject any
 	// traversal or absolute remnant defensively before touching the FS.

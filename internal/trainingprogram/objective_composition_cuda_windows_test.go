@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -27,9 +28,9 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	baseRecords, addedRecords, holdout := objectiveRecords()
 	base := objectiveCorpus(t, baseRecords, holdout)
 	added := objectiveCorpus(t, addedRecords, holdout)
-	aggregate := objectiveCorpus(t, append(append([]controllertrain.Record{}, baseRecords...), addedRecords...), holdout)
+	aggregate := objectiveCorpus(t, append(slices.Clone(baseRecords), addedRecords...), holdout)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)

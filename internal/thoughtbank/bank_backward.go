@@ -64,7 +64,7 @@ func FastWeightBankReadBackward(h, bank, dOut []float32, rows, slots int, w *Fas
 	zvState := make([][]float64, slots) // SwiGLU value [rows*r]
 	clamped := make([][]bool, slots)    // SwiGLU clamp mask [rows*r]
 
-	for s := 0; s < slots; s++ {
+	for s := range slots {
 		yBefore[s] = make([]float32, rows*d)
 		copy(yBefore[s], y)
 		slot := bank[s*mem : (s+1)*mem]
@@ -84,12 +84,12 @@ func FastWeightBankReadBackward(h, bank, dOut []float32, rows, slots int, w *Fas
 			zv = make([]float64, rows*r)
 			cl = make([]bool, rows*r)
 		}
-		for t := 0; t < rows; t++ {
+		for t := range rows {
 			row := y[t*d : (t+1)*d]
-			for k := 0; k < r; k++ {
+			for k := range r {
 				if w.SwiGLU {
 					var g, v float64
-					for j := 0; j < d; j++ {
+					for j := range d {
 						yv := float64(row[j])
 						g += a[k*d+j] * yv
 						v += a[r*d+k*d+j] * yv
@@ -110,14 +110,14 @@ func FastWeightBankReadBackward(h, bank, dOut []float32, rows, slots int, w *Fas
 					continue
 				}
 				var acc float64
-				for j := 0; j < d; j++ {
+				for j := range d {
 					acc += a[k*d+j] * float64(row[j])
 				}
 				z[t*r+k] = hostmath.GELUErf(acc * ds)
 			}
-			for j := 0; j < d; j++ {
+			for j := range d {
 				var upd float64
-				for k := 0; k < r; k++ {
+				for k := range r {
 					upd += bmat[j*r+k] * z[t*r+k]
 				}
 				row[j] += float32(upd * rs)
@@ -140,15 +140,15 @@ func FastWeightBankReadBackward(h, bank, dOut []float32, rows, slots int, w *Fas
 	// Reverse the delta projection: out = h + FWO.(y_final - y0).
 	dy := make([]float64, rows*d)  // grad w.r.t. current y (starts at y_final)
 	dy0 := make([]float64, rows*d) // grad w.r.t. y0 (delta term; scan start added later)
-	for t := 0; t < rows; t++ {
+	for t := range rows {
 		yf := y[t*d : (t+1)*d]
 		y0r := y0[t*d : (t+1)*d]
-		for j := 0; j < d; j++ {
+		for j := range d {
 			g.DH[t*d+j] += dOut[t*d+j] // direct residual h
 			doj := float64(dOut[t*d+j])
 			foRow := w.FWO[j*d : (j+1)*d]
 			dfoRow := g.DFWO[j*d : (j+1)*d]
-			for k := 0; k < d; k++ {
+			for k := range d {
 				delta := float64(yf[k]) - float64(y0r[k])
 				dfoRow[k] += float32(doj * delta) // dFWO[j,k]
 				dcontrib := doj * float64(foRow[k])
@@ -168,22 +168,22 @@ func FastWeightBankReadBackward(h, bank, dOut []float32, rows, slots int, w *Fas
 		dz := make([]float64, rows*r)
 
 		// y_after[t,j] = yPrev[t,j] + rs * sum_k bmat[j,k]*z[t,k]
-		for t := 0; t < rows; t++ {
-			for j := 0; j < d; j++ {
+		for t := range rows {
+			for j := range d {
 				dyaj := dy[t*d+j]
 				if dyaj == 0 {
 					continue
 				}
-				for k := 0; k < r; k++ {
+				for k := range r {
 					dbmat[j*r+k] += rs * dyaj * z[t*r+k]
 					dz[t*r+k] += rs * dyaj * bmat[j*r+k]
 				}
 			}
 		}
 		// Activation backward: z depends on yPrev via a.
-		for t := 0; t < rows; t++ {
+		for t := range rows {
 			yr := yPrev[t*d : (t+1)*d]
-			for k := 0; k < r; k++ {
+			for k := range r {
 				dzk := dz[t*r+k]
 				if w.SwiGLU {
 					if clamped[s][t*r+k] {
@@ -197,7 +197,7 @@ func FastWeightBankReadBackward(h, bank, dOut []float32, rows, slots int, w *Fas
 					dg := dzk * siluPrime * vval // d/dzg
 					dv := dzk * silu             // d/dzv
 					// zg = ds * sum_j a_g[k,j]*yPrev[j]; zv = ds * sum_j a_v[k,j]*yPrev[j]
-					for j := 0; j < d; j++ {
+					for j := range d {
 						da[k*d+j] += dg * ds * float64(yr[j])
 						da[r*d+k*d+j] += dv * ds * float64(yr[j])
 						dy[t*d+j] += (dg*a[k*d+j] + dv*a[r*d+k*d+j]) * ds
@@ -206,34 +206,34 @@ func FastWeightBankReadBackward(h, bank, dOut []float32, rows, slots int, w *Fas
 				}
 				// gelu: pre = ds * sum_j a[k,j]*yPrev[j]; z = gelu(pre)
 				var pre float64
-				for j := 0; j < d; j++ {
+				for j := range d {
 					pre += a[k*d+j] * float64(yr[j])
 				}
 				pre *= ds
 				dpre := dzk * hostmath.GELUErfPrime(pre)
-				for j := 0; j < d; j++ {
+				for j := range d {
 					da[k*d+j] += dpre * ds * float64(yr[j])
 					dy[t*d+j] += dpre * a[k*d+j] * ds
 				}
 			}
 		}
 		// Hypernet: a = FWA.slot, bmat = FWB.slot.
-		for i := 0; i < na*r*d; i++ {
+		for i := range na * r * d {
 			if da[i] == 0 {
 				continue
 			}
 			base := i * mem
-			for m := 0; m < mem; m++ {
+			for m := range mem {
 				g.DFWA[base+m] += float32(da[i] * float64(slot[m]))
 				g.DBank[s*mem+m] += float32(da[i] * float64(w.FWA[base+m]))
 			}
 		}
-		for i := 0; i < d*r; i++ {
+		for i := range d * r {
 			if dbmat[i] == 0 {
 				continue
 			}
 			base := i * mem
-			for m := 0; m < mem; m++ {
+			for m := range mem {
 				g.DFWB[base+m] += float32(dbmat[i] * float64(slot[m]))
 				g.DBank[s*mem+m] += float32(dbmat[i] * float64(w.FWB[base+m]))
 			}

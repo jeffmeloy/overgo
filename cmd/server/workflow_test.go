@@ -33,7 +33,7 @@ func TestServerRuntimeExecutesDPOWorkflow(t *testing.T) {
 	stub := &workflowStub{run: run}
 	runtime := &serverRuntime{WorkflowWorkspaceAPI: stub}
 	var workspace server.WorkflowWorkspaceAPI = runtime
-	if _, err := workspace.ExecuteWorkflow(context.Background(), server.WorkflowTraining, recipe.TaskTraining, artifact.ID{}, nil, nil); err != nil || !stub.executed {
+	if _, err := workspace.ExecuteWorkflow(t.Context(), server.WorkflowTraining, recipe.TaskTraining, artifact.ID{}, nil, nil); err != nil || !stub.executed {
 		t.Fatalf("executed=%v err=%v", stub.executed, err)
 	}
 }

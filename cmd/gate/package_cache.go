@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -124,7 +123,7 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 	for directory := range directories {
 		result = append(result, directory)
 	}
-	sort.Strings(result)
+	slices.Sort(result)
 	return result, nil
 }
 
@@ -185,7 +184,7 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 	for path := range files {
 		paths = append(paths, filepath.Clean(path))
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	hasher := sha256.New()
 	hasher.Write([]byte(target))
 	hasher.Write([]byte("\x00"))

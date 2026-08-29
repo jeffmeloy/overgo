@@ -165,7 +165,7 @@ func TestExecutorConditionedDiffusionBlockMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), outputs, feeds)
+	got, err := cuda.Execute(context.WithoutCancel(t.Context()), outputs, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}

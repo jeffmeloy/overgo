@@ -94,11 +94,11 @@ type WebhookDelivery struct {
 	Idempotency           artifact.ID                `json:"idempotency,omitzero"`
 	Payload               artifact.ID                `json:"payload"`
 	PayloadBytes          uint64                     `json:"payload_bytes"`
-	PayloadStored         bool                       `json:"payload_stored,omitempty"`
-	PayloadObservedPrefix bool                       `json:"payload_observed_prefix,omitempty"`
+	PayloadStored         bool                       `json:"payload_stored,omitzero"`
+	PayloadObservedPrefix bool                       `json:"payload_observed_prefix,omitzero"`
 	Signature             WebhookSignatureResult     `json:"signature"`
 	Disposition           WebhookDeliveryDisposition `json:"disposition"`
-	Reason                WebhookDeliveryReason      `json:"reason,omitempty"`
+	Reason                WebhookDeliveryReason      `json:"reason,omitzero"`
 	Original              artifact.ID                `json:"original,omitzero"`
 	ID                    artifact.ID                `json:"-"`
 }

@@ -37,11 +37,11 @@ type anthropicTokenCountRequest struct {
 
 type anthropicContentBlock struct {
 	Type      string          `json:"type"`
-	Text      string          `json:"text,omitempty"`
-	Thinking  string          `json:"thinking,omitempty"`
-	Signature string          `json:"signature,omitempty"`
-	ID        string          `json:"id,omitempty"`
-	Name      string          `json:"name,omitempty"`
+	Text      string          `json:"text,omitzero"`
+	Thinking  string          `json:"thinking,omitzero"`
+	Signature string          `json:"signature,omitzero"`
+	ID        string          `json:"id,omitzero"`
+	Name      string          `json:"name,omitzero"`
 	Input     json.RawMessage `json:"input,omitempty"`
 }
 
@@ -249,16 +249,16 @@ func (h *Handler) streamAnthropicMessages(
 		}
 		if !textStarted {
 			if err := writeEvent("content_block_start", anthropicStreamEvent{
-				Type: "content_block_start", Index: eventIndex(firstEventIndex),
-				ContentBlock: anthropicContentBlockStart{Type: "text", Text: eventString("")},
+				Type: "content_block_start", Index: new(firstEventIndex),
+				ContentBlock: anthropicContentBlockStart{Type: "text", Text: new("")},
 			}); err != nil {
 				return err
 			}
 			textStarted = true
 		}
 		return writeEvent("content_block_delta", anthropicStreamEvent{
-			Type: "content_block_delta", Index: eventIndex(firstEventIndex),
-			Delta: anthropicContentDelta{Type: "text_delta", Text: eventString(piece)},
+			Type: "content_block_delta", Index: new(firstEventIndex),
+			Delta: anthropicContentDelta{Type: "text_delta", Text: new(piece)},
 		})
 	}
 	emitToolPiece := func(piece string) error {
@@ -268,7 +268,7 @@ func (h *Handler) streamAnthropicMessages(
 			Tool: func(delta inference.ChatToolCallDelta) error {
 				if delta.Started && textStarted && !textStopped {
 					if err := writeEvent("content_block_stop", anthropicStreamEvent{
-						Type: "content_block_stop", Index: eventIndex(firstEventIndex),
+						Type: "content_block_stop", Index: new(firstEventIndex),
 					}); err != nil {
 						return err
 					}
@@ -280,10 +280,10 @@ func (h *Handler) streamAnthropicMessages(
 				}
 				if delta.Started {
 					if err := writeEvent("content_block_start", anthropicStreamEvent{
-						Type: "content_block_start", Index: eventIndex(blockIndex),
+						Type: "content_block_start", Index: new(blockIndex),
 						ContentBlock: anthropicContentBlockStart{
 							Type: "tool_use", ID: fmt.Sprintf("%s_%d", idPrefix, delta.Index),
-							Name: delta.Name, Input: emptyEventObject(),
+							Name: delta.Name, Input: new(map[string]any{}),
 						},
 					}); err != nil {
 						return err
@@ -291,9 +291,9 @@ func (h *Handler) streamAnthropicMessages(
 				}
 				if delta.Arguments != "" {
 					if err := writeEvent("content_block_delta", anthropicStreamEvent{
-						Type: "content_block_delta", Index: eventIndex(blockIndex),
+						Type: "content_block_delta", Index: new(blockIndex),
 						Delta: anthropicContentDelta{
-							Type: "input_json_delta", PartialJSON: eventString(delta.Arguments),
+							Type: "input_json_delta", PartialJSON: new(delta.Arguments),
 						},
 					}); err != nil {
 						return err
@@ -307,38 +307,38 @@ func (h *Handler) streamAnthropicMessages(
 		switch block.Type {
 		case "thinking":
 			if err := writeEvent("content_block_start", anthropicStreamEvent{
-				Type: "content_block_start", Index: eventIndex(index),
+				Type: "content_block_start", Index: new(index),
 				ContentBlock: anthropicContentBlockStart{
-					Type: "thinking", Thinking: eventString(""), Signature: eventString(""),
+					Type: "thinking", Thinking: new(""), Signature: new(""),
 				},
 			}); err != nil {
 				return err
 			}
 			if block.Thinking != "" {
 				if err := writeEvent("content_block_delta", anthropicStreamEvent{
-					Type: "content_block_delta", Index: eventIndex(index),
-					Delta: anthropicContentDelta{Type: "thinking_delta", Thinking: eventString(block.Thinking)},
+					Type: "content_block_delta", Index: new(index),
+					Delta: anthropicContentDelta{Type: "thinking_delta", Thinking: new(block.Thinking)},
 				}); err != nil {
 					return err
 				}
 			}
 			if err := writeEvent("content_block_delta", anthropicStreamEvent{
-				Type: "content_block_delta", Index: eventIndex(index),
-				Delta: anthropicContentDelta{Type: "signature_delta", Signature: eventString(block.Signature)},
+				Type: "content_block_delta", Index: new(index),
+				Delta: anthropicContentDelta{Type: "signature_delta", Signature: new(block.Signature)},
 			}); err != nil {
 				return err
 			}
 		case "text":
 			if err := writeEvent("content_block_start", anthropicStreamEvent{
-				Type: "content_block_start", Index: eventIndex(index),
-				ContentBlock: anthropicContentBlockStart{Type: "text", Text: eventString("")},
+				Type: "content_block_start", Index: new(index),
+				ContentBlock: anthropicContentBlockStart{Type: "text", Text: new("")},
 			}); err != nil {
 				return err
 			}
 			if block.Text != "" {
 				if err := writeEvent("content_block_delta", anthropicStreamEvent{
-					Type: "content_block_delta", Index: eventIndex(index),
-					Delta: anthropicContentDelta{Type: "text_delta", Text: eventString(block.Text)},
+					Type: "content_block_delta", Index: new(index),
+					Delta: anthropicContentDelta{Type: "text_delta", Text: new(block.Text)},
 				}); err != nil {
 					return err
 				}
@@ -347,7 +347,7 @@ func (h *Handler) streamAnthropicMessages(
 			return fmt.Errorf("unsupported completed Anthropic block %q", block.Type)
 		}
 		return writeEvent("content_block_stop", anthropicStreamEvent{
-			Type: "content_block_stop", Index: eventIndex(index),
+			Type: "content_block_stop", Index: new(index),
 		})
 	}
 	result, err := plan.run(
@@ -415,7 +415,7 @@ func (h *Handler) streamAnthropicMessages(
 					}
 					if toolStream.streamed(streamIndex) {
 						if err := writeEvent("content_block_stop", anthropicStreamEvent{
-							Type: "content_block_stop", Index: eventIndex(index),
+							Type: "content_block_stop", Index: new(index),
 						}); err != nil {
 							return
 						}
@@ -425,32 +425,32 @@ func (h *Handler) streamAnthropicMessages(
 			}
 			startBlock := anthropicContentBlockStart{Type: block.Type}
 			if block.Type == "text" {
-				startBlock.Text = eventString("")
+				startBlock.Text = new("")
 			} else {
 				startBlock.ID = block.ID
 				startBlock.Name = block.Name
-				startBlock.Input = emptyEventObject()
+				startBlock.Input = new(map[string]any{})
 			}
 			if err := writeEvent("content_block_start", anthropicStreamEvent{
-				Type: "content_block_start", Index: eventIndex(index), ContentBlock: startBlock,
+				Type: "content_block_start", Index: new(index), ContentBlock: startBlock,
 			}); err != nil {
 				return
 			}
 			var delta anthropicContentDelta
 			if block.Type == "text" {
-				delta = anthropicContentDelta{Type: "text_delta", Text: eventString(block.Text)}
+				delta = anthropicContentDelta{Type: "text_delta", Text: new(block.Text)}
 			} else {
 				delta = anthropicContentDelta{
-					Type: "input_json_delta", PartialJSON: eventString(string(block.Input)),
+					Type: "input_json_delta", PartialJSON: new(string(block.Input)),
 				}
 			}
 			if err := writeEvent("content_block_delta", anthropicStreamEvent{
-				Type: "content_block_delta", Index: eventIndex(index), Delta: delta,
+				Type: "content_block_delta", Index: new(index), Delta: delta,
 			}); err != nil {
 				return
 			}
 			if err := writeEvent("content_block_stop", anthropicStreamEvent{
-				Type: "content_block_stop", Index: eventIndex(index),
+				Type: "content_block_stop", Index: new(index),
 			}); err != nil {
 				return
 			}
@@ -460,7 +460,7 @@ func (h *Handler) streamAnthropicMessages(
 		}
 	} else if textStarted && !textStopped {
 		if err := writeEvent("content_block_stop", anthropicStreamEvent{
-			Type: "content_block_stop", Index: eventIndex(firstEventIndex),
+			Type: "content_block_stop", Index: new(firstEventIndex),
 		}); err != nil {
 			return
 		}

@@ -20,11 +20,11 @@ func hostAttention(q, k, v []float32, seq, hd int, scale float64) (p []float32, 
 	p = make([]float32, seq*seq)
 	out = make([]float64, seq*hd)
 	row := make([]float64, seq)
-	for i := 0; i < seq; i++ {
+	for i := range seq {
 		mx := math.Inf(-1)
 		for j := 0; j <= i; j++ {
 			var dot float64
-			for h := 0; h < hd; h++ {
+			for h := range hd {
 				dot += float64(q[i*hd+h]) * float64(k[j*hd+h])
 			}
 			row[j] = dot * scale
@@ -40,7 +40,7 @@ func hostAttention(q, k, v []float32, seq, hd int, scale float64) (p []float32, 
 		for j := 0; j <= i; j++ {
 			pij := row[j] / sum
 			p[i*seq+j] = float32(pij)
-			for h := 0; h < hd; h++ {
+			for h := range hd {
 				out[i*hd+h] += pij * float64(v[j*hd+h])
 			}
 		}
@@ -173,9 +173,9 @@ func TestAttentionCoreBackwardGradCheck(t *testing.T) {
 	}
 	t.Logf("dScores: max |device-host| %.3e", worstScore)
 	worst := gradCheck("dQ", q, grads.DQ)
-	worst = math.Max(worst, gradCheck("dK", k, grads.DK))
-	worst = math.Max(worst, gradCheck("dV", v, grads.DV))
-	worst = math.Max(worst, worstScore)
+	worst = max(worst, gradCheck("dK", k, grads.DK))
+	worst = max(worst, gradCheck("dV", v, grads.DV))
+	worst = max(worst, worstScore)
 	if worst > tolerance {
 		t.Fatalf("worst grad-check %.3e > %.1e", worst, tolerance)
 	}

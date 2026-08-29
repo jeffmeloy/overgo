@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +23,7 @@ func TestDecodeVideoFileFFmpeg(t *testing.T) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("create test video: %v: %s", err, output)
 	}
-	frames, err := media.DecodeVideoFile(context.Background(), path, ffmpeg, 2, 3)
+	frames, err := media.DecodeVideoFile(t.Context(), path, ffmpeg, 2, 3)
 	if err != nil {
 		t.Fatal(err)
 	}

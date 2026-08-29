@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -59,7 +58,7 @@ func TestHFCacheBenchmarkCatalog(t *testing.T) {
 	// The musr seed binds fields the mmlu fixture bytes do not carry;
 	// importing it must refuse rather than fabricate, so the catalog
 	// publishes from the mmlu seed alone.
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, _, err := CatalogHFCacheBenchmarks(ctx, store, root); err == nil {
 		t.Fatal("mismatched fields imported")
 	}

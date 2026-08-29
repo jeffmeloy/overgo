@@ -35,7 +35,7 @@ func run() error {
 		DriverVersion: version.String(),
 		Devices:       make([]driver.DeviceInfo, 0, count),
 	}
-	for ordinal := 0; ordinal < count; ordinal++ {
+	for ordinal := range count {
 		info, infoErr := lib.DeviceInfo(ordinal)
 		if infoErr != nil {
 			return infoErr

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -55,7 +54,7 @@ func mutationStaleObligation(t *testing.T) bool {
 	return !runrecord.AgentObligationSatisfied(obligation, []runrecord.AgentObligationResolution{resolution})
 }
 func mutationProxyBypass(t *testing.T) bool {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -98,11 +97,11 @@ func mutationCheckpointGap(t *testing.T) bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = runtime.RestoreCheckpoint(context.Background(), checkpoint, agenttool.InvocationEffect{}, testutil.ArtifactID(t, artifact.KindRecipe, "recipe"))
+	_, err = runtime.RestoreCheckpoint(t.Context(), checkpoint, agenttool.InvocationEffect{}, testutil.ArtifactID(t, artifact.KindRecipe, "recipe"))
 	return checkpoint.Gaps != 0 && err != nil
 }
 func mutationSessionDrift(t *testing.T) bool {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +136,7 @@ func mutationPolicyActivation(t *testing.T) bool {
 	}
 	defer store.Close()
 	value := runrecord.AutomationPolicyLifecycle{Name: "policy", Policy: testutil.ArtifactID(t, artifact.KindProfile, "candidate"), State: runrecord.AutomationPolicyActive, Incumbent: testutil.ArtifactID(t, artifact.KindProfile, "incumbent"), Rollback: testutil.ArtifactID(t, artifact.KindProfile, "incumbent"), EvaluationPlan: testutil.ArtifactID(t, artifact.KindProfile, "plan"), EvaluationEvidence: testutil.ArtifactID(t, artifact.KindEvidence, "evaluation"), Trajectories: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "trajectory")}, Decision: testutil.ArtifactID(t, artifact.KindEvidence, "decision")}
-	_, err = runrecord.PublishAutomationPolicyTransition(context.Background(), store, value)
+	_, err = runrecord.PublishAutomationPolicyTransition(t.Context(), store, value)
 	return err != nil
 }
 func mutationGateExclusion(t *testing.T) bool {

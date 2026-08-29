@@ -209,7 +209,7 @@ type PhaseMetric struct {
 type Metric struct {
 	Name      string    `json:"name"`
 	Value     float64   `json:"value"`
-	Unit      string    `json:"unit,omitempty"`
+	Unit      string    `json:"unit,omitzero"`
 	Direction Direction `json:"direction"`
 }
 
@@ -228,10 +228,10 @@ type runBody struct {
 	Outcome     Outcome       `json:"outcome"`
 	Inputs      []artifact.ID `json:"inputs,omitempty"`
 	Outputs     []artifact.ID `json:"outputs,omitempty"`
-	Failure     string        `json:"failure,omitempty"`
-	CodeCommit  string        `json:"code_commit,omitempty"`
+	Failure     string        `json:"failure,omitzero"`
+	CodeCommit  string        `json:"code_commit,omitzero"`
 	Environment *artifact.ID  `json:"environment,omitempty"`
-	MeasuredNS  uint64        `json:"measured_ns,omitempty"`
+	MeasuredNS  uint64        `json:"measured_ns,omitzero"`
 	Phases      []PhaseMetric `json:"phases,omitempty"`
 }
 

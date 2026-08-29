@@ -342,7 +342,7 @@ func makeByteCodec() ([binaryschema.ByteValueCount]rune, map[rune]byte) {
 		used[value] = true
 	}
 	next := 0
-	for value := 0; value < binaryschema.ByteValueCount; value++ {
+	for value := range binaryschema.ByteValueCount {
 		if !used[value] {
 			encoder[value] = rune(binaryschema.ByteValueCount + next)
 			next++

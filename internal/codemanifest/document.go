@@ -45,7 +45,7 @@ type BuildContext struct {
 	GOOS   string   `json:"goos"`
 	GOARCH string   `json:"goarch"`
 	Tags   []string `json:"tags,omitempty"`
-	Cgo    bool     `json:"cgo,omitempty"`
+	Cgo    bool     `json:"cgo,omitzero"`
 }
 
 // File records one parsed source file and the contexts that select it.
@@ -54,9 +54,9 @@ type File struct {
 	ContentID        string   `json:"content_id"`
 	Package          string   `json:"package"`
 	SelectedContexts []string `json:"selected_contexts,omitempty"`
-	BuildExpression  string   `json:"build_expression,omitempty"`
-	Generated        bool     `json:"generated,omitempty"`
-	Test             bool     `json:"test,omitempty"`
+	BuildExpression  string   `json:"build_expression,omitzero"`
+	Generated        bool     `json:"generated,omitzero"`
+	Test             bool     `json:"test,omitzero"`
 }
 
 // SymbolKind distinguishes structural declaration classes without embedding
@@ -82,7 +82,7 @@ const (
 type SymbolID struct {
 	Package  string     `json:"package"`
 	Context  string     `json:"context"`
-	Receiver string     `json:"receiver,omitempty"`
+	Receiver string     `json:"receiver,omitzero"`
 	Name     string     `json:"name"`
 	Kind     SymbolKind `json:"kind"`
 }
@@ -92,8 +92,8 @@ type Symbol struct {
 	ID              SymbolID `json:"id"`
 	File            string   `json:"file"`
 	SignatureSHA256 string   `json:"signature_sha256"`
-	BodySHA256      string   `json:"body_sha256,omitempty"`
-	Exported        bool     `json:"exported,omitempty"`
+	BodySHA256      string   `json:"body_sha256,omitzero"`
+	Exported        bool     `json:"exported,omitzero"`
 }
 
 // ReferenceKind identifies the syntactic relationship represented by an edge.
@@ -157,8 +157,8 @@ const (
 // Its presence is affirmative evidence to broaden, never narrow, selection.
 type Uncertainty struct {
 	Kind    UncertaintyKind `json:"kind"`
-	Path    string          `json:"path,omitempty"`
-	Context string          `json:"context,omitempty"`
+	Path    string          `json:"path,omitzero"`
+	Context string          `json:"context,omitzero"`
 	Symbol  *SymbolID       `json:"symbol,omitempty"`
 	Reason  string          `json:"reason"`
 }

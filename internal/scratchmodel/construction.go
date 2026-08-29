@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"math/rand"
 	"slices"
@@ -66,7 +67,7 @@ type Parameter struct {
 	Rows        int         `json:"rows"`
 	Cols        int         `json:"cols"`
 	Initializer Initializer `json:"initializer"`
-	TiedTo      string      `json:"tied_to,omitempty"`
+	TiedTo      string      `json:"tied_to,omitzero"`
 	Digest      string      `json:"sha256"`
 }
 
@@ -313,7 +314,7 @@ func deriveConfig(documents []string, steps int, profile DerivationProfile) Conf
 	for character := range counts {
 		characters = append(characters, string(character))
 	}
-	sort.Strings(characters)
+	slices.Sort(characters)
 	index := make(map[string]int, len(characters))
 	for position, character := range characters {
 		index[character] = position
@@ -488,9 +489,7 @@ func cloneConfig(config Config) Config {
 	config.Characters = slices.Clone(config.Characters)
 	source := config.CharacterIndex
 	config.CharacterIndex = make(map[string]int, len(config.CharacterIndex))
-	for character, index := range source {
-		config.CharacterIndex[character] = index
-	}
+	maps.Copy(config.CharacterIndex, source)
 	return config
 }
 

@@ -2,7 +2,6 @@ package gemma4convert
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"image"
 	"os"
@@ -202,7 +201,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), path, projector.OpenOptions{})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](t.Context(), path, projector.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +216,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		len(spec.Audio.SubChannels) != len(config.Audio.SubChannels) {
 		t.Fatalf("spec = %+v", spec)
 	}
-	output, err := runner.EncodeVisionImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 6, 6)))
+	output, err := runner.EncodeVisionImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 6, 6)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +229,7 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 			t.Fatalf("tower vision output[%d] = %v, want zero", index, value)
 		}
 	}
-	video, err := runner.EncodeVisionFrames(context.Background(), []image.Image{
+	video, err := runner.EncodeVisionFrames(t.Context(), []image.Image{
 		image.NewRGBA(image.Rect(0, 0, 6, 6)), image.NewRGBA(image.Rect(0, 0, 6, 6)),
 	})
 	if err != nil {
@@ -245,13 +244,13 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := runner.EncodeAudio(
-		context.Background(), make([]float32, 20), int(processor.Audio.SampleRate)+1,
+		t.Context(), make([]float32, 20), int(processor.Audio.SampleRate)+1,
 		audioProfile,
 	); err == nil {
 		t.Fatal("tower audio accepted mismatched sample rate")
 	}
 	waveAudio, err := runner.EncodeAudio(
-		context.Background(), make([]float32, 20), int(processor.Audio.SampleRate),
+		t.Context(), make([]float32, 20), int(processor.Audio.SampleRate),
 		audioProfile,
 	)
 	if err != nil {
@@ -261,13 +260,13 @@ func TestTowerConvertMatchesPinnedLoader(t *testing.T) {
 		t.Fatalf("tower waveform output = %+v", waveAudio)
 	}
 	if _, err := runner.EncodeAudioFeatures(
-		context.Background(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
+		t.Context(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
 		projector.AudioProjectionProfile{},
 	); err == nil {
 		t.Fatal("tower audio accepted absent profile fact")
 	}
 	audio, err := runner.EncodeAudioFeatures(
-		context.Background(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
+		t.Context(), make([]float32, audioFrames*int(processor.Audio.FeatureSize)), audioFrames,
 		audioProfile,
 	)
 	if err != nil {

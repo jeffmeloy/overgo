@@ -69,7 +69,7 @@ type Config struct {
 	Closure        *ClosureConfig `json:"closure,omitempty"`
 	// SaturationLimit supports the compatibility proposal source when no
 	// evidence-bound Closure is configured.
-	SaturationLimit int `json:"saturation_limit,omitempty"`
+	SaturationLimit int `json:"saturation_limit,omitzero"`
 }
 
 // ClosureConfig bounds evidence-gated proposal consumption after the plan
@@ -256,8 +256,7 @@ func Run(world World, config Config) (Outcome, error) {
 		if err != nil {
 			// A worker that cannot even launch is a world failure; a worker
 			// that exited nonzero is ordinary -- the plan decides below.
-			var launch *LaunchError
-			if errors.As(err, &launch) {
+			if _, ok := errors.AsType[*LaunchError](err); ok {
 				return outcome, fmt.Errorf("loop: worker launch: %w", err)
 			}
 		}

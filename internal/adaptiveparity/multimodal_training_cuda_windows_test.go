@@ -38,7 +38,7 @@ const (
 
 func TestMultimodalTrainingMatrix(t *testing.T) {
 	cudatest.Require(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
@@ -278,7 +278,7 @@ func publishMatrixObjectives(t *testing.T, store *overgodb.Store, evidence []mat
 	for _, descriptor := range descriptors {
 		artifacts = append(artifacts, descriptor)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "real-multimodal-objectives", Artifacts: artifacts, Contents: contents}); err != nil {
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "real-multimodal-objectives", Artifacts: artifacts, Contents: contents}); err != nil {
 		t.Fatal(err)
 	}
 	return result
@@ -345,7 +345,7 @@ func streamMatrixRecord(t *testing.T, datasetID artifact.ID, signature recipecon
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch, err := batcher.Next(context.Background())
+	batch, err := batcher.Next(t.Context())
 	if err != nil || len(batch.Examples) != 1 || batch.State.Position != 1 {
 		t.Fatalf("stream matrix record: examples=%d state=%+v err=%v", len(batch.Examples), batch.State, err)
 	}

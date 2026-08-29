@@ -35,7 +35,7 @@ func TestSinusoidalEmbeddingMatchesReference(t *testing.T) {
 		t.Fatalf("rows*dim = %d, want 24", len(multi))
 	}
 	// value 0: cos half all ones, sin half all zeros.
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		if multi[i] != 1 || multi[4+i] != 0 {
 			t.Fatalf("zero-value row = %v", multi[:8])
 		}

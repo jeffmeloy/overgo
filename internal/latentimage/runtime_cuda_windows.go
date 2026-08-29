@@ -26,10 +26,10 @@ type Request struct {
 	Prompt            string  `json:"prompt"`
 	Width             int     `json:"width"`
 	Height            int     `json:"height"`
-	Steps             int     `json:"steps,omitempty"`
+	Steps             int     `json:"steps,omitzero"`
 	Seed              int64   `json:"seed"`
-	DynamicShiftMu    float64 `json:"mu,omitempty"`
-	NumTrainTimesteps int     `json:"num_train_timesteps,omitempty"`
+	DynamicShiftMu    float64 `json:"mu,omitzero"`
+	NumTrainTimesteps int     `json:"num_train_timesteps,omitzero"`
 }
 
 type Generator struct {

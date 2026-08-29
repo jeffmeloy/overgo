@@ -77,8 +77,8 @@ type ProposalAction struct {
 // DecompositionAction: classify one model's tensor facts.
 type DecompositionAction struct {
 	Model    artifact.ID                `json:"model"`
-	Family   string                     `json:"family,omitempty"`
-	Modality string                     `json:"modality,omitempty"`
+	Family   string                     `json:"family,omitzero"`
+	Modality string                     `json:"modality,omitzero"`
 	Tensors  []modelartifact.TensorFact `json:"tensors"`
 }
 

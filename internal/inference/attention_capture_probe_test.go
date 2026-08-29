@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -49,7 +48,7 @@ func TestExtractAttentionShapeGeometry(t *testing.T) {
 	defer runner.Close()
 
 	tokens := []tokenizer.TokenID{9707, 27, 785, 4062}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Find a layer that exposes attention (a dense-causal block); hybrid models
 	// have non-attention layers whose query is not captured.

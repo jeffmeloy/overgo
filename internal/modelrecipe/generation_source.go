@@ -31,9 +31,9 @@ const (
 
 // SourceSelector matches a model to its generation-source profile.
 type SourceSelector struct {
-	ModelType    string `json:"model_type,omitempty"`
-	Architecture string `json:"architecture,omitempty"`
-	Pipeline     string `json:"pipeline,omitempty"`
+	ModelType    string `json:"model_type,omitzero"`
+	Architecture string `json:"architecture,omitzero"`
+	Pipeline     string `json:"pipeline,omitzero"`
 }
 
 // GenerationSourceProfile binds artifact identity to recipe topology.

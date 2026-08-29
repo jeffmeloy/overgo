@@ -7,6 +7,7 @@
 package jinja
 
 import (
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -259,7 +260,7 @@ func stringify(v any) string {
 		for k, val := range n {
 			pairs = append(pairs, mapPairRepr(k, val))
 		}
-		sort.Strings(pairs)
+		slices.Sort(pairs)
 		return "{" + strings.Join(pairs, ", ") + "}"
 	case *odict:
 		pairs := make([]string, 0, len(n.order))

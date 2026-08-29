@@ -60,3 +60,15 @@ func TestVerdictClassificationAndRepeatAgreement(t *testing.T) {
 		t.Fatal("undecodable first evidence accepted")
 	}
 }
+
+func TestRepeatAgreementForMixedVerifier(t *testing.T) {
+	command := "go test ./internal/repoanalysis -run '^TestExample$' && go run ./cmd/test-lane ./..."
+	first := verdictEvidence("pass") + "test-lane: PASS packages=1 tests=1\n"
+	second := verdictEvidence("pass") + "test-lane: PASS packages=1 tests=1\n"
+	if err := RepeatAgreementForCommand(command, first, second); err != nil {
+		t.Fatal(err)
+	}
+	if err := RepeatAgreementForCommand(command, first+"{malformed\n", second); err == nil {
+		t.Fatal("malformed JSON-looking auxiliary output was accepted")
+	}
+}

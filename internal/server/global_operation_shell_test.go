@@ -46,7 +46,7 @@ func TestGlobalOperationShell(t *testing.T) {
 func TestGlobalOperationShellSSE(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, 8)}
 	done := make(chan struct{})
 	go func() {
@@ -58,7 +58,7 @@ func TestGlobalOperationShellSSE(t *testing.T) {
 	}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "global-shell-sse-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "global-shell-sse-run")
-	id, err := handler.operations.Submit(context.Background(), operation.Request{
+	id, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		return operation.Completion{Run: runID}, nil
@@ -68,7 +68,7 @@ func TestGlobalOperationShellSSE(t *testing.T) {
 		<-done
 		t.Fatal(err)
 	}
-	if _, err := handler.operations.Wait(context.Background(), id); err != nil {
+	if _, err := handler.operations.Wait(t.Context(), id); err != nil {
 		cancel()
 		<-done
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestGlobalOperationDecisionRecovery(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "global-shell-recovery-run")
 	action := operatoraction.Action{Code: "resume", Summary: "Resume operation", Argv: []string{"overgo", "resume"}}
 	var executions atomic.Uint32
-	id, err := handler.operations.Submit(context.Background(), operation.Request{
+	id, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		if executions.Add(1) == 1 {
@@ -107,7 +107,7 @@ func TestGlobalOperationDecisionRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	blocked, err := handler.operations.Wait(context.Background(), id)
+	blocked, err := handler.operations.Wait(t.Context(), id)
 	if err != nil || blocked.State != operation.StateBlocked {
 		t.Fatalf("blocked operation=(%+v, %v)", blocked, err)
 	}
@@ -117,7 +117,7 @@ func TestGlobalOperationDecisionRecovery(t *testing.T) {
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("decision status=%d body=%s", response.Code, response.Body.String())
 	}
-	completed, err := handler.operations.Wait(context.Background(), id)
+	completed, err := handler.operations.Wait(t.Context(), id)
 	if err != nil || completed.State != operation.StateCompleted || executions.Load() != 2 {
 		t.Fatalf("recovered operation=(%+v, executions=%d, %v)", completed, executions.Load(), err)
 	}
@@ -132,7 +132,7 @@ func TestGlobalOperationTerminalState(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "global-shell-terminal-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "global-shell-terminal-run")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "global-shell-terminal-output")
-	id, err := handler.operations.Submit(context.Background(), operation.Request{
+	id, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		return operation.Completion{Run: runID, Outputs: []artifact.ID{outputID}}, nil
@@ -140,7 +140,7 @@ func TestGlobalOperationTerminalState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status, err := handler.operations.Wait(context.Background(), id); err != nil || status.State != operation.StateCompleted {
+	if status, err := handler.operations.Wait(t.Context(), id); err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("terminal operation=(%+v, %v)", status, err)
 	}
 	response := serveTestRequest(handler, http.MethodGet, "/operations/evidence?id="+id.String(), "")

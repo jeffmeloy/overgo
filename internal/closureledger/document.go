@@ -71,7 +71,7 @@ type SourceBinding struct {
 	Name         string      `json:"name"`
 	Line         int         `json:"line"`
 	Expression   string      `json:"expression"`
-	StructuralID string      `json:"structural_id,omitempty"`
+	StructuralID string      `json:"structural_id,omitzero"`
 	SourceID     string      `json:"source_id"`
 	CallsiteID   string      `json:"callsite_id"`
 	Owner        artifact.ID `json:"owner"`

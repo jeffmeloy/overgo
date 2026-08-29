@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"slices"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -172,7 +173,7 @@ func runDevice(l *campaignContext) error {
 	}
 	// device logits == host-graph logits at the golden probe + top indices
 	// (native-BF16 decode kernel vs BF16-dequant F32 reference).
-	logitIDs := append([]int{}, tg.LastLogits.ProbeIndex...)
+	logitIDs := slices.Clone(tg.LastLogits.ProbeIndex)
 	logitIDs = append(logitIDs, tg.LastLogits.TopIndex...)
 	var worstDH float64
 	for _, id := range logitIDs {

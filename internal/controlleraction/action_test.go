@@ -1,7 +1,6 @@
 package controlleraction
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -24,7 +23,7 @@ import (
 // genuinely executable through the generic workflow runtime's catalog.
 func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	compile := func(action Action) ([]artifact.Content, error) {
-		batch, err := CompileTransaction(context.Background(), nil, action)
+		batch, err := CompileTransaction(t.Context(), nil, action)
 		return batch.Contents, err
 	}
 	scorer := testutil.ArtifactID(t, artifact.KindModel, "action-scorer")
@@ -90,7 +89,7 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 		Evaluator:      testutil.ArtifactID(t, artifact.KindEvidence, "evaluator"),
 		Authority:      testutil.ArtifactID(t, artifact.KindEvidence, "authority"),
 	}}
-	batch, err := CompileTransaction(context.Background(), nil, improvement)
+	batch, err := CompileTransaction(t.Context(), nil, improvement)
 	if err != nil || len(batch.Contents) != 2 || len(batch.Lineage) == 0 {
 		t.Fatalf("improvement compile = (%+v, %v)", batch, err)
 	}
@@ -106,7 +105,7 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	profileAction.Improvement.Proposal.Kind = trainingprogram.ImprovementDerivationProfile
 	profileAction.Improvement.Proposal.Incumbent = testutil.ArtifactID(t, artifact.KindProfile, "current profile")
 	profileAction.Improvement.Proposal.Candidate = profile.ID
-	batch, err = CompileTransaction(context.Background(), nil, profileAction)
+	batch, err = CompileTransaction(t.Context(), nil, profileAction)
 	if err != nil || len(batch.Contents) != 3 {
 		t.Fatalf("profile improvement compile = (%d, %v)", len(batch.Contents), err)
 	}
@@ -120,7 +119,7 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 			Amount: 1, Consumer: improvement.Improvement.Evaluator, Purpose: "score descendant",
 		}},
 	}}
-	batch, err = CompileTransaction(context.Background(), nil, budget)
+	batch, err = CompileTransaction(t.Context(), nil, budget)
 	if err != nil || len(batch.Contents) != 2 || len(batch.Lineage) == 0 {
 		t.Fatalf("budget compile = (%+v, %v)", batch, err)
 	}
@@ -136,7 +135,7 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 		Candidates: []plan.ScheduledCandidate{{Candidate: scheduled, Strategy: strategy, PredictedWallNS: 2, PredictedVRAM: 2}},
 		Budget:     plan.SchedulerBudget{WallNS: 2, VRAMBytes: 2},
 	}}
-	batch, err = CompileTransaction(context.Background(), nil, scheduling)
+	batch, err = CompileTransaction(t.Context(), nil, scheduling)
 	if err != nil || len(batch.Contents) != 1 || len(batch.Lineage) == 0 {
 		t.Fatalf("scheduler compile = (%+v, %v)", batch, err)
 	}

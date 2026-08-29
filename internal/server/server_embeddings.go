@@ -23,7 +23,7 @@ type embeddingItem struct {
 	Object         string `json:"object"`
 	Embedding      any    `json:"embedding"`
 	Index          int    `json:"index"`
-	EncodingFormat string `json:"encoding_format,omitempty"`
+	EncodingFormat string `json:"encoding_format,omitzero"`
 }
 
 type embeddingResponse struct {

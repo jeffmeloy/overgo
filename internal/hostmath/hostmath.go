@@ -1,7 +1,10 @@
 // Package hostmath owns family-neutral host reference math.
 package hostmath
 
-import "math"
+import (
+	"math"
+	"slices"
+)
 
 const QuickGELUScale = 1.702
 
@@ -18,8 +21,8 @@ func InvSqrt32(value uint64) float32 { return 1 / Sqrt32(value) }
 // Transpose2D materializes the transpose of a row-major matrix.
 func Transpose2D(x []float32, rows, columns int) []float32 {
 	out := make([]float32, len(x))
-	for row := 0; row < rows; row++ {
-		for column := 0; column < columns; column++ {
+	for row := range rows {
+		for column := range columns {
 			out[column*rows+row] = x[row*columns+column]
 		}
 	}
@@ -42,7 +45,7 @@ func GradientSlot(gradients map[string][]float32, name string, size int) []float
 // RMSNormInto: out = x/sqrt(mean(x^2)+eps) * weight per row; a nil weight is
 // unit scale. out may alias x.
 func RMSNormInto(out, x, weight []float32, rows, d int, eps float64) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := x[r*d : (r+1)*d]
 		var ss float64
 		for _, v := range row {
@@ -70,7 +73,7 @@ func LayerNormInto(out, x, weight, bias []float32, rows, d int, eps float64) {
 	if affine && (len(weight) != d || len(bias) != d) {
 		panic("hostmath: LayerNormInto affine vectors do not match width")
 	}
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := x[r*d : (r+1)*d]
 		var mean float64
 		for _, v := range row {
@@ -85,7 +88,7 @@ func LayerNormInto(out, x, weight, bias []float32, rows, d int, eps float64) {
 		variance /= float64(d)
 		inv := 1.0 / math.Sqrt(variance+eps)
 		o := out[r*d : (r+1)*d]
-		for j := 0; j < d; j++ {
+		for j := range d {
 			n := (float64(row[j]) - mean) * inv
 			if affine {
 				n = n*float64(weight[j]) + float64(bias[j])
@@ -157,7 +160,7 @@ func RopeWidth(ropeDim, headDim int) int {
 // pos*invFreq[i] (in place).
 func ApplyRotaryHalf(x []float32, invFreq []float64, pos int) {
 	h := len(x) / 2
-	for i := 0; i < h; i++ {
+	for i := range h {
 		a := float64(pos) * invFreq[i]
 		c, s := math.Cos(a), math.Sin(a)
 		x1, x2 := float64(x[i]), float64(x[i+h])
@@ -171,7 +174,7 @@ func ApplyRotaryHalf(x []float32, invFreq []float64, pos int) {
 // split-half HF layout is ApplyRotaryHalf.
 func ApplyRotaryInterleaved(x []float32, invFreq []float64, pos int) {
 	h := len(x) / 2
-	for i := 0; i < h; i++ {
+	for i := range h {
 		a := float64(pos) * invFreq[i]
 		c, s := math.Cos(a), math.Sin(a)
 		x1, x2 := float64(x[2*i]), float64(x[2*i+1])
@@ -185,12 +188,7 @@ func SoftmaxInPlace(row []float32) {
 	if len(row) == 0 {
 		return
 	}
-	mx := row[0]
-	for _, value := range row[1:] {
-		if value > mx {
-			mx = value
-		}
-	}
+	mx := slices.Max(row)
 	var sum float64
 	for i, value := range row {
 		exp := math.Exp(float64(value) - float64(mx))
@@ -219,7 +217,7 @@ func Linear(dst, x, w []float32, rows, inDim, outDim int) {
 // LinearBF16: Linear with native BF16 weight storage and F32 accumulation.
 func LinearBF16(dst, x []float32, w []uint16, rows, inDim, outDim int) {
 	parallelRangeCost(outDim, rows*inDim, macF32, func(oStart, oEnd int) {
-		for r := 0; r < rows; r++ {
+		for r := range rows {
 			xRow := x[r*inDim : (r+1)*inDim]
 			dRow := dst[r*outDim : (r+1)*outDim]
 			for o := oStart; o < oEnd; o++ {
@@ -237,7 +235,7 @@ func LinearBF16(dst, x []float32, w []uint16, rows, inDim, outDim int) {
 // LinearBF16BackwardInput applies the input VJP for a native-BF16 linear.
 func LinearBF16BackwardInput(dx, dy []float32, w []uint16, rows, inDim, outDim int) {
 	parallelRangeCost(inDim, rows*outDim, macF32, func(cStart, cEnd int) {
-		for r := 0; r < rows; r++ {
+		for r := range rows {
 			dyRow := dy[r*outDim : (r+1)*outDim]
 			dxRow := dx[r*inDim : (r+1)*inDim]
 			for c := cStart; c < cEnd; c++ {
@@ -254,7 +252,7 @@ func LinearBF16BackwardInput(dx, dy []float32, w []uint16, rows, inDim, outDim i
 // linearCols: output columns [oStart,oEnd) of Linear — the serial kernel the
 // dispatch calibration times.
 func linearCols(dst, x, w []float32, rows, inDim, outDim, oStart, oEnd int) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		xRow := x[r*inDim : (r+1)*inDim]
 		dRow := dst[r*outDim : (r+1)*outDim]
 		for o := oStart; o < oEnd; o++ {
@@ -327,7 +325,7 @@ func GELUTanhPrime(x float64) float64 {
 // to the identity relu; the caller supplies the model's std multiplier. The
 // cutoff depends on every element in the row, so this is not element-wise.
 func SparseGateInto(dst, gate []float32, rows, width int, stdMult float64) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		base := r * width
 		row := gate[base : base+width]
 		var sum float64
@@ -363,9 +361,9 @@ func WindowedCausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDi
 	clear(out)
 	group := heads / kvHeads
 	scores := make([]float32, seq)
-	for h := 0; h < heads; h++ {
+	for h := range heads {
 		kv := h / group
-		for qi := 0; qi < seq; qi++ {
+		for qi := range seq {
 			lo := 0
 			if window > 0 && qi+1 > window {
 				lo = qi + 1 - window
@@ -375,7 +373,7 @@ func WindowedCausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDi
 			for m := range probs {
 				kRow := k[((lo+m)*kvHeads+kv)*headDim : ((lo+m)*kvHeads+kv+1)*headDim]
 				var dot float64
-				for d := 0; d < headDim; d++ {
+				for d := range headDim {
 					dot += float64(qRow[d]) * float64(kRow[d])
 				}
 				probs[m] = float32(dot)
@@ -384,7 +382,7 @@ func WindowedCausalAttention(out, q, k, v []float32, seq, heads, kvHeads, headDi
 			outRow := out[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			for m, weight := range probs {
 				vRow := v[((lo+m)*kvHeads+kv)*headDim : ((lo+m)*kvHeads+kv+1)*headDim]
-				for d := 0; d < headDim; d++ {
+				for d := range headDim {
 					outRow[d] += weight * vRow[d]
 				}
 			}
@@ -417,17 +415,17 @@ func ScaledMaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq
 		group := heads / kvHeads
 		for h := hStart; h < hEnd; h++ {
 			kv := h / group
-			for qi := 0; qi < querySeq; qi++ {
+			for qi := range querySeq {
 				qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 				maxScore := math.Inf(-1)
-				for ki := 0; ki < keySeq; ki++ {
+				for ki := range keySeq {
 					if keyMask != nil && !keyMask[ki] {
 						scores[ki] = math.Inf(-1)
 						continue
 					}
 					kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 					var dot float64
-					for d := 0; d < headDim; d++ {
+					for d := range headDim {
 						dot += float64(qRow[d]) * float64(kRow[d])
 					}
 					dot *= scale
@@ -435,7 +433,7 @@ func ScaledMaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq
 					maxScore = max(maxScore, dot)
 				}
 				var sum float64
-				for ki := 0; ki < keySeq; ki++ {
+				for ki := range keySeq {
 					if math.IsInf(scores[ki], -1) {
 						scores[ki] = 0
 						continue
@@ -444,13 +442,13 @@ func ScaledMaskedBidirectionalAttention(out, q, k, v []float32, querySeq, keySeq
 					sum += scores[ki]
 				}
 				outRow := out[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
-				for ki := 0; ki < keySeq; ki++ {
+				for ki := range keySeq {
 					if scores[ki] == 0 {
 						continue
 					}
 					weight := scores[ki] / sum
 					vRow := v[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-					for d := 0; d < headDim; d++ {
+					for d := range headDim {
 						outRow[d] += float32(weight * float64(vRow[d]))
 					}
 				}
@@ -499,13 +497,13 @@ func CausalAttentionSteps(out, q, kCache, vCache []float32, rows0, T, heads, kvH
 		scores := make([]float32, rows0+T)
 		for h := hStart; h < hEnd; h++ {
 			kv := h / group
-			for t := 0; t < T; t++ {
+			for t := range T {
 				probs := scores[:rows0+t+1]
 				qRow := q[(t*heads+h)*headDim : (t*heads+h+1)*headDim]
 				for ki := range probs {
 					kRow := kCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 					var dot float64
-					for d := 0; d < headDim; d++ {
+					for d := range headDim {
 						dot += float64(qRow[d]) * float64(kRow[d])
 					}
 					probs[ki] = float32(dot)
@@ -514,7 +512,7 @@ func CausalAttentionSteps(out, q, kCache, vCache []float32, rows0, T, heads, kvH
 				outRow := out[(t*heads+h)*headDim : (t*heads+h+1)*headDim]
 				for ki, weight := range probs {
 					vRow := vCache[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-					for d := 0; d < headDim; d++ {
+					for d := range headDim {
 						outRow[d] += weight * vRow[d]
 					}
 				}
@@ -530,13 +528,13 @@ func causalAttentionHeads(out, q, k, v []float32, seq, heads, kvHeads, headDim, 
 	group := heads / kvHeads
 	for h := hStart; h < hEnd; h++ {
 		kv := h / group
-		for qi := 0; qi < seq; qi++ {
+		for qi := range seq {
 			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			probs := scores[:qi+1]
 			for ki := range probs {
 				kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 				var dot float64
-				for d := 0; d < headDim; d++ {
+				for d := range headDim {
 					dot += float64(qRow[d]) * float64(kRow[d])
 				}
 				probs[ki] = float32(dot)
@@ -545,7 +543,7 @@ func causalAttentionHeads(out, q, k, v []float32, seq, heads, kvHeads, headDim, 
 			outRow := out[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			for ki, weight := range probs {
 				vRow := v[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-				for d := 0; d < headDim; d++ {
+				for d := range headDim {
 					outRow[d] += weight * vRow[d]
 				}
 			}

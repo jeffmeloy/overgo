@@ -124,7 +124,7 @@ func (t *FlowHeadTrainer) Velocity(hidden, z []float32, timestep float64) ([]flo
 	h := t.plan.Hidden
 	mid := make([]float32, rows*h)
 	hostmath.Linear(mid, hidden, t.view(t.w0), rows, h, h)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(mid[r*h:(r+1)*h], t.view(t.b0))
 	}
 	activated := make([]float32, len(mid))
@@ -133,7 +133,7 @@ func (t *FlowHeadTrainer) Velocity(hidden, z []float32, timestep float64) ([]flo
 	}
 	out := make([]float32, rows*t.plan.FlowDim)
 	hostmath.Linear(out, activated, t.view(t.w2), rows, h, t.plan.FlowDim)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(out[r*t.plan.FlowDim:(r+1)*t.plan.FlowDim], t.view(t.b2))
 	}
 	for i := range out {
@@ -167,7 +167,7 @@ func (t *FlowHeadTrainer) lossAndGradients(hidden, z, target []float32, timestep
 	// Recomputed forward with retained pre-activation.
 	mid := make([]float32, rows*h)
 	hostmath.Linear(mid, hidden, t.view(t.w0), rows, h, h)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(mid[r*h:(r+1)*h], t.view(t.b0))
 	}
 	activated := make([]float32, len(mid))
@@ -176,7 +176,7 @@ func (t *FlowHeadTrainer) lossAndGradients(hidden, z, target []float32, timestep
 	}
 	out := make([]float32, rows*fd)
 	hostmath.Linear(out, activated, t.view(t.w2), rows, h, fd)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(out[r*fd:(r+1)*fd], t.view(t.b2))
 	}
 
@@ -216,5 +216,5 @@ func (t *FlowHeadTrainer) geometry(hidden, z []float32, timestep float64) (rows 
 	if len(z) != rows*t.plan.FlowDim {
 		return 0, 0, fmt.Errorf("routed lm flow train: z len=%d, want %d", len(z), rows*t.plan.FlowDim)
 	}
-	return rows, float32(math.Max(1-timestep, t.plan.TEps)), nil
+	return rows, float32(max(1-timestep, t.plan.TEps)), nil
 }

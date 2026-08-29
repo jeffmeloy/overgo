@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -55,7 +54,7 @@ func TestBrowseRunsReadsOvergoDBRecords(t *testing.T) {
 	}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "browse-recipe")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "browse-output")
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "fixture/facts", Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: outputID}}}); err != nil {
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/facts", Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: outputID}}}); err != nil {
 		t.Fatal(err)
 	}
 	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{outputID}, "")
@@ -66,7 +65,7 @@ func TestBrowseRunsReadsOvergoDBRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -99,7 +98,7 @@ func TestRunDetailReconstructsImmutableEvidence(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "detail-recipe")
 	inputID := testutil.ArtifactID(t, artifact.KindDataset, "detail-input")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "detail-output")
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "detail/facts", Artifacts: []artifact.Descriptor{
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "detail/facts", Artifacts: []artifact.Descriptor{
 		{ID: recipeID}, {ID: inputID}, {ID: outputID},
 	}}); err != nil {
 		t.Fatal(err)
@@ -112,7 +111,7 @@ func TestRunDetailReconstructsImmutableEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

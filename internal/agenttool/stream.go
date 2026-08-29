@@ -77,7 +77,7 @@ type StreamTerminal struct {
 	State      StreamState `json:"state"`
 	Events     uint32      `json:"events"`
 	Bytes      uint64      `json:"bytes"`
-	Error      string      `json:"error,omitempty"`
+	Error      string      `json:"error,omitzero"`
 	ID         artifact.ID `json:"-"`
 }
 

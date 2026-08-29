@@ -74,9 +74,7 @@ func softmax(shape tensor.Shape, input Value) (Value, error) {
 	for row := 0; row < len(input.Data); row += width {
 		maximum := input.Data[row]
 		for _, value := range input.Data[row+1 : row+width] {
-			if value > maximum {
-				maximum = value
-			}
+			maximum = max(maximum, value)
 		}
 		var sum float64
 		for column, value := range input.Data[row : row+width] {
@@ -105,7 +103,7 @@ func mulMat(shape tensor.Shape, left, right Value) (Value, error) {
 		for index := lo; index < hi; index++ {
 			row, column := index/m, index%m
 			var sum float64
-			for inner := 0; inner < k; inner++ {
+			for inner := range k {
 				sum += float64(left.Data[column*k+inner]) * float64(right.Data[row*k+inner])
 			}
 			output[index] = float32(sum)

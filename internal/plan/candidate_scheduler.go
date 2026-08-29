@@ -144,7 +144,7 @@ func compileSchedulerEvidence(outcomes []CandidateOutcome) ([]SchedulerEvidenceR
 				return nil, errors.New("plan: capability delta overflows")
 			}
 		}
-		sort.Strings(metrics)
+		slices.Sort(metrics)
 		if row.metrics == nil {
 			row.metrics = metrics
 		} else if !slices.Equal(row.metrics, metrics) {

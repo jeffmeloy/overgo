@@ -53,8 +53,8 @@ func (b BranchBinding) forks(path string) bool {
 // branchedTensorName: branch suffix at its owning module (ported verbatim
 // from adaptive extmodel branchedTensorName).
 func branchedTensorName(prefix, suffix, branch string) string {
-	if strings.HasPrefix(suffix, "mlp.") {
-		return prefix + "mlp" + branch + "." + strings.TrimPrefix(suffix, "mlp.")
+	if rest, ok := strings.CutPrefix(suffix, "mlp."); ok {
+		return prefix + "mlp" + branch + "." + rest
 	}
 	return prefix + strings.TrimSuffix(suffix, ".weight") + branch + ".weight"
 }

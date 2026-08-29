@@ -2,7 +2,6 @@ package overgodb
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"testing"
 
@@ -19,7 +18,7 @@ import (
 // restores the prior champion -- same alias target, byte-identical content --
 // after a promotion is reversed.
 func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

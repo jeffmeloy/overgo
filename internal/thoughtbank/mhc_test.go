@@ -124,7 +124,7 @@ func TestHyperConnectionBackwardMatchesFiniteDifference(t *testing.T) {
 			p.buf[p.idx] = orig
 
 			num := (up - dn) / (2 * h)
-			den := math.Max(1e-2, math.Abs(float64(p.want)))
+			den := max(1e-2, math.Abs(float64(p.want)))
 			if rel := math.Abs(num-float64(p.want)) / den; rel > worst {
 				worst = rel
 			}
@@ -195,7 +195,7 @@ func TestHyperConnectionBackwardAlphaGradients(t *testing.T) {
 		dn, _ := hyperConnectionLoss(x, dRes, rows, w)
 		*c.ptr = orig
 		num := (up - dn) / (2 * h)
-		den := math.Max(1e-2, math.Abs(float64(c.want)))
+		den := max(1e-2, math.Abs(float64(c.want)))
 		if rel := math.Abs(num-float64(c.want)) / den; rel > 1e-3 {
 			t.Fatalf("%s: analytic %g vs numerical %g, relative %.3e", c.name, c.want, num, rel)
 		}
@@ -221,14 +221,14 @@ func TestHyperConnectionResidualMixingIsDoublyStochastic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("forward: %v", err)
 	}
-	for r := 0; r < rows; r++ {
-		for k := 0; k < d; k++ {
+	for r := range rows {
+		for k := range d {
 			lo, hi := math.Inf(1), math.Inf(-1)
-			for s := 0; s < n; s++ {
+			for s := range n {
 				v := float64(x[r*flat+s*d+k])
-				lo, hi = math.Min(lo, v), math.Max(hi, v)
+				lo, hi = min(lo, v), max(hi, v)
 			}
-			for s := 0; s < n; s++ {
+			for s := range n {
 				v := float64(got[r*flat+s*d+k])
 				const slack = 1e-5
 				if v < lo-slack || v > hi+slack {

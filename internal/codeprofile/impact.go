@@ -20,7 +20,7 @@ import (
 type FunctionSymbol struct {
 	Package  string `json:"package"`
 	File     string `json:"file"`
-	Receiver string `json:"receiver,omitempty"`
+	Receiver string `json:"receiver,omitzero"`
 	Name     string `json:"name"`
 }
 
@@ -29,7 +29,7 @@ type FunctionSymbol struct {
 type ImpactBoundary struct {
 	Kind   string `json:"kind"`
 	Path   string `json:"path"`
-	Symbol string `json:"symbol,omitempty"`
+	Symbol string `json:"symbol,omitzero"`
 }
 
 // FunctionImpact binds exact changed-body seeds to every production caller

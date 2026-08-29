@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,7 +56,7 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 	defer store.Close()
 	rankerContent, _ := ranker.Content()
 	proposalContent, _ := proposal.Content()
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/component-proposal", Contents: []artifact.Content{rankerContent, proposalContent},
 		Artifacts: []artifact.Descriptor{{ID: target}, {ID: donor}},
 		Lineage:   append(ranker.Lineage(), proposal.Lineage()...),
@@ -65,7 +64,7 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 		t.Fatal(err)
 	}
 	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "synthesis decider")
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "fixture/synthesis-decider",
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/synthesis-decider",
 		Artifacts: []artifact.Descriptor{{ID: derivation}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -91,10 +90,10 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 		outcome.Result.SessionPlan.Components[1].Session != recipe.SessionCapacity {
 		t.Fatalf("outcome=%+v", outcome)
 	}
-	if _, found, err := artifact.ReadContent(context.Background(), store, outcome.Result.Recipe); err != nil || !found {
+	if _, found, err := artifact.ReadContent(t.Context(), store, outcome.Result.Recipe); err != nil || !found {
 		t.Fatalf("compiled recipe absent: found=%t err=%v", found, err)
 	}
-	if _, found, err := artifact.ReadContent(context.Background(), store, outcome.Result.SessionPlan.Identity); err != nil || !found {
+	if _, found, err := artifact.ReadContent(t.Context(), store, outcome.Result.SessionPlan.Identity); err != nil || !found {
 		t.Fatalf("component session evidence absent: found=%t err=%v", found, err)
 	}
 }

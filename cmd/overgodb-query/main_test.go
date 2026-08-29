@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -47,7 +46,7 @@ func TestManifestSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := codemanifest.Publish(context.Background(), store, manifest); err != nil {
+	if _, err := codemanifest.Publish(t.Context(), store, manifest); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -86,7 +85,7 @@ func TestProfileCatalogQueryReportsExactCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := modelrecipe.PublishArchitectureProfileCatalog(context.Background(), store); err != nil {
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -136,7 +135,7 @@ func TestDatasetCatalogQueryReportsExactCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dataset.PublishCatalog(context.Background(), store, dataset.CompiledCatalog{
+	if _, err := dataset.PublishCatalog(t.Context(), store, dataset.CompiledCatalog{
 		Catalog: catalog, Datasets: []dataset.Document{version}, Inventories: []dataset.Inventory{inventory},
 		Locations: []artifact.Location{location},
 	}); err != nil {
@@ -174,7 +173,7 @@ func TestMagicClosureQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "magic/fixture", Artifacts: []artifact.Descriptor{{ID: owner}, {ID: fixture}},
 	}); err != nil {
 		t.Fatal(err)
@@ -196,7 +195,7 @@ func TestMagicClosureQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), documentBatch); err != nil {
+	if _, err := store.Commit(t.Context(), documentBatch); err != nil {
 		t.Fatal(err)
 	}
 	head, sequence := store.Head()
@@ -211,7 +210,7 @@ func TestMagicClosureQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	head, sequence = store.Head()
@@ -226,7 +225,7 @@ func TestMagicClosureQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -285,7 +284,7 @@ func TestRunQueriesSeededStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	id, _ := artifact.IdentifyBytes(artifact.KindDataset, []byte("dataset"))
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "fixture/query-cli",
 		Artifacts: []artifact.Descriptor{{ID: id, Size: 7}},
 		Aliases:   []artifact.AliasBinding{{Name: "dataset/current", Target: id}},

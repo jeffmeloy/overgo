@@ -31,9 +31,9 @@ type rotaryCache struct {
 func NewRotaryCache(seqLen, dim int) *rotaryCache {
 	half := dim / 2
 	c := &rotaryCache{Cos: make([]float32, seqLen*half), Sin: make([]float32, seqLen*half), Half: half}
-	for i := 0; i < half; i++ {
+	for i := range half {
 		invFreq := 1.0 / math.Pow(RotaryBase, float64(i)/float64(half))
-		for t := 0; t < seqLen; t++ {
+		for t := range seqLen {
 			angle := float64(t) * invFreq
 			c.Cos[t*half+i] = float32(math.Cos(angle))
 			c.Sin[t*half+i] = float32(math.Sin(angle))
@@ -48,10 +48,10 @@ func NewRotaryCache(seqLen, dim int) *rotaryCache {
 // x holds outer x seqLen x dim values; the result has the same shape.
 func ApplyRotaryInto(out, x []float32, outer, seqLen, dim int, c *rotaryCache) {
 	half := dim / 2
-	for o := 0; o < outer; o++ {
-		for t := 0; t < seqLen; t++ {
+	for o := range outer {
+		for t := range seqLen {
 			base := (o*seqLen + t) * dim
-			for i := 0; i < half; i++ {
+			for i := range half {
 				cs := float64(c.Cos[t*half+i])
 				sn := float64(c.Sin[t*half+i])
 				xe := float64(x[base+i])
@@ -75,8 +75,8 @@ func ApplyRotaryInto(out, x []float32, outer, seqLen, dim int, c *rotaryCache) {
 //
 // logits and out hold rows x heads x n values; sink holds one logit per head.
 func AttentionSinkSoftmaxInto(out, logits, sink []float32, rows, heads, n int) {
-	for r := 0; r < rows; r++ {
-		for h := 0; h < heads; h++ {
+	for r := range rows {
+		for h := range heads {
 			row := logits[(r*heads+h)*n : (r*heads+h+1)*n]
 			dst := out[(r*heads+h)*n : (r*heads+h+1)*n]
 			first, ok := checked.First(row)
@@ -126,32 +126,32 @@ func compressKV(hPad []float32, series []compressionSeries, blocks, m, dModel, d
 	values, scores := make([]float64, candidates*dHead), make([]float64, candidates*dHead)
 	out := make([]float32, blocks*dHead)
 	negativeInfinity := math.Inf(-len(series))
-	for block := 0; block < blocks; block++ {
+	for block := range blocks {
 		for sourceIndex, source := range series {
 			sourceBlock := block + source.blockOffset
-			for position := 0; position < m; position++ {
+			for position := range m {
 				candidate := sourceIndex*m + position
 				if sourceBlock < 0 {
-					for feature := 0; feature < dHead; feature++ {
+					for feature := range dHead {
 						scores[candidate*dHead+feature] = negativeInfinity
 					}
 					continue
 				}
 				token := hPad[(sourceBlock*m+position)*dModel : (sourceBlock*m+position+1)*dModel]
-				for feature := 0; feature < dHead; feature++ {
+				for feature := range dHead {
 					values[candidate*dHead+feature] = dot(source.value[feature*dModel:(feature+1)*dModel], token)
 					scores[candidate*dHead+feature] = dot(source.score[feature*dModel:(feature+1)*dModel], token) +
 						float64(source.position[position*dHead+feature])
 				}
 			}
 		}
-		for feature := 0; feature < dHead; feature++ {
+		for feature := range dHead {
 			maxScore := scores[feature]
 			for candidate := range candidates {
 				maxScore = max(maxScore, scores[candidate*dHead+feature])
 			}
 			var denominator, numerator float64
-			for candidate := 0; candidate < candidates; candidate++ {
+			for candidate := range candidates {
 				weight := math.Exp(scores[candidate*dHead+feature] - maxScore)
 				denominator += weight
 				numerator += weight * values[candidate*dHead+feature]

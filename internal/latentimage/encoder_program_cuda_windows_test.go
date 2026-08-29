@@ -45,7 +45,7 @@ func TestEncoderProgramCUDAMatchesReference(t *testing.T) {
 	}
 	defer exec.Close()
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
-		return exec.Execute(context.Background(), outputs, feeds)
+		return exec.Execute(context.WithoutCancel(t.Context()), outputs, feeds)
 	}
 	got, err := prog.RunHostFeed(cudaRun, weightAt, embed)
 	if err != nil {
@@ -112,7 +112,7 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgram: %v", err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	re := newResidentFixture(t, ctx, "test encoder", filepath.Join(dir, "text_encoder"), prog.weightInputs, prog.Selected...)
 	t.Logf("resident encoder weights: %.3f GiB (%d tapped layers, seq=%d)", float64(re.graph.ProgramBytes())/(1<<30), prog.CaptureAfter[len(prog.CaptureAfter)-1]+1, len(ids))
 	dev := residentEncode(t, ctx, re, prog, embed)
@@ -132,14 +132,14 @@ func TestEncoderResidentRealCheckpoint(t *testing.T) {
 			for c := 0; c < host.Hidden; c++ {
 				hv, dv := host.Data[base+c], dev.Data[base+c]
 				abs := math.Abs(hv - dv)
-				maxAbs = math.Max(maxAbs, abs)
+				maxAbs = max(maxAbs, abs)
 				sumAbs += abs
 				sa += math.Abs(hv)
 				n++
 			}
 		}
 		rel := sumAbs / (sa + 1e-9)
-		worst = math.Max(worst, rel)
+		worst = max(worst, rel)
 		t.Logf("tap %2d (after layer %2d): max_abs=%.3e mean|h-d|/mean|h|=%.3e", l, captureAfter(e)[l], maxAbs, rel)
 	}
 	t.Logf("device vs host selected-hidden: worst mean-relative=%.3e (bf16 band)", worst)

@@ -2,6 +2,7 @@
 package plan
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,13 +43,13 @@ type Step struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
 	Status string `json:"status"`
-	Verify string `json:"verify,omitempty"`
+	Verify string `json:"verify,omitzero"`
 	// Campaign detail carried from the merged design record (owner directive
 	// 2026-08-16: one plan document). Rationale says why the row exists;
 	// DependsOn declares ordering the queue must respect; Capabilities name
 	// the discipline contracts the row exercises; Outcome records the
 	// measured verdict verbatim once the row has run.
-	Rationale    string          `json:"rationale,omitempty"`
+	Rationale    string          `json:"rationale,omitzero"`
 	DependsOn    []string        `json:"depends_on,omitempty"`
 	Capabilities []string        `json:"capabilities,omitempty"`
 	Outcome      json.RawMessage `json:"outcome,omitempty"`
@@ -58,7 +59,7 @@ type Step struct {
 type Item struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
-	Owner  string `json:"owner,omitempty"`
+	Owner  string `json:"owner,omitzero"`
 	Status string `json:"status"`
 	Steps  []Step `json:"steps"`
 }
@@ -73,9 +74,7 @@ type Plan struct {
 
 // Load reads the plan from path (Path when empty).
 func Load(path string) (Plan, error) {
-	if path == "" {
-		path = Path
-	}
+	path = cmp.Or(path, Path)
 	var d Plan
 	if err := jsonfile.DecodeStrict(filepath.FromSlash(path), &d); err != nil {
 		return Plan{}, fmt.Errorf("parse %s: %w", path, err)
@@ -109,9 +108,7 @@ func Save(path string, d Plan) error {
 	if err := Validate(d); err != nil {
 		return err
 	}
-	if path == "" {
-		path = Path
-	}
+	path = cmp.Or(path, Path)
 	return jsonfile.Write(filepath.FromSlash(path), d, 0o644)
 }
 

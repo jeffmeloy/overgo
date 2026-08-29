@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 // facet exactly once, with an exact key repeat replaying the same
 // commit identity instead of moving state.
 func TestCommitCoordinatorAtomicity(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

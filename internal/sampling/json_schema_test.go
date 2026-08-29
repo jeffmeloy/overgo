@@ -37,7 +37,6 @@ func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(t *testing.T) {
 		t.Fatalf("fixture case count = %d, want 70", len(fixture.Cases))
 	}
 	for _, test := range fixture.Cases {
-		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			got, err := JSONSchemaToGrammar([]byte(test.Schema))
 			if test.Status == "failure" {
@@ -249,7 +248,6 @@ space ::= | " " | "\n"{1,2} [ \t]{0,20}`},
 
 func TestPinnedPatternCorpus(t *testing.T) {
 	for _, oracle := range pinnedJSONSchemaPatternOracles {
-		oracle := oracle
 		t.Run(oracle.pattern, func(t *testing.T) {
 			schema, err := json.Marshal(map[string]any{
 				"type":    "string",

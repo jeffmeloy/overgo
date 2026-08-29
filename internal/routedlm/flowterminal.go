@@ -209,7 +209,7 @@ func (p FlowPlan) ImagePlan(width, height int) (FlowImagePlan, error) {
 			scale = math.Sqrt(scale)
 		}
 	}
-	out.NoiseScale = math.Min(scale, p.NoiseScaleMax)
+	out.NoiseScale = min(scale, p.NoiseScaleMax)
 	return out, nil
 }
 
@@ -252,7 +252,7 @@ func SinusoidalEmbedding(values []float64, dim int, period, scale float64) ([]fl
 		if math.IsNaN(value) || math.IsInf(value, 0) {
 			return nil, fmt.Errorf("routed lm sinusoidal: value %d is non-finite", row)
 		}
-		for i := 0; i < half; i++ {
+		for i := range half {
 			angle := value * scale * math.Exp(-logPeriod*float64(i)/float64(half))
 			out[row*dim+i], out[row*dim+half+i] = float32(math.Cos(angle)), float32(math.Sin(angle))
 		}
@@ -364,7 +364,7 @@ func LoadVisionEmbedderWeights(src *safetensors.Source, prefix string, plan Flow
 // bias add).
 func linearBiasRounded(out, x []float32, w BF16Matrix, bias []float32, rows int) {
 	hostmath.LinearBF16F64(out, x, w.Data, nil, rows, w.In, w.Out)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := out[r*w.Out : (r+1)*w.Out]
 		for c, v := range row {
 			row[c] = dtype.RoundBF16(v + bias[c])
@@ -467,7 +467,7 @@ func FlowHeadVelocity(w FlowMLPWeights, plan FlowPlan, hidden, z []float32, time
 	geluExactRounded(mid)
 	out := make([]float32, rows*plan.FlowDim)
 	linearBiasRounded(out, mid, w.W2, w.B2, rows)
-	denom := float32(math.Max(1-timestep, plan.TEps))
+	denom := float32(max(1-timestep, plan.TEps))
 	for i, v := range out {
 		out[i] = dtype.RoundBF16((v - z[i]) / denom)
 	}
@@ -480,14 +480,14 @@ func GenerationFinalHidden(hidden, weight []float32, rows, dim int, eps float64)
 		return nil, fmt.Errorf("routed lm generation terminal: invalid shape")
 	}
 	out := make([]float32, len(hidden))
-	for row := 0; row < rows; row++ {
+	for row := range rows {
 		base := row * dim
 		var sum float64
 		for _, value := range hidden[base : base+dim] {
 			sum += float64(value) * float64(value)
 		}
 		inv := 1 / math.Sqrt(sum/float64(dim)+eps)
-		for column := 0; column < dim; column++ {
+		for column := range dim {
 			normalized := dtype.RoundBF16(float32(float64(hidden[base+column]) * inv))
 			out[base+column] = dtype.RoundBF16(normalized * weight[column])
 		}
@@ -531,10 +531,10 @@ func patchVector(dst, image []float32, patch int, shape FlowImagePlan, channels 
 	p := shape.PixelPatch
 	py, px := patch/shape.GridWidth, patch%shape.GridWidth
 	i := 0
-	for c := 0; c < channels; c++ {
-		for r := 0; r < p; r++ {
+	for c := range channels {
+		for r := range p {
 			base := (c*shape.Height+py*p+r)*shape.Width + px*p
-			for q := 0; q < p; q++ {
+			for q := range p {
 				dst[i] = dtype.RoundBF16(image[base+q])
 				i++
 			}
@@ -548,7 +548,7 @@ func patchVector(dst, image []float32, patch int, shape FlowImagePlan, channels 
 func ropePatch2D(row []float32, y, x int, theta float64) {
 	dim := len(row)
 	half := dim / 2
-	for part := 0; part < 2; part++ {
+	for part := range 2 {
 		pos := float64(x)
 		if part == 1 {
 			pos = float64(y)
@@ -572,9 +572,9 @@ func denseVector(dst, patches []float32, token int, shape FlowImagePlan, visionH
 	merge := shape.TokenPatch / shape.PixelPatch
 	ty, tx := token/shape.TokenWidth, token%shape.TokenWidth
 	i := 0
-	for c := 0; c < visionHidden; c++ {
-		for dy := 0; dy < merge; dy++ {
-			for dx := 0; dx < merge; dx++ {
+	for c := range visionHidden {
+		for dy := range merge {
+			for dx := range merge {
 				dst[i] = patches[((ty*merge+dy)*shape.GridWidth+tx*merge+dx)*visionHidden+c]
 				i++
 			}

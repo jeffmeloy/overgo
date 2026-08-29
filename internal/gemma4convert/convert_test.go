@@ -67,7 +67,7 @@ func TestProportionalRopeTensor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for index := 0; index < 8; index++ {
+	for index := range 8 {
 		got := math.Float32frombits(binary.LittleEndian.Uint32(encoded[index*4:]))
 		want := float32(1e30)
 		if index < 2 {

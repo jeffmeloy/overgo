@@ -91,23 +91,30 @@ func TestResourceDerivedConcurrency(t *testing.T) {
 	}
 }
 
-func TestParallelCancellation(t *testing.T) {
+func TestCancellationCauseReachesTerminalReceipt(t *testing.T) {
 	fixture := newParallelFixture(t)
 	ready := make(chan struct{})
 	var started atomic.Int32
+	failure := errors.New("branch failed")
 	registerParallelAdapters(t, fixture, func(ctx context.Context, value string) (string, error) {
 		if started.Add(1) == int32(len(fixture.program.ReadySets()[0])) {
 			close(ready)
 		}
 		<-ready
 		if value == "left" {
-			return "", errors.New("branch failed")
+			return "", failure
 		}
 		<-ctx.Done()
-		return "", ctx.Err()
+		return "", context.Cause(ctx)
 	})
-	if _, err := fixture.execute(context.Background()); err == nil || !strings.Contains(err.Error(), "branch failed") {
+	if _, err := fixture.execute(t.Context()); !errors.Is(err, failure) {
 		t.Fatalf("parallel error = %v", err)
+	}
+	for _, node := range []recipe.NodeID{"left", "right"} {
+		receipt, found, err := runrecord.ResolveStageReceipt(t.Context(), fixture.store, fixture.operation, node)
+		if err != nil || !found || receipt.State != runrecord.StageFailed {
+			t.Fatalf("stage %s terminal receipt = (%+v, %t, %v)", node, receipt, found, err)
+		}
 	}
 }
 

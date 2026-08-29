@@ -21,7 +21,7 @@ func hubFixture(t *testing.T, weights []byte) (*httptest.Server, *[]string) {
 	digest := sha256.Sum256(weights)
 	var authorizations []string
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/models", func(response http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("GET /api/models", func(response http.ResponseWriter, request *http.Request) {
 		authorizations = append(authorizations, request.Header.Get("Authorization"))
 		if request.URL.Query().Get("limit") == "" {
 			http.Error(response, "limit required", http.StatusBadRequest)
@@ -29,7 +29,7 @@ func hubFixture(t *testing.T, weights []byte) (*httptest.Server, *[]string) {
 		}
 		_ = json.NewEncoder(response).Encode([]Listing{{ID: "acme/tiny", Downloads: 7}})
 	})
-	mux.HandleFunc("/api/models/acme/tiny", func(response http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("GET /api/models/acme/tiny", func(response http.ResponseWriter, request *http.Request) {
 		authorizations = append(authorizations, request.Header.Get("Authorization"))
 		_ = json.NewEncoder(response).Encode(map[string]any{
 			"id": "acme/tiny", "sha": "rev0",
@@ -41,10 +41,10 @@ func hubFixture(t *testing.T, weights []byte) (*httptest.Server, *[]string) {
 			},
 		})
 	})
-	mux.HandleFunc("/acme/tiny/resolve/rev0/config.json", func(response http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /acme/tiny/resolve/rev0/config.json", func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write([]byte("{}"))
 	})
-	mux.HandleFunc("/acme/tiny/resolve/rev0/model.safetensors", func(response http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /acme/tiny/resolve/rev0/model.safetensors", func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write(weights)
 	})
 	server := httptest.NewServer(mux)
@@ -116,7 +116,7 @@ func TestHubDownloadRefusesTamperedBytes(t *testing.T) {
 	// A lying hub declares the digest of one content and serves another.
 	mux := http.NewServeMux()
 	digest := sha256.Sum256(weights)
-	mux.HandleFunc("/api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(response).Encode(map[string]any{
 			"id": "acme/tiny", "sha": "rev0",
 			"siblings": []map[string]any{{"rfilename": "model.safetensors", "lfs": map[string]any{
@@ -124,7 +124,7 @@ func TestHubDownloadRefusesTamperedBytes(t *testing.T) {
 			}}},
 		})
 	})
-	mux.HandleFunc("/acme/tiny/resolve/rev0/model.safetensors", func(response http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /acme/tiny/resolve/rev0/model.safetensors", func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write([]byte("differently sized"))
 	})
 	lying := httptest.NewServer(mux)

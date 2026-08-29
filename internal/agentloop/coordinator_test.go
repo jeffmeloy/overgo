@@ -35,8 +35,8 @@ func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/read", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`{"seen":true}`)) })
-	mux.HandleFunc("/write", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`{"changed":true}`)) })
+	mux.HandleFunc("POST /read", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`{"seen":true}`)) })
+	mux.HandleFunc("POST /write", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte(`{"changed":true}`)) })
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	inspect, err := agenttool.NewManual(agenttool.Manual{

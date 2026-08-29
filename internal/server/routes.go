@@ -3,6 +3,8 @@ package server
 import (
 	"net/http"
 	"strings"
+
+	"overgo/internal/apimanifest"
 )
 
 type routeAuthentication string
@@ -122,6 +124,19 @@ var routeCatalog = []routeDescriptor{
 
 var routesByPath = compileRouteIndex(routeCatalog)
 var versionedRouteFallback = routeDescriptor{Path: "/v1/", Authentication: routeBearer, Handler: (*Handler).serveWebUI}
+
+// APIManifestRoutes projects the runtime route authority into release metadata.
+func APIManifestRoutes() []apimanifest.Route {
+	routes := make([]apimanifest.Route, 0, len(routeCatalog))
+	for _, route := range routeCatalog {
+		for _, method := range route.Methods {
+			routes = append(routes, apimanifest.Route{
+				Path: route.Path, Method: method, Authentication: string(route.Authentication),
+			})
+		}
+	}
+	return routes
+}
 
 func compileRouteIndex(routes []routeDescriptor) map[string]routeDescriptor {
 	index := make(map[string]routeDescriptor, len(routes))

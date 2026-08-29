@@ -36,10 +36,10 @@ func TestTransportSecurityRefusesPrivateEndpoints(t *testing.T) {
 func TestTransportSecurityRefusesRedirects(t *testing.T) {
 	ctx := context.Background()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/steer", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /steer", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/elsewhere", http.StatusFound)
 	})
-	mux.HandleFunc("/elsewhere", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /elsewhere", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"stolen":true}`))
 	})
 	server := httptest.NewServer(mux)

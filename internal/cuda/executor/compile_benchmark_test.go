@@ -31,7 +31,7 @@ func BenchmarkCompileGraph(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		if _, err := Compile(output); err != nil {
 			b.Fatal(err)
 		}
@@ -53,14 +53,14 @@ func BenchmarkLaunchPointerResolution(b *testing.B) {
 	frame := launchPointerFrame{values: values, slots: []int{slot, slot}}
 	b.Run("map", func(b *testing.B) {
 		pointers := graphPointerTable{indexes: compiled.orderIndexes, values: values}
-		for range b.N {
+		for b.Loop() {
 			if pointers.get(node) == 0 {
 				b.Fatal("missing pointer")
 			}
 		}
 	})
 	b.Run("slot", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			if frame.input(0) == 0 {
 				b.Fatal("missing pointer")
 			}

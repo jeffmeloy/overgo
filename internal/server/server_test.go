@@ -639,6 +639,20 @@ func TestServerRequestTimeoutCancelsGeneration(t *testing.T) {
 	}
 }
 
+func TestTimeoutCauseClassification(t *testing.T) {
+	ctx, cancel := context.WithTimeoutCause(t.Context(), time.Millisecond, errRequestTimeoutCause)
+	defer cancel()
+	<-ctx.Done()
+	if cause := context.Cause(ctx); !errors.Is(cause, errRequestTimeoutCause) {
+		t.Fatalf("timeout cause = %v", cause)
+	}
+	response := httptest.NewRecorder()
+	writeGenerationError(response, context.Cause(ctx))
+	if response.Code != http.StatusRequestTimeout || !strings.Contains(response.Body.String(), `"request_cancelled"`) {
+		t.Fatalf("timeout classification = %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestServerRejectsNegativeRequestTimeout(t *testing.T) {
 	if _, err := New(Config{RequestTimeout: -time.Second}, &fakeGenerator{}); err == nil {
 		t.Fatal("negative request timeout was accepted")

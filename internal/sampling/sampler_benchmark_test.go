@@ -16,7 +16,7 @@ func BenchmarkSamplerPipeline(b *testing.B) {
 	sampler, err := New(Config{
 		Seed: 1, Temperature: 0.8, TopK: 40, TopP: 0.95, MinP: 0.05,
 		RepeatLastN: -1, RepeatPenalty: 1.1,
-		DryMultiplier: 1, DryAllowedLength: 2, DryPenaltyLastN: -1,
+		DryMultiplier: 1, DryBase: 2, DryAllowedLength: 2, DryPenaltyLastN: -1,
 	})
 	if err != nil {
 		b.Fatal(err)
@@ -26,7 +26,7 @@ func BenchmarkSamplerPipeline(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		if _, err := sampler.SampleWithHistory(logits, history); err != nil {
 			b.Fatal(err)
 		}

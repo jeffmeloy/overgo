@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "bfdf646ee63f4377d27c417ed7eb51fe5f9bbc51a00fb29fda46d3d85a9f3923",
+  "source_identity": "097fbd8955f6040779cd1e83e42343227d414c98398dfd43f79c88efc1c9d126",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 2321,
-    "typed_files": 2259
+    "inspected_files": 2376,
+    "typed_files": 2314
   },
   "guidelines": [
     {
@@ -4601,39 +4601,6 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/trainingprogram/checkpoint.go",
-      "symbol": "canonicalCheckpointIDs",
-      "owner": "overgo/internal/trainingprogram",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/trainingprogram -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-08-29",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/trainingprogram/checkpoint.go",
-      "symbol": "canonicalRNG",
-      "owner": "overgo/internal/trainingprogram",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/trainingprogram -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-08-29",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/trainingprogram/checkpoint.go",
-      "symbol": "canonicalizeCheckpoint",
-      "owner": "overgo/internal/trainingprogram",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/trainingprogram -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-08-29",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/trainingprogram/improvement.go",
       "symbol": "CompileImprovementProposal",
       "owner": "overgo/internal/trainingprogram",
@@ -5282,5 +5249,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "78f4aab5f5383002a715212e75e6ec39bb342784780e7d94c016cecfd4a43d3b"
+  "exceptions_sha256": "2e3473de7482a5484f1834d6b630553aab3cf2c1c72ae190c9b7798cb56891a6"
 }

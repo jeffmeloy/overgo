@@ -60,6 +60,21 @@ type Model struct {
 	layers  []layer
 }
 
+// MoERouterLayers returns the artifact-derived routed layer indices. The
+// returned slice does not alias model state.
+func (m *Model) MoERouterLayers() []int {
+	if m == nil {
+		return nil
+	}
+	layers := make([]int, 0, len(m.layers))
+	for index, layer := range m.layers {
+		if layer.moe != nil {
+			layers = append(layers, index)
+		}
+	}
+	return layers
+}
+
 type tensorBinding struct {
 	name   string
 	values []float32

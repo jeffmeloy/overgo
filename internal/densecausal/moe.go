@@ -8,6 +8,7 @@
 package densecausal
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -29,6 +30,26 @@ type MoERouterPolicy struct {
 	NormalizeTopKProb bool
 	RoutedScaling     float32
 	ExpertInter       int
+}
+
+// MoERouterMargin preserves whether an unselected expert existed for an
+// observed row. Value is selected-boundary score minus best unselected score.
+type MoERouterMargin struct {
+	Observed bool
+	Value    float32
+}
+
+// MoERouterObservation is the exact, policy-neutral route used by one layer.
+// Selections and combine weights are row-major in router rank order.
+type MoERouterObservation struct {
+	Layer          int
+	Rows           int
+	Experts        int
+	TopK           int
+	Selections     []int
+	CombineWeights []float32
+	Accepted       []bool
+	Margins        []MoERouterMargin
 }
 
 // moeRoute: fixed top-k selection with combine weights, per row.
@@ -65,11 +86,23 @@ type moeExpertNames struct {
 // The selection is piecewise-constant in the scores, so backward treats it
 // as fixed and gradient flows only to the selected magnitudes.
 func routeTopK(x, router []float32, rows, hidden, experts int, policy MoERouterPolicy) (moeRoute, []float32, error) {
+	return routeTopKSelectionBias(x, router, rows, hidden, experts, policy, nil)
+}
+
+func routeTopKSelectionBias(x, router []float32, rows, hidden, experts int, policy MoERouterPolicy, selectionBias []float32) (moeRoute, []float32, error) {
 	if policy.TopK <= 0 || policy.TopK > experts {
 		return moeRoute{}, nil, fmt.Errorf("densecausal: moe top_k=%d out of range [1,%d]", policy.TopK, experts)
 	}
 	if policy.RoutedScaling == 0 {
 		return moeRoute{}, nil, fmt.Errorf("densecausal: moe routed scaling factor must be non-zero")
+	}
+	if len(selectionBias) != 0 && len(selectionBias) != experts {
+		return moeRoute{}, nil, errors.New("densecausal: moe selection bias differs from expert inventory")
+	}
+	for _, bias := range selectionBias {
+		if math.IsNaN(float64(bias)) || math.IsInf(float64(bias), 0) {
+			return moeRoute{}, nil, errors.New("densecausal: moe selection bias must be finite")
+		}
 	}
 	scores := make([]float32, rows*experts)
 	hostmath.Linear(scores, x, router, rows, hidden, experts)
@@ -93,16 +126,20 @@ func routeTopK(x, router []float32, rows, hidden, experts int, policy MoERouterP
 		clear(used)
 		var selectedSum float64
 		for k := 0; k < policy.TopK; k++ {
-			best, bestScore := -1, float32(math.Inf(-1))
+			best, bestSelectionScore := -1, float32(math.Inf(-1))
 			for e, score := range row {
-				if !used[e] && (best < 0 || score > bestScore) {
-					best, bestScore = e, score
+				selectionScore := score
+				if len(selectionBias) != 0 {
+					selectionScore += selectionBias[e]
+				}
+				if !used[e] && (best < 0 || selectionScore > bestSelectionScore) {
+					best, bestSelectionScore = e, selectionScore
 				}
 			}
 			used[best] = true
 			position := r*policy.TopK + k
-			route.indices[position], route.weights[position] = best, bestScore
-			selectedSum += float64(bestScore)
+			route.indices[position], route.weights[position] = best, row[best]
+			selectedSum += float64(row[best])
 		}
 		if policy.NormalizeTopKProb && policy.TopK > 1 {
 			if selectedSum == 0 {
@@ -136,12 +173,12 @@ func expertForward(x []float32, expert moeExpert, rows, hidden, inter int) []flo
 	return out
 }
 
-// moeForward: routed mixture output for the whole sequence, returning the
-// route for the backward.
-func moeForward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPolicy) ([]float32, moeRoute, error) {
-	route, _, err := routeTopK(x, w.router, rows, hidden, len(w.experts), policy)
+// moeForward returns the routed mixture output, exact route, and activated
+// scores already computed for that route.
+func moeForward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPolicy) ([]float32, moeRoute, []float32, error) {
+	route, scores, err := routeTopK(x, w.router, rows, hidden, len(w.experts), policy)
 	if err != nil {
-		return nil, moeRoute{}, err
+		return nil, moeRoute{}, nil, err
 	}
 	out := make([]float32, rows*hidden)
 	for r := range rows {
@@ -158,5 +195,43 @@ func moeForward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPol
 	if w.shared != nil {
 		addInPlace(out, expertForward(x, *w.shared, rows, hidden, w.sharedInter))
 	}
-	return out, route, nil
+	return out, route, scores, nil
+}
+
+func newMoERouterObservation(layer int, route moeRoute, scores []float32, rows, experts, topK int) (MoERouterObservation, error) {
+	if layer < 0 || rows <= 0 || experts <= 0 || topK <= 0 || topK > experts ||
+		len(route.indices) != rows*topK || len(route.weights) != rows*topK || len(scores) != rows*experts {
+		return MoERouterObservation{}, errors.New("densecausal: invalid moe router observation geometry")
+	}
+	observation := MoERouterObservation{
+		Layer: layer, Rows: rows, Experts: experts, TopK: topK,
+		Selections:     append([]int(nil), route.indices...),
+		CombineWeights: append([]float32(nil), route.weights...),
+		Accepted:       make([]bool, len(route.indices)), Margins: make([]MoERouterMargin, rows),
+	}
+	for index := range observation.Accepted {
+		observation.Accepted[index] = true
+	}
+	if topK == experts {
+		return observation, nil
+	}
+	selected := make([]bool, experts)
+	for row := range rows {
+		clear(selected)
+		start := row * topK
+		for _, expert := range route.indices[start : start+topK] {
+			selected[expert] = true
+		}
+		bestUnselected := float32(math.Inf(-1))
+		for expert, score := range scores[row*experts : (row+1)*experts] {
+			if !selected[expert] && score > bestUnselected {
+				bestUnselected = score
+			}
+		}
+		observation.Margins[row] = MoERouterMargin{
+			Observed: true,
+			Value:    scores[row*experts+route.indices[start+topK-1]] - bestUnselected,
+		}
+	}
+	return observation, nil
 }

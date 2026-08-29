@@ -1,8 +1,8 @@
 package densecausal
 
 import (
-	"fmt"
 	"math"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -17,41 +17,56 @@ func tinyMixtureModel(t *testing.T) *Model {
 	spec := testutil.DenseCausalSpec{
 		Vocab: 32, Hidden: 16, Heads: 2, HeadDim: 8,
 		KVHeads: 2, Intermediate: 32, Layers: 2, Seed: 1,
+		MoELayer: 1, MoEExperts: 4, MoEIntermediate: 8, MoEShared: 8,
 	}
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
-	const experts, expertInter, sharedInter = 4, 8, 8
-	prefix := "model.layers.1.mlp."
-	for _, name := range []string{prefix + "gate_proj.weight", prefix + "up_proj.weight", prefix + "down_proj.weight"} {
-		delete(weights, name)
-		delete(shapes, name)
-	}
-	seed := uint32(19650218)
-	fill := func(name string, rows, cols int) {
-		values := make([]float32, rows*cols)
-		for i := range values {
-			seed ^= seed << 13
-			seed ^= seed >> 17
-			seed ^= seed << 5
-			values[i] = (float32(seed%2000)/1000 - 1) * 0.2
-		}
-		weights[name] = values
-		shapes[name] = []int{rows, cols}
-	}
-	fill(prefix+"gate.weight", experts, spec.Hidden)
-	for e := range experts {
-		fill(fmt.Sprintf("%sexperts.%d.gate_proj.weight", prefix, e), expertInter, spec.Hidden)
-		fill(fmt.Sprintf("%sexperts.%d.up_proj.weight", prefix, e), expertInter, spec.Hidden)
-		fill(fmt.Sprintf("%sexperts.%d.down_proj.weight", prefix, e), spec.Hidden, expertInter)
-	}
-	fill(prefix+"shared_experts.gate_proj.weight", sharedInter, spec.Hidden)
-	fill(prefix+"shared_experts.up_proj.weight", sharedInter, spec.Hidden)
-	fill(prefix+"shared_experts.down_proj.weight", spec.Hidden, sharedInter)
+	const expertInter = 8
 	policy := MoERouterPolicy{TopK: 2, Scoring: MoEScoringSoftmax, NormalizeTopKProb: true, RoutedScaling: 1, ExpertInter: expertInter}
 	m, err := NewMixtureModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6, policy, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return m
+}
+
+func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testing.T) {
+	baseline, observed := tinyMixtureModel(t), tinyMixtureModel(t)
+	batches := [][]int{{1, 5, 9, 3}, {7, 2, 11, 4}}
+	learningRate := derivedTestLearningRate(t, baseline)
+	wantLosses, wantState, err := baseline.Train(batches, learningRate, 0.9, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var routes []MoERouterObservation
+	gotLosses, gotState, err := observed.TrainWithRouterObservations(
+		batches, learningRate, 0.9, nil, nil,
+		func(_ int, observation MoERouterObservation) error {
+			routes = append(routes, observation)
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotLosses, wantLosses) || !reflect.DeepEqual(gotState, wantState) ||
+		!reflect.DeepEqual(observed.Weights, baseline.Weights) {
+		t.Fatal("router observation changed host training numerics")
+	}
+	if len(routes) != len(batches) {
+		t.Fatalf("router observations=%d want=%d", len(routes), len(batches))
+	}
+	for _, route := range routes {
+		if route.Layer != 1 || route.Rows != len(batches[0]) || route.Experts != 4 || route.TopK != 2 ||
+			len(route.Selections) != route.Rows*route.TopK || len(route.CombineWeights) != len(route.Selections) ||
+			len(route.Accepted) != len(route.Selections) || len(route.Margins) != route.Rows {
+			t.Fatalf("incomplete router observation: %+v", route)
+		}
+		for row, margin := range route.Margins {
+			if !margin.Observed || margin.Value < 0 {
+				t.Fatalf("margin[%d]=%+v", row, margin)
+			}
+		}
+	}
 }
 
 // TestMixtureMuonTrainingDecreasesLossTiny: the mixed dense/routed schedule

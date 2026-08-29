@@ -77,7 +77,12 @@ type Result struct {
 	StreamPosition uint64
 	Checkpoint     trainingprogram.Checkpoint
 	// Observation: committed session evidence.
-	Observation artifact.ID
+	Observation               artifact.ID
+	RouterObservations        []artifact.ID
+	RouterObservationCoverage artifact.ID
+	authority                 compiledAuthority
+	router                    []routerObservationRecord
+	routerExpectation         routerObservationExpectation
 }
 
 func Execute(ctx context.Context, request Request) (Result, error) {
@@ -173,11 +178,14 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	}.run()
 	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
 	if observer != nil {
-		observationID, observeErr := observer.Finish(ctx, modelID, request.Recipe, runErr, result.StreamPosition)
+		observationID, routerIDs, routerCoverage, observeErr := observer.finishTraining(
+			ctx, modelID, request.Recipe, runErr, result,
+		)
 		if observeErr != nil && runErr == nil {
 			return Result{}, observeErr
 		}
-		result.Observation = observationID
+		result.Observation, result.RouterObservations = observationID, routerIDs
+		result.RouterObservationCoverage = routerCoverage
 	}
 	return result, runErr
 }
@@ -242,6 +250,7 @@ func (session denseSession) run() (Result, error) {
 	result.Checkpoint, err = publishCheckpoint(
 		session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
 	)
+	result.authority = authority
 	return result, err
 }
 
@@ -327,14 +336,32 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 			return guard(step, loss, stepWall)
 		}
 	}
+	var collector *routerObservationCollector
+	var observeRouter densecausal.MoERouterObserver
+	if layers := session.model.MoERouterLayers(); session.request.Observations != nil && session.request.Host && len(layers) != 0 {
+		firstStep := 0
+		if resume != nil {
+			firstStep = resume.Step
+		}
+		var err error
+		collector, err = newRouterObservationCollector(firstStep, len(prepared.tokens), layers)
+		if err != nil {
+			return Result{}, densecausal.TrainState{}, err
+		}
+		observeRouter = collector.observe
+	}
 	losses, backend, state, err := runTrainingState(
 		session.model, prepared.tokens, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
-		!session.request.Host, session.request.FreezeLexical, resume, observe,
+		!session.request.Host, session.request.FreezeLexical, resume, observe, observeRouter,
 	)
-	return Result{
+	result := Result{
 		Backend: backend, Objective: session.objective, Losses: losses,
 		StreamPosition: prepared.stream.Position,
-	}, state, err
+	}
+	if err == nil && collector != nil {
+		result.router, result.routerExpectation, err = collector.complete()
+	}
+	return result, state, err
 }
 
 func publishCheckpoint(source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {

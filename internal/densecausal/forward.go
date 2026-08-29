@@ -199,7 +199,7 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) e
 	hn := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(hn, x, l.postLN, seq, d.Hidden, d.RMSEps)
 	if l.moe != nil {
-		mixture, _, err := moeForward(hn, *l.moe, seq, d.Hidden, d.MoE)
+		mixture, _, _, err := moeForward(hn, *l.moe, seq, d.Hidden, d.MoE)
 		if err != nil {
 			return err
 		}

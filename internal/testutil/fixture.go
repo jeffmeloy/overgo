@@ -98,6 +98,8 @@ type DenseCausalSpec struct {
 	Vocab, Hidden, Heads, HeadDim int
 	KVHeads, Intermediate, Layers int
 	Seed                          int64
+	MoELayer, MoEExperts          int
+	MoEIntermediate, MoEShared    int
 }
 
 // DenseCausalWeights: seeded tied-embedding Llama fixture catalog.
@@ -142,7 +144,44 @@ func DenseCausalWeights(t testing.TB, spec DenseCausalSpec) (map[string][]float3
 		add(prefix+"mlp.down_proj.weight", spec.Hidden, spec.Intermediate)
 	}
 	norm("model.norm.weight")
+	if spec.MoEExperts > 0 {
+		applyDenseCausalMixture(t, spec, weights, shapes)
+	} else if spec.MoELayer != 0 || spec.MoEIntermediate != 0 || spec.MoEShared != 0 {
+		t.Fatal("testutil: incomplete mixture fixture dimensions")
+	}
 	return weights, shapes
+}
+
+func applyDenseCausalMixture(t testing.TB, spec DenseCausalSpec, weights map[string][]float32, shapes map[string][]int) {
+	t.Helper()
+	if spec.MoELayer < 0 || spec.MoELayer >= spec.Layers || spec.MoEIntermediate <= 0 || spec.MoEShared < 0 {
+		t.Fatal("testutil: invalid mixture fixture dimensions")
+	}
+	prefix := "model.layers." + strconv.Itoa(spec.MoELayer) + ".mlp."
+	for _, name := range []string{prefix + "gate_proj.weight", prefix + "up_proj.weight", prefix + "down_proj.weight"} {
+		delete(weights, name)
+		delete(shapes, name)
+	}
+	random := rand.New(rand.NewSource(spec.Seed ^ 19650218))
+	add := func(name string, rows, columns int) {
+		values := make([]float32, rows*columns)
+		for index := range values {
+			values[index] = float32(random.NormFloat64() * 0.02)
+		}
+		weights[name], shapes[name] = values, []int{rows, columns}
+	}
+	add(prefix+"gate.weight", spec.MoEExperts, spec.Hidden)
+	for expert := range spec.MoEExperts {
+		expertPrefix := prefix + "experts." + strconv.Itoa(expert) + "."
+		add(expertPrefix+"gate_proj.weight", spec.MoEIntermediate, spec.Hidden)
+		add(expertPrefix+"up_proj.weight", spec.MoEIntermediate, spec.Hidden)
+		add(expertPrefix+"down_proj.weight", spec.Hidden, spec.MoEIntermediate)
+	}
+	if spec.MoEShared > 0 {
+		add(prefix+"shared_experts.gate_proj.weight", spec.MoEShared, spec.Hidden)
+		add(prefix+"shared_experts.up_proj.weight", spec.MoEShared, spec.Hidden)
+		add(prefix+"shared_experts.down_proj.weight", spec.Hidden, spec.MoEShared)
+	}
 }
 
 func WriteGGUF(

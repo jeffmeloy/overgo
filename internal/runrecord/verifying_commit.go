@@ -4,8 +4,37 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"runtime/debug"
 	"strings"
 )
+
+// ExecutableCodeCommit resolves the source revision embedded by the Go tool.
+// Development binaries without VCS build settings fall back to a clean
+// worktree, while a binary built from modified source is refused.
+func ExecutableCodeCommit(worktree string) (string, error) {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		var revision string
+		modified := false
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				revision = setting.Value
+			case "vcs.modified":
+				modified = setting.Value == "true"
+			}
+		}
+		if revision != "" {
+			if modified {
+				return "", errors.New("executable was built from modified source; exact code revision unavailable")
+			}
+			if !validGitCommit(revision) {
+				return "", errors.New("executable source revision is not a full Git commit identity")
+			}
+			return revision, nil
+		}
+	}
+	return VerifyingCommit(worktree)
+}
 
 // HeadCommit returns the repository HEAD revision with no cleanliness
 // requirement; callers that must bind to committed source use

@@ -247,15 +247,10 @@ store-recorded:
 
 ## What remains before autonomous RSI
 
-- Run the closed loop unattended at scale: accumulate cross-strategy attempt
-  history and experiment evidence from live campaigns rather than bounded
-  verification runs.
-- Exercise model-authored proposals: admission validates grounding and
-  falsifiability, but the quality of what models propose is itself a measured
-  question the attempt records will answer.
-- Bound retrieval construction and search as well as request execution.
-- Finish race, restart, browser, device, and release verification across the
-  integrated agent and automation paths.
+The sole live backlog and dependency queue is [docs/plan.json](docs/plan.json).
+Imported branch plans, design records, staged-surface inventory, and historical
+Git snapshots are evidence only; distinct requirements from them are mapped
+into that canonical plan instead of maintained as parallel checklists.
 
 Human steering remains a supported operating mode throughout: human and model
 steering submit goals through the same bounded interface, and deterministic

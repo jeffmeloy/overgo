@@ -37,7 +37,7 @@ func TestCommitAdmissionUsesManifestPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := automationcheck.Run(context.Background(), bound)
+	evidence, err := automationcheck.Run(t.Context(), bound)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math"
@@ -129,9 +130,7 @@ func launchMoE(
 		}
 		experts := attributes.Experts
 		expertIndexDivisor := attributes.ExpertIndexDivisor
-		if expertIndexDivisor == 0 {
-			expertIndexDivisor = 1
-		}
+		expertIndexDivisor = cmp.Or(expertIndexDivisor, 1)
 		topK := attributes.TopK
 		if experts%expertIndexDivisor != 0 || upNode.Shape.Dims[2] != uint64(experts/expertIndexDivisor) ||
 			downNode.Shape.Dims[2] != upNode.Shape.Dims[2] || uint64(topK) > upNode.Shape.Dims[2] {

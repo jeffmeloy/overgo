@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -20,7 +21,7 @@ import (
 // and a second promotion is refused because the objective no longer
 // sits at declared.
 func TestPromoteObjectiveAdaptive(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {
@@ -186,10 +187,5 @@ func commitEvaluationReport(t *testing.T, ctx context.Context, store *overgodb.S
 }
 
 func containsID(ids []artifact.ID, id artifact.ID) bool {
-	for _, candidate := range ids {
-		if candidate == id {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ids, id)
 }

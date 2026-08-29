@@ -235,7 +235,7 @@ func (p *EncoderProgram) assemble(results map[*tensor.Tensor]reference.Value) (*
 		for tok := 0; tok < p.Seq; tok++ {
 			src := val.Data[tok*h : tok*h+h]
 			dst := out.Data[(tok*L+slot)*h : (tok*L+slot)*h+h]
-			for c := 0; c < h; c++ {
+			for c := range h {
 				dst[c] = float64(src[c])
 			}
 		}

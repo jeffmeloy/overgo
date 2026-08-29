@@ -26,7 +26,7 @@ type ObservationStreamCoverage struct {
 	Metrics                 []ObservationMetricSamples `json:"metrics,omitempty"`
 	HardwareMetrics         []ObservationMetricSamples `json:"hardware_metrics,omitempty"`
 	Kinds                   []ObservationKindSamples   `json:"kinds"`
-	InteractionSamples      uint32                     `json:"interaction_samples,omitempty"`
+	InteractionSamples      uint32                     `json:"interaction_samples,omitzero"`
 }
 
 // ObservationStreamBounds limits one complete verified stream load. Raw bytes

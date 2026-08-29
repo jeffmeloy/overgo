@@ -2,7 +2,6 @@ package evaluation
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -16,7 +15,7 @@ type evidenceBatchDocument interface {
 }
 
 func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

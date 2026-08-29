@@ -339,7 +339,7 @@ func executeChainArm(
 func greedyExtend(model *densecausal.Model, tokens []int, draft int) ([]int, error) {
 	extended := slices.Clone(tokens)
 	vocab := model.Dims.Vocab
-	for step := 0; step < draft; step++ {
+	for range draft {
 		_, logits, err := model.Loss(extended)
 		if err != nil {
 			return nil, err

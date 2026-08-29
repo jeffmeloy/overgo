@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -63,6 +64,7 @@ func main() {
 	publish := flag.Bool("publish", false, "publish census evidence to OvergoDB")
 	importStore := flag.String("import-store", "", "import and rebind matching active decisions from another OvergoDB store")
 	reviewCallsites := flag.Bool("review-callsites", false, "with -import-store: accept reviewed callsite drift")
+	recoverRetired := flag.Bool("recover-retired", false, "with -import-store: restore the newest matching retired decision only when its current alias is uncovered")
 	checkScope := flag.String("check-scope", "", "comma-separated production package prefixes to validate")
 	checkAll := flag.Bool("check-all", false, "validate every production package")
 	checkTests := flag.Bool("check-tests", false, "validate test literal ownership")
@@ -74,8 +76,8 @@ func main() {
 	requireClassifiedFixtures := flag.Bool("require-classified-fixtures", false, "require an exact test-literal class")
 	requireZeroOpen := flag.Bool("require-zero-open", false, "reject active derivation-blocked closure rows")
 	flag.Parse()
-	if *reviewCallsites && *importStore == "" {
-		fatal(errors.New("-review-callsites requires -import-store"))
+	if (*reviewCallsites || *recoverRetired) && *importStore == "" {
+		fatal(errors.New("-review-callsites and -recover-retired require -import-store"))
 	}
 	root, err := os.Getwd()
 	if err != nil {
@@ -155,7 +157,7 @@ func main() {
 	}
 	if *importStore != "" {
 		count, unmatched, first, err := importClosureDocuments(
-			root, *storePath, *importStore, mustSnapshot(root), *reviewCallsites,
+			root, *storePath, *importStore, mustSnapshot(root), *reviewCallsites, *recoverRetired,
 		)
 		if err != nil {
 			fatal(err)
@@ -413,7 +415,7 @@ func publishCensusEvidence(ctx context.Context, store *overgodb.Store, snapshot 
 func importClosureDocuments(
 	root, storePath, sourcePath string,
 	snapshot repoanalysis.SourceSnapshot,
-	reviewCallsites bool,
+	reviewCallsites, recoverRetired bool,
 ) (count, unmatched int, first string, finalErr error) {
 	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
@@ -439,6 +441,13 @@ func importClosureDocuments(
 	documents, sourceAliases, err := activeClosureDocuments(context.Background(), source)
 	if err != nil {
 		return count, unmatched, first, err
+	}
+	if recoverRetired {
+		historical, err := retiredClosureDocuments(context.Background(), source, documents)
+		if err != nil {
+			return count, unmatched, first, err
+		}
+		documents = append(documents, historical...)
 	}
 	targetDocuments, targetAliases := documents, sourceAliases
 	if sameStore {
@@ -493,7 +502,8 @@ func importClosureDocuments(
 			continue
 		}
 		previousAlias, err := closureledger.ActiveAlias(document.Bindings[0])
-		if err != nil || sourceAliases[previousAlias] != document.ID {
+		activeSource := sourceAliases[previousAlias] == document.ID
+		if err != nil || !activeSource && !recoverRetired {
 			unmatched++
 			first = cmp.Or(first, document.Name+":source-alias")
 			continue
@@ -507,7 +517,19 @@ func importClosureDocuments(
 			first = cmp.Or(first, document.Name+":"+reason)
 			continue
 		}
-		if sameStore && current.ID == document.ID {
+		if recoverRetired && !activeSource {
+			currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
+			if err != nil {
+				return count, unmatched, first, err
+			}
+			if targetAliases[currentAlias] == current.ID || slices.ContainsFunc(rebound, func(existing closureledger.Document) bool {
+				alias, aliasErr := closureledger.ActiveAlias(existing.Bindings[0])
+				return aliasErr == nil && alias == currentAlias
+			}) {
+				continue
+			}
+		}
+		if sameStore && activeSource && current.ID == document.ID {
 			continue
 		}
 		currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
@@ -519,6 +541,246 @@ func importClosureDocuments(
 			retired[previousAlias] = true
 		}
 		rebound = append(rebound, current)
+	}
+	if recoverRetired {
+		exact := map[string]closureledger.Document{}
+		for _, document := range documents {
+			if len(document.Bindings) != 1 {
+				continue
+			}
+			key := exactClosureKey(document.Bindings[0], document.Value)
+			if _, found := exact[key]; !found {
+				exact[key] = document
+			}
+		}
+		for _, candidate := range candidates {
+			binding, err := candidate.Binding()
+			if err != nil {
+				return count, unmatched, first, err
+			}
+			document, found := exact[exactClosureKey(binding, candidate.ValueJSON())]
+			if !found {
+				continue
+			}
+			alias, err := closureledger.ActiveAlias(binding)
+			if err != nil {
+				return count, unmatched, first, err
+			}
+			if targetAliases[alias] == document.ID && !retired[alias] {
+				continue
+			}
+			if index := slices.IndexFunc(rebound, func(existing closureledger.Document) bool {
+				currentAlias, aliasErr := closureledger.ActiveAlias(existing.Bindings[0])
+				return aliasErr == nil && currentAlias == alias
+			}); index >= 0 {
+				rebound[index] = document
+			} else {
+				rebound = append(rebound, document)
+			}
+		}
+		historicalGroups := map[string][]closureledger.Document{}
+		groupNames := map[string]map[string]bool{}
+		for _, document := range documents {
+			if len(document.Bindings) != 1 {
+				continue
+			}
+			key := recoveryGroupKey(document.Bindings[0], document.Value)
+			if groupNames[key] == nil {
+				groupNames[key] = map[string]bool{}
+			}
+			if groupNames[key][document.Name] {
+				continue
+			}
+			groupNames[key][document.Name] = true
+			historicalGroups[key] = append(historicalGroups[key], document)
+		}
+		currentGroups := map[string][]closurescan.Candidate{}
+		for _, candidate := range candidates {
+			if candidate.Kind != closureledger.BindingConstant && !candidate.Policy {
+				continue
+			}
+			binding, err := candidate.Binding()
+			if err != nil {
+				return count, unmatched, first, err
+			}
+			key := recoveryGroupKey(binding, candidate.ValueJSON())
+			currentGroups[key] = append(currentGroups[key], candidate)
+		}
+		groupKeys := slices.Sorted(maps.Keys(currentGroups))
+		for _, key := range groupKeys {
+			current := currentGroups[key]
+			historical := historicalGroups[key]
+			slices.SortFunc(current, func(left, right closurescan.Candidate) int {
+				return cmp.Or(cmp.Compare(left.Line, right.Line), cmp.Compare(left.Name, right.Name))
+			})
+			slices.SortFunc(historical, func(left, right closureledger.Document) int {
+				return cmp.Or(cmp.Compare(left.Bindings[0].Line, right.Bindings[0].Line), cmp.Compare(left.Name, right.Name))
+			})
+			usedHistorical := make([]bool, len(historical))
+			unresolved := make([]closurescan.Candidate, 0, len(current))
+			for _, candidate := range current {
+				binding, err := candidate.Binding()
+				if err != nil {
+					return count, unmatched, first, err
+				}
+				if document, found := exact[exactClosureKey(binding, candidate.ValueJSON())]; found {
+					if historicalIndex := slices.IndexFunc(historical, func(existing closureledger.Document) bool {
+						return existing.ID == document.ID
+					}); historicalIndex >= 0 {
+						usedHistorical[historicalIndex] = true
+					}
+					continue
+				}
+				unresolved = append(unresolved, candidate)
+			}
+			recoverCandidate := func(candidate closurescan.Candidate, previous closureledger.Document) error {
+				binding, err := candidate.Binding()
+				if err != nil {
+					return err
+				}
+				fixture := previous.Fixture
+				if fixture == previous.Bindings[0].Owner {
+					fixture = binding.Owner
+				}
+				currentDocument, err := closureledger.New(
+					previous.Name, previous.Value, previous.Tier, previous.Status, previous.Understanding,
+					[]closureledger.SourceBinding{binding}, previous.ClosurePath, previous.RerankTrigger, fixture,
+				)
+				if err != nil {
+					return err
+				}
+				alias, err := closureledger.ActiveAlias(binding)
+				if err != nil {
+					return err
+				}
+				if targetAliases[alias] == currentDocument.ID && !retired[alias] {
+					return nil
+				}
+				if reboundIndex := slices.IndexFunc(rebound, func(existing closureledger.Document) bool {
+					currentAlias, aliasErr := closureledger.ActiveAlias(existing.Bindings[0])
+					return aliasErr == nil && currentAlias == alias
+				}); reboundIndex >= 0 {
+					rebound[reboundIndex] = currentDocument
+				} else {
+					rebound = append(rebound, currentDocument)
+				}
+				return nil
+			}
+			// A syntax rewrite can remove some members of an otherwise stable
+			// literal group. Preserve exact same-line decisions first; unlike
+			// ordinal pairing, this remains unambiguous when group counts shrink.
+			historicalByLine := map[int]closureledger.Document{}
+			for index, previous := range historical {
+				if usedHistorical[index] {
+					continue
+				}
+				line := previous.Bindings[0].Line
+				if _, found := historicalByLine[line]; !found {
+					historicalByLine[line] = previous
+				}
+			}
+			currentByLine := map[int]closurescan.Candidate{}
+			ambiguousCurrentLine := map[int]bool{}
+			for _, candidate := range unresolved {
+				if _, found := currentByLine[candidate.Line]; found {
+					ambiguousCurrentLine[candidate.Line] = true
+				} else {
+					currentByLine[candidate.Line] = candidate
+				}
+			}
+			remaining := unresolved[:0]
+			for _, candidate := range unresolved {
+				previous, historicalFound := historicalByLine[candidate.Line]
+				if historicalFound && !ambiguousCurrentLine[candidate.Line] {
+					if err := recoverCandidate(candidate, previous); err != nil {
+						return count, unmatched, first, err
+					}
+					for index, document := range historical {
+						if document.ID == previous.ID {
+							usedHistorical[index] = true
+							break
+						}
+					}
+					continue
+				}
+				remaining = append(remaining, candidate)
+			}
+			closestHistorical := func(candidate closurescan.Candidate) (closureledger.Document, bool) {
+				var closest closureledger.Document
+				bestDelta, found, ambiguous := 0, false, false
+				for index, previous := range historical {
+					if usedHistorical[index] {
+						continue
+					}
+					difference := sourceOrderDifference(candidateSourceOrder(candidate), bindingSourceOrder(previous.Bindings[0]))
+					switch {
+					case !found || difference < bestDelta:
+						closest, bestDelta, found, ambiguous = previous, difference, true, false
+					case difference == bestDelta:
+						ambiguous = true
+					}
+				}
+				return closest, found && !ambiguous
+			}
+			closestCurrent := func(previous closureledger.Document, candidates []closurescan.Candidate) (closurescan.Candidate, bool) {
+				var closest closurescan.Candidate
+				bestDelta, found, ambiguous := 0, false, false
+				for _, candidate := range candidates {
+					difference := sourceOrderDifference(candidateSourceOrder(candidate), bindingSourceOrder(previous.Bindings[0]))
+					switch {
+					case !found || difference < bestDelta:
+						closest, bestDelta, found, ambiguous = candidate, difference, true, false
+					case difference == bestDelta:
+						ambiguous = true
+					}
+				}
+				return closest, found && !ambiguous
+			}
+			// When removed syntax shrinks a group and prior edits shift lines,
+			// recover only mutual unique nearest neighbours. This is deterministic
+			// and refuses rather than guessing whenever either side is ambiguous.
+			for progress := true; progress; {
+				progress = false
+				var next []closurescan.Candidate
+				for _, candidate := range remaining {
+					previous, found := closestHistorical(candidate)
+					if !found {
+						next = append(next, candidate)
+						continue
+					}
+					nearest, mutual := closestCurrent(previous, remaining)
+					if !mutual || nearest.StructuralID != candidate.StructuralID {
+						next = append(next, candidate)
+						continue
+					}
+					if err := recoverCandidate(candidate, previous); err != nil {
+						return count, unmatched, first, err
+					}
+					for index, document := range historical {
+						if document.ID == previous.ID {
+							usedHistorical[index] = true
+							break
+						}
+					}
+					progress = true
+				}
+				remaining = next
+			}
+			available := make([]closureledger.Document, 0, len(historical))
+			for index, previous := range historical {
+				if !usedHistorical[index] {
+					available = append(available, previous)
+				}
+			}
+			if len(remaining) != len(available) {
+				continue
+			}
+			for index, candidate := range remaining {
+				if err := recoverCandidate(candidate, available[index]); err != nil {
+					return count, unmatched, first, err
+				}
+			}
+		}
 	}
 	fixtures, err := closureFixtureImports(context.Background(), source, target, rebound)
 	sameView := target == source
@@ -537,6 +799,58 @@ func importClosureDocuments(
 		return count, unmatched, first, err
 	}
 	return len(rebound), unmatched, first, nil
+}
+
+func exactClosureKey(binding closureledger.SourceBinding, value json.RawMessage) string {
+	return strings.Join([]string{
+		string(binding.Kind), binding.Package, binding.File, binding.Scope, binding.Name,
+		binding.StructuralID, binding.Expression, binding.SourceID, binding.CallsiteID, binding.Owner.String(), string(value),
+	}, "\x00")
+}
+
+func recoveryGroupKey(binding closureledger.SourceBinding, value json.RawMessage) string {
+	name := ""
+	if binding.Kind == closureledger.BindingConstant {
+		name = binding.Name
+	}
+	return strings.Join([]string{
+		string(binding.Kind), binding.Package, binding.File, binding.Scope, name, binding.Expression, string(value),
+	}, "\x00")
+}
+
+func sourceOrderDifference(left, right int) int {
+	if left > right {
+		return left - right
+	}
+	return right - left
+}
+
+func candidateSourceOrder(candidate closurescan.Candidate) int {
+	return candidate.Line
+}
+
+func bindingSourceOrder(binding closureledger.SourceBinding) int {
+	return binding.Line
+}
+
+func retiredClosureDocuments(ctx context.Context, store *overgodb.Store, active []closureledger.Document) ([]closureledger.Document, error) {
+	activeIDs := map[artifact.ID]bool{}
+	for _, document := range active {
+		activeIDs[document.ID] = true
+	}
+	var documents []closureledger.Document
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
+		}}, Order: overgodb.DocumentNewestFirst,
+	}, closureledger.Parse, func(_ overgodb.DocumentView, document closureledger.Document) error {
+		if activeIDs[document.ID] {
+			return nil
+		}
+		documents = append(documents, document)
+		return nil
+	})
+	return documents, err
 }
 
 func rebindClosure(
@@ -712,6 +1026,7 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 	}
 	defer store.Close()
 	batch := artifact.Batch{Aliases: retirements}
+	batchedContents := map[artifact.ID]bool{}
 	for _, fixture := range fixtures {
 		if _, found, err := store.Artifact(context.Background(), fixture.ID); err != nil {
 			return 0, artifact.CommitID{}, err
@@ -775,11 +1090,35 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 		}
 		if found, err := store.HasContent(context.Background(), document.ID); err != nil {
 			return 0, artifact.CommitID{}, err
-		} else if !found {
+		} else if !found && !batchedContents[document.ID] {
 			batch.Contents = append(batch.Contents, content)
 			batch.Lineage = append(batch.Lineage, document.Lineage()...)
+			batchedContents[document.ID] = true
 		}
 	}
+	aliases := batch.Aliases[:0]
+	for _, binding := range batch.Aliases {
+		current, found, err := artifact.ResolveAlias(context.Background(), store, binding.Name)
+		if err != nil {
+			return 0, artifact.CommitID{}, err
+		}
+		if binding.Remove {
+			if !found {
+				continue
+			}
+			binding.Target = current
+			binding.Previous = &current
+		} else if found {
+			if current == binding.Target {
+				continue
+			}
+			binding.Previous = &current
+		} else {
+			binding.Previous = nil
+		}
+		aliases = append(aliases, binding)
+	}
+	batch.Aliases = aliases
 	if batch.Empty() {
 		head, _ := store.Head()
 		return len(files), head, nil
@@ -788,7 +1127,9 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 	if err != nil {
 		return 0, artifact.CommitID{}, err
 	}
-	digest := sha256.Sum256(encoded)
+	head, _ := store.Head()
+	digestInput := append([]byte(head.String()+"\n"), encoded...)
+	digest := sha256.Sum256(digestInput)
 	batch.Key = "closure-scan/" + hex.EncodeToString(digest[:])
 	commit, err := store.Commit(context.Background(), batch)
 	if err != nil {

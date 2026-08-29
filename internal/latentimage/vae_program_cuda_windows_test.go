@@ -31,12 +31,12 @@ func cudaVAERunner(t *testing.T) (graphruntime.Runner, func() uint64, func()) {
 		worker.Close()
 		t.Fatalf("executor.NewWithWorker: %v", err)
 	}
-	_ = worker.Do(context.Background(), func(s *device.State) error { s.Driver.ResetPeakBytes(); return nil })
+	_ = worker.Do(t.Context(), func(s *device.State) error { s.Driver.ResetPeakBytes(); return nil })
 	run := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
-		return exec.Execute(context.Background(), outputs, feeds)
+		return exec.Execute(context.WithoutCancel(t.Context()), outputs, feeds)
 	}
 	peak := func() uint64 {
-		stats, _ := worker.MemoryStats(context.Background())
+		stats, _ := worker.MemoryStats(t.Context())
 		return stats.PeakBytes
 	}
 	return run, peak, func() { exec.Close(); worker.Close() }

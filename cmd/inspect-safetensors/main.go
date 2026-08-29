@@ -22,8 +22,8 @@ type tensorReport struct {
 
 type report struct {
 	Path           string         `json:"path"`
-	ModelType      string         `json:"modelType,omitempty"`
-	TextModelType  string         `json:"textModelType,omitempty"`
+	ModelType      string         `json:"modelType,omitzero"`
+	TextModelType  string         `json:"textModelType,omitzero"`
 	Architectures  []string       `json:"architectures,omitempty"`
 	Companions     []string       `json:"companions,omitempty"`
 	Shards         []string       `json:"shards"`

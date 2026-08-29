@@ -29,7 +29,7 @@ func TestTrainingAndEvaluationLifecycleReentry(t *testing.T) {
 	}
 	for _, request := range requests {
 		t.Run(string(request.Task), func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			root := filepath.Join(t.TempDir(), "store")
 			taskName := string(request.Task)
 			operationID := testutil.ArtifactID(t, artifact.KindEvidence, taskName+" operation")

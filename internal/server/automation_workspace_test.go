@@ -54,7 +54,7 @@ func TestAutomationWorkspaceVertical(t *testing.T) {
 	if err := json.Unmarshal(run.Body.Bytes(), &execution); err != nil || !execution.Operation.Valid() {
 		t.Fatalf("execution = (%+v, %v)", execution, err)
 	}
-	status, err := fixture.handler.operations.Wait(context.Background(), execution.Operation)
+	status, err := fixture.handler.operations.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateCompleted || len(status.Outputs) != 1 {
 		t.Fatalf("automation operation = (%+v, %v)", status, err)
 	}
@@ -73,7 +73,7 @@ func TestAutomationWorkspaceVertical(t *testing.T) {
 func TestAutomationWorkspaceSSE(t *testing.T) {
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, 4)}
 	done := make(chan struct{})
 	go func() {
@@ -148,12 +148,12 @@ func newAutomationServerFixture(t *testing.T) automationServerFixture {
 	}
 	content, err := definition.ArtifactContent()
 	if err == nil {
-		_, err = artifact.CommitBatch(context.Background(), store, artifact.Batch{
+		_, err = artifact.CommitBatch(t.Context(), store, artifact.Batch{
 			Key: "automation/server/recipe", Contents: []artifact.Content{content},
 		})
 	}
 	if err == nil {
-		err = modelrecipe.EnsureRuntimePolicy(context.Background(), store, definition)
+		err = modelrecipe.EnsureRuntimePolicy(t.Context(), store, definition)
 	}
 	if err != nil {
 		store.Close()
@@ -227,7 +227,7 @@ func commitAutomationServerBlob(t *testing.T, store artifact.Repository, kind ar
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "automation/server/blob/" + label,
 		Contents: []artifact.Content{{Descriptor: artifact.Descriptor{
 			ID: id, Size: uint64(len(data)), MediaType: "application/octet-stream",

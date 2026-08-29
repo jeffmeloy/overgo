@@ -12,7 +12,7 @@ import (
 // [seq, nHeads*hd] tensor into a contiguous buffer.
 func extractHead(src []float32, seq, nHeads, hd, head int) []float32 {
 	out := make([]float32, seq*hd)
-	for i := 0; i < seq; i++ {
+	for i := range seq {
 		copy(out[i*hd:(i+1)*hd], src[i*nHeads*hd+head*hd:i*nHeads*hd+(head+1)*hd])
 	}
 	return out
@@ -21,8 +21,8 @@ func extractHead(src []float32, seq, nHeads, hd, head int) []float32 {
 // insertHead writes (or accumulates) a contiguous [seq,hd] head buffer back into
 // an interleaved [seq, nHeads*hd] tensor at head `head`.
 func insertHead(dst, headData []float32, seq, nHeads, hd, head int, accumulate bool) {
-	for i := 0; i < seq; i++ {
-		for j := 0; j < hd; j++ {
+	for i := range seq {
+		for j := range hd {
 			if accumulate {
 				dst[i*nHeads*hd+head*hd+j] += headData[i*hd+j]
 			} else {
@@ -49,7 +49,7 @@ func MultiHeadAttentionBackward(worker *device.Worker, q, k, v, p, dOut []float3
 	dK = make([]float32, seq*nkv*hd)
 	dV = make([]float32, seq*nkv*hd)
 	headsPerKV := nh / nkv
-	for h := 0; h < nh; h++ {
+	for h := range nh {
 		kvh := h / headsPerKV
 		qh := extractHead(q, seq, nh, hd, h)
 		kh := extractHead(k, seq, nkv, hd, kvh)

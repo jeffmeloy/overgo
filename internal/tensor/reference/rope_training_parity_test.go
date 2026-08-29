@@ -75,8 +75,8 @@ func TestTrainingRopeMatchesServingNeoX(t *testing.T) {
 			}
 			invFreq := hostmath.RopeInvFreq(tc.theta, rd)
 			training := append([]float32(nil), data...)
-			for p := 0; p < tokens; p++ {
-				for h := 0; h < heads; h++ {
+			for p := range tokens {
+				for h := range heads {
 					base := (p*heads + h) * width
 					hostmath.ApplyRotaryHalf(training[base:base+rd], invFreq, p)
 				}
@@ -85,9 +85,7 @@ func TestTrainingRopeMatchesServingNeoX(t *testing.T) {
 			var maxAbs float64
 			for i := range serving {
 				d := math.Abs(float64(serving[i] - training[i]))
-				if d > maxAbs {
-					maxAbs = d
-				}
+				maxAbs = max(maxAbs, d)
 			}
 			// Both paths rotate the same dims by the same angles in float64 and
 			// store float32. They agree to ~1 float32 ULP, not bit-exact: serving
@@ -102,7 +100,7 @@ func TestTrainingRopeMatchesServingNeoX(t *testing.T) {
 			// Guard against a no-op test: the untouched tail must be unchanged and
 			// the rotated head must actually differ from the input at pos>0.
 			if rd < width {
-				for i := 0; i < len(data); i++ {
+				for i := range len(data) {
 					lane := i % width
 					if lane >= rd && serving[i] != data[i] {
 						t.Fatalf("partial-rope tail lane %d changed: %v != %v", lane, serving[i], data[i])

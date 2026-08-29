@@ -1,7 +1,6 @@
 package seriesforecast
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -17,7 +16,7 @@ func TestLightCurveProcessorDerivesBandAndBoundary(t *testing.T) {
 		"objid": 7,
 		"x": [4, 500, 14, 1, 1, 600, 20, 1, 3, 500, 13, 1, 1, 500, 11, 1, 2, 500, 12, 1, 0, 0, 0, 0]
 	}`)}
-	example, err := processor(context.Background(), record)
+	example, err := processor(t.Context(), record)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +44,7 @@ func TestLightCurveTrainingProcessorReservesTwoPatches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	example, err := processor(context.Background(), record)
+	example, err := processor(t.Context(), record)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +64,7 @@ func TestLightCurveTrainingProcessorReservesTwoPatches(t *testing.T) {
 		"objid": 8,
 		"x": [1, 500, 11, 1, 2, 500, 12, 1, 3, 500, 13, 1, 4, 500, 14, 1]
 	}`)}
-	if _, err := processor(context.Background(), short); err == nil {
+	if _, err := processor(t.Context(), short); err == nil {
 		t.Fatal("four-sample curve was not refused at the two-patch floor")
 	}
 }

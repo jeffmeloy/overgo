@@ -42,19 +42,19 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer deviceBatch.Close(context.Background())
+	defer deviceBatch.Close(t.Context())
 	hostBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 2,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer hostBatch.Close(context.Background())
+	defer hostBatch.Close(t.Context())
 
 	steps := [][]tokenizer.TokenID{{1, 4}, {5}, {6}}
 	for step, tokens := range steps {
-		device, deviceErr := deviceBatch.Step(context.Background(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
-		host, hostErr := hostBatch.Step(context.Background(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
+		device, deviceErr := deviceBatch.Step(t.Context(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
+		host, hostErr := hostBatch.Step(t.Context(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
 		if deviceErr != nil || hostErr != nil {
 			t.Fatalf("step %d device/host errors = %v/%v", step, deviceErr, hostErr)
 		}
@@ -75,7 +75,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 		t.Fatalf("generic decode session = %+v", session)
 	}
 	beforeFailure := deviceBatch.Snapshot()
-	canceled, cancel := context.WithCancel(context.Background())
+	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := deviceBatch.Step(canceled, []SequenceBatchInput{{
 		ID: 1, Tokens: []tokenizer.TokenID{7},
@@ -88,7 +88,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	if err := deviceBatch.Fork(1, 2); err != nil {
 		t.Fatal(err)
 	}
-	branched, err := deviceBatch.Step(context.Background(), []SequenceBatchInput{
+	branched, err := deviceBatch.Step(t.Context(), []SequenceBatchInput{
 		{ID: 1, Tokens: []tokenizer.TokenID{2}},
 		{ID: 2, Tokens: []tokenizer.TokenID{3}},
 	})
@@ -109,7 +109,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	if cohortSession == nil {
 		t.Fatal("forked cohort has no reusable session")
 	}
-	if _, err = deviceBatch.Step(context.Background(), []SequenceBatchInput{
+	if _, err = deviceBatch.Step(t.Context(), []SequenceBatchInput{
 		{ID: 1, Tokens: []tokenizer.TokenID{4}},
 		{ID: 2, Tokens: []tokenizer.TokenID{5}},
 	}); err != nil {
@@ -148,22 +148,22 @@ func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer deviceBatch.Close(context.Background())
+	defer deviceBatch.Close(t.Context())
 	hostBatch, err := runner.NewContinuousBatch(ContinuousBatchOptions{
 		MaxSequences: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer hostBatch.Close(context.Background())
+	defer hostBatch.Close(t.Context())
 
 	// prefill 2 -> decode single tokens; cache.Tokens after each step = 2,3,4,5,6,7,8.
 	// pastTokens=4 crosses page 0->1 (Cap 4->8); pastTokens=5,6,7 replay inside the
 	// grown page -- where the stale source capacity struck.
 	steps := [][]tokenizer.TokenID{{1, 4}, {5}, {6}, {7}, {4}, {5}, {6}}
 	for step, tokens := range steps {
-		device, deviceErr := deviceBatch.Step(context.Background(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
-		host, hostErr := hostBatch.Step(context.Background(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
+		device, deviceErr := deviceBatch.Step(t.Context(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
+		host, hostErr := hostBatch.Step(t.Context(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
 		if deviceErr != nil || hostErr != nil {
 			t.Fatalf("step %d device/host errors = %v/%v", step, deviceErr, hostErr)
 		}

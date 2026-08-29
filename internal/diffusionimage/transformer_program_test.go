@@ -1,7 +1,6 @@
 package diffusionimage
 
 import (
-	"context"
 	"testing"
 )
 
@@ -11,7 +10,7 @@ func TestTransformerBlockProgramMatchesTorchFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := program.execute(context.Background(), nil, fixture.X)
+	got, err := program.execute(t.Context(), nil, fixture.X)
 	if err != nil {
 		t.Fatal(err)
 	}

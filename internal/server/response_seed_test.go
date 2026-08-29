@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -24,12 +23,12 @@ func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "seed-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "seed-model")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "seed/authorities", Artifacts: []artifact.Descriptor{{ID: recipeID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runrecord.PublishInteraction(context.Background(), store, runrecord.Interaction{
+	if _, err := runrecord.PublishInteraction(t.Context(), store, runrecord.Interaction{
 		Response: "resp_7", Recipe: recipeID, Model: modelID, Node: recipe.NodeID("respond"),
 	}, []runrecord.InteractionMessage{{Role: "assistant", Content: "recorded"}}); err != nil {
 		t.Fatal(err)

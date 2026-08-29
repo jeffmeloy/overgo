@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -17,7 +16,7 @@ import (
 // batched content read -- two acquisitions total: absent entries skip,
 // and per-item opens do not scale with the list.
 func TestHighFanoutReadsAreBatched(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

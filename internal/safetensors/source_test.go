@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"os"
@@ -199,7 +200,7 @@ func TestBoundedBoundaryPolicyContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tensor.ReadAt(make([]byte, 2), 2); err != io.ErrUnexpectedEOF {
+	if _, err := tensor.ReadAt(make([]byte, 2), 2); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("out-of-range read error = %v", err)
 	}
 }
@@ -214,7 +215,7 @@ func TestNewTensorValidatesAndBoundsReads(t *testing.T) {
 	if _, err := tensor.ReadAt(buffer, 1); err != nil || !bytes.Equal(buffer, []byte{2, 3}) {
 		t.Fatalf("read = %v, %v", buffer, err)
 	}
-	if _, err := tensor.ReadAt(buffer, 2); err != io.ErrUnexpectedEOF {
+	if _, err := tensor.ReadAt(buffer, 2); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("overflow error = %v", err)
 	}
 }

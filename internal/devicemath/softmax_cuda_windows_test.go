@@ -14,20 +14,20 @@ import (
 // hostSoftmaxRows returns row-wise softmax of s[rows,d] in float64.
 func hostSoftmaxRows(s []float32, rows, d int) []float64 {
 	p := make([]float64, rows*d)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		mx := math.Inf(-1)
-		for i := 0; i < d; i++ {
+		for i := range d {
 			if v := float64(s[r*d+i]); v > mx {
 				mx = v
 			}
 		}
 		var sum float64
-		for i := 0; i < d; i++ {
+		for i := range d {
 			e := math.Exp(float64(s[r*d+i]) - mx)
 			p[r*d+i] = e
 			sum += e
 		}
-		for i := 0; i < d; i++ {
+		for i := range d {
 			p[r*d+i] /= sum
 		}
 	}

@@ -235,9 +235,9 @@ func smoothCorrectAndInject(predictions []reference.Value, activated, perLayer r
 	result := make([]reference.Value, count)
 	for index := range predictions {
 		result[index] = predictions[index].Clone()
-		for t := 0; t < tokens; t++ {
+		for t := range tokens {
 			coeff := coefficients.Data[t*count+index] + 1
-			for f := 0; f < width; f++ {
+			for f := range width {
 				pos := t*width + f
 				innovation := activated.Data[pos] - predictions[active].Data[pos]
 				result[index].Data[pos] += innovation * coeff
@@ -333,23 +333,23 @@ func testActivateFFNBackward(t *testing.T, sparse bool) {
 
 	smoothForward := func() reference.Value {
 		res := reference.Value{Shape: gate.Shape, Data: make([]float32, len(gate.Data))}
-		for tk := 0; tk < tokens; tk++ {
+		for tk := range tokens {
 			base := tk * width
 			cutoff := float32(-math.MaxFloat32)
 			if sparse {
 				var sum float64
-				for i := 0; i < width; i++ {
+				for i := range width {
 					sum += float64(gate.Data[base+i])
 				}
 				mean := sum / float64(width)
 				var sq float64
-				for i := 0; i < width; i++ {
+				for i := range width {
 					d := float64(gate.Data[base+i]) - mean
 					sq += d * d
 				}
 				cutoff = float32(mean + float64(stdMult)*math.Sqrt(sq/float64(width-1)))
 			}
-			for i := 0; i < width; i++ {
+			for i := range width {
 				v := gate.Data[base+i]
 				if sparse {
 					v = max(v-cutoff, 0)

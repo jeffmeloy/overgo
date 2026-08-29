@@ -2,6 +2,7 @@ package jinja
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -149,7 +150,7 @@ func filterItems(in any, _ []any, _ map[string]any) (any, error) {
 		return nil, fmt.Errorf("jinja: items requires a mapping")
 	}
 	keys := dictAllKeys(in)
-	sort.Strings(keys)
+	slices.Sort(keys)
 	out := make([]any, 0, len(keys))
 	for _, k := range keys {
 		v, _ := dl.lookup(k)

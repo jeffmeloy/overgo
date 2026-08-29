@@ -109,12 +109,12 @@ func ChannelMixF64Into(dst, x, w, bias []float32, inChannels, outChannels, posit
 	}
 	ParallelRangeF64(outChannels, inChannels*positions, func(lo, hi int) {
 		for outChannel := lo; outChannel < hi; outChannel++ {
-			for position := 0; position < positions; position++ {
+			for position := range positions {
 				acc := 0.0
 				if bias != nil {
 					acc = float64(bias[outChannel])
 				}
-				for inChannel := 0; inChannel < inChannels; inChannel++ {
+				for inChannel := range inChannels {
 					acc += float64(x[inChannel*positions+position]) * float64(w[outChannel*inChannels+inChannel])
 				}
 				dst[outChannel*positions+position] = float32(acc)

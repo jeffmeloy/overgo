@@ -25,7 +25,7 @@ func UniPCSchedule(numTrainTimesteps, inferenceSteps int, shift float64) ([]int6
 	sigmaMax := 1 - 1/float64(numTrainTimesteps)
 	timesteps := make([]int64, inferenceSteps)
 	sigmas := make([]float32, inferenceSteps+1)
-	for i := 0; i < inferenceSteps; i++ {
+	for i := range inferenceSteps {
 		base := sigmaMax * (1 - float64(i)/float64(inferenceSteps))
 		sigma := shift * base / (1 + (shift-1)*base)
 		timesteps[i] = int64(sigma * float64(numTrainTimesteps))

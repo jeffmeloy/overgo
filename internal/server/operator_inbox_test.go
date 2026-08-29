@@ -29,7 +29,7 @@ func TestOperatorInbox(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "inbox-run")
 	action := operatoraction.Action{Code: "resume", Summary: "Resume the blocked work", Argv: []string{"overgo", "resume"}}
 	attempts := 0
-	id, err := handler.operations.Submit(context.Background(), operation.Request{
+	id, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		attempts++
@@ -43,7 +43,7 @@ func TestOperatorInbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := handler.operations.Wait(context.Background(), id); err != nil {
+	if _, err := handler.operations.Wait(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}
 	waiting := serveTestRequest(handler, http.MethodGet, "/operations/inbox", "")
@@ -59,7 +59,7 @@ func TestOperatorInbox(t *testing.T) {
 	if grant.Code != http.StatusAccepted {
 		t.Fatalf("grant status=%d body=%s", grant.Code, grant.Body.String())
 	}
-	if _, err := handler.operations.Wait(context.Background(), id); err != nil {
+	if _, err := handler.operations.Wait(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}
 	drained := serveTestRequest(handler, http.MethodGet, "/operations/inbox", "")

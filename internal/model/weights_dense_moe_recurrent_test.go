@@ -21,7 +21,7 @@ func TestReadWeightsGLM4NextNBlock(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -761,7 +761,7 @@ func TestReadWeightsHYV3MTPHeads(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),

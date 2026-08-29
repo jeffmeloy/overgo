@@ -198,8 +198,7 @@ func (browser *Browser) Evaluate(ctx context.Context, expression string, result 
 
 // Eventually waits for a JavaScript predicate while the enclosing context owns the deadline.
 func (browser *Browser) Eventually(ctx context.Context, expression string) error {
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
+	ticker := time.Tick(time.Millisecond)
 	for {
 		var ready bool
 		if err := browser.Evaluate(ctx, expression, &ready); err == nil && ready {
@@ -208,7 +207,7 @@ func (browser *Browser) Eventually(ctx context.Context, expression string) error
 		select {
 		case <-ctx.Done():
 			return errors.Join(errors.New("webui lane: browser predicate did not become true"), ctx.Err())
-		case <-ticker.C:
+		case <-ticker:
 		}
 	}
 }
@@ -224,8 +223,7 @@ func (browser *Browser) SetViewport(ctx context.Context, width, height int) erro
 }
 
 func waitDevToolsPort(ctx context.Context, profile string, supervised *processcontrol.Supervised) (int, error) {
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
+	ticker := time.Tick(time.Millisecond)
 	path := filepath.Join(profile, "DevToolsActivePort")
 	for {
 		data, err := os.ReadFile(path)
@@ -242,7 +240,7 @@ func waitDevToolsPort(ctx context.Context, profile string, supervised *processco
 		select {
 		case <-ctx.Done():
 			return 0, ctx.Err()
-		case <-ticker.C:
+		case <-ticker:
 		}
 	}
 }

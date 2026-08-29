@@ -76,10 +76,10 @@ func TestLinearBackwardTResidentMatchesShared(t *testing.T) {
 // gradients w.r.t. X and W are exactly dY·Wᵀ and Xᵀ·dY.
 func hostLinearLoss(x, w, dY []float32, rows, in, out int) float64 {
 	var loss float64
-	for r := 0; r < rows; r++ {
-		for o := 0; o < out; o++ {
+	for r := range rows {
+		for o := range out {
 			var y float64
-			for i := 0; i < in; i++ {
+			for i := range in {
 				y += float64(x[r*in+i]) * float64(w[i*out+o])
 			}
 			loss += float64(dY[r*out+o]) * y
@@ -108,10 +108,10 @@ func TestLinearForwardTMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	var maxDiff float64
-	for r := 0; r < rows; r++ {
-		for o := 0; o < outDim; o++ {
+	for r := range rows {
+		for o := range outDim {
 			var y float64
-			for i := 0; i < in; i++ {
+			for i := range in {
 				y += float64(x[r*in+i]) * float64(w[o*in+i]) // Wᵀ: w[o,i]
 			}
 			if diff := math.Abs(float64(got[r*outDim+o]) - y); diff > maxDiff {
@@ -180,10 +180,10 @@ func TestLinearBackwardGradCheck(t *testing.T) {
 // hostLinearLossT returns L = sum(dY ⊙ (X·Wᵀ)) in fp64 (W stored [outDim,in]).
 func hostLinearLossT(x, w, dY []float32, rows, in, outDim int) float64 {
 	var loss float64
-	for r := 0; r < rows; r++ {
-		for o := 0; o < outDim; o++ {
+	for r := range rows {
+		for o := range outDim {
 			var y float64
-			for i := 0; i < in; i++ {
+			for i := range in {
 				y += float64(x[r*in+i]) * float64(w[o*in+i])
 			}
 			loss += float64(dY[r*outDim+o]) * y

@@ -40,7 +40,7 @@ type Candidate struct {
 	CallsiteID   string                    `json:"callsite_id"`
 	OwnerID      string                    `json:"owner_id"`
 	Policy       bool                      `json:"policy"`
-	Doc          string                    `json:"doc,omitempty"`
+	Doc          string                    `json:"doc,omitzero"`
 	Score        int                       `json:"score"`
 }
 
@@ -201,7 +201,7 @@ const (
 )
 
 type LiteralSite struct {
-	Name       string         `json:"name,omitempty"`
+	Name       string         `json:"name,omitzero"`
 	File       string         `json:"file"`
 	Package    string         `json:"package"`
 	Scope      string         `json:"scope"`

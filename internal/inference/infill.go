@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 
@@ -66,9 +67,7 @@ func (r *Runner) FormatInfillTokens(
 			return nil, err
 		}
 		filename := chunk.Filename
-		if filename == "" {
-			filename = "tmp"
-		}
+		filename = cmp.Or(filename, "tmp")
 		if r.vocab.FIMSep != tokenizer.NullToken {
 			filenameTokens, err := r.vocab.Encode(
 				filename+"\n",

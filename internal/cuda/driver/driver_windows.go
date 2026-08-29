@@ -5,6 +5,7 @@ package driver
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -510,9 +511,7 @@ func (l *Library) accountAllocation(pointer DevicePtr, bytes uint64) {
 		l.peakBytes = l.currentBytes
 		l.peakAllocationBytes = bytes
 		l.peakSizes = make(map[uint64]uint64, len(l.liveSizes))
-		for size, count := range l.liveSizes {
-			l.peakSizes[size] = count
-		}
+		maps.Copy(l.peakSizes, l.liveSizes)
 	}
 	l.allocationMu.Unlock()
 }
@@ -539,9 +538,7 @@ func (l *Library) MemoryStats() MemoryStats {
 	defer l.allocationMu.Unlock()
 	var largest uint64
 	for _, bytes := range l.allocations {
-		if bytes > largest {
-			largest = bytes
-		}
+		largest = max(largest, bytes)
 	}
 	ledger := make([]AllocationSizeClass, 0, len(l.peakSizes))
 	for size, count := range l.peakSizes {

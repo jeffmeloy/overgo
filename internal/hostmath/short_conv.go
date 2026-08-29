@@ -17,12 +17,12 @@ func ShortConvForward(x []float32, channels, T int, w, bias []float32, k int) []
 // shortConvPre is the pre-activation depthwise causal conv (no SiLU).
 func shortConvPre(x []float32, channels, T int, w, bias []float32, k int) []float32 {
 	out := make([]float32, channels*T)
-	for c := 0; c < channels; c++ {
+	for c := range channels {
 		xRow := x[c*T:]
 		wRow := w[c*k:]
-		for t := 0; t < T; t++ {
+		for t := range T {
 			var acc float64
-			for j := 0; j < k; j++ {
+			for j := range k {
 				ti := t - (k - 1) + j
 				if ti < 0 || ti >= T {
 					continue
@@ -55,16 +55,16 @@ func ShortConvBackward(x, dY []float32, channels, T int, w, bias []float32, k in
 	if bias != nil {
 		dBias = make([]float32, channels)
 	}
-	for c := 0; c < channels; c++ {
+	for c := range channels {
 		xRow := x[c*T:]
 		wRow := w[c*k:]
 		dxRow := make([]float64, T)
 		dwRow := make([]float64, k)
 		var db float64
-		for t := 0; t < T; t++ {
+		for t := range T {
 			dc := dConv[c*T+t]
 			db += dc
-			for j := 0; j < k; j++ {
+			for j := range k {
 				ti := t - (k - 1) + j
 				if ti < 0 || ti >= T {
 					continue
@@ -73,10 +73,10 @@ func ShortConvBackward(x, dY []float32, channels, T int, w, bias []float32, k in
 				dwRow[j] += dc * float64(xRow[ti])
 			}
 		}
-		for t := 0; t < T; t++ {
+		for t := range T {
 			dX[c*T+t] = float32(dxRow[t])
 		}
-		for j := 0; j < k; j++ {
+		for j := range k {
 			dW[c*k+j] = float32(dwRow[j])
 		}
 		if bias != nil {

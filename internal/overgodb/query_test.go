@@ -26,7 +26,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/query/base",
 		Artifacts: []artifact.Descriptor{
 			{ID: tensorID, Size: 6}, {ID: datasetID, Size: 7},
@@ -37,7 +37,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "output")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "fixture/query/output",
 		Artifacts: []artifact.Descriptor{{ID: outputID, Size: 6}},
 		Lineage: []artifact.Lineage{{
@@ -47,7 +47,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	models, err := store.Query(context.Background(), Query{
+	models, err := store.Query(t.Context(), Query{
 		Kind: artifact.KindModel, MaxResults: 10, Projection: ProjectCatalog,
 	})
 	if err != nil {
@@ -58,7 +58,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 		t.Fatalf("model query = %+v", models)
 	}
 
-	followed, err := store.Query(context.Background(), Query{
+	followed, err := store.Query(t.Context(), Query{
 		Alias: "model/active", Follow: FollowBoth, MaxDepth: 2, MaxResults: 10, Projection: ProjectCatalog,
 	})
 	if err != nil {
@@ -68,7 +68,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 		t.Fatalf("follow query = %+v", followed)
 	}
 
-	produced, err := store.Query(context.Background(), Query{
+	produced, err := store.Query(t.Context(), Query{
 		Artifact: &manifest.ID, Relation: artifact.RelationProducedBy,
 		Follow: FollowChildren, MaxDepth: 1, MaxResults: 10, Projection: ProjectCatalog,
 	})
@@ -79,7 +79,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 		t.Fatalf("relation query = %+v", produced)
 	}
 
-	commits, err := store.Query(context.Background(), Query{
+	commits, err := store.Query(t.Context(), Query{
 		FromSequence: 2, ToSequence: 2, MaxResults: 10, Projection: ProjectCatalog,
 	})
 	if err != nil {
@@ -96,7 +96,7 @@ func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	introduced := fixtureDescriptor(t, artifact.KindEvidence, "introduced")
 	content := artifact.Content{Descriptor: introduced, Data: []byte("introduced")}
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -195,7 +195,7 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 	defer store.Close()
 	parent := testutil.ArtifactID(t, artifact.KindEvidence, "parent")
 	child := testutil.ArtifactID(t, artifact.KindEvidence, "child")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "fixture/query/cycle-base",
 		Artifacts: []artifact.Descriptor{{ID: parent, Size: 6}, {ID: child, Size: 5}},
 		Lineage: []artifact.Lineage{{
@@ -204,7 +204,7 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/query/cycle-attempt",
 		Lineage: []artifact.Lineage{{
 			Child: parent, Parent: child, Relation: artifact.RelationDerivedFrom,
@@ -212,17 +212,17 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 	}); !errors.Is(err, ErrLineageCycle) {
 		t.Fatalf("cycle error = %v", err)
 	}
-	result, err := store.Query(context.Background(), Query{MaxResults: 1, Projection: ProjectArtifacts})
+	result, err := store.Query(t.Context(), Query{MaxResults: 1, Projection: ProjectArtifacts})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(result.Artifacts) != 1 || !result.Truncated {
 		t.Fatalf("bounded query = %+v", result)
 	}
-	if _, err := store.Query(context.Background(), Query{MaxResults: 1}); err == nil {
+	if _, err := store.Query(t.Context(), Query{MaxResults: 1}); err == nil {
 		t.Fatal("projection-free query accepted")
 	}
-	cancelled, cancel := context.WithCancel(context.Background())
+	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := store.Query(cancelled, Query{MaxResults: 1, Projection: ProjectArtifacts}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled query error = %v", err)
@@ -244,12 +244,12 @@ func TestServingObservationDescriptorIndexes(t *testing.T) {
 	serving.MediaType, serving.Schema = servingMedia, servingSchema
 	other := fixtureDescriptor(t, artifact.KindEvidence, "other-observation")
 	other.MediaType, other.Schema = servingMedia, otherSchema
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/query/descriptor-indexes", Artifacts: []artifact.Descriptor{serving, other},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := store.Query(context.Background(), Query{
+	result, err := store.Query(t.Context(), Query{
 		Kind: artifact.KindEvidence, MediaType: servingMedia, Schema: servingSchema, MaxResults: 2,
 		Projection: ProjectArtifacts,
 	})
@@ -259,7 +259,7 @@ func TestServingObservationDescriptorIndexes(t *testing.T) {
 	if len(result.Artifacts) != 1 || result.Artifacts[0] != serving || result.Truncated {
 		t.Fatalf("descriptor query = %+v", result)
 	}
-	if _, err := store.Query(context.Background(), Query{MediaType: " invalid", MaxResults: 1, Projection: ProjectArtifacts}); err == nil {
+	if _, err := store.Query(t.Context(), Query{MediaType: " invalid", MaxResults: 1, Projection: ProjectArtifacts}); err == nil {
 		t.Fatal("invalid media filter accepted")
 	}
 }
@@ -276,31 +276,31 @@ func TestQueryCursorBindsHeadAndContract(t *testing.T) {
 		fixtureDescriptor(t, artifact.KindEvidence, "cursor-b"),
 		fixtureDescriptor(t, artifact.KindEvidence, "cursor-c"),
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "fixture/query/cursor", Artifacts: descriptors}); err != nil {
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/query/cursor", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
 	query := Query{Kind: artifact.KindEvidence, MaxResults: pageSize, Projection: ProjectArtifacts}
-	first, err := store.Query(context.Background(), query)
+	first, err := store.Query(t.Context(), query)
 	if err != nil || len(first.Artifacts) != pageSize || first.Next == nil {
 		t.Fatalf("first page = (%+v, %v)", first, err)
 	}
 	query.Cursor = first.Next
-	second, err := store.Query(context.Background(), query)
+	second, err := store.Query(t.Context(), query)
 	if err != nil || len(second.Artifacts) != len(descriptors)-pageSize || second.Next != nil {
 		t.Fatalf("second page = (%+v, %v)", second, err)
 	}
 	query.Kind = artifact.KindRun
-	if _, err := store.Query(context.Background(), query); err == nil {
+	if _, err := store.Query(t.Context(), query); err == nil {
 		t.Fatal("cursor accepted for another query contract")
 	}
 	query.Kind = artifact.KindEvidence
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "fixture/query/cursor-tail",
 		Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindEvidence, "cursor-tail")},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Query(context.Background(), query); err == nil {
+	if _, err := store.Query(t.Context(), query); err == nil {
 		t.Fatal("cursor accepted after catalog head changed")
 	}
 }
@@ -315,10 +315,10 @@ func TestQueryProjectionReturnsRequestedFactsOnly(t *testing.T) {
 		Descriptor: fixtureDescriptor(t, artifact.KindEvidence, fixturePayload),
 		Data:       []byte(fixturePayload),
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "fixture/query/projection", Contents: []artifact.Content{content}}); err != nil {
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/query/projection", Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := store.Query(context.Background(), Query{
+	result, err := store.Query(t.Context(), Query{
 		Artifact: &content.Descriptor.ID, MaxResults: 1, Projection: ProjectContentPresence,
 	})
 	if err != nil || len(result.Artifacts) != 0 || len(result.Contents) != 1 ||
@@ -331,7 +331,7 @@ func TestTypedDocumentScan(t *testing.T) {
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
 	var got []artifact.ID
-	page, err := store.VisitDocuments(context.Background(), DocumentQuery{
+	page, err := store.VisitDocuments(t.Context(), DocumentQuery{
 		Contracts: []artifact.DocumentContract{contract}, Order: DocumentOldestFirst,
 	}, func(view DocumentView) error {
 		got = append(got, view.Content.Descriptor.ID)
@@ -348,7 +348,7 @@ func TestNewestFirstCursor(t *testing.T) {
 	defer store.Close()
 	query := DocumentQuery{Contracts: []artifact.DocumentContract{contract}, Order: DocumentNewestFirst, MaxResults: 1}
 	var got []artifact.ID
-	first, err := store.VisitDocuments(context.Background(), query, func(view DocumentView) error {
+	first, err := store.VisitDocuments(t.Context(), query, func(view DocumentView) error {
 		got = append(got, view.Content.Descriptor.ID)
 		return nil
 	})
@@ -356,7 +356,7 @@ func TestNewestFirstCursor(t *testing.T) {
 		t.Fatalf("first document page = (%v, %+v, %v)", got, first, err)
 	}
 	query.Cursor = first.Next
-	second, err := store.VisitDocuments(context.Background(), query, func(view DocumentView) error {
+	second, err := store.VisitDocuments(t.Context(), query, func(view DocumentView) error {
 		got = append(got, view.Content.Descriptor.ID)
 		return nil
 	})
@@ -366,7 +366,7 @@ func TestNewestFirstCursor(t *testing.T) {
 		t.Fatalf("document pages = (%v, %+v, %v)", got, second, err)
 	}
 	root := store.root
-	if _, err := store.Snapshot(context.Background()); err != nil {
+	if _, err := store.Snapshot(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -378,7 +378,7 @@ func TestNewestFirstCursor(t *testing.T) {
 	}
 	defer store.Close()
 	query.Cursor, got = nil, nil
-	_, err = store.VisitDocuments(context.Background(), query, func(view DocumentView) error {
+	_, err = store.VisitDocuments(t.Context(), query, func(view DocumentView) error {
 		got = append(got, view.Content.Descriptor.ID)
 		return nil
 	})
@@ -391,7 +391,7 @@ func TestAliasPrefix(t *testing.T) {
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
 	var got []DocumentView
-	page, err := store.VisitDocuments(context.Background(), DocumentQuery{
+	page, err := store.VisitDocuments(t.Context(), DocumentQuery{
 		Contracts: []artifact.DocumentContract{contract}, AliasPrefixes: []string{"fixture/active/"}, Order: DocumentOldestFirst,
 	}, func(view DocumentView) error {
 		got = append(got, view)
@@ -423,7 +423,7 @@ func documentQueryFixture(t *testing.T) (*Store, artifact.DocumentContract, []ar
 		if index == len(contents)-1 {
 			batch.Aliases = []artifact.AliasBinding{{Name: "fixture/active/current", Target: contents[index].Descriptor.ID}}
 		}
-		if _, err := store.Commit(context.Background(), batch); err != nil {
+		if _, err := store.Commit(t.Context(), batch); err != nil {
 			t.Fatal(err)
 		}
 	}

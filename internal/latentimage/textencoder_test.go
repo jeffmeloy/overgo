@@ -299,7 +299,7 @@ func TestEncoderRealCheckpointTelemetry(t *testing.T) {
 		for tok := 0; tok < enc.Seq; tok++ {
 			row := enc.Data[(tok*enc.LayerCount+l)*enc.Hidden : (tok*enc.LayerCount+l)*enc.Hidden+enc.Hidden]
 			for _, v := range row {
-				mn, mx, sa, n = math.Min(mn, v), math.Max(mx, v), sa+math.Abs(v), n+1
+				mn, mx, sa, n = min(mn, v), max(mx, v), sa+math.Abs(v), n+1
 			}
 		}
 		t.Logf("tap %2d (after layer %2d): min=%+.4f max=%+.4f mean|.|=%.4f", l, spec.TextEncoder.SelectLayers[l]-1, mn, mx, sa/float64(n))

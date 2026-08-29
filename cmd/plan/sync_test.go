@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -111,7 +110,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := source.Commit(context.Background(), mergeEvidenceBatch(t, "first"))
+	first, err := source.Commit(t.Context(), mergeEvidenceBatch(t, "first"))
 	closeErr := source.Close()
 	if err != nil || closeErr != nil {
 		t.Fatalf("seed source = %s, %v, close=%v", first, err, closeErr)
@@ -129,7 +128,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := source.Commit(context.Background(), mergeEvidenceBatch(t, "second"))
+	second, err := source.Commit(t.Context(), mergeEvidenceBatch(t, "second"))
 	closeErr = source.Close()
 	if err != nil || closeErr != nil || second == first {
 		t.Fatalf("advance source = %s, %v, close=%v", second, err, closeErr)

@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -17,22 +16,22 @@ import (
 
 func TestRepresentationContractRepository(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	loaded, err := representation.LoadContract(context.Background(), store, authority.SourceContract.ID)
+	loaded, err := representation.LoadContract(t.Context(), store, authority.SourceContract.ID)
 	if err != nil || loaded.ID != authority.SourceContract.ID || loaded.Producer.Model != authority.Recipe.SourceModel {
 		t.Fatalf("loaded source contract = %+v, %v", loaded, err)
 	}
-	if _, err := representation.LoadContract(context.Background(), store, authority.Bridge.ID); err == nil {
+	if _, err := representation.LoadContract(t.Context(), store, authority.Bridge.ID); err == nil {
 		t.Fatal("bridge definition admitted as a representation contract")
 	}
 }
 
 func TestBridgeDefinitionRepository(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	loaded, err := LoadBridgeDefinition(context.Background(), store, authority.Bridge.ID)
+	loaded, err := LoadBridgeDefinition(t.Context(), store, authority.Bridge.ID)
 	if err != nil || loaded != authority.Bridge || loaded.Weights != authority.Recipe.BridgeWeights {
 		t.Fatalf("loaded bridge definition = %+v, %v", loaded, err)
 	}
-	weights, err := LoadBridgeWeights(context.Background(), store, authority.Bridge.ID)
+	weights, err := LoadBridgeWeights(t.Context(), store, authority.Bridge.ID)
 	if err != nil || weights.Weights.ID != authority.Bridge.Weights ||
 		weights.Inventory.ID != authority.Bridge.WeightInventory {
 		t.Fatalf("loaded bridge weights = %+v, %v", weights, err)
@@ -41,7 +40,7 @@ func TestBridgeDefinitionRepository(t *testing.T) {
 
 func TestCompositionRecipeRepository(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	loaded, err := LoadCompositionRecipe(context.Background(), store, authority.Recipe.ID)
+	loaded, err := LoadCompositionRecipe(t.Context(), store, authority.Recipe.ID)
 	if err != nil || loaded != authority.Recipe || loaded.Promotion != authority.Promotion.ID {
 		t.Fatalf("loaded composition recipe = %+v, %v", loaded, err)
 	}
@@ -54,7 +53,7 @@ func compositionAuthorityFixture(t *testing.T) (*overgodb.Store, CompositionAuth
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	ctx := context.Background()
+	ctx := t.Context()
 	sourceModel := testutil.ArtifactID(t, artifact.KindModel, "composition source model")
 	targetModel := testutil.ArtifactID(t, artifact.KindModel, "composition target model")
 	sourceDefinition := testutil.ArtifactID(t, artifact.KindModelDefinition, "composition source definition")

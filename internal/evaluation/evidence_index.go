@@ -14,9 +14,9 @@ import (
 // from the claim's evidence document.
 type BenchmarkSummary struct {
 	Tier                  string      `json:"tier"`
-	DecodeTokensPerSecond float64     `json:"decode_tokens_per_second_p50,omitempty"`
-	WallNS                uint64      `json:"wall_ns,omitempty"`
-	PeakDeviceBytes       uint64      `json:"peak_device_bytes,omitempty"`
+	DecodeTokensPerSecond float64     `json:"decode_tokens_per_second_p50,omitzero"`
+	WallNS                uint64      `json:"wall_ns,omitzero"`
+	PeakDeviceBytes       uint64      `json:"peak_device_bytes,omitzero"`
 	Record                artifact.ID `json:"record,omitzero"`
 }
 

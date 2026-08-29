@@ -29,11 +29,11 @@ const (
 // layout produced by a single [2*hidden, d] projection split with chunk(2).
 // out holds rows x hidden values and may not alias fused.
 func SwiGLUClampedInto(out, fused []float32, rows, hidden int) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		a := fused[r*2*hidden : r*2*hidden+hidden]
 		b := fused[r*2*hidden+hidden : (r+1)*2*hidden]
 		o := out[r*hidden : (r+1)*hidden]
-		for i := 0; i < hidden; i++ {
+		for i := range hidden {
 			av := float64(a[i])
 			if av > SwiGLUClampLinear {
 				av = SwiGLUClampLinear
@@ -41,9 +41,7 @@ func SwiGLUClampedInto(out, fused []float32, rows, hidden int) {
 				av = -SwiGLUClampLinear
 			}
 			bv := float64(b[i])
-			if bv > SwiGLUClampGate {
-				bv = SwiGLUClampGate
-			}
+			bv = min(bv, SwiGLUClampGate)
 			// silu(x) = x*sigmoid(x), written so the clamped range never
 			// evaluates exp on a large positive argument.
 			o[i] = float32(av / (1.0 + math.Exp(-av)) * bv)

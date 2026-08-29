@@ -3,7 +3,6 @@ package modelmerge
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -197,7 +196,7 @@ func promotedDenseGeneration(t *testing.T, candidate DenseToMoECandidate) evalua
 		names = append(names, name)
 		values[name] = weight.Values
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	fixtures := make([]streamingFixtureTensor, len(names))
 	for index, name := range names {
 		fixtures[index] = streamingFixtureTensor{name: name, shape: []uint64{uint64(len(values[name]))}}

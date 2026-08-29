@@ -28,12 +28,12 @@ type InvocationEffect struct {
 	Class          Effect             `json:"class"`
 	Targets        []InvocationTarget `json:"targets,omitempty"`
 	Known          bool               `json:"known"`
-	OpaqueMutation bool               `json:"opaque_mutation,omitempty"`
-	Network        bool               `json:"network,omitempty"`
-	Executable     bool               `json:"executable,omitempty"`
-	Destructive    bool               `json:"destructive,omitempty"`
-	Privileged     bool               `json:"privileged,omitempty"`
-	Irreversible   bool               `json:"irreversible,omitempty"`
+	OpaqueMutation bool               `json:"opaque_mutation,omitzero"`
+	Network        bool               `json:"network,omitzero"`
+	Executable     bool               `json:"executable,omitzero"`
+	Destructive    bool               `json:"destructive,omitzero"`
+	Privileged     bool               `json:"privileged,omitzero"`
+	Irreversible   bool               `json:"irreversible,omitzero"`
 }
 
 // DeriveInvocationEffect validates and canonicalizes a concrete invocation.

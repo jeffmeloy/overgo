@@ -62,7 +62,7 @@ func TestLatentBridgeTrainerDescends(t *testing.T) {
 		t.Fatal(err)
 	}
 	var first FlowHeadStepResult
-	for step := 0; step < 15; step++ {
+	for step := range 15 {
 		result, err := trainer.Step(hidden)
 		if err != nil {
 			t.Fatal(err)
@@ -156,7 +156,7 @@ func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
 		got := float64(grader.gradients[index])
 		_ = grader.Close()
 		_ = fresh.Close()
-		scale := math.Max(1, math.Max(math.Abs(numeric), math.Abs(got)))
+		scale := max(1, max(math.Abs(numeric), math.Abs(got)))
 		if math.Abs(numeric-got)/scale > limit {
 			t.Fatalf("gradient[%d]: analytic=%.6g numeric=%.6g", index, got, numeric)
 		}

@@ -34,19 +34,19 @@ func TestAutomationManualExecution(t *testing.T) {
 	}
 	defer manager.Close()
 	runtime := fixture.runtime(t, manager, generationAutomationAdapters(t, false, nil))
-	execution, err := runtime.SubmitManual(context.Background(), fixture.name, "manual", fixture.inputs)
+	execution, err := runtime.SubmitManual(t.Context(), fixture.name, "manual", fixture.inputs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := manager.Wait(context.Background(), execution.Operation)
+	status, err := manager.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateCompleted || status.Run == nil || len(status.Outputs) != 1 {
 		t.Fatalf("manual automation status = (%+v, %v)", status, err)
 	}
-	if _, found, err := artifact.ReadContent(context.Background(), fixture.store, status.Outputs[0]); err != nil || !found {
+	if _, found, err := artifact.ReadContent(t.Context(), fixture.store, status.Outputs[0]); err != nil || !found {
 		t.Fatalf("durable automation output = (%v, %v)", found, err)
 	}
 	for _, node := range fixture.definition.Nodes {
-		receipt, found, err := runrecord.ResolveStageReceipt(context.Background(), fixture.store, execution.Operation, node.ID)
+		receipt, found, err := runrecord.ResolveStageReceipt(t.Context(), fixture.store, execution.Operation, node.ID)
 		if err != nil || !found || receipt.State != runrecord.StageCompleted {
 			t.Fatalf("stage %s receipt = (%+v, %v, %v)", node.ID, receipt, found, err)
 		}
@@ -63,7 +63,7 @@ func TestAutomationCancellation(t *testing.T) {
 	defer manager.Close()
 	entered := make(chan struct{})
 	runtime := fixture.runtime(t, manager, generationAutomationAdapters(t, false, entered))
-	execution, err := runtime.SubmitManual(context.Background(), fixture.name, "cancel", fixture.inputs)
+	execution, err := runtime.SubmitManual(t.Context(), fixture.name, "cancel", fixture.inputs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,11 +71,11 @@ func TestAutomationCancellation(t *testing.T) {
 	if !manager.Cancel(execution.Operation) {
 		t.Fatal("active automation was not cancelled")
 	}
-	status, err := manager.Wait(context.Background(), execution.Operation)
+	status, err := manager.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateCancelled || status.Run == nil {
 		t.Fatalf("cancelled automation status = (%+v, %v)", status, err)
 	}
-	content, found, err := artifact.ReadContent(context.Background(), fixture.store, *status.Run)
+	content, found, err := artifact.ReadContent(t.Context(), fixture.store, *status.Run)
 	if err != nil || !found {
 		t.Fatalf("cancelled automation run = (%v, %v)", found, err)
 	}
@@ -93,11 +93,11 @@ func TestAutomationRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := fixture.runtime(t, firstManager, generationAutomationAdapters(t, true, nil))
-	execution, err := first.SubmitManual(context.Background(), fixture.name, "recover", fixture.inputs)
+	execution, err := first.SubmitManual(t.Context(), fixture.name, "recover", fixture.inputs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := firstManager.Wait(context.Background(), execution.Operation)
+	status, err := firstManager.Wait(t.Context(), execution.Operation)
 	firstManager.Close()
 	if err != nil || status.State != operation.StateFailed {
 		t.Fatalf("failed automation status = (%+v, %v)", status, err)
@@ -113,11 +113,11 @@ func TestAutomationRecovery(t *testing.T) {
 		return nil, errors.New("completed automation stage reran")
 	})
 	second := fixture.runtime(t, secondManager, adapters)
-	recovered, err := second.RecoverAutomation(context.Background(), execution.Plan.ID, "recover", fixture.inputs)
+	recovered, err := second.RecoverAutomation(t.Context(), execution.Plan.ID, "recover", fixture.inputs)
 	if err != nil || recovered.Operation != execution.Operation {
 		t.Fatalf("automation recovery admission = (%+v, %v)", recovered, err)
 	}
-	status, err = secondManager.Wait(context.Background(), recovered.Operation)
+	status, err = secondManager.Wait(t.Context(), recovered.Operation)
 	if err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("recovered automation status = (%+v, %v)", status, err)
 	}
@@ -130,7 +130,7 @@ func TestWebhookAutomationDispatchAndRecovery(t *testing.T) {
 			_ = fixture.store.Close()
 		}
 	}()
-	ctx := context.Background()
+	ctx := t.Context()
 	firstManager, err := operation.NewManager(len(fixture.definition.Nodes) + 1)
 	if err != nil {
 		t.Fatal(err)
@@ -248,15 +248,15 @@ func TestAutomationSchedule(t *testing.T) {
 	defer manager.Close()
 	runtime := fixture.runtime(t, manager, generationAutomationAdapters(t, false, nil))
 	clock := fixedAutomationClock{now: anchor.Add(2*time.Hour + 5*time.Minute)}
-	execution, fired, err := runtime.ScheduleAutomation(context.Background(), fixture.name, clock, fixture.inputs)
+	execution, fired, err := runtime.ScheduleAutomation(t.Context(), fixture.name, clock, fixture.inputs)
 	if err != nil || !fired || !execution.Claim.Valid() {
 		t.Fatalf("scheduled automation admission = (%+v, %v, %v)", execution, fired, err)
 	}
-	status, err := manager.Wait(context.Background(), execution.Operation)
+	status, err := manager.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("scheduled automation status = (%+v, %v)", status, err)
 	}
-	if _, fired, err := runtime.ScheduleAutomation(context.Background(), fixture.name, clock, fixture.inputs); err != nil || fired {
+	if _, fired, err := runtime.ScheduleAutomation(t.Context(), fixture.name, clock, fixture.inputs); err != nil || fired {
 		t.Fatalf("duplicate schedule fire = (%v, %v)", fired, err)
 	}
 }
@@ -271,12 +271,12 @@ func TestAutomationScheduleRecovery(t *testing.T) {
 	}
 	first := fixture.runtime(t, firstManager, generationAutomationAdapters(t, true, nil))
 	execution, fired, err := first.ScheduleAutomation(
-		context.Background(), fixture.name, fixedAutomationClock{now: anchor.Add(time.Hour)}, fixture.inputs,
+		t.Context(), fixture.name, fixedAutomationClock{now: anchor.Add(time.Hour)}, fixture.inputs,
 	)
 	if err != nil || !fired {
 		t.Fatalf("failed schedule admission = (%v, %v)", fired, err)
 	}
-	status, err := firstManager.Wait(context.Background(), execution.Operation)
+	status, err := firstManager.Wait(t.Context(), execution.Operation)
 	firstManager.Close()
 	if err != nil || status.State != operation.StateFailed {
 		t.Fatalf("failed schedule status = (%+v, %v)", status, err)
@@ -287,11 +287,11 @@ func TestAutomationScheduleRecovery(t *testing.T) {
 	}
 	defer secondManager.Close()
 	second := fixture.runtime(t, secondManager, generationAutomationAdapters(t, false, nil))
-	recovered, err := second.RecoverScheduledAutomation(context.Background(), execution.Claim, fixture.inputs)
+	recovered, err := second.RecoverScheduledAutomation(t.Context(), execution.Claim, fixture.inputs)
 	if err != nil || recovered.Operation != execution.Operation || recovered.Claim != execution.Claim {
 		t.Fatalf("scheduled recovery = (%+v, %v)", recovered, err)
 	}
-	status, err = secondManager.Wait(context.Background(), recovered.Operation)
+	status, err = secondManager.Wait(t.Context(), recovered.Operation)
 	if err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("recovered schedule status = (%+v, %v)", status, err)
 	}
@@ -330,14 +330,14 @@ func newWebhookAutomationRuntimeFixture(t *testing.T) automationRuntimeFixture {
 		var batch artifact.Batch
 		batch, err = artifact.NewDocumentBatch("automation/runtime/webhook-trigger", []artifact.Content{content}, trigger.Lineage(), nil)
 		if err == nil {
-			_, err = artifact.CommitBatch(context.Background(), fixture.store, batch)
+			_, err = artifact.CommitBatch(t.Context(), fixture.store, batch)
 		}
 	}
 	if err != nil {
 		fixture.store.Close()
 		t.Fatal(err)
 	}
-	current, found, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Resolve(context.Background(), fixture.name)
+	current, found, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Resolve(t.Context(), fixture.name)
 	if err != nil || !found {
 		fixture.store.Close()
 		t.Fatalf("manual fixture activation = (%v, %v)", found, err)
@@ -351,7 +351,7 @@ func newWebhookAutomationRuntimeFixture(t *testing.T) automationRuntimeFixture {
 	}
 	decision := commitAutomationRuntimeBlob(t, fixture.store, artifact.KindEvidence, "automation-webhook-activation")
 	if _, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Activate(
-		context.Background(), "automation/runtime/activate-webhook", declaration, decision,
+		t.Context(), "automation/runtime/activate-webhook", declaration, decision,
 	); err != nil {
 		fixture.store.Close()
 		t.Fatal(err)
@@ -364,13 +364,13 @@ func activateReplacementWebhook(
 	fixture automationRuntimeFixture,
 ) {
 	t.Helper()
-	current, found, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Resolve(context.Background(), fixture.name)
+	current, found, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Resolve(t.Context(), fixture.name)
 	if err != nil || !found {
 		t.Fatalf("webhook fixture activation = (%v, %v)", found, err)
 	}
 	decision := commitAutomationRuntimeBlob(t, fixture.store, artifact.KindEvidence, "automation-webhook-replacement-activation")
 	if _, err := (runrecord.AutomationAuthority{Repository: fixture.store}).Activate(
-		context.Background(), "automation/runtime/activate-webhook-replacement", current.Definition, decision,
+		t.Context(), "automation/runtime/activate-webhook-replacement", current.Definition, decision,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +381,7 @@ func newAutomationRuntimeFixtureWithTrigger(
 	triggerDeclaration recipe.AutomationTriggerPolicy,
 ) automationRuntimeFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -512,7 +512,7 @@ func commitAutomationRuntimeBlob(t *testing.T, store artifact.Repository, kind a
 	content := artifact.Content{Descriptor: artifact.Descriptor{
 		ID: id, Size: uint64(len(data)), MediaType: "application/octet-stream",
 	}, Data: data}
-	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "automation/runtime/blob/" + label, Contents: []artifact.Content{content},
 	}); err != nil {
 		t.Fatal(err)

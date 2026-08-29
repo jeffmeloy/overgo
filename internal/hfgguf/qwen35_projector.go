@@ -244,7 +244,7 @@ func qwen35TemporalPatchReader(tensor safetensors.Tensor, selected int, config q
 		planes := [][]byte{make([]byte, planeBytes), make([]byte, planeBytes)}
 		source := tensor.Reader()
 		for output := uint32(0); output < config.HiddenSize; output++ {
-			for channel := 0; channel < 3; channel++ {
+			for range 3 {
 				for temporal := range planes {
 					if _, err := io.ReadFull(source, planes[temporal]); err != nil {
 						_ = writer.CloseWithError(err)

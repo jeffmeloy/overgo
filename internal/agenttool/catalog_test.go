@@ -1,7 +1,6 @@
 package agenttool
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/overgodb"
@@ -31,7 +30,7 @@ func testManuals(t *testing.T) []Manual {
 }
 
 func TestPublishManualCatalogIsAtomicAndIdempotent(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +71,7 @@ func TestPublishManualCatalogIsAtomicAndIdempotent(t *testing.T) {
 }
 
 func TestPublishManualCatalogSupersedesStaleBindings(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +112,7 @@ func TestPublishManualCatalogSupersedesStaleBindings(t *testing.T) {
 }
 
 func TestPublishManualCatalogRefusesDuplicatesAndEmpty(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

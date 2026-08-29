@@ -62,7 +62,7 @@ func (m *Model) layerWeights(index int) (layer, error) {
 func compiledQueryScale(perDimScale []float32, headDim int) []float32 {
 	factor := math.Log2E / math.Sqrt(float64(headDim))
 	out := make([]float32, headDim)
-	for i := 0; i < headDim; i++ {
+	for i := range headDim {
 		out[i] = float32(factor * hostmath.Softplus(float64(perDimScale[i])))
 	}
 	return out
@@ -85,8 +85,8 @@ func (m *Model) layerForward(hidden []float32, l layer, invFreq []float64, seq i
 	hostmath.Linear(v, inNorm, l.v, seq, d, width)
 
 	// RoPE before the per-head q/k norms (the post-norm family's ordering).
-	for p := 0; p < seq; p++ {
-		for h := 0; h < heads; h++ {
+	for p := range seq {
+		for h := range heads {
 			hostmath.ApplyRotaryHalf(q[(p*heads+h)*hd:(p*heads+h+1)*hd], invFreq, p)
 			hostmath.ApplyRotaryHalf(k[(p*heads+h)*hd:(p*heads+h+1)*hd], invFreq, p)
 		}
@@ -94,7 +94,7 @@ func (m *Model) layerForward(hidden []float32, l layer, invFreq []float64, seq i
 	hostmath.RMSNormInto(q, q, l.queryLN, seq*heads, hd, eps)
 	hostmath.RMSNormInto(k, k, l.keyLN, seq*heads, hd, eps)
 	scale := compiledQueryScale(l.perDimScale, hd)
-	for row := 0; row < seq*heads; row++ {
+	for row := range seq * heads {
 		qRow := q[row*hd : (row+1)*hd]
 		for dim := range qRow {
 			qRow[dim] *= scale[dim]

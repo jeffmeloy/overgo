@@ -20,7 +20,6 @@ import (
 	"os"
 	"os/exec"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -294,7 +293,7 @@ func empiricalQuantile(values []float64, q float64) float64 {
 		return 0
 	}
 	ordered := append([]float64(nil), values...)
-	sort.Float64s(ordered)
+	slices.Sort(ordered)
 	index := int(math.Ceil(q*float64(len(ordered)))) - 1
 	if index < 0 {
 		index = 0

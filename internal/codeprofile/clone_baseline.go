@@ -16,7 +16,7 @@ const CloneBaselineFile = "docs/clone_baseline.json"
 // CloneBaseline is the versioned duplicate-excess ceiling.
 type CloneBaseline struct {
 	Version uint16 `json:"version"`
-	Doc     string `json:"doc,omitempty"`
+	Doc     string `json:"doc,omitzero"`
 	// DuplicateExcessNodes is the ceiling; clone-census -update-baseline
 	// lowers it to the measured value after a tightening campaign.
 	DuplicateExcessNodes int `json:"duplicate_excess_nodes"`

@@ -109,7 +109,7 @@ func SharedRoutedMoEForward(x []float32, rows int, w *sharedRoutedMoEWeights) ([
 		ey := swiGLUExpert(gathered, w.ExpertW12[e], w.ExpertW3[e], len(idx), d, w.DFF)
 		for i, t := range idx {
 			c := float64(coef[i])
-			for j := 0; j < d; j++ {
+			for j := range d {
 				out[t*d+j] += float32(c * float64(ey[i*d+j]))
 			}
 		}
@@ -127,15 +127,13 @@ type moERouting struct {
 // top-k per token, renormalising WITHIN the selected set (a convex combination).
 // Ties break by lower expert index, matching torch.topk over a stable sort.
 func RouteMoETopK(hidden, gate []float32, rows, d, nExperts, k int) []moERouting {
-	if k > nExperts {
-		k = nExperts
-	}
+	k = min(k, nExperts)
 	out := make([]moERouting, rows)
 	scores := make([]float64, nExperts)
 	order := make([]int, nExperts)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		h := hidden[r*d : (r+1)*d]
-		for e := 0; e < nExperts; e++ {
+		for e := range nExperts {
 			scores[e] = math.Sqrt(hostmath.Softplus(dot(gate[e*d:(e+1)*d], h)))
 			order[e] = e
 		}
@@ -146,7 +144,7 @@ func RouteMoETopK(hidden, gate []float32, rows, d, nExperts, k int) []moERouting
 		sel := make([]int, k)
 		wts := make([]float32, k)
 		var sum float64
-		for i := 0; i < k; i++ {
+		for i := range k {
 			sel[i] = order[i]
 			sum += scores[order[i]]
 		}

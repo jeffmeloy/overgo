@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -24,5 +25,19 @@ func TestLaneOutcomeContract(t *testing.T) {
 	}
 	if err := LaneError(LanePassed, "impossible"); err == nil || LaneOutcomeOf(err) != LaneFailed {
 		t.Fatalf("passing error accepted: %v", err)
+	}
+}
+
+func TestJoinedErrorIdentity(t *testing.T) {
+	secondary := errors.New("secondary receipt failure")
+	err := errors.Join(
+		fmt.Errorf("terminal receipt: %w", LaneError(LaneUnavailable, "device")),
+		secondary,
+	)
+	if got := LaneOutcomeOf(err); got != LaneUnavailable {
+		t.Fatalf("joined lane outcome = %q", got)
+	}
+	if !errors.Is(err, secondary) {
+		t.Fatal("joined error lost secondary identity")
 	}
 }

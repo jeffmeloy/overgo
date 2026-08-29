@@ -3,7 +3,6 @@
 package torchrng
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -54,7 +53,7 @@ func TestTorchRNGStreamMatchesSequentialPyTorch(t *testing.T) {
 	first := make([]float32, len(goldenSeed31First))
 	second := make([]float32, len(goldenSeed31Second))
 	var firstOffset, finalOffset uint64
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err = worker.Do(t.Context(), func(state *device.State) error {
 		stream := NewStream(31)
 		defer stream.Close(state)
 		if err := stream.FillHost(state, first); err != nil {
@@ -94,7 +93,7 @@ func TestTorchRNGDeviceMatchesHost(t *testing.T) {
 	host := make([]float32, first+second)
 	fromDevice := make([]float32, first+second)
 	var hostOffset, deviceOffset uint64
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err = worker.Do(t.Context(), func(state *device.State) error {
 		hostStream := NewStream(31)
 		defer hostStream.Close(state)
 		if err := hostStream.FillHost(state, host[:first]); err != nil {

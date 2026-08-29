@@ -48,7 +48,7 @@ func TestFusionProgramCUDAMatchesReference(t *testing.T) {
 	}
 	defer exec.Close()
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
-		return exec.Execute(context.Background(), outputs, feeds)
+		return exec.Execute(context.WithoutCancel(t.Context()), outputs, feeds)
 	}
 	got, err := prog.RunHostFeed(cudaRun, weightAt, enc)
 	if err != nil {
@@ -167,7 +167,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileFusionProgram: %v", err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	rf := newResidentFixture(t, ctx, "test fusion", filepath.Join(dir, "transformer"), prog.weightInputs, prog.Fused)
 	t.Logf("resident fusion weights: %.3f GiB (%d layerwise + %d refiner blocks, textSeq=%d)",
 		float64(rf.graph.ProgramBytes())/(1<<30), tspec.LayerwiseTextBlocks, tspec.RefinerTextBlocks, selected.Seq)
@@ -188,7 +188,7 @@ func TestFusionResidentRealCheckpoint(t *testing.T) {
 			t.Fatalf("device fused[%d] non-finite", i)
 		}
 		abs := math.Abs(hv - dv)
-		maxAbs = math.Max(maxAbs, abs)
+		maxAbs = max(maxAbs, abs)
 		sumAbs += abs
 		sa += math.Abs(hv)
 	}

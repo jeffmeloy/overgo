@@ -3,7 +3,6 @@
 package latentimage
 
 import (
-	"context"
 	"math"
 	"testing"
 
@@ -38,7 +37,7 @@ func TestSeededInitLatentMatchesTorchRandn31(t *testing.T) {
 
 	first := make([]float32, len(torchRandnSeed31First))
 	second := make([]float32, len(torchRandnSeed31Second))
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err = worker.Do(t.Context(), func(state *device.State) error {
 		stream := torchrng.NewStream(31)
 		defer stream.Close(state)
 		// 17 and 13 elements as [N,1,1] latent shapes: the flat torch.randn length
@@ -101,7 +100,7 @@ func TestSeededInitLatentKreaGeometry(t *testing.T) {
 
 	latent := make([]float32, shape.Elements())
 	reference := make([]float32, shape.Elements())
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err = worker.Do(t.Context(), func(state *device.State) error {
 		got, err := SeededInitLatent(torchrng.NewStream(42), state, shape, InitNoiseMix)
 		if err != nil {
 			return err

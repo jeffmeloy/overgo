@@ -107,10 +107,10 @@ func (s *chatOutputStream) Accept(
 			}
 			if started && !s.prefixSent {
 				prefix := s.output.String()
-				if toolStart := strings.Index(prefix, toolCallOpen); toolStart >= 0 {
+				if beforeTool, _, ok := strings.Cut(prefix, toolCallOpen); ok {
 					var prefixErr error
 					delta.ReasoningContent, delta.Content, prefixErr =
-						splitChatReasoning(prefix[:toolStart])
+						splitChatReasoning(beforeTool)
 					if prefixErr != nil {
 						return nil, prefixErr
 					}
@@ -136,14 +136,13 @@ func chatToolSnapshots(
 	snapshots := make([]chatToolSnapshot, 0, 1)
 	remainder := output
 	for {
-		start := strings.Index(remainder, toolCallOpen)
-		if start < 0 {
+		_, payload, ok := strings.Cut(remainder, toolCallOpen)
+		if !ok {
 			break
 		}
-		payload := remainder[start+len(toolCallOpen):]
-		if end := strings.Index(payload, toolCallClose); end >= 0 {
-			payload = payload[:end]
-			remainder = remainder[start+len(toolCallOpen)+end+len(toolCallClose):]
+		if beforeClose, afterClose, ok := strings.Cut(payload, toolCallClose); ok {
+			payload = beforeClose
+			remainder = afterClose
 		} else {
 			remainder = ""
 		}

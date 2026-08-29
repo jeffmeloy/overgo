@@ -2,7 +2,7 @@ package thoughtbank
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -267,6 +267,6 @@ func ExpectedTensorNames(c ArchConfig) []string {
 		}
 		names = append(names, p("norm_attn.weight"), p("norm_moe.weight"), p("A_cross_net.weight"))
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }

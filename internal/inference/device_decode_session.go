@@ -3,6 +3,7 @@ package inference
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
@@ -88,12 +89,7 @@ func compileDecodeSessionPlan(
 		branches: make([]decodeSessionBranchPlan, len(graphs)),
 	}
 	positionRow := func(graph deviceBatchGraph, node *tensor.Tensor) bool {
-		for _, candidate := range graph.positionRows {
-			if candidate == node {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(graph.positionRows, node)
 	}
 	appendSlot := func(slot decodeDynamicSlot) error {
 		if err := plan.attributes.Set(slot.node, slot.value); err != nil {

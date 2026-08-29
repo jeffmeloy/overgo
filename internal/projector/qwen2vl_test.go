@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"errors"
 	"image"
 	"image/color"
@@ -16,7 +15,7 @@ import (
 
 func TestQwen2VLRunnerRejectsClosed(t *testing.T) {
 	var runner *Qwen2VLRunner
-	if _, err := runner.EncodeImage(context.Background(), nil, Qwen2VLPreprocessOptions{}); !errors.Is(err, errRunnerClosed) {
+	if _, err := runner.EncodeImage(t.Context(), nil, Qwen2VLPreprocessOptions{}); !errors.Is(err, errRunnerClosed) {
 		t.Fatalf("closed runner error = %v", err)
 	}
 }
@@ -49,12 +48,12 @@ func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 	}
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	output, err := runner.EncodeImage(context.Background(), input, Qwen2VLPreprocessOptions{
+	output, err := runner.EncodeImage(t.Context(), input, Qwen2VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -115,7 +114,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	tensors[0] = f32Tensor("v.patch_embd.weight", []uint64{128, 128, 3, 4}, nil)
 	tensors[1] = f32Tensor("v.patch_embd.weight.1", []uint64{128, 128, 3, 4}, nil)
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tensors)
-	opened, err := OpenAs[Projector](context.Background(), path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
+	opened, err := OpenAs[Projector](t.Context(), path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +125,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	tok := &qwen2VLPromptTokenizer{}
-	prompt, err := testSession(t, runner).BuildImagePrompt(context.Background(), tok, input, "before", "after", true)
+	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, input, "before", "after", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +136,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 		t.Fatal("image prompt text is empty")
 	}
 	frames := []image.Image{input, input, input, input}
-	video, err := testSession(t, runner).BuildVideoPrompt(context.Background(), tok, frames, "", "describe", 24, false)
+	video, err := testSession(t, runner).BuildVideoPrompt(t.Context(), tok, frames, "", "describe", 24, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,27 +177,27 @@ func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
 	options := Qwen2VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
-	wantImage, err := cpu.EncodeImage(context.Background(), input, options)
+	wantImage, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotImage, err := cuda.EncodeImage(context.Background(), input, options)
+	gotImage, err := cuda.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	compareFloat32Tolerance(t, "Qwen2-VL image", gotImage.Embeddings.Data, wantImage.Embeddings.Data, 2e-3)
 	frames := []image.Image{input, input, input, input}
-	wantVideo, err := cpu.EncodeFrames(context.Background(), frames, options)
+	wantVideo, err := cpu.EncodeFrames(t.Context(), frames, options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotVideo, err := cuda.EncodeFrames(context.Background(), frames, options)
+	gotVideo, err := cuda.EncodeFrames(t.Context(), frames, options)
 	if err != nil {
 		t.Fatal(err)
 	}

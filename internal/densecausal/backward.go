@@ -195,7 +195,7 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 	for i := range dq {
 		dq[i] *= scale
 	}
-	for p := 0; p < seq; p++ {
+	for p := range seq {
 		for h := 0; h < d.Heads; h++ {
 			hostmath.RotaryHalfBackward(dq[(p*d.Heads+h)*d.HeadDim:(p*d.Heads+h+1)*d.HeadDim], invFreq, p)
 		}

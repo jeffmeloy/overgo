@@ -72,7 +72,7 @@ func TestPeerWorkspaceUsesGlobalOperations(t *testing.T) {
 
 func TestPeerWorkspaceSSE(t *testing.T) {
 	fixture := newPeerWorkspaceFixture(t, "peer-gui-sse", "")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, peerWorkspaceLimit)}
 	done := make(chan struct{})
 	go func() {

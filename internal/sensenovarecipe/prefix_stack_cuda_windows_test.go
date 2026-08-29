@@ -108,7 +108,7 @@ func TestSenseNovaPrefixStackMatchesOracle(t *testing.T) {
 			t.Fatalf("%s prefix state is incomplete", name)
 		}
 	}
-	memory, err := worker.MemoryStats(context.Background())
+	memory, err := worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func runSenseNovaPrefixBranch(
 			}
 		}
 		result, err := cuda.ExecuteCompiled(
-			context.Background(), compiled,
+			context.WithoutCancel(t.Context()), compiled,
 			map[*tensor.Tensor]reference.Value{
 				graph.Row: {Shape: graph.Row.Shape, Data: row},
 			},

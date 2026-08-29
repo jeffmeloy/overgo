@@ -21,7 +21,7 @@ const (
 type AgentCapabilityGrant struct {
 	Manuals        []artifact.ID `json:"manuals"`
 	AllowedEffects []string      `json:"allowed_effects"`
-	ReadOnly       bool          `json:"read_only,omitempty"`
+	ReadOnly       bool          `json:"read_only,omitzero"`
 }
 
 // AgentSchedulerPolicy bounds a delegated run: step budget, parallelism, and
@@ -29,7 +29,7 @@ type AgentCapabilityGrant struct {
 type AgentSchedulerPolicy struct {
 	MaxSteps    int  `json:"max_steps"`
 	MaxParallel int  `json:"max_parallel"`
-	Preemptible bool `json:"preemptible,omitempty"`
+	Preemptible bool `json:"preemptible,omitzero"`
 }
 
 // DelegatedAgentInvocation keeps assignment, worker, capability, context, and
@@ -107,7 +107,7 @@ func canonicalizeDelegatedAgentInvocation(v *DelegatedAgentInvocation) error {
 		sort.Slice(*group, func(i, j int) bool { return artifact.CompareID((*group)[i], (*group)[j]) < 0 })
 		*group = slices.Compact(*group)
 	}
-	sort.Strings(v.Grant.AllowedEffects)
+	slices.Sort(v.Grant.AllowedEffects)
 	v.Grant.AllowedEffects = slices.Compact(v.Grant.AllowedEffects)
 	if slices.ContainsFunc(v.Grant.AllowedEffects, func(value string) bool { return !textcheck.Bounded(value, len(value), "\x00\r\n") }) {
 		return errors.New("recipe: invalid delegated effect")

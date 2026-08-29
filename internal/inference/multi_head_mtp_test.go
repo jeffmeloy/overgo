@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"os"
 	"slices"
 	"testing"
@@ -51,7 +50,7 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	session, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +157,7 @@ func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	session, err := runner.NewMultiHeadMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)

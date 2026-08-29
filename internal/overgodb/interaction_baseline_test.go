@@ -1,7 +1,6 @@
 package overgodb_test
 
 import (
-	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -35,7 +34,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	var work runrecord.InteractionWork
 	var lastID artifact.ID
 	for ordinal := range baselineCommits {
@@ -56,7 +55,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 		work.SemanticTransitions++
 		lastID = id
 	}
-	for ordinal := 0; ordinal < baselineReadSample; ordinal++ {
+	for ordinal := range baselineReadSample {
 		payload := []byte(fmt.Sprintf("interaction-baseline/%d", ordinal))
 		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
 		if err != nil {

@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -17,7 +16,7 @@ import (
 // tailing across a snapshot-driven rotation refreshes onto the
 // writer's head.
 func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	buildScaleCorpus(t, root)
 

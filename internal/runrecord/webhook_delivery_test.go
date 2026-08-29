@@ -2,7 +2,6 @@ package runrecord
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"slices"
@@ -16,7 +15,7 @@ import (
 )
 
 func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -240,7 +239,7 @@ func publishWebhookPolicyFixture(t *testing.T, repository artifact.Repository) r
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(context.Background(), repository, batch); err != nil {
+	if _, err := artifact.CommitBatch(t.Context(), repository, batch); err != nil {
 		t.Fatal(err)
 	}
 	return policy
@@ -248,7 +247,7 @@ func publishWebhookPolicyFixture(t *testing.T, repository artifact.Repository) r
 
 func assertWebhookPayload(t *testing.T, reader artifact.Reader, id artifact.ID, want []byte) {
 	t.Helper()
-	descriptor, stream, found, err := reader.OpenContent(context.Background(), id)
+	descriptor, stream, found, err := reader.OpenContent(t.Context(), id)
 	if err != nil || !found {
 		t.Fatalf("payload = (%+v, %v, %v)", descriptor, found, err)
 	}
@@ -260,7 +259,7 @@ func assertWebhookPayload(t *testing.T, reader artifact.Reader, id artifact.ID, 
 
 func assertWebhookRelation(t *testing.T, reader artifact.Reader, child, parent artifact.ID, relation artifact.Relation) {
 	t.Helper()
-	edges, err := reader.Parents(context.Background(), child)
+	edges, err := reader.Parents(t.Context(), child)
 	if err != nil {
 		t.Fatal(err)
 	}

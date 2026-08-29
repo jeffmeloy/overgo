@@ -1,6 +1,7 @@
 package gguf
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -82,16 +83,12 @@ func Write(
 		return errors.New("GGUF destination is nil")
 	}
 	version := options.Version
-	if version == 0 {
-		version = CurrentVersion
-	}
+	version = cmp.Or(version, CurrentVersion)
 	if version < 2 || version > CurrentVersion {
 		return fmt.Errorf("unsupported GGUF version %d", version)
 	}
 	alignment := options.Alignment
-	if alignment == 0 {
-		alignment = DefaultAlignment
-	}
+	alignment = cmp.Or(alignment, DefaultAlignment)
 	if !isPowerOfTwo(alignment) {
 		return fmt.Errorf("alignment %d is not a power of two", alignment)
 	}

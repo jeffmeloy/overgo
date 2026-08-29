@@ -50,12 +50,12 @@ type agentRetrievalFixture struct {
 func TestAgentRetrievalProjection(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
-	projection, err := fixture.builder.Build(context.Background(), fixture.build)
+	projection, err := fixture.builder.Build(t.Context(), fixture.build)
 	if err != nil || len(projection.Entries) != len(fixture.sources) || projection.Dataset != fixture.build.Dataset ||
 		projection.EmbeddingModel != fixture.build.Embedder.ModelIdentity() || projection.RerankPolicy != fixture.build.RerankPolicy {
 		t.Fatalf("retrieval projection=(%+v, %v)", projection, err)
 	}
-	parents, err := fixture.store.Parents(context.Background(), projection.ID)
+	parents, err := fixture.store.Parents(t.Context(), projection.ID)
 	if err != nil || len(parents) < len(projection.Entries)*2 {
 		t.Fatalf("retrieval lineage=(%d, %v)", len(parents), err)
 	}
@@ -64,11 +64,11 @@ func TestAgentRetrievalProjection(t *testing.T) {
 func TestAgentRetrievalCitation(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
-	projection, err := fixture.builder.Build(context.Background(), fixture.build)
+	projection, err := fixture.builder.Build(t.Context(), fixture.build)
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := fixture.builder.Search(context.Background(), AgentRetrievalQuery{
+	results, err := fixture.builder.Search(t.Context(), AgentRetrievalQuery{
 		Projection: projection.ID, Text: "target", Limit: 1,
 		Embedder: fixture.build.Embedder, Reranker: fixture.reranker,
 	})
@@ -82,12 +82,12 @@ func TestAgentRetrievalCitation(t *testing.T) {
 func TestAgentRetrievalRebuild(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
-	first, err := fixture.builder.Build(context.Background(), fixture.build)
+	first, err := fixture.builder.Build(t.Context(), fixture.build)
 	if err != nil {
 		t.Fatal(err)
 	}
 	head, _ := fixture.store.Head()
-	second, err := fixture.builder.Build(context.Background(), fixture.build)
+	second, err := fixture.builder.Build(t.Context(), fixture.build)
 	secondHead, _ := fixture.store.Head()
 	if err != nil || second.ID != first.ID || secondHead != head {
 		t.Fatalf("retrieval rebuild=(%s, %s, %s, %s, %v)", first.ID, second.ID, head, secondHead, err)
@@ -97,7 +97,7 @@ func TestAgentRetrievalRebuild(t *testing.T) {
 func TestAgentRetrievalIdentityMismatch(t *testing.T) {
 	fixture := newAgentRetrievalFixture(t)
 	defer fixture.store.Close()
-	projection, err := fixture.builder.Build(context.Background(), fixture.build)
+	projection, err := fixture.builder.Build(t.Context(), fixture.build)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,12 +106,12 @@ func TestAgentRetrievalIdentityMismatch(t *testing.T) {
 		Embedder: agentRetrievalEmbedder{model: testutil.ArtifactID(t, artifact.KindModel, "wrong-embedding-model")},
 		Reranker: fixture.reranker,
 	}
-	if _, err := fixture.builder.Search(context.Background(), query); err == nil || !strings.Contains(err.Error(), "identity differs") {
+	if _, err := fixture.builder.Search(t.Context(), query); err == nil || !strings.Contains(err.Error(), "identity differs") {
 		t.Fatalf("mismatched embedding identity accepted: %v", err)
 	}
 	query.Embedder = fixture.build.Embedder
 	query.Reranker = agentRetrievalReranker{policy: testutil.ArtifactID(t, artifact.KindProfile, "wrong-rerank-policy")}
-	if _, err := fixture.builder.Search(context.Background(), query); err == nil || !strings.Contains(err.Error(), "identity differs") {
+	if _, err := fixture.builder.Search(t.Context(), query); err == nil || !strings.Contains(err.Error(), "identity differs") {
 		t.Fatalf("mismatched rerank identity accepted: %v", err)
 	}
 }
@@ -130,7 +130,7 @@ func newAgentRetrievalFixture(t *testing.T) agentRetrievalFixture {
 		testutil.ArtifactID(t, artifact.KindFile, "retrieval-source-b"),
 		testutil.ArtifactID(t, artifact.KindFile, "retrieval-source-c"),
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "retrieval/fixture", Artifacts: []artifact.Descriptor{
 			{ID: datasetID}, {ID: modelID}, {ID: rerankID},
 			{ID: sources[0]}, {ID: sources[1]}, {ID: sources[2]},

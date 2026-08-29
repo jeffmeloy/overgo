@@ -66,7 +66,7 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 		t.Fatal(err)
 	}
 	var first FinalLayerStepResult
-	for step := 0; step < 12; step++ {
+	for step := range 12 {
 		result, err := trainer.Step(x, temb, target)
 		if err != nil {
 			t.Fatal(err)
@@ -130,12 +130,12 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 		_ = fresh.Close()
 		numeric := (plus - minus) / (2 * epsilonFD)
 		got := float64(trainer.gradients[index])
-		scale := math.Max(1, math.Max(math.Abs(numeric), math.Abs(got)))
+		scale := max(1, max(math.Abs(numeric), math.Abs(got)))
 		if math.Abs(numeric-got)/scale > limitFD {
 			t.Fatalf("layernorm gradient[%d]: analytic=%.6g numeric=%.6g", index, got, numeric)
 		}
 	}
-	for step := 0; step < 10; step++ {
+	for range 10 {
 		if _, err := trainer.Step(x, temb, target); err != nil {
 			t.Fatal(err)
 		}
@@ -199,7 +199,7 @@ func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 		_ = fresh.Close()
 		numeric := (plus - minus) / (2 * epsilon)
 		got := float64(grader.gradients[index])
-		scale := math.Max(1, math.Max(math.Abs(numeric), math.Abs(got)))
+		scale := max(1, max(math.Abs(numeric), math.Abs(got)))
 		if math.Abs(numeric-got)/scale > limit {
 			t.Fatalf("gradient[%d]: analytic=%.6g numeric=%.6g", index, got, numeric)
 		}

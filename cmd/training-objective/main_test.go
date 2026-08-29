@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +21,7 @@ import (
 // forward/backward/Muon phases, and a matrix that reports the pair
 // trainable instead of refusing it for want of corpus and evidence.
 func TestObjectivePublishesTextToVideoPair(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	repository := t.TempDir()
 	store, err := overgodb.Open(repository)
 	if err != nil {

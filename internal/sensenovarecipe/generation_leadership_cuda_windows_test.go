@@ -3,7 +3,6 @@
 package sensenovarecipe
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -174,7 +173,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 		}
 	}
 	prefixes, prefixStats, err := routedlm.RunDevicePrefixStacks(
-		context.Background(), worker, cuda, source, cfg, binding, rope,
+		t.Context(), worker, cuda, source, cfg, binding, rope,
 		nil,
 		routedlm.DevicePrefixInput{TokenIDs: prefixIDs[0], ImageTime: len(prefixIDs[0])},
 		routedlm.DevicePrefixInput{TokenIDs: prefixIDs[1], ImageTime: len(prefixIDs[1])},
@@ -185,17 +184,17 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	conditional, unconditional := prefixes[0], prefixes[1]
 	t.Logf("SenseNova shared prefix stream: layers=%d branches=%d wall=%.3fs", prefixStats.Layers, prefixStats.Branches, prefixStats.Wall.Seconds())
 	generation, err := routedlm.NewDeviceGenerationSession(
-		context.Background(), worker, cuda, source, cfg, binding, rope, image, conditional, unconditional,
+		t.Context(), worker, cuda, source, cfg, binding, rope, image, conditional, unconditional,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer generation.Close(context.Background())
+	defer generation.Close(t.Context())
 	sessionStats := generation.Stats()
 	t.Logf("SenseNova retained generation session: graphs=%d setup=%.3fs prefix=%.3fGiB",
 		sessionStats.Graphs, sessionStats.SetupWall.Seconds(), float64(sessionStats.PrefixBytes)/(1<<30))
 	var z []float32
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err = worker.Do(t.Context(), func(state *device.State) error {
 		stream := torchrng.NewStream(oracle.Request.Seed)
 		defer stream.Close(state)
 		z, err = routedlm.SeededFlowLatent(stream, state, flow, image)
@@ -230,7 +229,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 			observedLayers = []int{0, 20, 41}
 		}
 		branches, stats, err := generation.Run(
-			context.Background(), hidden, observedLayers,
+			t.Context(), hidden, observedLayers,
 			func(branch, layer int, hidden []float32) {
 				gold := adaptive.Layers[fmt.Sprint(layer)]
 				values := gold.Conditional
@@ -308,7 +307,7 @@ func TestSenseNovaGenerationLeadership(t *testing.T) {
 	}
 	t.Logf("SenseNova terminal PNG: bytes=%d sha256=%s range=[%g,%g]",
 		len(generated.Data), hash, generated.Minimum, generated.Maximum)
-	memory, err := worker.MemoryStats(context.Background())
+	memory, err := worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

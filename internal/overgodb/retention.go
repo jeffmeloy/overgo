@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -96,11 +97,11 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 	for _, alias := range aliases {
 		retain(alias.Target)
 	}
-	ids := make([]artifact.ID, 0, len(retained))
-	for id := range retained {
-		ids = append(ids, id)
+	ids := slices.SortedFunc(maps.Keys(retained), artifact.CompareID)
+	switch {
+	case ids == nil:
+		ids = []artifact.ID{}
 	}
-	slices.SortFunc(ids, artifact.CompareID)
 
 	destination, err := Open(destinationRoot)
 	if err != nil {

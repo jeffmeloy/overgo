@@ -1,7 +1,6 @@
 package media
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -18,7 +17,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		t.Skipf("UNAVAILABLE: %v", err)
 	}
 	clip := filepath.Join(t.TempDir(), "lifecycle.mp4")
-	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
+	receipt, err := processcontrol.Run(t.Context(), processcontrol.Command{
 		Path: ffmpeg,
 		Args: []string{"-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
 			"testsrc=size=64x64:rate=4:duration=1", "-pix_fmt", "yuv420p", clip},
@@ -26,7 +25,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	if err != nil || receipt.ExitCode != 0 {
 		t.Fatalf("synthesize clip = (%+v, %v)", receipt, err)
 	}
-	frames, err := decodeFFmpegFrames(context.Background(), ffmpeg, clip, nil, 4, 3)
+	frames, err := decodeFFmpegFrames(t.Context(), ffmpeg, clip, nil, 4, 3)
 	if err != nil {
 		t.Fatal(err)
 	}

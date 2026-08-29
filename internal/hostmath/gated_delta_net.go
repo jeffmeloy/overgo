@@ -29,11 +29,11 @@ func GatedDeltaNetForward(
 	finalState = make([]float32, heads*sequences*size*size)
 	state := make([]float64, size*size)
 
-	for sequence := 0; sequence < sequences; sequence++ {
-		for head := 0; head < heads; head++ {
+	for sequence := range sequences {
+		for head := range heads {
 			index := sequence*heads + head
 			src := inputState[index*size*size:]
-			for i := 0; i < size*size; i++ {
+			for i := range size * size {
 				state[i] = float64(src[i])
 			}
 			queryHead := head % queryHeads
@@ -42,16 +42,16 @@ func GatedDeltaNetForward(
 				queryHead = head / (heads / queryHeads)
 				keyHead = head / (heads / keyHeads)
 			}
-			for token := 0; token < tokens; token++ {
+			for token := range tokens {
 				valueBase := ((sequence*tokens+token)*heads + head) * size
 				queryBase := ((sequence*tokens+token)*queryHeads + queryHead) * size
 				keyBase := ((sequence*tokens+token)*keyHeads + keyHead) * size
 				gateBase := ((sequence*tokens+token)*heads + head) * gateWidth
 				betaValue := float64(beta[(sequence*tokens+token)*heads+head])
-				for r := 0; r < size; r++ {
+				for r := range size {
 					row := state[r*size : r*size+size]
 					// Gated decay of this state row.
-					for c := 0; c < size; c++ {
+					for c := range size {
 						g := float64(gate[gateBase])
 						if gateWidth != 1 {
 							g = float64(gate[gateBase+c])
@@ -60,23 +60,23 @@ func GatedDeltaNetForward(
 					}
 					// Delta rule: error against the value, gated by beta.
 					var dot float64
-					for c := 0; c < size; c++ {
+					for c := range size {
 						dot += row[c] * float64(key[keyBase+c])
 					}
 					delta := (float64(value[valueBase+r]) - dot) * betaValue
-					for c := 0; c < size; c++ {
+					for c := range size {
 						row[c] += delta * float64(key[keyBase+c])
 					}
 					// Readout against the query.
 					var readout float64
-					for c := 0; c < size; c++ {
+					for c := range size {
 						readout += row[c] * float64(query[queryBase+c])
 					}
 					output[valueBase+r] = float32(readout * scale)
 				}
 			}
 			dst := finalState[index*size*size:]
-			for i := 0; i < size*size; i++ {
+			for i := range size * size {
 				dst[i] = float32(state[i])
 			}
 		}

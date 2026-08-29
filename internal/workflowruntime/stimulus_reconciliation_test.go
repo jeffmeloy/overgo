@@ -1,7 +1,6 @@
 package workflowruntime
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,7 +13,7 @@ import (
 )
 
 func TestLateStimulusReconciliation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -58,9 +57,7 @@ func TestLateStimulusReconciliation(t *testing.T) {
 	results := make(chan runrecord.StimulusFollowup, 8)
 	errors := make(chan error, 8)
 	for range cap(results) {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			admission, admitted, reconcileErr := ReconcileLateStimuli(ctx, store, boundary.ID, []artifact.ID{late[1], late[0], late[1]})
 			if reconcileErr != nil {
 				errors <- reconcileErr
@@ -70,7 +67,7 @@ func TestLateStimulusReconciliation(t *testing.T) {
 				won.Add(1)
 			}
 			results <- admission
-		}()
+		})
 	}
 	wait.Wait()
 	close(results)

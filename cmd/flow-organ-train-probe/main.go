@@ -13,6 +13,7 @@
 package main
 
 import (
+	"cmp"
 	"flag"
 	"fmt"
 	"math"
@@ -280,29 +281,27 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		payload := raw[:elements]
 		scaleBytes := raw[elements:]
 		scales := make([]float32, out)
-		for r := 0; r < out; r++ {
+		for r := range out {
 			scales[r] = math.Float32frombits(binary.LittleEndian.Uint32(scaleBytes[r*4:]))
 		}
 		masters = make([]float32, elements)
-		for r := 0; r < out; r++ {
-			for i := 0; i < in; i++ {
+		for r := range out {
+			for i := range in {
 				masters[r*in+i] = dtype.F8E4M3ToFloat32(payload[r*in+i]) * scales[r]
 			}
 		}
 		requantize = func(values []float32) ([]byte, error) {
 			packed := make([]byte, int(elements)+out*4)
-			for r := 0; r < out; r++ {
+			for r := range out {
 				var peak float64
-				for i := 0; i < in; i++ {
+				for i := range in {
 					if a := math.Abs(float64(values[r*in+i])); a > peak {
 						peak = a
 					}
 				}
 				scale := float32(peak / 448)
-				if scale == 0 {
-					scale = 1
-				}
-				for i := 0; i < in; i++ {
+				scale = cmp.Or(scale, 1)
+				for i := range in {
 					packed[r*in+i] = dtype.Float32ToF8E4M3(values[r*in+i] / scale)
 				}
 				binary.LittleEndian.PutUint32(packed[int(elements)+r*4:], math.Float32bits(scale))
@@ -368,9 +367,9 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		if scaledFP8 {
 			roundTrip = make([]float32, elements)
 			scaleBytes := packed[elements:]
-			for r := 0; r < out; r++ {
+			for r := range out {
 				scale := math.Float32frombits(binary.LittleEndian.Uint32(scaleBytes[r*4:]))
-				for i := 0; i < in; i++ {
+				for i := range in {
 					roundTrip[r*in+i] = dtype.F8E4M3ToFloat32(packed[r*in+i]) * scale
 				}
 			}

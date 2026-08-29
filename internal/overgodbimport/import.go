@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -71,18 +72,18 @@ type componentRecord struct {
 
 type wireRecord struct {
 	Type       string            `json:"type"`
-	Name       string            `json:"name,omitempty"`
-	Kind       string            `json:"kind,omitempty"`
-	Path       string            `json:"path,omitempty"`
+	Name       string            `json:"name,omitzero"`
+	Kind       string            `json:"kind,omitzero"`
+	Path       string            `json:"path,omitzero"`
 	Document   json.RawMessage   `json:"document,omitempty"`
-	MediaType  string            `json:"media_type,omitempty"`
-	Schema     string            `json:"schema,omitempty"`
+	MediaType  string            `json:"media_type,omitzero"`
+	Schema     string            `json:"schema,omitzero"`
 	Components []componentRecord `json:"components,omitempty"`
-	Child      string            `json:"child,omitempty"`
-	Parent     string            `json:"parent,omitempty"`
-	Relation   string            `json:"relation,omitempty"`
-	Target     string            `json:"target,omitempty"`
-	Previous   string            `json:"previous,omitempty"`
+	Child      string            `json:"child,omitzero"`
+	Parent     string            `json:"parent,omitzero"`
+	Relation   string            `json:"relation,omitzero"`
+	Target     string            `json:"target,omitzero"`
+	Previous   string            `json:"previous,omitzero"`
 }
 
 type sourceBody struct {
@@ -609,9 +610,7 @@ func upgradeRenamedProfile(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	for key, value := range stored {
-		policy[key] = value
-	}
+	maps.Copy(policy, stored)
 	stages, ok := policy["DenseStages"].(map[string]any)
 	if !ok {
 		return nil, errors.New("renamed model profile: dense stages are absent")
@@ -791,8 +790,6 @@ func recordCountKey(record wireRecord) string {
 
 func cloneNames(names map[string]artifact.ID) map[string]artifact.ID {
 	cloned := make(map[string]artifact.ID, len(names))
-	for name, id := range names {
-		cloned[name] = id
-	}
+	maps.Copy(cloned, names)
 	return cloned
 }

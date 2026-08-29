@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"math"
 	"slices"
 	"testing"
@@ -70,17 +69,17 @@ func TestServingObservationContractAndIndexedQuery(t *testing.T) {
 	for index, id := range parents {
 		descriptors[index] = artifact.Descriptor{ID: id}
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{Key: "serving/fixture/authorities", Artifacts: descriptors}); err != nil {
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "serving/fixture/authorities", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
 	batch, err := observation.Batch("serving/fixture/observation")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	result, err := store.Query(context.Background(), overgodb.Query{
+	result, err := store.Query(t.Context(), overgodb.Query{
 		Artifact: &fixture.Model, Follow: overgodb.FollowChildren, MaxDepth: 1,
 		MediaType: ServingObservationMediaType, Schema: ServingObservationSchema, MaxResults: 8,
 		Projection: overgodb.ProjectArtifacts,

@@ -1,7 +1,6 @@
 package bridgetrain
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -12,7 +11,7 @@ import (
 )
 
 func TestBridgeOnlyTrainingPreservesFrozenModels(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	sourceID := testutil.ArtifactID(t, artifact.KindModel, "frozen-source")
 	targetID := testutil.ArtifactID(t, artifact.KindModel, "frozen-target")
 	source := artifact.Descriptor{ID: sourceID, Size: uint64(len("frozen-source"))}

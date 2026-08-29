@@ -141,7 +141,7 @@ func (s *FastWeightBankLMDecodeState) stepToken(id int32) ([]float32, error) {
 
 	x := make([]float32, flat)
 	row := w.Embed[int(id)*d : (int(id)+1)*d]
-	for st := 0; st < n; st++ {
+	for st := range n {
 		copy(x[st*d:(st+1)*d], row)
 	}
 
@@ -201,8 +201,8 @@ func (c *fwbAttnLayerCache) decodeBlock(x, bank []float32, slots, pos int, w *Hy
 		if e != nil {
 			return nil, e
 		}
-		for st := 0; st < n; st++ {
-			for j := 0; j < d; j++ {
+		for st := range n {
+			for j := range d {
 				out[st*d+j] += h1[j] - h0[j]
 			}
 		}
@@ -242,11 +242,11 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 
 	// Query: low-rank d -> d_latent_q -> n_heads*d_head, RoPE at pos, then q_norm.
 	cq := make([]float32, dlq)
-	for i := 0; i < dlq; i++ {
+	for i := range dlq {
 		cq[i] = float32(dot(w.WDq[i*d:(i+1)*d], h))
 	}
 	q := make([]float32, nh*dh)
-	for i := 0; i < nh*dh; i++ {
+	for i := range nh * dh {
 		q[i] = float32(dot(w.WUq[i*dlq:(i+1)*dlq], cq))
 	}
 	applyRotarySinglePos(q, nh, dh, pos)
@@ -258,29 +258,25 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 	var selBlocks []int
 	if w.Sparse {
 		sel := w.TopK
-		if sel > nDone {
-			sel = nDone
-		}
+		sel = min(sel, nDone)
 		scores := make([]float64, nDone)
 		order := make([]int, nDone)
-		for b := 0; b < nDone; b++ {
+		for b := range nDone {
 			order[b] = b
 		}
 		invSqrtDh := 1.0 / math.Sqrt(float64(dh))
 		for ih := 0; ih < w.NIdxHeads; ih++ {
 			hw := dot(w.WW[ih*d:(ih+1)*d], h)
-			for b := 0; b < nDone; b++ {
+			for b := range nDone {
 				var acc float64
 				cb := c.comp[b]
-				for e := 0; e < dh; e++ {
+				for e := range dh {
 					qi := dot(w.WIq[(ih*dh+e)*dlq:(ih*dh+e+1)*dlq], cq)
 					acc += qi * float64(cb[e])
 				}
 				acc *= invSqrtDh
 				var zero float64
-				if acc < zero {
-					acc = zero // ReLU
-				}
+				acc = max(acc, zero) // ReLU
 				scores[b] += hw * acc
 			}
 		}
@@ -288,7 +284,7 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 		selBlocks = order[:sel]
 	} else {
 		selBlocks = make([]int, nDone)
-		for b := 0; b < nDone; b++ {
+		for b := range nDone {
 			selBlocks[b] = b
 		}
 	}
@@ -319,22 +315,22 @@ func (c *fwbAttnLayerCache) attnStep(h []float32, pos int) ([]float32, error) {
 	invSqrt := 1.0 / math.Sqrt(float64(dh))
 	logits := make([]float32, nh*nkv)
 	weights := make([]float32, nh*nkv)
-	for hd := 0; hd < nh; hd++ {
+	for hd := range nh {
 		qv := q[hd*dh : (hd+1)*dh]
-		for nn := 0; nn < nkv; nn++ {
+		for nn := range nkv {
 			logits[hd*nkv+nn] = float32(dot(kAll[nn*dh:(nn+1)*dh], qv) * invSqrt)
 		}
 	}
 	attentionSinkSoftmaxVector(weights, logits, w.SinkLogits, nh, nkv)
 	headOut := make([]float32, nh*dh)
-	for hd := 0; hd < nh; hd++ {
+	for hd := range nh {
 		dst := headOut[hd*dh : (hd+1)*dh]
-		for nn := 0; nn < nkv; nn++ {
+		for nn := range nkv {
 			a := float64(weights[hd*nkv+nn])
 			if a == 0 {
 				continue
 			}
-			for e := 0; e < dh; e++ {
+			for e := range dh {
 				dst[e] += float32(a * float64(vAll[nn*dh+e]))
 			}
 		}
@@ -437,12 +433,12 @@ func (c *fwbAttnLayerCache) appendBlockToken(h []float32) error {
 // and the cache's float32 round-trip on cos/sin.
 func applyRotarySinglePos(q []float32, nh, dh, pos int) {
 	half := dh / 2
-	for i := 0; i < half; i++ {
+	for i := range half {
 		invFreq := 1.0 / math.Pow(RotaryBase, float64(i)/float64(half))
 		angle := float64(pos) * invFreq
 		cs := float64(float32(math.Cos(angle)))
 		sn := float64(float32(math.Sin(angle)))
-		for hd := 0; hd < nh; hd++ {
+		for hd := range nh {
 			base := hd * dh
 			xe := float64(q[base+i])
 			xo := float64(q[base+half+i])

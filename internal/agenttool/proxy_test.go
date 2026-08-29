@@ -11,7 +11,7 @@ import (
 )
 
 func TestStableCapabilityProxy(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestStableCapabilityProxy(t *testing.T) {
 }
 
 func TestCapabilityProxyRechecksArgvAuthority(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func publishActiveProxyCatalog(t *testing.T, store artifact.Repository, manuals 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
+	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 }

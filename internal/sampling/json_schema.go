@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -501,18 +502,17 @@ func (converter *schemaConverter) visitAllOf(
 	if len(enumSets) > 0 {
 		intersection := enumSets[0]
 		for _, set := range enumSets[1:] {
-			for encoded := range intersection {
-				if _, exists := set[encoded]; !exists {
-					delete(intersection, encoded)
-				}
-			}
+			maps.DeleteFunc(intersection, func(encoded string, _ any) bool {
+				_, exists := set[encoded]
+				return !exists
+			})
 		}
 		if len(intersection) > 0 {
 			encoded := make([]string, 0, len(intersection))
 			for value := range intersection {
 				encoded = append(encoded, value)
 			}
-			sort.Strings(encoded)
+			slices.Sort(encoded)
 			rules := make([]string, len(encoded))
 			for index, value := range encoded {
 				rules[index] = schemaGrammarLiteral(value)
@@ -542,7 +542,7 @@ func (converter *schemaConverter) formatGrammar() string {
 	for name := range converter.rules {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	lines := make([]string, len(names))
 	for index, name := range names {
 		lines[index] = name + " ::= " + converter.rules[name]

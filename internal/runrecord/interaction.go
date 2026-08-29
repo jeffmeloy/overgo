@@ -75,10 +75,10 @@ type InteractionTranscript struct {
 type InteractionMessage struct {
 	Role             string                `json:"role"`
 	Content          string                `json:"content"`
-	ReasoningContent string                `json:"reasoning_content,omitempty"`
-	Name             string                `json:"name,omitempty"`
-	ToolCallID       string                `json:"tool_call_id,omitempty"`
-	ToolResultError  bool                  `json:"is_error,omitempty"`
+	ReasoningContent string                `json:"reasoning_content,omitzero"`
+	Name             string                `json:"name,omitzero"`
+	ToolCallID       string                `json:"tool_call_id,omitzero"`
+	ToolResultError  bool                  `json:"is_error,omitzero"`
 	Media            []InteractionMedia    `json:"media,omitempty"`
 	ToolCalls        []InteractionToolCall `json:"tool_calls,omitempty"`
 }
@@ -87,14 +87,14 @@ type InteractionMessage struct {
 type InteractionMedia struct {
 	Type       string  `json:"type"`
 	Data       string  `json:"data"`
-	Format     string  `json:"format,omitempty"`
-	TextOffset int     `json:"text_offset,omitempty"`
-	FPS        float64 `json:"fps,omitempty"`
+	Format     string  `json:"format,omitzero"`
+	TextOffset int     `json:"text_offset,omitzero"`
+	FPS        float64 `json:"fps,omitzero"`
 }
 
 // InteractionToolCall stores one function invocation.
 type InteractionToolCall struct {
-	ID   string `json:"id,omitempty"`
+	ID   string `json:"id,omitzero"`
 	Type string `json:"type"`
 	Name string `json:"name"`
 	// Manual pins the exact tool document the call executed under, so a

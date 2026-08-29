@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -73,9 +72,9 @@ type WebhookTriggerPolicy struct {
 type AutomationTriggerPolicy struct {
 	Version        uint16                    `json:"version"`
 	Kind           AutomationTriggerKind     `json:"kind"`
-	Schedule       string                    `json:"schedule,omitempty"`
-	AnchorUnixNano int64                     `json:"anchor_unix_nano,omitempty"`
-	Missed         AutomationMissedRunPolicy `json:"missed,omitempty"`
+	Schedule       string                    `json:"schedule,omitzero"`
+	AnchorUnixNano int64                     `json:"anchor_unix_nano,omitzero"`
+	Missed         AutomationMissedRunPolicy `json:"missed,omitzero"`
 	Webhook        *WebhookTriggerPolicy     `json:"webhook,omitempty"`
 	ID             artifact.ID               `json:"-"`
 }
@@ -108,9 +107,9 @@ type AutomationDeliveryPolicy struct {
 	Tool                artifact.ID            `json:"tool,omitzero"`
 	Authorization       artifact.ID            `json:"authorization,omitzero"`
 	Destinations        []string               `json:"destinations,omitempty"`
-	DestinationArgument string                 `json:"destination_argument,omitempty"`
-	PayloadArgument     string                 `json:"payload_argument,omitempty"`
-	IdempotencyArgument string                 `json:"idempotency_argument,omitempty"`
+	DestinationArgument string                 `json:"destination_argument,omitzero"`
+	PayloadArgument     string                 `json:"payload_argument,omitzero"`
+	IdempotencyArgument string                 `json:"idempotency_argument,omitzero"`
 	ID                  artifact.ID            `json:"-"`
 }
 
@@ -186,7 +185,7 @@ var automationDeliveryPolicyCodec = artifact.JSONDocumentCodec(
 					return errors.New("recipe: invalid automation delivery destination")
 				}
 			}
-			sort.Strings(value.Destinations)
+			slices.Sort(value.Destinations)
 			if compact := slices.Compact(value.Destinations); len(compact) != len(value.Destinations) {
 				return errors.New("recipe: duplicate automation delivery destination")
 			}

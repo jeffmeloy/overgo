@@ -2,7 +2,6 @@ package model
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"overgo/internal/gguf"
@@ -15,11 +14,11 @@ func TestHostTensorStoreRetainsLoadedTensor(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewHostTensorStore()
-	first, err := store.Load(context.Background(), file, file.Tensors[0])
+	first, err := store.Load(t.Context(), file, file.Tensors[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.Load(context.Background(), file, file.Tensors[0])
+	second, err := store.Load(t.Context(), file, file.Tensors[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +26,7 @@ func TestHostTensorStoreRetainsLoadedTensor(t *testing.T) {
 		t.Fatal("host tensor store did not reuse retained storage")
 	}
 	store.Release()
-	third, err := store.Load(context.Background(), file, file.Tensors[0])
+	third, err := store.Load(t.Context(), file, file.Tensors[0])
 	if err != nil {
 		t.Fatal(err)
 	}

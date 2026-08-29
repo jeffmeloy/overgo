@@ -11,7 +11,7 @@ import (
 )
 
 func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fixture := newCapabilitySelectorFixture(t)
 	id := func(kind artifact.Kind, label string) artifact.ID {
 		return testutil.ArtifactID(t, kind, label)

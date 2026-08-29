@@ -38,7 +38,7 @@ func tinyMixtureModel(t *testing.T) *Model {
 		shapes[name] = []int{rows, cols}
 	}
 	fill(prefix+"gate.weight", experts, spec.Hidden)
-	for e := 0; e < experts; e++ {
+	for e := range experts {
 		fill(fmt.Sprintf("%sexperts.%d.gate_proj.weight", prefix, e), expertInter, spec.Hidden)
 		fill(fmt.Sprintf("%sexperts.%d.up_proj.weight", prefix, e), expertInter, spec.Hidden)
 		fill(fmt.Sprintf("%sexperts.%d.down_proj.weight", prefix, e), spec.Hidden, expertInter)

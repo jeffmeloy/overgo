@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -35,7 +34,7 @@ func TestLoRAGraphAppliesAlphaScaleAndGlobalDisable(t *testing.T) {
 	if got, want := results[output].Data, []float32{15, 28}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("adapted output = %v, want %v", got, want)
 	}
-	if err := runner.SetLoRAScales(context.Background(), nil); err != nil {
+	if err := runner.SetLoRAScales(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if got := runner.LoRAAdapters()[0].Scale; got != 0 {
@@ -81,7 +80,7 @@ func TestSetLoRAScalesRejectsInvalidRequestsWithoutMutation(t *testing.T) {
 		{{ID: 1, Scale: 1}},
 		{{ID: 0, Scale: 1}, {ID: 0, Scale: 2}},
 	} {
-		err := runner.SetLoRAScales(context.Background(), request)
+		err := runner.SetLoRAScales(t.Context(), request)
 		if err == nil || !strings.Contains(err.Error(), "LoRA adapter ID") {
 			t.Fatalf("request %v error = %v", request, err)
 		}
@@ -105,7 +104,7 @@ func TestLoRAScaleBindsSessionSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runner.SetLoRAScales(context.Background(), []LoRAScale{{ID: 0, Scale: 0.5}}); err != nil {
+	if err := runner.SetLoRAScales(t.Context(), []LoRAScale{{ID: 0, Scale: 0.5}}); err != nil {
 		t.Fatal(err)
 	}
 	after, err := runner.sessionModelSignature()
@@ -123,7 +122,7 @@ func TestGenerateRestoresPerRequestLoRA(t *testing.T) {
 		runnerState: runnerState{loraAdapters: []loadedLoRA{{adapter: &model.LoRAAdapter{Path: "adapter.gguf"}, scale: 1}}},
 	}
 	runner = attachFixtureProgram(runner)
-	_, _, err := runner.Generate(context.Background(), "", GenerateOptions{
+	_, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   0,
 		PromptTokenIDs: []tokenizer.TokenID{0},
 		LoRA:           []LoRAScale{{ID: 0, Scale: 0.25}},

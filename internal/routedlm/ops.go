@@ -37,7 +37,7 @@ func silu64(x float64) float64 {
 // sum are bf16-rounded.
 func applyRotaryHalfBF16(row []float32, invFreq []float64, pos int) {
 	half := len(row) / 2
-	for i := 0; i < half; i++ {
+	for i := range half {
 		ang := float64(float32(pos) * float32(invFreq[i]))
 		c := dtype.RoundBF16(float32(math.Cos(ang)))
 		s := dtype.RoundBF16(float32(math.Sin(ang)))

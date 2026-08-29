@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 
 	"overgo/internal/gguf"
 
@@ -132,7 +133,7 @@ func TestReadWeightsBERTMoEAlternatesDenseAndExperts(t *testing.T) {
 				tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_types.weight", 8, 2),
 				tensorInfo("token_embd_norm.weight", 8), tensorInfo("token_embd_norm.bias", 8),
 			}
-			for block := 0; block < 2; block++ {
+			for block := range 2 {
 				prefix := fmt.Sprintf("blk.%d.", block)
 				tensors = append(tensors,
 					tensorInfo(prefix+"attn_qkv.weight", 8, 24), tensorInfo(prefix+"attn_output.weight", 8, 8),
@@ -201,7 +202,7 @@ func TestReadWeightsLLaDAFamilies(t *testing.T) {
 		tensorInfo("blk.0.attn_k.weight", 8, 4), tensorInfo("blk.0.attn_v.weight", 8, 4),
 		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.ffn_norm.weight", 8),
 	}
-	denseTensors := append(append([]gguf.TensorInfo{}, common...),
+	denseTensors := append(slices.Clone(common),
 		tensorInfo("blk.0.ffn_gate.weight", 8, 12), tensorInfo("blk.0.ffn_up.weight", 8, 12),
 		tensorInfo("blk.0.ffn_down.weight", 12, 8),
 	)
@@ -215,7 +216,7 @@ func TestReadWeightsLLaDAFamilies(t *testing.T) {
 	moeSpec := denseSpec
 	moeSpec.Architecture = "llada-moe"
 	moeSpec.ExpertCount, moeSpec.ExpertUsedCount, moeSpec.ExpertFeedForward = 4, 2, 6
-	moeTensors := append(append([]gguf.TensorInfo{}, common...),
+	moeTensors := append(slices.Clone(common),
 		tensorInfo("output.weight", 8, 32),
 		tensorInfo("blk.0.attn_q_norm.weight", 4), tensorInfo("blk.0.attn_k_norm.weight", 4),
 		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
@@ -468,7 +469,7 @@ func TestReadWeightsLFM2Hybrid(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32),
 		tensorInfo("token_embd_norm.weight", 8),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -511,7 +512,7 @@ func TestReadWeightsLFM2MoEDenseThenHybridMoE(t *testing.T) {
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_embd_norm.weight", 8),
 	}
-	for block := 0; block < 3; block++ {
+	for block := range 3 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),

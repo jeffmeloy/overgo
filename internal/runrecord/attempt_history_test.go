@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -52,7 +51,7 @@ func commitAttempt(t *testing.T, store *overgodb.Store, item, step string, outco
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Commit(context.Background(), artifact.Batch{Key: "fixture/attempt/" + published.ID.String(), Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}}); err != nil {
+	if _, err = store.Commit(t.Context(), artifact.Batch{Key: "fixture/attempt/" + published.ID.String(), Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
 	return published
@@ -64,7 +63,7 @@ func TestAttemptHistoryQueriesAndAggregates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	commitAttempt(t, store, "alpha", "do", OutcomeFailed, "magics", 100)
 	commitAttempt(t, store, "alpha", "do", OutcomeSucceeded, "", 40)
 	commitAttempt(t, store, "beta", "do", OutcomeSucceeded, "", 7)

@@ -34,8 +34,8 @@ type SymbolChange struct {
 	Kind             ChangeKind `json:"kind"`
 	Base             *Symbol    `json:"base,omitempty"`
 	Candidate        *Symbol    `json:"candidate,omitempty"`
-	SignatureChanged bool       `json:"signature_changed,omitempty"`
-	BodyChanged      bool       `json:"body_changed,omitempty"`
+	SignatureChanged bool       `json:"signature_changed,omitzero"`
+	BodyChanged      bool       `json:"body_changed,omitzero"`
 }
 
 // ExternalInputChange records non-Go authority change.
@@ -118,11 +118,11 @@ func diffFiles(base, candidate []File) []FileChange {
 		after, inCandidate := candidateIndex[key]
 		switch {
 		case !inBase:
-			changes = append(changes, FileChange{Path: key, Kind: ChangeAdded, Candidate: pointer(after)})
+			changes = append(changes, FileChange{Path: key, Kind: ChangeAdded, Candidate: new(after)})
 		case !inCandidate:
-			changes = append(changes, FileChange{Path: key, Kind: ChangeRemoved, Base: pointer(before)})
+			changes = append(changes, FileChange{Path: key, Kind: ChangeRemoved, Base: new(before)})
 		case before.ContentID != after.ContentID || before.Package != after.Package || before.BuildExpression != after.BuildExpression || before.Generated != after.Generated || before.Test != after.Test || !slices.Equal(before.SelectedContexts, after.SelectedContexts):
-			changes = append(changes, FileChange{Path: key, Kind: ChangeModified, Base: pointer(before), Candidate: pointer(after)})
+			changes = append(changes, FileChange{Path: key, Kind: ChangeModified, Base: new(before), Candidate: new(after)})
 		}
 	}
 	return changes
@@ -144,15 +144,15 @@ func diffSymbols(base, candidate []Symbol) []SymbolChange {
 		after, inCandidate := candidateIndex[key]
 		switch {
 		case !inBase:
-			changes = append(changes, SymbolChange{ID: after.ID, Kind: ChangeAdded, Candidate: pointer(after), SignatureChanged: true, BodyChanged: after.BodySHA256 != ""})
+			changes = append(changes, SymbolChange{ID: after.ID, Kind: ChangeAdded, Candidate: new(after), SignatureChanged: true, BodyChanged: after.BodySHA256 != ""})
 		case !inCandidate:
-			changes = append(changes, SymbolChange{ID: before.ID, Kind: ChangeRemoved, Base: pointer(before), SignatureChanged: true, BodyChanged: before.BodySHA256 != ""})
+			changes = append(changes, SymbolChange{ID: before.ID, Kind: ChangeRemoved, Base: new(before), SignatureChanged: true, BodyChanged: before.BodySHA256 != ""})
 		default:
 			signatureChanged := before.SignatureSHA256 != after.SignatureSHA256
 			bodyChanged := before.BodySHA256 != after.BodySHA256
 			if signatureChanged || bodyChanged || before.File != after.File || before.Exported != after.Exported {
 				changes = append(changes, SymbolChange{
-					ID: before.ID, Kind: ChangeModified, Base: pointer(before), Candidate: pointer(after),
+					ID: before.ID, Kind: ChangeModified, Base: new(before), Candidate: new(after),
 					SignatureChanged: signatureChanged, BodyChanged: bodyChanged,
 				})
 			}
@@ -177,11 +177,11 @@ func diffExternalInputs(base, candidate []ExternalInput) []ExternalInputChange {
 		after, inCandidate := candidateIndex[key]
 		switch {
 		case !inBase:
-			changes = append(changes, ExternalInputChange{Path: after.Path, Kind: ChangeAdded, Candidate: pointer(after)})
+			changes = append(changes, ExternalInputChange{Path: after.Path, Kind: ChangeAdded, Candidate: new(after)})
 		case !inCandidate:
-			changes = append(changes, ExternalInputChange{Path: before.Path, Kind: ChangeRemoved, Base: pointer(before)})
+			changes = append(changes, ExternalInputChange{Path: before.Path, Kind: ChangeRemoved, Base: new(before)})
 		case before.ContentID != after.ContentID:
-			changes = append(changes, ExternalInputChange{Path: before.Path, Kind: ChangeModified, Base: pointer(before), Candidate: pointer(after)})
+			changes = append(changes, ExternalInputChange{Path: before.Path, Kind: ChangeModified, Base: new(before), Candidate: new(after)})
 		}
 	}
 	return changes
@@ -205,10 +205,6 @@ func unionKeys[T any](left, right map[string]T) []string {
 	}
 	slices.Sort(result)
 	return result
-}
-
-func pointer[T any](value T) *T {
-	return &value
 }
 
 func compareUncertainty(left, right Uncertainty) int {

@@ -232,7 +232,7 @@ func granite4BestResolution(width, height int, spec Granite4VisionSpec) Granite4
 	best := spec.GridCandidates[tensor.FirstOffset]
 	bestEffective, bestWaste := -tensor.SingletonExtent, math.MaxInt
 	for _, candidate := range spec.GridCandidates {
-		scale := math.Min(float64(candidate.Width)/float64(width), float64(candidate.Height)/float64(height))
+		scale := min(float64(candidate.Width)/float64(width), float64(candidate.Height)/float64(height))
 		targetW, targetH := int(float64(width)*scale), int(float64(height)*scale)
 		effective := min(targetW*targetH, width*height)
 		waste := candidate.Width*candidate.Height - effective
@@ -403,13 +403,13 @@ func (r *Granite4VisionRunner) runQFormerBlock(ctx context.Context, hidden []flo
 	if err != nil {
 		return nil, err
 	}
-	for window := 0; window < windows; window++ {
-		for row := 0; row < queryLength; row++ {
+	for window := range windows {
+		for row := range queryLength {
 			for channel := 0; channel < r.spec.Hidden; channel++ {
 				queryWindows[(window*queryLength+row)*r.spec.Hidden+channel] += query.Data[row*r.spec.Hidden+channel]
 			}
 		}
-		for row := 0; row < encLength; row++ {
+		for row := range encLength {
 			for channel := 0; channel < r.spec.Hidden; channel++ {
 				enc[(window*encLength+row)*r.spec.Hidden+channel] += imagePosition.Data[row*r.spec.Hidden+channel]
 			}

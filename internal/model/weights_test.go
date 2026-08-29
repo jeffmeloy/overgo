@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 
 	"overgo/internal/gguf"
 
@@ -221,7 +222,7 @@ func TestReadWeightsLlama4InterleavedMoE(t *testing.T) {
 		ExpertWeightsScale: 1, MoELayerStep: 2},
 	}
 	tensors := []gguf.TensorInfo{tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8)}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -341,7 +342,7 @@ func TestReadWeightsGLM4MoE(t *testing.T) {
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 	}
-	for block := 0; block < 3; block++ {
+	for block := range 3 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -405,7 +406,7 @@ func TestReadWeightsMiMo2MixedDenseAndMoE(t *testing.T) {
 		tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32),
 	}
-	for block := 0; block < 3; block++ {
+	for block := range 3 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -474,7 +475,7 @@ func TestReadWeightsStep35MixedDenseAndMoE(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32), tensorInfo("rope_freqs.weight", 2),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		heads := spec.LayerHeadCount(uint32(block))
 		kvHeads := spec.LayerKVHeadCount(uint32(block))
@@ -682,7 +683,7 @@ func TestReadWeightsDeciSparseLayers(t *testing.T) {
 		tensorInfo("blk.0.attn_output.weight", 8, 8),
 		tensorInfo("blk.1.attn_norm.weight", 8), tensorInfo("blk.1.attn_output.weight", 8, 8),
 	}
-	for block := 0; block < 3; block++ {
+	for block := range 3 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"ffn_norm.weight", 8),
@@ -935,7 +936,7 @@ func TestReadWeightsDeepSeekDenseThenMoEWithTiedOutput(t *testing.T) {
 	tensors := []gguf.TensorInfo{
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -1051,7 +1052,7 @@ func TestReadWeightsDOTS1DenseThenMoE(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8), tensorInfo(prefix+"attn_qkv.weight", 8, 24),
@@ -1123,7 +1124,7 @@ func TestReadWeightsBailingMoE2DenseThenMoE(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32),
 	}
-	for block := 0; block < 3; block++ {
+	for block := range 3 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),
@@ -1225,7 +1226,7 @@ func TestReadWeightsLlamaEmbedDenseAndMoE(t *testing.T) {
 		tensorInfo("blk.0.attn_output.weight", 8, 8), tensorInfo("blk.0.ffn_norm.weight", 8),
 	}
 
-	denseFile := &gguf.File{Tensors: append(append([]gguf.TensorInfo{}, common...),
+	denseFile := &gguf.File{Tensors: append(slices.Clone(common),
 		tensorInfo("blk.0.ffn_gate.weight", 8, 16),
 		tensorInfo("blk.0.ffn_up.weight", 8, 16),
 		tensorInfo("blk.0.ffn_down.weight", 16, 8),
@@ -1242,7 +1243,7 @@ func TestReadWeightsLlamaEmbedDenseAndMoE(t *testing.T) {
 	moeSpec := base
 	moeSpec.ExpertCount, moeSpec.ExpertUsedCount, moeSpec.ExpertFeedForward = 4, 2, 16
 	moeSpec.ExpertWeightsScale = 1
-	moeFile := &gguf.File{Tensors: append(append([]gguf.TensorInfo{}, common...),
+	moeFile := &gguf.File{Tensors: append(slices.Clone(common),
 		tensorInfo("blk.0.ffn_gate_inp.weight", 8, 4),
 		tensorInfo("blk.0.ffn_gate_exps.weight", 8, 16, 4),
 		tensorInfo("blk.0.ffn_up_exps.weight", 8, 16, 4),
@@ -1331,7 +1332,7 @@ func TestReadWeightsModernBERTUsesOptionalFirstNormAndFusedGEGLU(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("token_embd_norm.weight", 8),
 		tensorInfo("output_norm.weight", 8),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		if block > 0 {
 			tensors = append(tensors, tensorInfo(prefix+"attn_norm.weight", 8))

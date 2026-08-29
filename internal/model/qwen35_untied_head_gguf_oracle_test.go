@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"testing"
@@ -23,9 +24,7 @@ const qwen35_9BDefaultPath = `C:\Users\jeffm\adaptive_new\models\Qwen3.5-9B-Q8_0
 func qwen35_9BPath(t *testing.T) string {
 	t.Helper()
 	path := os.Getenv("OVERGO_QWEN35_9B_GGUF")
-	if path == "" {
-		path = qwen35_9BDefaultPath
-	}
+	path = cmp.Or(path, qwen35_9BDefaultPath)
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("Qwen3.5-9B GGUF absent (%s); set OVERGO_QWEN35_9B_GGUF to run", path)
 	}

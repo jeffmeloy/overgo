@@ -2,6 +2,7 @@ package hfbpe
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,7 +36,7 @@ func LoadSplit(dir string) (*Tokenizer, error) {
 			t.mergeRank[line] = rank
 			rank++
 		}
-		if readErr == io.EOF {
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
 		if readErr != nil {

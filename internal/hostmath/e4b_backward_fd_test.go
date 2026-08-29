@@ -183,10 +183,10 @@ func TestMatchMagnitudeBackwardFiniteDifference(t *testing.T) {
 
 	forward := func() []float32 { // host-exact mirror of gemma3nMatchMagnitude
 		out := make([]float32, rows*width)
-		for r := 0; r < rows; r++ {
+		for r := range rows {
 			base := r * width
 			var si, st float64
-			for j := 0; j < width; j++ {
+			for j := range width {
 				si += float64(input[base+j]) * float64(input[base+j])
 				st += float64(target[base+j]) * float64(target[base+j])
 			}
@@ -194,7 +194,7 @@ func TestMatchMagnitudeBackwardFiniteDifference(t *testing.T) {
 			if si != 0 {
 				scale = float32(math.Sqrt(st / si))
 			}
-			for j := 0; j < width; j++ {
+			for j := range width {
 				out[base+j] = input[base+j] * scale
 			}
 		}
@@ -269,7 +269,7 @@ func TestEmbedInputScaleBackwardFiniteDifference(t *testing.T) {
 	loss := func() float64 {
 		var s float64
 		for t, tok := range tokens {
-			for i := 0; i < d; i++ {
+			for i := range d {
 				h := scale * float64(embed[tok*d+i])
 				s += h * float64(dHidden[t*d+i])
 			}

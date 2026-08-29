@@ -230,8 +230,8 @@ func (g *vaeGraphBuilder) upsample(x *tensor.Tensor, resampleW, resampleB []floa
 func sliceLastTemporalTap(weight5d []float32, cOut, cIn int, kernel [3]int) []float32 {
 	spatialKernel := kernel[1] * kernel[2]
 	out := make([]float32, cOut*cIn*spatialKernel)
-	for co := 0; co < cOut; co++ {
-		for ci := 0; ci < cIn; ci++ {
+	for co := range cOut {
+		for ci := range cIn {
 			srcBase := ((co*cIn+ci)*kernel[0] + (kernel[0] - tensor.SingletonExtent)) * spatialKernel
 			dstBase := (co*cIn + ci) * spatialKernel
 			copy(out[dstBase:dstBase+spatialKernel], weight5d[srcBase:srcBase+spatialKernel])

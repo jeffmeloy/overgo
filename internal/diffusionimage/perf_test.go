@@ -29,7 +29,7 @@ func TestForwardWall(t *testing.T) {
 	}
 	const repeats = 5
 	walls := make([]time.Duration, 0, repeats)
-	for r := 0; r < repeats; r++ {
+	for range repeats {
 		start := time.Now()
 		if _, err := m.Forward(g.X, g.B, g.H, g.W); err != nil {
 			t.Fatal(err)

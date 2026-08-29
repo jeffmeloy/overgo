@@ -24,11 +24,11 @@ type AgentCheckpointEntry struct {
 	Mode              string       `json:"mode"`
 	Encoding          string       `json:"encoding"`
 	Preimage          *artifact.ID `json:"preimage,omitempty"`
-	Absent            bool         `json:"absent,omitempty"`
-	Empty             bool         `json:"empty,omitempty"`
+	Absent            bool         `json:"absent,omitzero"`
+	Empty             bool         `json:"empty,omitzero"`
 	ExpectedPostimage *artifact.ID `json:"expected_postimage,omitempty"`
-	ExpectedAbsent    bool         `json:"expected_absent,omitempty"`
-	Gap               string       `json:"gap,omitempty"`
+	ExpectedAbsent    bool         `json:"expected_absent,omitzero"`
+	Gap               string       `json:"gap,omitzero"`
 }
 
 // AgentMutationCheckpoint is a manifest over content-addressed preimages in

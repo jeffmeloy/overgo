@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"os"
@@ -24,7 +23,7 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	full, err := runner.Forward(ctx, []tokenizer.TokenID{9707, 27})
 	if err != nil {
 		t.Fatal(err)
@@ -56,9 +55,7 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	var maximum float64
 	for index, want := range expected {
 		difference := math.Abs(float64(incremental.Data[index] - want))
-		if difference > maximum {
-			maximum = difference
-		}
+		maximum = max(maximum, difference)
 	}
 	if maximum > 5e-4 {
 		t.Fatalf("incremental/full max absolute difference = %g", maximum)
@@ -206,7 +203,7 @@ func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
 	defer runner.Close()
 	layers := []int32{0, int32(len(runner.weights.Layers) / 2), int32(len(runner.weights.Layers) - 1)}
 	tokens := []tokenizer.TokenID{9707, 27}
-	ctx := context.Background()
+	ctx := t.Context()
 	full, err := runner.ExtractLayerInputs(ctx, tokens, layers)
 	if err != nil {
 		t.Fatal(err)
@@ -250,7 +247,7 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	replacement, err := runner.gatherTensor(ctx, runner.weights.TokenEmbedding, []uint32{27})
 	if err != nil {
 		t.Fatal(err)
@@ -315,11 +312,11 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := runner.DeviceExecutionStats(context.Background())
+	before, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	ids, text, err := runner.Generate(context.Background(), "Hello", GenerateOptions{
+	ids, text, err := runner.Generate(t.Context(), "Hello", GenerateOptions{
 		MaxNewTokens: 3,
 		Sampler:      sampler,
 		ContextShift: true,
@@ -327,7 +324,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, err := runner.DeviceExecutionStats(context.Background())
+	after, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +332,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostIDs, hostText, err := runner.Generate(context.Background(), "Hello", GenerateOptions{
+	hostIDs, hostText, err := runner.Generate(t.Context(), "Hello", GenerateOptions{
 		MaxNewTokens: 3,
 		Sampler:      hostSampler,
 		ContextShift: true,
@@ -361,11 +358,11 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	beforeCachedShift, err := runner.DeviceExecutionStats(context.Background())
+	beforeCachedShift, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = runner.Generate(context.Background(), "", GenerateOptions{
+	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   2,
 		Sampler:        cachedShiftSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707, 27},
@@ -375,7 +372,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	afterCachedShift, err := runner.DeviceExecutionStats(context.Background())
+	afterCachedShift, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +389,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 		t.Fatal(err)
 	}
 	var cachedShiftEvaluation PromptEvaluation
-	_, _, err = runner.Generate(context.Background(), "", GenerateOptions{
+	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        reuseSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707, 27},
@@ -415,11 +412,11 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	beforeKeep, err := runner.DeviceExecutionStats(context.Background())
+	beforeKeep, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	keptIDs, _, err := runner.Generate(context.Background(), "", GenerateOptions{
+	keptIDs, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   6,
 		Sampler:        keepSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707},
@@ -433,7 +430,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 		t.Fatalf("prefix-preserving context shift returned %d IDs, want 7",
 			len(keptIDs))
 	}
-	afterKeep, err := runner.DeviceExecutionStats(context.Background())
+	afterKeep, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +447,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = runner.Generate(context.Background(), "", GenerateOptions{
+	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        firstCacheSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707, 27, 358},
@@ -465,7 +462,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	}
 	var divergentEvaluation PromptEvaluation
 	divergentIDs, _, err := runner.Generate(
-		context.Background(),
+		t.Context(),
 		"",
 		GenerateOptions{
 			MaxNewTokens:   1,
@@ -485,7 +482,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fullIDs, _, err := runner.Generate(context.Background(), "", GenerateOptions{
+	fullIDs, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        fullSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707, 27, 18},
@@ -513,7 +510,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 			t.Fatal(samplerErr)
 		}
 		if _, _, generationErr := runner.Generate(
-			context.Background(),
+			t.Context(),
 			"",
 			GenerateOptions{
 				MaxNewTokens:   1,
@@ -531,7 +528,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 		t.Fatal(err)
 	}
 	var multiEvaluation PromptEvaluation
-	_, _, err = runner.Generate(context.Background(), "", GenerateOptions{
+	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        multiReuseSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707, 27, 358},
@@ -573,7 +570,7 @@ func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
 	}
 	defer runner.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	firstSampler, err := sampling.New(sampling.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -756,8 +753,8 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer batch.Close(context.Background())
-	outputs, err := batch.Step(context.Background(), []SequenceBatchInput{
+	defer batch.Close(t.Context())
+	outputs, err := batch.Step(t.Context(), []SequenceBatchInput{
 		{ID: 10, Tokens: ids}, {ID: 20, Tokens: ids},
 	})
 	if err != nil {
@@ -782,8 +779,8 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer greedyBatch.Close(context.Background())
-	selected, err := greedyBatch.StepGreedy(context.Background(), []SequenceBatchInput{
+	defer greedyBatch.Close(t.Context())
+	selected, err := greedyBatch.StepGreedy(t.Context(), []SequenceBatchInput{
 		{ID: 30, Tokens: ids}, {ID: 40, Tokens: ids},
 	})
 	if err != nil {
@@ -792,7 +789,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	if len(selected) != 2 || selected[0].Token != next || selected[1].Token != next {
 		t.Fatalf("device selections = %+v, want token %d", selected, next)
 	}
-	selected, err = greedyBatch.StepGreedy(context.Background(), []SequenceBatchInput{
+	selected, err = greedyBatch.StepGreedy(t.Context(), []SequenceBatchInput{
 		{ID: 30, Tokens: []tokenizer.TokenID{selected[0].Token}},
 		{ID: 40, Tokens: []tokenizer.TokenID{selected[1].Token}},
 	})
@@ -805,15 +802,15 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sessionBatch.Close(context.Background())
-	sessionOutput, err := sessionBatch.StepGreedy(context.Background(), []SequenceBatchInput{{
+	defer sessionBatch.Close(t.Context())
+	sessionOutput, err := sessionBatch.StepGreedy(t.Context(), []SequenceBatchInput{{
 		ID: 50, Tokens: ids,
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for range 6 {
-		sessionOutput, err = sessionBatch.StepGreedy(context.Background(), []SequenceBatchInput{{
+		sessionOutput, err = sessionBatch.StepGreedy(t.Context(), []SequenceBatchInput{{
 			ID: 50, Tokens: []tokenizer.TokenID{sessionOutput[0].Token},
 		}})
 		if err != nil {
@@ -827,7 +824,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 		session.program.identity.capacity < 8 {
 		t.Fatalf("parameterized decode session = %+v", session)
 	}
-	outputs, err = batch.Step(context.Background(), []SequenceBatchInput{
+	outputs, err = batch.Step(t.Context(), []SequenceBatchInput{
 		{ID: 10, Tokens: []tokenizer.TokenID{next}},
 		{ID: 20, Tokens: []tokenizer.TokenID{alternate}},
 	})
@@ -842,8 +839,8 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer singles[index].Close(context.Background())
-		if _, err = singles[index].Step(context.Background(), []SequenceBatchInput{{
+		defer singles[index].Close(t.Context())
+		if _, err = singles[index].Step(t.Context(), []SequenceBatchInput{{
 			ID: SequenceID(index + 1), Tokens: ids,
 		}}); err != nil {
 			t.Fatal(err)
@@ -851,7 +848,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	}
 	const packedLogitTolerance = 1e-4
 	for index, token := range []tokenizer.TokenID{next, alternate} {
-		single, singleErr := singles[index].Step(context.Background(), []SequenceBatchInput{{
+		single, singleErr := singles[index].Step(t.Context(), []SequenceBatchInput{{
 			ID: SequenceID(index + 1), Tokens: []tokenizer.TokenID{token},
 		}})
 		if singleErr != nil {
@@ -866,7 +863,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 			}
 		}
 	}
-	if err := batch.Remove(context.Background(), 10); err != nil {
+	if err := batch.Remove(t.Context(), 10); err != nil {
 		t.Fatal(err)
 	}
 	states := batch.Snapshot()
@@ -888,7 +885,7 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	session, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
@@ -990,7 +987,7 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer target.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	session, err := assistant.NewPairedProjectionSession(ctx, target, []tokenizer.TokenID{0}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1074,7 +1071,7 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer target.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	session, err := draftRunner.NewFeatureDraftSession(ctx, target, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
@@ -1151,7 +1148,7 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	if maximum <= 0 {
 		t.Fatalf("invalid DFlash block size: %d", draftRunner.spec.DFlashBlockSize)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	session, err := draftRunner.NewPairedFeatureSession(ctx, target, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
@@ -1220,7 +1217,7 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	audio, err := runner.DecodeAudioWaveform(context.Background(), []tokenizer.TokenID{0})
+	audio, err := runner.DecodeAudioWaveform(t.Context(), []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1247,7 +1244,7 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	session, err := runner.NewMTPSession(ctx, []tokenizer.TokenID{0})
 	if err != nil {
 		t.Fatal(err)
@@ -1343,7 +1340,7 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 	if runner.rawWeights == nil {
 		t.Fatal("Bonsai Q1_0 weights did not use native device storage")
 	}
-	ids, text, err := runner.Greedy(context.Background(), "Hello", 2)
+	ids, text, err := runner.Greedy(t.Context(), "Hello", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1384,7 +1381,7 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 	if chatPrompt != oracleChatPrompt {
 		t.Fatalf("Gemma 3 chat prompt = %q, want %q", chatPrompt, oracleChatPrompt)
 	}
-	ids, text, err := runner.Greedy(context.Background(), "Hello", 3)
+	ids, text, err := runner.Greedy(t.Context(), "Hello", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1404,7 +1401,7 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 		4,
 	)
 	result, err := runner.PerplexityWithOptions(
-		context.Background(),
+		t.Context(),
 		probe,
 		PerplexityOptions{ContextSize: 32},
 	)
@@ -1447,7 +1444,7 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 	if !slices.Equal(ids, wantIDs) {
 		t.Fatalf("UMT5 token IDs = %v, want %v", ids, wantIDs)
 	}
-	hidden, err := runner.Forward(context.Background(), ids)
+	hidden, err := runner.Forward(t.Context(), ids)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1489,7 +1486,7 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 		)
 	}
 	perToken, err := runner.EmbedTokensAdvanced(
-		context.Background(),
+		t.Context(),
 		ids,
 		EmbeddingOptions{Pooling: EmbeddingPoolingNone, Normalize: 2},
 	)
@@ -1512,7 +1509,7 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 			t.Fatalf("UMT5 per-token embedding[%d] delta = %g", index, difference)
 		}
 	}
-	if _, _, err := runner.Greedy(context.Background(), "Hello", 1); err == nil {
+	if _, _, err := runner.Greedy(t.Context(), "Hello", 1); err == nil {
 		t.Fatal("UMT5 encoder unexpectedly accepted token generation")
 	}
 }
@@ -1526,15 +1523,15 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	beforeExecution, err := runner.DeviceExecutionStats(context.Background())
+	beforeExecution, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	beforeMemory, err := runner.DeviceMemoryStats(context.Background())
+	beforeMemory, err := runner.DeviceMemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	ids, text, err := runner.Greedy(context.Background(), "Hello", 3)
+	ids, text, err := runner.Greedy(t.Context(), "Hello", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1545,11 +1542,11 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if text != "Hello<3\n" {
 		t.Fatalf("text = %q, want %q", text, "Hello<3\n")
 	}
-	afterExecution, err := runner.DeviceExecutionStats(context.Background())
+	afterExecution, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	afterMemory, err := runner.DeviceMemoryStats(context.Background())
+	afterMemory, err := runner.DeviceMemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1589,7 +1586,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	}
 	probabilityEvents := 0
 	exactIDs, exactText, err := runner.Generate(
-		context.Background(),
+		t.Context(),
 		"ignored",
 		GenerateOptions{
 			MaxNewTokens:              3,
@@ -1630,7 +1627,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		t.Fatal(err)
 	}
 	var firstCacheEvaluation PromptEvaluation
-	_, _, err = runner.Generate(context.Background(), "", GenerateOptions{
+	_, _, err = runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        cacheSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707},
@@ -1642,7 +1639,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	beforeReuse, err := runner.DeviceExecutionStats(context.Background())
+	beforeReuse, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1651,7 +1648,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		t.Fatal(err)
 	}
 	var reuseEvaluation PromptEvaluation
-	reusedIDs, _, err := runner.Generate(context.Background(), "", GenerateOptions{
+	reusedIDs, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        reuseSampler,
 		PromptTokenIDs: []tokenizer.TokenID{9707},
@@ -1664,7 +1661,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	afterReuse, err := runner.DeviceExecutionStats(context.Background())
+	afterReuse, err := runner.DeviceExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1686,7 +1683,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, _, err := runner.StartSession(context.Background(), "Hello", GenerateOptions{
+	session, _, err := runner.StartSession(t.Context(), "Hello", GenerateOptions{
 		MaxNewTokens: 1,
 		Sampler:      firstSampler,
 	})
@@ -1706,7 +1703,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		t.Fatal(err)
 	}
 	session, resumedText, err := runner.ContinueSession(
-		context.Background(),
+		t.Context(),
 		session,
 		GenerateOptions{MaxNewTokens: 2, Sampler: resumedSampler},
 	)
@@ -1723,7 +1720,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if len(dryBreakers) == 0 {
 		t.Fatal("DRY breaker expansion produced no token sequences")
 	}
-	embedding, tokenCount, err := runner.Embed(context.Background(), "Hello")
+	embedding, tokenCount, err := runner.Embed(t.Context(), "Hello")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1734,7 +1731,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 		t.Fatalf("embedding token count = %d, want 1", tokenCount)
 	}
 	exactEmbedding, exactTokenCount, err := runner.EmbedTokens(
-		context.Background(),
+		t.Context(),
 		[]tokenizer.TokenID{9707},
 	)
 	if err != nil {
@@ -1777,7 +1774,7 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chatIDs, _, err := runner.Generate(context.Background(), chatPrompt, GenerateOptions{
+	chatIDs, _, err := runner.Generate(t.Context(), chatPrompt, GenerateOptions{
 		MaxNewTokens: 1,
 		Sampler:      greedy,
 		ParseSpecial: true,

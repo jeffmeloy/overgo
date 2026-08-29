@@ -182,8 +182,8 @@ func PreprocessGemma4Image(source image.Image, spec Gemma4Spec) (Gemma4Image, er
 	rows := gridH * gridW
 	pixels := make([]float32, rows*spec.PatchWidth)
 	positions := make([]int, rows*tensor.PairedExtent)
-	for gridY := 0; gridY < gridH; gridY++ {
-		for gridX := 0; gridX < gridW; gridX++ {
+	for gridY := range gridH {
+		for gridX := range gridW {
 			row := gridY*gridW + gridX
 			positions[row*tensor.PairedExtent], positions[row*tensor.PairedExtent+1] = gridX, gridY
 			destination := pixels[row*spec.PatchWidth:]

@@ -59,7 +59,7 @@ func TestRealDecoderResBlockResidentVJPParity(t *testing.T) {
 			t.Fatalf("missing gradient %s", name)
 		}
 		difference := testutil.MaxAbsDiff(got, want)
-		maxParameterDiff = math.Max(maxParameterDiff, difference)
+		maxParameterDiff = max(maxParameterDiff, difference)
 		t.Logf("real decoder residual VJP %s max=%.3e elements=%d", name, difference, len(want))
 		for index, value := range got {
 			if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {

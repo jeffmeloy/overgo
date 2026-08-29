@@ -18,7 +18,7 @@ func fwht(shape tensor.Shape, input Value) (Value, error) {
 	for row := 0; row < len(output); row += width {
 		for stride := 1; stride < width; stride *= 2 {
 			for base := 0; base < width; base += 2 * stride {
-				for offset := 0; offset < stride; offset++ {
+				for offset := range stride {
 					first := row + base + offset
 					second := first + stride
 					a, b := output[first], output[second]
@@ -342,8 +342,8 @@ func attention(
 	m0 := math.Pow(2, -float64(attributes.MaxALiBiBias)/float64(nHeadLog2))
 	m1 := math.Pow(2, -float64(attributes.MaxALiBiBias/2)/float64(nHeadLog2))
 	scores := make([]float64, keyValueTokens)
-	for sequence := 0; sequence < sequences; sequence++ {
-		for queryToken := 0; queryToken < queryTokens; queryToken++ {
+	for sequence := range sequences {
+		for queryToken := range queryTokens {
 			queryPosition := int(attributes.QueryStart) + queryToken
 			causalLimit := queryPosition + 1
 			keyLimit := keyValueTokens
@@ -365,7 +365,7 @@ func attention(
 			} else if attributes.Window > 0 && causalLimit > int(attributes.Window) {
 				keyFirst = causalLimit - int(attributes.Window)
 			}
-			for queryHead := 0; queryHead < queryHeads; queryHead++ {
+			for queryHead := range queryHeads {
 				keyValueHead := queryHead / groupSize
 				alibiSlope := 0.0
 				if attributes.MaxALiBiBias > 0 {
@@ -386,7 +386,7 @@ func attention(
 					}
 					keyOffset := ((sequence*keyCapacityTokens+keyToken)*keyValueHeads + keyValueHead) * keyWidth
 					var dot float64
-					for channel := 0; channel < keyWidth; channel++ {
+					for channel := range keyWidth {
 						dot += float64(query.Data[queryOffset+channel]) * float64(key.Data[keyOffset+channel])
 					}
 					score := dot * float64(attributes.Scale)
@@ -430,7 +430,7 @@ func attention(
 					sum += probability
 				}
 				outputOffset := ((sequence*queryTokens+queryToken)*queryHeads + queryHead) * valueWidth
-				for channel := 0; channel < valueWidth; channel++ {
+				for channel := range valueWidth {
 					var weighted float64
 					for keyToken := keyFirst; keyToken < keyLimit; keyToken++ {
 						if attributes.Causal && keyToken >= causalLimit && !sameAttentionBlock(blockIDs, queryPosition, keyToken) {
@@ -505,7 +505,7 @@ func concat(shape tensor.Shape, left, right Value, axis uint32) (Value, error) {
 	outputAxis := leftAxis + rightAxis
 	outer := int(outputElements) / (inner * outputAxis)
 	output := make([]float32, int(outputElements))
-	for group := 0; group < outer; group++ {
+	for group := range outer {
 		outputBase := group * outputAxis * inner
 		leftBase := group * leftAxis * inner
 		rightBase := group * rightAxis * inner

@@ -28,7 +28,7 @@ func TestForecastWallDecomposition(t *testing.T) {
 
 	const repeats = 9
 	walls := make([]time.Duration, 0, repeats)
-	for r := 0; r < repeats; r++ {
+	for range repeats {
 		start := time.Now()
 		for _, c := range g.Cases {
 			if _, err := model.Forecast(c.Context); err != nil {

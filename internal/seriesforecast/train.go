@@ -3,7 +3,7 @@ package seriesforecast
 import (
 	"fmt"
 	"math"
-	"sort"
+	"slices"
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
@@ -292,6 +292,6 @@ func (t *Trainer) auditGradientCoverage() error {
 			extras = append(extras, name)
 		}
 	}
-	sort.Strings(extras)
+	slices.Sort(extras)
 	return fmt.Errorf("seriesforecast: backward gradients outside the trainable pack: %v", extras)
 }

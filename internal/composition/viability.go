@@ -208,7 +208,7 @@ func runViability(config Config, targetID, donorID artifact.ID) (result Result, 
 			return Result{}, fmt.Errorf("composition: seed %d held-out loss is non-finite", seed)
 		}
 		result.Outcomes = append(result.Outcomes, SeedOutcome{Seed: seed, TrainLosses: losses, HeldOut: heldOut})
-		worst = math.Max(worst, heldOut)
+		worst = max(worst, heldOut)
 	}
 	result.WorstHeldOut = worst
 	if worst < baseline {

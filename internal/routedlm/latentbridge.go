@@ -142,12 +142,12 @@ func (t *LatentBridgeTrainer) Reconstruct(hidden []float32) ([]float32, error) {
 	}
 	latent := make([]float32, rows*t.latent)
 	hostmath.Linear(latent, hidden, t.weights[t.downW.start:t.downW.end], rows, t.hidden, t.latent)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(latent[r*t.latent:(r+1)*t.latent], t.weights[t.downB.start:t.downB.end])
 	}
 	out := make([]float32, rows*t.hidden)
 	hostmath.Linear(out, latent, t.weights[t.upW.start:t.upW.end], rows, t.latent, t.hidden)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(out[r*t.hidden:(r+1)*t.hidden], t.weights[t.upB.start:t.upB.end])
 	}
 	return out, nil
@@ -186,12 +186,12 @@ func (t *LatentBridgeTrainer) lossAndBridgeGradients(hidden []float32) (float64,
 	}
 	latent := make([]float32, rows*t.latent)
 	hostmath.Linear(latent, hidden, t.weights[t.downW.start:t.downW.end], rows, t.hidden, t.latent)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(latent[r*t.latent:(r+1)*t.latent], t.weights[t.downB.start:t.downB.end])
 	}
 	out := make([]float32, rows*t.hidden)
 	hostmath.Linear(out, latent, t.weights[t.upW.start:t.upW.end], rows, t.latent, t.hidden)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		hostmath.AddBias(out[r*t.hidden:(r+1)*t.hidden], t.weights[t.upB.start:t.upB.end])
 	}
 

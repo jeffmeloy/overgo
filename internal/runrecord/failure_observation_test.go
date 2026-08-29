@@ -2,7 +2,6 @@ package runrecord
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"overgo/internal/executionfailure"
@@ -22,7 +21,7 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	corpus := []struct {
 		name  string

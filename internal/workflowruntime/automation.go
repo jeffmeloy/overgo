@@ -364,7 +364,7 @@ func automationAdmissionKey(key, destination string) (string, error) {
 	}
 	id, err := artifact.JSONID(artifact.KindProfile, struct {
 		Key         string `json:"key"`
-		Destination string `json:"destination,omitempty"`
+		Destination string `json:"destination,omitzero"`
 	}{Key: key, Destination: destination})
 	return id.String(), err
 }

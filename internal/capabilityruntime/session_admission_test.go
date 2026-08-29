@@ -19,19 +19,19 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer director.Close(context.Background())
+		defer director.Close(t.Context())
 		held, ok := director.TryLease(-1)
 		if !ok {
 			t.Fatal("initial lease was not admitted")
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		parked := make(chan error, 1)
 		go func() {
 			_, err := director.Lease(ctx, -1)
 			parked <- err
 		}()
 		waitForParkedSession(t, director)
-		if _, err := director.Lease(context.Background(), -1); !errors.Is(err, ErrAdmissionQueueFull) {
+		if _, err := director.Lease(t.Context(), -1); !errors.Is(err, ErrAdmissionQueueFull) {
 			t.Fatalf("overflow error = %v", err)
 		}
 		cancel()
@@ -55,7 +55,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		parked := make(chan *SessionLease[struct{}], 1)
 		parkedErr := make(chan error, 1)
 		go func() {
-			lease, err := director.Lease(context.Background(), 1)
+			lease, err := director.Lease(t.Context(), 1)
 			parked <- lease
 			parkedErr <- err
 		}()
@@ -71,7 +71,7 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		if err := <-parkedErr; err != nil || resumed == nil || resumed.ID != 1 {
 			t.Fatalf("resumed requested lease = (%v, %v)", resumed, err)
 		}
-		shutdownCtx, cancel := context.WithCancel(context.Background())
+		shutdownCtx, cancel := context.WithCancel(t.Context())
 		cancel()
 		if _, err := director.Lease(shutdownCtx, -1); !errors.Is(err, context.Canceled) {
 			t.Fatalf("pre-cancelled lease error = %v", err)
@@ -82,10 +82,10 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		if err := resumed.Release(); err != nil {
 			t.Fatal(err)
 		}
-		if err := director.Close(context.Background()); err != nil {
+		if err := director.Close(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := director.Lease(context.Background(), -1); !errors.Is(err, ErrSessionUnavailable) {
+		if _, err := director.Lease(t.Context(), -1); !errors.Is(err, ErrSessionUnavailable) {
 			t.Fatalf("closed director error = %v", err)
 		}
 	})
@@ -101,12 +101,12 @@ func TestBoundedSessionAdmission(t *testing.T) {
 		}
 		parked := make(chan error, 1)
 		go func() {
-			_, err := director.Lease(context.Background(), -1)
+			_, err := director.Lease(t.Context(), -1)
 			parked <- err
 		}()
 		waitForParkedSession(t, director)
 		closed := make(chan error, 1)
-		go func() { closed <- director.Close(context.Background()) }()
+		go func() { closed <- director.Close(t.Context()) }()
 		if err := <-parked; !errors.Is(err, ErrSessionUnavailable) {
 			t.Fatalf("shutdown waiter error = %v", err)
 		}

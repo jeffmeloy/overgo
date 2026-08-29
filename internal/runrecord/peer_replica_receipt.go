@@ -53,7 +53,7 @@ type PeerReplicaReceipt struct {
 	Phase     PeerReplicaPhase   `json:"phase"`
 	Attempt   uint32             `json:"attempt"`
 	Outcome   PeerReplicaOutcome `json:"outcome"`
-	Failure   string             `json:"failure,omitempty"`
+	Failure   string             `json:"failure,omitzero"`
 	Previous  artifact.ID        `json:"previous,omitzero"`
 	ID        artifact.ID        `json:"-"`
 }

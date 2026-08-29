@@ -53,7 +53,7 @@ func (compositeGenerationMetricFixture) Evaluate(
 func TestCompositeGenerationActiveRecipe(t *testing.T) {
 	runtime, store, _, request, _ := compositeGenerationExecutionFixture(t)
 	request.TargetBaselineRecipe = runtime.plan.CompositionRecipe
-	if _, err := runtime.GenerateEvidence(context.Background(), store, request); err == nil {
+	if _, err := runtime.GenerateEvidence(t.Context(), store, request); err == nil {
 		t.Fatal("control recipe aliasing the active composition was admitted")
 	}
 	if runtime.plan.CompositionRecipe.Kind() != artifact.KindRecipe || runtime.plan.ValidateIdentity() != nil {
@@ -63,7 +63,7 @@ func TestCompositeGenerationActiveRecipe(t *testing.T) {
 
 func TestCompositeGenerationExecution(t *testing.T) {
 	runtime, store, _, request, source := compositeGenerationExecutionFixture(t)
-	result, err := runtime.GenerateEvidence(context.Background(), store, request)
+	result, err := runtime.GenerateEvidence(t.Context(), store, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestCompositeGenerationExecution(t *testing.T) {
 		t.Fatalf("execution result=%+v source calls=%d", result, source.calls)
 	}
 	loaded, err := (composition.CompositeGenerationEvidenceAuthority{}).Load(
-		context.Background(), store, result.Evidence.ID,
+		t.Context(), store, result.Evidence.ID,
 	)
 	if err != nil || loaded.ID != result.Evidence.ID {
 		t.Fatalf("stored evidence = %+v, %v", loaded, err)
@@ -82,12 +82,12 @@ func TestCompositeGenerationExecution(t *testing.T) {
 
 func TestCompositeGenerationOutputLineage(t *testing.T) {
 	runtime, store, _, request, _ := compositeGenerationExecutionFixture(t)
-	result, err := runtime.GenerateEvidence(context.Background(), store, request)
+	result, err := runtime.GenerateEvidence(t.Context(), store, request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	trial := result.Evidence.Trials[0]
-	parents, err := store.Parents(context.Background(), trial.Output)
+	parents, err := store.Parents(t.Context(), trial.Output)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestCompositeGenerationOutputLineage(t *testing.T) {
 	if len(want) != 0 {
 		t.Fatalf("output lineage lacks %+v: %+v", want, parents)
 	}
-	children, err := store.Children(context.Background(), result.Evidence.ID)
+	children, err := store.Children(t.Context(), result.Evidence.ID)
 	if err != nil || len(children) != 0 {
 		t.Fatalf("unexpected evidence descendants = %+v, %v", children, err)
 	}
@@ -109,14 +109,14 @@ func TestCompositeGenerationOutputLineage(t *testing.T) {
 
 func TestCompositeGenerationResourceEvidence(t *testing.T) {
 	runtime, store, _, request, _ := compositeGenerationExecutionFixture(t)
-	result, err := runtime.GenerateEvidence(context.Background(), store, request)
+	result, err := runtime.GenerateEvidence(t.Context(), store, request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, trial := range result.Evidence.Trials {
-		run, runErr := runrecord.RequireRun(context.Background(), store, trial.Run)
-		evaluation, evaluationErr := runrecord.RequireEvaluation(context.Background(), store, trial.Evaluation)
-		observation, observationErr := runrecord.RequireServingObservation(context.Background(), store, trial.Observation)
+		run, runErr := runrecord.RequireRun(t.Context(), store, trial.Run)
+		evaluation, evaluationErr := runrecord.RequireEvaluation(t.Context(), store, trial.Evaluation)
+		observation, observationErr := runrecord.RequireServingObservation(t.Context(), store, trial.Observation)
 		if runErr != nil || evaluationErr != nil || observationErr != nil ||
 			run.MeasuredNS != observation.MeasuredNS || evaluation.Run != run.ID ||
 			observation.Resources.PeakDeviceBytes == 0 || len(evaluation.Metrics) != 1 {
@@ -142,7 +142,7 @@ func compositeGenerationExecutionFixture(
 	first := inferenceBridgeValue(t, tensor.MustShape(2, 3), []float32{1, 0, 0, 1, 1, 1})
 	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{1, 2, 3})
 	runtime, err := OpenProductionComposition(
-		context.Background(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
+		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
 		authority.Recipe.Task, &bridgeRuntimeResourcesFixture{
 			source: source, target: target,
 			weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
@@ -176,7 +176,7 @@ func compositeGenerationExecutionFixture(
 	for index, authorityID := range authorities {
 		descriptors[index] = artifact.Descriptor{ID: authorityID, Size: 1}
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/composite-generation/authorities", Artifacts: descriptors,
 	}); err != nil {
 		t.Fatal(err)

@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"reflect"
 	"slices"
 	"testing"
@@ -59,7 +58,7 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 		Tokens: 1, Position: 1,
 	}
 	cacheBefore := cloneCache(targetCache)
-	output, external, err := program.Apply(context.Background(), 1, ExternalCrossAttentionInput{
+	output, external, err := program.Apply(t.Context(), 1, ExternalCrossAttentionInput{
 		Target: target, TargetTokens: 2, Source: &source,
 		SourceIdentity: sourceRepresentation, SourceTokens: 2,
 	}, weights, nil)
@@ -75,7 +74,7 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 		t.Fatalf("external/target cache isolation failed: external=%+v target=%+v", external, targetCache)
 	}
 	weights.Gate = 1
-	conditioned, reused, err := program.Apply(context.Background(), 1, ExternalCrossAttentionInput{
+	conditioned, reused, err := program.Apply(t.Context(), 1, ExternalCrossAttentionInput{
 		Target: target, TargetTokens: 2, SourceIdentity: sourceRepresentation,
 	}, weights, &external)
 	if err != nil {
@@ -86,12 +85,12 @@ func TestExternalCacheSeparateFromTargetKV(t *testing.T) {
 		t.Fatalf("cached external attention=%v cache=%+v target-cache=%+v", conditioned.Data, reused, targetCache)
 	}
 	otherRepresentation := testutil.ArtifactID(t, artifact.KindOutput, "other external source representation")
-	if _, _, err := program.Apply(context.Background(), 1, ExternalCrossAttentionInput{
+	if _, _, err := program.Apply(t.Context(), 1, ExternalCrossAttentionInput{
 		Target: target, TargetTokens: 2, SourceIdentity: otherRepresentation,
 	}, weights, &external); err == nil {
 		t.Fatal("external cache reused for a different source representation")
 	}
-	if _, _, err := program.Apply(context.Background(), 0, ExternalCrossAttentionInput{
+	if _, _, err := program.Apply(t.Context(), 0, ExternalCrossAttentionInput{
 		Target: target, TargetTokens: 2, SourceIdentity: sourceRepresentation,
 	}, weights, &external); err == nil {
 		t.Fatal("undeclared target layer seam accepted")

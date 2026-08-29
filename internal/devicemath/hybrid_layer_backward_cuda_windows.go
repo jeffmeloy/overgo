@@ -302,7 +302,7 @@ func ropePartial(worker *device.Worker, values, invFreq []float32, tokens, heads
 // gatherRotary: compact row prefixes.
 func gatherRotary(values []float32, rows, width, rotaryWidth int) []float32 {
 	out := make([]float32, rows*rotaryWidth)
-	for row := 0; row < rows; row++ {
+	for row := range rows {
 		copy(out[row*rotaryWidth:(row+1)*rotaryWidth], values[row*width:row*width+rotaryWidth])
 	}
 	return out
@@ -311,7 +311,7 @@ func gatherRotary(values []float32, rows, width, rotaryWidth int) []float32 {
 // scatterRotary: replace row prefixes; preserve tails.
 func scatterRotary(base, rotated []float32, rows, width, rotaryWidth int) []float32 {
 	out := append([]float32(nil), base...)
-	for row := 0; row < rows; row++ {
+	for row := range rows {
 		copy(out[row*width:row*width+rotaryWidth], rotated[row*rotaryWidth:(row+1)*rotaryWidth])
 	}
 	return out

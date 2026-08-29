@@ -58,7 +58,7 @@ type capabilitySelectionIdentity struct {
 }
 
 type capabilityScopeIdentity struct {
-	Alias string      `json:"alias,omitempty"`
+	Alias string      `json:"alias,omitzero"`
 	Model artifact.ID `json:"model"`
 	Task  recipe.Task `json:"task"`
 }

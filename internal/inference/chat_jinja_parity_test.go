@@ -3,7 +3,7 @@ package inference
 import (
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 )
 
@@ -117,7 +117,7 @@ func TestChatTemplateJinjaByteParity(t *testing.T) {
 			files = append(files, e.Name())
 		}
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 
 	runner := jinjaChatTestRunner(t, "")
 	fixtures := chatParityFixtures()
@@ -169,7 +169,7 @@ func TestChatTemplateJinjaByteParity(t *testing.T) {
 	for n := range results {
 		names = append(names, n)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, n := range names {
 		v := results[n]
 		t.Logf("PARITY %-16s total=%d match=%d bothErr=%d mismatch=%d", n, v.total, v.match, v.bothErr, v.mismatch)

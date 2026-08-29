@@ -18,13 +18,13 @@ func hostMHA(q, k, v []float32, seq, nh, nkv, hd int, scale float64) (p []float3
 	out = make([]float64, seq*nh*hd)
 	headsPerKV := nh / nkv
 	row := make([]float64, seq)
-	for h := 0; h < nh; h++ {
+	for h := range nh {
 		kvh := h / headsPerKV
-		for i := 0; i < seq; i++ {
+		for i := range seq {
 			mx := math.Inf(-1)
 			for j := 0; j <= i; j++ {
 				var dot float64
-				for c := 0; c < hd; c++ {
+				for c := range hd {
 					dot += float64(q[i*nh*hd+h*hd+c]) * float64(k[j*nkv*hd+kvh*hd+c])
 				}
 				row[j] = dot * scale
@@ -40,7 +40,7 @@ func hostMHA(q, k, v []float32, seq, nh, nkv, hd int, scale float64) (p []float3
 			for j := 0; j <= i; j++ {
 				pij := row[j] / sum
 				p[h*seq*seq+i*seq+j] = float32(pij)
-				for c := 0; c < hd; c++ {
+				for c := range hd {
 					out[i*nh*hd+h*hd+c] += pij * float64(v[j*nkv*hd+kvh*hd+c])
 				}
 			}
@@ -101,8 +101,8 @@ func TestMultiHeadAttentionBackwardGradCheck(t *testing.T) {
 	}
 	const tolerance = 3e-3
 	worst := gradCheck("dQ", q, dQ)
-	worst = math.Max(worst, gradCheck("dK", k, dK))
-	worst = math.Max(worst, gradCheck("dV", v, dV))
+	worst = max(worst, gradCheck("dK", k, dK))
+	worst = max(worst, gradCheck("dV", v, dV))
 	if worst > tolerance {
 		t.Fatalf("worst grad-check %.3e > %.1e", worst, tolerance)
 	}

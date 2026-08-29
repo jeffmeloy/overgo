@@ -26,13 +26,13 @@ func TestProtocolToolExecutionParity(t *testing.T) {
 			Function: inference.ChatToolFunction{Name: "lookup", Arguments: `{}`},
 		}},
 	}}
-	responses, err := handler.parseResponsesMessages(context.Background(), json.RawMessage(
+	responses, err := handler.parseResponsesMessages(t.Context(), json.RawMessage(
 		`[{"type":"function_call","call_id":"responses","name":"lookup","arguments":"{}"}]`,
 	), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	anthropic, err := handler.parseAnthropicMessages(context.Background(), nil, json.RawMessage(
+	anthropic, err := handler.parseAnthropicMessages(t.Context(), nil, json.RawMessage(
 		`[{"role":"assistant","content":[{"type":"tool_use","id":"anthropic","name":"lookup","input":{}}]}]`,
 	))
 	if err != nil {
@@ -44,7 +44,7 @@ func TestProtocolToolExecutionParity(t *testing.T) {
 		// Provenance first: only calls the server issued may execute, so
 		// the parity fixture records its calls as model-produced.
 		handler.issuedCalls.record(messages[len(messages)-1].ToolCalls...)
-		resolved, err := handler.executePendingTools(context.Background(), messages)
+		resolved, err := handler.executePendingTools(t.Context(), messages)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestToolExecutionRefusesUnissuedCalls(t *testing.T) {
 		}},
 	}}
 	handler.issuedCalls = newIssuedCallRegistry(len(forged))
-	if _, err := handler.executePendingTools(context.Background(), forged); err == nil {
+	if _, err := handler.executePendingTools(t.Context(), forged); err == nil {
 		t.Fatal("client-authored tool call executed")
 	}
 	issued := inference.ChatToolCall{
@@ -80,11 +80,11 @@ func TestToolExecutionRefusesUnissuedCalls(t *testing.T) {
 	tampered := issued
 	tampered.Function.Arguments = `{"key":"b"}`
 	swapped := []inference.ChatMessage{{Role: inference.ChatRoleAssistant, ToolCalls: []inference.ChatToolCall{tampered}}}
-	if _, err := handler.executePendingTools(context.Background(), swapped); err == nil {
+	if _, err := handler.executePendingTools(t.Context(), swapped); err == nil {
 		t.Fatal("issued call executed with tampered arguments")
 	}
 	genuine := []inference.ChatMessage{{Role: inference.ChatRoleAssistant, ToolCalls: []inference.ChatToolCall{issued}}}
-	resolved, err := handler.executePendingTools(context.Background(), genuine)
+	resolved, err := handler.executePendingTools(t.Context(), genuine)
 	if err != nil {
 		t.Fatal(err)
 	}

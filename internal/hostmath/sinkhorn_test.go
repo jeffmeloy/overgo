@@ -53,7 +53,7 @@ func TestSinkhornBackwardMatchesFiniteDifference(t *testing.T) {
 				logits[idx] = orig
 
 				num := (up - dn) / (2 * h)
-				den := math.Max(1e-3, math.Abs(float64(grad[idx])))
+				den := max(1e-3, math.Abs(float64(grad[idx])))
 				if rel := math.Abs(num-float64(grad[idx])) / den; rel > worst {
 					worst = rel
 				}
@@ -99,9 +99,9 @@ func TestSinkhornBackwardRespectsScaleInvariance(t *testing.T) {
 		dOut[i] = float32(rng.Float64()*2 - 1)
 	}
 	grad := SinkhornFromLogitsBackward(logits, dOut, count, n, iters)
-	for b := 0; b < count; b++ {
+	for b := range count {
 		s := 0.0
-		for i := 0; i < stride; i++ {
+		for i := range stride {
 			s += float64(grad[b*stride+i])
 		}
 		if math.Abs(s) > 1e-4 {
@@ -117,7 +117,7 @@ func TestSinkhornBackwardRespectsScaleInvariance(t *testing.T) {
 // keeps the unwired fast path (ADV-126) exercised and its invariant pinned.
 func TestSinkhorn2x2ClosedFormIsDoublyStochastic(t *testing.T) {
 	rng := rand.New(rand.NewSource(7))
-	for trial := 0; trial < 200; trial++ {
+	for trial := range 200 {
 		mat := make([]float32, 4)
 		for i := range mat {
 			mat[i] = float32((rng.Float64()*2 - 1) * 3)

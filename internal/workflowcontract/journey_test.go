@@ -43,22 +43,22 @@ func TestBlockedWorkflowRecoveryJourneys(t *testing.T) {
 				}
 				return Snapshot{Workflow: current.Workflow, Subject: current.Subject, State: workflow.result}, nil
 			}}
-			transitions, err := ExerciseBlocked(context.Background(), start, registry)
+			transitions, err := ExerciseBlocked(t.Context(), start, registry)
 			if err != nil || len(transitions) != 1 || transitions[0].To != workflow.result {
 				t.Fatalf("journey transitions = (%+v, %v)", transitions, err)
 			}
 
-			if _, err := ExerciseBlocked(context.Background(), start, Registry{}); err == nil {
+			if _, err := ExerciseBlocked(t.Context(), start, Registry{}); err == nil {
 				t.Fatal("unregistered advertised action passed journey verification")
 			}
 			deadEnd := Registry{workflow.code: func(_ context.Context, current Snapshot, _ operatoraction.Action) (Snapshot, error) {
 				return current, nil
 			}}
-			if _, err := ExerciseBlocked(context.Background(), start, deadEnd); err == nil {
+			if _, err := ExerciseBlocked(t.Context(), start, deadEnd); err == nil {
 				t.Fatal("self-looping recovery passed journey verification")
 			}
 			wrongSubject := operation.Status{Task: workflow.task, Recipe: subject, State: operation.StateBlocked, Recovery: &block}
-			wrongSubject.Recovery = ptrBlock(block.Clone())
+			wrongSubject.Recovery = new(block.Clone())
 			wrongSubject.Recovery.Subject = testutil.ArtifactID(t, artifact.KindRecipe, workflow.name+" other recipe")
 			if _, err := FromOperation(workflow.name, wrongSubject); err == nil {
 				t.Fatal("recovery for a different subject entered the journey")
@@ -66,5 +66,3 @@ func TestBlockedWorkflowRecoveryJourneys(t *testing.T) {
 		})
 	}
 }
-
-func ptrBlock(block operatoraction.Block) *operatoraction.Block { return &block }

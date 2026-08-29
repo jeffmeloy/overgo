@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -27,11 +26,11 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	}
 	defer store.Close()
 	definition := publishActiveGGUFRecipe(t, store, path)
-	loaded, err := modelrecipe.ResolveActiveGGUF(context.Background(), store, path)
+	loaded, err := modelrecipe.ResolveActiveGGUF(t.Context(), store, path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenWithProgram(context.Background(), &loaded, OpenOptions{})
+	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
 	if err != nil {
 		_ = loaded.Close()
 		t.Fatal(err)
@@ -68,7 +67,7 @@ func publishActiveGGUFRecipe(
 	path string,
 ) recipe.Definition {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	file, err := gguf.Open(path)
 	if err != nil {
 		t.Fatal(err)

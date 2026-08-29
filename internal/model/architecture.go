@@ -2,7 +2,7 @@ package model
 
 import (
 	"reflect"
-	"sort"
+	"slices"
 )
 
 type DraftKind uint8
@@ -459,7 +459,7 @@ func SupportedArchitectures() []string {
 		names[index] = name
 		index++
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 

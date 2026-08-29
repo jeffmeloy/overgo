@@ -250,10 +250,8 @@ func validateCompositeGenerationFrozenModel(value CompositeGenerationFrozenModel
 }
 
 func compositeGenerationArmOrder(arm CompositeGenerationArm) int {
-	for index, candidate := range compositeGenerationArms {
-		if arm == candidate {
-			return index
-		}
+	if index := slices.Index(compositeGenerationArms[:], arm); index >= 0 {
+		return index
 	}
 	return len(compositeGenerationArms)
 }

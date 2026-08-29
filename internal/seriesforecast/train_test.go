@@ -83,7 +83,7 @@ func TestTrainerDecreasesForecastLossTiny(t *testing.T) {
 		t.Fatal(err)
 	}
 	var first, last TrainStepResult
-	for step := 0; step < 6; step++ {
+	for step := range 6 {
 		result, err := trainer.Step(input, target)
 		if err != nil {
 			t.Fatal(err)

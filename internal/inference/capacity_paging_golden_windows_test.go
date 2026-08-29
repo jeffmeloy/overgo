@@ -3,7 +3,6 @@
 package inference
 
 import (
-	"context"
 	"os"
 	"slices"
 	"testing"
@@ -65,7 +64,7 @@ func TestServingGoldenRegression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := OpenWithProgram(context.Background(), &loaded, OpenOptions{})
+	runner, err := OpenWithProgram(t.Context(), &loaded, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +74,7 @@ func TestServingGoldenRegression(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ids, _, err := runner.Generate(context.Background(), "", GenerateOptions{
+		ids, _, err := runner.Generate(t.Context(), "", GenerateOptions{
 			MaxNewTokens:   len(testCase.GeneratedIDs),
 			Sampler:        greedy,
 			PromptTokenIDs: testCase.PromptIDs,

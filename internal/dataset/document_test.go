@@ -1,7 +1,6 @@
 package dataset
 
 import (
-	"context"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -79,17 +78,17 @@ func TestDatasetDocumentsRoundTripAndPublish(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch.Artifacts = descriptors
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	parents, err := store.Parents(context.Background(), mixture.ID)
+	parents, err := store.Parents(t.Context(), mixture.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(parents) != len(mixture.Members) {
 		t.Fatalf("mixture parents = %+v", parents)
 	}
-	resolved, ok, err := Resolve(context.Background(), store, "datasets/training")
+	resolved, ok, err := Resolve(t.Context(), store, "datasets/training")
 	if err != nil || !ok || !reflect.DeepEqual(resolved, mixture) {
 		t.Fatalf("resolved mixture = %+v, %v, %v", resolved, ok, err)
 	}

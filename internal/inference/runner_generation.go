@@ -164,10 +164,7 @@ func (r *Runner) Generate(
 						); trimErr != nil {
 							return nil, "", trimErr
 						} else {
-							selectedPromptCache.Tokens = append(
-								[]tokenizer.TokenID(nil),
-								ids[:base]...,
-							)
+							selectedPromptCache.Tokens = slices.Clone(ids[:base])
 							cached = base
 						}
 					}
@@ -187,10 +184,7 @@ func (r *Runner) Generate(
 					return nil, "", trimErr
 				} else {
 					cached--
-					selectedPromptCache.Tokens = append(
-						[]tokenizer.TokenID(nil),
-						ids[:cached]...,
-					)
+					selectedPromptCache.Tokens = slices.Clone(ids[:cached])
 				}
 			}
 			if cached == len(ids) && len(retainedPrefix.Logits) > 0 {

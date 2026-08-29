@@ -2,7 +2,6 @@ package overgodbimport
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -62,18 +61,18 @@ func TestImportResolvesFilesDocumentsManifestsAndLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	result, err := importRecords(context.Background(), store, root, nil, bytes.NewReader(input))
+	result, err := importRecords(t.Context(), store, root, nil, bytes.NewReader(input))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !result.Commit.Valid() || result.Source.Kind() != artifact.KindEvidence || len(result.Names) != 3 {
 		t.Fatalf("import result = %+v", result)
 	}
-	resolved, ok, err := store.ResolveAlias(context.Background(), "models/active")
+	resolved, ok, err := store.ResolveAlias(t.Context(), "models/active")
 	if err != nil || !ok || resolved != result.Names["definition"] {
 		t.Fatalf("resolved import = (%s, %t, %v)", resolved, ok, err)
 	}
-	parents, err := store.Parents(context.Background(), result.Names["definition"])
+	parents, err := store.Parents(t.Context(), result.Names["definition"])
 	if err != nil || len(parents) != 2 {
 		t.Fatalf("definition parents = (%+v, %v)", parents, err)
 	}
@@ -87,18 +86,18 @@ func TestImportRejectsCountDriftPathEscapeAndReferenceCycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := importRecords(context.Background(), store, t.TempDir(), nil, bytes.NewReader(input)); err == nil {
+	if _, err := importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(input)); err == nil {
 		t.Fatal("escaping path accepted")
 	}
 	cycle := []wireRecord{
 		{Type: "artifact", Name: "a", Kind: "evidence", Document: json.RawMessage(`{"ref":{"$artifact":"b"}}`), MediaType: "application/test+json", Schema: "test/v1"},
 		{Type: "artifact", Name: "b", Kind: "evidence", Document: json.RawMessage(`{"ref":{"$artifact":"a"}}`), MediaType: "application/test+json", Schema: "test/v1"},
 	}
-	if _, err := importRecords(context.Background(), store, t.TempDir(), nil, bytes.NewReader(importStream(t, cycle, nil))); err == nil {
+	if _, err := importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(importStream(t, cycle, nil))); err == nil {
 		t.Fatal("reference cycle accepted")
 	}
 	counts := map[string]uint64{"kind:file": 2}
-	if _, err := importRecords(context.Background(), store, t.TempDir(), nil, bytes.NewReader(importStream(t, records, counts))); err == nil {
+	if _, err := importRecords(t.Context(), store, t.TempDir(), nil, bytes.NewReader(importStream(t, records, counts))); err == nil {
 		t.Fatal("count drift accepted")
 	}
 }
@@ -116,14 +115,14 @@ func TestImportRequiresRootAndUsesFullDigestIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := importRecords(context.Background(), store, "", nil, bytes.NewReader(input)); err == nil {
+	if _, err := importRecords(t.Context(), store, "", nil, bytes.NewReader(input)); err == nil {
 		t.Fatal("empty artifact root accepted")
 	}
-	result, err := importRecords(context.Background(), store, root, nil, bytes.NewReader(input))
+	result, err := importRecords(t.Context(), store, root, nil, bytes.NewReader(input))
 	if err != nil {
 		t.Fatal(err)
 	}
-	query, err := store.Query(context.Background(), overgodb.Query{
+	query, err := store.Query(t.Context(), overgodb.Query{
 		MaxResults: 10, FromSequence: 1, ToSequence: 1,
 		Projection: overgodb.ProjectCommits,
 	})

@@ -48,7 +48,7 @@ func TestInfillFallsBackToEOT(t *testing.T) {
 	pieces := make([]string, 10)
 	eog := make([]bool, 10)
 	probabilities := make([]float64, 10)
-	for index := 0; index < 9; index++ {
+	for index := range 9 {
 		pieces[index] = string(rune('a'+index)) + "_"
 		probabilities[index] = 0.11
 	}

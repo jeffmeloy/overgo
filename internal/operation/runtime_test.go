@@ -16,7 +16,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "operation-lifecycle-run")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "operation-lifecycle-output")
 	started, release := make(chan struct{}), make(chan struct{})
-	id, err := manager.Submit(context.Background(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
 		func(_ context.Context, reporter Reporter) (Completion, error) {
 			total := uint64(2)
 			reporter.Progress(1, &total)
@@ -35,7 +35,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 		t.Fatalf("running status = %+v, present=%t", status, ok)
 	}
 	close(release)
-	status, err = manager.Wait(context.Background(), id)
+	status, err = manager.Wait(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestReporterMetricsRemainBounded(t *testing.T) {
 	manager := newTestManager(t)
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bounded-metrics-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "bounded-metrics-run")
-	id, err := manager.Submit(context.Background(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(_ context.Context, reporter Reporter) (Completion, error) {
 			for value := range 100 {
 				reporter.Metric(Metric{Name: "loss", Value: float64(value)})
@@ -58,7 +58,7 @@ func TestReporterMetricsRemainBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := manager.Wait(context.Background(), id)
+	status, err := manager.Wait(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestOperationCancellationReleasesResources(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation-cancel-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "operation-cancel-run")
 	started, released := make(chan struct{}), make(chan struct{})
-	id, err := manager.Submit(context.Background(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(ctx context.Context, _ Reporter) (Completion, error) {
 			close(started)
 			defer close(released)
@@ -142,7 +142,7 @@ func TestOperationCancellationReleasesResources(t *testing.T) {
 	if !manager.Cancel(id) {
 		t.Fatal("active operation was not cancelled")
 	}
-	status, err := manager.Wait(context.Background(), id)
+	status, err := manager.Wait(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestOperationPublicationIsAtomic(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "operation-publication-run")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "operation-publication-output")
 	publishing, commit := make(chan struct{}), make(chan struct{})
-	id, err := manager.Submit(context.Background(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskGeneration, Recipe: recipeID},
 		func(_ context.Context, reporter Reporter) (Completion, error) {
 			reporter.Publishing()
 			close(publishing)
@@ -174,7 +174,7 @@ func TestOperationPublicationIsAtomic(t *testing.T) {
 		t.Fatalf("pre-commit status = %+v, present=%t", status, ok)
 	}
 	close(commit)
-	status, err = manager.Wait(context.Background(), id)
+	status, err = manager.Wait(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}

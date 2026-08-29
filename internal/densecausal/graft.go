@@ -235,7 +235,7 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 		return nil, err
 	}
 	losses := make([]float64, 0, steps)
-	for step := 0; step < steps; step++ {
+	for step := range steps {
 		batch := batches[step%len(batches)]
 		loss, err := m.GraftLossAndBridgeGrads(gr, batch, bridgeGradients)
 		if err != nil {

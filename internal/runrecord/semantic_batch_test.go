@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact/repositorytest"
@@ -13,7 +12,7 @@ import (
 func TestSemanticTransitionUsesOneCommit(t *testing.T) {
 	store, request, decision := humanDecisionFixture(t)
 	counting := &repositorytest.CountingRepository{Repository: store}
-	if err := PublishHumanDecision(context.Background(), counting, request, decision); err != nil {
+	if err := PublishHumanDecision(t.Context(), counting, request, decision); err != nil {
 		t.Fatal(err)
 	}
 	if counting.Commits != 1 {

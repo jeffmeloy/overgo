@@ -109,7 +109,7 @@ type ObservationChunkStats struct {
 	LastElapsedNS      uint64                     `json:"last_elapsed_ns"`
 	Metrics            []ObservationMetricSamples `json:"metrics,omitempty"`
 	Kinds              []ObservationKindSamples   `json:"kinds"`
-	InteractionSamples uint32                     `json:"interaction_samples,omitempty"`
+	InteractionSamples uint32                     `json:"interaction_samples,omitzero"`
 }
 
 // ObservationChunkSummary is the small typed fact stored in the journal. Chunk

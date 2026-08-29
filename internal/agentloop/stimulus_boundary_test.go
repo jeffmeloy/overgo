@@ -1,7 +1,6 @@
 package agentloop
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 )
 
 func TestAttemptStimulusBoundary(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	session := &Session{ID: "stimulus-session"}
 	arguments := json.RawMessage(`{"step":1}`)

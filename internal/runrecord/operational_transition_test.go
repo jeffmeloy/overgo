@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -17,7 +16,7 @@ import (
 // subjects refuse; and a raw coordination-shaped schema refuses at
 // the store boundary itself.
 func TestOperationalTransitionPublication(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

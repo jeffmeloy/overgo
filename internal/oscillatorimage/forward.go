@@ -11,13 +11,13 @@ import (
 // kuramotoVelocityRowInto: one uncoupled-group velocity row. The coupling
 // entry is quantized to f32 after scaling, matching the reference numerics.
 func kuramotoVelocityRowInto(vel, theta, omega, coupling []float32, n int, scale float64, zeroDiagonal bool, sinT, cosT []float64) {
-	for j := 0; j < n; j++ {
+	for j := range n {
 		sinT[j], cosT[j] = math.Sincos(float64(theta[j]))
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		krow := coupling[i*n : (i+1)*n]
 		var ws, wc float64
-		for j := 0; j < n; j++ {
+		for j := range n {
 			if zeroDiagonal && i == j {
 				continue
 			}
@@ -35,14 +35,14 @@ func conditionalKuramotoForwardInto(out, state, omega, omegaCond, kMat, kCondMat
 	tot := n + nCond
 	sinMain, sinCond := sinT[:n], sinT[n:]
 	cosMain, cosCond := cosT[:n], cosT[n:]
-	for bi := 0; bi < b; bi++ {
+	for bi := range b {
 		stateRow, outRow := state[bi*tot:(bi+1)*tot], out[bi*tot:(bi+1)*tot]
 		kuramotoVelocityRowInto(outRow[:n], stateRow[:n], omega, kMat, n, kScale, true, sinMain, cosMain)
 		kuramotoVelocityRowInto(outRow[n:], stateRow[n:], omegaCond, kCondMat, nCond, kCondScale, true, sinCond, cosCond)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			var ds, dc float64
 			base := bi*n*nCond + i*nCond
-			for m := 0; m < nCond; m++ {
+			for m := range nCond {
 				dv := float64(drive[base+m]) * kDriveScale
 				ds += dv * sinCond[m]
 				dc += dv * cosCond[m]
@@ -59,7 +59,7 @@ func readoutTransform(phases []float32, b, n, stride, offset int, relativization
 		outWidth = 2 * n
 	}
 	out := make([]float32, b*outWidth)
-	for bi := 0; bi < b; bi++ {
+	for bi := range b {
 		row := phases[bi*stride+offset:][:n]
 		var mean float64
 		if relativization == "mean_relative" {
@@ -96,17 +96,17 @@ func readoutTransform(phases []float32, b, n, stride, offset int, relativization
 func conv2dSame3x3(x, weight, bias []float32, b, cin, cout, h, w int) []float32 {
 	out := make([]float32, b*cout*h*w)
 	plane := h * w
-	for bi := 0; bi < b; bi++ {
-		for co := 0; co < cout; co++ {
+	for bi := range b {
+		for co := range cout {
 			ob := (bi*cout + co) * plane
 			fill := 0.0
 			if bias != nil {
 				fill = float64(bias[co])
 			}
-			for i := 0; i < h; i++ {
-				for j := 0; j < w; j++ {
+			for i := range h {
+				for j := range w {
 					acc := fill
-					for ci := 0; ci < cin; ci++ {
+					for ci := range cin {
 						xb := (bi*cin + ci) * plane
 						wc := (co*cin + ci) * convTaps
 						for di := -1; di <= 1; di++ {
@@ -135,12 +135,12 @@ func conv2dSame3x3(x, weight, bias []float32, b, cin, cout, h, w int) []float32 
 func upsampleNearest2x(x []float32, b, c, h, w int) []float32 {
 	oh, ow := upsample*h, upsample*w
 	out := make([]float32, b*c*oh*ow)
-	for bi := 0; bi < b; bi++ {
-		for ci := 0; ci < c; ci++ {
+	for bi := range b {
+		for ci := range c {
 			ib := (bi*c + ci) * h * w
 			ob := (bi*c + ci) * oh * ow
-			for i := 0; i < oh; i++ {
-				for j := 0; j < ow; j++ {
+			for i := range oh {
+				for j := range ow {
 					out[ob+i*ow+j] = x[ib+(i/upsample)*w+(j/upsample)]
 				}
 			}

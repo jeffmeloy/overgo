@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +27,7 @@ func testCompletionAuthority(t *testing.T, document plan.Plan) (plan.CompletionA
 		return plan.CompletionAuthority{}, err
 	}
 	defer store.Close()
-	return plan.ResolveCompletionAuthority(context.Background(), root, "HEAD", document, store)
+	return plan.ResolveCompletionAuthority(t.Context(), root, "HEAD", document, store)
 }
 
 func mustTestCompletionAuthorityBinding(
@@ -47,7 +46,7 @@ func mustTestCompletionAuthorityBinding(
 		t.Fatal(err)
 	}
 	defer store.Close()
-	authority, err := plan.ResolveCompletionAuthority(context.Background(), root, head, document, store)
+	authority, err := plan.ResolveCompletionAuthority(t.Context(), root, head, document, store)
 	if err != nil {
 		t.Fatal(err)
 	}

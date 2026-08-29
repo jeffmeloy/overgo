@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -211,9 +213,7 @@ func writeMediaInventories(
 		}
 		for _, node := range activation.Definition.Nodes {
 			session := string(node.Session)
-			if session == "" {
-				session = "-"
-			}
+			session = cmp.Or(session, "-")
 			// A slotted node states the content-identified component model
 			// it executes against; a shared component (a Flux-lineage VAE,
 			// for example) renders the same identity wherever it appears.
@@ -458,12 +458,7 @@ func mediaModelName(location string) string {
 }
 
 func mediaTask(task recipe.Task) bool {
-	for _, candidate := range mediaTasks {
-		if candidate == task {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(mediaTasks, task)
 }
 
 func staleCell(stale string) string {

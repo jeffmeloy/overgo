@@ -3,7 +3,6 @@
 package adaptiveparity
 
 import (
-	"context"
 	"math"
 	"os"
 	"path/filepath"
@@ -111,13 +110,13 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
+	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
 	loadWall := time.Since(started)
-	loadMemory, err := runner.DeviceMemoryStats(context.Background())
+	loadMemory, err := runner.DeviceMemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,9 +131,9 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	var generated []tokenizer.TokenID
 	var memory driver.MemoryStats
 	generationWalls := make([]uint64, 0, 3)
-	for run := 0; run < 3; run++ {
+	for run := range 3 {
 		generationStarted := time.Now()
-		ids, _, err := runner.Generate(context.Background(), evidence.Prompt, inference.GenerateOptions{
+		ids, _, err := runner.Generate(t.Context(), evidence.Prompt, inference.GenerateOptions{
 			MaxNewTokens:   16,
 			Sampler:        greedy,
 			DeviceGreedy:   true,
@@ -154,7 +153,7 @@ func TestGemma4FP8Leadership(t *testing.T) {
 			// statistic with its own first-generation peak; later runs
 			// re-stage a prefill on top of run one's retained decode
 			// residency, a coexistence the reference minimum never holds.
-			if memory, err = runner.DeviceMemoryStats(context.Background()); err != nil {
+			if memory, err = runner.DeviceMemoryStats(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 		}

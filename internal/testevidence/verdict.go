@@ -1,8 +1,10 @@
 package testevidence
 
 import (
+	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -87,26 +89,33 @@ func classifyVerifyCommandV1(command string) VerdictClass {
 // reports the first disagreement by test identity and both observed actions;
 // tests appearing in only one run disagree with the absent action.
 func RepeatAgreement(first, second string) error {
-	firstReport, err := GoTestJSONReport(first)
+	return repeatAgreement(first, second, false)
+}
+
+// RepeatAgreementForCommand permits ordinary output only when the verifier is
+// explicitly mixed, matching VerifyGoTestEvidence's evidence boundary.
+func RepeatAgreementForCommand(command, first, second string) error {
+	return repeatAgreement(first, second, hasNonTestCommand(command))
+}
+
+func repeatAgreement(first, second string, allowAuxiliary bool) error {
+	firstReport, err := goTestJSONReport(first, false, allowAuxiliary)
 	if err != nil {
 		return fmt.Errorf("first run: %w", err)
 	}
-	secondReport, err := GoTestJSONReport(second)
+	secondReport, err := goTestJSONReport(second, false, allowAuxiliary)
 	if err != nil {
 		return fmt.Errorf("second run: %w", err)
 	}
 	firstActions := verdictActions(firstReport)
 	secondActions := verdictActions(secondReport)
-	names := make([]string, 0, len(firstActions)+len(secondActions))
-	for name := range firstActions {
-		names = append(names, name)
-	}
+	names := slices.Collect(maps.Keys(firstActions))
 	for name := range secondActions {
 		if _, seen := firstActions[name]; !seen {
 			names = append(names, name)
 		}
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		firstAction, inFirst := firstActions[name]
 		secondAction, inSecond := secondActions[name]
@@ -117,7 +126,7 @@ func RepeatAgreement(first, second string) error {
 			secondAction = "absent"
 		}
 		if firstAction != secondAction {
-			return fmt.Errorf("repeat disagreement: %s was %s then %s", name, firstAction, secondAction)
+			return errors.New("repeat disagreement: " + name + " was " + firstAction + " then " + secondAction)
 		}
 	}
 	return nil

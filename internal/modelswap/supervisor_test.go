@@ -46,7 +46,7 @@ func (l *fakeLauncher) Launch(_ context.Context, servable Servable) (Process, er
 // waits), a stale release cannot touch the next model, and the idle
 // timeout stops an unreferenced child.
 func TestModelSwapSupervisor(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	launcher := &fakeLauncher{}
 	supervisor, err := New(launcher, 50*time.Millisecond)
 	if err != nil {

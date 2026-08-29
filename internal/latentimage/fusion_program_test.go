@@ -77,9 +77,7 @@ func TestFusionProgramMatchesHostReference(t *testing.T) {
 			t.Fatalf("fused[%d] non-finite: %v", i, g)
 		}
 		abs := math.Abs(host[i] - g)
-		if abs > maxAbs {
-			maxAbs = abs
-		}
+		maxAbs = max(maxAbs, abs)
 		if rel := abs / (math.Abs(host[i]) + 1e-6); rel > maxRel {
 			maxRel = rel
 		}

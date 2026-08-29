@@ -60,7 +60,7 @@ const (
 // predicate: completeness is always a store query.
 type CompletionPredicate struct {
 	Kind     CompletionPredicateKind `json:"kind"`
-	Alias    string                  `json:"alias,omitempty"`
+	Alias    string                  `json:"alias,omitzero"`
 	Artifact artifact.ID             `json:"artifact,omitzero"`
 }
 

@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -26,7 +25,7 @@ func TestArchitectureProfileCatalogRegistryParity(t *testing.T) {
 }
 
 func TestPublishArchitectureProfileCatalogIsIdempotent(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -77,7 +76,7 @@ func TestPublishArchitectureProfileCatalogIsIdempotent(t *testing.T) {
 }
 
 func TestPublishArchitectureProfileCatalogSupersedesStaleAlias(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

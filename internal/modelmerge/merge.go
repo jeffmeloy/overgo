@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -213,7 +212,7 @@ func cloneWeights(weights map[string]Weight) map[string]Weight {
 	for name := range weights {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		cloned[name] = cloneWeight(weights[name])
 	}

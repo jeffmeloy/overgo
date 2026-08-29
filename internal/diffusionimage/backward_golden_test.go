@@ -44,9 +44,7 @@ func TestTinyModelBackwardMatchesTorch(t *testing.T) {
 				t.Fatalf("%s grad sample index %d outside len %d", key, sample.Index, len(got))
 			}
 			diff := math.Abs(float64(got[sample.Index]) - sample.Value)
-			if diff > worst {
-				worst = diff
-			}
+			worst = max(worst, diff)
 			if diff > tolGrad {
 				t.Fatalf("%s[%d] grad got %.9g want %.9g diff %.3g > %.3g", key, sample.Index, got[sample.Index], sample.Value, diff, tolGrad)
 			}
@@ -99,7 +97,7 @@ func TestXATGLUBackwardFiniteDiff(t *testing.T) {
 		return dotLoss(dOut, y)
 	}
 	num := (alphaLoss(fx.Alpha+eps) - alphaLoss(fx.Alpha-eps)) / (2 * eps)
-	if d := math.Abs(num - float64(dAlpha)); d > 2e-2*math.Max(math.Abs(num), 1) {
+	if d := math.Abs(num - float64(dAlpha)); d > 2e-2*max(math.Abs(num), 1) {
 		t.Errorf("xATGLU dAlpha analytic=%.6g finite-diff=%.6g", dAlpha, num)
 	}
 }
@@ -207,7 +205,7 @@ func TestResBlockBackwardFiniteDiff(t *testing.T) {
 	}
 	num := (scaleLoss(blk.residualScale+eps) - scaleLoss(blk.residualScale-eps)) / (2 * eps)
 	analytic := float64(grads["block.learned_residual_scale"][0])
-	if d := math.Abs(num - analytic); d > 2e-2*math.Max(math.Abs(num), 1) {
+	if d := math.Abs(num - analytic); d > 2e-2*max(math.Abs(num), 1) {
 		t.Errorf("ResBlock dScale analytic=%.6g finite-diff=%.6g", analytic, num)
 	}
 }
@@ -265,7 +263,7 @@ func TestTransformerBlockBackwardFiniteDiff(t *testing.T) {
 	}
 	for _, check := range scalarChecks {
 		num := (check.loss(eps) - check.loss(-eps)) / (2 * eps)
-		if d := math.Abs(num - check.analytic); d > 2e-2*math.Max(math.Abs(num), 1) {
+		if d := math.Abs(num - check.analytic); d > 2e-2*max(math.Abs(num), 1) {
 			t.Errorf("TransformerBlock %s analytic=%.6g finite-diff=%.6g", check.name, check.analytic, num)
 		}
 	}

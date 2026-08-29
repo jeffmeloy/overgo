@@ -154,18 +154,18 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 
 type agentToolView struct {
 	Name        string      `json:"name"`
-	Description string      `json:"description,omitempty"`
-	Effect      string      `json:"effect,omitempty"`
-	Stale       string      `json:"stale,omitempty"`
+	Description string      `json:"description,omitzero"`
+	Effect      string      `json:"effect,omitzero"`
+	Stale       string      `json:"stale,omitzero"`
 	Manual      artifact.ID `json:"manual,omitzero"`
 }
 
 type agentStepRequest struct {
-	Agent     string          `json:"agent,omitempty"`
+	Agent     string          `json:"agent,omitzero"`
 	Session   string          `json:"session"`
 	Tool      string          `json:"tool"`
 	Arguments json.RawMessage `json:"arguments,omitempty"`
-	Approve   bool            `json:"approve,omitempty"`
+	Approve   bool            `json:"approve,omitzero"`
 }
 
 // agentApprovalPreview projects the decision facts an operator grants

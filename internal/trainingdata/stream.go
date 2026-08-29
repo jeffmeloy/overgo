@@ -238,9 +238,9 @@ type PreviewValue struct {
 	Modality   recipecontract.Modality `json:"modality"`
 	Encoding   string                  `json:"encoding"`
 	Shape      []int                   `json:"shape,omitempty"`
-	SampleRate int                     `json:"sample_rate,omitempty"`
+	SampleRate int                     `json:"sample_rate,omitzero"`
 	Bytes      int                     `json:"bytes"`
-	Text       string                  `json:"text,omitempty"`
+	Text       string                  `json:"text,omitzero"`
 }
 
 type PreviewExample struct {

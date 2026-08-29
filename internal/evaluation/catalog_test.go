@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -47,11 +46,11 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	id, err := CatalogLocalBenchmarks(context.Background(), store, manifestPath)
+	id, err := CatalogLocalBenchmarks(t.Context(), store, manifestPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, ok, err := artifact.ReadContent(context.Background(), store, id)
+	content, ok, err := artifact.ReadContent(t.Context(), store, id)
 	if err != nil || !ok {
 		t.Fatalf("catalog content = %v, %v", ok, err)
 	}
@@ -66,16 +65,16 @@ func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
 		if entry.Name != names[index] || entry.Split != "test" {
 			t.Fatalf("catalog entry %d = %+v", index, entry)
 		}
-		importedContent, found, err := artifact.ReadContent(context.Background(), store, entry.Dataset)
+		importedContent, found, err := artifact.ReadContent(t.Context(), store, entry.Dataset)
 		if err != nil || !found || importedContent.Descriptor.ID != entry.Dataset {
 			t.Fatalf("dataset %q = %v, %v", entry.Name, found, err)
 		}
 	}
-	active, ok, err := store.ResolveAlias(context.Background(), benchmarkCatalogAlias)
+	active, ok, err := store.ResolveAlias(t.Context(), benchmarkCatalogAlias)
 	if err != nil || !ok || active != id {
 		t.Fatalf("active catalog = %s, %v, %v", active, ok, err)
 	}
-	repeated, err := CatalogLocalBenchmarks(context.Background(), store, manifestPath)
+	repeated, err := CatalogLocalBenchmarks(t.Context(), store, manifestPath)
 	if err != nil || repeated != id {
 		t.Fatalf("repeated catalog = %s, %v", repeated, err)
 	}

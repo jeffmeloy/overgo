@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"maps"
 
 	"overgo/internal/model"
 	"overgo/internal/modeltest"
@@ -525,15 +526,13 @@ func TestExecutorQwen35MTPMatchesReference(t *testing.T) {
 	hiddenNorm := builder.Input("mtp_hnorm", dtype.F32, tensor.MustShape(8))
 	projection := builder.Input("mtp_eh", dtype.F32, tensor.MustShape(16, 8))
 	weights, feeds := qwen35ExecutorWeights(builder, draft.Spec(), false, false)
-	for node, value := range map[*tensor.Tensor]reference.Value{
+	maps.Copy(feeds, map[*tensor.Tensor]reference.Value{
 		token:         patternedValue(token.Shape, 7, 0.03, -0.04),
 		hidden:        patternedValue(hidden.Shape, 11, 0.04, 0.02),
 		embeddingNorm: patternedValue(embeddingNorm.Shape, 5, 0.02, 0.8),
 		hiddenNorm:    patternedValue(hiddenNorm.Shape, 3, 0.02, 0.9),
 		projection:    patternedValue(projection.Shape, 17, 0.015, -0.05),
-	} {
-		feeds[node] = value
-	}
+	})
 	current, err := draft.BuildDraftInput(
 		builder, token, hidden, embeddingNorm, hiddenNorm, projection,
 	)

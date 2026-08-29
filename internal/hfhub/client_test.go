@@ -1,7 +1,6 @@
 package hfhub
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -58,17 +57,17 @@ func TestHubSearchAuthorizesAndBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	listings, err := client.Search(context.Background(), SearchQuery{Kind: KindModel, Search: "tiny", Limit: 5})
+	listings, err := client.Search(t.Context(), SearchQuery{Kind: KindModel, Search: "tiny", Limit: 5})
 	if err != nil || len(listings) != 1 || listings[0].ID != "acme/tiny" {
 		t.Fatalf("listings=%v err=%v", listings, err)
 	}
 	if len(*authorizations) == 0 || (*authorizations)[0] != "Bearer secret-token" {
 		t.Fatalf("authorization not sent: %v", *authorizations)
 	}
-	if _, err := client.Search(context.Background(), SearchQuery{Kind: KindModel}); err == nil {
+	if _, err := client.Search(t.Context(), SearchQuery{Kind: KindModel}); err == nil {
 		t.Fatal("unbounded search accepted")
 	}
-	if _, err := client.Search(context.Background(), SearchQuery{Kind: "spaces", Limit: 1}); err == nil {
+	if _, err := client.Search(t.Context(), SearchQuery{Kind: "spaces", Limit: 1}); err == nil {
 		t.Fatal("unknown namespace accepted")
 	}
 }
@@ -82,7 +81,7 @@ func TestHubDownloadVerifiesDeclaredDigest(t *testing.T) {
 	}
 	destination := t.TempDir()
 	var observed []Progress
-	resolved, err := client.Download(context.Background(), DownloadRequest{
+	resolved, err := client.Download(t.Context(), DownloadRequest{
 		Kind: KindModel, Repository: "acme/tiny", Destination: destination,
 		Observe: func(progress Progress) { observed = append(observed, progress) },
 	})
@@ -133,7 +132,7 @@ func TestHubDownloadRefusesTamperedBytes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := liar.Download(context.Background(), DownloadRequest{
+	if _, err := liar.Download(t.Context(), DownloadRequest{
 		Kind: KindModel, Repository: "acme/tiny", Destination: destination,
 	}); err == nil {
 		t.Fatal("tampered download accepted")

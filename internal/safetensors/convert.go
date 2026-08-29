@@ -217,7 +217,7 @@ func (r *f32Reader) Read(destination []byte) (int, error) {
 			continue
 		}
 		if err != nil {
-			if written > 0 && err == io.EOF {
+			if written > 0 && errors.Is(err, io.EOF) {
 				return written, nil
 			}
 			return written, err

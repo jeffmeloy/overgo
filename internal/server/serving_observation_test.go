@@ -26,7 +26,7 @@ func TestServingObservationPublication(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "serving-publication-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "serving-publication-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "serving-publication-run")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "serving/publication/authorities",
 		Artifacts: []artifact.Descriptor{{ID: modelID}, {ID: recipeID}, {ID: runID}},
 	}); err != nil {
@@ -54,7 +54,7 @@ func TestServingObservationPublication(t *testing.T) {
 		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
 	}
 
-	operationID, err := handler.operations.Submit(context.Background(), operation.Request{
+	operationID, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskInference, Recipe: recipeID,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 		return handler.executeObservedOperation(ctx, reporter, recipe.TaskInference, recipeID,
@@ -65,11 +65,11 @@ func TestServingObservationPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := handler.operations.Wait(context.Background(), operationID)
+	status, err := handler.operations.Wait(t.Context(), operationID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := store.Query(context.Background(), overgodb.Query{
+	result, err := store.Query(t.Context(), overgodb.Query{
 		Artifact: &modelID, Follow: overgodb.FollowChildren, MaxDepth: 1,
 		MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		MaxResults: 8,
@@ -85,7 +85,7 @@ func TestServingObservationPublication(t *testing.T) {
 		t.Fatalf("recipe-bound attempts = %v", status.Attempts)
 	}
 	for _, descriptor := range result.Artifacts {
-		content, found, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
+		content, found, err := artifact.ReadContent(t.Context(), store, descriptor.ID)
 		if err != nil || !found {
 			t.Fatalf("observation content=(%v,%v)", found, err)
 		}
@@ -103,7 +103,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "runtime-view-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "runtime-view-recipe")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "runtime/view/authorities",
 		Artifacts: []artifact.Descriptor{{ID: modelID}, {ID: recipeID}},
 	}); err != nil {
@@ -191,7 +191,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "hardware-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "hardware-recipe")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "serving/hardware/authorities",
 		Artifacts: []artifact.Descriptor{{ID: modelID}, {ID: recipeID}},
 	}); err != nil {
@@ -214,7 +214,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		t.Fatalf("completion status=%d body=%s", response.Code, response.Body.String())
 	}
 	var observations []runrecord.ServingObservation
-	_, err = overgodb.VisitDecodedDocuments(context.Background(), store, overgodb.DocumentQuery{
+	_, err = overgodb.VisitDecodedDocuments(t.Context(), store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		}}, Order: overgodb.DocumentOldestFirst,
@@ -231,7 +231,7 @@ func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
 		runrecord.ServingHardwarePrefill,
 		runrecord.ServingHardwareFinish,
 	}
-	expected, err := generator.DeviceMemoryStats(context.Background())
+	expected, err := generator.DeviceMemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

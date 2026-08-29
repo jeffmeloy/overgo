@@ -9,13 +9,13 @@ import (
 func TestWeightsDraftCatalogs(t *testing.T) {
 	info := func(name string) gguf.TensorInfo { return gguf.TensorInfo{Name: name} }
 	weights := Weights{
-		Layers: []LayerWeights{{AttentionNorm: pointerTensorInfo(info("trunk"))}},
+		Layers: []LayerWeights{{AttentionNorm: new(info("trunk"))}},
 		SingleCatalogDraft: &SingleDraftWeights{
-			Layer: LayerWeights{AttentionNorm: pointerTensorInfo(info("qwen_layer"))}, EHProjection: info("qwen_eh"),
+			Layer: LayerWeights{AttentionNorm: new(info("qwen_layer"))}, EHProjection: info("qwen_eh"),
 		},
 		AppendedSingleDraft: []AppendedDraftWeights{{
-			Layer: LayerWeights{AttentionNorm: pointerTensorInfo(info("next_layer"))}, EHProjection: info("next_eh"),
-			LayerOutputNorm: pointerTensorInfo(info("next_layer_norm")),
+			Layer: LayerWeights{AttentionNorm: new(info("next_layer"))}, EHProjection: info("next_eh"),
+			LayerOutputNorm: new(info("next_layer_norm")),
 		}},
 	}
 	catalogs := weights.DraftCatalogs()
@@ -24,5 +24,3 @@ func TestWeightsDraftCatalogs(t *testing.T) {
 		t.Fatalf("draft catalogs = %+v", catalogs)
 	}
 }
-
-func pointerTensorInfo(value gguf.TensorInfo) *gguf.TensorInfo { return &value }

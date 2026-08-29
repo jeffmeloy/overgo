@@ -129,7 +129,7 @@ func observedCopy(destination io.Writer, source io.Reader, file RepoFile, observ
 				observe(Progress{Path: file.Path, Received: received, Total: file.Size})
 			}
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return received, nil
 		}
 		if err != nil {

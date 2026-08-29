@@ -2,6 +2,7 @@ package scratchmodel
 
 import (
 	"errors"
+	"maps"
 	"math"
 	"slices"
 
@@ -287,8 +288,6 @@ func writeHostValues(matrix [][]*value, values []float64, clearGradient bool) {
 
 func cloneIntMap(source map[string]int) map[string]int {
 	result := make(map[string]int, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
+	maps.Copy(result, source)
 	return result
 }

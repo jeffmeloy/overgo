@@ -162,7 +162,7 @@ func canonicalizePreferenceTargetPlan(plan *PreferenceTargetPlan) error {
 		plan.Signature.Outputs[0] != recipecontract.ModalityText || len(plan.Records) == 0 {
 		return errors.New("evaluation: invalid preference target plan")
 	}
-	sort.Strings(plan.Records)
+	slices.Sort(plan.Records)
 	for index, record := range plan.Records {
 		if record == "" || index > 0 && plan.Records[index-1] == record {
 			return errors.New("evaluation: invalid preference target record")

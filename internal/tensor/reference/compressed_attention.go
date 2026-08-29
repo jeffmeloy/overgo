@@ -103,7 +103,7 @@ func hyperConnectionPost(shape tensor.Shape, inputs []Value, attributes tensor.H
 				index := dst + hc*src
 				value := mixes[mixBase+2*hc+index]*float64(scale.Data[2]) + float64(base.Data[2*hc+index])
 				comb[index] = value
-				maximum = math.Max(maximum, value)
+				maximum = max(maximum, value)
 			}
 			var sum float64
 			for dst := range hc {
@@ -237,7 +237,7 @@ func compressedAttentionBlocks(
 						item.value = float64(kv.Data[int(row*2*width+channel)])
 						item.score = float64(score.Data[int(row*2*width+channel)])
 					}
-					maximum = math.Max(maximum, item.score)
+					maximum = max(maximum, item.score)
 					candidates = append(candidates, item)
 				}
 			}
@@ -251,7 +251,7 @@ func compressedAttentionBlocks(
 					value: float64(kv.Data[int(row*coefficient*width+column)]),
 					score: float64(score.Data[int(row*coefficient*width+column)]),
 				}
-				maximum = math.Max(maximum, item.score)
+				maximum = max(maximum, item.score)
 				candidates = append(candidates, item)
 			}
 			var numerator, denominator float64
@@ -285,7 +285,7 @@ func rotateCompressedAttentionTail(vector []float32, position uint32, inverse bo
 		ExtFactor: attributes.ExtFactor, AttentionFactor: attributes.AttentionFactor,
 		BetaFast: attributes.BetaFast, BetaSlow: attributes.BetaSlow,
 	}
-	for pair := 0; pair < rotary/2; pair++ {
+	for pair := range rotary / 2 {
 		cosine, sine := ropeCosSin(rope, pair, rotary, position, 1)
 		if inverse {
 			sine = -sine
@@ -300,7 +300,7 @@ func rotateCompressedAttentionTail(vector []float32, position uint32, inverse bo
 func compressedAttentionFWHT(vector []float32) {
 	for stride := 1; stride < len(vector); stride *= 2 {
 		for base := 0; base < len(vector); base += 2 * stride {
-			for offset := 0; offset < stride; offset++ {
+			for offset := range stride {
 				first, second := base+offset, base+offset+stride
 				a, b := vector[first], vector[second]
 				vector[first], vector[second] = a+b, a-b
@@ -430,7 +430,7 @@ func compressedAttention(shape tensor.Shape, inputs []Value, attributes tensor.C
 					dot += float64(queryVector[channel]) * float64(vector[channel])
 				}
 				logit := dot * scale
-				maximum = math.Max(maximum, logit)
+				maximum = max(maximum, logit)
 				candidates = append(candidates, candidate{value: vector, logit: logit})
 			}
 			for row, rawPosition := range cachePositions {

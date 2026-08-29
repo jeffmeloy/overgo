@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 
 	"overgo/internal/apimanifest"
@@ -170,10 +171,5 @@ func (r routeDescriptor) serve(h *Handler, response http.ResponseWriter, request
 }
 
 func (r routeDescriptor) accepts(method string) bool {
-	for _, accepted := range r.Methods {
-		if method == accepted {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(r.Methods, method)
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +29,7 @@ func TestPublishDatasetCatalogCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	coverage, err := dataset.InspectCatalog(context.Background(), store)
+	coverage, err := dataset.InspectCatalog(t.Context(), store)
 	if err != nil {
 		t.Fatal(err)
 	}

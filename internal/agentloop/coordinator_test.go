@@ -21,7 +21,7 @@ const fixtureSessionSteps = 2
 
 func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 // inspection, refuses without approval, and runs after both -- with
 // every admitted step durably chained.
 func TestCoordinatorGatesMutationBehindInspectionAndApproval(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	session := &Session{ID: "agent-session-1"}
 	if _, err := coordinator.Propose(ctx, session, "probe.ghost", json.RawMessage(`{}`), false); err == nil ||
@@ -128,7 +128,7 @@ func TestCoordinatorGatesMutationBehindInspectionAndApproval(t *testing.T) {
 // TestCoordinatorBoundsSessionSteps pins the step bound: the session
 // halts at a typed refusal instead of stepping forever.
 func TestCoordinatorBoundsSessionSteps(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, _ := coordinatorFixture(t)
 	session := &Session{ID: "agent-session-bound"}
 	for step := 0; step < coordinator.maxSteps; step++ {
@@ -149,7 +149,7 @@ func TestCoordinatorBoundsSessionSteps(t *testing.T) {
 // registered "probe.read" is superseded by a MUTATION manual under the
 // same name; a restore must still see step one as an inspection.
 func TestRestoreResolvesToolByExactIdentity(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	session := &Session{ID: "identity-session"}
 	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{}`), false); err != nil {
@@ -187,7 +187,7 @@ func TestRestoreResolvesToolByExactIdentity(t *testing.T) {
 // preserved -- the side effect attempt never lacks evidence. An
 // inspection carries no receipt.
 func TestMutationReceiptPrecedesExecution(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	session := &Session{ID: "receipt-session"}
 	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{}`), false); err != nil {
@@ -235,7 +235,7 @@ func TestMutationReceiptPrecedesExecution(t *testing.T) {
 // transport errors, the proposal errors, and the receipt chain still
 // exists with a terminal failed state carrying the error.
 func TestFailingMutationStillLeavesReceipt(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	broken, err := agenttool.NewManual(agenttool.Manual{
 		Name: "probe.break", Description: "Fail for the receipt fixture.",

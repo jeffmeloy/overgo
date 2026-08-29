@@ -24,7 +24,7 @@ const (
 // AgentRetrievalPolicy owns chunk extent, overlap, and bounded candidate selection.
 type AgentRetrievalPolicy struct {
 	MaximumChunkRunes uint64 `json:"maximum_chunk_runes"`
-	OverlapRunes      uint64 `json:"overlap_runes,omitempty"`
+	OverlapRunes      uint64 `json:"overlap_runes,omitzero"`
 	CandidateLimit    uint64 `json:"candidate_limit"`
 }
 

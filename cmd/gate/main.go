@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -334,6 +333,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2], published,
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
+		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
 		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
@@ -341,9 +341,9 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies := map[string][]string{
 		"scope": {"protection"}, "architecture": {"scope"}, "profile": {"architecture"}, "fmt": {"profile"}, "style": {"fmt"},
 		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
-		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "acceptance": {"magics"},
+		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "modern-go": {"magics"}, "acceptance": {"modern-go"},
 		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
-		"device": {"test"}, "commit": {"device"},
+		"device": {"test"}, "commit": {"test", "device"},
 	}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
@@ -501,11 +501,11 @@ type planDisposition struct {
 type gatePlanReport struct {
 	Kind              string                         `json:"kind"`
 	Schema            int                            `json:"schema"`
-	PlanID            string                         `json:"plan_id,omitempty"`
-	BaseManifest      string                         `json:"base_manifest,omitempty"`
-	CandidateManifest string                         `json:"candidate_manifest,omitempty"`
-	CandidateSource   string                         `json:"candidate_source,omitempty"`
-	CandidateTree     string                         `json:"candidate_tree,omitempty"`
+	PlanID            string                         `json:"plan_id,omitzero"`
+	BaseManifest      string                         `json:"base_manifest,omitzero"`
+	CandidateManifest string                         `json:"candidate_manifest,omitzero"`
+	CandidateSource   string                         `json:"candidate_source,omitzero"`
+	CandidateTree     string                         `json:"candidate_tree,omitzero"`
 	Selected          []planDisposition              `json:"selected"`
 	Excluded          []planDisposition              `json:"excluded"`
 	Unresolved        []planDisposition              `json:"unresolved"`
@@ -1175,7 +1175,7 @@ func consumerCandidates(declarations []codeprofile.ConsumerDeclaration) string {
 		}
 		candidates[index] = consumerCandidate(declaration, class)
 	}
-	sort.Strings(candidates)
+	slices.Sort(candidates)
 	return strings.Join(candidates, ",")
 }
 
@@ -1361,7 +1361,7 @@ func fingerprintPhaseInputs(root, phase string, paths []string) (artifact.ID, er
 			selected = append(selected, path)
 		}
 	}
-	sort.Strings(selected)
+	slices.Sort(selected)
 	hasher := sha256.New()
 	hasher.Write([]byte(phase + "\x00"))
 	for _, path := range selected {
@@ -1594,6 +1594,50 @@ func (g *gateContext) stepStyle() (bool, error) {
 		g.baseSource = &baseline
 	}
 	return false, repoanalysis.ValidateGoStyleDelta(snapshot, *g.baseSource)
+}
+
+func (g *gateContext) stepModernGoRatchet() (bool, error) {
+	baseline, err := repoanalysis.LoadModernGoBaseline(filepath.Join(g.repo, filepath.FromSlash(repoanalysis.ModernGoBaselineFile)))
+	if err != nil {
+		return false, err
+	}
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	if err != nil {
+		return false, err
+	}
+	candidate, err := repoanalysis.ModernGoCensusSnapshot(snapshot, selection, baseline.TargetGo)
+	if err != nil {
+		return false, err
+	}
+	if err := repoanalysis.AdmitModernGoRatchet(baseline, candidate, time.Now().UTC()); err != nil {
+		return false, err
+	}
+	if _, err := command(g.repo, "git", "cat-file", "-e", "HEAD:"+repoanalysis.ModernGoBaselineFile); err == nil {
+		if g.baseSource == nil {
+			base, err := sourceAtHEAD(g.repo, snapshot)
+			if err != nil {
+				return false, err
+			}
+			g.baseSource = &base
+		}
+		previous, err := repoanalysis.ModernGoCensusSnapshot(*g.baseSource, selection, baseline.TargetGo)
+		if err != nil {
+			return false, err
+		}
+		if err := repoanalysis.AdmitModernGoDelta(baseline, previous, candidate, g.paths); err != nil {
+			return false, err
+		}
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"modern-Go ratchet: findings=%d candidates=%d inspected=%d typed=%d catalog=%s",
+		len(candidate.Findings), candidate.CandidateCount(), baseline.Coverage.InspectedFiles,
+		baseline.Coverage.TypedFiles, baseline.CatalogCommit,
+	))
+	return false, nil
 }
 
 func (g *gateContext) stepVet() (bool, error) {
@@ -2181,8 +2225,8 @@ func optionalCompletionRevision(repository, revision string) (string, bool, erro
 	cmd.Env = gitauthority.ReaderEnvironment()
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) && exitError.ExitCode() == 1 && strings.TrimSpace(string(output)) == "" {
+		exitError, matched := errors.AsType[*exec.ExitError](err)
+		if matched && exitError.ExitCode() == 1 && strings.TrimSpace(string(output)) == "" {
 			return "", false, nil
 		}
 		return "", false, fmt.Errorf(
@@ -2341,11 +2385,10 @@ func (g *gateContext) startHeartbeat() (func(), error) {
 	stop, done := make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
+		ticker := time.Tick(5 * time.Second)
 		for {
 			select {
-			case <-ticker.C:
+			case <-ticker:
 				_ = g.writeHeartbeat(runrecord.HeartbeatRunning)
 			case <-stop:
 				return
@@ -2366,7 +2409,7 @@ func (g *gateContext) oweRecord(batch artifact.Batch, cause error) error {
 	if err := validateGateDebt(debt); err != nil {
 		return fmt.Errorf("%w; invalid record debt: %v", cause, err)
 	}
-	if err := writeJSON(g.repo, gateDebtFile, debt, 0o600); err != nil {
+	if err := writeJSON(g.repo, gateDebtFile, debt, clioptions.PrivateFileMode); err != nil {
 		return fmt.Errorf("%w; persist record debt: %v", cause, err)
 	}
 	return cause

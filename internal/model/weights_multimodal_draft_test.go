@@ -304,7 +304,7 @@ func TestReadWeightsT5EncoderDecoder(t *testing.T) {
 		tensorInfo("enc.output_norm.weight", 8),
 		tensorInfo("dec.output_norm.weight", 8),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		for _, prefix := range []string{fmt.Sprintf("enc.blk.%d.", block), fmt.Sprintf("dec.blk.%d.", block)} {
 			tensors = append(tensors,
 				tensorInfo(prefix+"attn_norm.weight", 8),
@@ -372,7 +372,7 @@ func TestReadWeightsWavTokenizerDecoder(t *testing.T) {
 		tensorInfo("posnet.2.attn_output.weight", 1, 6, 6), tensorInfo("posnet.2.attn_output.bias", 1, 6),
 		tensorInfo("posnet.5.attn_norm.weight", 1, 6), tensorInfo("posnet.5.attn_norm.bias", 1, 6),
 	)
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("convnext.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"dw.weight", 7, 1, 6), tensorInfo(prefix+"dw.bias", 1, 6),
@@ -404,7 +404,7 @@ func TestReadWeightsDFlash(t *testing.T) {
 		tensorInfo("fc.weight", 16, 8), tensorInfo("enc.output_norm.weight", 8),
 		tensorInfo("output_norm.weight", 8),
 	}
-	for block := 0; block < 2; block++ {
+	for block := range 2 {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		tensors = append(tensors,
 			tensorInfo(prefix+"attn_norm.weight", 8),

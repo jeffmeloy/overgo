@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"context"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -10,7 +9,7 @@ import (
 )
 
 func TestSteeringProposalAdmission(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -48,7 +47,7 @@ func canonicalizeEvalDomains(value *EvalDomainDeclaration) error {
 		return errors.New("evaluation: invalid domain declaration")
 	}
 	value.Domains = slices.Clone(value.Domains)
-	sort.Strings(value.Domains)
+	slices.Sort(value.Domains)
 	previous := ""
 	for _, domain := range value.Domains {
 		if strings.TrimSpace(domain) != domain || domain == "" || domain == previous {

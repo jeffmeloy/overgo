@@ -5,6 +5,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"testing"
 
 	"overgo/internal/safetensors"
@@ -88,7 +89,7 @@ func TestFP8NativeReaderConcatenatesWeightThenScale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := append(append([]byte{}, weights...), encodedScales...)
+	want := append(slices.Clone(weights), encodedScales...)
 	if len(actual) != len(want) {
 		t.Fatalf("output bytes = %d, want %d", len(actual), len(want))
 	}
@@ -105,7 +106,7 @@ func TestPositionReaderTransposesPositionAndAxis(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	for value := uint16(0); value < 8; value++ {
+	for value := range uint16(8) {
 		var encoded [2]byte
 		binary.LittleEndian.PutUint16(encoded[:], value)
 		if _, err := file.Write(encoded[:]); err != nil {
@@ -139,7 +140,7 @@ func TestPatchPermutationReaderConvertsInterleavedToPlanar(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	for value := uint16(0); value < 12; value++ {
+	for value := range uint16(12) {
 		var encoded [2]byte
 		binary.LittleEndian.PutUint16(encoded[:], value)
 		if _, err := file.Write(encoded[:]); err != nil {

@@ -316,13 +316,12 @@ func f64AsF32Bound(reference []float64) float64 {
 }
 
 func sampleHeap(done <-chan struct{}, peak *atomic.Uint64) {
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
+	ticker := time.Tick(time.Millisecond)
 	for {
 		select {
 		case <-done:
 			return
-		case <-ticker.C:
+		case <-ticker:
 			var sample runtime.MemStats
 			runtime.ReadMemStats(&sample)
 			for prior := peak.Load(); sample.HeapAlloc > prior && !peak.CompareAndSwap(prior, sample.HeapAlloc); prior = peak.Load() {

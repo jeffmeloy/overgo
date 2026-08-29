@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -14,7 +13,7 @@ import (
 // publishes under its model's alias, reads back intact, re-declaration
 // replaces it, and an undeclared model reports absent.
 func TestPromptTemplateAuthority(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +84,7 @@ func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 	publishPlanFixtureAuthorities(t, store, plan)
 	scorer := &prefixedFixtureScorer{prefix: "<dna>"}
 	scorer.scores = []sequencescore.Score{{LogProbability: -4, Tokens: 4}}
-	if _, err := EvaluateSequenceScoring(context.Background(), store, scorer, compiled, plan); err != nil {
+	if _, err := EvaluateSequenceScoring(t.Context(), store, scorer, compiled, plan); err != nil {
 		t.Fatal(err)
 	}
 	if len(scorer.prompts) != 1 || scorer.prompts[0] != "<dna>" {
@@ -93,7 +92,7 @@ func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 	}
 
 	bare := &sequenceFixtureScorer{scores: []sequencescore.Score{{LogProbability: -4, Tokens: 4}}}
-	if _, err := EvaluateSequenceScoring(context.Background(), store, bare, compiled, plan); err != nil {
+	if _, err := EvaluateSequenceScoring(t.Context(), store, bare, compiled, plan); err != nil {
 		t.Fatal(err)
 	}
 	if len(bare.prompts) != 1 || bare.prompts[0] != "" {

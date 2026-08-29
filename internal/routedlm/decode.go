@@ -82,19 +82,17 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 		for keyPos := start; keyPos < end; keyPos++ {
 			kRow := resident.Keys[(keyPos*resident.KVHeads+kvHead)*hd : (keyPos*resident.KVHeads+kvHead+1)*hd]
 			var dot float64
-			for i := 0; i < hd; i++ {
+			for i := range hd {
 				dot += float64(qRow[i]) * float64(kRow[i])
 			}
 			scores[keyPos-start] = float32(dot * scale)
 		}
 		hostmath.SoftmaxInPlace(scores)
 		out := context[head*hd : (head+1)*hd]
-		for i := range out {
-			out[i] = 0
-		}
+		clear(out)
 		for keyPos, prob := range scores {
 			vRow := resident.Values[((start+keyPos)*resident.KVHeads+kvHead)*hd : ((start+keyPos)*resident.KVHeads+kvHead+1)*hd]
-			for i := 0; i < hd; i++ {
+			for i := range hd {
 				out[i] += prob * vRow[i]
 			}
 		}
@@ -104,7 +102,7 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 	projected := make([]float32, d)
 	linearRounded(projected, context, oW, 1)
 	residual := make([]float32, d)
-	for c := 0; c < d; c++ {
+	for c := range d {
 		residual[c] = dtype.RoundBF16(tokenRow[c] + projected[c])
 	}
 	postNorm := make([]float32, d)
@@ -120,7 +118,7 @@ func DecodeRow(tokenRow []float32, decodeMask []int, segments [][2]int, resident
 	down := make([]float32, d)
 	linearRounded(down, gate, downW, 1)
 	out := make([]float32, d)
-	for c := 0; c < d; c++ {
+	for c := range d {
 		out[c] = dtype.RoundBF16(residual[c] + down[c])
 	}
 	return out, nil

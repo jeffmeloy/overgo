@@ -71,8 +71,8 @@ func CompileTrainingSessionPlan(spec SessionSpec) (TrainingSessionPlan, error) {
 		DatasetUnits     int              `json:"dataset_units"`
 		Updates          int              `json:"updates"`
 		MaximumSequence  int              `json:"maximum_sequence"`
-		ObjectiveScale   float64          `json:"objective_scale,omitempty"`
-		MaxProjectedWall int64            `json:"max_projected_wall_ns,omitempty"`
+		ObjectiveScale   float64          `json:"objective_scale,omitzero"`
+		MaxProjectedWall int64            `json:"max_projected_wall_ns,omitzero"`
 		Optimizer        optimizer.Config `json:"optimizer"`
 	}{
 		Objective: spec.Objective, DatasetUnits: spec.DatasetUnits, Updates: updates,

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -61,8 +62,8 @@ type claim struct {
 	Status           string       `json:"status"`
 	EvidenceTier     evidenceTier `json:"evidence_tier"`
 	Verify           string       `json:"verify"`
-	SourceCommit     string       `json:"source_commit,omitempty"`
-	ArtifactIdentity string       `json:"artifact_identity,omitempty"`
+	SourceCommit     string       `json:"source_commit,omitzero"`
+	ArtifactIdentity string       `json:"artifact_identity,omitzero"`
 	Summary          string       `json:"summary"`
 	Evidence         []evidence   `json:"evidence"`
 }
@@ -70,7 +71,7 @@ type claim struct {
 type evidence struct {
 	Path     string       `json:"path"`
 	Contains string       `json:"contains"`
-	Symbol   string       `json:"symbol,omitempty"`
+	Symbol   string       `json:"symbol,omitzero"`
 	Role     evidenceRole `json:"role"`
 	Identity string       `json:"identity"`
 }
@@ -290,7 +291,7 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 		Model         artifact.ID                 `json:"model"`
 		Name          string                      `json:"name"`
 		Supersedes    []artifact.ID               `json:"supersedes,omitempty"`
-		ModelFile     string                      `json:"model_file,omitempty"`
+		ModelFile     string                      `json:"model_file,omitzero"`
 		EvidenceFiles []string                    `json:"evidence_files,omitempty"`
 		DatasetFiles  []string                    `json:"dataset_files,omitempty"`
 		Claims        []runrecord.CapabilityClaim `json:"claims"`
@@ -517,18 +518,14 @@ func generate(root string) ([]byte, error) {
 	for name := range document.Models {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	for _, name := range names {
 		item := document.Models[name]
 		execution := strings.Join(item.Execution, ", ")
-		if execution == "" {
-			execution = "model-dependent"
-		}
+		execution = cmp.Or(execution, "model-dependent")
 		validation := modelValidation(item)
 		limitations := strings.Join(item.Limitations, ", ")
-		if limitations == "" {
-			limitations = "-"
-		}
+		limitations = cmp.Or(limitations, "-")
 		fmt.Fprintf(&output, "| `%s` | %s | %s | %s |\n",
 			name, escapeCell(execution), escapeCell(validation), escapeCell(limitations))
 	}
@@ -614,8 +611,8 @@ func validateModelCoverage(models map[string]modelClaim, supported []string) err
 			extra = append(extra, name)
 		}
 	}
-	sort.Strings(missing)
-	sort.Strings(extra)
+	slices.Sort(missing)
+	slices.Sort(extra)
 	if len(missing) > 0 || len(extra) > 0 {
 		return fmt.Errorf("compatibility manifest: model coverage differs: missing=%v extra=%v", missing, extra)
 	}

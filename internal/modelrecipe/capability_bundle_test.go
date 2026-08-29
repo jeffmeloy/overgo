@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestCapabilityBundleRecipeSelection(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, modelID, definition, bundle := capabilityBundleFixture(t)
 	verification := publishVerification(t, store, definition.ID, "bundle/verification")
 	if err := ActivateCapability(ctx, store, definition, verification, recipe.EvidenceParity, "bundle fixture"); err != nil {
@@ -28,7 +27,7 @@ func TestCapabilityBundleRecipeSelection(t *testing.T) {
 }
 
 func TestUnpromotedBundleRefusal(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, modelID, _, _ := capabilityBundleFixture(t)
 	if _, err := ResolveActiveExecution(ctx, store, modelID, recipe.TaskGeneration, SessionWarm); err == nil {
 		t.Fatal("unpromoted bundle recipe accepted")
@@ -37,7 +36,7 @@ func TestUnpromotedBundleRefusal(t *testing.T) {
 
 func capabilityBundleFixture(t *testing.T) (*overgodb.Store, artifact.ID, recipe.Definition, artifact.Manifest) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

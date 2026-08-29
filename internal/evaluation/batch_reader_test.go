@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 // campaign reads its outputs through batched visits, and per-item
 // opens stay below the case count instead of scaling with it.
 func TestHighFanoutReadsAreBatched(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	suite := exactFixture()
 	suite.Cases = nil
 	for ordinal := range 8 {

@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -52,7 +51,7 @@ func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
 		}
 		publishPlanFixtureAuthorities(t, store, plan)
 		report, err := EvaluateGroupedChoice(
-			context.Background(), store,
+			t.Context(), store,
 			fixedContinuationScorer{scores: []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}}},
 			compiled, plan,
 		)

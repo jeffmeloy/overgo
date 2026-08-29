@@ -76,7 +76,7 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 		EOS: tokenizer.NullToken, EOT: tokenizer.NullToken, EOM: tokenizer.NullToken,
 	}
 	batch := &fakeContinuousBatch{}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	runner := fixtureRunner(model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35"}}, model.Weights{})
 	runner.vocab = vocab
 	generator := &ContinuousGenerator{
@@ -91,7 +91,6 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	}
 	results := make(chan outcome, 2)
 	for _, count := range []int{1, 2} {
-		count := count
 		go func() {
 			sampler, err := sampling.New(sampling.Config{Temperature: 0})
 			if err != nil {
@@ -106,7 +105,7 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 				options.MaxNewTokens = 3
 				options.ShouldStop = func(TokenEvent) bool { return true }
 			}
-			ids, _, err := generator.Generate(context.Background(), "", options)
+			ids, _, err := generator.Generate(t.Context(), "", options)
 			results <- outcome{ids: ids, err: err}
 		}()
 	}
@@ -144,14 +143,14 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	if greedy != 2 {
 		t.Fatalf("device-greedy steps = %d, want 2", greedy)
 	}
-	if err := generator.Close(context.Background()); err != nil {
+	if err := generator.Close(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestContinuousGeneratorRejectsUncompiledRequestPolicy(t *testing.T) {
 	generator := &ContinuousGenerator{runner: &Runner{}}
-	if _, _, err := generator.Generate(context.Background(), "fixture", GenerateOptions{CachePrompt: true}); err == nil {
+	if _, _, err := generator.Generate(t.Context(), "fixture", GenerateOptions{CachePrompt: true}); err == nil {
 		t.Fatal("uncompiled request policy accepted")
 	}
 }
@@ -201,7 +200,7 @@ func TestContinuousGeneratorCancelsOneFusedSequence(t *testing.T) {
 		EOS: tokenizer.NullToken, EOT: tokenizer.NullToken, EOM: tokenizer.NullToken,
 	}
 	batch := &fakeContinuousBatch{started: make(chan struct{}), proceed: make(chan struct{})}
-	ctx, stop := context.WithCancel(context.Background())
+	ctx, stop := context.WithCancel(t.Context())
 	runner := fixtureRunner(model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35"}}, model.Weights{})
 	runner.vocab = vocab
 	generator := &ContinuousGenerator{
@@ -210,10 +209,10 @@ func TestContinuousGeneratorCancelsOneFusedSequence(t *testing.T) {
 		ctx:     ctx, cancel: stop,
 		submit: make(chan continuousGenerateRequest, 2), done: make(chan struct{}),
 	}
-	cancelled, cancel := context.WithCancel(context.Background())
+	cancelled, cancel := context.WithCancel(t.Context())
 	results := make(chan error, 2)
 	for index := range 2 {
-		requestCtx := context.Background()
+		requestCtx := t.Context()
 		if index == 0 {
 			requestCtx = cancelled
 		}
@@ -254,7 +253,7 @@ func TestContinuousGeneratorCancelsOneFusedSequence(t *testing.T) {
 	if !slices.Equal(stepSizes, []int{2, 1}) {
 		t.Fatalf("step sizes = %v", stepSizes)
 	}
-	if err := generator.Close(context.Background()); err != nil {
+	if err := generator.Close(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }

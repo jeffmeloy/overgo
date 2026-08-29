@@ -1,7 +1,7 @@
 package inference
 
 import (
-	"context"
+	"cmp"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -64,9 +64,7 @@ type qwen35_9BSmokeFixture struct {
 func qwen35_9BServingPath(t *testing.T) string {
 	t.Helper()
 	path := os.Getenv("OVERGO_QWEN35_9B_GGUF")
-	if path == "" {
-		path = qwen35_9BDefaultPath
-	}
+	path = cmp.Or(path, qwen35_9BDefaultPath)
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("Qwen3.5-9B GGUF absent (%s); set OVERGO_QWEN35_9B_GGUF to run", path)
 	}
@@ -102,7 +100,7 @@ func TestQwen35_9BServingSmoke(t *testing.T) {
 	t.Logf("untied head LIVE: output.weight offset=%d distinct from token_embd offset=%d",
 		runner.weights.Output.Offset, runner.weights.TokenEmbedding.Offset)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	newGreedy := func() *sampling.Sampler {
 		s, err := sampling.New(sampling.Config{})
 		if err != nil {

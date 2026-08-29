@@ -157,17 +157,17 @@ func g3nPredictBackward(dStates []reference.Value, dPredictCoeff, dRouter, dRout
 	coefficients, _ := alternateLinear(*layer.AltUpPredictCoefficient, modalities)
 	dCoeff := reference.Value{Shape: coefficients.Shape, Data: make([]float32, len(coefficients.Data))}
 	// result[o][t,f] = states[o][t,f] + sum_s coeff[t,o*count+s]*states[s][t,f].
-	for o := 0; o < count; o++ {
+	for o := range count {
 		for i := range dStates[o].Data {
 			dStates[o].Data[i] += dResult[o].Data[i]
 		}
 	}
-	for t := 0; t < tokens; t++ {
-		for o := 0; o < count; o++ {
-			for s := 0; s < count; s++ {
+	for t := range tokens {
+		for o := range count {
+			for s := range count {
 				c := coefficients.Data[t*count*count+o*count+s]
 				var dc float64
-				for f := 0; f < width; f++ {
+				for f := range width {
 					pos := t*width + f
 					dr := dResult[o].Data[pos]
 					dc += float64(dr) * float64(states[s].Data[pos])
@@ -214,9 +214,9 @@ func g3nCorrectAndInjectBackward(dPredictions []reference.Value, dActivated, dPe
 	coefficients, _ := alternateLinear(*layer.AltUpCorrectCoefficient, modalities)
 	// result[active] before PLE.
 	resultActive := predictions[active].Clone()
-	for t := 0; t < tokens; t++ {
+	for t := range tokens {
 		coeff := coefficients.Data[t*count+active] + 1
-		for f := 0; f < width; f++ {
+		for f := range width {
 			pos := t*width + f
 			innovation := activated.Data[pos] - predictions[active].Data[pos]
 			resultActive.Data[pos] += innovation * coeff
@@ -278,15 +278,15 @@ func g3nCorrectAndInjectBackward(dPredictions []reference.Value, dActivated, dPe
 		}
 		return dResult[index].Data
 	}
-	for index := 0; index < count; index++ {
+	for index := range count {
 		dr := dResultEff(index)
 		for i := range dPredictions[index].Data {
 			dPredictions[index].Data[i] += dr[i] // clone term
 		}
-		for t := 0; t < tokens; t++ {
+		for t := range tokens {
 			coeff := coefficients.Data[t*count+index] + 1
 			var dc float64
-			for f := 0; f < width; f++ {
+			for f := range width {
 				pos := t*width + f
 				innovation := activated.Data[pos] - predictions[active].Data[pos]
 				dc += float64(dr[pos]) * float64(innovation)
@@ -464,12 +464,12 @@ func gemma3nActiveLayerTrace(w gemma3nLayerWeights, cfg gemma3nLayerConfig, inpu
 	invFreq := hostmath.RopeInvFreq(cfg.ropeTheta, rd)
 	tr.q = append([]float32(nil), tr.qNormed...)
 	tr.k = append([]float32(nil), tr.kNormed...)
-	for p := 0; p < tk; p++ {
-		for h := 0; h < hc; h++ {
+	for p := range tk {
+		for h := range hc {
 			base := (p*hc + h) * hd
 			hostmath.ApplyRotaryHalf(tr.q[base:base+rd], invFreq, p)
 		}
-		for h := 0; h < kv; h++ {
+		for h := range kv {
 			base := (p*kv + h) * hd
 			hostmath.ApplyRotaryHalf(tr.k[base:base+rd], invFreq, p)
 		}
@@ -588,12 +588,12 @@ func gemma3nActiveLayerBackward(w gemma3nLayerWeights, cfg gemma3nLayerConfig, i
 	}
 	rd := hostmath.RopeWidth(cfg.ropeDim, hd)
 	invFreq := hostmath.RopeInvFreq(cfg.ropeTheta, rd)
-	for p := 0; p < tk; p++ {
-		for h := 0; h < hc; h++ {
+	for p := range tk {
+		for h := range hc {
 			base := (p*hc + h) * hd
 			hostmath.RotaryHalfBackward(dq[base:base+rd], invFreq, p)
 		}
-		for h := 0; h < kv; h++ {
+		for h := range kv {
 			base := (p*kv + h) * hd
 			hostmath.RotaryHalfBackward(dk[base:base+rd], invFreq, p)
 		}

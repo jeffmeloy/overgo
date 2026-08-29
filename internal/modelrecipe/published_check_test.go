@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -18,7 +17,7 @@ import (
 // the wrong media type -- the same read-side refusal class as a schema that
 // moved under a published document.
 func TestStoredDocumentsDecodeUnderCurrentSchema(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

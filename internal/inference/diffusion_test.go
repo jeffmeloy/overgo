@@ -21,7 +21,7 @@ func TestRunDiffusionTimestepConfidenceTransfer(t *testing.T) {
 	steps := make([]DiffusionStep, 0, 4)
 	options := DiffusionOptions{
 		MaxLength: 5, Steps: 4, Algorithm: DiffusionConfidence,
-		Schedule: DiffusionTimestep, Epsilon: 0.001, ShiftLogits: boolPointer(false),
+		Schedule: DiffusionTimestep, Epsilon: 0.001, ShiftLogits: new(false),
 		OnStep: func(step DiffusionStep) error {
 			steps = append(steps, step)
 			return nil
@@ -36,7 +36,7 @@ func TestRunDiffusionTimestepConfidenceTransfer(t *testing.T) {
 		return logits, nil
 	}
 	got, err := runDiffusion(
-		context.Background(), []tokenizer.TokenID{0}, mask, vocabularySize, options, evaluate,
+		t.Context(), []tokenizer.TokenID{0}, mask, vocabularySize, options, evaluate,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -71,9 +71,9 @@ func TestRunDiffusionShiftedLogits(t *testing.T) {
 		want  tokenizer.TokenID
 	}{{true, 1}, {false, 2}} {
 		options := base
-		options.ShiftLogits = boolPointer(test.shift)
+		options.ShiftLogits = new(test.shift)
 		got, err := runDiffusion(
-			context.Background(), []tokenizer.TokenID{0}, 3, vocabularySize, options, evaluate,
+			t.Context(), []tokenizer.TokenID{0}, 3, vocabularySize, options, evaluate,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -96,10 +96,10 @@ func TestRunDiffusionRankingAlgorithms(t *testing.T) {
 		options := DiffusionOptions{
 			MaxLength: 2, Steps: 1, Algorithm: algorithm,
 			Schedule: DiffusionTimestep, Epsilon: 0.001,
-			ShiftLogits: boolPointer(false), Seed: 11,
+			ShiftLogits: new(false), Seed: 11,
 		}
 		got, err := runDiffusion(
-			context.Background(), []tokenizer.TokenID{0}, 3, 4, options, evaluate,
+			t.Context(), []tokenizer.TokenID{0}, 3, 4, options, evaluate,
 		)
 		if err != nil {
 			t.Fatalf("algorithm %d: %v", algorithm, err)
@@ -130,11 +130,11 @@ func TestRunDiffusionBlockCFG(t *testing.T) {
 		return logits, nil
 	}
 	got, err := runDiffusion(
-		context.Background(), []tokenizer.TokenID{0}, mask, vocabularySize,
+		t.Context(), []tokenizer.TokenID{0}, mask, vocabularySize,
 		DiffusionOptions{
 			MaxLength: 4, Steps: 4, Algorithm: DiffusionConfidence,
 			Schedule: DiffusionBlock, BlockLength: 2, CFGScale: 1,
-			ShiftLogits: boolPointer(false),
+			ShiftLogits: new(false),
 		},
 		evaluate,
 	)
@@ -243,12 +243,12 @@ func TestRunDiffusionValidationAndCancellation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			options := valid
 			mutate(&options)
-			if _, err := runDiffusion(context.Background(), []tokenizer.TokenID{0}, 3, 4, options, evaluator); err == nil {
+			if _, err := runDiffusion(t.Context(), []tokenizer.TokenID{0}, 3, 4, options, evaluator); err == nil {
 				t.Fatal("invalid options accepted")
 			}
 		})
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := runDiffusion(ctx, []tokenizer.TokenID{0}, 3, 4, valid, evaluator); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation error = %v", err)
@@ -256,7 +256,7 @@ func TestRunDiffusionValidationAndCancellation(t *testing.T) {
 	badEvaluator := func(context.Context, []tokenizer.TokenID) ([]float32, error) {
 		return []float32{1}, nil
 	}
-	if _, err := runDiffusion(context.Background(), []tokenizer.TokenID{0}, 3, 4, valid, badEvaluator); err == nil {
+	if _, err := runDiffusion(t.Context(), []tokenizer.TokenID{0}, 3, 4, valid, badEvaluator); err == nil {
 		t.Fatal("short logits accepted")
 	}
 }
@@ -267,28 +267,28 @@ func TestGenerateDiffusionRejectsInvalidRunnerBoundaries(t *testing.T) {
 		PromptTokenIDs: []tokenizer.TokenID{0},
 	}
 	var missing *Runner
-	if _, _, err := missing.GenerateDiffusion(context.Background(), "", options); err == nil {
+	if _, _, err := missing.GenerateDiffusion(t.Context(), "", options); err == nil {
 		t.Fatal("nil runner accepted")
 	}
 	causal := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama", ContextLength: 2}},
 		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: 1}},
 	}
 	causal = attachFixtureProgram(causal)
-	if _, _, err := causal.GenerateDiffusion(context.Background(), "", options); err == nil {
+	if _, _, err := causal.GenerateDiffusion(t.Context(), "", options); err == nil {
 		t.Fatal("causal runner accepted")
 	}
 	noMask := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "dream", ContextLength: 2}},
 		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: tokenizer.NullToken}},
 	}
 	noMask = attachFixtureProgram(noMask)
-	if _, _, err := noMask.GenerateDiffusion(context.Background(), "", options); err == nil {
+	if _, _, err := noMask.GenerateDiffusion(t.Context(), "", options); err == nil {
 		t.Fatal("missing mask accepted")
 	}
 	tooLong := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "dream", ContextLength: 1}},
 		vocab: &tokenizer.Vocab{Tokens: make([]tokenizer.Token, 2), Mask: 1}},
 	}
 	tooLong = attachFixtureProgram(tooLong)
-	if _, _, err := tooLong.GenerateDiffusion(context.Background(), "", options); err == nil {
+	if _, _, err := tooLong.GenerateDiffusion(t.Context(), "", options); err == nil {
 		t.Fatal("over-context diffusion accepted")
 	}
 }
@@ -337,8 +337,4 @@ func lowDiffusionLogits(tokens, vocabulary int) []float32 {
 		logits[index] = -100
 	}
 	return logits
-}
-
-func boolPointer(value bool) *bool {
-	return &value
 }

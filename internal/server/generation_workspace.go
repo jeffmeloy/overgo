@@ -30,7 +30,7 @@ const (
 type WorkflowControl struct {
 	Name     string              `json:"name"`
 	Type     WorkflowControlType `json:"type"`
-	Required bool                `json:"required,omitempty"`
+	Required bool                `json:"required,omitzero"`
 }
 
 type WorkflowCapability struct {

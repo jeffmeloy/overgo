@@ -54,7 +54,7 @@ func (s sampledTensor) samples() (indices []int, values []float32, err error) {
 		}
 		indices = make([]int, n)
 		values = make([]float32, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			indices[i] = int(int64(binary.LittleEndian.Uint64(ib[i*8:])))
 			values[i] = math.Float32frombits(binary.LittleEndian.Uint32(vb[i*4:]))
 		}

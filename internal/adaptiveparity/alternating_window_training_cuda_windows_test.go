@@ -3,7 +3,6 @@
 package adaptiveparity_test
 
 import (
-	"context"
 	"math"
 	"path/filepath"
 	"strings"
@@ -33,7 +32,7 @@ func TestAlternatingWindowTrainingCells(t *testing.T) {
 	defer worker.Close()
 	e4bPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
 	input, target := adjacentTokenRows(t, e4bPath)
-	trained, topology, err := adaptertrain.LoadArtifact(context.Background(), e4bPath, 0, trainingprogram.BuiltinOptimizerPolicy())
+	trained, topology, err := adaptertrain.LoadArtifact(t.Context(), e4bPath, 0, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +40,7 @@ func TestAlternatingWindowTrainingCells(t *testing.T) {
 	if err != nil || !layer.PerLayerInput || trained.ParameterCount() == 0 {
 		t.Fatalf("layer=%+v parameters=%d err=%v", layer, trained.ParameterCount(), err)
 	}
-	example, err := trained.BuildExample(context.Background(), e4bPath, nil, input, target, "text")
+	example, err := trained.BuildExample(t.Context(), e4bPath, nil, input, target, "text")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +51,7 @@ func TestAlternatingWindowTrainingCells(t *testing.T) {
 	t.Logf("E4B adapter cell: rows=%d parameters=%d loss=%.6f", example.Rows, trained.ParameterCount(), loss)
 
 	gemma12Path := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-12B-it-fp8-native.gguf")
-	if _, _, err := adaptertrain.LoadArtifact(context.Background(), gemma12Path, 0, trainingprogram.BuiltinOptimizerPolicy()); err == nil ||
+	if _, _, err := adaptertrain.LoadArtifact(t.Context(), gemma12Path, 0, trainingprogram.BuiltinOptimizerPolicy()); err == nil ||
 		!strings.Contains(err.Error(), "no per-layer input program") {
 		t.Fatalf("12B adapter admission error=%v", err)
 	}

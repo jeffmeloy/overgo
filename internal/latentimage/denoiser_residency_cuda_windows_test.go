@@ -3,7 +3,6 @@
 package latentimage
 
 import (
-	"context"
 	"io"
 	"math"
 	"path/filepath"
@@ -53,7 +52,7 @@ func TestDenoiserResidentG2Distribution(t *testing.T) {
 	t.Logf("real geometry: layers=%d hidden=%d heads=%d/%d headDim=%d imgSeq=%d textSeq=%d seq=%d inCh=%d",
 		tr.Layers, tr.Hidden, tr.Heads, tr.KVHeads, tr.HeadDim, imgSeq, textSeq, prog.Seq, tr.InChannels)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	outputs := append(append([]*tensor.Tensor(nil), prog.BlockOutputs...), prog.Velocity)
 	rd := newResidentFixture(t, ctx, "test denoiser", filepath.Join(dir, "transformer"), prog.weightInputs, outputs...)
 	t.Logf("resident weights uploaded: %.2f GiB", float64(rd.graph.ProgramBytes())/(1<<30))
@@ -162,7 +161,7 @@ func hostTimestep(t *testing.T, src *safetensors.Source, spec TransformerSpec, s
 	dim := spec.TimestepEmbed
 	half := dim / 2
 	emb := make([]float64, dim)
-	for i := 0; i < half; i++ {
+	for i := range half {
 		freq := math.Exp(-math.Log(1e4) * float64(i) / float64(half))
 		arg := sigma * 1e3 * freq
 		emb[i] = math.Cos(arg)

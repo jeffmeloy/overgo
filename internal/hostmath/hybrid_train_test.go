@@ -77,7 +77,7 @@ func TestHybridDecoderLayerTrainStep(t *testing.T) {
 
 	first := step()
 	var last float64
-	for i := 0; i < 40; i++ {
+	for range 40 {
 		last = step()
 	}
 	t.Logf("loss %.5f -> %.5f over 41 SGD steps", first, last)

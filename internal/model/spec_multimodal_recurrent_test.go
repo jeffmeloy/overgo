@@ -272,8 +272,8 @@ func TestReadSpecRejectsUnsupportedArchitecture(t *testing.T) {
 				metadata("general.architecture", gguf.ValueTypeString, architecture),
 			}}
 			_, err := ReadSpec(file)
-			var unsupported *UnsupportedArchitectureError
-			if !errors.As(err, &unsupported) || unsupported.Architecture != architecture {
+			unsupported, ok := errors.AsType[*UnsupportedArchitectureError](err)
+			if !ok || unsupported.Architecture != architecture {
 				t.Fatalf("error = %v, want UnsupportedArchitectureError for %q", err, architecture)
 			}
 		})

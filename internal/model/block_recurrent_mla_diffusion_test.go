@@ -1313,7 +1313,7 @@ func TestBuildDeepSeek4CompressedHashBlock(t *testing.T) {
 	}
 	feeds[positionState] = reference.Value{Shape: positionState.Shape, Data: []float32{0, 1}}
 	hash := feeds[weights.FeedForwardHashExperts]
-	for row := 0; row < 32; row++ {
+	for row := range 32 {
 		hash.Data[2*row], hash.Data[2*row+1] = 0, 1
 	}
 	feeds[weights.FeedForwardHashExperts] = hash

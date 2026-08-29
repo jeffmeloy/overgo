@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -34,7 +33,7 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	result, err := store.Query(context.Background(), overgodb.Query{
+	result, err := store.Query(t.Context(), overgodb.Query{
 		Kind: artifact.KindEvidence, MaxResults: 100, Projection: overgodb.ProjectArtifacts,
 	})
 	if err != nil {
@@ -45,7 +44,7 @@ func TestRecordFindingRequiresVerifierAndUsesTypedStore(t *testing.T) {
 		if descriptor.MediaType != finding.MediaType {
 			continue
 		}
-		content, ok, err := artifact.ReadContent(context.Background(), store, descriptor.ID)
+		content, ok, err := artifact.ReadContent(t.Context(), store, descriptor.ID)
 		if err != nil || !ok {
 			t.Fatalf("finding content: ok=%v err=%v", ok, err)
 		}

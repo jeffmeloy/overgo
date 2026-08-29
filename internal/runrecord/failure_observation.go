@@ -49,9 +49,9 @@ type FailureObservation struct {
 	Source  string `json:"source"`
 	Message string `json:"message"`
 	// Detail carries secondary raw evidence, typically a stderr tail.
-	Detail         string      `json:"detail,omitempty"`
-	ExitCode       int32       `json:"exit_code,omitempty"`
-	Interrupted    bool        `json:"interrupted,omitempty"`
+	Detail         string      `json:"detail,omitzero"`
+	ExitCode       int32       `json:"exit_code,omitzero"`
+	Interrupted    bool        `json:"interrupted,omitzero"`
 	ObservedUnixNS int64       `json:"observed_unix_ns"`
 	Run            artifact.ID `json:"run,omitzero"`
 	ID             artifact.ID `json:"-"`

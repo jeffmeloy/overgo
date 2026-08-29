@@ -35,10 +35,10 @@ func ValidDecision(decision Decision) bool {
 // SessionHealth carries the session signals the policy reads.
 type SessionHealth struct {
 	// ContextFull reports a session whose context budget is spent.
-	ContextFull bool `json:"context_full,omitempty"`
+	ContextFull bool `json:"context_full,omitzero"`
 	// HistoryPoisoned reports a session whose recorded history can no
 	// longer be trusted, such as after a failed checkpoint restore.
-	HistoryPoisoned bool `json:"history_poisoned,omitempty"`
+	HistoryPoisoned bool `json:"history_poisoned,omitzero"`
 }
 
 // Situation is everything one decision reads: the normalized cause,
@@ -47,7 +47,7 @@ type SessionHealth struct {
 type Situation struct {
 	Cause Cause `json:"cause"`
 	// Interrupted reports a supervised execution stopped by request.
-	Interrupted bool `json:"interrupted,omitempty"`
+	Interrupted bool `json:"interrupted,omitzero"`
 	// Attempts counts executions already run, this one included.
 	Attempts uint32 `json:"attempts"`
 	// MaxAttempts is the explicit automatic re-execution budget.

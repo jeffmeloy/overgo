@@ -72,8 +72,8 @@ func (kind FieldKind) Valid() bool {
 type Field struct {
 	Name        string    `json:"name"`
 	Kind        FieldKind `json:"kind"`
-	Required    bool      `json:"required,omitempty"`
-	Description string    `json:"description,omitempty"`
+	Required    bool      `json:"required,omitzero"`
+	Description string    `json:"description,omitzero"`
 }
 
 // EffectScope names the authority boundary containing an invocation target.
@@ -99,17 +99,17 @@ func (scope EffectScope) valid() bool {
 // names are explicit authority; no consumer guesses path semantics from names.
 type EffectTargetBinding struct {
 	Scope    EffectScope `json:"scope"`
-	Argument string      `json:"argument,omitempty"`
-	Value    string      `json:"value,omitempty"`
+	Argument string      `json:"argument,omitzero"`
+	Value    string      `json:"value,omitzero"`
 }
 
 // EffectCeiling is the manual's static upper bound on invocation effects.
 // Concrete targets are resolved only after strict argument validation.
 type EffectCeiling struct {
 	Targets      []EffectTargetBinding `json:"targets,omitempty"`
-	Destructive  bool                  `json:"destructive,omitempty"`
-	Privileged   bool                  `json:"privileged,omitempty"`
-	Irreversible bool                  `json:"irreversible,omitempty"`
+	Destructive  bool                  `json:"destructive,omitzero"`
+	Privileged   bool                  `json:"privileged,omitzero"`
+	Irreversible bool                  `json:"irreversible,omitzero"`
 }
 
 // TransportKind names a native invocation path.
@@ -138,15 +138,15 @@ func (kind TransportKind) Valid() bool {
 type Transport struct {
 	Kind TransportKind `json:"kind"`
 	// URL is the strict-JSON POST endpoint for the http transport.
-	URL string `json:"url,omitempty"`
+	URL string `json:"url,omitzero"`
 	// Program and Args are the fixed executable and leading argument
 	// words for the argv transport; the call payload rides on stdin.
-	Program string   `json:"program,omitempty"`
+	Program string   `json:"program,omitzero"`
 	Args    []string `json:"args,omitempty"`
 	// Target binds an MCP manual to one remote tool. Protocol identifies the
 	// adapter contract when the manual is capability-bound. Both are authority.
-	Target   string `json:"target,omitempty"`
-	Protocol string `json:"protocol,omitempty"`
+	Target   string `json:"target,omitzero"`
+	Protocol string `json:"protocol,omitzero"`
 }
 
 // Manual is one durable tool description: what the tool is, what it

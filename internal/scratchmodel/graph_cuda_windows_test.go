@@ -49,7 +49,7 @@ func TestScratchTensorForwardDeviceParity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := cuda.Execute(context.Background(), []*tensor.Tensor{graph.Output}, feeds)
+		got, err := cuda.Execute(context.WithoutCancel(t.Context()), []*tensor.Tensor{graph.Output}, feeds)
 		if err != nil {
 			t.Fatal(err)
 		}

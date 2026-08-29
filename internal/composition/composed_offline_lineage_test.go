@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -17,7 +16,7 @@ func TestOfflineComposedModelLineageCompatibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	ctx := context.Background()
+	ctx := t.Context()
 	base := testutil.ArtifactID(t, artifact.KindModel, "offline base model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "offline composition recipe")
 	compatibility := testutil.ArtifactID(t, artifact.KindProfile, "offline compatibility")

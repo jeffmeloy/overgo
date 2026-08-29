@@ -20,31 +20,29 @@ func windowedCausalSoftmaxGQA(q, k []float32, seq, nh, nkv, hd, window int) []fl
 	group := nh / nkv
 	p := make([]float32, nh*seq*seq)
 	row := make([]float64, seq)
-	for h := 0; h < nh; h++ {
+	for h := range nh {
 		kv := h / group
-		for qi := 0; qi < seq; qi++ {
+		for qi := range seq {
 			lo := 0
 			if window > 0 && qi+1 > window {
 				lo = qi + 1 - window
 			}
 			nk := qi + 1 - lo
 			mx := math.Inf(-1)
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				var dot float64
-				for x := 0; x < hd; x++ {
+				for x := range hd {
 					dot += float64(q[(qi*nh+h)*hd+x]) * float64(k[((lo+m)*nkv+kv)*hd+x])
 				}
 				row[m] = dot
-				if dot > mx {
-					mx = dot
-				}
+				mx = max(mx, dot)
 			}
 			var sum float64
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				row[m] = math.Exp(row[m] - mx)
 				sum += row[m]
 			}
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				p[h*seq*seq+qi*seq+(lo+m)] = float32(row[m] / sum)
 			}
 		}

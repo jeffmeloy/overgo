@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -11,7 +10,7 @@ import (
 
 func TestExternalCrossAttentionPlan(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	sourceChannels := authority.SourceContract.Tensor.Axes[tensor.FirstOffset].Bounds.Extent
 	targetChannels := authority.TargetContract.Tensor.Axes[tensor.FirstOffset].Bounds.Extent
 	sourceTokenLimit := authority.SourceContract.Tensor.Axes[tensor.SingletonExtent].Bounds.Maximum

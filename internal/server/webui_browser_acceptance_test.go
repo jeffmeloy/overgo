@@ -180,8 +180,7 @@ func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, 
 
 func waitBrowserOperationState(t *testing.T, handler *Handler, id artifact.ID, state operation.State) {
 	t.Helper()
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
+	ticker := time.Tick(time.Millisecond)
 	for {
 		if current, found := handler.operations.Status(id); found {
 			if current.State == state {
@@ -194,7 +193,7 @@ func waitBrowserOperationState(t *testing.T, handler *Handler, id artifact.ID, s
 		select {
 		case <-t.Context().Done():
 			t.Fatal(t.Context().Err())
-		case <-ticker.C:
+		case <-ticker:
 		}
 	}
 }

@@ -344,8 +344,8 @@ func (r *DeepSeekOCRRunner) EncodeImage(ctx context.Context, source image.Image)
 func (r *DeepSeekOCRRunner) tilePixels(source image.Image) []float32 {
 	size := source.Bounds().Dx()
 	pixels := make([]float32, media.RGBChannels*size*size)
-	for y := 0; y < size; y++ {
-		for x := 0; x < size; x++ {
+	for y := range size {
+		for x := range size {
 			rawR, rawG, rawB, _ := source.At(source.Bounds().Min.X+x, source.Bounds().Min.Y+y).RGBA()
 			for channel, raw := range [media.RGBChannels]uint32{rawR, rawG, rawB} {
 				pixels[channel+media.RGBChannels*(x+size*y)] =
@@ -561,8 +561,8 @@ func (r *DeepSeekOCRRunner) assemble(values []reference.Value, gridW, gridH int)
 	if !square {
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR overview output is not square")
 	}
-	for y := 0; y < patchSide; y++ {
-		for x := 0; x < patchSide; x++ {
+	for y := range patchSide {
+		for x := range patchSide {
 			appendToken(overview, x+patchSide*y)
 		}
 		output = append(output, r.newline.Data...)

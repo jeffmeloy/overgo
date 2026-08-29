@@ -22,17 +22,17 @@ type ExactCase struct {
 	Text            string  `json:"text"`
 	PromptTokens    int     `json:"prompt_tokens"`
 	GeneratedTokens int     `json:"generated_tokens"`
-	DecodeMedianMS  float64 `json:"decode_median_ms,omitempty"`
-	DecodeTokPerSec float64 `json:"decode_tok_per_sec,omitempty"`
-	ServingPath     string  `json:"serving_path,omitempty"`
-	DecodeMode      string  `json:"decode_mode,omitempty"`
+	DecodeMedianMS  float64 `json:"decode_median_ms,omitzero"`
+	DecodeTokPerSec float64 `json:"decode_tok_per_sec,omitzero"`
+	ServingPath     string  `json:"serving_path,omitzero"`
+	DecodeMode      string  `json:"decode_mode,omitzero"`
 }
 
 type ExactSuite struct {
 	Schema   string      `json:"schema"`
 	Source   string      `json:"source"`
-	ModelDir string      `json:"model_dir,omitempty"`
-	Date     string      `json:"date,omitempty"`
+	ModelDir string      `json:"model_dir,omitzero"`
+	Date     string      `json:"date,omitzero"`
 	Cases    []ExactCase `json:"cases"`
 }
 

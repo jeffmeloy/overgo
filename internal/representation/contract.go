@@ -81,9 +81,9 @@ const (
 
 // AxisBounds is either one exact Extent or an inclusive dynamic range.
 type AxisBounds struct {
-	Extent  uint64 `json:"extent,omitempty"`
-	Minimum uint64 `json:"minimum,omitempty"`
-	Maximum uint64 `json:"maximum,omitempty"`
+	Extent  uint64 `json:"extent,omitzero"`
+	Minimum uint64 `json:"minimum,omitzero"`
+	Maximum uint64 `json:"maximum,omitzero"`
 }
 
 // Axis binds semantic meaning to exact or bounded dimension geometry.
@@ -201,7 +201,7 @@ const (
 // NormalizationContract defines normalization kind, guard, and magnitude semantics.
 type NormalizationContract struct {
 	Kind      NormalizationKind `json:"kind"`
-	Epsilon   float32           `json:"epsilon,omitempty"`
+	Epsilon   float32           `json:"epsilon,omitzero"`
 	Magnitude MagnitudePolicy   `json:"magnitude"`
 }
 

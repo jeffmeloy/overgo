@@ -1,7 +1,6 @@
 package overgodb_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestDatasetCatalogCompactionRetainsAuthorityAndLocation(t *testing.T) {
-	ctx, root := context.Background(), t.TempDir()
+	ctx, root := t.Context(), t.TempDir()
 	path := filepath.Join(root, "fixture.txt")
 	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)

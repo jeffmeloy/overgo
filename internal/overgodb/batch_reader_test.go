@@ -1,8 +1,8 @@
 package overgodb_test
 
 import (
-	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -16,7 +16,7 @@ import (
 // order, an absent id is the exact missing-content error, and content
 // presence for a mixed list answers in one acquisition.
 func TestHighFanoutReadsAreBatched(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -64,13 +64,13 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := artifact.ReadContents(ctx, counting, append(ids[:4:4], absent), func(artifact.Content) error {
+	if err := artifact.ReadContents(ctx, counting, append(slices.Clip(ids[:4]), absent), func(artifact.Content) error {
 		return nil
 	}); err == nil {
 		t.Fatal("absent id read silently")
 	}
 
-	present, err := store.PresentContents(ctx, append(ids[:4:4], absent))
+	present, err := store.PresentContents(ctx, append(slices.Clip(ids[:4]), absent))
 	if err != nil || len(present) != 4 {
 		t.Fatalf("presence = (%v, %v)", present, err)
 	}

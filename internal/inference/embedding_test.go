@@ -2,7 +2,6 @@ package inference
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"math"
 	"strings"
@@ -144,7 +143,7 @@ func TestProjectEmbeddingVectorsHostAppliesDenseChain(t *testing.T) {
 		t.Fatal("dense-3 projection tensor is missing")
 	}
 	runner := &Runner{preparedModel: preparedModel{file: file, weights: model.Weights{Dense2Output: &dense2Info, Dense3Output: &dense3Info}}}
-	got, err := runner.projectEmbeddingVectors(context.Background(), [][]float32{{2, 3}, {-1, 4}})
+	got, err := runner.projectEmbeddingVectors(t.Context(), [][]float32{{2, 3}, {-1, 4}})
 	if err != nil {
 		t.Fatal(err)
 	}

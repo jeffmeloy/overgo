@@ -60,7 +60,7 @@ type CausalContext struct {
 	// ParentAttempt is the attempt this execution continues, when any.
 	ParentAttempt artifact.ID `json:"parent_attempt,omitzero"`
 	// RetryOrdinal counts retries under this root; zero means not a retry.
-	RetryOrdinal uint32 `json:"retry_ordinal,omitempty"`
+	RetryOrdinal uint32 `json:"retry_ordinal,omitzero"`
 	// ReplayOf names the completed execution a rerun repeats.
 	ReplayOf artifact.ID `json:"replay_of,omitzero"`
 	// DelegatedFrom names the execution this one runs on behalf of.

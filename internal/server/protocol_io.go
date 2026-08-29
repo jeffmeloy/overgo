@@ -106,13 +106,12 @@ func (stream *synchronizedSSE) startHeartbeat(ctx context.Context, interval time
 	stopAfterContext := context.AfterFunc(ctx, stopHeartbeat)
 	go func() {
 		defer close(stopped)
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+		ticker := time.Tick(interval)
 		for {
 			select {
 			case <-stop:
 				return
-			case <-ticker.C:
+			case <-ticker:
 				if stream.ping() != nil {
 					return
 				}

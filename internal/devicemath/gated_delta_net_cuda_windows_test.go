@@ -3,7 +3,6 @@
 package devicemath
 
 import (
-	"context"
 	"math"
 	"math/rand"
 	"testing"
@@ -50,7 +49,7 @@ func TestGDNForwardMatchesKernel(t *testing.T) {
 	attn := size * heads * tokens * seqs
 	stateN := heads * seqs * size * size
 	out := make([]float32, attn+stateN)
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err = worker.Do(t.Context(), func(state *device.State) error {
 		lib := state.Driver
 		module, err := lib.ModuleLoadData(kernel.OpsF32PTX)
 		if err != nil {

@@ -387,7 +387,7 @@ func (r *Runtime) executeReadySet(
 			if stages[index].recovered {
 				continue
 			}
-			go func(index int) {
+			go func() {
 				stage := stages[index]
 				// Admission before execution: a bounded slot, then the
 				// module's entry lock, then the adapter.
@@ -404,7 +404,7 @@ func (r *Runtime) executeReadySet(
 				started := time.Now()
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
 				results <- stageResult{index: index, outputs: outputs, wallNS: uint64(time.Since(started).Nanoseconds()), err: err}
-			}(index)
+			}()
 		}
 		for range active {
 			result := <-results

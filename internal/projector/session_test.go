@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -62,7 +61,7 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 		session := testSession(t, runner)
 		tok := &cogVLMPromptTokenizer{}
 		single, err := session.BuildImagePrompt(
-			context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
+			t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -71,7 +70,7 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 			t.Fatalf("session image prompt text = %q", tok.text)
 		}
 		multi, err := session.BuildImagesPrompt(
-			context.Background(), tok, []image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4))},
+			t.Context(), tok, []image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4))},
 			[]string{"before", "after"}, PromptOptions{},
 		)
 		if err != nil {
@@ -81,15 +80,15 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 			t.Fatal("single-image session prompt differs from one-element images prompt")
 		}
 		if _, err := session.BuildVideoPrompt(
-			context.Background(), tok, []image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4))}, "", "q", 1, false,
+			t.Context(), tok, []image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4))}, "", "q", 1, false,
 		); err == nil {
 			t.Fatal("video prompt accepted by an image-only session")
 		}
-		if _, err := session.BuildAudioPrompt(context.Background(), tok, []float32{0}, "", "q"); err == nil {
+		if _, err := session.BuildAudioPrompt(t.Context(), tok, []float32{0}, "", "q"); err == nil {
 			t.Fatal("audio prompt accepted by an image-only session")
 		}
 		if _, err := session.BuildMediaHistoryPrompt(
-			context.Background(), tok, []MediaInput{NewImageMediaInput(image.NewRGBA(image.Rect(0, 0, 4, 4)))}, []string{"a", "b"},
+			t.Context(), tok, []MediaInput{NewImageMediaInput(image.NewRGBA(image.Rect(0, 0, 4, 4)))}, []string{"a", "b"},
 		); err == nil {
 			t.Fatal("media history prompt accepted by an image-only session")
 		}
@@ -102,7 +101,7 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 		defer runner.Close()
 		tok := &mimoVLPromptTokenizer{}
 		prompt, err := testSession(t, runner).BuildImagesPrompt(
-			context.Background(), tok,
+			t.Context(), tok,
 			[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 4, 4))},
 			[]string{"a", "b", "c"}, PromptOptions{},
 		)

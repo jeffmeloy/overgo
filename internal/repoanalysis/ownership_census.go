@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -207,7 +207,7 @@ func summarizeFamily(name string, packageSites map[string]int) CensusFinding {
 		packages = append(packages, pkg)
 		finding.Sites += count
 	}
-	sort.Strings(packages)
+	slices.Sort(packages)
 	for _, pkg := range packages {
 		if finding.Owner == "" || packageSites[pkg] > packageSites[finding.Owner] {
 			finding.Owner = pkg

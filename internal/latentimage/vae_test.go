@@ -85,8 +85,8 @@ func TestVAEDenormFromConfig(t *testing.T) {
 	// A zero latent decodes-denorms to the per-channel mean before conv_in.
 	z := make([]float32, 16*2*2)
 	x := make([]float32, len(z))
-	for ch := 0; ch < 16; ch++ {
-		for p := 0; p < 4; p++ {
+	for ch := range 16 {
+		for p := range 4 {
 			x[ch*4+p] = z[ch*4+p]*d.LatentsStd[ch] + d.LatentsMean[ch]
 			if x[ch*4+p] != d.LatentsMean[ch] {
 				t.Fatalf("zero-latent denorm ch %d = %g want mean %g", ch, x[ch*4+p], d.LatentsMean[ch])

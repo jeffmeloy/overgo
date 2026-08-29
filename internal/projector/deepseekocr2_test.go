@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"image"
 	"image/color"
 	"slices"
@@ -18,7 +17,7 @@ func TestDeepSeekOCR2TinyFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 32, 32)))
+	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 32, 32)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +32,7 @@ func TestDeepSeekOCR2LocalTilesRemainIndependent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 128, 64)))
+	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 128, 64)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +48,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 	}
 	defer runner.Close()
 	tok := &deepSeekOCRPromptTokenizer{}
-	prompt, err := testSession(t, runner).BuildImagePrompt(context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
+	prompt, err := testSession(t, runner).BuildImagePrompt(t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 32, 32)), "before", "after", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +61,7 @@ func TestDeepSeekOCR2PromptContract(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesDeepSeekOCR2(t *testing.T) {
-	projector, err := OpenAs[Projector](context.Background(), writeTinyDeepSeekOCR2(t, false), OpenOptions{})
+	projector, err := OpenAs[Projector](t.Context(), writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,16 +85,16 @@ func TestDeepSeekOCR2CUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 32, 32))
-	for y := 0; y < 32; y++ {
-		for x := 0; x < 32; x++ {
+	for y := range 32 {
+		for x := range 32 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: fixtureOpaqueAlpha})
 		}
 	}
-	want, err := cpu.EncodeImage(context.Background(), input)
+	want, err := cpu.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := cuda.EncodeImage(context.Background(), input)
+	got, err := cuda.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}

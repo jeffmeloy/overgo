@@ -163,15 +163,11 @@ func TestTextConditioningGoldenParity(t *testing.T) {
 		for i := range want {
 			d := math.Abs(float64(got.Context[i]) - float64(want[i]))
 			sumDiff += d
-			if d > maxDiff {
-				maxDiff = d
-			}
+			maxDiff = max(maxDiff, d)
 			if i < got.TokenCount*g.Dim {
-				if d > maxTokenDiff {
-					maxTokenDiff = d
-				}
-			} else if d > maxPadDiff {
-				maxPadDiff = d
+				maxTokenDiff = max(maxTokenDiff, d)
+			} else {
+				maxPadDiff = max(maxPadDiff, d)
 			}
 		}
 		meanDiff := sumDiff / float64(len(want))

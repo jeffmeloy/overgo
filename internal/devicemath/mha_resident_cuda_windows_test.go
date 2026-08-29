@@ -67,7 +67,7 @@ func TestMultiHeadAttentionBackwardResidentMatchesPerOp(t *testing.T) {
 			t.Fatal(err)
 		}
 		start := time.Now()
-		for i := 0; i < iters; i++ {
+		for range iters {
 			if err := fn(); err != nil {
 				t.Fatal(err)
 			}

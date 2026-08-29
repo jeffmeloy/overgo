@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"math"
 	"slices"
 	"strings"
@@ -76,7 +75,7 @@ func TestRunAndEvaluationRoundTrip(t *testing.T) {
 }
 
 func TestRunAndEvaluationPersistWithLineage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -250,7 +249,7 @@ func TestBoundRunRejectsUncontrolledTimingFacts(t *testing.T) {
 }
 
 func TestBoundRunPersistsEnvironmentLineage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

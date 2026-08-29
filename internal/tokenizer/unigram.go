@@ -119,7 +119,7 @@ func (t *Unigram) Encode(text string) ([]int, error) {
 		best[i] = negInf
 		back[i] = -1
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if best[i] == negInf && i > 0 {
 			continue
 		}

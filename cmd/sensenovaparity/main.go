@@ -197,8 +197,8 @@ func run(l *parity.Campaign, modelDir, fixturesDir string) error {
 		}
 		worst := 0.0
 		for i, step := range edit.Steps {
-			worst = math.Max(worst, math.Abs(sched[i]-step.Timestep))
-			worst = math.Max(worst, math.Abs(sched[i+1]-step.NextTimestep))
+			worst = max(worst, math.Abs(sched[i]-step.Timestep))
+			worst = max(worst, math.Abs(sched[i+1]-step.NextTimestep))
 		}
 		if worst > 1e-9 {
 			return "", worst, "", fmt.Errorf("schedule %v vs oracle knots, worst=%.3e", sched, worst)
@@ -213,8 +213,8 @@ func run(l *parity.Campaign, modelDir, fixturesDir string) error {
 		}
 		worst := 0.0
 		for i, step := range gen.Steps {
-			worst = math.Max(worst, math.Abs(sched[i]-step.Timestep))
-			worst = math.Max(worst, math.Abs(sched[i+1]-step.NextTimestep))
+			worst = max(worst, math.Abs(sched[i]-step.Timestep))
+			worst = max(worst, math.Abs(sched[i+1]-step.NextTimestep))
 		}
 		if worst > 1e-9 {
 			return "", worst, "", fmt.Errorf("schedule %v vs oracle knots, worst=%.3e", sched, worst)

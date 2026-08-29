@@ -123,7 +123,7 @@ func loadGGUFImportanceMatrix(path string) (*ImportanceMatrix, error) {
 				return nil, fmt.Errorf("importance entry %q count %d is invalid", name, group)
 			}
 			count := float32(math.Round(float64(rawCount)))
-			for column := extent.FirstOffset; column < width; column++ {
+			for column := range width {
 				index := group*width + column
 				if !finiteFloat32GGUF(sums[index]) || sums[index] < extent.FirstOffset {
 					return nil, fmt.Errorf("importance entry %q value %d is invalid", name, index)
@@ -179,7 +179,7 @@ func loadLegacyImportanceMatrix(path string) (*ImportanceMatrix, error) {
 		return nil, errors.New("legacy importance matrix entry count is invalid")
 	}
 	result := &ImportanceMatrix{Entries: make(map[string][]float32, entryCount), Legacy: true}
-	for entryIndex := int32(0); entryIndex < entryCount; entryIndex++ {
+	for entryIndex := range entryCount {
 		nameLength, err := readInt32()
 		if err != nil || nameLength < 1 || nameLength > maxLegacyIMatrixNameBytes {
 			return nil, fmt.Errorf("legacy importance entry %d name length is invalid", entryIndex)

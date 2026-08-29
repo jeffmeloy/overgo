@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -189,7 +190,7 @@ func compareLeadershipVideo(t testing.TB, ffmpeg string, candidate []byte, refer
 		errors  *boundedLeadershipError
 	}{"candidate": {candidateCommand, candidateOutput, candidateErrors}, "reference": {referenceCommand, referenceOutput, referenceErrors}} {
 		var extra [1]byte
-		if count, err := item.output.Read(extra[:]); count != 0 || err != io.EOF {
+		if count, err := item.output.Read(extra[:]); count != 0 || !errors.Is(err, io.EOF) {
 			t.Fatalf("%s video has trailing frame data count=%d err=%v", name, count, err)
 		}
 		if err := item.command.Wait(); err != nil {

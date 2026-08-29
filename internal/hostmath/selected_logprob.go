@@ -97,9 +97,7 @@ func projectionLogZ(x, weight, bias []float32, target, input, output int, worksp
 		tile := workspace[:end-start]
 		projectionTile(tile, x, weight, bias, start, input)
 		for local, logit := range tile {
-			if logit > maximum {
-				maximum = logit
-			}
+			maximum = max(maximum, logit)
 			if start+local == target {
 				targetLogit = logit
 			}

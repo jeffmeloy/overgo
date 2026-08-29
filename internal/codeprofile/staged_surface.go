@@ -23,7 +23,7 @@ type StagedSurfaceEntry struct {
 // StagedSurfaceDeclaration is the versioned staged-surface file.
 type StagedSurfaceDeclaration struct {
 	Version uint16               `json:"version"`
-	Doc     string               `json:"doc,omitempty"`
+	Doc     string               `json:"doc,omitzero"`
 	Staged  []StagedSurfaceEntry `json:"staged"`
 }
 

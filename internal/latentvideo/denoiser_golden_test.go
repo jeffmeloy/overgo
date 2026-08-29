@@ -244,9 +244,7 @@ func TestNormalNoiseGoldenG3(t *testing.T) {
 		if wantBits > gotBits {
 			ulp = wantBits - gotBits
 		}
-		if ulp > maxULP {
-			maxULP = ulp
-		}
+		maxULP = max(maxULP, ulp)
 	}
 	t.Logf("noise exact_bits=%d/%d max_ulp=%d", exact, len(want), maxULP)
 	requireParity(t, "noise vs step_00_sample_in", got, want, goldenNoiseTolerance)
@@ -410,7 +408,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 				t.Fatalf("%s: length %d want %d", name, len(got), len(want))
 			}
 			stat := parityStats(got, want)
-			blockMax[index] = math.Max(blockMax[index], stat.Max)
+			blockMax[index] = max(blockMax[index], stat.Max)
 			if stat.Max > worstBlock.Max {
 				worstBlock, worstBlockIndex = stat, index
 			}

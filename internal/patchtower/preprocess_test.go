@@ -23,7 +23,7 @@ func TestSmartResizeAlignedRoundsToFactor(t *testing.T) {
 func TestPatchEmbedSourcePatchRoundTripsGrid(t *testing.T) {
 	const gridH, gridW, merge = 4, 6, 2
 	seen := make(map[int]bool)
-	for token := 0; token < gridH*gridW; token++ {
+	for token := range gridH * gridW {
 		src, err := patchEmbedSourcePatch(token, gridH, gridW, merge)
 		if err != nil {
 			t.Fatal(err)

@@ -10,7 +10,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func TestResourceDAG(t *testing.T) {
+func TestLoopClosureIdentity(t *testing.T) {
 	checks := []Check{
 		dagFixtureCheck("cpu-a", nil), dagFixtureCheck("cpu-b", nil),
 		dagFixtureCheck("device-a", []Resource{{Name: "device", Exclusive: true}}),
@@ -24,7 +24,7 @@ func TestResourceDAG(t *testing.T) {
 	var deviceActive, deviceMaximum atomic.Int32
 	done := make(chan error, 1)
 	go func() {
-		_, err := ExecuteDAG(context.Background(), planned, nil, func(ctx context.Context, invocation Invocation) (Evidence, error) {
+		_, err := ExecuteDAG(t.Context(), planned, nil, func(ctx context.Context, invocation Invocation) (Evidence, error) {
 			if invocation.Check.Name == "cpu-a" || invocation.Check.Name == "cpu-b" {
 				started <- struct{}{}
 				<-release
@@ -62,7 +62,7 @@ func TestPolicyBarrier(t *testing.T) {
 	}
 	var mutex sync.Mutex
 	var order []string
-	_, err = ExecuteDAG(context.Background(), planned, nil, func(ctx context.Context, invocation Invocation) (Evidence, error) {
+	_, err = ExecuteDAG(t.Context(), planned, nil, func(ctx context.Context, invocation Invocation) (Evidence, error) {
 		mutex.Lock()
 		order = append(order, invocation.Check.Name)
 		mutex.Unlock()
@@ -84,7 +84,7 @@ func TestExcludedDependencySatisfiesPolicyBarrier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := ExecuteDAG(context.Background(), planned, map[string]bool{"optional": true}, func(ctx context.Context, invocation Invocation) (Evidence, error) {
+	results, err := ExecuteDAG(t.Context(), planned, map[string]bool{"optional": true}, func(ctx context.Context, invocation Invocation) (Evidence, error) {
 		return Run(ctx, invocation)
 	})
 	if err != nil || len(results) != 1 || results[0].Invocation.Check.Name != "commit" {

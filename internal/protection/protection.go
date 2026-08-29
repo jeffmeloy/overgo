@@ -38,7 +38,7 @@ type settings struct {
 }
 
 type hookGroup struct {
-	Matcher string        `json:"matcher,omitempty"`
+	Matcher string        `json:"matcher,omitzero"`
 	Hooks   []hookCommand `json:"hooks"`
 }
 

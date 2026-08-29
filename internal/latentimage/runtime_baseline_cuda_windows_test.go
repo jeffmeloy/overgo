@@ -29,7 +29,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 		Prompt: "a red fox licking a vanilla ice cream cone in snow",
 		Width:  256, Height: 256, Steps: 8, Seed: 42, DynamicShiftMu: 1.15,
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	totalStart := time.Now()
 	profile := kreaProfileOrSkip(t)
 	generator, err := LoadGenerator(ctx, kreaModelDir, profile, request)
@@ -161,7 +161,7 @@ func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 		Prompt: "a red fox licking a vanilla ice cream cone in snow",
 		Width:  256, Height: 256, Steps: 8, Seed: 42, DynamicShiftMu: 1.15,
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	generator, err := LoadGenerator(ctx, kreaModelDir, kreaProfileOrSkip(t), request)
 	if err != nil {
 		t.Fatal(err)

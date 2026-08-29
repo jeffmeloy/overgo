@@ -1,7 +1,6 @@
 package trainingworkflow
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -45,7 +44,7 @@ func TestTrainingBracket(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	session := testutil.ArtifactID(t, artifact.KindEvidence, "bracket-session")
 	model := testutil.ArtifactID(t, artifact.KindModel, "bracket-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "bracket-recipe")

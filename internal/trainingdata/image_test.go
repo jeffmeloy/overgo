@@ -2,7 +2,6 @@ package trainingdata
 
 import (
 	"bytes"
-	"context"
 	"image"
 	"image/color"
 	"image/png"
@@ -20,7 +19,7 @@ func TestImageProcessorEmitsNormalizedCHW(t *testing.T) {
 	if err := png.Encode(&encoded, imageData); err != nil {
 		t.Fatal(err)
 	}
-	example, err := ImageProcessor(RoleTarget)(context.Background(), RawRecord{ID: "image/0", Group: "image/0", Data: encoded.Bytes()})
+	example, err := ImageProcessor(RoleTarget)(t.Context(), RawRecord{ID: "image/0", Group: "image/0", Data: encoded.Bytes()})
 	if err != nil {
 		t.Fatal(err)
 	}

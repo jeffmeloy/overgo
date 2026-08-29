@@ -1,7 +1,6 @@
 package trainingworkflow
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -40,7 +39,7 @@ func TestTrainingWorkflowRequiresStoredAuthority(t *testing.T) {
 	}
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "missing active recipe")
-	_, err = Execute(context.Background(), Request{
+	_, err = Execute(t.Context(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "output"), Steps: 1,
 	})
@@ -118,7 +117,7 @@ func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
 	}
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
 	var observed []trainingprogram.GRPOObservation
-	result, err := Execute(context.Background(), Request{
+	result, err := Execute(t.Context(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true,
 		ObjectiveScale: 1, ObserveGRPO: func(value trainingprogram.GRPOObservation) { observed = append(observed, value) },
@@ -165,14 +164,14 @@ func TestTrainingObservationSharesDirectedLifecycle(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "observed recipe")
 	testutil.PublishArtifact(t, store, modelID)
 	testutil.PublishArtifact(t, store, recipeID)
-	if err := observer.Admit(context.Background(), modelID, recipeID); err != nil {
+	if err := observer.Admit(t.Context(), modelID, recipeID); err != nil {
 		t.Fatal(err)
 	}
-	observationID, err := observer.Finish(context.Background(), modelID, recipeID, nil, 0)
+	observationID, err := observer.Finish(t.Context(), modelID, recipeID, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runrecord.RequireServingObservation(context.Background(), store, observationID); err != nil {
+	if _, err := runrecord.RequireServingObservation(t.Context(), store, observationID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -223,26 +222,26 @@ func verifyWorkflowResume(t *testing.T, root string, request Request) {
 	t.Helper()
 	request.Steps = 2
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
-	want, err := Execute(context.Background(), request)
+	want, err := Execute(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.Steps = 1
 	request.OutputDirectory = filepath.Join(root, "first")
-	first, err := Execute(context.Background(), request)
+	first, err := Execute(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.ModelDirectory = ""
 	request.ResumeDirectory = request.OutputDirectory
 	request.OutputDirectory = filepath.Join(root, "resumed")
-	got, err := Execute(context.Background(), request)
+	got, err := Execute(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if request.Observations != nil {
 		for _, result := range []Result{want, first, got} {
-			if _, err := runrecord.RequireServingObservation(context.Background(), request.Observations, result.Observation); err != nil {
+			if _, err := runrecord.RequireServingObservation(t.Context(), request.Observations, result.Observation); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -338,7 +337,7 @@ func writeModel(t *testing.T, directory string, weights map[string][]float32, sh
 
 func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datasetPath string, objectiveKind trainingprogram.ObjectiveKind) (*overgodb.Store, artifact.ID) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)

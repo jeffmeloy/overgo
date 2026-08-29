@@ -126,7 +126,7 @@ func hostSymmetricEigenvalues(source []float64, size int) []float64 {
 	}
 	offDiagonal[size-1] = 0
 	for left := range size {
-		for iteration := 0; iteration < 64; iteration++ {
+		for range 64 {
 			right := left
 			for ; right < size-1; right++ {
 				threshold := math.Abs(diagonal[right]) + math.Abs(diagonal[right+1])

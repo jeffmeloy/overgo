@@ -1,6 +1,7 @@
 package reference
 
 import (
+	"cmp"
 	"errors"
 	"math"
 	"slices"
@@ -27,11 +28,11 @@ func ropeNeoX(shape tensor.Shape, inputs []Value, attributes tensor.RoPENeoXAttr
 	}
 	output := slices.Clone(input.Data)
 	half := rotary / 2
-	for batch := 0; batch < batches; batch++ {
+	for batch := range batches {
 		for tokenIndex, position := range attributes.Positions {
-			for head := 0; head < heads; head++ {
+			for head := range heads {
 				offset := ((batch*tokens+tokenIndex)*heads + head) * width
-				for pairIndex := 0; pairIndex < half; pairIndex++ {
+				for pairIndex := range half {
 					cosine, sine := ropeCosSin(attributes, pairIndex, rotary, position, factors[pairIndex])
 					x0 := input.Data[offset+pairIndex]
 					x1 := input.Data[offset+pairIndex+half]
@@ -62,11 +63,11 @@ func ropeNormal(shape tensor.Shape, inputs []Value, attributes tensor.RoPEAttrib
 		return Value{}, err
 	}
 	output := slices.Clone(input.Data)
-	for batch := 0; batch < batches; batch++ {
+	for batch := range batches {
 		for tokenIndex, position := range attributes.Positions {
-			for head := 0; head < heads; head++ {
+			for head := range heads {
 				offset := ((batch*tokens+tokenIndex)*heads + head) * width
-				for pairIndex := 0; pairIndex < rotary/2; pairIndex++ {
+				for pairIndex := range rotary / 2 {
 					cosine, sine := ropeCosSin(attributes, pairIndex, rotary, position, factors[pairIndex])
 					first := offset + pairIndex*2
 					x0 := input.Data[first]
@@ -91,9 +92,7 @@ func ropeCosSin(
 	) / float64(factor)
 	theta := float64(attributes.FrequencyScale) * thetaExtrapolated
 	magnitude := float64(attributes.AttentionFactor)
-	if magnitude == 0 {
-		magnitude = 1
-	}
+	magnitude = cmp.Or(magnitude, 1)
 	if attributes.ExtFactor != 0 && attributes.OriginalContext > 0 {
 		correction := func(rotations float32) float64 {
 			return float64(rotary) * math.Log(
@@ -102,9 +101,9 @@ func ropeCosSin(
 		}
 		low := math.Floor(correction(attributes.BetaFast))
 		high := math.Ceil(correction(attributes.BetaSlow))
-		low = math.Max(0, math.Min(float64(rotary-1), low))
-		high = math.Max(0, math.Min(float64(rotary-1), high))
-		ramp := 1 - math.Min(1, math.Max(0, (float64(pairIndex)-low)/math.Max(0.001, high-low)))
+		low = max(0, min(float64(rotary-1), low))
+		high = max(0, min(float64(rotary-1), high))
+		ramp := 1 - min(1, max(0, (float64(pairIndex)-low)/max(0.001, high-low)))
 		mix := ramp * float64(attributes.ExtFactor)
 		theta = theta*(1-mix) + thetaExtrapolated*mix
 		magnitude *= 1 + 0.1*math.Log(1/float64(attributes.FrequencyScale))
@@ -190,9 +189,9 @@ func repeatHeads(shape tensor.Shape, input Value) Value {
 	tokens := int(input.Shape.Dims[2])
 	heads := int(shape.Dims[1])
 	output := make([]float32, width*heads*tokens)
-	for token := 0; token < tokens; token++ {
+	for token := range tokens {
 		source := input.Data[token*width : (token+1)*width]
-		for head := 0; head < heads; head++ {
+		for head := range heads {
 			destination := (token*heads + head) * width
 			copy(output[destination:destination+width], source)
 		}

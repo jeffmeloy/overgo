@@ -62,7 +62,7 @@ func runDeviceMerger(l *campaignContext) error {
 	// Host oracle: full merger over all rows.
 	hostMerged := make([]float32, imageRows*O)
 	scratch := patchtower.NewMergerScratch(spec)
-	for row := 0; row < imageRows; row++ {
+	for row := range imageRows {
 		patchtower.MergerRowInto(hostMerged[row*O:(row+1)*O], blockLast, row, gridH, gridW, spec, merger, &scratch)
 	}
 	l.Log(fmt.Sprintf("DEVICE merger host oracle ready rows=%d out=%d vHidden=%d nPatch=%d", imageRows, O, spec.Hidden, nPatch))

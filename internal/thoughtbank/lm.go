@@ -79,7 +79,7 @@ func fastWeightBankLMForward(ids []int32, initMem []float32, slots int, w *FastW
 			return nil, fmt.Errorf("model: token %d out of range [0,%d)", id, w.VocabSize)
 		}
 		row := w.Embed[int(id)*d : (int(id)+1)*d]
-		for s := 0; s < n; s++ {
+		for s := range n {
 			copy(x[t*flat+s*d:t*flat+(s+1)*d], row)
 		}
 	}
@@ -144,7 +144,7 @@ func writeThoughtSlot(hText, bank []float32, seq, slots int, w *FastWeightBankLM
 
 	// Attention pool over positions.
 	scores := make([]float64, seq)
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		scores[t] = dot(wr.WriteCtxQ[:d], hText[t*d:(t+1)*d])
 	}
 	maxS, _ := checked.First(scores)
@@ -152,20 +152,20 @@ func writeThoughtSlot(hText, bank []float32, seq, slots int, w *FastWeightBankLM
 		maxS = max(maxS, score)
 	}
 	var sum float64
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		scores[t] = math.Exp(scores[t] - maxS)
 		sum += scores[t]
 	}
 	ctx := make([]float32, d)
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		a := scores[t] / sum
-		for j := 0; j < d; j++ {
+		for j := range d {
 			ctx[j] += float32(a * float64(hText[t*d+j]))
 		}
 	}
 
 	thought := make([]float32, md)
-	for i := 0; i < md; i++ {
+	for i := range md {
 		thought[i] = float32(dot(wr.ThoughtHead[i*d:(i+1)*d], ctx))
 	}
 	thought = rmsNormVector(thought, wr.NormWrite, md, w.NormEps)
@@ -173,7 +173,7 @@ func writeThoughtSlot(hText, bank []float32, seq, slots int, w *FastWeightBankLM
 	alpha := sigmoid(dot(wr.WriteDecision[:d], ctx) + float64(wr.WriteDecBias[0]))
 
 	slot := make([]float32, md)
-	for i := 0; i < md; i++ {
+	for i := range md {
 		p := sigmoid(dot(wr.WriteGate[i*d:(i+1)*d], ctx) + float64(wr.WriteGateBias[i]))
 		slot[i] = float32(alpha * p * float64(thought[i]))
 	}
@@ -245,9 +245,9 @@ func hyperConnectionBlockForward(x []float32, seq, slots int, bank []float32, w 
 		if e != nil {
 			return nil, 0, e
 		}
-		for t := 0; t < seq; t++ {
-			for s := 0; s < n; s++ {
-				for j := 0; j < d; j++ {
+		for t := range seq {
+			for s := range n {
+				for j := range d {
 					out[t*flat+s*d+j] += h1[t*d+j] - h0[t*d+j]
 				}
 			}
@@ -283,15 +283,15 @@ func collapseStreams(x []float32, seq, n, d int, proj []float32) []float32 {
 	out := make([]float32, seq*d)
 	mean := make([]float32, d)
 	logits := make([]float64, n)
-	for t := 0; t < seq; t++ {
-		for j := 0; j < d; j++ {
+	for t := range seq {
+		for j := range d {
 			var acc float64
-			for s := 0; s < n; s++ {
+			for s := range n {
 				acc += float64(x[t*flat+s*d+j])
 			}
 			mean[j] = float32(acc / float64(n))
 		}
-		for s := 0; s < n; s++ {
+		for s := range n {
 			logits[s] = dot(proj[s*d:(s+1)*d], mean)
 		}
 		maxL, _ := checked.First(logits)
@@ -299,13 +299,13 @@ func collapseStreams(x []float32, seq, n, d int, proj []float32) []float32 {
 			maxL = max(maxL, score)
 		}
 		var sum float64
-		for s := 0; s < n; s++ {
+		for s := range n {
 			logits[s] = math.Exp(logits[s] - maxL)
 			sum += logits[s]
 		}
-		for s := 0; s < n; s++ {
+		for s := range n {
 			a := logits[s] / sum
-			for j := 0; j < d; j++ {
+			for j := range d {
 				out[t*d+j] += float32(a * float64(x[t*flat+s*d+j]))
 			}
 		}

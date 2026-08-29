@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -148,7 +149,7 @@ func LoadGo(root string, relatives []string) (SourceSnapshot, error) {
 		}
 		paths[index] = filepath.ToSlash(path)
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	blobs := map[[sha256.Size]byte]*sourceBlob{}
 	files := make([]GoFile, 0, len(paths))
 	for index, relative := range paths {
@@ -200,10 +201,5 @@ func DiscoverGo(root string, tops ...string) (SourceSnapshot, error) {
 }
 
 func hasPathPart(path, want string) bool {
-	for _, part := range strings.Split(filepath.ToSlash(path), "/") {
-		if part == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(strings.Split(filepath.ToSlash(path), "/"), want)
 }

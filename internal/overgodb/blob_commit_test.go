@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"errors"
 	"io"
 	"os"
@@ -19,7 +18,7 @@ import (
 // unreachable blob; and the whole corpus replays from the envelope
 // journal plus blobs.
 func TestExternalBlobCommitAtomicity(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {

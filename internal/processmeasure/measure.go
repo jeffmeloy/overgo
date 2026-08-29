@@ -51,8 +51,7 @@ func Measure(command *exec.Cmd) (Result, error) {
 }
 
 func samplePeak(command *exec.Cmd, stop <-chan struct{}, finished chan<- peakSample) {
-	ticker := time.NewTicker(sampleInterval)
-	defer ticker.Stop()
+	ticker := time.Tick(sampleInterval)
 	var result peakSample
 	for {
 		peak, err := peakWorkingSet(command.Process)
@@ -66,7 +65,7 @@ func samplePeak(command *exec.Cmd, stop <-chan struct{}, finished chan<- peakSam
 		case <-stop:
 			finished <- result
 			return
-		case <-ticker.C:
+		case <-ticker:
 		}
 	}
 }

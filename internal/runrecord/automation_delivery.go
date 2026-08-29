@@ -42,7 +42,7 @@ type AutomationDeliveryAttempt struct {
 	Idempotency artifact.ID             `json:"idempotency"`
 	State       AutomationDeliveryState `json:"state"`
 	Result      artifact.ID             `json:"result,omitzero"`
-	Failure     string                  `json:"failure,omitempty"`
+	Failure     string                  `json:"failure,omitzero"`
 	Prior       artifact.ID             `json:"prior,omitzero"`
 	// Causal explains why the delivery attempt occurred.
 	Causal *CausalContext `json:"causal,omitempty"`

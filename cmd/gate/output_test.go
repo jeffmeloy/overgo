@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,12 +21,12 @@ func TestGateAdvisoryFindingPublication(t *testing.T) {
 	defer store.Close()
 	batch := artifact.Batch{Key: "gate/fixture"}
 	honesty := []string{"magic backlog: 2 inherited uncatalogued constants"}
-	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, []string{"internal/p"}, honesty); err != nil {
+	if err := appendGateAdvisoryFinding(t.Context(), store, &batch, []string{"internal/p"}, honesty); err != nil {
 		t.Fatal(err)
 	}
-	mustReview(store.Commit(context.Background(), batch))
+	mustReview(store.Commit(t.Context(), batch))
 	next := artifact.Batch{Key: "gate/fixture/repeat"}
-	if err := appendGateAdvisoryFinding(context.Background(), store, &next, []string{"internal/p"}, honesty); err != nil ||
+	if err := appendGateAdvisoryFinding(t.Context(), store, &next, []string{"internal/p"}, honesty); err != nil ||
 		len(next.Aliases) != 1 || next.Aliases[0].Previous == nil || *next.Aliases[0].Previous != batch.Aliases[0].Target {
 		t.Fatalf("deduplicated finding = %+v, %v", next.Aliases, err)
 	}
@@ -118,7 +118,7 @@ func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
 		t.Fatalf("device resources = %+v", resources)
 	}
 	commitDependencies := byName["commit"].Dependencies
-	if len(commitDependencies) != 1 || commitDependencies[0] != "device" {
+	if !slices.Equal(commitDependencies, []string{"test", "device"}) {
 		t.Fatalf("commit dependencies = %v", commitDependencies)
 	}
 }

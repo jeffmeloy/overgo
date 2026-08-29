@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -17,23 +16,23 @@ func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := fixtureBatch(t)
-	first, err := store.Commit(context.Background(), base)
+	first, err := store.Commit(t.Context(), base)
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := store.Snapshot(context.Background())
+	snapshot, err := store.Snapshot(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if snapshot.Sequence != 1 || snapshot.Head != first {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
-	again, err := store.Snapshot(context.Background())
+	again, err := store.Snapshot(t.Context())
 	if err != nil || again.Path != snapshot.Path {
 		t.Fatalf("repeated snapshot = (%+v, %v)", again, err)
 	}
 	tail := fixtureDescriptor(t, artifact.KindOutput, "snapshot-tail")
-	second, err := store.Commit(context.Background(), artifact.Batch{
+	second, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "snapshot/tail", Artifacts: []artifact.Descriptor{tail},
 	})
 	if err != nil {
@@ -51,7 +50,7 @@ func TestSnapshotAnchorsReplayAndRetainsTail(t *testing.T) {
 	if head != second || headSequence != 2 {
 		t.Fatalf("replayed head = (%s, %d)", head, headSequence)
 	}
-	if _, ok, err := store.Artifact(context.Background(), tail.ID); err != nil || !ok {
+	if _, ok, err := store.Artifact(t.Context(), tail.ID); err != nil || !ok {
 		t.Fatalf("tail artifact = (%v, %v)", ok, err)
 	}
 }
@@ -63,10 +62,10 @@ func TestSnapshotFallbackReport(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch := fixtureBatch(t)
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := store.Snapshot(context.Background())
+	snapshot, err := store.Snapshot(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +103,7 @@ func TestSnapshotFallbackReport(t *testing.T) {
 	if status.Loaded || status.Path != snapshot.Path || status.Fallback == "" {
 		t.Fatalf("snapshot fallback = %+v", status)
 	}
-	if _, ok, err := store.Artifact(context.Background(), batch.Artifacts[0].ID); err != nil || !ok {
+	if _, ok, err := store.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !ok {
 		t.Fatalf("rebuilt artifact = (%v, %v)", ok, err)
 	}
 }
@@ -115,10 +114,10 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := source.Commit(context.Background(), fixtureBatch(t)); err != nil {
+	if _, err := source.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := source.Snapshot(context.Background())
+	snapshot, err := source.Snapshot(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +130,7 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	targetArtifact := fixtureDescriptor(t, artifact.KindModel, "target-model")
-	if _, err := target.Commit(context.Background(), artifact.Batch{
+	if _, err := target.Commit(t.Context(), artifact.Batch{
 		Key: "snapshot/target", Artifacts: []artifact.Descriptor{targetArtifact},
 	}); err != nil {
 		t.Fatal(err)
@@ -155,7 +154,7 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer target.Close()
-	if _, ok, err := target.Artifact(context.Background(), targetArtifact.ID); err != nil || !ok {
+	if _, ok, err := target.Artifact(t.Context(), targetArtifact.ID); err != nil || !ok {
 		t.Fatalf("target artifact = (%v, %v)", ok, err)
 	}
 }
@@ -166,10 +165,10 @@ func TestSnapshotRejectsInvalidStoreModeAndState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Snapshot(context.Background()); err == nil {
+	if _, err := store.Snapshot(t.Context()); err == nil {
 		t.Fatal("empty snapshot accepted")
 	}
-	if _, err := store.Commit(context.Background(), fixtureBatch(t)); err != nil {
+	if _, err := store.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -180,7 +179,7 @@ func TestSnapshotRejectsInvalidStoreModeAndState(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := store.Snapshot(context.Background()); !errors.Is(err, ErrReadOnly) {
+	if _, err := store.Snapshot(t.Context()); !errors.Is(err, ErrReadOnly) {
 		t.Fatalf("read-only snapshot error = %v", err)
 	}
 }

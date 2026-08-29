@@ -5,7 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"path"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -66,15 +66,14 @@ func AuditProductionAuthorityBoundaries(snapshot SourceSnapshot) (ProductionAuth
 	auditStorageAndProcessAuthorities(sources, &report)
 	auditCapabilityAndToolAuthorities(sources, &report)
 	auditTriggerAndPromotionAuthorities(sources, &report)
-	sort.Slice(report.Findings, func(i, j int) bool {
-		left, right := report.Findings[i], report.Findings[j]
-		return strings.Join([]string{
+	slices.SortFunc(report.Findings, func(left, right ProductionAuthorityFinding) int {
+		return strings.Compare(strings.Join([]string{
 			left.Family, left.Kind, left.Symbol, left.File,
 			fmt.Sprintf("%09d", left.Line), left.Actual, left.Expected,
-		}, "\x00") < strings.Join([]string{
+		}, "\x00"), strings.Join([]string{
 			right.Family, right.Kind, right.Symbol, right.File,
 			fmt.Sprintf("%09d", right.Line), right.Actual, right.Expected,
-		}, "\x00")
+		}, "\x00"))
 	})
 	return report, nil
 }

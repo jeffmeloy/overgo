@@ -16,10 +16,10 @@ type LeaseRecommendation struct {
 	Task             string      `json:"task"`
 	Experiment       artifact.ID `json:"experiment,omitzero"`
 	Abandoned        bool        `json:"abandoned"`
-	RecommendedRetry uint32      `json:"recommended_retry,omitempty"`
+	RecommendedRetry uint32      `json:"recommended_retry,omitzero"`
 	ResumeCheckpoint artifact.ID `json:"resume_checkpoint,omitzero"`
-	RecoveryNS       uint64      `json:"recovery_ns,omitempty"`
-	WallErrorNS      int64       `json:"wall_error_ns,omitempty"`
+	RecoveryNS       uint64      `json:"recovery_ns,omitzero"`
+	WallErrorNS      int64       `json:"wall_error_ns,omitzero"`
 	Reason           string      `json:"reason"`
 }
 

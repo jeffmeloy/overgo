@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -25,7 +24,7 @@ func TestAgentLoopProposesGatedStep(t *testing.T) {
 	}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "cli-loop-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "cli-loop-model")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "cli-loop/identity", Artifacts: []artifact.Descriptor{{ID: recipeID}},
 	}); err != nil {
 		t.Fatal(err)
@@ -42,7 +41,7 @@ func TestAgentLoopProposesGatedStep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := agenttool.PublishManualCatalog(context.Background(), store, []agenttool.Manual{inspect}); err != nil {
+	if _, err := agenttool.PublishManualCatalog(t.Context(), store, []agenttool.Manual{inspect}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

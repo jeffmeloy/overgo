@@ -1,7 +1,6 @@
 package latentvideo
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/media"
@@ -17,7 +16,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		t.Skipf("UNAVAILABLE: %v", err)
 	}
 	const height, width = 16, 16
-	encoder, err := NewMP4Encoder(context.Background(), ffmpeg, 4, height, width, SignedUnitPixels)
+	encoder, err := NewMP4Encoder(t.Context(), ffmpeg, 4, height, width, SignedUnitPixels)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +37,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 		t.Fatalf("encoded video = frames %d bytes %d", video.Frames, len(video.Data))
 	}
 
-	abandoned, err := NewMP4Encoder(context.Background(), ffmpeg, 4, height, width, SignedUnitPixels)
+	abandoned, err := NewMP4Encoder(t.Context(), ffmpeg, 4, height, width, SignedUnitPixels)
 	if err != nil {
 		t.Fatal(err)
 	}

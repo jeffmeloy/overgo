@@ -103,11 +103,11 @@ func lex(src string) ([]chunk, error) {
 				} else {
 					// trailing whitespace-control char immediately before delimiter
 					trimmed := strings.TrimRight(body, " \t")
-					if strings.HasSuffix(trimmed, "-") {
+					if before, ok := strings.CutSuffix(trimmed, "-"); ok {
 						trimR = true
-						body = strings.TrimSuffix(trimmed, "-")
-					} else if strings.HasSuffix(trimmed, "+") {
-						body = strings.TrimSuffix(trimmed, "+")
+						body = before
+					} else if before, ok := strings.CutSuffix(trimmed, "+"); ok {
+						body = before
 					}
 					toks, name, err := lexExpr(body, kind)
 					if err != nil {

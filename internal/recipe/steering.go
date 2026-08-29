@@ -3,7 +3,6 @@ package recipe
 import (
 	"errors"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -119,7 +118,7 @@ func canonicalizeSteeringProposal(v *SteeringProposal) error {
 		if !steeringID(row.Item) || !steeringID(row.Step) || !boundedStatement(row.Title) || row.Verifier.Kind() != artifact.KindRecipe {
 			return errors.New("recipe: invalid steering plan row")
 		}
-		sort.Strings(row.Capabilities)
+		slices.Sort(row.Capabilities)
 		row.Capabilities = slices.Compact(row.Capabilities)
 		for _, capability := range row.Capabilities {
 			if !steeringID(capability) {

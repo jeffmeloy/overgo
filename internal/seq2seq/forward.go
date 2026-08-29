@@ -75,8 +75,8 @@ func (m *Model) projectKVTrace(dstK, dstV, rawK, source []float32, rows int, blo
 // at posBase.
 func (m *Model) ropeRows(x []float32, rows, heads, posBase int) {
 	hd := m.Dims.HeadDim
-	for p := 0; p < rows; p++ {
-		for h := 0; h < heads; h++ {
+	for p := range rows {
+		for h := range heads {
 			hostmath.ApplyRotaryHalf(x[(p*heads+h)*hd:(p*heads+h+1)*hd], m.invFreq, posBase+p)
 		}
 	}
@@ -217,7 +217,7 @@ func (m *Model) DecodeFull(memory []float32, memRows int, tgt []int) ([]float32,
 	rows, d := len(tgt), m.Dims.DModel
 	logits := make([]float32, rows*m.Dims.Vocab)
 	scratch := make([]float32, d)
-	for row := 0; row < rows; row++ {
+	for row := range rows {
 		m.projectLogits(logits[row*m.Dims.Vocab:(row+1)*m.Dims.Vocab], hidden[row*d:(row+1)*d], scratch)
 	}
 	return logits, nil

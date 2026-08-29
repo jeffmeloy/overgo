@@ -1,7 +1,6 @@
 package recipe
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -21,12 +20,12 @@ func TestAgentDefinitionAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	artifacts := agentDefinitionDependencies(definition)
-	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "agent/definition", Artifacts: artifacts, Contents: []artifact.Content{content}, Lineage: definition.Lineage(),
 	}); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := RequireAgentDefinition(context.Background(), store, definition.ID)
+	loaded, err := RequireAgentDefinition(t.Context(), store, definition.ID)
 	if err != nil || loaded.ID != definition.ID || loaded.Prompt != definition.Prompt ||
 		len(loaded.ToolManuals) != 1 || len(loaded.CapabilityBundles) != 1 || len(loaded.Datasets) != 1 ||
 		len(loaded.Automations) != 1 || len(loaded.Policies) != 1 {

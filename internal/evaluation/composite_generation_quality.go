@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -165,7 +164,7 @@ func (CompositeGenerationQualityAuthority) Evaluate(
 		composedByInput[key.Input] = append(composedByInput[key.Input], composed)
 	}
 	for _, values := range composedByInput {
-		sort.Float64s(values)
+		slices.Sort(values)
 		spread := values[len(values)-tensor.SingletonExtent] - values[tensor.FirstOffset]
 		if spread > policy.MaximumSeedSpread {
 			return CompositeGenerationQuality{}, errors.New("evaluation: composite generation repeated-seed stability is insufficient")

@@ -1,7 +1,6 @@
 package automationcheck
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -24,7 +23,7 @@ func TestManifestCheck(t *testing.T) {
 	if err != nil || len(planned) != 1 || planned[0].Check.Name != "manifest" {
 		t.Fatalf("plan = %+v, %v", planned, err)
 	}
-	if _, err := Run(context.Background(), planned[0]); err != nil {
+	if _, err := Run(t.Context(), planned[0]); err != nil {
 		t.Fatal(err)
 	}
 	if len(calls) != 2 || !strings.Contains(calls[1], "TestGeneratedBindingsMatchManifest") {
@@ -41,7 +40,7 @@ func TestSBOMCheck(t *testing.T) {
 	if err != nil || len(planned) != 1 || planned[0].Check.Name != "sbom" {
 		t.Fatalf("plan = %+v, %v", planned, err)
 	}
-	if _, err := Run(context.Background(), planned[0]); err != nil {
+	if _, err := Run(t.Context(), planned[0]); err != nil {
 		t.Fatal(err)
 	}
 	if len(calls) != 1 || !strings.Contains(calls[0], "./cmd/sbom -check") {
@@ -61,7 +60,7 @@ func TestCompatibilityCheck(t *testing.T) {
 	if err != nil || len(planned) != 1 || planned[0].Check.Name != "claims" {
 		t.Fatalf("plan = %+v, %v", planned, err)
 	}
-	if _, err := Run(context.Background(), planned[0]); err != nil {
+	if _, err := Run(t.Context(), planned[0]); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(calls, []string{"go run ./cmd/compatibility -check"}) {

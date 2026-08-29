@@ -49,8 +49,8 @@ func DecodeImageBytesRGB(data []byte) (rgb []uint8, h, w int, err error) {
 	b := im.Bounds()
 	h, w = b.Dy(), b.Dx()
 	rgb = make([]uint8, h*w*media.RGBChannels)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			r, g, bl, _ := im.At(b.Min.X+x, b.Min.Y+y).RGBA()
 			i := (y*w + x) * media.RGBChannels
 			rgb[i], rgb[i+1], rgb[i+2] = uint8(r>>8), uint8(g>>8), uint8(bl>>8)
@@ -87,11 +87,11 @@ func resizeBicubicAntialias(src []uint8, h, w, th, tw int) ([]uint8, error) {
 	}
 	xmin, xk, xw := aaWeights(w, tw)
 	mid := make([]uint8, h*tw*media.RGBChannels)
-	for y := 0; y < h; y++ {
-		for ox := 0; ox < tw; ox++ {
+	for y := range h {
+		for ox := range tw {
 			x0, k, wt := xmin[ox], xk[ox], xw[ox]
 			var r, g, b float64
-			for j := 0; j < k; j++ {
+			for j := range k {
 				si := (y*w + (x0 + j)) * media.RGBChannels
 				r += wt[j] * float64(src[si])
 				g += wt[j] * float64(src[si+1])
@@ -103,11 +103,11 @@ func resizeBicubicAntialias(src []uint8, h, w, th, tw int) ([]uint8, error) {
 	}
 	ymin, yk, yw := aaWeights(h, th)
 	out := make([]uint8, th*tw*media.RGBChannels)
-	for oy := 0; oy < th; oy++ {
+	for oy := range th {
 		y0, k, wt := ymin[oy], yk[oy], yw[oy]
-		for x := 0; x < tw; x++ {
+		for x := range tw {
 			var r, g, b float64
-			for j := 0; j < k; j++ {
+			for j := range k {
 				si := ((y0+j)*tw + x) * media.RGBChannels
 				r += wt[j] * float64(mid[si])
 				g += wt[j] * float64(mid[si+1])
@@ -131,7 +131,7 @@ func aaWeights(inSize, outSize int) (xmin []int, ksize []int, weights [][]float6
 	xmin = make([]int, outSize)
 	ksize = make([]int, outSize)
 	weights = make([][]float64, outSize)
-	for i := 0; i < outSize; i++ {
+	for i := range outSize {
 		center := scale * (float64(i) + media.RasterSampleCenter)
 		lo := int(center - support + media.RasterSampleCenter)
 		if lo < 0 {
@@ -144,7 +144,7 @@ func aaWeights(inSize, outSize int) (xmin []int, ksize []int, weights [][]float6
 		k := hi - lo
 		w := make([]float64, k)
 		var sum float64
-		for x := 0; x < k; x++ {
+		for x := range k {
 			w[x] = media.CubicConvolutionWeight((float64(x+lo) - center + media.RasterSampleCenter) * invscale)
 			sum += w[x]
 		}
@@ -168,8 +168,8 @@ func resizeNormalizeRGBBicubic(rgb []uint8, h, w, outH, outW int, mean, std []fl
 	}
 	plane := outH * outW
 	normalized := make([]float32, media.RGBChannels*plane)
-	for y := 0; y < outH; y++ {
-		for x := 0; x < outW; x++ {
+	for y := range outH {
+		for x := range outW {
 			for channel := 0; channel < media.RGBChannels; channel++ {
 				if std[channel] <= 0 {
 					return nil, fmt.Errorf("RGB normalization channel %d has non-positive scale", channel)
@@ -198,21 +198,21 @@ func patchifyMergedFrames(frames [][]float32, rh, rw, patch, temporal, merge int
 	featDim := media.RGBChannels * temporal * patch * patch
 	pixelValues := make([]float32, gridT*gridH*gridW*featDim)
 	p := 0
-	for gt := 0; gt < gridT; gt++ {
-		for hbi := 0; hbi < hb; hbi++ {
-			for wbi := 0; wbi < wb; wbi++ {
-				for mh := 0; mh < merge; mh++ {
-					for mw := 0; mw < merge; mw++ {
+	for gt := range gridT {
+		for hbi := range hb {
+			for wbi := range wb {
+				for mh := range merge {
+					for mw := range merge {
 						f := 0
 						for ch := 0; ch < media.RGBChannels; ch++ {
 							yc := (hbi*merge + mh) * patch
 							xc := (wbi*merge + mw) * patch
 							base := ch*plane + yc*rw + xc
-							for t := 0; t < temporal; t++ {
+							for t := range temporal {
 								fr := frames[gt*temporal+t]
-								for ph := 0; ph < patch; ph++ {
+								for ph := range patch {
 									row := base + ph*rw
-									for pw := 0; pw < patch; pw++ {
+									for pw := range patch {
 										pixelValues[p*featDim+f] = fr[row+pw]
 										f++
 									}

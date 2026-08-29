@@ -45,7 +45,7 @@ type MeasurementPolicy struct {
 	// dimensions are both within it (0 disables spectral analysis). The bound is
 	// a compute budget — exact singular values are O(dim³) — not a metric
 	// threshold; larger matrices are reported deferred.
-	SpectralMaxDim uint64 `json:"spectral_max_dim,omitempty"`
+	SpectralMaxDim uint64 `json:"spectral_max_dim,omitzero"`
 }
 
 // TensorMeasurement is one tensor's distribution-free characterization: robust
@@ -56,8 +56,8 @@ type TensorMeasurement struct {
 	tensorstats.Characterization
 	// EffectiveRank is the normalized effective rank (spectral flatness) of a
 	// 2-D tensor, present only when SpectralStatus is "computed".
-	EffectiveRank  float64 `json:"effective_rank,omitempty"`
-	SpectralStatus string  `json:"spectral_status,omitempty"`
+	EffectiveRank  float64 `json:"effective_rank,omitzero"`
+	SpectralStatus string  `json:"spectral_status,omitzero"`
 }
 
 // TensorMeasurementDocument: bounded sampled tensor evidence.

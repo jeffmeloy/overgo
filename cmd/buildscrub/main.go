@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -97,7 +97,7 @@ func run() error {
 	if err := walk(""); err != nil {
 		return err
 	}
-	sort.Strings(scrap)
+	slices.Sort(scrap)
 	fmt.Printf("retained=%d scrap_entries=%d scrap_bytes=%.2f GB\n", kept, len(scrap), float64(scrapBytes)/1e9)
 	for _, name := range scrap {
 		fmt.Println("scrap:", name)

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -20,7 +19,7 @@ import (
 func TestWorkflowDAG(t *testing.T) {
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	store := handler.repository
-	ctx := context.Background()
+	ctx := t.Context()
 
 	moduleFirst := recipe.ModuleID("dag.first")
 	moduleSecond := recipe.ModuleID("dag.second")

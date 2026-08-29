@@ -64,9 +64,7 @@ func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
 	var maxRel float64
 	for i := range hostTraj {
 		r := math.Abs(hostTraj[i]-streamedTraj[i]) / (math.Abs(hostTraj[i]) + 1e-9)
-		if r > maxRel {
-			maxRel = r
-		}
+		maxRel = max(maxRel, r)
 		t.Logf("step %d  host=%.6f  streamed=%.6f  rel=%.3e", i, hostTraj[i], streamedTraj[i], r)
 	}
 	if !(streamedTraj[len(streamedTraj)-1] < streamedTraj[0]) {
@@ -179,12 +177,8 @@ func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	for i := range hostTraj {
 		d := math.Abs(hostTraj[i] - devTraj[i])
 		r := d / (math.Abs(hostTraj[i]) + 1e-9)
-		if d > maxAbs {
-			maxAbs = d
-		}
-		if r > maxRel {
-			maxRel = r
-		}
+		maxAbs = max(maxAbs, d)
+		maxRel = max(maxRel, r)
 		t.Logf("step %d  host=%.6f  device=%.6f  |diff|=%.3e  rel=%.3e", i, hostTraj[i], devTraj[i], d, r)
 	}
 	t.Logf("trajectory parity over %d steps: max|diff|=%.3e  maxRel=%.3e", testSteps, maxAbs, maxRel)

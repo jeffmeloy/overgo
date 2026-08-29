@@ -101,7 +101,7 @@ func TestMoEBackwardMatchesFiniteDifference(t *testing.T) {
 					values[i] = original
 					numeric := (plus - minus) / (2 * epsilon)
 					got := float64(analytic[i])
-					scale := math.Max(1, math.Max(math.Abs(numeric), math.Abs(got)))
+					scale := max(1, max(math.Abs(numeric), math.Abs(got)))
 					if math.Abs(numeric-got)/scale > limit {
 						t.Fatalf("%s[%d]: analytic=%.6g numeric=%.6g", label, i, got, numeric)
 					}

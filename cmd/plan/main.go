@@ -27,6 +27,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -271,9 +272,7 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	if err != nil {
 		return plan.ContextFacts{}, err
 	}
-	if branch == "" {
-		branch = "detached"
-	}
+	branch = cmp.Or(branch, "detached")
 	worktree, err := text("rev-parse", "--show-toplevel")
 	if err != nil {
 		return plan.ContextFacts{}, err
@@ -630,7 +629,7 @@ func runVerify(it plan.Item, st plan.Step) error {
 		if err := repeatCmd.Run(); err != nil {
 			return fmt.Errorf("verify REPEAT failed for %s/%s: %w: %s", it.ID, st.ID, err, clioptions.Tail(repeat.String(), 2000))
 		}
-		if err := testevidence.RepeatAgreement(buf.String(), repeat.String()); err != nil {
+		if err := testevidence.RepeatAgreementForCommand(st.Verify, buf.String(), repeat.String()); err != nil {
 			return fmt.Errorf("verify NOT deterministic for %s/%s: %v -- a bitwise-deterministic claim reached different per-test verdicts across two runs", it.ID, st.ID, err)
 		}
 	}

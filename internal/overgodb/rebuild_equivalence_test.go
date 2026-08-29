@@ -1,9 +1,9 @@
 package overgodb
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -15,7 +15,7 @@ import (
 // commit idempotency record.
 func querySurfaceDigest(t *testing.T, store *Store) string {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var out string
 	query := Query{
 		Kind: artifact.KindRun, MaxResults: scaleAliasStride,
@@ -164,10 +164,11 @@ func TestProjectionRebuildEquivalence(t *testing.T) {
 func indexOfProjection(t *testing.T, name string) int {
 	t.Helper()
 	state := newCatalogState()
-	for index, registered := range projections(&state) {
-		if registered.name == name {
-			return index
-		}
+	index := slices.IndexFunc(projections(&state), func(registered registeredProjection) bool {
+		return registered.name == name
+	})
+	if index >= 0 {
+		return index
 	}
 	t.Fatalf("projection %q is not registered", name)
 	return -1

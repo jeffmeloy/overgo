@@ -72,7 +72,7 @@ type compositionWorkflowView struct {
 	Target     artifact.ID                `json:"target"`
 	Task       recipe.Task                `json:"task"`
 	Compatible bool                       `json:"compatible"`
-	Refusal    string                     `json:"refusal,omitempty"`
+	Refusal    string                     `json:"refusal,omitzero"`
 	Active     bool                       `json:"active"`
 	Graph      *compositionGraphView      `json:"graph,omitempty"`
 	Training   *compositionTrainingView   `json:"training,omitempty"`

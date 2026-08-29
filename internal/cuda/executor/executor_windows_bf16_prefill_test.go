@@ -46,7 +46,7 @@ func TestExecutorBF16GetRowsMatchesReference(t *testing.T) {
 	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	got, err := cuda.executeWithDeviceFeeds(
-		context.Background(), []*tensor.Tensor{rows}, nil,
+		context.WithoutCancel(t.Context()), []*tensor.Tensor{rows}, nil,
 		map[*tensor.Tensor]driver.DevicePtr{table: pointer},
 	)
 	if err != nil {
@@ -102,7 +102,7 @@ func TestExecutorBF16TensorCoreMulMatMatchesRoundedReference(t *testing.T) {
 	pointer := copyFixtureDeviceBytes(t, worker, leftStorage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	got, err := cuda.executeWithDeviceFeeds(
-		context.Background(), []*tensor.Tensor{output},
+		context.WithoutCancel(t.Context()), []*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{right: rightValue},
 		map[*tensor.Tensor]driver.DevicePtr{left: pointer},
 	)

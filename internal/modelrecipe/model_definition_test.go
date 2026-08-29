@@ -2,7 +2,6 @@ package modelrecipe
 
 import (
 	"bytes"
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -133,7 +132,7 @@ func TestGGUFModelDefinitionOvergoDBResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	resolvedSource, err := document.Resolve(profileDocument, inventory.TensorInventory)
 	if err != nil {
 		t.Fatal(err)
@@ -190,10 +189,10 @@ func TestPublishResolvedModelDefinitionSeparatesProfiles(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := PublishResolvedModelDefinition(context.Background(), store, inventory, resolved); err != nil {
+		if _, err := PublishResolvedModelDefinition(t.Context(), store, inventory, resolved); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := ResolveModelDefinition(context.Background(), store, document.ID); err != nil {
+		if _, err := ResolveModelDefinition(t.Context(), store, document.ID); err != nil {
 			t.Fatal(err)
 		}
 	}

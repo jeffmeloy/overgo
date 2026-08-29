@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -43,7 +42,7 @@ func TestGateAttemptBindsStrategyIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), strategyBatch); err != nil {
+	if _, err := store.Commit(t.Context(), strategyBatch); err != nil {
 		t.Fatal(err)
 	}
 

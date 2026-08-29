@@ -102,7 +102,7 @@ func processDNASequence(sequence string, k int) []string {
 	sequence = strings.ToUpper(sequence)
 	kmers := make([]string, 0, len(sequence)/k+1)
 	valid := func(window string) bool {
-		for i := 0; i < len(window); i++ {
+		for i := range len(window) {
 			if strings.IndexByte(dnaAlphabet, window[i]) < 0 {
 				return false
 			}
@@ -144,7 +144,7 @@ func (d *dnaExtension) kmerID(kmer string) (TokenID, bool) {
 		return NullToken, false
 	}
 	index := uint64(0)
-	for i := 0; i < len(kmer); i++ {
+	for i := range len(kmer) {
 		digit := strings.IndexByte(dnaAlphabet, kmer[i])
 		if digit < 0 {
 			return NullToken, false

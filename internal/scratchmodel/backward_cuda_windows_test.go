@@ -50,7 +50,7 @@ func TestScratchTensorDeviceVJPParity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		values, err := cuda.Execute(context.Background(), graph.cacheOutputs(), feeds)
+		values, err := cuda.Execute(context.WithoutCancel(t.Context()), graph.cacheOutputs(), feeds)
 		if err != nil {
 			t.Fatal(err)
 		}

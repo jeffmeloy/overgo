@@ -133,7 +133,7 @@ func TestRegisteredProfileSemanticDigest(t *testing.T) {
 }
 
 func TestLoadProfileRequiresStoredDerivationLineage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +166,7 @@ func TestLoadProfileRequiresStoredDerivationLineage(t *testing.T) {
 }
 
 func TestProfilePublicationRequiresExternalDerivation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

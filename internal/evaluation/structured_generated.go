@@ -212,8 +212,8 @@ func extractDollarSpan(value string) string {
 
 func normalizeLatexSurface(value string) string {
 	value = latexSurfaceReplacer.Replace(value)
-	if unit := strings.Index(value, `\text{ `); unit >= 0 {
-		value = value[:unit]
+	if before, _, ok := strings.Cut(value, `\text{ `); ok {
+		value = before
 	}
 	value = strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) {

@@ -199,7 +199,7 @@ func qwen35Fixture(t *testing.T) *hfrepo.Repository {
 		"mtp.pre_fc_norm_hidden.weight":            {8},
 		"mtp.norm.weight":                          {8},
 	}
-	for block := 0; block < 5; block++ {
+	for block := range 5 {
 		prefix := fmt.Sprintf("model.language_model.layers.%d.", block)
 		if block == 4 {
 			prefix = "mtp.layers.0."

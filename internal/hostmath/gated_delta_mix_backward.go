@@ -65,8 +65,8 @@ func GatedDeltaMixBackward(x []float32, w GatedDeltaMixWeights, d GatedDeltaMixD
 	dAlpha := make([]float32, T*hv)
 	g.DTimeStep = make([]float32, hv)
 	g.DA = make([]float32, hv)
-	for t := 0; t < T; t++ {
-		for h := 0; h < hv; h++ {
+	for t := range T {
+		for h := range hv {
 			pre := float64(c.alpha[t*hv+h]) + float64(w.TimeStep[h])
 			sp := softplus(pre)
 			dg := float64(dGate[t*hv+h])
@@ -124,7 +124,7 @@ func shortConvBackTokenMajor(proj, dConv []float32, T, ch int, w, bias []float32
 func weightedRMSNormBackward(x, weight, dY []float32, rows, width int, eps float64) (dx, dWeight []float32) {
 	dx = make([]float32, len(x))
 	dWeight = make([]float32, width)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := x[r*width : r*width+width]
 		var ss float64
 		for _, v := range row {
@@ -149,19 +149,19 @@ func weightedRMSNormBackward(x, weight, dY []float32, rows, width int, eps float
 func linearBackward2(x, w, dY []float32, rows, in, out int) (dX, dW []float32) {
 	dX = make([]float32, rows*in)
 	dW = make([]float32, out*in)
-	for r := 0; r < rows; r++ {
-		for i := 0; i < in; i++ {
+	for r := range rows {
+		for i := range in {
 			var acc float64
-			for o := 0; o < out; o++ {
+			for o := range out {
 				acc += float64(dY[r*out+o]) * float64(w[o*in+i])
 			}
 			dX[r*in+i] = float32(acc)
 		}
 	}
-	for o := 0; o < out; o++ {
-		for i := 0; i < in; i++ {
+	for o := range out {
+		for i := range in {
 			var acc float64
-			for r := 0; r < rows; r++ {
+			for r := range rows {
 				acc += float64(dY[r*out+o]) * float64(x[r*in+i])
 			}
 			dW[o*in+i] = float32(acc)

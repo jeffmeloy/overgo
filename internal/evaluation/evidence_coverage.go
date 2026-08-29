@@ -37,7 +37,7 @@ const (
 // to measurement; an empty metric list accepts any measured sample.
 type CoverageRequirement struct {
 	Axis            CoverageAxis               `json:"axis"`
-	ExpectedSamples uint32                     `json:"expected_samples,omitempty"`
+	ExpectedSamples uint32                     `json:"expected_samples,omitzero"`
 	Metrics         []runrecord.ResourceMetric `json:"metrics,omitempty"`
 }
 
@@ -230,7 +230,7 @@ func canonicalizeCoverageQuery(query *CoverageQuery) error {
 		for requirementIndex := range unit.Required {
 			requirement := &unit.Required[requirementIndex]
 			requirement.Metrics = slices.Clone(requirement.Metrics)
-			sort.Slice(requirement.Metrics, func(i, j int) bool { return requirement.Metrics[i] < requirement.Metrics[j] })
+			slices.Sort(requirement.Metrics)
 			if !validCoverageAxis(requirement.Axis) ||
 				(requirement.Axis == CoverageMeasurement || requirement.Axis == CoverageHardware) != (requirement.ExpectedSamples > 0) ||
 				requirement.Axis != CoverageMeasurement && requirement.Axis != CoverageHardware && len(requirement.Metrics) != 0 {

@@ -62,7 +62,7 @@ func TestProtectionEvidence(t *testing.T) {
 }
 
 func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	repository := t.TempDir()
 	store, err := overgodb.Open(repository)
 	if err != nil {
@@ -133,7 +133,7 @@ func TestGateRecordRejectsOutcomeStepContradictions(t *testing.T) {
 }
 
 func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 }
 
 func TestVerifyFailedGateRun(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -211,7 +211,7 @@ func TestVerifyFailedGateRun(t *testing.T) {
 }
 
 func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

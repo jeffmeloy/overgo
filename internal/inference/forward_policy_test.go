@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -23,7 +22,7 @@ func TestForwardUsesCompiledPolicy(t *testing.T) {
 			runner := &Runner{preparedModel: preparedModel{
 				spec: spec, program: fixtureProgram(spec, model.Weights{}),
 			}}
-			_, err := runner.Forward(context.Background(), nil)
+			_, err := runner.Forward(t.Context(), nil)
 			if err == nil || !strings.Contains(err.Error(), test.message) {
 				t.Fatalf("Forward error = %v", err)
 			}

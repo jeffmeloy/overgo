@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -44,7 +43,7 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	result, err := store.QueryCausality(t.Context(), overgodb.CausalityQuery{Root: &rootID, MaxResults: 1})

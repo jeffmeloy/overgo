@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -406,7 +407,7 @@ func (h *Handler) parseResponsesMessageContent(
 				InputVideo struct {
 					Data string  `json:"data"`
 					URL  string  `json:"url"`
-					FPS  float64 `json:"fps,omitempty"`
+					FPS  float64 `json:"fps,omitzero"`
 				} `json:"input_video"`
 			}
 			if err := strictjson.DecodeBytes(rawPart, &part); err != nil {
@@ -532,9 +533,7 @@ func decodeResponsesFileData(source string) (ResponseFile, error) {
 
 func validResponseFilename(filename string) (string, error) {
 	filename = strings.TrimSpace(filename)
-	if filename == "" {
-		filename = "input"
-	}
+	filename = cmp.Or(filename, "input")
 	if len(filename) > 255 || filename == "." || filename == ".." ||
 		strings.ContainsAny(filename, "/\\\x00\r\n") {
 		return "", errors.New("must be a single safe path component")

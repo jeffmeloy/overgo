@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -63,7 +62,7 @@ func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
 	if !architectureInvocation.ID.Valid() {
 		t.Fatal("documentation-only plan omitted the architecture ratchet")
 	}
-	evidence, runErr := automationcheck.Run(context.Background(), architectureInvocation)
+	evidence, runErr := automationcheck.Run(t.Context(), architectureInvocation)
 	if runErr != nil {
 		t.Fatal(runErr)
 	}

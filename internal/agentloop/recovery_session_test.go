@@ -1,7 +1,6 @@
 package agentloop
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -15,7 +14,7 @@ import (
 )
 
 func TestAgentSessionRecovery(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	manual, err := agenttool.ResolveRegisteredManual(ctx, store, "probe.read")
 	if err != nil {

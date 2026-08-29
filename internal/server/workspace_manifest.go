@@ -38,7 +38,7 @@ type workspaceTab struct {
 	Label   string `json:"label"`
 	Section string `json:"section"`
 	Enabled bool   `json:"enabled"`
-	Refusal string `json:"refusal,omitempty"`
+	Refusal string `json:"refusal,omitzero"`
 }
 
 type workspaceManifestResponse struct {

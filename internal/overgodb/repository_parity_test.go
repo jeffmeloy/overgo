@@ -1,11 +1,10 @@
 package overgodb
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -16,7 +15,7 @@ import (
 // content bytes, aliases, and lineage in both directions.
 func repositoryView(t *testing.T, repository artifact.Repository) string {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var view []string
 	for ordinal := range scaleCorpusCommits {
 		content := scaleContent(ordinal)
@@ -61,7 +60,7 @@ func repositoryView(t *testing.T, repository artifact.Repository) string {
 	}
 	head, sequence := repository.Head()
 	view = append(view, fmt.Sprintf("head/%s/%d", head, sequence))
-	sort.Strings(view)
+	slices.Sort(view)
 	var joined string
 	for _, line := range view {
 		joined += line + "\n"

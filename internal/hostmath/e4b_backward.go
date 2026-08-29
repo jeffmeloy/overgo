@@ -19,9 +19,9 @@ func WindowedCausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, h
 	probs := make([]float64, seq)
 	dP := make([]float64, seq)
 	group := heads / kvHeads
-	for h := 0; h < heads; h++ {
+	for h := range heads {
 		kv := h / group
-		for qi := 0; qi < seq; qi++ {
+		for qi := range seq {
 			lo := 0
 			if window > 0 && qi+1 > window {
 				lo = qi + 1 - window
@@ -32,43 +32,41 @@ func WindowedCausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, h
 			dqRow := dq[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			// recompute softmax probs over keys lo..qi
 			mx := math.Inf(-1)
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				kRow := k[((lo+m)*kvHeads+kv)*headDim : ((lo+m)*kvHeads+kv+1)*headDim]
 				var dot float64
-				for x := 0; x < headDim; x++ {
+				for x := range headDim {
 					dot += float64(qRow[x]) * float64(kRow[x])
 				}
 				probs[m] = dot
-				if dot > mx {
-					mx = dot
-				}
+				mx = max(mx, dot)
 			}
 			var sum float64
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				probs[m] = math.Exp(probs[m] - mx)
 				sum += probs[m]
 			}
 			inv := 1.0 / sum
 			var dot float64
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				probs[m] *= inv
 				ki := lo + m
 				vRow := v[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 				dvRow := dv[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 				var dpm float64
-				for x := 0; x < headDim; x++ {
+				for x := range headDim {
 					dpm += float64(dout[x]) * float64(vRow[x])
 					dvRow[x] += float32(probs[m]) * dout[x]
 				}
 				dP[m] = dpm
 				dot += probs[m] * dpm
 			}
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				g := probs[m] * (dP[m] - dot)
 				ki := lo + m
 				kRow := k[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
 				dkRow := dk[(ki*kvHeads+kv)*headDim : (ki*kvHeads+kv+1)*headDim]
-				for x := 0; x < headDim; x++ {
+				for x := range headDim {
 					dqRow[x] += float32(g * float64(kRow[x]))
 					dkRow[x] += float32(g * float64(qRow[x]))
 				}
@@ -107,7 +105,7 @@ func SoftcapBackward(dst, dOut, preCap []float32, cap float64) {
 // the mean term.
 func ActivationSparsityBackward(dGate, gate, dA []float32, rows, width int, stdMult float64) {
 	clear(dGate)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		base := r * width
 		g := gate[base : base+width]
 		da := dA[base : base+width]
@@ -159,7 +157,7 @@ func ActivationSparsityBackward(dGate, gate, dA []float32, rows, width int, stdM
 // st==0 rows have scale=0 so both grads are zero. Layout is row-major
 // [rows,width] (token-major, feature-fastest), matching the forward.
 func MatchMagnitudeBackward(dInput, dTarget, input, target, dOut []float32, rows, width int) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		base := r * width
 		in := input[base : base+width]
 		tg := target[base : base+width]
@@ -167,29 +165,29 @@ func MatchMagnitudeBackward(dInput, dTarget, input, target, dOut []float32, rows
 		di := dInput[base : base+width]
 		dt := dTarget[base : base+width]
 		var si, st, dot float64
-		for j := 0; j < width; j++ {
+		for j := range width {
 			si += float64(in[j]) * float64(in[j])
 			st += float64(tg[j]) * float64(tg[j])
 			dot += float64(dO[j]) * float64(in[j])
 		}
 		if si == 0 {
-			for j := 0; j < width; j++ {
+			for j := range width {
 				di[j] = dO[j]
 				dt[j] = 0
 			}
 			continue
 		}
 		scale := math.Sqrt(st / si)
-		for j := 0; j < width; j++ {
+		for j := range width {
 			di[j] = float32(scale * (float64(dO[j]) - float64(in[j])*dot/si))
 		}
 		if st == 0 {
-			for j := 0; j < width; j++ {
+			for j := range width {
 				dt[j] = 0
 			}
 			continue
 		}
-		for j := 0; j < width; j++ {
+		for j := range width {
 			dt[j] = float32(scale * float64(tg[j]) * dot / st)
 		}
 	}
@@ -213,7 +211,7 @@ func EmbedInputScaleBackward(dEmbed, dHidden []float32, tokens []int, d int, sca
 	for t, tok := range tokens {
 		src := dHidden[t*d : (t+1)*d]
 		dst := dEmbed[tok*d : (tok+1)*d]
-		for i := 0; i < d; i++ {
+		for i := range d {
 			dst[i] += float32(scale * float64(src[i]))
 		}
 	}

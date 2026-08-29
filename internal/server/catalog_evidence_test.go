@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +17,7 @@ import (
 // evaluation surfaces per recipe under its derived suite name.
 func TestCatalogEvidenceIndex(t *testing.T) {
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
-	ctx := context.Background()
+	ctx := t.Context()
 	store := handler.config.Repository
 
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")

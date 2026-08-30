@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "model-recipe-lifecycle",
-      "title": "Derive, validate, evaluate, and activate task recipes for prototype-produced models",
-      "status": "open",
-      "steps": [
-        {
-          "id": "recipe-activation",
-          "title": "Drive candidate, validated, active, refused, superseded, retired, and rollback transitions through the existing modelrecipe lifecycle",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/runrecord ./internal/overgodb -run '^TestPrototypeRecipeLifecycleAndRollback$' -count=1",
-          "rationale": "Activation remains evidence-gated and atomic. Active aliases are scoped by model and task, compare-and-set against the incumbent, cite verification and evaluation evidence, and never make the prototype document itself executable. Supersession and refusal preserve both candidates and their causal evidence.",
-          "depends_on": [
-            "model-recipe-lifecycle/recipe-evaluation"
-          ],
-          "capabilities": [
-            "recipe-lifecycle",
-            "promotion",
-            "alias-cas",
-            "rollback"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evidence-routing",
       "title": "Route task execution to models through typed evidence-derived decisions",
       "status": "open",

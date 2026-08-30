@@ -51,6 +51,9 @@ func run() error {
 	if verb == "attribute" {
 		return attributeEvaluation(os.Args[2:])
 	}
+	if verb == "rollback" {
+		return rollbackActivation(os.Args[2:])
+	}
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")

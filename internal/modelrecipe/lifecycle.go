@@ -485,6 +485,15 @@ func transition(
 			Name: activeAlias(definition.Model, definition.Task), Target: definition.ID,
 			Previous: artifact.CloneID(supersedes),
 		})
+		// A rollback supersedes an alias holder that is already retired;
+		// its superseded event stands, so only the alias moves.
+		if active {
+			if oldEvent, loadErr := currentEvent(ctx, store, activeID); loadErr != nil {
+				return artifact.CommitID{}, recipe.LifecycleEvent{}, loadErr
+			} else if oldEvent.To == recipe.StatusSuperseded {
+				active = false
+			}
+		}
 		if active {
 			oldDefinition, loadErr := recipe.RequireDefinition(ctx, store, activeID)
 			if loadErr != nil {

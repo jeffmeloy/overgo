@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "live-safety",
-      "title": "Quarantine or roll back candidates from distribution-free live evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "reentry",
-          "title": "Require new evidence and explicit authority before a quarantined candidate or mechanism family re-enters rollout",
-          "status": "open",
-          "verify": "go test ./internal/loop ./internal/runrecord -run '^TestQuarantineReentryRequiresNewEvidence$' -count=1",
-          "rationale": "Restart, replay, or another controller proposal cannot clear quarantine. Reentry names the prior finding, changed mechanism, new evaluation, decider, and fresh rollout plan.",
-          "depends_on": [
-            "live-safety/atomic-rollback"
-          ],
-          "capabilities": [
-            "rsi-containment",
-            "quarantine",
-            "authority"
-          ]
-        }
-      ]
-    },
-    {
       "id": "normalized-catalog",
       "title": "Canonical comparable component catalog and cheap seam-viability proxy",
       "status": "open",

@@ -19,6 +19,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -112,19 +113,26 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 	}
 	defer store.Close()
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "agent-retrieval-dataset")
-	source := testutil.ArtifactID(t, artifact.KindFile, "agent-retrieval-source")
-	model := testutil.ArtifactID(t, artifact.KindModel, "agent-retrieval-model")
+	model := testutil.ArtifactID(t, artifact.KindModel, "response-model")
 	policy := testutil.ArtifactID(t, artifact.KindProfile, "agent-rerank-policy")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/workspace/retrieval-dependencies",
-		Artifacts: []artifact.Descriptor{{ID: datasetID}, {ID: source}, {ID: model}, {ID: policy}},
+		Artifacts: []artifact.Descriptor{{ID: datasetID}, {ID: model}, {ID: policy}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	embedder := agentWorkspaceEmbedder{model: model}
 	reranker := agentWorkspaceReranker{policy: policy}
+	documents, err := dataset.PublishAgentRetrievalSource(
+		t.Context(), store, artifact.KindFile,
+		[]dataset.AgentRetrievalDocument{{Text: "cited evidence for retrieval"}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := documents[0].Source
 	projection, err := (dataset.AgentRetrievalBuilder{Repository: store}).Build(t.Context(), dataset.AgentRetrievalBuild{
-		Dataset: datasetID, Documents: []dataset.AgentRetrievalDocument{{Source: source, Text: "cited evidence for retrieval"}},
+		Dataset: datasetID, Documents: documents,
 		Policy:   dataset.AgentRetrievalPolicy{MaximumChunkRunes: agentWorkspaceChunkRunes, CandidateLimit: agentWorkspaceCandidates},
 		Embedder: embedder, RerankPolicy: policy,
 	})
@@ -138,9 +146,36 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 	})
 	search := serveTestRequest(fixture.handler, http.MethodPost, "/agents/retrieval", request)
 	if search.Code != http.StatusOK || !strings.Contains(search.Body.String(), source.String()) ||
-		!strings.Contains(search.Body.String(), projection.Dataset.String()) {
+		!strings.Contains(search.Body.String(), projection.Dataset.String()) ||
+		search.Header().Get(agentRetrievalReceiptHeader) == "" || search.Header().Get(agentRetrievalTraceHeader) == "" {
 		t.Fatalf("agent retrieval status=%d body=%s", search.Code, search.Body.String())
 	}
+	receiptID, err := artifact.ParseID(search.Header().Get(agentRetrievalReceiptHeader))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runrecord.RequireConsumedRetrievalReceipt(t.Context(), store, receiptID); err != nil {
+		t.Fatalf("agent retrieval receipt is not replayable: %v", err)
+	}
+	exactRequest := agentRetrievalRequest{
+		Agent: "research-agent", Projection: projection.ID, Query: "evidence", Limit: 1, RerankPolicy: policy,
+	}
+	originalReranker := fixture.handler.config.AgentReranker
+	fixture.handler.config.AgentReranker = agentWorkspaceReranker{
+		policy: testutil.ArtifactID(t, artifact.KindProfile, "different-agent-rerank-policy"),
+	}
+	if _, err := fixture.handler.agentRetrieval(t.Context(), exactRequest); err == nil {
+		t.Fatal("agent retrieval admitted a provider outside the requested policy authority")
+	}
+	fixture.handler.config.AgentReranker = originalReranker
+	originalEmbedder := fixture.handler.config.AgentEmbedder
+	fixture.handler.config.AgentEmbedder = agentWorkspaceEmbedder{
+		model: testutil.ArtifactID(t, artifact.KindModel, "different-agent-retrieval-model"),
+	}
+	if _, err := fixture.handler.agentRetrieval(t.Context(), exactRequest); err == nil {
+		t.Fatal("agent retrieval admitted a provider outside the active model authority")
+	}
+	fixture.handler.config.AgentEmbedder = originalEmbedder
 	step := serveTestRequest(fixture.handler, http.MethodPost, "/agents/step",
 		`{"agent":"research-agent","session":"observed","tool":"store.head"}`)
 	if step.Code != http.StatusOK {
@@ -254,7 +289,7 @@ func newAgentWorkspaceFixtureWithGenerator(
 	}
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/workspace/serving-recipe/" + description.Identity.Recipe.String(),
-		Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}},
+		Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}, {ID: description.Identity.Model}},
 	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		t.Fatal(err)
 	}

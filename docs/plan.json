@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "capability-episodes",
-          "title": "Build a content-addressed capability-episode projection without duplicating event authority",
-          "status": "open",
-          "verify": "go test ./internal/dataset ./internal/runrecord -run '^(TestCapabilityEpisodeProjection|TestCapabilityEpisodeProjectionRejectsCrossLinkedAuthority)$' -count=1",
-          "rationale": "The run-record adapter joins exact AttemptRecord, GateResult, InteractionTrace, task, strategy, model, environment, invocation, and terminal identities while preserving the distinct gate and execution recipes and distinct attempt and terminal outcomes. The dataset projection carries coverage for absent optional evidence, derives call, failure, repetition, cost, and latency facts, and stores references rather than copied messages or tool results. Cold verified rebuild and input permutation reproduce one identity; cross-linked sources or noncanonical lineage refuse.",
-          "capabilities": [
-            "overgodb-projection",
-            "capability-episode",
-            "causal-lineage",
-            "bounded-coverage"
-          ]
-        },
-        {
           "id": "atomic-interaction-context",
           "title": "Select branch-visible interaction arcs without splitting or fabricating protocol evidence",
           "status": "open",

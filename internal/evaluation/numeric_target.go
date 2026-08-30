@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 )
@@ -274,7 +275,7 @@ func canonicalizeNumericTargetReport(report *NumericTargetReport) error {
 	return nil
 }
 
-func finite(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
+func finite(value float64) bool { return checked.Finite64(value) }
 
 func cloneNumericCases(values []NumericTargetCase) []NumericTargetCase {
 	result := slices.Clone(values)

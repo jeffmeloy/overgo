@@ -3,8 +3,10 @@ package modelrecipe
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/runrecord"
 )
 
@@ -39,7 +41,7 @@ func (value Candidate) AdmissionFacts() runrecord.CandidateAdmissionFacts {
 // domains extend the caller's explicit set; no filesystem or runtime registry exists.
 func CandidateAdmissionAdapters() []runrecord.CandidateComponentAdmissionAdapter {
 	return []runrecord.CandidateComponentAdmissionAdapter{
-		modelPrototypeAdmissionAdapter{}, codeAdmissionAdapter{},
+		modelPrototypeAdmissionAdapter{}, datasetTransformAdmissionAdapter{}, codeAdmissionAdapter{},
 	}
 }
 
@@ -62,6 +64,32 @@ func (modelPrototypeAdmissionAdapter) ValidateCandidateComponent(
 }
 
 type codeAdmissionAdapter struct{}
+
+type datasetTransformAdmissionAdapter struct{}
+
+// CandidateDomain names the dataset owner's immutable transform contract.
+func (datasetTransformAdmissionAdapter) CandidateDomain() string {
+	return string(CandidateDatasetTransform)
+}
+
+// ValidateCandidateComponent binds the transform owner's exact stored facts
+// to the common candidate subject and execution evidence.
+func (datasetTransformAdmissionAdapter) ValidateCandidateComponent(
+	ctx context.Context,
+	reader artifact.Reader,
+	facts runrecord.CandidateAdmissionFacts,
+	component runrecord.CandidateAdmissionComponent,
+) error {
+	transform, err := dataset.RequireDatasetTransform(ctx, reader, component.Specification)
+	if err != nil {
+		return err
+	}
+	spec := transform.Spec()
+	if spec.Code != facts.Code || spec.Environment != facts.Environment || !slices.Contains(spec.Outputs, facts.Subject) {
+		return errors.New("model recipe: dataset transform differs from candidate subject or execution evidence")
+	}
+	return nil
+}
 
 // CandidateDomain names the exact component domain this adapter closes.
 func (codeAdmissionAdapter) CandidateDomain() string { return string(CandidateCode) }

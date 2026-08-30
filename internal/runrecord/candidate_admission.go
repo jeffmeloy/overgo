@@ -95,6 +95,16 @@ func AdmitCandidate(
 	authority artifact.ID,
 	adapters ...CandidateComponentAdmissionAdapter,
 ) (CandidateAdmission, error) {
+	return admitCandidate(ctx, reader, candidate, authority, adapters...)
+}
+
+func admitCandidate(
+	ctx context.Context,
+	reader artifact.Reader,
+	candidate CandidateAdmissionSubject,
+	authority artifact.ID,
+	adapters ...CandidateComponentAdmissionAdapter,
+) (CandidateAdmission, error) {
 	if ctx == nil || reader == nil || candidate == nil {
 		return CandidateAdmission{}, errors.New("run record: candidate admission authority is absent")
 	}
@@ -131,7 +141,7 @@ func AdmitCandidate(
 			return CandidateAdmission{}, fmt.Errorf("run record: candidate subject %s: %w", id, err)
 		}
 	}
-	if err := requireTypedCandidateDocument(ctx, reader, facts.Falsifier); err != nil {
+	if _, err := artifact.RequireTypedContent(ctx, reader, facts.Falsifier); err != nil {
 		return CandidateAdmission{}, fmt.Errorf("run record: candidate falsifier: %w", err)
 	}
 	if err := requireCandidateLineage(ctx, reader, facts.Falsifier, facts.Subject); err != nil {
@@ -156,6 +166,38 @@ func (value CandidateAdmission) Content() (artifact.Content, error) {
 // Lineage binds eligibility to the exact candidate and independent authority.
 func (value CandidateAdmission) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Candidate, value.Authority)
+}
+
+// RequireCandidateAdmission loads one exact eligibility decision. Callers
+// that consume the decision as authority must additionally replay admission
+// with the candidate owner's closed adapter set.
+func RequireCandidateAdmission(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (CandidateAdmission, error) {
+	return candidateAdmissionCodec.RequireExactLineage(ctx, reader, id, CandidateAdmission.Lineage)
+}
+
+// RequireReplayedCandidateAdmission keeps admission replay inside the sole
+// admission owner while allowing consumers to supply the candidate owner's
+// package-neutral subject and closed adapter set.
+func RequireReplayedCandidateAdmission(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+	candidate CandidateAdmissionSubject,
+	adapters ...CandidateComponentAdmissionAdapter,
+) (CandidateAdmission, error) {
+	stored, err := RequireCandidateAdmission(ctx, reader, id)
+	if err != nil {
+		return CandidateAdmission{}, err
+	}
+	replayed, err := admitCandidate(ctx, reader, candidate, stored.Authority, adapters...)
+	if err != nil || replayed.ID != stored.ID {
+		return CandidateAdmission{}, errors.Join(errors.New("run record: candidate admission does not replay"), err)
+	}
+	return stored, nil
 }
 
 func canonicalizeCandidateAdmission(value *CandidateAdmission) error {
@@ -279,7 +321,7 @@ func validateCandidateReferences(
 			if evidence == binding.Proposer.Identity || evidence == binding.Evaluator.Identity || evidence == binding.Decider.Identity {
 				return errors.New("run record: candidate reference evidence is not independent")
 			}
-			if err := requireTypedCandidateDocument(ctx, reader, evidence); err != nil {
+			if _, err := artifact.RequireTypedContent(ctx, reader, evidence); err != nil {
 				return fmt.Errorf("run record: candidate reference source: %w", err)
 			}
 		}
@@ -336,17 +378,6 @@ func candidateAdmissionReferenceRole(role string) bool {
 	default:
 		return false
 	}
-}
-
-func requireTypedCandidateDocument(ctx context.Context, reader artifact.Reader, id artifact.ID) error {
-	content, present, err := artifact.ReadContent(ctx, reader, id)
-	if err != nil {
-		return err
-	}
-	if !present || content.Descriptor.MediaType == "" || content.Descriptor.Schema == "" {
-		return fmt.Errorf("typed document %s is absent", id)
-	}
-	return nil
 }
 
 func requireCandidateLineage(ctx context.Context, reader artifact.Reader, child, parent artifact.ID) error {

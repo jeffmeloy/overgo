@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/strictjson"
 )
 
@@ -248,7 +249,7 @@ func positiveFinite(value float64) bool {
 }
 
 func finite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
+	return checked.Finite64(value)
 }
 
 func cloneScratchOracle(oracle ScratchOracle) ScratchOracle {

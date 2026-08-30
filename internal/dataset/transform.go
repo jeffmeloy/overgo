@@ -1,11 +1,29 @@
 package dataset
 
 import (
+	"context"
 	"errors"
 	"slices"
 
 	"overgo/internal/artifact"
 )
+
+// DatasetTransformSpec is the public, callback-free contract for one existing
+// dataset transformation. Registration identifies compiled Go behavior;
+// Operation and Parameters identify its exact recipe inputs.
+type DatasetTransformSpec struct {
+	Registration   artifact.ID   `json:"registration"`
+	Operation      artifact.ID   `json:"operation"`
+	Parameters     artifact.ID   `json:"parameters"`
+	Code           artifact.ID   `json:"code"`
+	Environment    artifact.ID   `json:"environment"`
+	Inputs         []artifact.ID `json:"inputs"`
+	Outputs        []artifact.ID `json:"outputs"`
+	ReplayEvidence artifact.ID   `json:"replay_evidence"`
+}
+
+// DatasetTransform wraps the canonical dataset-owned transform document.
+type DatasetTransform struct{ document transform }
 
 const (
 	transformMediaType = "application/vnd.overgo.dataset-transform+json"
@@ -52,6 +70,52 @@ var transformLineage = func(value transform) []artifact.Lineage {
 	parents = append(parents, value.Inputs...)
 	parents = append(parents, value.Outputs...)
 	return artifact.DependencyLineage(value.ID, parents...)
+}
+
+// NewDatasetTransform identifies one deterministic, registered Go transform.
+func NewDatasetTransform(spec DatasetTransformSpec) (DatasetTransform, error) {
+	document, err := transformCodec.New(transform{
+		Version: artifact.InitialDocumentVersion, IdentityMode: transformContentAddressed,
+		Registration: spec.Registration, Operation: spec.Operation, Parameters: spec.Parameters,
+		Code: spec.Code, Environment: spec.Environment, Inputs: slices.Clone(spec.Inputs),
+		Outputs: slices.Clone(spec.Outputs), ReplayEvidence: spec.ReplayEvidence, Deterministic: true,
+	})
+	return DatasetTransform{document: document}, err
+}
+
+// RequireDatasetTransform loads the exact transform and refuses noncanonical lineage.
+func RequireDatasetTransform(ctx context.Context, reader artifact.Reader, id artifact.ID) (DatasetTransform, error) {
+	document, err := transformCodec.RequireExactLineage(ctx, reader, id, transformLineage)
+	if err != nil {
+		return DatasetTransform{}, err
+	}
+	return DatasetTransform{document: document}, nil
+}
+
+// ID returns the transform content identity.
+func (value DatasetTransform) ID() artifact.ID { return value.document.ID }
+
+// Spec returns an isolated transform specification.
+func (value DatasetTransform) Spec() DatasetTransformSpec {
+	return DatasetTransformSpec{
+		Registration: value.document.Registration, Operation: value.document.Operation,
+		Parameters: value.document.Parameters, Code: value.document.Code, Environment: value.document.Environment,
+		Inputs: slices.Clone(value.document.Inputs), Outputs: slices.Clone(value.document.Outputs),
+		ReplayEvidence: value.document.ReplayEvidence,
+	}
+}
+
+// Content returns the canonical transform document.
+func (value DatasetTransform) Content() (artifact.Content, error) {
+	return transformCodec.Content(value.document)
+}
+
+// Lineage binds the transform to registered code, recipes, inputs, outputs, and replay evidence.
+func (value DatasetTransform) Lineage() []artifact.Lineage { return transformLineage(value.document) }
+
+// ValidateIdentity proves the transform document did not change.
+func (value DatasetTransform) ValidateIdentity() error {
+	return transformCodec.ValidateIdentity(value.document)
 }
 
 func canonicalizeTransform(value *transform) error {

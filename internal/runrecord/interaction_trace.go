@@ -59,6 +59,7 @@ type InteractionTrace struct {
 	WorkspaceClaims   []artifact.ID           `json:"workspace_claims,omitempty"`
 	Attempts          []artifact.ID           `json:"attempts,omitempty"`
 	BudgetCharges     []artifact.ID           `json:"budget_charges,omitempty"`
+	Context           []artifact.ID           `json:"context,omitempty"`
 	Terminal          Outcome                 `json:"terminal,omitzero"`
 	ID                artifact.ID             `json:"-"`
 }
@@ -82,7 +83,8 @@ func (value InteractionTrace) Content() (artifact.Content, error) {
 func (value InteractionTrace) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Recipe, value.Model, value.Operation, value.Request, value.TaskContract, value.Strategy}
 	for _, group := range [][]artifact.ID{value.ToolActions, value.Decisions, value.FinalArtifacts, value.ToolManuals,
-		value.InvocationEffects, value.Obligations, value.Resolutions, value.WorkspaceClaims, value.Attempts, value.BudgetCharges} {
+		value.InvocationEffects, value.Obligations, value.Resolutions, value.WorkspaceClaims, value.Attempts, value.BudgetCharges,
+		value.Context} {
 		parents = append(parents, group...)
 	}
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
@@ -198,7 +200,7 @@ func canonicalizeInteractionTrace(value *InteractionTrace) error {
 		}
 	}
 	groups := []*[]artifact.ID{&value.ToolManuals, &value.InvocationEffects, &value.Obligations, &value.Resolutions,
-		&value.WorkspaceClaims, &value.Attempts, &value.BudgetCharges}
+		&value.WorkspaceClaims, &value.Attempts, &value.BudgetCharges, &value.Context}
 	for _, ids := range groups {
 		if len(*ids) > math.MaxUint16 || slices.ContainsFunc(*ids, func(id artifact.ID) bool { return !id.Valid() }) {
 			return errors.New("run record: invalid bounded trajectory artifacts")
@@ -252,5 +254,6 @@ func cloneInteractionTrace(value InteractionTrace) InteractionTrace {
 	value.WorkspaceClaims = slices.Clone(value.WorkspaceClaims)
 	value.Attempts = slices.Clone(value.Attempts)
 	value.BudgetCharges = slices.Clone(value.BudgetCharges)
+	value.Context = slices.Clone(value.Context)
 	return value
 }

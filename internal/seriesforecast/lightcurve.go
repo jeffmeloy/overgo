@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
 )
@@ -99,7 +100,7 @@ func lightCurvePair(data []byte, minContext, horizon int) ([]float32, []float32,
 	return values[:boundary], values[boundary:], nil
 }
 
-func finite64(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
+func finite64(value float64) bool { return checked.Finite64(value) }
 
 func seriesValue(role trainingdata.ValueRole, values []float32) trainingdata.Value {
 	return trainingdata.Value{

@@ -93,6 +93,11 @@ type agentRetrievalRequest struct {
 	RerankPolicy artifact.ID `json:"rerank_policy"`
 }
 
+const (
+	agentRetrievalReceiptHeader = "X-Overgo-Retrieval-Receipt"
+	agentRetrievalTraceHeader   = "X-Overgo-Interaction-Trace"
+)
+
 type agentAutomationRequest struct {
 	Agent       string                     `json:"agent"`
 	Automation  artifact.ID                `json:"automation"`
@@ -155,8 +160,12 @@ func (h *Handler) agentControl(response http.ResponseWriter, request *http.Reque
 		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
 			return
 		}
-		results, err := h.agentRetrieval(request.Context(), body)
-		writeAgentResult(response, http.StatusOK, results, err)
+		retrieval, err := h.agentRetrieval(request.Context(), body)
+		if err == nil {
+			response.Header().Set(agentRetrievalReceiptHeader, retrieval.Receipt.ID.String())
+			response.Header().Set(agentRetrievalTraceHeader, retrieval.Trace.ID.String())
+		}
+		writeAgentResult(response, http.StatusOK, retrieval.Search.Results, err)
 	case "/agents/automation":
 		var body agentAutomationRequest
 		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
@@ -429,15 +438,23 @@ func (h *Handler) publishAgentDecision(
 	return content.Descriptor.ID, nil
 }
 
-func (h *Handler) agentRetrieval(ctx context.Context, request agentRetrievalRequest) ([]dataset.AgentRetrievalResult, error) {
+func (h *Handler) agentRetrieval(ctx context.Context, request agentRetrievalRequest) (runrecord.ConsumedRetrieval, error) {
 	active, err := (runrecord.AgentAuthority{Repository: h.repository}).RequireActive(ctx, request.Agent)
+	description, described := h.interactionDescription()
 	if err != nil || h.config.AgentEmbedder == nil || h.config.AgentReranker == nil ||
+		!described || description.Identity.Recipe != active.Definition.ModelRecipe ||
+		h.config.AgentEmbedder.ModelIdentity() != description.Identity.Model ||
+		request.RerankPolicy != h.config.AgentReranker.PolicyIdentity() ||
 		!slices.Contains(active.Definition.Policies, request.RerankPolicy) {
-		return nil, errors.Join(errors.New("server: agent retrieval authority is unavailable"), err)
+		return runrecord.ConsumedRetrieval{}, errors.Join(errors.New("server: agent retrieval authority is unavailable"), err)
 	}
-	return (dataset.AgentRetrievalBuilder{Repository: h.repository}).Search(ctx, dataset.AgentRetrievalQuery{
+	query := dataset.AgentRetrievalQuery{
 		Projection: request.Projection, Text: request.Query, Limit: request.Limit,
 		AllowedDatasets: active.Definition.Datasets, Embedder: h.config.AgentEmbedder, Reranker: h.config.AgentReranker,
+	}
+	return runrecord.SearchAndPublishConsumedRetrieval(ctx, h.repository, query, runrecord.RetrievalConsumer{
+		Recipe: description.Identity.Recipe, Model: description.Identity.Model,
+		Operation: active.Activation.ID, TaskContract: active.Definition.ID,
 	})
 }
 

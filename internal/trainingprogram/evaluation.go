@@ -3,6 +3,8 @@ package trainingprogram
 import (
 	"errors"
 	"math"
+
+	"overgo/internal/checked"
 )
 
 // EvaluateNative applies the objective-declared output metric.
@@ -57,5 +59,5 @@ func EvaluateNative(metric EvaluationMetric, prediction, target []float32) (floa
 }
 
 func finite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
+	return checked.Finite64(value)
 }

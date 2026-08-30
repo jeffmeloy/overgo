@@ -115,25 +115,13 @@ func NewCandidate(spec CandidateSpec) (Candidate, error) {
 // RequireCandidate loads the exact canonical candidate and refuses lineage
 // added outside the candidate owner's immutable dependency contract.
 func RequireCandidate(ctx context.Context, reader artifact.Reader, id artifact.ID) (Candidate, error) {
-	document, err := candidateCodec.Require(ctx, reader, id)
+	document, err := candidateCodec.RequireExactLineage(ctx, reader, id, func(document candidateDocument) []artifact.Lineage {
+		return Candidate{document: document}.Lineage()
+	})
 	if err != nil {
 		return Candidate{}, err
 	}
-	value := Candidate{document: document}
-	parents, err := reader.Parents(ctx, value.ID())
-	if err != nil {
-		return Candidate{}, err
-	}
-	expected := value.Lineage()
-	if len(parents) != len(expected) {
-		return Candidate{}, errors.New("model recipe: candidate lineage differs from its canonical dependencies")
-	}
-	for _, edge := range expected {
-		if !slices.Contains(parents, edge) {
-			return Candidate{}, errors.New("model recipe: candidate lineage differs from its canonical dependencies")
-		}
-	}
-	return value, nil
+	return Candidate{document: document}, nil
 }
 
 // ID returns the candidate's content identity.

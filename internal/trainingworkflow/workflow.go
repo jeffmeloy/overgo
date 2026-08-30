@@ -13,8 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
-	artifactexport "overgo/internal/export"
-	"overgo/internal/hfbpe"
+
 	"overgo/internal/optimizer"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
@@ -140,7 +139,7 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 		}
 	}
 	loadStarted := time.Now()
-	model, err := densecausal.Load(inputDirectory)
+	model, err := loadTrainableModel(inputDirectory)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: load model: %w", err)
 	}
@@ -155,7 +154,7 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile optimizer config: %w", err)
 	}
-	tokenizer, err := hfbpe.Load(inputDirectory)
+	encode, err := loadTrainableEncoder(inputDirectory)
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: load tokenizer: %w", err)
 	}
@@ -168,7 +167,7 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	result, runErr := denseSession{
 		ctx: ctx, request: request, runtime: runtime, objective: objective,
 		optimizerPlan: muonPlan, optimizerConfig: optimizerConfig,
-		inputDirectory: inputDirectory, model: model, encode: tokenizer.Encode, raw: raw,
+		inputDirectory: inputDirectory, model: model, encode: encode, raw: raw,
 		resumed: resumed, resumeStream: resumeStream, stepSample: observer.SampleStep,
 	}.run()
 	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
@@ -347,7 +346,7 @@ func publishCheckpoint(source, target string, model *densecausal.Model, authorit
 		if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, metadata); err != nil {
 			return err
 		}
-		return artifactexport.CopyFiles(source, stage, []string{"config.json", "tokenizer.json"})
+		return stageCheckpointMetadata(source, stage, model)
 	})
 	if err != nil {
 		return trainingprogram.Checkpoint{}, fmt.Errorf("training workflow: publish checkpoint: %w", err)
@@ -356,6 +355,14 @@ func publishCheckpoint(source, target string, model *densecausal.Model, authorit
 }
 
 func identifyModel(directory string) (artifact.ID, error) {
+	if isGGUFModelInput(directory) {
+		file, err := os.Open(directory)
+		if err != nil {
+			return artifact.ID{}, err
+		}
+		id, _, identifyErr := artifact.Identify(artifact.KindModel, file)
+		return id, errors.Join(identifyErr, file.Close())
+	}
 	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
 	if _, err := os.Stat(path); err != nil {
 		// Single shard: direct identity. Multi-shard: manifest required.

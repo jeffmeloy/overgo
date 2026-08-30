@@ -3,9 +3,7 @@
 package inference
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"math"
 	"os"
 	"path/filepath"
@@ -14,6 +12,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
 
@@ -183,38 +182,38 @@ func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
 func writeHermeticLlamaGGUF(t *testing.T) string {
 	t.Helper()
 	metadata := []gguf.Metadata{
-		hermeticScalar("general.architecture", gguf.ValueTypeString, "llama"),
-		hermeticScalar("general.name", gguf.ValueTypeString, "hermetic-cuda"),
-		hermeticScalar("llama.block_count", gguf.ValueTypeUint32, uint32(1)),
-		hermeticScalar("llama.context_length", gguf.ValueTypeUint32, hermeticContext),
-		hermeticScalar("llama.embedding_length", gguf.ValueTypeUint32, uint32(hermeticEmbedding)),
-		hermeticScalar("llama.feed_forward_length", gguf.ValueTypeUint32, uint32(hermeticFFN)),
-		hermeticScalar("llama.attention.head_count", gguf.ValueTypeUint32, uint32(hermeticHeads)),
-		hermeticScalar("llama.attention.head_count_kv", gguf.ValueTypeUint32, uint32(hermeticKVHeads)),
-		hermeticScalar("llama.rope.freq_base", gguf.ValueTypeFloat32, float32(10_000)),
-		hermeticScalar("llama.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-		hermeticScalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
-		hermeticArray("tokenizer.ggml.tokens", gguf.ValueTypeString,
+		testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "llama"),
+		testutil.GGUFScalar("general.name", gguf.ValueTypeString, "hermetic-cuda"),
+		testutil.GGUFScalar("llama.block_count", gguf.ValueTypeUint32, uint32(1)),
+		testutil.GGUFScalar("llama.context_length", gguf.ValueTypeUint32, hermeticContext),
+		testutil.GGUFScalar("llama.embedding_length", gguf.ValueTypeUint32, uint32(hermeticEmbedding)),
+		testutil.GGUFScalar("llama.feed_forward_length", gguf.ValueTypeUint32, uint32(hermeticFFN)),
+		testutil.GGUFScalar("llama.attention.head_count", gguf.ValueTypeUint32, uint32(hermeticHeads)),
+		testutil.GGUFScalar("llama.attention.head_count_kv", gguf.ValueTypeUint32, uint32(hermeticKVHeads)),
+		testutil.GGUFScalar("llama.rope.freq_base", gguf.ValueTypeFloat32, float32(10_000)),
+		testutil.GGUFScalar("llama.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		testutil.GGUFScalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
+		testutil.GGUFArray("tokenizer.ggml.tokens", gguf.ValueTypeString,
 			[]string{"<unk>", "<s>", "</s>", "â–", "a", "b", "c", "d"}),
-		hermeticArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, make([]float32, hermeticVocab)),
-		hermeticArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32,
+		testutil.GGUFArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, make([]float32, hermeticVocab)),
+		testutil.GGUFArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32,
 			[]int32{2, 3, 3, 1, 1, 1, 1, 1}),
-		hermeticScalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
-		hermeticScalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(2)),
+		testutil.GGUFScalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
+		testutil.GGUFScalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(2)),
 	}
 	tensors := []gguf.TensorData{
-		hermeticTensor("token_embd.weight", []uint64{hermeticEmbedding, hermeticVocab}, 1),
-		hermeticTensor("output_norm.weight", []uint64{hermeticEmbedding}, 2),
-		hermeticTensor("output.weight", []uint64{hermeticEmbedding, hermeticVocab}, 3),
-		hermeticTensor("blk.0.attn_norm.weight", []uint64{hermeticEmbedding}, 4),
-		hermeticTensor("blk.0.attn_q.weight", []uint64{hermeticEmbedding, hermeticEmbedding}, 5),
-		hermeticTensor("blk.0.attn_k.weight", []uint64{hermeticEmbedding, hermeticHeadWidth}, 6),
-		hermeticTensor("blk.0.attn_v.weight", []uint64{hermeticEmbedding, hermeticHeadWidth}, 7),
-		hermeticTensor("blk.0.attn_output.weight", []uint64{hermeticEmbedding, hermeticEmbedding}, 8),
-		hermeticTensor("blk.0.ffn_norm.weight", []uint64{hermeticEmbedding}, 9),
-		hermeticTensor("blk.0.ffn_gate.weight", []uint64{hermeticEmbedding, hermeticFFN}, 10),
-		hermeticTensor("blk.0.ffn_up.weight", []uint64{hermeticEmbedding, hermeticFFN}, 11),
-		hermeticTensor("blk.0.ffn_down.weight", []uint64{hermeticFFN, hermeticEmbedding}, 12),
+		testutil.GGUFTensorF32("token_embd.weight", []uint64{hermeticEmbedding, hermeticVocab}, 1),
+		testutil.GGUFTensorF32("output_norm.weight", []uint64{hermeticEmbedding}, 2),
+		testutil.GGUFTensorF32("output.weight", []uint64{hermeticEmbedding, hermeticVocab}, 3),
+		testutil.GGUFTensorF32("blk.0.attn_norm.weight", []uint64{hermeticEmbedding}, 4),
+		testutil.GGUFTensorF32("blk.0.attn_q.weight", []uint64{hermeticEmbedding, hermeticEmbedding}, 5),
+		testutil.GGUFTensorF32("blk.0.attn_k.weight", []uint64{hermeticEmbedding, hermeticHeadWidth}, 6),
+		testutil.GGUFTensorF32("blk.0.attn_v.weight", []uint64{hermeticEmbedding, hermeticHeadWidth}, 7),
+		testutil.GGUFTensorF32("blk.0.attn_output.weight", []uint64{hermeticEmbedding, hermeticEmbedding}, 8),
+		testutil.GGUFTensorF32("blk.0.ffn_norm.weight", []uint64{hermeticEmbedding}, 9),
+		testutil.GGUFTensorF32("blk.0.ffn_gate.weight", []uint64{hermeticEmbedding, hermeticFFN}, 10),
+		testutil.GGUFTensorF32("blk.0.ffn_up.weight", []uint64{hermeticEmbedding, hermeticFFN}, 11),
+		testutil.GGUFTensorF32("blk.0.ffn_down.weight", []uint64{hermeticFFN, hermeticEmbedding}, 12),
 	}
 	path := filepath.Join(t.TempDir(), "hermetic.gguf")
 	file, err := os.Create(path)
@@ -229,32 +228,4 @@ func writeHermeticLlamaGGUF(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return path
-}
-
-func hermeticScalar(key string, valueType gguf.ValueType, data any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{Type: valueType, Data: data}}
-}
-
-func hermeticArray(key string, valueType gguf.ValueType, data any) gguf.Metadata {
-	return gguf.Metadata{Key: key, Value: gguf.Value{
-		Type: gguf.ValueTypeArray, ArrayType: valueType, Data: data,
-	}}
-}
-
-func hermeticTensor(name string, shape []uint64, seed int) gguf.TensorData {
-	elements := uint64(1)
-	for _, dimension := range shape {
-		elements *= dimension
-	}
-	values := make([]float32, elements)
-	for index := range values {
-		if len(shape) == 1 {
-			values[index] = 1 + float32((index+seed)%3)*0.01
-		} else {
-			values[index] = float32((index*17+seed*13)%29-14) * 0.01
-		}
-	}
-	var storage bytes.Buffer
-	_ = binary.Write(&storage, binary.LittleEndian, values)
-	return gguf.TensorData{Name: name, Shape: shape, Type: gguf.DTypeF32, Data: bytes.NewReader(storage.Bytes())}
 }

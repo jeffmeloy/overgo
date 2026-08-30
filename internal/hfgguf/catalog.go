@@ -270,6 +270,49 @@ func transformPayload(
 	return bytes.NewReader(encoded), nil
 }
 
+// hfDenseLayerNames inverts denseLayerNames once: the GGUF-to-HF
+// direction the training loader consumes.
+var hfDenseLayerNames = func() map[string]string {
+	inverted := make(map[string]string, len(denseLayerNames))
+	for hf, gguf := range denseLayerNames {
+		inverted[gguf] = hf
+	}
+	return inverted
+}()
+
+// HFDenseTensorName inverts denseTensorName: it maps one GGUF tensor name
+// back to the HF catalog name the dense trainer indexes by. The mapping is
+// the same table conversion writes with, so a round trip is exact; a GGUF
+// name outside the dense vocabulary reports false rather than guessing.
+func HFDenseTensorName(name string) (string, bool) {
+	switch name {
+	case "token_embd.weight":
+		return "model.embed_tokens.weight", true
+	case "output_norm.weight":
+		return "model.norm.weight", true
+	case "output.weight":
+		return "lm_head.weight", true
+	case "output.bias":
+		return "lm_head.bias", true
+	}
+	rest, ok := strings.CutPrefix(name, "blk.")
+	if !ok {
+		return "", false
+	}
+	block, suffix, ok := strings.Cut(rest, ".")
+	if !ok {
+		return "", false
+	}
+	if _, err := strconv.ParseUint(block, binaryschema.DecimalRadix, binaryschema.Width32Bits); err != nil {
+		return "", false
+	}
+	hfSuffix, ok := hfDenseLayerNames[suffix]
+	if !ok {
+		return "", false
+	}
+	return "model.layers." + block + "." + hfSuffix, true
+}
+
 func denseTensorName(name string) (string, bool, error) {
 	switch name {
 	case "model.embed_tokens.weight":

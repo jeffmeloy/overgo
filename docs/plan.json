@@ -294,28 +294,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "evidence-selection",
-          "title": "Drive pre-promotion evidence work and active dispatch through one evidence-derived decision owner",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/evaluation ./internal/capabilityruntime ./internal/loop ./internal/controlleraction -run '^(TestEvidenceDriverConsumesCrossDomainCandidates|TestEvidenceDerivedSelection)$' -count=1",
-          "rationale": "The shared driver considers the active incumbent plus admitted candidates, including the pre-materialization eligible state and later validated or experimental states only after their owning transitions. Before supervised verification it chooses the least-cost missing-evidence request, evaluator, declared delta ablation, trial, refusal, or saturation stop; after production promotion it may select a promotion-resolved active candidate for live dispatch. The first local same-base composition follows those actions with one ordered subject-relevance gate, budget ledger, and stop owner. Model, composition, mechanism, data, routing, steering, and code plugins must reuse that driver; no domain loop or free knob is added. Local actions call compiled Go owners directly. Cross-boundary resolution is a post-proof extension of the invocation spine, not an early dependency. Every action publishes one DriverDecision through the common publication path and creates no candidate, lifecycle, placement, token-routing, or promotion authority.",
-          "depends_on": [
-            "evidence-routing/decision-contract",
-            "model-prototypes/prototype-compile",
-            "capability-bound-activation/placement-integration",
-            "resource-coverage/reference-relevance-admission"
-          ],
-          "capabilities": [
-            "rsi-routing",
-            "evidence-derivation",
-            "placement",
-            "candidate-lifecycle",
-            "paired-evidence",
-            "evidence-driver",
-            "cross-domain-candidate"
-          ]
-        },
-        {
           "id": "counterfactual-replay",
           "title": "Replay recorded driver decisions under a candidate policy and publish measured counterfactual deltas",
           "status": "open",

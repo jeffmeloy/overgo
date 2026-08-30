@@ -167,10 +167,10 @@ type CandidateCompilationAction struct {
 	Admission artifact.ID `json:"admission"`
 }
 
-// DriverDecisionAction carries exact facts only; runrecord derives every
-// balance, stop condition, selected subject, action, and tie-break.
+// DriverDecisionAction carries exact evidence identities only. Evaluation
+// replays their typed owners before runrecord derives the driver decision.
 type DriverDecisionAction struct {
-	Facts runrecord.DriverDecisionFacts `json:"facts"`
+	Request evaluation.EvidenceDriverRequest `json:"request"`
 }
 
 // CompositionExecutionPlanAction selects one active composition by its exact
@@ -296,7 +296,7 @@ func (a Action) validate() error {
 		}
 	case KindDriverDecision:
 		if a.Driver == nil {
-			return errors.New("controller action: driver-decision requires exact evidence facts")
+			return errors.New("controller action: driver-decision requires exact evidence identities")
 		}
 	case KindCompositionExecutionPlan:
 		if a.Composition == nil {
@@ -332,16 +332,31 @@ func CompileTransaction(ctx context.Context, reader artifact.Reader, action Acti
 		return artifact.Batch{}, err
 	}
 	if action.Kind == KindDriverDecision {
-		if len(contents) != 1 {
-			return artifact.Batch{}, errors.New("controller action: driver decision emitted multiple facts")
-		}
-		if err := runrecord.BindCausality(&batch, contents[0].Descriptor.ID, &action.Driver.Facts.Causal); err != nil {
+		if err := bindDriverDecisionAuthority(&batch, contents, action.Driver.Request); err != nil {
 			return artifact.Batch{}, err
 		}
-		expected := action.Driver.Facts.Head
-		batch.ExpectedHead = &expected
 	}
 	return batch, nil
+}
+
+// bindDriverDecisionAuthority makes the evidence snapshot and causal chain
+// part of the same atomic publication as the derived decision. No follow-up
+// work is executed by controlleraction; consumers can observe it only after
+// this batch commits against the requested head.
+func bindDriverDecisionAuthority(
+	batch *artifact.Batch,
+	contents []artifact.Content,
+	request evaluation.EvidenceDriverRequest,
+) error {
+	if batch == nil || len(contents) != 1 {
+		return errors.New("controller action: driver decision emitted multiple facts")
+	}
+	if err := runrecord.BindCausality(batch, contents[0].Descriptor.ID, &request.Causal); err != nil {
+		return err
+	}
+	expected := request.Head
+	batch.ExpectedHead = &expected
+	return nil
 }
 
 // ExecuteOfflineArtifact compiles the action through the same authorities as
@@ -490,7 +505,7 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 		}
 		return compiled.Contents, compiled.Lineage, nil
 	case KindDriverDecision:
-		decision, err := runrecord.NewDriverDecision(ctx, reader, action.Driver.Facts)
+		decision, err := evaluation.CompileEvidenceDriverDecision(ctx, reader, action.Driver.Request)
 		if err != nil {
 			return nil, nil, err
 		}

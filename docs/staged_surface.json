@@ -41,14 +41,14 @@
     {
       "package": "overgo/internal/loop",
       "name": "CompareStrategyExperiment",
-      "reason": "Strategy comparison evidence becomes a driver input when the common selection adapter lands.",
-      "retire_with": "evidence-routing/evidence-selection"
+      "reason": "Strategy comparison evidence becomes a recorded policy input during counterfactual driver replay.",
+      "retire_with": "evidence-routing/counterfactual-replay"
     },
     {
       "package": "overgo/internal/loop",
       "name": "NewStrategy",
-      "reason": "Strategy construction becomes a driver input when the common selection adapter lands.",
-      "retire_with": "evidence-routing/evidence-selection"
+      "reason": "Strategy construction becomes a candidate-policy input during counterfactual driver replay.",
+      "retire_with": "evidence-routing/counterfactual-replay"
     },
     {
       "package": "overgo/internal/operation",
@@ -125,14 +125,14 @@
     {
       "package": "overgo/internal/runrecord",
       "name": "ObserveAttemptDirection",
-      "reason": "Attempt direction observation records.",
-      "retire_with": "evidence-routing/evidence-selection"
+      "reason": "Attempt-direction pivots become typed saturation inputs during counterfactual driver replay.",
+      "retire_with": "evidence-routing/counterfactual-replay"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "SummarizeAttemptHistory",
-      "reason": "Attempt history summarization for steering.",
-      "retire_with": "evidence-routing/evidence-selection"
+      "reason": "Attempt history supplies measured policy costs during counterfactual driver replay.",
+      "retire_with": "evidence-routing/counterfactual-replay"
     },
     {
       "package": "overgo/internal/runrecord",

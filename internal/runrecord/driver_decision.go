@@ -12,7 +12,8 @@ import (
 
 const (
 	driverDecisionMediaType = "application/vnd.overgo.driver-decision+json"
-	driverDecisionSchema    = "overgo/driver-decision/v1"
+	driverDecisionSchema    = "overgo/driver-decision/v2"
+	driverDecisionVersion   = artifact.SecondDocumentVersion
 )
 
 // DriverOptionState names the exact lifecycle boundary at which an incumbent
@@ -58,11 +59,14 @@ const (
 	DriverNeedPromotion DriverEvidenceNeed = "promotion"
 )
 
-// DriverEvidenceGap records explicit missing evidence. It is not evidence of
-// absence by omission: Need and Target together identify the unfinished work.
+// DriverEvidenceGap records explicit missing evidence and its exact measured
+// resource cost. CostAuthority names the immutable owner of that estimate.
 type DriverEvidenceGap struct {
-	Need   DriverEvidenceNeed `json:"need"`
-	Target artifact.ID        `json:"target"`
+	Need          DriverEvidenceNeed `json:"need"`
+	Target        artifact.ID        `json:"target"`
+	CostUnits     uint64             `json:"cost_units"`
+	CostUnit      string             `json:"cost_unit"`
+	CostAuthority artifact.ID        `json:"cost_authority"`
 }
 
 // DriverOption is the package-neutral projection of one considered incumbent
@@ -85,6 +89,7 @@ type DriverOption struct {
 type DriverBudgetState struct {
 	Grant     artifact.ID   `json:"grant"`
 	Charges   []artifact.ID `json:"charges,omitempty"`
+	Unit      string        `json:"unit"`
 	Issued    uint64        `json:"issued"`
 	Consumed  uint64        `json:"consumed,omitzero"`
 	Remaining uint64        `json:"remaining,omitzero"`
@@ -134,13 +139,13 @@ const (
 	DriverActionRefuse DriverAction = "refuse"
 )
 
-// DriverTieBreak names the one deterministic ordering used when otherwise
-// equivalent work is present. Measured cost may refine action priority later;
-// identity remains the final non-scalar tie-break.
+// DriverTieBreak names the one deterministic ordering used when equal-cost
+// work is present. Identity remains the final non-scalar tie-break.
 type DriverTieBreak string
 
-// DriverTieActionThenIdentity orders work by action class, then artifact identity.
-const DriverTieActionThenIdentity DriverTieBreak = "action-priority-then-artifact-identity"
+// DriverTieCostThenActionThenIdentity orders work by measured cost, then action
+// class and artifact identity.
+const DriverTieCostThenActionThenIdentity DriverTieBreak = "cost-then-action-priority-then-artifact-identity"
 
 // DriverDecisionFacts are exact inputs to the sole decision constructor.
 // Derived fields are intentionally absent, so callers cannot assert a winner,
@@ -202,10 +207,10 @@ func NewDriverDecision(ctx context.Context, reader artifact.Reader, facts Driver
 	}
 	causal := cloneCausal(&facts.Causal)
 	return driverDecisionCodec.New(DriverDecision{
-		Version: artifact.InitialDocumentVersion, Goal: facts.Goal, Causal: *causal, Head: facts.Head,
+		Version: driverDecisionVersion, Goal: facts.Goal, Causal: *causal, Head: facts.Head,
 		Options: cloneDriverOptions(facts.Options), Interaction: interaction, Resources: resources,
 		SaturationEvidence: slices.Clone(facts.SaturationEvidence), OperatorStop: facts.OperatorStop,
-		Refusal: facts.Refusal, TieBreak: DriverTieActionThenIdentity,
+		Refusal: facts.Refusal, TieBreak: DriverTieCostThenActionThenIdentity,
 	})
 }
 
@@ -225,10 +230,10 @@ func (value DriverDecision) Lineage() []artifact.Lineage {
 	parents = append(parents, value.Resources.Charges...)
 	parents = append(parents, value.SaturationEvidence...)
 	for _, option := range value.Options {
-		parents = append(parents, option.Candidate, option.Admission, option.Recipe, option.Lifecycle, option.Placement)
+		parents = append(parents, option.Candidate, option.Admission, option.Recipe, option.Lifecycle)
 		parents = append(parents, option.Evidence...)
 		for _, gap := range option.Missing {
-			parents = append(parents, gap.Target)
+			parents = append(parents, gap.Target, gap.CostAuthority)
 		}
 	}
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
@@ -284,16 +289,16 @@ func deriveDriverBudgetState(
 		return DriverBudgetState{}, err
 	}
 	return DriverBudgetState{
-		Grant: budget.ID, Charges: chargeIDs, Issued: budget.Issued,
+		Grant: budget.ID, Charges: chargeIDs, Unit: budget.Unit, Issued: budget.Issued,
 		Consumed: budget.Issued - remaining, Remaining: remaining,
 	}, nil
 }
 
 func canonicalizeDriverDecision(value *DriverDecision) error {
-	if value == nil || value.Version != artifact.InitialDocumentVersion || !value.Goal.Valid() || !value.Head.Valid() ||
+	if value == nil || value.Version != driverDecisionVersion || !value.Goal.Valid() || !value.Head.Valid() ||
 		value.Causal.Validate() != nil || value.Interaction.Grant == value.Resources.Grant ||
 		len(value.Options) == 0 || len(value.Options) > MaximumAttemptPopulation ||
-		value.TieBreak != DriverTieActionThenIdentity {
+		value.TieBreak != DriverTieCostThenActionThenIdentity {
 		return errors.New("run record: invalid driver decision")
 	}
 	if err := canonicalizeDriverBudgetState(&value.Interaction); err != nil {
@@ -317,7 +322,7 @@ func canonicalizeDriverDecision(value *DriverDecision) error {
 	incumbents := 0
 	value.Incumbent = artifact.ID{}
 	for index := range value.Options {
-		if err := canonicalizeDriverOption(&value.Options[index]); err != nil {
+		if err := canonicalizeDriverOption(&value.Options[index], value.Resources.Unit); err != nil {
 			return err
 		}
 		subject := driverOptionSubject(value.Options[index])
@@ -338,7 +343,8 @@ func canonicalizeDriverDecision(value *DriverDecision) error {
 }
 
 func canonicalizeDriverBudgetState(value *DriverBudgetState) error {
-	if value == nil || value.Grant.Kind() != artifact.KindEvidence || value.Issued == 0 || value.Consumed > value.Issued {
+	if value == nil || value.Grant.Kind() != artifact.KindEvidence || value.Unit == "" || !validUnit(value.Unit) ||
+		value.Issued == 0 || value.Consumed > value.Issued {
 		return errors.New("run record: invalid driver budget state")
 	}
 	value.Charges = slices.Clone(value.Charges)
@@ -352,7 +358,7 @@ func canonicalizeDriverBudgetState(value *DriverBudgetState) error {
 	return nil
 }
 
-func canonicalizeDriverOption(value *DriverOption) error {
+func canonicalizeDriverOption(value *DriverOption, resourceUnit string) error {
 	if value == nil {
 		return errors.New("run record: invalid driver option")
 	}
@@ -397,8 +403,9 @@ func canonicalizeDriverOption(value *DriverOption) error {
 	slices.SortFunc(value.Missing, compareDriverEvidenceGaps)
 	for index, gap := range value.Missing {
 		if !driverEvidenceNeedValid(gap.Need) || !driverOptionNeedAllowed(value.State, gap.Need) ||
-			!gap.Target.Valid() || slices.Contains(value.Evidence, gap.Target) ||
-			index > 0 && gap == value.Missing[index-1] {
+			!gap.Target.Valid() || gap.CostUnits == 0 || gap.CostUnit != resourceUnit ||
+			!driverGapAuthorityAllowed(*value, gap.CostAuthority) || slices.Contains(value.Evidence, gap.Target) ||
+			index > 0 && gap.Need == value.Missing[index-1].Need && gap.Target == value.Missing[index-1].Target {
 			return errors.New("run record: invalid or duplicate driver evidence gap")
 		}
 	}
@@ -418,12 +425,16 @@ func deriveDriverSelection(value DriverDecision) (DriverStopState, DriverAction,
 	}
 	var selected DriverOption
 	var gap DriverEvidenceGap
-	found := false
+	pending, found := false, false
 	for _, option := range value.Options {
 		if option.State == DriverCandidateRefused || option.State == DriverCandidateSuperseded {
 			continue
 		}
 		for _, candidate := range option.Missing {
+			pending = true
+			if candidate.CostUnits > value.Resources.Remaining {
+				continue
+			}
 			if !found || compareDriverWork(candidate, driverOptionSubject(option), gap, driverOptionSubject(selected)) < 0 {
 				selected, gap, found = option, candidate, true
 			}
@@ -441,6 +452,9 @@ func deriveDriverSelection(value DriverDecision) (DriverStopState, DriverAction,
 		}
 		return DriverStopContinue, action, driverOptionSubject(selected), gap.Target, gap.Need
 	}
+	if pending {
+		return DriverStopBudgetExhausted, DriverActionRefuse, artifact.ID{}, artifact.ID{}, ""
+	}
 	for _, option := range value.Options {
 		if option.State == DriverCandidateActive {
 			return DriverStopContinue, DriverActionSelect, driverOptionSubject(option), option.Placement, ""
@@ -451,8 +465,10 @@ func deriveDriverSelection(value DriverDecision) (DriverStopState, DriverAction,
 
 func compareDriverWork(left DriverEvidenceGap, leftSubject artifact.ID, right DriverEvidenceGap, rightSubject artifact.ID) int {
 	return cmp.Or(
+		cmp.Compare(left.CostUnits, right.CostUnits),
 		cmp.Compare(driverEvidencePriority(left.Need), driverEvidencePriority(right.Need)),
 		artifact.CompareID(leftSubject, rightSubject), artifact.CompareID(left.Target, right.Target),
+		artifact.CompareID(left.CostAuthority, right.CostAuthority),
 	)
 }
 
@@ -461,7 +477,20 @@ func compareDriverOptions(left, right DriverOption) int {
 }
 
 func compareDriverEvidenceGaps(left, right DriverEvidenceGap) int {
-	return cmp.Or(cmp.Compare(driverEvidencePriority(left.Need), driverEvidencePriority(right.Need)), artifact.CompareID(left.Target, right.Target))
+	return cmp.Or(
+		cmp.Compare(driverEvidencePriority(left.Need), driverEvidencePriority(right.Need)),
+		artifact.CompareID(left.Target, right.Target), cmp.Compare(left.CostUnits, right.CostUnits),
+		artifact.CompareID(left.CostAuthority, right.CostAuthority),
+	)
+}
+
+func driverGapAuthorityAllowed(option DriverOption, authority artifact.ID) bool {
+	if !authority.Valid() {
+		return false
+	}
+	return authority == option.Candidate || authority == option.Admission || authority == option.Recipe ||
+		authority == option.Lifecycle || slices.Contains(option.Evidence, authority) ||
+		slices.ContainsFunc(option.Missing, func(gap DriverEvidenceGap) bool { return gap.Target == authority })
 }
 
 func driverEvidencePriority(value DriverEvidenceNeed) int {

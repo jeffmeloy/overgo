@@ -53,6 +53,10 @@ func TestEvidenceDriverHasSingleDecisionOwner(t *testing.T) {
 	})
 	report := architectureRSIAudit(t, duplicate)
 	requireArchitectureFinding(t, report, "evidence-driver", "reserved-owner")
+	bypass := architectureRSIOverlay(t, snapshot, map[string][]byte{
+		"internal/loop/bypass_driver_decision.go": []byte("package loop\nimport \"overgo/internal/runrecord\"\nfunc bypassDriverDecision() { _, _ = runrecord.NewDriverDecision(nil, nil, runrecord.DriverDecisionFacts{}) }\n"),
+	})
+	requireArchitectureFinding(t, architectureRSIAudit(t, bypass), "evidence-driver", "bypass")
 }
 
 func TestRSIRuntimeIsGoOnly(t *testing.T) {

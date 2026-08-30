@@ -21,6 +21,7 @@ const (
 // moment it appears outside its declared owner.
 func auditRSIAuthorities(sources []productionAuthoritySource, report *ProductionAuthorityReport) {
 	auditCrossDomainOwners(sources, report)
+	auditRunrecordConstructorEntries(sources, report)
 	auditCapabilityInvocationBoundaries(sources, report)
 	auditGoOnlyRuntime(sources, report)
 }
@@ -50,22 +51,37 @@ func auditCrossDomainOwners(sources []productionAuthoritySource, report *Product
 	reserveAuthorityOwnersInPackages(sources, report, rsiCandidatePackages,
 		authorityOwnerRule{Family: "candidate-admission", Kind: "type", Symbol: "Candidate", Owner: modelRecipePackage},
 	)
-	auditCandidateAdmissionEntry(sources, report)
 }
 
-func auditCandidateAdmissionEntry(sources []productionAuthoritySource, report *ProductionAuthorityReport) {
+func auditRunrecordConstructorEntries(sources []productionAuthoritySource, report *ProductionAuthorityReport) {
+	auditRunrecordConstructorEntry(
+		sources, report, "candidate-admission", "AdmitCandidate",
+		authorityAllowance{File: "internal/controlleraction/action.go", Function: "compileAction", Count: oneAuthoritySite},
+	)
+	auditRunrecordConstructorEntry(
+		sources, report, "evidence-driver", "NewDriverDecision",
+		authorityAllowance{
+			File: "internal/evaluation/evidence_driver.go", Function: "CompileEvidenceDriverDecision", Count: oneAuthoritySite,
+		},
+	)
+}
+
+func auditRunrecordConstructorEntry(
+	sources []productionAuthoritySource,
+	report *ProductionAuthorityReport,
+	family, constructor string,
+	allowance authorityAllowance,
+) {
 	sites := map[authoritySiteKey][]int{}
 	for _, source := range sources {
 		inspectProductionAuthoritySource(source, func(function string, node ast.Node) {
 			call, ok := node.(*ast.CallExpr)
-			if ok && authorityCallNames(source, call.Fun, runRecordPackage, runRecordImport, "AdmitCandidate") {
+			if ok && authorityCallNames(source, call.Fun, runRecordPackage, runRecordImport, constructor) {
 				recordAuthoritySite(sites, source, function, call.Pos())
 			}
 		})
 	}
-	verifyAuthoritySites(report, "candidate-admission", "AdmitCandidate call", sites, []authorityAllowance{{
-		File: "internal/controlleraction/action.go", Function: "compileAction", Count: oneAuthoritySite,
-	}})
+	verifyAuthoritySites(report, family, constructor+" call", sites, []authorityAllowance{allowance})
 }
 
 // requireConcreteTypeOwner distinguishes the canonical definition from API

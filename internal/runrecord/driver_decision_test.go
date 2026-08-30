@@ -121,10 +121,11 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 		Admission: testutil.ArtifactID(t, artifact.KindEvidence, "driver-eligible-admission"),
 		State:     DriverCandidateEligible,
 		Missing: []DriverEvidenceGap{{
-			Need: DriverNeedRealization,
+			Need: DriverNeedRealization, CostUnits: 1, CostUnit: resources.Unit,
 		}},
 	}
 	eligible.Missing[0].Target = eligible.Candidate
+	eligible.Missing[0].CostAuthority = eligible.Candidate
 	validated := DriverOption{
 		Candidate: testutil.ArtifactID(t, artifact.KindRecipe, "driver-validated-candidate"),
 		Admission: testutil.ArtifactID(t, artifact.KindEvidence, "driver-validated-admission"),
@@ -137,10 +138,18 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 			testutil.ArtifactID(t, artifact.KindEvidence, "driver-known-evidence-a"),
 		},
 		Missing: []DriverEvidenceGap{
-			{Need: DriverNeedAblation, Target: testutil.ArtifactID(t, artifact.KindRecipe, "driver-ablation")},
-			{Need: DriverNeedEvaluation, Target: testutil.ArtifactID(t, artifact.KindEvaluation, "driver-evaluation")},
+			{
+				Need: DriverNeedAblation, Target: testutil.ArtifactID(t, artifact.KindRecipe, "driver-ablation"),
+				CostUnits: 5, CostUnit: resources.Unit,
+			},
+			{
+				Need: DriverNeedEvaluation, Target: testutil.ArtifactID(t, artifact.KindEvaluation, "driver-evaluation"),
+				CostUnits: 2, CostUnit: resources.Unit,
+			},
 		},
 	}
+	validated.Missing[0].CostAuthority = validated.Evidence[0]
+	validated.Missing[1].CostAuthority = validated.Evidence[1]
 	facts := DriverDecisionFacts{
 		Goal: goal, Causal: causal, Head: head,
 		Options: []DriverOption{validated, incumbent, eligible},
@@ -159,14 +168,16 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	if _, err := decision.Content(); err != nil {
 		t.Fatal(err)
 	}
-	if decision.Head != head || decision.Incumbent != incumbent.Recipe ||
+	if decision.Version != artifact.SecondDocumentVersion || decision.Head != head || decision.Incumbent != incumbent.Recipe ||
 		decision.Stop != DriverStopContinue || decision.Action != DriverActionRealize ||
 		decision.Subject != eligible.Candidate || decision.Target != eligible.Candidate ||
-		decision.Need != DriverNeedRealization || decision.TieBreak != DriverTieActionThenIdentity {
+		decision.Need != DriverNeedRealization || decision.TieBreak != DriverTieCostThenActionThenIdentity {
 		t.Fatalf("derived decision = %+v", decision)
 	}
-	if decision.Interaction.Issued != 10 || decision.Interaction.Consumed != 3 || decision.Interaction.Remaining != 7 ||
-		decision.Resources.Issued != 20 || decision.Resources.Consumed != 7 || decision.Resources.Remaining != 13 {
+	if decision.Interaction.Unit != interaction.Unit || decision.Interaction.Issued != 10 ||
+		decision.Interaction.Consumed != 3 || decision.Interaction.Remaining != 7 ||
+		decision.Resources.Unit != resources.Unit || decision.Resources.Issued != 20 ||
+		decision.Resources.Consumed != 7 || decision.Resources.Remaining != 13 {
 		t.Fatalf("derived budgets = interaction %+v, resources %+v", decision.Interaction, decision.Resources)
 	}
 	var admitted DriverOption
@@ -179,6 +190,72 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	if admitted.State != DriverCandidateEligible || admitted.Recipe.Valid() || admitted.Lifecycle.Valid() || admitted.Placement.Valid() ||
 		len(admitted.Missing) != 1 || admitted.Missing[0].Need != DriverNeedRealization || admitted.Missing[0].Target != admitted.Candidate {
 		t.Fatalf("pre-realization admission gained lifecycle state: %+v", admitted)
+	}
+
+	equalCostEligible := eligible
+	equalCostEligible.Missing = slices.Clone(eligible.Missing)
+	equalCostEligible.Missing[0].CostUnits = validated.Missing[1].CostUnits
+	equalCostFacts := facts
+	equalCostFacts.Options = []DriverOption{validated, incumbent, equalCostEligible}
+	equalCost, err := NewDriverDecision(ctx, store, equalCostFacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if equalCost.Action != DriverActionRealize || equalCost.Subject != eligible.Candidate {
+		t.Fatalf("equal-cost action tie = %+v", equalCost)
+	}
+
+	peerEligible := DriverOption{
+		Candidate: testutil.ArtifactID(t, artifact.KindRecipe, "driver-peer-eligible-candidate"),
+		Admission: testutil.ArtifactID(t, artifact.KindEvidence, "driver-peer-eligible-admission"),
+		State:     DriverCandidateEligible,
+	}
+	peerEligible.Missing = []DriverEvidenceGap{{
+		Need: DriverNeedRealization, Target: peerEligible.Candidate,
+		CostUnits: eligible.Missing[0].CostUnits, CostUnit: resources.Unit, CostAuthority: peerEligible.Candidate,
+	}}
+	identityFacts := facts
+	identityFacts.Options = []DriverOption{peerEligible, incumbent, eligible}
+	identity, err := NewDriverDecision(ctx, store, identityFacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantIdentity := eligible.Candidate
+	if artifact.CompareID(peerEligible.Candidate, wantIdentity) < 0 {
+		wantIdentity = peerEligible.Candidate
+	}
+	if identity.Action != DriverActionRealize || identity.Subject != wantIdentity {
+		t.Fatalf("equal-cost identity tie = %+v, want subject %s", identity, wantIdentity)
+	}
+
+	tooExpensiveEligible := eligible
+	tooExpensiveEligible.Missing = slices.Clone(eligible.Missing)
+	tooExpensiveEligible.Missing[0].CostUnits = decision.Resources.Remaining + 1
+	affordableFacts := facts
+	affordableFacts.Options = []DriverOption{tooExpensiveEligible, incumbent, validated}
+	affordable, err := NewDriverDecision(ctx, store, affordableFacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if affordable.Stop != DriverStopContinue || affordable.Action != DriverActionEvaluate ||
+		affordable.Subject != validated.Candidate || affordable.Target != validated.Missing[1].Target {
+		t.Fatalf("lowest affordable work = %+v", affordable)
+	}
+
+	tooExpensiveValidated := validated
+	tooExpensiveValidated.Missing = slices.Clone(validated.Missing)
+	for index := range tooExpensiveValidated.Missing {
+		tooExpensiveValidated.Missing[index].CostUnits = decision.Resources.Remaining + 1
+	}
+	unaffordableFacts := facts
+	unaffordableFacts.Options = []DriverOption{tooExpensiveEligible, incumbent, tooExpensiveValidated}
+	unaffordable, err := NewDriverDecision(ctx, store, unaffordableFacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unaffordable.Stop != DriverStopBudgetExhausted || unaffordable.Action != DriverActionRefuse ||
+		unaffordable.Subject.Valid() || unaffordable.Target.Valid() || unaffordable.Need != "" {
+		t.Fatalf("unaffordable pending work = %+v", unaffordable)
 	}
 
 	permutedValidated := validated
@@ -198,11 +275,11 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	}
 
 	wantParents := []artifact.ID{
-		goal, incumbent.Recipe, incumbent.Lifecycle, incumbent.Placement, incumbent.Evidence[0],
+		goal, incumbent.Recipe, incumbent.Lifecycle, incumbent.Evidence[0],
 		interaction.ID, interactionChargeA.ID, interactionChargeB.ID,
 		resources.ID, resourceChargeA.ID, resourceChargeB.ID,
 		eligible.Candidate, eligible.Admission,
-		validated.Candidate, validated.Admission, validated.Recipe, validated.Lifecycle, validated.Placement,
+		validated.Candidate, validated.Admission, validated.Recipe, validated.Lifecycle,
 		validated.Evidence[0], validated.Evidence[1], validated.Missing[0].Target, validated.Missing[1].Target,
 	}
 	lineage := decision.Lineage()
@@ -216,9 +293,23 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 			t.Fatalf("authority %s is absent from decision lineage", parent)
 		}
 	}
+	if slices.ContainsFunc(lineage, func(edge artifact.Lineage) bool {
+		return edge.Parent == incumbent.Placement || edge.Parent == validated.Placement
+	}) {
+		t.Fatal("derived placement identity leaked into driver lineage")
+	}
 	if slices.ContainsFunc(lineage, func(edge artifact.Lineage) bool { return edge.Parent == causal.Root }) {
 		t.Fatal("causal projection was conflated with artifact lineage")
 	}
+	wrongCostUnit := eligible
+	wrongCostUnit.Missing = slices.Clone(eligible.Missing)
+	wrongCostUnit.Missing[0].CostUnit = interaction.Unit
+	unboundCostAuthority := eligible
+	unboundCostAuthority.Missing = slices.Clone(eligible.Missing)
+	unboundCostAuthority.Missing[0].CostAuthority = testutil.ArtifactID(t, artifact.KindEvidence, "driver-unbound-cost-authority")
+	zeroCost := eligible
+	zeroCost.Missing = slices.Clone(eligible.Missing)
+	zeroCost.Missing[0].CostUnits = 0
 
 	for _, test := range []struct {
 		name   string
@@ -239,6 +330,9 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 			Candidate: validated.Candidate, Admission: validated.Admission, Recipe: validated.Recipe,
 			Lifecycle: validated.Lifecycle, State: DriverCandidateActive,
 		}},
+		{name: "cost unit differs", option: wrongCostUnit},
+		{name: "cost authority is unbound", option: unboundCostAuthority},
+		{name: "cost is absent", option: zeroCost},
 	} {
 		t.Run("refuses lifecycle state "+test.name, func(t *testing.T) {
 			invalid := facts
@@ -261,6 +355,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 		name   string
 		mutate func(*DriverDecision)
 	}{
+		{name: "version", mutate: func(value *DriverDecision) { value.Version = artifact.InitialDocumentVersion }},
 		{name: "head", mutate: func(value *DriverDecision) { value.Head = artifact.CommitID{9} }},
 		{name: "action", mutate: func(value *DriverDecision) { value.Action = DriverActionSelect }},
 		{name: "stop", mutate: func(value *DriverDecision) { value.Stop = DriverStopSaturated }},
@@ -269,6 +364,14 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 		{name: "need", mutate: func(value *DriverDecision) { value.Need = DriverNeedPromotion }},
 		{name: "tie break", mutate: func(value *DriverDecision) { value.TieBreak = "caller-choice" }},
 		{name: "budget balance", mutate: func(value *DriverDecision) { value.Interaction.Remaining++ }},
+		{name: "budget unit", mutate: func(value *DriverDecision) { value.Resources.Unit = value.Interaction.Unit }},
+		{name: "work cost", mutate: func(value *DriverDecision) {
+			for index := range value.Options {
+				if value.Options[index].Candidate == eligible.Candidate {
+					value.Options[index].Missing[0].CostUnits++
+				}
+			}
+		}},
 	} {
 		t.Run("refuses mutation "+test.name, func(t *testing.T) {
 			mutated := cloneDriverDecision(decision)

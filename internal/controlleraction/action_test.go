@@ -7,7 +7,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	"overgo/internal/modelartifact"
-	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -123,110 +122,6 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	batch, err = CompileTransaction(t.Context(), nil, budget)
 	if err != nil || len(batch.Contents) != 2 || len(batch.Lineage) == 0 {
 		t.Fatalf("budget compile = (%+v, %v)", batch, err)
-	}
-
-	driverStore, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer driverStore.Close()
-	interactionBudget, err := runrecord.NewBudget(
-		"interaction", testutil.ArtifactID(t, artifact.KindDatasetShard, "driver interaction split"), 2,
-		testutil.ArtifactID(t, artifact.KindEvidence, "driver interaction authority"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resourceBudget, err := runrecord.NewBudget(
-		"resource", testutil.ArtifactID(t, artifact.KindDatasetShard, "driver resource split"), 3,
-		testutil.ArtifactID(t, artifact.KindEvidence, "driver resource authority"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, parent := range []artifact.ID{
-		interactionBudget.Split, interactionBudget.Authority, resourceBudget.Split, resourceBudget.Authority,
-	} {
-		testutil.PublishArtifact(t, driverStore, parent)
-	}
-	for _, granted := range []struct {
-		key   string
-		value runrecord.Budget
-	}{
-		{key: "driver/interaction-budget", value: interactionBudget},
-		{key: "driver/resource-budget", value: resourceBudget},
-	} {
-		budgetBatch, batchErr := granted.value.Batch(granted.key)
-		if batchErr != nil {
-			t.Fatal(batchErr)
-		}
-		if _, batchErr = artifact.CommitBatch(t.Context(), driverStore, budgetBatch); batchErr != nil {
-			t.Fatal(batchErr)
-		}
-	}
-	causal, err := runrecord.NewCausalRoot(
-		runrecord.TriggerControllerProposal, testutil.ArtifactID(t, artifact.KindEvidence, "driver causal root"),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	driverCandidate := testutil.ArtifactID(t, artifact.KindRecipe, "driver eligible candidate")
-	goal := testutil.ArtifactID(t, artifact.KindRecipe, "driver goal")
-	incumbent := runrecord.DriverOption{
-		Recipe:    testutil.ArtifactID(t, artifact.KindRecipe, "driver incumbent"),
-		Lifecycle: testutil.ArtifactID(t, artifact.KindEvidence, "driver incumbent lifecycle"),
-		State:     runrecord.DriverIncumbentActive,
-		Placement: testutil.ArtifactID(t, artifact.KindProfile, "driver incumbent placement"),
-	}
-	eligible := runrecord.DriverOption{
-		Candidate: driverCandidate,
-		Admission: testutil.ArtifactID(t, artifact.KindEvidence, "driver candidate admission"),
-		State:     runrecord.DriverCandidateEligible,
-		Missing:   []runrecord.DriverEvidenceGap{{Need: runrecord.DriverNeedRealization, Target: driverCandidate}},
-	}
-	for _, parent := range []artifact.ID{
-		goal, causal.Root, incumbent.Recipe, incumbent.Lifecycle, incumbent.Placement,
-		eligible.Candidate, eligible.Admission,
-	} {
-		testutil.PublishArtifact(t, driverStore, parent)
-	}
-	driverHead, _ := driverStore.Head()
-	if !driverHead.Valid() {
-		t.Fatal("driver store has no head")
-	}
-	driver := Action{Version: ActionVersion, Kind: KindDriverDecision, Driver: &DriverDecisionAction{Facts: runrecord.DriverDecisionFacts{
-		Goal: goal, Causal: causal, Head: driverHead, Options: []runrecord.DriverOption{incumbent, eligible},
-		InteractionBudget: runrecord.DriverBudgetReference{Grant: interactionBudget.ID},
-		ResourceBudget:    runrecord.DriverBudgetReference{Grant: resourceBudget.ID},
-	}}}
-	driverJSON, err := json.Marshal(driver)
-	if err != nil {
-		t.Fatal(err)
-	}
-	parsedDriver, err := ParseAction(driverJSON)
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err = CompileTransaction(t.Context(), driverStore, parsedDriver)
-	if err != nil || len(batch.Contents) != 1 || len(batch.Lineage) == 0 || len(batch.Causality) != 1 ||
-		batch.ExpectedHead == nil || *batch.ExpectedHead != driver.Driver.Facts.Head {
-		t.Fatalf("driver decision compile = (%+v, %v)", batch, err)
-	}
-	testutil.PublishArtifact(t, driverStore, testutil.ArtifactID(t, artifact.KindEvidence, "driver concurrent write"))
-	if _, err := artifact.CommitBatch(t.Context(), driverStore, batch); err == nil {
-		t.Fatal("stale driver decision committed after the repository head advanced")
-	}
-	freshHead, _ := driverStore.Head()
-	if !freshHead.Valid() {
-		t.Fatal("driver store lost its head")
-	}
-	parsedDriver.Driver.Facts.Head = freshHead
-	batch, err = CompileTransaction(t.Context(), driverStore, parsedDriver)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(t.Context(), driverStore, batch); err != nil {
-		t.Fatalf("fresh driver decision did not commit: %v", err)
 	}
 
 	strategy := testutil.ArtifactID(t, artifact.KindProfile, "scheduler strategy")

@@ -74,6 +74,22 @@ func (value CandidateEvaluationIntent) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Subject)
 }
 
+// RequireCandidateEvaluationIntent replays the exact typed falsifier declared
+// by one candidate before that candidate can consume realization budget.
+func RequireCandidateEvaluationIntent(
+	ctx context.Context,
+	reader artifact.Reader,
+	candidate Candidate,
+) (CandidateEvaluationIntent, error) {
+	if err := candidate.ValidateIdentity(); err != nil {
+		return CandidateEvaluationIntent{}, err
+	}
+	spec := candidate.Spec()
+	return requireCandidateEvaluationIntent(
+		ctx, reader, spec.Falsifier, spec.Subject, spec.Prediction.Metric, spec.CostUnit,
+	)
+}
+
 // CandidateEvaluationIntentValidator checks that an admitted falsifier is the
 // exact typed evaluation intent compiled for the candidate authority.
 type CandidateEvaluationIntentValidator struct{}
@@ -89,24 +105,35 @@ func (CandidateEvaluationIntentValidator) ValidateCandidateEvaluation(
 	reader artifact.Reader,
 	facts CandidateCompileFacts,
 ) error {
+	_, err := requireCandidateEvaluationIntent(
+		ctx, reader, facts.Falsifier, facts.Subject, facts.Prediction.Metric, facts.CostUnit,
+	)
+	return err
+}
+
+func requireCandidateEvaluationIntent(
+	ctx context.Context,
+	reader artifact.Reader,
+	id, subject artifact.ID,
+	metric, costUnit string,
+) (CandidateEvaluationIntent, error) {
 	intent, err := candidateEvaluationIntentCodec.RequireExactLineage(
-		ctx, reader, facts.Falsifier, CandidateEvaluationIntent.Lineage,
+		ctx, reader, id, CandidateEvaluationIntent.Lineage,
 	)
 	if err != nil {
-		return err
+		return CandidateEvaluationIntent{}, err
 	}
 	expected, err := NewCandidateEvaluationIntent(
-		facts.Subject, facts.Prediction.Metric, facts.CostUnit,
-		CandidateStopOnBudgetOrNonPositiveIsolatedImprovement,
+		subject, metric, costUnit, CandidateStopOnBudgetOrNonPositiveIsolatedImprovement,
 	)
 	if err != nil {
-		return err
+		return CandidateEvaluationIntent{}, err
 	}
-	if intent.ID != expected.ID || intent.Subject != facts.Subject ||
-		intent.Metric != facts.Prediction.Metric || intent.CostUnit != facts.CostUnit {
-		return errors.New("model recipe: evaluation intent differs from candidate authority")
+	if intent.ID != expected.ID || intent.Subject != subject ||
+		intent.Metric != metric || intent.CostUnit != costUnit {
+		return CandidateEvaluationIntent{}, errors.New("model recipe: evaluation intent differs from candidate authority")
 	}
-	return nil
+	return intent, nil
 }
 
 func canonicalizeCandidateEvaluationIntent(value *CandidateEvaluationIntent) error {

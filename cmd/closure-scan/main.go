@@ -76,6 +76,7 @@ func main() {
 	census := flag.Bool("census", false, "report complete source denominators and consolidation pressure")
 	inventoryUnclassified := flag.Bool("inventory-unclassified", false, "report every current constant without exact active authority and matching history")
 	inventoryUnclassifiedPolicy := flag.Bool("inventory-unclassified-policy", false, "report every current production policy candidate without exact active authority and matching history")
+	propose := flag.String("propose", "", "emit ready-to-apply triage rows with exact scanner coordinates for the named uncatalogued candidates (comma-separated)")
 	format := flag.String("format", "text", "structured report format: text or json")
 	publish := flag.Bool("publish", false, "publish census evidence to OvergoDB")
 	importStore := flag.String("import-store", "", "import matching active decisions; same-store mode safely rebinds unambiguous history")
@@ -176,6 +177,24 @@ func main() {
 	if *requireClassified || *requireNoStale || *requireNoUncatalogued || *requireNoModelFacts ||
 		*requireNoPolicyCopies || *requireClassifiedFixtures || *requireZeroOpen {
 		fatal(errors.New("closure requirements need -check-scope, -check-all, or -check-tests"))
+	}
+	if *propose != "" {
+		snapshot := mustSnapshot(root)
+		store, err := overgodb.OpenReadOnly(filepath.Join(root, *storePath))
+		if err != nil {
+			fatal(err)
+		}
+		proposal, proposeErr := proposeTriageRows(
+			context.Background(), snapshot, store, strings.Split(*propose, ","),
+		)
+		closeErr := store.Close()
+		if proposeErr != nil || closeErr != nil {
+			fatal(errors.Join(proposeErr, closeErr))
+		}
+		if err := clioptions.WritePrettyJSON(os.Stdout, proposal); err != nil {
+			fatal(err)
+		}
+		return
 	}
 	if *inventoryUnclassified || *inventoryUnclassifiedPolicy {
 		snapshot := mustSnapshot(root)

@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "grunt-automation",
-      "title": "Convert repeated model grunt work into Go-owned automation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "triage-coordinate-emission",
-          "title": "Emit ready-to-apply triage rows with exact coordinates for named uncatalogued candidates",
-          "status": "open",
-          "verify": "go test ./cmd/closure-scan -run '^TestTriageProposalCarriesExactCoordinates$' -count=1",
-          "rationale": "Hand-copying file, scope, and line into triage JSON is repeated mechanical work the scanner already knows exactly: closure-scan accepts candidate names and emits complete triage rows with exact coordinates prefilled, leaving only understanding, closure path, and rerank trigger to the reviewer. A named candidate the scan cannot find refuses with the nearest current candidates rather than emitting a stale row.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard"
-          ],
-          "capabilities": [
-            "grunt-automation",
-            "closure-scan",
-            "interaction-efficiency"
-          ]
-        }
-      ]
-    },
-    {
       "id": "model-prototypes",
       "title": "Represent model prototypes as typed hypotheses that compile through registered Go capabilities",
       "status": "open",

@@ -101,6 +101,21 @@ type Query struct {
 	ToSequence   uint64
 	Projection   QueryProjection
 	Cursor       *QueryCursor
+	// RequireIndex refuses a query no projection index owns instead of
+	// silently scanning the complete catalog.
+	RequireIndex bool
+}
+
+// QueryPlanReport states which owning projection served a query and what it
+// cost: candidates inspected, descriptors matched, rows returned, and
+// projected facts loaded. The plan is deterministic for one query contract
+// and head, so equal queries at equal heads report equal plans.
+type QueryPlanReport struct {
+	Index     string `json:"index"`
+	Inspected int    `json:"inspected"`
+	Matched   int    `json:"matched"`
+	Returned  int    `json:"returned"`
+	Loaded    int    `json:"loaded"`
 }
 
 // AliasView carries one projected alias binding.
@@ -144,6 +159,7 @@ type QueryResult struct {
 	Commits   []CommitView          `json:"commits,omitempty"`
 	Truncated bool                  `json:"truncated,omitempty"`
 	Next      *QueryCursor          `json:"next,omitempty"`
+	Plan      QueryPlanReport       `json:"plan"`
 }
 
 // ArtifactIntroduction returns the immutable first-durable-content commit
@@ -203,6 +219,19 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if query.Cursor != nil && (query.Cursor.Head != s.head || query.Cursor.Contract != contract) {
 		return QueryResult{}, errors.New("overgodb: query cursor is stale or belongs to another query")
 	}
+	planIndex, inspected := "seed", 0
+	if query.Artifact == nil && query.Alias == "" {
+		if query.FromSequence != 0 || query.ToSequence != 0 {
+			planIndex = "sequence"
+		} else {
+			planIndex, inspected = s.state.queryIndexPlan(query)
+		}
+	}
+	if query.RequireIndex && planIndex == "catalog" {
+		return QueryResult{}, errors.New(
+			"overgodb: no projection index owns this query contract; narrow the contract or drop the index requirement",
+		)
+	}
 	result := QueryResult{Head: s.head, Sequence: s.sequence}
 	selected, ids, edges, matched, truncated, err := s.state.querySelection(query)
 	if err != nil {
@@ -240,6 +269,14 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if truncated && len(ids) > 0 && query.Artifact == nil && query.Alias == "" &&
 		query.FromSequence == 0 && query.ToSequence == 0 {
 		result.Next = &QueryCursor{Head: s.head, Contract: contract, After: ids[len(ids)-1]}
+	}
+	if planIndex == "seed" || planIndex == "sequence" {
+		inspected = matched
+	}
+	result.Plan = QueryPlanReport{
+		Index: planIndex, Inspected: inspected, Matched: matched, Returned: len(ids),
+		Loaded: len(result.Artifacts) + len(result.Contents) + len(result.Manifests) +
+			len(result.Aliases) + len(result.Lineage) + len(result.Commits),
 	}
 	return result, nil
 }
@@ -290,20 +327,22 @@ func validateQuery(query Query) error {
 
 func queryContractDigest(query Query) ([sha256.Size]byte, error) {
 	contract := struct {
-		Kind       uint8
-		MediaType  string
-		Schema     string
-		Artifact   string
-		Alias      string
-		Relation   uint8
-		Follow     uint8
-		MaxDepth   uint32
-		From, To   uint64
-		Projection uint16
+		Kind         uint8
+		MediaType    string
+		Schema       string
+		Artifact     string
+		Alias        string
+		Relation     uint8
+		Follow       uint8
+		MaxDepth     uint32
+		From, To     uint64
+		Projection   uint16
+		RequireIndex bool
 	}{
 		Kind: uint8(query.Kind), MediaType: query.MediaType, Schema: query.Schema,
 		Alias: query.Alias, Relation: uint8(query.Relation), Follow: uint8(query.Follow), MaxDepth: query.MaxDepth,
 		From: query.FromSequence, To: query.ToSequence, Projection: uint16(query.Projection),
+		RequireIndex: query.RequireIndex,
 	}
 	if query.Artifact != nil {
 		contract.Artifact = query.Artifact.String()
@@ -420,32 +459,54 @@ func validDescriptorFilter(value string) bool {
 	return strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\r\n")
 }
 
+// queryIndexPlan names the owning projection index for one descriptor query,
+// deterministically for the contract and head: the narrowest declared filter
+// wins, and a media/schema pair tie-breaks by measured candidate width at
+// this exact head.
+func (s catalogState) queryIndexPlan(query Query) (string, int) {
+	media, schema := query.MediaType != "", query.Schema != ""
+	switch {
+	case media && schema:
+		if len(s.artifacts.byMedia[query.MediaType]) <= len(s.artifacts.bySchema[query.Schema]) {
+			return "media", len(s.artifacts.byMedia[query.MediaType])
+		}
+		return "schema", len(s.artifacts.bySchema[query.Schema])
+	case media:
+		return "media", len(s.artifacts.byMedia[query.MediaType])
+	case schema:
+		return "schema", len(s.artifacts.bySchema[query.Schema])
+	case query.Kind != artifact.KindInvalid:
+		return "kind", len(s.artifacts.byKind[query.Kind])
+	default:
+		return "catalog", s.artifacts.count()
+	}
+}
+
 func (s catalogState) visitDescriptorCandidates(query Query, visit func(artifact.ID)) {
-	if query.MediaType != "" {
+	index, _ := s.queryIndexPlan(query)
+	switch index {
+	case "media":
 		for _, id := range s.artifacts.byMedia[query.MediaType] {
 			visit(id)
 		}
-		return
-	}
-	if query.Schema != "" {
+	case "schema":
 		for _, id := range s.artifacts.bySchema[query.Schema] {
 			visit(id)
 		}
-		return
-	}
-	for id := range s.artifacts.records {
-		visit(id)
+	case "kind":
+		for _, id := range s.artifacts.byKind[query.Kind] {
+			visit(id)
+		}
+	default:
+		for id := range s.artifacts.records {
+			visit(id)
+		}
 	}
 }
 
 func (s catalogState) descriptorCandidateCount(query Query) int {
-	if query.MediaType != "" {
-		return len(s.artifacts.byMedia[query.MediaType])
-	}
-	if query.Schema != "" {
-		return len(s.artifacts.bySchema[query.Schema])
-	}
-	return s.artifacts.count()
+	_, count := s.queryIndexPlan(query)
+	return count
 }
 
 func (s catalogState) matchesDescriptor(query Query, id artifact.ID) bool {

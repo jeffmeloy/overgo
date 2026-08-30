@@ -9,24 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "projection-query-plans",
-          "title": "Route bounded queries through exact compiled indexes and report inspected, matched, returned, and loaded facts",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestProjectionQueryPlanEfficiency$' -count=1",
-          "rationale": "Kind, media, schema, sequence, alias, lineage, contract, and causal lookups use their owning projection rather than scanning the complete catalog. The planner is deterministic for a query contract and head; a missing index may refuse an unbounded request rather than silently perform a full scan.",
-          "depends_on": [
-            "storage-projections/atomic-publication",
-            "redundancy-interaction-baseline/interaction-traces",
-            "campaign-concurrency/ready-frontier-leases"
-          ],
-          "capabilities": [
-            "overgodb",
-            "query-plan",
-            "projection",
-            "interaction-efficiency"
-          ]
-        },
-        {
           "id": "head-bound-deltas",
           "title": "Serve initial snapshots plus ordered head-bound deltas to read-only peers, runtime views, and the embedded UI",
           "status": "open",

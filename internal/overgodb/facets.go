@@ -89,6 +89,7 @@ type artifactFacet struct {
 	records    map[artifact.ID]*artifactRecord
 	byMedia    map[string][]artifact.ID
 	bySchema   map[string][]artifact.ID
+	byKind     map[artifact.Kind][]artifact.ID
 	bySequence []artifact.ID
 }
 
@@ -96,6 +97,7 @@ func newArtifactFacet() artifactFacet {
 	return artifactFacet{
 		records: map[artifact.ID]*artifactRecord{},
 		byMedia: map[string][]artifact.ID{}, bySchema: map[string][]artifact.ID{},
+		byKind: map[artifact.Kind][]artifact.ID{},
 	}
 }
 
@@ -134,6 +136,7 @@ func (f *artifactFacet) add(descriptor artifact.Descriptor, sequence uint64) {
 	f.records[descriptor.ID] = &artifactRecord{descriptor: descriptor, sequence: sequence}
 	indexDescriptor(f.byMedia, descriptor.MediaType, descriptor.ID)
 	indexDescriptor(f.bySchema, descriptor.Schema, descriptor.ID)
+	f.byKind[descriptor.ID.Kind()] = append(f.byKind[descriptor.ID.Kind()], descriptor.ID)
 	f.bySequence = append(f.bySequence, descriptor.ID)
 }
 

@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "campaign-concurrency",
-      "title": "Turn DAG slack into conflict-bound implementation lanes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "ready-frontier-leases",
-          "title": "Dispatch exact ready frontiers through role-owned worktree leases and merge gated pruned completions",
-          "status": "open",
-          "verify": "go test ./internal/plan ./cmd/plan ./cmd/gate -run '^(TestReadyFrontierLeaseIsolation|TestMergeAcceptsGatedPrunedCompletion|TestMergePreservesDependencyOrder)$' -count=1",
-          "rationale": "Keep Current as the deterministic single-lane compatibility selector, but expose the complete ordered ready frontier to role-owned leases with non-overlapping filesystem and resource claims. Concurrent implementation uses distinct worktrees; each worktree gates commits serially, and semantic merge accepts a pruned row only with ancestor gate evidence while preserving dependency order. Shared-worktree subagents remain limited to parallel audit, design, and testing.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard"
-          ],
-          "capabilities": [
-            "multi-agent",
-            "worktree-lease",
-            "semantic-merge",
-            "interaction-efficiency"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gate-throughput",
       "title": "Shorten the commit loop itself: self-remediating refusals and evidence reuse across attempts",
       "status": "open",

@@ -13,10 +13,26 @@ import (
 // current live plan no longer accepts; callers publishing the result as live
 // state still pass through Save and its current Validate rules.
 func MergeDocuments(base, local, upstream Plan) (Plan, error) {
-	return mergeDocuments(base, local, upstream, validatePlanGraph)
+	// Absence is never proof without authority: no pruning is accepted here.
+	return mergeDocuments(base, local, upstream, validatePlanGraph, func(string) bool { return false })
 }
 
-func mergeDocuments(base, local, upstream Plan, validate func(Plan) error) (Plan, error) {
+// MergeDocumentsWithCompletion merges like MergeDocuments but accepts a row
+// pruned by one or both sides when the union of the parents' completion
+// authorities proves that exact identity was completed through the gate and
+// any retaining side left the row unchanged from base. Pruning without
+// ancestor gate evidence still refuses: absence is never proof.
+func MergeDocumentsWithCompletion(
+	base, local, upstream Plan,
+	localAuthority, upstreamAuthority CompletionAuthority,
+) (Plan, error) {
+	completed := func(reference string) bool {
+		return localAuthority.completed(reference) || upstreamAuthority.completed(reference)
+	}
+	return mergeDocuments(base, local, upstream, validatePlanGraph, completed)
+}
+
+func mergeDocuments(base, local, upstream Plan, validate func(Plan) error, completed func(string) bool) (Plan, error) {
 	campaign, doctrine, err := mergeProjectionHeaders(base, local, upstream)
 	if err != nil {
 		return Plan{}, err
@@ -33,7 +49,10 @@ func mergeDocuments(base, local, upstream Plan, validate func(Plan) error) (Plan
 		localItem, inLocal := localItems[id]
 		upstreamItem, inUpstream := upstreamItems[id]
 		if inBase && (!inLocal || !inUpstream) {
-			return Plan{}, fmt.Errorf("plan document: retained item %q was deleted", id)
+			if err := acceptItemPruning(baseItem, localItem, inLocal, upstreamItem, inUpstream, completed); err != nil {
+				return Plan{}, err
+			}
+			continue
 		}
 		if !inBase {
 			switch {
@@ -46,13 +65,43 @@ func mergeDocuments(base, local, upstream Plan, validate func(Plan) error) (Plan
 			}
 			continue
 		}
-		item, err := mergeItem(baseItem, localItem, upstreamItem)
+		item, err := mergeItem(baseItem, localItem, upstreamItem, completed)
 		if err != nil {
 			return Plan{}, err
+		}
+		if len(item.Steps) == 0 && len(baseItem.Steps) != 0 {
+			// Every base step was individually pruned with completion
+			// evidence; an emptied item leaves the document like the gate
+			// prunes it.
+			continue
 		}
 		merged.Items = append(merged.Items, item)
 	}
 	return merged, validate(merged)
+}
+
+// acceptItemPruning admits the removal of one whole base item: the identity
+// is gone from at least one side, every base step must carry gated completion
+// evidence, and any retaining side must have left the item unchanged from
+// base so no concurrent edit is silently discarded.
+func acceptItemPruning(
+	baseItem Item,
+	localItem Item, inLocal bool,
+	upstreamItem Item, inUpstream bool,
+	completed func(string) bool,
+) error {
+	if inLocal && !sameItem(localItem, baseItem) || inUpstream && !sameItem(upstreamItem, baseItem) {
+		return fmt.Errorf("plan document: retained item %q was deleted beside concurrent edits", baseItem.ID)
+	}
+	for _, step := range baseItem.Steps {
+		if !completed(baseItem.ID + "/" + step.ID) {
+			return fmt.Errorf(
+				"plan document: retained item %q was deleted; %s/%s lacks gated completion evidence",
+				baseItem.ID, baseItem.ID, step.ID,
+			)
+		}
+	}
+	return nil
 }
 
 func mergeProjectionHeaders(base, local, upstream Plan) (string, string, error) {
@@ -93,7 +142,7 @@ func mergeCensusAuthority(base, local, upstream *artifact.ID) (*artifact.ID, err
 	return &cloned, nil
 }
 
-func mergeItem(base, local, upstream Item) (Item, error) {
+func mergeItem(base, local, upstream Item, completed func(string) bool) (Item, error) {
 	title, err := mergeText("item "+base.ID+" title", base.Title, local.Title, upstream.Title)
 	if err != nil {
 		return Item{}, err
@@ -114,7 +163,15 @@ func mergeItem(base, local, upstream Item) (Item, error) {
 		localStep, inLocal := localSteps[id]
 		upstreamStep, inUpstream := upstreamSteps[id]
 		if inBase && (!inLocal || !inUpstream) {
-			return Item{}, fmt.Errorf("plan document: retained step %q/%q was deleted", base.ID, id)
+			if inLocal && !sameStep(localStep, baseStep) || inUpstream && !sameStep(upstreamStep, baseStep) {
+				return Item{}, fmt.Errorf("plan document: retained step %q/%q was deleted beside concurrent edits", base.ID, id)
+			}
+			if !completed(base.ID + "/" + id) {
+				return Item{}, fmt.Errorf(
+					"plan document: retained step %q/%q was deleted without gated completion evidence", base.ID, id,
+				)
+			}
+			continue
 		}
 		if !inBase {
 			if inLocal && inUpstream && !sameStep(localStep, upstreamStep) {

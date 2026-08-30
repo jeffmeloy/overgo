@@ -70,7 +70,13 @@ func prepareMerge(root, source string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		merged, err := plan.MergeDocuments(base, local, incoming)
+		localAuthority, incomingAuthority, err := resolveMergeAuthorities(
+			root, localRevision, snapshot, local, incoming,
+		)
+		if err != nil {
+			return fmt.Errorf("prepare-merge completion authority: %w", err)
+		}
+		merged, err := plan.MergeDocumentsWithCompletion(base, local, incoming, localAuthority, incomingAuthority)
 		if err != nil {
 			return err
 		}
@@ -79,8 +85,8 @@ func prepareMerge(root, source string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if err := verifyProspectiveMergeAuthority(
-			root, localRevision, snapshot, local, incoming, merged,
+		if err := plan.VerifyProspectiveMergeAuthority(
+			root, localRevision, snapshot, local, incoming, merged, localAuthority, incomingAuthority,
 		); err != nil {
 			return fmt.Errorf("prepare-merge completion authority: %w", err)
 		}
@@ -154,31 +160,30 @@ func uniqueMergeBase(root, localRevision, incomingRevision string) (string, erro
 	return bases[0], nil
 }
 
-func verifyProspectiveMergeAuthority(
+func resolveMergeAuthorities(
 	root, localRevision, incomingRevision string,
-	local, incoming, merged plan.Plan,
-) (returnErr error) {
+	local, incoming plan.Plan,
+) (localAuthority, incomingAuthority plan.CompletionAuthority, returnErr error) {
 	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
 	if err != nil {
-		return err
+		return plan.CompletionAuthority{}, plan.CompletionAuthority{}, err
 	}
 	defer func() { returnErr = errors.Join(returnErr, store.Close()) }()
-	localAuthority, err := plan.ResolveCompletionAuthority(
+	localAuthority, err = plan.ResolveCompletionAuthority(
 		context.Background(), root, localRevision, local, store,
 	)
 	if err != nil {
-		return fmt.Errorf("local parent %.12s: %w", localRevision, err)
+		return plan.CompletionAuthority{}, plan.CompletionAuthority{}, fmt.Errorf("local parent %.12s: %w", localRevision, err)
 	}
-	incomingAuthority, err := plan.ResolveCompletionAuthority(
+	incomingAuthority, err = plan.ResolveCompletionAuthority(
 		context.Background(), root, incomingRevision, incoming, store,
 	)
 	if err != nil {
-		return fmt.Errorf("incoming parent %.12s is not proven by the target authority store: %w", incomingRevision, err)
+		return plan.CompletionAuthority{}, plan.CompletionAuthority{}, fmt.Errorf(
+			"incoming parent %.12s is not proven by the target authority store: %w", incomingRevision, err,
+		)
 	}
-	return plan.VerifyProspectiveMergeAuthority(
-		root, localRevision, incomingRevision,
-		local, incoming, merged, localAuthority, incomingAuthority,
-	)
+	return localAuthority, incomingAuthority, nil
 }
 
 func verifySourceSnapshot(source, snapshot string, latest []byte, resolveErr error) error {

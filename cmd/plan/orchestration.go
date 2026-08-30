@@ -189,6 +189,55 @@ func printLocalitySchedule(root, inputPath string, output io.Writer) error {
 	return encoder.Encode(schedule)
 }
 
+// printReadyFrontier prints every dispatchable row and refuses when the live
+// worktree leases violate frontier isolation, so a driver reads dispatchable
+// work and lease health in one call.
+func printReadyFrontier(root string, document plan.Plan, output io.Writer) error {
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	authority, err := plan.ResolveCompletionAuthority(ctx, root, "HEAD", document, store)
+	if err != nil {
+		return err
+	}
+	frontier, err := plan.ReadyFrontier(document, authority)
+	if err != nil {
+		return err
+	}
+	leases := make([]plan.WorkLease, 0)
+	legacyUnreadable := 0
+	_, err = store.VisitDocuments(ctx, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: plan.WorkLeaseMediaType, Schema: plan.WorkLeaseSchema,
+		}}, AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
+	}, func(view overgodb.DocumentView) error {
+		lease, parseErr := plan.ParseWorkLease(view.Content.Data)
+		if parseErr != nil {
+			// A pre-contract lease cannot hold frontier authority; it is
+			// counted so its retirement stays visible, never silently valid.
+			legacyUnreadable++
+			return nil
+		}
+		leases = append(leases, lease)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if err := plan.ValidateFrontierLeases(frontier, leases); err != nil {
+		return err
+	}
+	if len(frontier) != 0 {
+		fmt.Fprintln(output, plan.FormatFrontier(frontier))
+	}
+	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d isolated lease(s), %d legacy unreadable lease(s)\n",
+		len(frontier), len(leases), legacyUnreadable)
+	return nil
+}
+
 func printLeaseReport(root string, capacity plan.Resources, output io.Writer) error {
 	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
 	if err != nil {

@@ -1,6 +1,8 @@
 package runrecord
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -122,4 +124,25 @@ func (value RolloutPlan) Lineage() []artifact.Lineage {
 // Batch wraps the plan as one committable store batch.
 func (value RolloutPlan) Batch(key string) (artifact.Batch, error) {
 	return rolloutPlanCodec.Batch(key, value, value.Lineage(), nil)
+}
+
+// Assign returns which arm serves one workload unit under this plan. The
+// assignment is the registered version-1 scheme: a SHA-256 bucket over the
+// plan's content identity, its cohort key domain, and the unit, reduced to
+// basis points. It is a pure function of immutable inputs, so the same unit
+// keeps the same arm across retry, replay, peer placement, and restart —
+// no process state, ordering, or randomness participates.
+func (value RolloutPlan) Assign(unit string) (artifact.ID, error) {
+	if rolloutPlanCodec.ValidateIdentity(value) != nil {
+		return artifact.ID{}, errors.New("run record: assignment requires an identified rollout plan")
+	}
+	if unit == "" || !textcheck.Bounded(unit, rolloutTextBytes, "\x00") {
+		return artifact.ID{}, errors.New("run record: assignment requires a bounded workload unit")
+	}
+	digest := sha256.Sum256([]byte(value.ID.String() + "\x00" + value.CohortKey + "\x00" + unit))
+	bucket := binary.BigEndian.Uint64(digest[:8]) % RolloutCohortDenominator
+	if bucket < uint64(value.CohortShare) {
+		return value.Candidate, nil
+	}
+	return value.Baseline, nil
 }

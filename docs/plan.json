@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "stable-assignment",
-          "title": "Assign workloads deterministically and keep the same arm across retry, replay, peer placement, and restart",
-          "status": "open",
-          "verify": "go test ./internal/loop ./internal/capabilityruntime -run '^TestRolloutAssignmentIsStable$' -count=1",
-          "rationale": "Assignment uses a canonical key separator and pinned hash version with golden vectors. Every observation records plan and arm; disabled or ineligible workloads can never leak into the candidate arm.",
-          "depends_on": [
-            "deterministic-rollout/rollout-plan"
-          ],
-          "capabilities": [
-            "rsi-rollout",
-            "determinism",
-            "placement"
-          ]
-        },
-        {
           "id": "projection-evidence",
           "title": "Materialize rollout reports with head, projector version, query contract, source chunk IDs, coverage, and result digest",
           "status": "open",
@@ -309,6 +294,17 @@
       "title": "Graduate parked findings into gated cleanups",
       "status": "open",
       "steps": [
+        {
+          "id": "codec-idiom-consolidation",
+          "title": "Consolidate the per-document codec idiom so new record types stop growing the clone ceiling",
+          "status": "open",
+          "verify": "go run ./cmd/clone-census -max-excess 9999 -summary",
+          "rationale": "The identical New/Parse/Batch wrappers now span 20+ document types (exact-clone group of 21 nodes) and every new typed record raises docs/clone_baseline.json by ~21 nodes. Migrate the wrappers onto shared DocumentCodec methods, delete the displaced copies, and lower the reviewed ceiling below 10000 in the same commit.",
+          "capabilities": [
+            "consolidation",
+            "determinism"
+          ]
+        },
         {
           "id": "legacy-lease-retirement",
           "title": "Retire or migrate pre-contract work-lease documents so the lease report reads the live set",

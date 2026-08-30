@@ -66,6 +66,9 @@ func run() error {
 	if verb == "rollout-plan" {
 		return declareRolloutPlan(os.Args[2:])
 	}
+	if verb == "assign" {
+		return assignRollout(os.Args[2:])
+	}
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")

@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "operating-record",
-          "title": "Aggregate driver attempts into a learning curve",
-          "status": "open",
-          "verify": "go test ./internal/loop -run '^TestCompositionDriverLearningCurve$' -count=1",
-          "rationale": "Fitness delta per compute, candidate hit-rate, and adapter-train cost over recorded attempts; the go/no-go instrument for widening autonomy.",
-          "depends_on": [
-            "composition-driver/improvement-loop"
-          ],
-          "capabilities": [
-            "measurement",
-            "learning-curve"
-          ]
-        },
-        {
           "id": "candidate-calibration",
           "title": "Score predicted-versus-actual fitness delta per candidate",
           "status": "open",

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
+	"overgo/internal/loop"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 )
@@ -35,8 +36,12 @@ func run() error {
 	selectFlag := flags.String("select", "", "composite scores JSON path: judge realized composites on the multidimensional fitness ({scores})")
 	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
 	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
+	curve := flags.String("curve", "", "recorded driver attempts JSON path: aggregate the learning curve the autonomy ratchet judges ({attempts})")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*curve) != "" {
+		return deriveLearningCurve(*curve)
 	}
 	if strings.TrimSpace(*drive) != "" {
 		return driveImprovementLoop(*repoFlag, *drive)
@@ -87,6 +92,24 @@ func run() error {
 		return err
 	}
 	return encoder.Encode(verdict)
+}
+
+// deriveLearningCurve aggregates recorded driver attempts into the
+// learning curve the autonomy ratchet judges.
+func deriveLearningCurve(attemptsPath string) error {
+	var recorded struct {
+		Attempts []loop.DriverAttemptMeasurement `json:"attempts"`
+	}
+	if err := jsonfile.DecodeStrict(attemptsPath, &recorded); err != nil {
+		return err
+	}
+	curve, err := loop.DeriveDriverLearningCurve(recorded.Attempts)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(curve)
 }
 
 // driveTargetSpecification binds one target's recorded evidence: the

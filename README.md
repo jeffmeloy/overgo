@@ -227,6 +227,11 @@ varies by capability.
 | Evidence-gated promotion of automation policies | Implemented: declared to active on recorded evidence and measured wins, rollback retained |
 | Model-proposed steering from accumulated evidence | Implemented: typed falsifiable proposals through deterministic admission; history-free proposals are refused |
 | Closed recursive policy-improvement loop | Implemented: the driver consumes admitted proposals under budget, saturation, and operator-stop conditions; live unattended campaigns remain to accumulate evidence |
+| Evidence-derived model routing | Implemented: typed routing decisions from admitted evaluation evidence, every live selection recorded, candidate policies measured by counterfactual replay before rollout |
+| Deterministic rollout of promoted candidates | Implemented: content-addressed rollout plans, hash-stable cohort assignment across retry, replay, and restart, reproducible projection evidence, promotion only behind the full evidence closure |
+| Live-safety containment | Implemented: distribution-free comparison windows derived from each metric's own history, a confirmed circuit-breaker ladder to operator-stop, atomic causal rollback with single-winner alias semantics, and quarantine reentry that refuses replayed pre-quarantine evidence |
+| Prototype recipe lifecycle with verified rollback | Implemented: candidate, validated, active, refused, superseded, and rollback transitions; a superseded predecessor returns to service only through fresh verified activation |
+| Composition improvement driver | Implemented: exact unit-normalized catalog retrieval, bias-audited seam alignment residual, ranked donor enumeration, donors-frozen adapter realization, unscalarized fitness selection behind the ablation gate, and a closed driver under history-derived budget and saturation; live composite campaigns remain to accumulate evidence |
 
 Architecture support and artifact verification are separate claims. Shared
 components can express more model types than are installed and tested on the
@@ -266,6 +271,32 @@ store-recorded:
   their falsifiable check passing — and the explicit recorded operator stop.
   Proposals never execute anything; every row still advances only through
   the gate.
+- **Routing.** Which model serves a task is itself a recorded, replayable
+  decision: candidates admit only through verified evaluation evidence on
+  one split, the threshold is the incumbent's own measured value, the
+  registered derivation rule selects, and a candidate routing policy is
+  measured against the recorded decision corpus by counterfactual replay
+  before it touches live work.
+- **Rollout and containment.** A promoted candidate earns universal
+  activation through an immutable rollout plan: deterministic cohort
+  assignment by content identity, projection readings that reproduce bit
+  for bit at the same store head, and a promotion door that requires the
+  observation contract met, the rollback authority committed, and the
+  plan's own baseline in service. Live regressions escalate through a
+  confirmed circuit breaker to atomic causal rollback, and a quarantined
+  candidate re-enters only with changed-mechanism and evaluation evidence
+  introduced after the finding — restart and replay cannot clear quarantine.
+- **Composition.** The model-improvement driver runs the same shape as the
+  policy loop: capability-gap targets derive from admitted evaluation
+  evidence, donors shortlist from the exact unit-normalized catalog, the
+  bias-audited alignment residual prices each seam and picks the adapter
+  rung, realization trains only the adapter with donors frozen and
+  byte-identity proven, the unscalarized multidimensional fitness refuses
+  average-only wins, promotion passes the ablation-armed gate with
+  dropped-source and shuffled-source arms, and the run stops at bounds
+  derived from its own measured history. The learning curve — hit rate,
+  fitness per compute, adapter-train share — is the recorded instrument the
+  autonomy ratchet will judge.
 
 ## What remains before autonomous RSI
 

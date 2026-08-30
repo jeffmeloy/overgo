@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "recipe-evaluation",
-          "title": "Evaluate prototype-produced recipes on development and promotion evidence while separating model, recipe, and system deltas",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/modelrecipe ./internal/loop -run '^TestRecipeCandidateEvaluationAttribution$' -count=1",
-          "rationale": "The RSI loop must identify whether a gain came from weights, architecture, derivation policy, recipe graph, placement, or another system change. Comparisons bind the same model and split where recipe behavior is the candidate variable and report capability, quality, resources, and coverage.",
-          "depends_on": [
-            "model-recipe-lifecycle/recipe-validation"
-          ],
-          "capabilities": [
-            "recipe-evaluation",
-            "causality",
-            "resource-fitness",
-            "coverage"
-          ]
-        },
-        {
           "id": "recipe-activation",
           "title": "Drive candidate, validated, active, refused, superseded, retired, and rollback transitions through the existing modelrecipe lifecycle",
           "status": "open",

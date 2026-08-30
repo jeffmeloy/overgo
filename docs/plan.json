@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "model-prototypes",
-      "title": "Represent model prototypes as typed hypotheses that compile through registered Go capabilities",
-      "status": "open",
-      "steps": [
-        {
-          "id": "prototype-materialization",
-          "title": "Atomically publish trained model, tensor inventory, resolved model definition, trial receipts, and candidate recipes from a successful prototype trial",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/trainingworkflow ./internal/overgodb -run '^TestPrototypeMaterializationClosure$' -count=1",
-          "rationale": "A prototype never becomes a model by alias mutation alone. Successful construction and training produce immutable weights and tensor inventory; ModelDefinitionDocument binds those bytes to the exact profile and architecture; candidate recipes cite the resolved definition and trial evidence in one atomic artifact batch.",
-          "depends_on": [
-            "model-prototypes/prototype-compile"
-          ],
-          "capabilities": [
-            "model-definition",
-            "tensor-inventory",
-            "training-evidence",
-            "atomic-commit"
-          ]
-        }
-      ]
-    },
-    {
       "id": "model-recipe-lifecycle",
       "title": "Derive, validate, evaluate, and activate task recipes for prototype-produced models",
       "status": "open",

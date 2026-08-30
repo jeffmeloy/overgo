@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "deterministic-rollout",
-      "title": "Validate promoted candidates through immutable deterministic rollout plans",
-      "status": "open",
-      "steps": [
-        {
-          "id": "promotion-binding",
-          "title": "Require improvement promotion to bind rollout plan, baseline evidence, candidate evidence, coverage, and rollback contract",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/loop ./internal/trainingworkflow -run '^TestPromotionRequiresRolloutEvidenceClosure$' -count=1",
-          "rationale": "Offline evaluation may admit a candidate to rollout but does not universally activate it. Compare-and-set activation changes only through the promotion owner after the required evidence closure is present.",
-          "depends_on": [
-            "deterministic-rollout/projection-evidence"
-          ],
-          "capabilities": [
-            "promotion",
-            "authority",
-            "rsi-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "live-safety",
       "title": "Quarantine or roll back candidates from distribution-free live evidence",
       "status": "open",
@@ -279,6 +257,17 @@
       "title": "Graduate parked findings into gated cleanups",
       "status": "open",
       "steps": [
+        {
+          "id": "closure-rebind-by-content",
+          "title": "Rebind offset-shifted literals automatically when file, scope, and closure text match a retired predecessor",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^TestContentMatchedRebind$' -count=1",
+          "rationale": "Every cmd dispatch edit shifts the same flags.Arg(0) literal, and each landing repeats propose, fill the identical triage text, and triage. When a genuinely-new literal's owner file, scope, value, and prior closure text match a just-retired binding, closure-scan should re-emit the closure itself and report it as rebound, eliminating the recurring manual cycle.",
+          "capabilities": [
+            "automation",
+            "closure-ledger"
+          ]
+        },
         {
           "id": "codec-idiom-consolidation",
           "title": "Consolidate the per-document codec idiom so new record types stop growing the clone ceiling",

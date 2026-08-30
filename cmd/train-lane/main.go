@@ -105,8 +105,12 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		// The checkpoint target must not exist yet: publication owns its
+		// creation, so the dense route gets a fresh subpath of the lane's
+		// temporary directory.
 		route, routeErr := resolveRoute(catalog, modelInput, roots.Store, t2vDir,
-			denseArgv(roots.Store, training.Recipe.String(), modelInput, corpus, output, *steps, *sequence, *maxWall))
+			denseArgv(roots.Store, training.Recipe.String(), modelInput, corpus,
+				filepath.Join(output, "checkpoint"), *steps, *sequence, *maxWall))
 		if routeErr != nil {
 			unavailable++
 			fmt.Printf("[train] %s UNAVAILABLE (%s)\n", entry.Model, routeErr)
@@ -196,9 +200,14 @@ func denseArgv(store, recipeID, model, dataset, output string, steps, sequence i
 // itself records the session observation to the store.
 func trainStep(route trainerRoute) error {
 	var combined bytes.Buffer
+	var env []string
+	if len(route.Env) > 0 {
+		env = append(os.Environ(), route.Env...)
+	}
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   route.Argv[0],
 		Args:   route.Argv[1:],
+		Env:    env,
 		Stdout: &combined, Stderr: &combined,
 	})
 	if err != nil {

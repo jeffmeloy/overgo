@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/gguf"
@@ -61,6 +62,14 @@ func TestTrainerRoute(t *testing.T) {
 		t.Fatalf("hybrid gguf route = (%+v, %v), want gguf:qwen35", route, err)
 	}
 	assertSubstituted(t, route, hybridGGUF, "store-root")
+	if len(route.Env) == 0 {
+		t.Fatal("hybrid route carries no declared runtime environment")
+	}
+	for _, pair := range route.Env {
+		if !strings.Contains(pair, "=") {
+			t.Fatalf("hybrid route environment pair %q is not NAME=value", pair)
+		}
+	}
 
 	videoDir := routeFixtureDirectory(t, "t2v")
 	route, err = resolveRoute(catalog, videoDir, "store-root", "", dense)

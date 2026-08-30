@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -24,16 +25,19 @@ type routeCatalog struct {
 }
 
 type routeDeclaration struct {
-	Trainer string   `json:"trainer"`
-	Argv    []string `json:"argv"`
+	Trainer string            `json:"trainer"`
+	Argv    []string          `json:"argv"`
+	Env     map[string]string `json:"env"`
 }
 
 // trainerRoute is one resolved bounded training invocation: the route
-// name reports which trainer owns the step, and the argv is the fully
-// substituted command the process owner runs.
+// name reports which trainer owns the step, the argv is the fully
+// substituted command the process owner runs, and the env pairs are the
+// route-declared runtime settings layered over the lane's environment.
 type trainerRoute struct {
 	Name string
 	Argv []string
+	Env  []string
 }
 
 const routeCatalogVersion = 1
@@ -137,7 +141,16 @@ func resolveRoute(catalog routeCatalog, input, storePath, t2vDir string, dense [
 		}
 		argv[index] = substituted
 	}
-	return trainerRoute{Name: key, Argv: argv}, nil
+	names := make([]string, 0, len(declaration.Env))
+	for name := range declaration.Env {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	env := make([]string, 0, len(names))
+	for _, name := range names {
+		env = append(env, name+"="+declaration.Env[name])
+	}
+	return trainerRoute{Name: key, Argv: argv, Env: env}, nil
 }
 
 // resolveT2VDirectory finds the unique recorded t2v video-stack
@@ -150,18 +163,20 @@ func resolveT2VDirectory(ctx context.Context, storePath string, entries []discov
 		return ""
 	}
 	defer reader.Close()
-	var candidates []string
+	candidates := map[string]bool{}
+	var resolved string
 	for _, entry := range entries {
 		directory, err := artifact.AvailablePath(ctx, reader, entry.Model, artifact.LocationDirectory)
 		if err != nil {
 			continue
 		}
 		if modelType, err := directoryModelType(directory); err == nil && modelType == "t2v" {
-			candidates = append(candidates, directory)
+			candidates[directory] = true
+			resolved = directory
 		}
 	}
 	if len(candidates) != 1 {
 		return ""
 	}
-	return candidates[0]
+	return resolved
 }

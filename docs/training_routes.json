@@ -4,7 +4,8 @@
   "routes": {
     "gguf:qwen35": {
       "trainer": "hybrid-stack-train-probe",
-      "argv": ["go", "run", "./cmd/hybrid-stack-train-probe", "-store", "{store}", "-model", "{input}", "-lane", "layer-streamed", "-steps", "3", "-max-wall", "120m"]
+      "argv": ["go", "run", "./cmd/hybrid-stack-train-probe", "-store", "{store}", "-model", "{input}", "-lane", "layer-streamed", "-steps", "3", "-max-wall", "120m"],
+      "env": {"GOMEMLIMIT": "68GiB", "GOGC": "50"}
     },
     "dir:t2v": {
       "trainer": "dit-train-probe",

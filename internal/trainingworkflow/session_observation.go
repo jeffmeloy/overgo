@@ -158,11 +158,24 @@ func (o *Observer) Finish(
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	if _, err := o.store.Commit(ctx, artifact.Batch{
-		Key:      "training-session-environment/" + o.environment.ID.String(),
-		Contents: []artifact.Content{environmentContent},
-	}); err != nil {
-		return artifact.ID{}, fmt.Errorf("training observation: commit environment: %w", err)
+	// An identical environment from an earlier session is already the
+	// stored fact; re-running the same configuration must observe, not
+	// refuse on the no-op environment batch.
+	recorded := false
+	if presence, answers := o.store.(artifact.ContentPresence); answers {
+		present, err := presence.PresentContents(ctx, []artifact.ID{o.environment.ID})
+		if err != nil {
+			return artifact.ID{}, fmt.Errorf("training observation: environment presence: %w", err)
+		}
+		recorded = len(present) == 1
+	}
+	if !recorded {
+		if _, err := o.store.Commit(ctx, artifact.Batch{
+			Key:      "training-session-environment/" + o.environment.ID.String(),
+			Contents: []artifact.Content{environmentContent},
+		}); err != nil {
+			return artifact.ID{}, fmt.Errorf("training observation: commit environment: %w", err)
+		}
 	}
 	published, err := runrecord.PublishServingObservation(ctx, o.store, observation)
 	if err != nil {

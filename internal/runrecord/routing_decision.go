@@ -186,7 +186,7 @@ func canonicalizeRoutingDecision(value *RoutingDecision) error {
 	for _, candidate := range value.Candidates {
 		if candidate.Capability.Kind() != artifact.KindProfile || candidate.Manual.Kind() != artifact.KindRecipe ||
 			candidate.Selection.Kind() != artifact.KindProfile || candidate.Probe.Kind() != artifact.KindEvidence ||
-			!candidate.Boundary.Valid() || !candidate.Effect.Valid() || !candidate.Head.Valid() ||
+			!candidate.Boundary.Valid() || candidate.Effect != value.Effect || candidate.Head != value.Head ||
 			!candidate.Rejection.valid() || !validRouteMeasurement(candidate.Measurement, candidate.Rejection == RouteEligible) {
 			return errors.New("run record: invalid routing candidate")
 		}

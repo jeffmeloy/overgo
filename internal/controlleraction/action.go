@@ -59,6 +59,9 @@ const (
 	// KindCandidateCompilation compiles one admitted candidate through the
 	// explicit Go domain catalog without executing or publishing its outputs.
 	KindCandidateCompilation Kind = "candidate-compilation"
+	// KindDriverDecision compiles exact evidence into the sole immutable RSI
+	// driver decision. The result requests work but executes none of it.
+	KindDriverDecision Kind = "driver-decision"
 	// KindCompositionExecutionPlan compiles the active source-target-task
 	// composition authority into its sole executable plan.
 	KindCompositionExecutionPlan Kind = "composition-execution-plan"
@@ -164,6 +167,12 @@ type CandidateCompilationAction struct {
 	Admission artifact.ID `json:"admission"`
 }
 
+// DriverDecisionAction carries exact facts only; runrecord derives every
+// balance, stop condition, selected subject, action, and tie-break.
+type DriverDecisionAction struct {
+	Facts runrecord.DriverDecisionFacts `json:"facts"`
+}
+
 // CompositionExecutionPlanAction selects one active composition by its exact
 // source, target, and task scope; the recipe itself remains OvergoDB-authoritative.
 type CompositionExecutionPlanAction struct {
@@ -204,6 +213,7 @@ type Action struct {
 	Candidate     *CandidateProposalAction        `json:"candidate,omitempty"`
 	Admission     *CandidateAdmissionAction       `json:"admission,omitempty"`
 	Compilation   *CandidateCompilationAction     `json:"compilation,omitempty"`
+	Driver        *DriverDecisionAction           `json:"driver,omitempty"`
 	Composition   *CompositionExecutionPlanAction `json:"composition,omitempty"`
 	Offline       *OfflineArtifactPlanAction      `json:"offline,omitempty"`
 }
@@ -225,7 +235,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Candidate != nil, a.Admission != nil, a.Compilation != nil, a.Composition != nil, a.Offline != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Candidate != nil, a.Admission != nil, a.Compilation != nil, a.Driver != nil, a.Composition != nil, a.Offline != nil} {
 		if present {
 			payloads++
 		}
@@ -284,6 +294,10 @@ func (a Action) validate() error {
 			a.Compilation.Admission.Kind() != artifact.KindEvidence {
 			return errors.New("controller action: candidate-compilation requires persisted candidate and admission authorities")
 		}
+	case KindDriverDecision:
+		if a.Driver == nil {
+			return errors.New("controller action: driver-decision requires exact evidence facts")
+		}
 	case KindCompositionExecutionPlan:
 		if a.Composition == nil {
 			return errors.New("controller action: composition-execution-plan requires an active scope")
@@ -313,7 +327,21 @@ func CompileTransaction(ctx context.Context, reader artifact.Reader, action Acti
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	return artifact.NewDocumentBatch("controller-action/"+string(action.Kind)+"/"+identity.String(), contents, lineage, nil)
+	batch, err := artifact.NewDocumentBatch("controller-action/"+string(action.Kind)+"/"+identity.String(), contents, lineage, nil)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	if action.Kind == KindDriverDecision {
+		if len(contents) != 1 {
+			return artifact.Batch{}, errors.New("controller action: driver decision emitted multiple facts")
+		}
+		if err := runrecord.BindCausality(&batch, contents[0].Descriptor.ID, &action.Driver.Facts.Causal); err != nil {
+			return artifact.Batch{}, err
+		}
+		expected := action.Driver.Facts.Head
+		batch.ExpectedHead = &expected
+	}
+	return batch, nil
 }
 
 // ExecuteOfflineArtifact compiles the action through the same authorities as
@@ -461,6 +489,16 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		return compiled.Contents, compiled.Lineage, nil
+	case KindDriverDecision:
+		decision, err := runrecord.NewDriverDecision(ctx, reader, action.Driver.Facts)
+		if err != nil {
+			return nil, nil, err
+		}
+		content, err := decision.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{content}, decision.Lineage(), nil
 	case KindCompositionExecutionPlan:
 		plan, err := composition.CompileCompositionExecutionPlan(
 			ctx, reader, action.Composition.Source, action.Composition.Target, action.Composition.Task,

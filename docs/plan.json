@@ -294,28 +294,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "decision-contract",
-          "title": "Define one typed driver decision binding goal, incumbent and admitted candidates, evidence, budgets, saturation, stop state, and derived action",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/runrecord ./internal/loop ./internal/controlleraction ./internal/evaluation -run '^(TestEvidenceDriverDecisionContract|TestRoutingDecisionContract)$' -count=1",
-          "rationale": "A DriverDecision is the canonical fact for what the RSI loop does next: select the active incumbent or an admitted candidate at its current lifecycle state, run an evaluator or declared ablation, request evidence, stop at saturation, or refuse under budget. Before realization an admitted candidate is eligible but not yet validated or experimental; those states become available only after their owning transitions. The decision binds goal and causal context, considered cross-domain candidates, exact evidence and missing states, capability placement, interaction and resource budgets, saturation and stop derivation, selected action, and tie-break. This contract is independent of any particular candidate compiler and can be built in parallel with it. Task-to-model routing is another driver adapter; the imported MoE router remains intra-model token routing and is never a parallel task or model-dispatch authority. Targets, estimates, admissions, and evaluations remain evidence only; decisions cannot bypass the shared promotion lifecycle or placement owner.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard",
-            "resource-coverage/fitness-integration",
-            "resource-coverage/reference-relevance-admission"
-          ],
-          "capabilities": [
-            "rsi-routing",
-            "evidence-derivation",
-            "determinism",
-            "moe-router-coverage",
-            "scaling-evidence",
-            "task-routing",
-            "evidence-driver",
-            "budget-saturation-stop"
-          ]
-        },
-        {
           "id": "evidence-selection",
           "title": "Drive pre-promotion evidence work and active dispatch through one evidence-derived decision owner",
           "status": "open",

@@ -41,14 +41,14 @@
     {
       "package": "overgo/internal/loop",
       "name": "CompareStrategyExperiment",
-      "reason": "Strategy comparison experiment API for the continuity loop.",
-      "retire_with": "evidence-routing/decision-contract"
+      "reason": "Strategy comparison evidence becomes a driver input when the common selection adapter lands.",
+      "retire_with": "evidence-routing/evidence-selection"
     },
     {
       "package": "overgo/internal/loop",
       "name": "NewStrategy",
-      "reason": "Strategy constructor for the continuity loop experiment API.",
-      "retire_with": "evidence-routing/decision-contract"
+      "reason": "Strategy construction becomes a driver input when the common selection adapter lands.",
+      "retire_with": "evidence-routing/evidence-selection"
     },
     {
       "package": "overgo/internal/operation",

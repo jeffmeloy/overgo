@@ -773,7 +773,7 @@ func writeRetrieve(output io.Writer, repository, name string, limit int) error {
 	if query == nil {
 		return fmt.Errorf("component %q is not in the committed catalog", name)
 	}
-	index, err := composition.NewHypervectorIndex(components)
+	index, err := composition.NewExactComponentIndex(components)
 	if err != nil {
 		return err
 	}
@@ -781,18 +781,18 @@ func writeRetrieve(output io.Writer, repository, name string, limit int) error {
 	if err != nil {
 		return err
 	}
-	signalFor := func(hit composition.HypervectorHit) string {
-		if hit.Component.Statistics != nil {
+	signalFor := func(hit composition.ExactHit) string {
+		if hit.Descriptor.Measured {
 			return "lexical+distributional"
 		}
 		return "lexical"
 	}
 	for _, hit := range hits {
 		fmt.Fprintf(output, "hit %.4f model=%s component=%s role=%s signal=%s\n",
-			hit.Relevance, hit.Component.Model, hit.Component.Name, hit.Component.Contract.Role, signalFor(hit))
+			hit.Relevance, hit.Descriptor.Model, hit.Descriptor.Name, hit.Descriptor.Role, signalFor(hit))
 	}
-	fmt.Fprintf(output, "%d hit(s) over %d component(s), signature width %d; honesty: advisory retrieval, candidates require blocked proposals and the experiment plane\n",
-		len(hits), index.Len(), composition.HypervectorDimensionsFor(index.Len()))
+	fmt.Fprintf(output, "%d hit(s) over %d component(s), exact inverted index; honesty: advisory retrieval, candidates require blocked proposals and the experiment plane\n",
+		len(hits), index.Len())
 	return nil
 }
 

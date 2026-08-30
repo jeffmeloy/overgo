@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "canonical-descriptor",
-          "title": "Emit one fixed-schema unit-normalized component descriptor with exact deterministic retrieval",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/tensorcatalog -run '^(TestCanonicalComponentDescriptorComparable|TestExactComponentRetrievalDeterministic)$' -count=1",
-          "rationale": "Replace HDC retrieval with an exact inverted index over the typed contract plus normalized characterization: same shortlist, exact, no extreme-value width derivation, and no full-catalog scan or whole-tensor load on the retrieval path. The descriptor is the durable asset the driver and any future fingerprint reuse.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard"
-          ],
-          "capabilities": [
-            "catalog",
-            "exact-retrieval",
-            "tightness"
-          ]
-        },
-        {
           "id": "alignment-residual-proxy",
           "title": "Compute seam alignment residual and bias-audit it against post-training bridge parity",
           "status": "open",

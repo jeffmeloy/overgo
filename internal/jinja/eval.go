@@ -475,6 +475,18 @@ func (r *renderer) eval(e expr, sc *scope) (any, error) {
 		return !truthy(v), nil
 	case binNode:
 		return r.evalBin(n, sc)
+	case condNode:
+		c, err := r.eval(n.cond, sc)
+		if err != nil {
+			return nil, err
+		}
+		if truthy(c) {
+			return r.eval(n.value, sc)
+		}
+		if n.alt == nil {
+			return nil, nil
+		}
+		return r.eval(n.alt, sc)
 	case testNode:
 		return r.evalTest(n, sc)
 	case filterNode:

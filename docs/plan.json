@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "qwen38-chat-template",
-      "title": "Extend the jinja chat-template subset to execute the Qwen3.8 template and verify extended thinking-mode output",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Extend the jinja chat-template subset to execute the Qwen3.8 template and verify extended thinking-mode output",
-          "status": "open",
-          "verify": "go test ./internal/inference -run TestChatJinja -count=1"
-        }
-      ]
-    },
-    {
       "id": "qwen38-multimodal",
       "title": "Verify Qwen3.8-27B multimodal capabilities through the downloaded vision projector",
       "status": "open",

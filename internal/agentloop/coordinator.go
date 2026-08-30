@@ -43,6 +43,13 @@ type Session struct {
 	Steps       int
 	Contract    *ContractState
 	Checkpoints *MutationCheckpointRuntime
+	// held is the last admitted stimulus boundary this session still holds;
+	// nil for a stateless or resumed session, which rebuilds the bounded
+	// full context instead of receiving a cursor delta.
+	held *runrecord.AttemptStimulusBoundary
+	// handoff is the context this session's latest attempt received: the
+	// bounded full context or the verified stable cursor delta.
+	handoff sessionContext
 }
 
 // Coordinator admits and records agent tool steps.
@@ -153,6 +160,9 @@ func (c *Coordinator) propose(
 	stimulus, err := c.admitAttemptStimulus(ctx, session, callID, manual, arguments)
 	if err != nil {
 		return nil, fmt.Errorf("agent loop: attempt stimulus was not admitted: %w", err)
+	}
+	if session.handoff, err = incrementalSessionContext(session, stimulus); err != nil {
+		return nil, fmt.Errorf("agent loop: attempt context handoff was not proven: %w", err)
 	}
 	// A mutation admits a durable receipt BEFORE it executes and closes
 	// it after: if the receipt cannot persist the side effect never

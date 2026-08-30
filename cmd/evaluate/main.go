@@ -29,6 +29,12 @@ type manifest struct {
 	CodeCommit string         `json:"code_commit"`
 	Device     int            `json:"device"`
 	Models     []modelRequest `json:"models"`
+	// ChatProtocol scores multiple-choice prompts through each model's
+	// declared chat template instead of the raw base-style completion.
+	// The raw protocol stays the recorded anchor: template presence does
+	// not distinguish base from instruct artifacts, so the shaped
+	// protocol is an explicit measurement choice.
+	ChatProtocol bool `json:"chat_protocol,omitempty"`
 }
 
 type modelRequest struct {
@@ -50,6 +56,7 @@ func run() error {
 	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
 	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all")
 	allModels := flag.Bool("all", false, "evaluate every servable local model against the store's derived suites")
+	chatProtocol := flag.Bool("chat-protocol", false, "score multiple-choice suites through each model's declared chat template; the raw completion protocol stays the recorded anchor")
 	device := flag.Int("device", 0, "CUDA device ordinal for -all")
 	family := flag.String("family", "", "restrict -all to one derived suite source suffix (e.g. mmlu)")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
@@ -84,9 +91,9 @@ func run() error {
 			return errors.New("usage: evaluate -all [-repo <store>] [-device N] [-family name]")
 		}
 		if *worker {
-			return runAllWorker(context.Background(), *repository, *device, *family, *catalogLimit, *modelIndex)
+			return runAllWorker(context.Background(), *repository, *device, *family, *catalogLimit, *modelIndex, *chatProtocol)
 		}
-		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit)
+		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *chatProtocol)
 	}
 	if *listSuites {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {

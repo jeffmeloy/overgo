@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
@@ -72,7 +73,11 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		_ = runner.Close()
 		return fail(err)
 	}
-	campaign, err := evaluation.NewCampaign(store, chatShapedRuntime{runner}, identity, environment, value.CodeCommit)
+	runtime := evaluation.Runtime(runner)
+	if value.ChatProtocol {
+		runtime = chatShapedRuntime{runner}
+	}
+	campaign, err := evaluation.NewCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
 		_ = runner.Close()
 		return fail(err)
@@ -92,6 +97,10 @@ type chatShapedRuntime struct {
 
 // ScoreContinuations shapes a non-empty prompt through the declared
 // chat template before scoring; see the type comment for the contract.
+// A shaped prompt ends at the assistant turn opener, so candidates
+// score as that turn's opening tokens: the raw-completion leading space
+// belongs to the base-style "Answer:" continuation and mis-tokenizes
+// after the opener's newline, measured as below-random letter scores.
 func (r chatShapedRuntime) ScoreContinuations(
 	ctx context.Context,
 	prompt string,
@@ -103,7 +112,15 @@ func (r chatShapedRuntime) ScoreContinuations(
 			inference.ChatFormatOptions{AddGenerationPrompt: true},
 		)
 		if err == nil {
-			return r.Runner.ScoreContinuations(ctx, shaped, candidates)
+			opening := make([]string, len(candidates))
+			for index, candidate := range candidates {
+				trimmed := strings.TrimPrefix(candidate, " ")
+				if trimmed == "" {
+					trimmed = candidate
+				}
+				opening[index] = trimmed
+			}
+			return r.Runner.ScoreContinuations(ctx, shaped, opening)
 		}
 	}
 	return r.Runner.ScoreContinuations(ctx, prompt, candidates)

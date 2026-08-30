@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "head-bound-deltas",
-          "title": "Serve initial snapshots plus ordered head-bound deltas to read-only peers, runtime views, and the embedded UI",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/server ./internal/capabilityruntime -run '^TestHeadBoundDeltaReconciliation$' -count=1",
-          "rationale": "Consumers stop reloading complete state or polling parallel authorities. A delta is derived from canonical commits, names previous and resulting heads, coalesces only commutative view changes, and forces a bounded snapshot resync when continuity or projection version differs.",
-          "depends_on": [
-            "interaction-efficiency/projection-query-plans",
-            "storage-operational-boundary/transition-boundary"
-          ],
-          "capabilities": [
-            "overgodb",
-            "read-only-replica",
-            "server",
-            "delta-reconciliation"
-          ]
-        },
-        {
           "id": "incremental-context",
           "title": "Reuse content identities and admitted stimulus cursors so resumable sessions receive only new interaction arcs",
           "status": "open",

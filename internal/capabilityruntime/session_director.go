@@ -75,6 +75,31 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	retirements   uint64
 	retiring      int
 	retiringUsers int
+
+	// authorityView is the head-bound continuity coordinate that lets
+	// repeated capability-authority freshness checks skip alias
+	// re-resolution while the canonical store has not moved.
+	authorityView HeadBoundView
+}
+
+// refreshExecution re-resolves capability authority only when the canonical
+// store moved since this director's last reconciled head; an unmoved head
+// keeps the already-proven selection without any alias resolution.
+func (c *ModelSessionDirector[Input, Model, Output]) refreshExecution(
+	ctx context.Context,
+	store artifact.Repository,
+	execution modelrecipe.CapabilityEvidenceSelection,
+) (modelrecipe.CapabilityEvidenceSelection, error) {
+	if source, ok := store.(DeltaSource); ok {
+		changed, _, _, err := c.authorityView.Reconcile(ctx, source)
+		if err != nil {
+			return modelrecipe.CapabilityEvidenceSelection{}, err
+		}
+		if !changed {
+			return execution, nil
+		}
+	}
+	return modelrecipe.RefreshCapabilityExecution(ctx, store, execution)
 }
 
 // SessionLease: admitted use of one resident model session.
@@ -417,7 +442,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	raw string,
 ) (any, error) {
 	var zero Output
-	execution, err := modelrecipe.RefreshCapabilityExecution(ctx, store, execution)
+	execution, err := c.refreshExecution(ctx, store, execution)
 	if err != nil {
 		return zero, err
 	}
@@ -484,7 +509,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) lease(
 ) (*sessionEntry[Model], bool, error) {
 	return c.leaseEntry(ctx, key, execution.Scope,
 		func(ctx context.Context) error {
-			_, err := modelrecipe.RefreshCapabilityExecution(ctx, store, execution)
+			_, err := c.refreshExecution(ctx, store, execution)
 			return err
 		},
 		func(ctx context.Context) (Model, error) {

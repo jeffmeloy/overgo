@@ -76,6 +76,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/datasets", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).browseDatasets},
 	{Path: "/datasets/preview", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).previewDataset},
 	{Path: "/runs", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).browseRuns},
+	{Path: "/store/deltas", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).storeDeltas},
 	{Path: "/interactions/replay", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).interactionReplay},
 	{Path: "/capabilities/bundles", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).capabilityBundles},
 	{Path: "/recipes/active", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).activeRecipe},

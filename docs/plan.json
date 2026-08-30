@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "architecture-ratchets",
-      "title": "Install permanent authority and Go-only ratchets before RSI construction",
-      "status": "open",
-      "steps": [
-        {
-          "id": "go-only-guard",
-          "title": "Extend the permanent architecture ratchet to Go-only runtime authority",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/recipe ./internal/agenttool ./internal/loop -run '^(TestArchitectureRatchetIncludesGoOnlyPolicy|TestRSIRuntimeIsGoOnly)$' -count=1",
-          "rationale": "Extend the same always-required manifest-owned check to refuse Markdown-discovered behavior, interpreted plugins, runtime scripts, filesystem capability discovery, and non-Go extension authority. Prompts and descriptions remain typed artifact data; this step adds no second guard process or policy owner.",
-          "depends_on": [
-            "architecture-ratchets/core-entry-guards"
-          ],
-          "capabilities": [
-            "go-only",
-            "architecture-guard",
-            "authority",
-            "gate-ratchet"
-          ]
-        }
-      ]
-    },
-    {
       "id": "campaign-concurrency",
       "title": "Turn DAG slack into conflict-bound implementation lanes",
       "status": "open",

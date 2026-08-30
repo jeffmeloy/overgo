@@ -2110,6 +2110,7 @@ func (g *gateContext) stepArchitecture() (bool, error) {
 		closurescan.EntryAuthorityStorage, closurescan.EntryAuthorityProcess,
 		closurescan.EntryAuthorityCapability, closurescan.EntryAuthorityTool,
 		closurescan.EntryAuthorityTrigger, closurescan.EntryAuthorityPromotion,
+		closurescan.EntryAuthorityGoOnly,
 	}
 	rules := make([]closurescan.EntryAuthorityRule, 0, len(required))
 	for _, domain := range required {

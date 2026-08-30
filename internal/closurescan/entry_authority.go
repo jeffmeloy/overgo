@@ -27,6 +27,10 @@ const (
 	EntryAuthorityTrigger EntryAuthorityDomain = "trigger"
 	// EntryAuthorityPromotion guards the activation alias namespace owned by internal/modelrecipe.
 	EntryAuthorityPromotion EntryAuthorityDomain = "promotion"
+	// EntryAuthorityGoOnly guards Go-only runtime authority: no plugin loading,
+	// dynamic libraries outside OS-ABI owners, runtime scripts, or harness
+	// configuration discovery.
+	EntryAuthorityGoOnly EntryAuthorityDomain = "go-only"
 )
 
 // EntryAuthorityRule binds one domain's bypass detection to its single owner.
@@ -213,6 +217,45 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				return literalSites(file, "recipe.active.")
 			},
 			Retire: "internal/modelrecipe stops owning capability activation aliases",
+		},
+		{
+			Domain: EntryAuthorityGoOnly,
+			Owner:  "compiled Go registrations are the only runtime authority: no Go plugin loading, no dynamic library loading outside the enumerated OS-ABI owners, no runtime script invocation, and no harness-configuration discovery outside the protection guard",
+			Exceptions: map[string]string{
+				"internal/cuda/driver/driver_windows.go":        "OS-ABI owner: loads the NVIDIA driver library through the Windows ABI",
+				"internal/fsatomic/replace_windows.go":          "OS-ABI owner: kernel32 MoveFileExW for durable atomic replace",
+				"internal/processcontrol/supervisor_windows.go": "OS-ABI owner: kernel32 job objects for process-tree supervision",
+				"internal/processlock/lock_windows.go":          "OS-ABI owner: kernel32 LockFileEx for the exclusive process lock",
+				"internal/processmeasure/peak_windows.go":       "OS-ABI owner: psapi peak-memory measurement",
+				"internal/protection/protection.go":             "protection guard verifies the harness hook configuration; it grants no capability from it",
+				"internal/closurescan/entry_authority.go":       "single policy owner; the rule table names the plugin, library, script, and configuration patterns it guards",
+			},
+			Detect: func(file *ast.File) int {
+				sites := 0
+				for _, spec := range file.Imports {
+					if spec.Path != nil && spec.Path.Value == `"plugin"` {
+						sites++
+					}
+				}
+				sites += selectorSites(file, func(selector *ast.SelectorExpr) bool {
+					name := selector.Sel.Name
+					return name == "NewLazyDLL" || strings.HasPrefix(name, "LoadLibrary")
+				})
+				ast.Inspect(file, func(node ast.Node) bool {
+					literal, ok := node.(*ast.BasicLit)
+					if !ok {
+						return true
+					}
+					if strings.Contains(literal.Value, ".claude/") ||
+						strings.HasSuffix(literal.Value, `.sh"`) || strings.HasSuffix(literal.Value, `.ps1"`) ||
+						strings.HasSuffix(literal.Value, `.bat"`) || strings.HasSuffix(literal.Value, `.py"`) {
+						sites++
+					}
+					return true
+				})
+				return sites
+			},
+			Retire: "the runtime stops being Go-only by an explicit reviewed architecture decision",
 		},
 	}
 }

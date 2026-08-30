@@ -1,8 +1,178 @@
 {
-  "campaign": "Deterministic RSI storage and execution control plane",
-  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. Modern and Marin Overgo source integrations remain subordinate to the same common owners and ratchets; repository, commit, license, path, mechanism, or transform provenance is evidence only and can never grant capability or execution authority. docs/plan.json is the sole live execution plan; imported branch plans, roadmaps, design records, staged-surface manifests, and historical Git snapshots are evidence or inventories only and cannot schedule work, satisfy dependencies, or grant completion. RSI uses four shared components rather than domain platforms: one typed and falsifiable cross-domain candidate spine, one evidence-gated promotion and rollback lifecycle, one evidence-driven budget and stop driver, and one transport-neutral UTCP effect, approval, and receipt contract. Model, composition, mechanism, dataset, routing, steering, and code logic enter only as compiled Go candidate-source, realization, or evaluator plugins. AgentTaskContract or DelegatedAgentInvocation provides the task ceiling, active AutomationPolicyLifecycle provides a standing unattended grant within that ceiling, and operatoraction HumanDecision is the argument-bound per-action grant; the shared StageReceipt binds whichever exact authority was consumed. Agent-initiated and cross-process or peer calls may resolve the invocation contract through UTCP transports; deterministic in-process orchestration calls existing Go owners directly and shares only the contract and receipt shape, never the tool transport. Derived decisions are distribution-free where justified and otherwise bind their distribution assumptions, explicit missing-data coverage, and architecture tests that refuse bypasses. One shared sequential-control owner calibrates frozen Phase I incumbent limits and applies them in Phase II with replay-measured in-control run length and shift detection delay on the exact ordered, autocorrelated stream; common-cause or insufficient evidence cannot request lifecycle, budget, or autonomy mutation. The first capability proof is one local same-base composite advanced only to a supervised non-serving verified state while the production incumbent and unattended grant remain unchanged; advanced plugins, optimization, peer transport, rollout, live safety, concurrency, and closure are built from its persisted trace rather than ahead of it. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, journal documents, lineage edges, projection scans, decoded blobs, bytes, wakeups, context repetitions, model turns, capability invocations, approval rounds, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit.",
+  "campaign": "Deterministic RSI storage, execution, and grounded capability control plane",
+  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. Modern and Marin Overgo source integrations remain subordinate to the same common owners and ratchets; repository, commit, license, path, mechanism, or transform provenance is evidence only and can never grant capability or execution authority. docs/plan.json is the sole live execution plan; imported branch plans, roadmaps, design records, staged-surface manifests, and historical Git snapshots are evidence or inventories only and cannot schedule work, satisfy dependencies, or grant completion. RSI uses four shared components rather than domain platforms: one typed and falsifiable cross-domain candidate spine, one evidence-gated promotion and rollback lifecycle, one evidence-driven budget and stop driver, and one transport-neutral UTCP effect, approval, and receipt contract. Model, composition, mechanism, dataset, routing, steering, and code logic enter only as compiled Go candidate-source, realization, or evaluator plugins. AgentTaskContract or DelegatedAgentInvocation provides the task ceiling, active AutomationPolicyLifecycle provides a standing unattended grant within that ceiling, and operatoraction HumanDecision is the argument-bound per-action grant; the shared StageReceipt binds whichever exact authority was consumed. Agent-initiated and cross-process or peer calls may resolve the invocation contract through UTCP transports; deterministic in-process orchestration calls existing Go owners directly and shares only the contract and receipt shape, never the tool transport. Derived decisions are distribution-free where justified and otherwise bind their distribution assumptions, explicit missing-data coverage, and architecture tests that refuse bypasses. One shared sequential-control owner calibrates frozen Phase I incumbent limits and applies them in Phase II with replay-measured in-control run length and shift detection delay on the exact ordered, autocorrelated stream; common-cause or insufficient evidence cannot request lifecycle, budget, or autonomy mutation. The first capability proof is one local same-base composite advanced only to a supervised non-serving verified state while the production incumbent and unattended grant remain unchanged; advanced plugins, optimization, peer transport, rollout, live safety, concurrency, and closure are built from its persisted trace rather than ahead of it. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, journal documents, lineage edges, projection scans, decoded blobs, bytes, wakeups, context repetitions, model turns, capability invocations, approval rounds, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit. Grounded capability learning adapts only the highest-value PentAGI and RAGFlow concepts through existing Go owners: capability episodes are rebuildable projections over exact run-record authority; structural hybrid retrieval remains dataset-owned and emits evidence only when consumed; production probes, evidence-dominant routing, and exact trajectory supervision remain subordinate to typed placement, invocation, lifecycle, and receipt authority; reusable episode knowledge enters only as an admitted immutable dataset transform with independent held-out benefit. No second event log, mutable agent-memory service, provider router, external runtime, vector or graph database, prompt-owned workflow, Markdown skill, copied source, or free threshold is introduced.",
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
+    {
+      "id": "experience-projection",
+      "title": "Compile existing attempts, traces, receipts, and outcomes into bounded capability-episode views",
+      "status": "open",
+      "steps": [
+        {
+          "id": "capability-episodes",
+          "title": "Build a content-addressed capability-episode projection without duplicating event authority",
+          "status": "open",
+          "verify": "go test ./internal/dataset ./internal/runrecord -run '^(TestCapabilityEpisodeProjection|TestCapabilityEpisodeProjectionRejectsCrossLinkedAuthority)$' -count=1",
+          "rationale": "The run-record adapter joins exact AttemptRecord, GateResult, InteractionTrace, task, strategy, model, environment, invocation, and terminal identities while preserving the distinct gate and execution recipes and distinct attempt and terminal outcomes. The dataset projection carries coverage for absent optional evidence, derives call, failure, repetition, cost, and latency facts, and stores references rather than copied messages or tool results. Cold verified rebuild and input permutation reproduce one identity; cross-linked sources or noncanonical lineage refuse.",
+          "capabilities": [
+            "overgodb-projection",
+            "capability-episode",
+            "causal-lineage",
+            "bounded-coverage"
+          ]
+        },
+        {
+          "id": "atomic-interaction-context",
+          "title": "Select branch-visible interaction arcs without splitting or fabricating protocol evidence",
+          "status": "open",
+          "verify": "go test ./internal/dataset ./internal/runrecord -run '^(TestInteractionArcProjectionPreservesAtomicEvidence|TestInteractionArcSelectionIsHeadBound)$' -count=1",
+          "rationale": "A bounded derived arc groups request and response turns plus every tool-call/result pair and the complete trace reference closure needed to interpret it. Each arc is independently resolvable immutable evidence with arc-to-trace and projection-to-arc lineage. A run-record-owned, non-resumable admission reads committed measurement policy and cost evidence against one stable repository head. It may omit a closed older arc but cannot concatenate pages past one aggregate budget, split a pair, invent a repair, cross a branch boundary, or hide admitted evidence.",
+          "depends_on": [
+            "experience-projection/capability-episodes"
+          ],
+          "capabilities": [
+            "interaction-efficiency",
+            "bounded-context",
+            "protocol-integrity",
+            "head-bound-selection"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grounded-retrieval",
+      "title": "Extend the dataset retrieval owner with structural, hybrid, and replayable grounded evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "structural-hybrid-search",
+          "title": "Preserve document structure and combine exact lexical and dense candidates before deterministic reranking",
+          "status": "open",
+          "verify": "go test ./internal/dataset -run '^(TestGroundedHybridRetrievalPreservesStructureAndCitations|TestGroundedHybridRetrievalFiltersBeforeCandidateLimit|TestGroundedHybridRetrievalDeterministic|TestAgentRetrievalBuildRejectsFabricatedSourceContentOrStructure)$' -count=1",
+          "rationale": "The existing AgentRetrievalBuilder gains typed structural spans, parent and neighbor references, closed metadata facets, and exact lexical terms alongside embeddings. Dataset, source, structure, and facet predicates apply before the bounded candidate set. The search unions exact lexical and dense candidates and lets the existing identified reranker order them; it introduces no weighted-sum knob. Every result retains the exact source and span citation and reports component scores and inspected work.",
+          "capabilities": [
+            "structural-ingestion",
+            "hybrid-retrieval",
+            "filter-pushdown",
+            "grounded-citation"
+          ]
+        },
+        {
+          "id": "retrieval-evidence",
+          "title": "Bind consumed retrieval context to a replayable receipt and evaluate citation-aware quality and work",
+          "status": "open",
+          "verify": "go test ./internal/dataset ./internal/runrecord ./internal/evaluation ./internal/server -run '^(TestAgentRetrievalColdReadsRejectForgedLineage|TestRetrievalReceiptReplay|TestRetrievalEvaluationMetricsAndCoverage|TestAgentWorkspaceRetrievalEvidence)$' -count=1",
+          "rationale": "The production agent-retrieval endpoint enters one run-record-owned search-and-publish operation: it executes SearchWithWork itself, derives rather than accepts scores, work, and candidate stages, and atomically publishes the resulting receipt with an InteractionTrace while preserving the endpoint's result-array response. The receipt binds the query digest, source head, corpus, projection, providers, filters, bounds, dense, lexical, and bounded-union stage digests, exact inspected and loaded work, ordered results, structural parents, and citations. Evaluation accepts only that consumed receipt and reloads all dataset authorities. A codec-backed held-out case and evaluator bind the ordered result digest and report recall, reciprocal rank, normalized discounted gain, citation coverage, abstention, bytes, facts, and provider work.",
+          "depends_on": [
+            "grounded-retrieval/structural-hybrid-search"
+          ],
+          "capabilities": [
+            "retrieval-receipt",
+            "replay",
+            "retrieval-evaluation",
+            "resource-fitness"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "capability-control",
+      "title": "Qualify, route, and supervise capabilities through measured production behavior",
+      "status": "open",
+      "steps": [
+        {
+          "id": "production-probes",
+          "title": "Bind activation cases to execution through the real placement or agent coordinator path",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./internal/evaluation ./internal/runrecord -run '^(TestProductionCapabilityProbeBindsExecutionPath|TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence)$' -count=1",
+          "rationale": "A capability-probe result joins the existing ActivationCase, exact model recipe, capability selection, placement, environment, interaction trace, stage receipt, outcome, and resource evidence. The result identifies whether execution used the local, peer, or agent production entry. Direct adapter calls, stale selections, missing failure evidence, or a trace from another case cannot populate activation or model-verification claims.",
+          "depends_on": [
+            "experience-projection/capability-episodes"
+          ],
+          "capabilities": [
+            "production-path-probe",
+            "activation-matrix",
+            "model-verification",
+            "capability-evidence"
+          ]
+        },
+        {
+          "id": "intent-routing",
+          "title": "Select one exact evidence-dominant built-in, external, or peer capability for a declared intent",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/runrecord ./internal/executionfailure -run '^(TestEvidenceRouteSelectsUniqueDominantCapability|TestEvidenceRouteRefusesIncomparableFrontier|TestEvidenceRouteFallbackUsesTypedFailure)$' -count=1",
+          "rationale": "The caller declares semantic intent, one stored production authority, and allowed boundaries. Go reloads current production probes, exact manuals, activation case, effect, selection, placement, resource observations, and accepted decision evidence, then chooses only a unique Pareto-dominant route from exact reliability, evidence yield, cost, and latency. An incomparable frontier requests an explicit decision. A retryable typed terminal failure can only publish a new current-head RoutingDecision before an alternate selection becomes observable; fatal or authority failures stop. Internal owners remain direct Go calls and UTCP remains agent-facing or cross-boundary.",
+          "depends_on": [
+            "capability-control/production-probes",
+            "grounded-retrieval/retrieval-evidence"
+          ],
+          "capabilities": [
+            "intent-routing",
+            "pareto-selection",
+            "typed-fallback",
+            "utcp-boundary"
+          ]
+        },
+        {
+          "id": "trajectory-supervision",
+          "title": "Stop exact no-progress loops and emit supervised recovery decisions without hidden thresholds",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/agentloop ./internal/executionfailure -run '^(TestTrajectorySupervisorStopsExactNoProgress|TestTrajectorySupervisorPermitsNewEvidence)$' -count=1",
+          "rationale": "The supervisor reloads two complete InteractionTrace documents, their exact stored arguments, manuals, tool results, and current StageReceipt closure. Repeating the same manual, canonical arguments, request state, and result without a newly stored typed obligation resolution is a structural special cause that retires the session. A changed action or exact resolution whose evidence closes over the obligation, current result, and receipt permits continuation; an unrelated fresh ID does not. Statistical drift remains outside this row, and model-authored advice cannot alter the deterministic disposition.",
+          "depends_on": [
+            "experience-projection/atomic-interaction-context",
+            "capability-control/production-probes"
+          ],
+          "capabilities": [
+            "loop-health",
+            "no-progress-detection",
+            "supervised-recovery",
+            "deterministic-disposition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "knowledge-promotion",
+      "title": "Turn useful episodes into admitted reusable datasets and prove the combined supervised loop",
+      "status": "open",
+      "steps": [
+        {
+          "id": "episode-dataset-promotion",
+          "title": "Promote cited, redacted episode knowledge only after independent held-out benefit",
+          "status": "open",
+          "verify": "go test ./internal/dataset ./internal/evaluation ./internal/modelrecipe ./internal/runrecord -run '^(TestEpisodeKnowledgePromotionRequiresHeldOutBenefit|TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate|TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence)$' -count=1",
+          "rationale": "An agent may propose the existing cross-domain CandidateDatasetTransform over a dataset-owned deterministic transform. The candidate binds selected episode sources and consumed retrieval citations; a single typed hygiene report binds redaction, deduplication, conflict resolution, replay evidence, development split, and zero promotion overlap without three redundant policy records. Stored retrieval evaluations compare output and incumbent on the same sealed case and independent promotion split. Only a strict Pareto benefit with no quality or work regression emits promotion evidence; raw, uncited, contaminated, tied, or merely successful-looking output never becomes reusable knowledge.",
+          "depends_on": [
+            "grounded-retrieval/retrieval-evidence",
+            "capability-control/trajectory-supervision"
+          ],
+          "capabilities": [
+            "knowledge-candidate",
+            "dataset-transform",
+            "held-out-evaluation",
+            "promotion-authority"
+          ]
+        },
+        {
+          "id": "supervised-grounded-replay",
+          "title": "Run one supervised capability through grounded retrieval, routing, recovery, and knowledge promotion",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/repoanalysis ./internal/server -run '^(TestGroundedCapabilityUpgradeEndToEnd|TestGroundedCapabilityUpgradeUsesExistingAuthorities|TestEvaluationCampaignAPIRunsSupervisedGroundedReplay|TestEvaluationCampaignAPIRejectsMixedOrUnboundedGroundedReplay)$' -count=1",
+          "rationale": "One composite verifier exercises real production placement probes, selects an evidence-dominant stored route, detects and recovers from an exact no-progress branch, builds and consumes structurally cited hybrid retrieval, replays its receipt and held-out evaluation, and emits episode-derived dataset promotion evidence. The architecture census confirms projection, retrieval, receipt, routing, transform, probe, supervision, and promotion types remain inside existing dataset, run-record, and evaluation owners and refuses a new event log, memory service, provider router, vector or graph database, external runtime, Markdown workflow, or inward UTCP orchestration.",
+          "depends_on": [
+            "capability-control/intent-routing",
+            "knowledge-promotion/episode-dataset-promotion"
+          ],
+          "capabilities": [
+            "supervised-rsi",
+            "grounded-capability",
+            "cold-replay",
+            "architecture-ratchet"
+          ]
+        }
+      ]
+    },
     {
       "id": "campaign-concurrency",
       "title": "Turn DAG slack into conflict-bound implementation lanes",

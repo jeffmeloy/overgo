@@ -55,7 +55,7 @@ func TestSingleCanonicalCampaignPlan(t *testing.T) {
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
 	assertIntegratedReconciliationSnapshot(t, document)
-	for _, required := range []string{"sole live execution plan", "imported branch plans", "four shared components", "cross-domain candidate spine", "promotion and rollback lifecycle", "evidence-driven budget and stop driver", "transport-neutral UTCP", "deterministic in-process orchestration", "shared sequential-control owner", "common-cause or insufficient evidence cannot request", "first capability proof", "supervised non-serving verified state", "built from its persisted trace"} {
+	for _, required := range []string{"sole live execution plan", "imported branch plans", "four shared components", "cross-domain candidate spine", "promotion and rollback lifecycle", "evidence-driven budget and stop driver", "transport-neutral UTCP", "deterministic in-process orchestration", "shared sequential-control owner", "common-cause or insufficient evidence cannot request", "first capability proof", "supervised non-serving verified state", "built from its persisted trace", "Grounded capability learning", "rebuildable projections", "structural hybrid retrieval", "evidence-dominant routing", "Markdown skill"} {
 		if !strings.Contains(document.Doctrine, required) {
 			t.Errorf("campaign doctrine omits shared-spine decision %q", required)
 		}
@@ -386,6 +386,15 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 	_, resequencing := retainedCampaignStep(document, "resequence-supervised-first-win-20260829/do")
 	planning := reconciling || resequencing
 	wantIDs := []string{
+		"experience-projection/capability-episodes",
+		"experience-projection/atomic-interaction-context",
+		"grounded-retrieval/structural-hybrid-search",
+		"grounded-retrieval/retrieval-evidence",
+		"capability-control/production-probes",
+		"capability-control/intent-routing",
+		"capability-control/trajectory-supervision",
+		"knowledge-promotion/episode-dataset-promotion",
+		"knowledge-promotion/supervised-grounded-replay",
 		"architecture-ratchets/go-only-guard",
 		"campaign-concurrency/ready-frontier-leases",
 		"interaction-efficiency/bounded-training-evidence",
@@ -434,7 +443,7 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 	}
 	seen := make(map[string]bool, len(wantIDs))
 	for _, item := range document.Items {
-		if item.ID == "reconcile-integrated-rsi-20260829" || item.ID == "resequence-supervised-first-win-20260829" {
+		if item.ID == "reconcile-integrated-rsi-20260829" || item.ID == "resequence-supervised-first-win-20260829" || item.ID == "grounded-upgrade-plan-admission-20260830" {
 			continue
 		}
 		if item.Status != StatusOpen {
@@ -461,6 +470,7 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 	layers := retainedCampaignLayers(t, document, map[string]bool{
 		"reconcile-integrated-rsi-20260829":        true,
 		"resequence-supervised-first-win-20260829": true,
+		"grounded-upgrade-plan-admission-20260830": true,
 	})
 	postProof := []string{
 		"campaign-concurrency/ready-frontier-leases",

@@ -185,27 +185,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "prototype-compile",
-          "title": "Compile an admitted candidate through registered Go domain plugins into one closed-world trial and evaluation plan",
-          "status": "open",
-          "verify": "go test ./internal/scratchmodel ./internal/modelrecipe ./internal/trainingprogram ./internal/evaluation ./internal/composition ./internal/modelmerge -run '^(TestCandidateDomainPluginsCompileWithoutParallelRuntime|TestPrototypeCompilesClosedWorldTrial|TestCompatiblePassthroughAndTaskArithmetic)$' -count=1",
-          "rationale": "The candidate compiler dispatches typed components to registered Go realization and evaluator plugins while one common owner builds the trial, declared delta ablations, budgets, stop conditions, and causal evidence plan. This row first adds the narrow composition admission adapter to the already-ratcheted persisted-Candidate entry, then compiles exact same-base task arithmetic or model soup only when every parent binds the same base ModelDefinition and compatible tensor inventory. Coefficients, inputs, outputs, memory, and artifact budgets are explicit and unsupported lineage or layouts refuse before compute. It reuses modelmerge and composition directly; it adds no adapter training, normalized descriptor catalog, cross-basis alignment, DenseToMoE conversion, router change, dataset pipeline, remote placement, scheduler, or runtime. Those rungs remain post-proof plugins. Every plugin contributes domain logic only and cannot create its own candidate, admission, lifecycle, driver, invocation, publication, or platform.",
-          "depends_on": [
-            "model-prototypes/prototype-admission"
-          ],
-          "capabilities": [
-            "scratch-model",
-            "training-program",
-            "evaluation-plan",
-            "recipe-compile",
-            "go-only",
-            "dataset-transform",
-            "moe-routing-controller",
-            "candidate-plugin",
-            "shared-trial"
-          ]
-        },
-        {
           "id": "prototype-materialization",
           "title": "Atomically publish domain outputs, ablations, receipts, and candidate recipes from one successful cross-domain trial",
           "status": "open",

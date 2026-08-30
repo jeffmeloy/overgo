@@ -56,6 +56,9 @@ const (
 	KindCandidateProposal Kind = "candidate-proposal"
 	// KindCandidateAdmission compiles one immutable candidate and its sole eligibility decision.
 	KindCandidateAdmission Kind = "candidate-admission"
+	// KindCandidateCompilation compiles one admitted candidate through the
+	// explicit Go domain catalog without executing or publishing its outputs.
+	KindCandidateCompilation Kind = "candidate-compilation"
 	// KindCompositionExecutionPlan compiles the active source-target-task
 	// composition authority into its sole executable plan.
 	KindCompositionExecutionPlan Kind = "composition-execution-plan"
@@ -154,6 +157,13 @@ type CandidateAdmissionAction struct {
 	Authority artifact.ID `json:"authority"`
 }
 
+// CandidateCompilationAction names exact persisted candidate and admission
+// authorities. The compiler replays admission before deriving any trial facts.
+type CandidateCompilationAction struct {
+	Candidate artifact.ID `json:"candidate"`
+	Admission artifact.ID `json:"admission"`
+}
+
 // CompositionExecutionPlanAction selects one active composition by its exact
 // source, target, and task scope; the recipe itself remains OvergoDB-authoritative.
 type CompositionExecutionPlanAction struct {
@@ -193,6 +203,7 @@ type Action struct {
 	Scheduling    *CandidateSchedulingAction      `json:"scheduling,omitempty"`
 	Candidate     *CandidateProposalAction        `json:"candidate,omitempty"`
 	Admission     *CandidateAdmissionAction       `json:"admission,omitempty"`
+	Compilation   *CandidateCompilationAction     `json:"compilation,omitempty"`
 	Composition   *CompositionExecutionPlanAction `json:"composition,omitempty"`
 	Offline       *OfflineArtifactPlanAction      `json:"offline,omitempty"`
 }
@@ -214,7 +225,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Candidate != nil, a.Admission != nil, a.Composition != nil, a.Offline != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Candidate != nil, a.Admission != nil, a.Compilation != nil, a.Composition != nil, a.Offline != nil} {
 		if present {
 			payloads++
 		}
@@ -267,6 +278,11 @@ func (a Action) validate() error {
 		if a.Admission == nil || a.Admission.Candidate.Kind() != artifact.KindRecipe ||
 			a.Admission.Authority.Kind() != artifact.KindEvidence {
 			return errors.New("controller action: candidate-admission requires one persisted candidate and authority binding")
+		}
+	case KindCandidateCompilation:
+		if a.Compilation == nil || a.Compilation.Candidate.Kind() != artifact.KindRecipe ||
+			a.Compilation.Admission.Kind() != artifact.KindEvidence {
+			return errors.New("controller action: candidate-compilation requires persisted candidate and admission authorities")
 		}
 	case KindCompositionExecutionPlan:
 		if a.Composition == nil {
@@ -425,7 +441,8 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		admission, err := runrecord.AdmitCandidate(
-			ctx, reader, candidate, action.Admission.Authority, modelrecipe.CandidateAdmissionAdapters()...,
+			ctx, reader, candidate, action.Admission.Authority,
+			append(modelrecipe.CandidateAdmissionAdapters(), composition.CandidateAdmissionAdapter())...,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -435,6 +452,15 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		return []artifact.Content{admissionContent}, admission.Lineage(), nil
+	case KindCandidateCompilation:
+		compiled, err := modelrecipe.CompileAdmittedCandidate(
+			ctx, reader, action.Compilation.Candidate, action.Compilation.Admission,
+			composition.SameBaseCandidatePlugin{},
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		return compiled.Contents, compiled.Lineage, nil
 	case KindCompositionExecutionPlan:
 		plan, err := composition.CompileCompositionExecutionPlan(
 			ctx, reader, action.Composition.Source, action.Composition.Target, action.Composition.Task,

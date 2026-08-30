@@ -166,7 +166,9 @@ func TestModelPrototypeAdmissionContract(t *testing.T) {
 	}
 
 	wrongContractSpec := cloneCandidateSpec(fixture.spec)
-	wrongContractContent := candidateTypedDocument(t, artifact.KindRecipe, "wrong prototype contract", "wrong-prototype")
+	wrongContractContent := candidateTypedDocument(
+		t, artifact.KindRecipe, "wrong prototype contract", "candidate-wrong-prototype",
+	)
 	if _, err := artifact.CommitBatch(t.Context(), fixture.store, artifact.Batch{
 		Key: "fixture/candidate-admission/wrong-prototype", Contents: []artifact.Content{wrongContractContent},
 	}); err != nil {
@@ -231,8 +233,8 @@ func newCandidateAdmissionFixture(t *testing.T) candidateAdmissionFixture {
 		t.Fatal(err)
 	}
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
-	subjectContent := candidateTypedDocument(t, artifact.KindModelDefinition, "candidate subject", "subject")
-	parentContent := candidateTypedDocument(t, artifact.KindModel, "candidate parent", "parent")
+	subjectContent := candidateTypedDocument(t, artifact.KindModelDefinition, "candidate subject", "candidate-subject")
+	parentContent := candidateTypedDocument(t, artifact.KindModel, "candidate parent", "candidate-parent")
 	subject := subjectContent.Descriptor.ID
 	parent := parentContent.Descriptor.ID
 	developmentSplit := id(artifact.KindDatasetShard, "candidate development split")
@@ -267,12 +269,12 @@ func newCandidateAdmissionFixture(t *testing.T) candidateAdmissionFixture {
 	}
 	development := candidateBudget(t, developmentSplit, "queries", prediction.Cost, binding.Decider.Identity)
 	promotion := candidateBudget(t, promotionSplit, "queries", prediction.Cost, binding.Decider.Identity)
-	falsifier := candidateTypedDocument(t, artifact.KindRecipe, "candidate-falsifier", "falsifier")
+	falsifier := candidateTypedDocument(t, artifact.KindRecipe, "candidate-falsifier", "candidate-falsifier")
 	decisionFixtures := []candidateDecisionFixture{
-		newCandidateDecision(t, binding, parent, "baseline"),
-		newCandidateDecision(t, binding, subject, "gap"),
-		newCandidateDecision(t, binding, prototype.ID(), "prototype-provenance"),
-		newCandidateDecision(t, binding, code.ID, "code-provenance"),
+		candidateObservedDecision(t, binding, parent, "baseline", strings.Repeat("b", 40)),
+		candidateObservedDecision(t, binding, subject, "gap", strings.Repeat("b", 40)),
+		candidateObservedDecision(t, binding, prototype.ID(), "prototype-provenance", strings.Repeat("b", 40)),
+		candidateObservedDecision(t, binding, code.ID, "code-provenance", strings.Repeat("b", 40)),
 	}
 	decisions := make([]recipe.Decision, len(decisionFixtures))
 	for index := range decisionFixtures {
@@ -301,12 +303,7 @@ func newCandidateAdmissionFixture(t *testing.T) candidateAdmissionFixture {
 	lineage = append(lineage, promotion.Lineage()...)
 	lineage = append(lineage, artifact.Lineage{Child: falsifier.Descriptor.ID, Parent: subject, Relation: artifact.RelationDependsOn})
 	for index, decision := range decisions {
-		content, contentErr := decision.Content()
-		if contentErr != nil {
-			store.Close()
-			t.Fatal(contentErr)
-		}
-		contents = append(contents, decisionFixtures[index].source, content)
+		contents = append(contents, decisionFixtures[index].source, mustCandidateDocumentContent(t, decision))
 		lineage = append(lineage, decision.Lineage()...)
 	}
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
@@ -351,12 +348,34 @@ func publishCandidateAdmissionAction(
 	}}
 }
 
-func newCandidateDecision(t *testing.T, binding runrecord.AdmissionBinding, subject artifact.ID, label string) candidateDecisionFixture {
+func publishCandidateDecision(
+	t *testing.T, store *overgodb.Store, binding runrecord.AdmissionBinding, subject artifact.ID, label string,
+) recipe.Decision {
 	t.Helper()
-	source := candidateTypedDocument(t, artifact.KindEvidence, label, "measurement")
+	observation := candidateObservedDecision(t, binding, subject, label, strings.Repeat("c", 40))
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
+		Key: "fixture/candidate-admission/decision/" + observation.decision.ID.String(),
+		Contents: []artifact.Content{
+			observation.source, mustCandidateDocumentContent(t, observation.decision),
+		},
+		Lineage: observation.decision.Lineage(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return observation.decision
+}
+
+func candidateObservedDecision(
+	t *testing.T,
+	binding runrecord.AdmissionBinding,
+	subject artifact.ID,
+	label, codeCommit string,
+) candidateDecisionFixture {
+	t.Helper()
+	source := candidateTypedDocument(t, artifact.KindEvidence, label, "candidate-measurement")
 	decision, err := recipe.NewDecision(
 		subject, recipe.DecisionObserved, recipe.EvidenceVerified, "",
-		recipe.Decider{CodeCommit: strings.Repeat("b", 40), Derivation: binding.Evaluator.Identity},
+		recipe.Decider{CodeCommit: codeCommit, Derivation: binding.Evaluator.Identity},
 		[]artifact.ID{source.Descriptor.ID},
 	)
 	if err != nil {
@@ -365,33 +384,11 @@ func newCandidateDecision(t *testing.T, binding runrecord.AdmissionBinding, subj
 	return candidateDecisionFixture{decision: decision, source: source}
 }
 
-func publishCandidateDecision(
-	t *testing.T, store *overgodb.Store, binding runrecord.AdmissionBinding, subject artifact.ID, label string,
-) recipe.Decision {
-	t.Helper()
-	source := candidateTypedDocument(t, artifact.KindEvidence, label, "measurement")
-	decision, err := recipe.NewDecision(
-		subject, recipe.DecisionObserved, recipe.EvidenceVerified, "",
-		recipe.Decider{CodeCommit: strings.Repeat("c", 40), Derivation: binding.Evaluator.Identity},
-		[]artifact.ID{source.Descriptor.ID},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	content, err := decision.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
-		Key:      "fixture/candidate-admission/decision/" + decision.ID.String(),
-		Contents: []artifact.Content{source, content}, Lineage: decision.Lineage(),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	return decision
-}
-
-func candidateTypedDocument(t *testing.T, kind artifact.Kind, label, schema string) artifact.Content {
+func candidateTypedDocument(
+	t *testing.T,
+	kind artifact.Kind,
+	label, family string,
+) artifact.Content {
 	t.Helper()
 	body := struct {
 		Label string `json:"label"`
@@ -400,14 +397,30 @@ func candidateTypedDocument(t *testing.T, kind artifact.Kind, label, schema stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	contract := artifact.DocumentContract{
-		Kind: kind, MediaType: "application/vnd.overgo.test-candidate-" + schema + "+json", Schema: "overgo/test-candidate-" + schema + "/v1",
-	}
-	content, err := contract.ContentJSON(id, body)
+	content, err := (artifact.DocumentContract{
+		Kind: kind, MediaType: "application/vnd.overgo.test-" + family + "+json",
+		Schema: "overgo/test-" + family + "/v1",
+	}).ContentJSON(id, body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return content
+}
+
+type candidateContentDocument interface {
+	Content() (artifact.Content, error)
+}
+
+func mustCandidateDocumentContent(t *testing.T, value candidateContentDocument) artifact.Content {
+	t.Helper()
+	content, err := value.Content()
+	switch {
+	case err == nil:
+		return content
+	default:
+		t.Fatalf("candidate document content: %v", err)
+		return artifact.Content{}
+	}
 }
 
 func candidateBudget(t *testing.T, split artifact.ID, unit string, issued uint64, authority artifact.ID) runrecord.Budget {
@@ -428,22 +441,6 @@ func contentWithMediaType(t *testing.T, contents []artifact.Content, mediaType s
 	}
 	t.Fatalf("content %q is absent", mediaType)
 	return artifact.Content{}
-}
-
-type candidateContentDocument interface {
-	Content() (artifact.Content, error)
-}
-
-func mustCandidateDocumentContent(t *testing.T, value candidateContentDocument) artifact.Content {
-	t.Helper()
-	content, err := value.Content()
-	if err != nil {
-		t.Fatalf("candidate fixture content: %v", err)
-	}
-	if content.Descriptor.ID.Kind() == artifact.KindInvalid {
-		t.Fatal("candidate fixture content has no identity")
-	}
-	return content
 }
 
 func mustCodeRevisionContent(t *testing.T, value runrecord.CodeRevision) artifact.Content {

@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "loop-measurement",
-      "title": "Measure the driver so autonomy can be ratcheted on evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "candidate-calibration",
-          "title": "Score predicted-versus-actual fitness delta per candidate",
-          "status": "open",
-          "verify": "go test ./internal/loop -run '^TestCompositionCandidateCalibration$' -count=1",
-          "rationale": "Distribution-free calibration of the enumeration predicted fitness against measured outcome; says whether the ranker is trustworthy enough to widen budget.",
-          "depends_on": [
-            "loop-measurement/operating-record"
-          ],
-          "capabilities": [
-            "measurement",
-            "calibration"
-          ]
-        }
-      ]
-    },
-    {
       "id": "autonomy-ratchet",
       "title": "Widen the driver budget only on positive, calibrated, safe evidence",
       "status": "open",

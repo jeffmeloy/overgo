@@ -227,11 +227,11 @@ varies by capability.
 | Evidence-gated promotion of automation policies | Implemented: declared to active on recorded evidence and measured wins, rollback retained |
 | Model-proposed steering from accumulated evidence | Implemented: typed falsifiable proposals through deterministic admission; history-free proposals are refused |
 | Closed recursive policy-improvement loop | Implemented: the driver consumes admitted proposals under budget, saturation, and operator-stop conditions; live unattended campaigns remain to accumulate evidence |
-| Evidence-derived model routing | Implemented: typed routing decisions from admitted evaluation evidence, every live selection recorded, candidate policies measured by counterfactual replay before rollout |
-| Deterministic rollout of promoted candidates | Implemented: content-addressed rollout plans, hash-stable cohort assignment across retry, replay, and restart, reproducible projection evidence, promotion only behind the full evidence closure |
-| Live-safety containment | Implemented: distribution-free comparison windows derived from each metric's own history, a confirmed circuit-breaker ladder to operator-stop, atomic causal rollback with single-winner alias semantics, and quarantine reentry that refuses replayed pre-quarantine evidence |
-| Prototype recipe lifecycle with verified rollback | Implemented: candidate, validated, active, refused, superseded, and rollback transitions; a superseded predecessor returns to service only through fresh verified activation |
-| Composition improvement driver | Implemented: exact unit-normalized catalog retrieval, bias-audited seam alignment residual, ranked donor enumeration, donors-frozen adapter realization, unscalarized fitness selection behind the ablation gate, and a closed driver under history-derived budget and saturation; live composite campaigns remain to accumulate evidence |
+| Evidence-derived model routing | Implemented: typed routing decisions derived from admitted evaluation evidence, every selection recorded, candidate routing rules measured by counterfactual replay over recorded decisions |
+| Deterministic rollout of promoted candidates | Implemented: content-addressed rollout plans, deterministic cohort assignment that is identical across retry, replay, and restart, reproducible projection reports, promotion only after the required evidence is present |
+| Live-safety containment | Implemented: comparison windows derived from each metric's own history without distributional assumptions, staged circuit-breaker escalation ending in operator stop, atomic rollback with recorded cause, and quarantine reentry that requires evidence committed after the quarantine |
+| Prototype recipe lifecycle with rollback | Implemented: candidate, validated, active, refused, superseded, and rollback transitions; a superseded recipe returns to service only through a new verified activation |
+| Composition improvement driver | Implemented: exact retrieval over normalized component descriptors, seam alignment residual audited against measured bridge results, ranked candidate enumeration, adapter training with both models frozen, multidimensional fitness selection without averaging, promotion through the existing ablation gate, and run bounds computed from measured history; live composite campaigns remain to accumulate evidence |
 
 Architecture support and artifact verification are separate claims. Shared
 components can express more model types than are installed and tested on the
@@ -271,32 +271,43 @@ store-recorded:
   their falsifiable check passing — and the explicit recorded operator stop.
   Proposals never execute anything; every row still advances only through
   the gate.
-- **Routing.** Which model serves a task is itself a recorded, replayable
-  decision: candidates admit only through verified evaluation evidence on
-  one split, the threshold is the incumbent's own measured value, the
-  registered derivation rule selects, and a candidate routing policy is
-  measured against the recorded decision corpus by counterfactual replay
-  before it touches live work.
-- **Rollout and containment.** A promoted candidate earns universal
-  activation through an immutable rollout plan: deterministic cohort
-  assignment by content identity, projection readings that reproduce bit
-  for bit at the same store head, and a promotion door that requires the
-  observation contract met, the rollback authority committed, and the
-  plan's own baseline in service. Live regressions escalate through a
-  confirmed circuit breaker to atomic causal rollback, and a quarantined
-  candidate re-enters only with changed-mechanism and evaluation evidence
-  introduced after the finding — restart and replay cannot clear quarantine.
-- **Composition.** The model-improvement driver runs the same shape as the
-  policy loop: capability-gap targets derive from admitted evaluation
-  evidence, donors shortlist from the exact unit-normalized catalog, the
-  bias-audited alignment residual prices each seam and picks the adapter
-  rung, realization trains only the adapter with donors frozen and
-  byte-identity proven, the unscalarized multidimensional fitness refuses
-  average-only wins, promotion passes the ablation-armed gate with
-  dropped-source and shuffled-source arms, and the run stops at bounds
-  derived from its own measured history. The learning curve — hit rate,
-  fitness per compute, adapter-train share — is the recorded instrument the
-  autonomy ratchet will judge.
+- **Routing.** Which model serves a task is a recorded decision. Candidates
+  are admitted only through verified evaluation evidence measured on the
+  same data split. The quality threshold is the current model's own
+  measured value, and one registered rule picks the cheapest candidate
+  that meets it. A new routing rule is first replayed against the recorded
+  decisions to measure what it would have changed; only then can it serve
+  live traffic.
+- **Rollout and containment.** A promoted candidate is activated for
+  everyone only after a rollout: an immutable plan assigns each workload
+  to the baseline or the candidate by a hash of stable identities, so the
+  assignment is the same across retries and restarts. Reports over the
+  rollout are reproducible: reading the same store state twice produces
+  the same bytes. Promotion requires the observation count the plan
+  demands, a committed rollback authority, and the plan's baseline still
+  in service. If the live metrics regress past bounds computed from the
+  metric's own history, a circuit breaker escalates step by step —
+  advisory, finding, quarantine, operator stop — and rollback restores the
+  previous model in one step with the causing evidence recorded. A
+  quarantined candidate can only return with new evidence committed after
+  the quarantine; resubmitting old evidence does nothing.
+- **Composition.** The model-improvement driver follows the same structure
+  as the policy loop. Improvement targets come from admitted evaluation
+  results. Donor components are found through an exact index over
+  normalized component descriptors. For each candidate seam, a linear
+  least-squares fit over recorded activations measures how well a simple
+  adapter could connect the two models; that residual is checked against
+  measured bridge results before it is trusted. Realization initializes
+  the adapter from that fit and trains only the adapter — both models
+  stay frozen, and the result proves their bytes did not change. A
+  composite is selected only if no fitness dimension got worse and at
+  least one got better; averaging across dimensions is not allowed.
+  Promotion passes the existing ablation gate, which requires the
+  composite to lose its gains when the donor input is dropped or
+  shuffled. The run stops at an attempt budget and failure streak
+  computed from its own history. Hit rate, fitness per compute, and
+  adapter training cost are aggregated into a learning curve, which is
+  the record the autonomy ratchet reads.
 
 ## What remains before autonomous RSI
 

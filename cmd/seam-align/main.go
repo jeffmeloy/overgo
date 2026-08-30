@@ -37,8 +37,12 @@ func run() error {
 	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
 	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
 	curve := flags.String("curve", "", "recorded driver attempts JSON path: aggregate the learning curve the autonomy ratchet judges ({attempts})")
+	calibrate := flags.String("calibrate", "", "predicted-versus-measured fitness JSON path: audit the enumeration ranker ({predicted, measured})")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*calibrate) != "" {
+		return calibrateRanker(*calibrate)
 	}
 	if strings.TrimSpace(*curve) != "" {
 		return deriveLearningCurve(*curve)
@@ -92,6 +96,25 @@ func run() error {
 		return err
 	}
 	return encoder.Encode(verdict)
+}
+
+// calibrateRanker audits the enumeration ranker's predicted fitness
+// against measured outcomes with the shared concordance audit.
+func calibrateRanker(samplesPath string) error {
+	var samples struct {
+		Predicted []float64 `json:"predicted"`
+		Measured  []float64 `json:"measured"`
+	}
+	if err := jsonfile.DecodeStrict(samplesPath, &samples); err != nil {
+		return err
+	}
+	calibration, err := loop.CalibrateCandidatePredictions(samples.Predicted, samples.Measured)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(calibration)
 }
 
 // deriveLearningCurve aggregates recorded driver attempts into the

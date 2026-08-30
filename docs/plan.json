@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "gate-throughput",
-      "title": "Shorten the commit loop itself: self-remediating refusals and evidence reuse across attempts",
-      "status": "open",
-      "steps": [
-        {
-          "id": "attempt-evidence-reuse",
-          "title": "Reuse unchanged manifest-bound check evidence across consecutive gate attempts for the same step",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/automationcheck -run '^TestGateReusesUnchangedCheckEvidence$' -count=1",
-          "rationale": "A refusal-fix-retry cycle repays only the invalidated checks: terminal evidence from a prior attempt is reused when a check's manifest-bound input fingerprints are byte-identical, extending the existing bounded retry cache from its current check subset to every check with exact input identity. Reuse is recorded per check in the attempt evidence, never crosses differing inputs or environments, and the commit check itself is never reused.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard"
-          ],
-          "capabilities": [
-            "gate-throughput",
-            "evidence-reuse",
-            "determinism",
-            "interaction-efficiency"
-          ]
-        }
-      ]
-    },
-    {
       "id": "interaction-efficiency",
       "title": "Reduce component, agent, tool, peer, and operator interactions without losing admitted work or evidence",
       "status": "open",

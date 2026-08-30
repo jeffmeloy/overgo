@@ -551,7 +551,7 @@ func (g *gateContext) pipeline() error {
 	cache := g.loadRetryCache()
 	cache.Compact()
 	g.retryCache = &cache
-	cacheable := map[string]bool{"vet": true, "build": true}
+	cacheable := func(name string) bool { return phaseReusesEvidence(name) }
 	inputs := make(map[artifact.ID]artifact.ID, len(checks))
 	for index, check := range checks {
 		input, inputErr := g.phaseInputFingerprint(check.Check.Name)
@@ -582,7 +582,7 @@ func (g *gateContext) pipeline() error {
 			}
 		}
 		input, hasInput := inputs[check.ID]
-		cacheCheck := cacheable[check.Check.Name] && hasInput
+		cacheCheck := cacheable(check.Check.Name) && hasInput
 		if cacheCheck {
 			cacheMutex.Lock()
 			evidence, reused := cache.Lookup(check, input)
@@ -620,7 +620,7 @@ func (g *gateContext) pipeline() error {
 	cacheHits := 0
 	cacheEligible := 0
 	for _, result := range results {
-		if cacheable[result.Invocation.Check.Name] {
+		if cacheable(result.Invocation.Check.Name) {
 			cacheEligible++
 		}
 		if result.Evidence.Reused {
@@ -1582,11 +1582,33 @@ func phaseOwnsPath(phase, path string) bool {
 	goSource := path == "go.mod" || path == "go.sum" || strings.HasSuffix(path, ".go")
 	goInput := goSource ||
 		(strings.HasPrefix(path, "internal/") || strings.HasPrefix(path, "cmd/")) && !strings.HasSuffix(path, ".md")
+	documentation := strings.HasSuffix(path, ".md") || strings.HasPrefix(path, "docs/") ||
+		path == "compatibility.json" || path == "SBOM.cdx.json"
 	switch phase {
-	case "vet", "build":
+	case "vet", "build", "fmt", "style", "profile", "architecture":
 		return goInput
+	case "scope", "protection":
+		return goInput || strings.HasPrefix(path, "scripts/") || strings.HasPrefix(path, protection.HarnessConfigDirectory)
+	case "manifest", "sbom", "claims", "docs":
+		return goInput || documentation
 	case "test":
 		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/") && path != plan.Path
+	default:
+		return false
+	}
+}
+
+// phaseReusesEvidence reports whether a check's terminal evidence may be
+// reused across consecutive gate attempts when its exact manifest-bound input
+// fingerprint is byte-identical. Store-coupled checks (magics, acceptance,
+// published) stay excluded because every attempt's preparation commit moves
+// the store their verdicts read; device stays excluded because hardware is
+// not a fingerprintable input; the commit check is never reused.
+func phaseReusesEvidence(phase string) bool {
+	switch phase {
+	case "vet", "build", "fmt", "style", "profile", "architecture", "scope", "protection",
+		"manifest", "sbom", "claims", "docs", "test":
+		return true
 	default:
 		return false
 	}

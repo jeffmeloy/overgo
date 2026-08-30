@@ -16,6 +16,15 @@ import (
 
 const policyPath = ".github/protection.json"
 
+// HarnessSettingsPath is the repository-relative harness hook configuration
+// this guard verifies. The protection guard is the single production owner of
+// that path; other components reference it only through this constant, so the
+// go-only ratchet keeps harness-configuration discovery in one place.
+const HarnessSettingsPath = ".claude/settings.json"
+
+// HarnessConfigDirectory prefixes every harness-owned configuration path.
+const HarnessConfigDirectory = ".claude/"
+
 type policy struct {
 	Version                 uint16            `json:"version"`
 	ProtectedBranches       []string          `json:"protected_branches"`
@@ -62,7 +71,7 @@ func Verify(root string) (configured, activated string, err error) {
 		return "", "", errors.New("protection policy: incomplete contract")
 	}
 	var configuredHooks settings
-	if err := jsonfile.DecodeStrict(filepath.Join(root, ".claude/settings.json"), &configuredHooks); err != nil {
+	if err := jsonfile.DecodeStrict(filepath.Join(root, HarnessSettingsPath), &configuredHooks); err != nil {
 		return "", "", fmt.Errorf("hook settings: %w", err)
 	}
 	for event, command := range contract.RequiredHooks {

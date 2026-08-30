@@ -215,6 +215,21 @@ func DependencyLineage(child ID, parents ...ID) []Lineage {
 	return lineage
 }
 
+// UniqueDependencyLineage binds one child to each distinct parent exactly
+// once, preserving first-seen order, for documents whose bindings may cite
+// one authority in several roles.
+func UniqueDependencyLineage(child ID, parents ...ID) []Lineage {
+	seen := make(map[ID]struct{}, len(parents))
+	unique := parents[:0]
+	for _, parent := range parents {
+		if _, found := seen[parent]; !found {
+			seen[parent] = struct{}{}
+			unique = append(unique, parent)
+		}
+	}
+	return DependencyLineage(child, unique...)
+}
+
 func (c DocumentContract) validateDescriptor(descriptor Descriptor, id ID) error {
 	if id.Kind() != c.Kind || descriptor.ID != id || descriptor.MediaType != c.MediaType ||
 		descriptor.Schema != c.Schema {

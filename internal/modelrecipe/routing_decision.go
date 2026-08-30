@@ -214,15 +214,7 @@ func (value RoutingDecision) Lineage() []artifact.Lineage {
 		parents = append(parents, candidate.Recipe, candidate.Model)
 		parents = append(parents, candidate.Evidence...)
 	}
-	seen := make(map[artifact.ID]struct{}, len(parents))
-	unique := parents[:0]
-	for _, parent := range parents {
-		if _, found := seen[parent]; !found {
-			seen[parent] = struct{}{}
-			unique = append(unique, parent)
-		}
-	}
-	return artifact.DependencyLineage(value.ID, unique...)
+	return artifact.UniqueDependencyLineage(value.ID, parents...)
 }
 
 // Batch wraps the decision as one committable store batch.

@@ -9,25 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "rollout-plan",
-          "title": "Define a content-addressed rollout plan binding baseline, candidate, cohort key, hash version, observation contract, and rollback authority",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/loop -run '^TestRolloutPlanIdentityAndValidation$' -count=1",
-          "rationale": "A rollout is evidence-bearing promotion policy, not a mutable feature flag. Cohort size, observation requirements, and boundaries are derived from evaluation evidence or explicit typed decisions with reopen triggers.",
-          "depends_on": [
-            "resource-coverage/fitness-integration",
-            "causal-execution/causal-context",
-            "model-recipe-lifecycle/recipe-evaluation",
-            "evidence-routing/decision-contract"
-          ],
-          "capabilities": [
-            "rsi-rollout",
-            "promotion",
-            "artifact-identity",
-            "magic-discipline"
-          ]
-        },
-        {
           "id": "stable-assignment",
           "title": "Assign workloads deterministically and keep the same arm across retry, replay, peer placement, and restart",
           "status": "open",

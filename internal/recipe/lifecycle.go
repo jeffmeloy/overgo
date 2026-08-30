@@ -50,8 +50,10 @@ var lifecycleCodec = artifact.DocumentCodec[LifecycleEvent]{
 type Status string
 
 const (
-	StatusCandidate  Status = "candidate"
-	StatusValidated  Status = "validated"
+	StatusCandidate Status = "candidate"
+	StatusValidated Status = "validated"
+	// StatusVerified marks an evaluated recipe that is still non-serving.
+	StatusVerified   Status = "verified"
 	StatusActive     Status = "active"
 	StatusRefused    Status = "refused"
 	StatusSuperseded Status = "superseded"
@@ -172,7 +174,13 @@ func validTransition(from, to Status) bool {
 	case StatusCandidate:
 		return to == StatusValidated || to == StatusRefused
 	case StatusValidated:
-		return to == StatusActive || to == StatusRefused
+		// Validated-to-active remains readable for existing production
+		// activators while the supervised RSI path stops at verified.
+		return to == StatusVerified || to == StatusActive || to == StatusRefused
+	case StatusVerified:
+		// Production activation from the new supervised state remains closed
+		// until rollout evidence and the same receipted lifecycle authorize it.
+		return to == StatusRefused
 	case StatusActive:
 		return to == StatusActive || to == StatusSuperseded
 	default:

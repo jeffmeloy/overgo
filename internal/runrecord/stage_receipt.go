@@ -97,23 +97,48 @@ func PublishStageReceipt(
 	if ctx == nil || repository == nil {
 		return StageReceipt{}, errors.New("run record: stage receipt repository is absent")
 	}
-	previous, found, err := ResolveStageReceipt(ctx, repository, value.Operation, value.Node)
+	prepared, batch, err := PrepareStageReceipt(ctx, repository, value, contents, descriptors)
 	if err != nil {
 		return StageReceipt{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
+		return StageReceipt{}, err
+	}
+	return prepared, nil
+}
+
+// PrepareStageReceipt validates and contributes one stage transition without
+// committing it. A lifecycle owner can add its own typed document and CAS to
+// the returned batch so the terminal receipt and durable mutation are atomic.
+// PublishStageReceipt is the ordinary immediate-commit consumer.
+func PrepareStageReceipt(
+	ctx context.Context,
+	reader artifact.Reader,
+	value StageReceipt,
+	contents []artifact.Content,
+	descriptors []artifact.Descriptor,
+) (StageReceipt, artifact.Batch, error) {
+	if ctx == nil || reader == nil {
+		return StageReceipt{}, artifact.Batch{}, errors.New("run record: stage receipt reader is absent")
+	}
+	value.Previous = artifact.ID{}
+	previous, found, err := ResolveStageReceipt(ctx, reader, value.Operation, value.Node)
+	if err != nil {
+		return StageReceipt{}, artifact.Batch{}, err
 	}
 	if found {
 		value.Previous = previous.ID
 		if !stageTransition(previous, value) {
-			return StageReceipt{}, errors.New("run record: invalid stage transition")
+			return StageReceipt{}, artifact.Batch{}, errors.New("run record: invalid stage transition")
 		}
 	}
 	value, err = NewStageReceipt(value)
 	if err != nil {
-		return StageReceipt{}, err
+		return StageReceipt{}, artifact.Batch{}, err
 	}
 	receiptContent, err := stageReceiptCodec.Content(value)
 	if err != nil {
-		return StageReceipt{}, err
+		return StageReceipt{}, artifact.Batch{}, err
 	}
 	contents = append(slices.Clone(contents), receiptContent)
 	parents := []artifact.ID{value.Recipe, value.Operation, value.Previous}
@@ -136,13 +161,10 @@ func PublishStageReceipt(
 		[]artifact.AliasBinding{alias},
 	)
 	if err != nil {
-		return StageReceipt{}, err
+		return StageReceipt{}, artifact.Batch{}, err
 	}
 	batch.Artifacts = append(batch.Artifacts, descriptors...)
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
-		return StageReceipt{}, err
-	}
-	return value, nil
+	return value, batch, nil
 }
 
 func canonicalizeStageReceipt(value *StageReceipt) error {

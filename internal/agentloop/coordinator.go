@@ -344,7 +344,7 @@ func (c *Coordinator) ApproveMutation(
 // decisionArguments is the exact fact set a mutation decision binds: the
 // immutable subject, canonical arguments, resolved effect, and preflight.
 func decisionArguments(manual agenttool.Manual, stimulus runrecord.AttemptStimulusBoundary) []string {
-	return []string{manual.ID.String(), stimulus.Arguments.String(), stimulus.Effect.String(), stimulus.ID.String()}
+	return invocation.ApprovalArguments(manual.ID, stimulus.Arguments, stimulus.Effect, stimulus.ID)
 }
 
 // requireMutationDecision requires one action-bound preflight and the committed

@@ -285,27 +285,6 @@
             "shared-evaluator",
             "cross-domain-ablation"
           ]
-        },
-        {
-          "id": "recipe-activation",
-          "title": "Reserve one shared lifecycle owner and the supervised non-serving verified transition",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/modelrecipe ./internal/runrecord ./internal/overgodb ./internal/composition -run '^(TestCrossDomainPromotionLifecycleHasOneTransitionOwner|TestPrototypeRecipeLifecycleAndRollback|TestRecipeActivationRequiresCapabilityInvocationReceipt)$' -count=1",
-          "rationale": "Reserve one evidence-gated lifecycle and direct Go compare-and-set owner before any supervised verification can mutate candidate state, then implement only the evaluated candidate-to-non-serving-verified path needed by the first proof. Candidate and domain adapters supply typed subject validation, immutable evaluation evidence, requested transition, and the scoped non-serving binding; migrate and delete parallel lifecycle, approval, or receipt mechanics only on this exact path. The owner accepts no transition without the exact closed mutation effect, arguments, targets, action-bound inspection, task or delegation ceiling, HumanDecision authority, and StageReceipt published atomically with the lifecycle compare-and-set. It must preserve the production active alias and every unattended grant. Production promotion, activation, containment, rollback, agent, experiment, and automation adapters consolidate later in deterministic rollout and live safety, after measured behavior exists. Validation, ablations, evaluation, rollout, promotion, and safety documents remain evidence or requests and cannot activate themselves; unattended authority widening is post-proof and no UTCP transport is inserted inward.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard",
-            "model-prototypes/prototype-contract"
-          ],
-          "capabilities": [
-            "recipe-lifecycle",
-            "promotion",
-            "alias-cas",
-            "rollback",
-            "rollout-evidence",
-            "single-promotion-authority",
-            "promotion-spine",
-            "domain-adapter"
-          ]
         }
       ]
     },

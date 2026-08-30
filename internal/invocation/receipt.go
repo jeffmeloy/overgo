@@ -96,3 +96,9 @@ func (binding ReceiptBinding) Parents() []artifact.ID {
 	return []artifact.ID{binding.Subject, binding.Arguments, binding.Effect, binding.Preflight,
 		binding.Inspection, binding.Ceiling, binding.Authority, binding.CausalContext}
 }
+
+// ApprovalArguments is the canonical immutable fact vector a HumanDecision
+// grants for one mutation. It is shared by agent-facing and direct-Go callers.
+func ApprovalArguments(subject, arguments, effect, preflight artifact.ID) []string {
+	return []string{subject.String(), arguments.String(), effect.String(), preflight.String()}
+}

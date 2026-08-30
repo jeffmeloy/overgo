@@ -70,7 +70,7 @@ func ResolveAttemptStimulus(ctx context.Context, reader artifact.Reader, operati
 
 // RequireAttemptStimulus returns one boundary by immutable identity.
 func RequireAttemptStimulus(ctx context.Context, reader artifact.Reader, id artifact.ID) (AttemptStimulusBoundary, error) {
-	return attemptStimulusCodec.Require(ctx, reader, id)
+	return attemptStimulusCodec.RequireExactLineage(ctx, reader, id, attemptStimulusLineage)
 }
 
 // PublishAttemptStimulus commits the immutable boundary and its new cited content.
@@ -95,15 +95,9 @@ func PublishAttemptStimulus(ctx context.Context, repository artifact.Repository,
 	if err != nil {
 		return AttemptStimulusBoundary{}, err
 	}
-	parents := []artifact.ID{identified.Operation, identified.Manual, identified.Arguments, identified.Effect,
-		identified.Inspection, identified.InspectionEffect, identified.Ceiling, identified.CausalContext, identified.Prior}
-	for _, source := range identified.Selection.Sources {
-		parents = append(parents, source.Source, source.CausalRoot)
-	}
-	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
 	batch, err := artifact.NewDocumentBatch(
 		"attempt/stimulus/"+identified.ID.String(), append(slices.Clone(contents), boundaryContent),
-		artifact.DependencyLineage(identified.ID, parents...),
+		attemptStimulusLineage(identified),
 		[]artifact.AliasBinding{{Name: attemptStimulusAlias(identified.Operation, identified.Attempt), Target: identified.ID}},
 	)
 	if err != nil {
@@ -114,6 +108,18 @@ func PublishAttemptStimulus(ctx context.Context, repository artifact.Repository,
 		return AttemptStimulusBoundary{}, err
 	}
 	return identified, nil
+}
+
+func attemptStimulusLineage(value AttemptStimulusBoundary) []artifact.Lineage {
+	parents := []artifact.ID{value.Operation, value.Manual, value.Arguments, value.Effect,
+		value.Inspection, value.InspectionEffect, value.Ceiling, value.CausalContext, value.Prior}
+	for _, source := range value.Selection.Sources {
+		parents = append(parents, source.Source, source.CausalRoot)
+	}
+	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
+	slices.SortFunc(parents, artifact.CompareID)
+	parents = slices.Compact(parents)
+	return artifact.DependencyLineage(value.ID, parents...)
 }
 
 func canonicalizeAttemptStimulus(value *AttemptStimulusBoundary) error {

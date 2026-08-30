@@ -70,8 +70,18 @@ func Transition(
 	to recipe.Status,
 	evidence []artifact.ID,
 	supersedes *artifact.ID,
+	terminal ...runrecord.StageReceipt,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
-	return transition(ctx, store, key, definition, to, evidence, supersedes, nil, nil, nil)
+	if to == recipe.StatusVerified {
+		if len(terminal) != 1 || supersedes != nil {
+			return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: verified transition requires one non-serving terminal receipt")
+		}
+		return verifiedTransition(ctx, store, key, definition, evidence, terminal[0])
+	}
+	if len(terminal) != 0 {
+		return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: terminal receipt is reserved for supervised verification")
+	}
+	return transition(ctx, store, key, definition, to, evidence, supersedes, nil, nil, nil, nil)
 }
 
 // Verification defines immutable verifier gate/run identities.
@@ -385,7 +395,7 @@ func ActivateVerified(
 	evidence = append([]artifact.ID{decision.ID}, decision.Evidence...)
 	return transition(
 		ctx, store, key, definition, recipe.StatusActive, evidence, supersedes,
-		[]artifact.Content{decisionContent}, decision.Lineage(), &verification,
+		[]artifact.Content{decisionContent}, decision.Lineage(), &verification, nil,
 	)
 }
 
@@ -400,6 +410,7 @@ func transition(
 	pending []artifact.Content,
 	pendingLineage []artifact.Lineage,
 	verification *Verification,
+	prepared *artifact.Batch,
 ) (artifact.CommitID, recipe.LifecycleEvent, error) {
 	previous, err := currentEvent(ctx, store, definition.ID)
 	if err != nil {
@@ -437,6 +448,11 @@ func transition(
 	for _, content := range pending {
 		pendingIDs[content.Descriptor.ID] = struct{}{}
 	}
+	if prepared != nil {
+		for _, content := range prepared.Contents {
+			pendingIDs[content.Descriptor.ID] = struct{}{}
+		}
+	}
 	for _, evidenceID := range evidence {
 		if _, ok := pendingIDs[evidenceID]; ok {
 			continue
@@ -470,6 +486,13 @@ func transition(
 	contents := append(append([]artifact.Content(nil), pending...), eventContent)
 	pendingLineage = append(pendingLineage, event.Lineage()...)
 	aliases := []artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID, Previous: &previous.ID}}
+	var descriptors []artifact.Descriptor
+	if prepared != nil {
+		contents = append(prepared.Contents, contents...)
+		pendingLineage = append(prepared.Lineage, pendingLineage...)
+		aliases = append(prepared.Aliases, aliases...)
+		descriptors = append(descriptors, prepared.Artifacts...)
+	}
 	if to == recipe.StatusActive {
 		activeID, active, lookupErr := artifact.ResolveAlias(ctx, store, activeAlias(definition.Model, definition.Task))
 		if lookupErr != nil {
@@ -515,6 +538,7 @@ func transition(
 	if err != nil {
 		return artifact.CommitID{}, recipe.LifecycleEvent{}, err
 	}
+	batch.Artifacts = append(batch.Artifacts, descriptors...)
 	commit, err := artifact.CommitBatch(ctx, store, batch)
 	return commit, event, err
 }

@@ -355,26 +355,9 @@ func publishCheckpoint(source, target string, model *densecausal.Model, authorit
 }
 
 func identifyModel(directory string) (artifact.ID, error) {
-	if isGGUFModelInput(directory) {
-		file, err := os.Open(directory)
-		if err != nil {
-			return artifact.ID{}, err
-		}
-		id, _, identifyErr := artifact.Identify(artifact.KindModel, file)
-		return id, errors.Join(identifyErr, file.Close())
-	}
-	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
-	if _, err := os.Stat(path); err != nil {
-		// Single shard: direct identity. Multi-shard: manifest required.
-		shards, globErr := filepath.Glob(filepath.Join(directory, "model-*-of-*.safetensors"))
-		if globErr != nil || len(shards) == 0 {
-			return artifact.ID{}, err
-		}
-		if len(shards) > 1 {
-			return artifact.ID{}, fmt.Errorf(
-				"training workflow: %d weight shards in %s; multi-shard identity requires a manifest", len(shards), directory)
-		}
-		path = shards[0]
+	path, err := identifyModelWeights(directory)
+	if err != nil {
+		return artifact.ID{}, err
 	}
 	file, err := os.Open(path)
 	if err != nil {
@@ -382,6 +365,43 @@ func identifyModel(directory string) (artifact.ID, error) {
 	}
 	id, _, identifyErr := artifact.Identify(artifact.KindModel, file)
 	return id, errors.Join(identifyErr, file.Close())
+}
+
+// identifyModelWeights resolves the one weights file whose hash is the
+// model identity — the same file a recorded model location names. A GGUF
+// input is its own identity; a directory identifies by model.safetensors,
+// by its single safetensors file under any recorded name, or — for a
+// sharded checkpoint — by the first shard in order, the file intake
+// recorded as the model location. Two unordered safetensors files are
+// ambiguous and refuse.
+func identifyModelWeights(directory string) (string, error) {
+	if isGGUFModelInput(directory) {
+		return directory, nil
+	}
+	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
+	if _, err := os.Stat(path); err == nil {
+		return path, nil
+	}
+	shards, err := filepath.Glob(filepath.Join(directory, "model-*-of-*.safetensors"))
+	if err != nil {
+		return "", err
+	}
+	if len(shards) > 0 {
+		slices.Sort(shards)
+		return shards[0], nil
+	}
+	candidates, err := filepath.Glob(filepath.Join(directory, "*.safetensors"))
+	if err != nil {
+		return "", err
+	}
+	switch len(candidates) {
+	case 0:
+		return "", fmt.Errorf("training workflow: %s holds no safetensors weights", directory)
+	case 1:
+		return candidates[0], nil
+	}
+	return "", fmt.Errorf(
+		"training workflow: %d unordered safetensors files in %s; identity is ambiguous", len(candidates), directory)
 }
 
 type compiledAuthority struct {

@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "training-input-identity",
-          "title": "Identify every recorded training input: alternate safetensors names and multi-shard directories",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run '^TestTrainingIdentifiesRecordedInputs$' -count=1",
-          "rationale": "The workflow's model identity must resolve every input the store records: single safetensors under any recorded filename (diffusion_pytorch_model.safetensors), multi-shard directories via the recorded location, and .gguf files. A training activation whose recorded bytes exist must never fail at identification.",
-          "depends_on": [
-            "model-smoke/training-gguf-parity"
-          ],
-          "capabilities": [
-            "training",
-            "identity"
-          ]
-        },
-        {
           "id": "training-smoke",
           "title": "Run one bounded recorded training step per training-activated model, correcting recipes and remaining failures to parity",
           "status": "open",

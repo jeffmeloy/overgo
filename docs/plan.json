@@ -4,24 +4,15 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "model-smoke",
-      "title": "Comprehensive smoke of every local complete model: inference, training, and lm-eval benchmarks, with regressions corrected",
+      "id": "qwen38-benchmark",
+      "title": "Benchmark Qwen3.8-27B: derived mmlu evaluation and published serving benchmark",
       "status": "open",
       "steps": [
         {
-          "id": "register-qwen38-27b",
-          "title": "Register models/Qwen3.8-27B-UD-Q6_K into OvergoDB and verify its declared multimodal capabilities",
+          "id": "do",
+          "title": "Benchmark Qwen3.8-27B: derived mmlu evaluation and published serving benchmark",
           "status": "open",
-          "verify": "go run ./cmd/smoke-lane",
-          "rationale": "Owner request 2026-08-30: register the local Qwen3.8-27B-UD-Q6_K.gguf (qwen35 architecture, 22 GB Q6_K mix) through the standard intake — activate its inference recipe with verified evidence — then read the model documentation saved beside the artifact and verify each multimodal capability it declares through the corresponding task activations, recording evidence per capability. The smoke lane must then serve it green alongside the existing matrix.",
-          "depends_on": [
-            "model-smoke/benchmark-smoke"
-          ],
-          "capabilities": [
-            "model-intake",
-            "multimodal",
-            "verification"
-          ]
+          "verify": "go test ./cmd/evaluate -count=1"
         }
       ]
     },

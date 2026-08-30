@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "evidence-selection",
-          "title": "Derive model selection from published evaluation and resource evidence and record every decision",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/evaluation ./internal/capabilityruntime -run '^TestEvidenceDerivedSelection$' -count=1",
-          "rationale": "Selection prefers the cheapest verified candidate whose published evidence meets the task threshold; evidence admission follows one ordered gate owner. Every live selection commits its decision record through the common publication path, turning the benchmark substrate from passive record into an active control input.",
-          "depends_on": [
-            "evidence-routing/decision-contract",
-            "capability-bound-activation/placement-integration",
-            "model-recipe-lifecycle/recipe-evaluation"
-          ],
-          "capabilities": [
-            "rsi-routing",
-            "evidence-derivation",
-            "placement"
-          ]
-        },
-        {
           "id": "counterfactual-replay",
           "title": "Replay recorded routing decisions under a candidate policy and publish measured counterfactual deltas",
           "status": "open",

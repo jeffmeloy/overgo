@@ -57,6 +57,9 @@ func run() error {
 	if verb == "route" {
 		return routeDecision(os.Args[2:])
 	}
+	if verb == "select" {
+		return selectServing(os.Args[2:])
+	}
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")

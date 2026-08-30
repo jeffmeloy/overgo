@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "intent-routing",
-          "title": "Select one exact evidence-dominant built-in, external, or peer capability for a declared intent",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/runrecord ./internal/executionfailure -run '^(TestEvidenceRouteSelectsUniqueDominantCapability|TestEvidenceRouteRefusesIncomparableFrontier|TestEvidenceRouteFallbackUsesTypedFailure)$' -count=1",
-          "rationale": "The caller declares semantic intent, one stored production authority, and allowed boundaries. Go reloads current production probes, exact manuals, activation case, effect, selection, placement, resource observations, and accepted decision evidence, then chooses only a unique Pareto-dominant route from exact reliability, evidence yield, cost, and latency. An incomparable frontier requests an explicit decision. A retryable typed terminal failure can only publish a new current-head RoutingDecision before an alternate selection becomes observable; fatal or authority failures stop. Internal owners remain direct Go calls and UTCP remains agent-facing or cross-boundary.",
-          "depends_on": [
-            "capability-control/production-probes",
-            "grounded-retrieval/retrieval-evidence"
-          ],
-          "capabilities": [
-            "intent-routing",
-            "pareto-selection",
-            "typed-fallback",
-            "utcp-boundary"
-          ]
-        },
-        {
           "id": "trajectory-supervision",
           "title": "Stop exact no-progress loops and emit supervised recovery decisions without hidden thresholds",
           "status": "open",

@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "qwen38-multimodal",
-      "title": "Verify Qwen3.8-27B multimodal capabilities through the downloaded vision projector",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Verify Qwen3.8-27B multimodal capabilities through the downloaded vision projector",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate -count=1"
-        }
-      ]
-    },
-    {
       "id": "mmlu-protocol-fidelity",
       "title": "Chat-template-aware benchmark scoring with declared template kwargs and shared-prefix reuse",
       "status": "open",

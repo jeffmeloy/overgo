@@ -82,13 +82,8 @@ func (r *Runner) validateCache(cache *KVCache) error {
 	if cache.Tokens == 0 {
 		return errors.New("inference: KV cache token count is zero")
 	}
-	position := effectiveCachePosition(cache)
-	if position < cache.Tokens {
-		return fmt.Errorf(
-			"inference: KV cache next position %d precedes its %d active tokens",
-			position,
-			cache.Tokens,
-		)
+	if err := cachePositionInvariant(r.spec, effectiveCachePosition(cache), cache.Tokens); err != nil {
+		return err
 	}
 	if r.spec.ContextLength > 0 && cache.Tokens > r.spec.ContextLength {
 		return fmt.Errorf(
@@ -401,6 +396,36 @@ func effectiveKeepTokens(requested, promptTokens int, contextLength uint32) uint
 	maximum := max(0, int(contextLength)-4)
 	keep = min(keep, maximum)
 	return uint32(keep)
+}
+
+// cachePositionInvariant validates the next decode position against the
+// active KV entries. Sequential rope advances one position per token, so
+// a next position below the token count is corruption. A declared
+// multi-section rotary embedding advances vision tokens by grid extent
+// rather than token count, so a multimodal prompt's next position
+// legitimately trails its KV entries and only zero refuses.
+func cachePositionInvariant(spec model.Spec, position, tokens uint32) error {
+	sectioned := false
+	for _, section := range spec.RopeSections {
+		if section != 0 {
+			sectioned = true
+			break
+		}
+	}
+	if sectioned {
+		if position == 0 && tokens != 0 {
+			return fmt.Errorf("inference: KV cache next position is zero with %d active tokens", tokens)
+		}
+		return nil
+	}
+	if position < tokens {
+		return fmt.Errorf(
+			"inference: KV cache next position %d precedes its %d active tokens",
+			position,
+			tokens,
+		)
+	}
+	return nil
 }
 
 func effectiveCachePosition(cache *KVCache) uint32 {

@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "prototype-compile",
-          "title": "Compile an admitted prototype into scratch construction, training program, evaluation plan, and candidate task recipes without source generation",
-          "status": "open",
-          "verify": "go test ./internal/scratchmodel ./internal/modelrecipe ./internal/trainingprogram ./internal/evaluation -run '^TestPrototypeCompilesClosedWorldTrial$' -count=1",
-          "rationale": "Compilation reuses scratchmodel derivation, registered model architecture, modelrecipe catalogs, trainingprogram, and evaluation owners. It derives tensor shapes, initialization, optimizer/session/resource plans, and recipe dependencies; an unsupported operator or capability refuses before compute.",
-          "depends_on": [
-            "model-prototypes/prototype-admission"
-          ],
-          "capabilities": [
-            "scratch-model",
-            "training-program",
-            "evaluation-plan",
-            "recipe-compile",
-            "go-only"
-          ]
-        },
-        {
           "id": "prototype-materialization",
           "title": "Atomically publish trained model, tensor inventory, resolved model definition, trial receipts, and candidate recipes from a successful prototype trial",
           "status": "open",

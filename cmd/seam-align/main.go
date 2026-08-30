@@ -32,8 +32,16 @@ func run() error {
 	measured := flags.String("measurements", "", "donor seam measurements JSON path for -enumerate ({measurements})")
 	limit := flags.Int("limit", 16, "shortlist size for -enumerate")
 	realize := flags.String("realize", "", "realization specification JSON path: align-init, train donors-frozen over recorded activations, assemble")
+	selectFlag := flags.String("select", "", "composite scores JSON path: judge realized composites on the multidimensional fitness ({scores})")
+	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*selectFlag) != "" {
+		return selectComposites(*selectFlag)
+	}
+	if strings.TrimSpace(*emit) != "" {
+		return emitPromotion(*emit)
 	}
 	if strings.TrimSpace(*realize) != "" {
 		return realizeCandidate(*repoFlag, *realize)
@@ -75,6 +83,49 @@ func run() error {
 		return err
 	}
 	return encoder.Encode(verdict)
+}
+
+// selectComposites judges realized composites on the multidimensional
+// improvement fitness without scalarization and prints the ordered
+// verdicts, fit composites first.
+func selectComposites(scoresPath string) error {
+	var scored struct {
+		Scores []composition.CompositeScore `json:"scores"`
+	}
+	if err := jsonfile.DecodeStrict(scoresPath, &scored); err != nil {
+		return err
+	}
+	verdicts, err := composition.ScoreCompositeSelection(scored.Scores)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(verdicts)
+}
+
+// emitPromotion emits one fit composite through the existing ablation-
+// armed composition promotion gate and prints the validated evidence.
+func emitPromotion(emissionPath string) error {
+	var emission struct {
+		Verdict  composition.CompositeFitnessVerdict             `json:"verdict"`
+		Policy   composition.RepresentationBridgePromotionPolicy `json:"policy"`
+		Evidence composition.RepresentationBridgePromotion       `json:"evidence"`
+	}
+	if err := jsonfile.DecodeStrict(emissionPath, &emission); err != nil {
+		return err
+	}
+	policy, err := composition.NewRepresentationBridgePromotionPolicy(emission.Policy)
+	if err != nil {
+		return err
+	}
+	promotion, err := composition.EmitAblationGatedPromotion(emission.Verdict, policy, emission.Evidence)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(promotion)
 }
 
 // realizeCandidate realizes one enumerated candidate from a strict

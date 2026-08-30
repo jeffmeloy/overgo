@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "fitness-gated-selection",
-          "title": "Eval realized composites, score on multidimensional fitness, emit ablation-gated promotion candidates",
-          "status": "open",
-          "verify": "go test ./internal/composition -run '^(TestFitnessScoredCompositeSelection|TestSelectionEmitsAblationGatedPromotion)$' -count=1",
-          "rationale": "Score realized composites on the target held-out eval against the multidimensional improvement fitness without scalarization; emit winners through the existing ablation-armed composition promotion gate. Dropped-source and shuffled-source arms are part of the evidence, and attribution reuses the recipe-evaluation separation of model, recipe, and system deltas.",
-          "depends_on": [
-            "composition-driver/candidate-realization",
-            "model-recipe-lifecycle/recipe-evaluation"
-          ],
-          "capabilities": [
-            "fitness-objective",
-            "ablation-gate",
-            "promotion"
-          ]
-        },
-        {
           "id": "improvement-loop",
           "title": "Close the driver under derived budget, saturation, and operator-stop",
           "status": "open",

@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "decision-contract",
-          "title": "Define a typed routing decision record binding task signal, candidate set, evidence basis, and derived selection",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/runrecord -run '^TestRoutingDecisionContract$' -count=1",
-          "rationale": "A routing decision is a canonical fact: which verified model or recipe serves a task, derived from published evaluation and resource evidence with distribution-free bounds and no tunable weights. The record names the candidates considered, the evidence each was judged on, and the derivation, so selection is replayable and auditable like any other promotion.",
-          "depends_on": [
-            "model-recipe-lifecycle/recipe-validation"
-          ],
-          "capabilities": [
-            "rsi-routing",
-            "evidence-derivation",
-            "determinism"
-          ]
-        },
-        {
           "id": "evidence-selection",
           "title": "Derive model selection from published evaluation and resource evidence and record every decision",
           "status": "open",

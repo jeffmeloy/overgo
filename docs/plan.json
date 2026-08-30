@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "recipe-validation",
-          "title": "Compile each candidate recipe against exact model, peer, tool, and runtime capabilities and publish verification evidence",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/capabilityruntime ./internal/agenttool -run '^TestCandidateRecipeCapabilityClosure$' -count=1",
-          "rationale": "A recipe candidate is not runnable because it parses. Validation proves every module, port, dependency, placement, residency, session policy, tool grant, and resource requirement against exact capability identities and records refusal rather than selecting a fallback topology.",
-          "depends_on": [
-            "model-recipe-lifecycle/recipe-derivation"
-          ],
-          "capabilities": [
-            "recipe-validation",
-            "capability-runtime",
-            "agent-tool",
-            "refusal"
-          ]
-        },
-        {
           "id": "recipe-evaluation",
           "title": "Evaluate prototype-produced recipes on development and promotion evidence while separating model, recipe, and system deltas",
           "status": "open",

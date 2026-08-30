@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "coalesced-coordination",
-          "title": "Coalesce wakeups, claims, capability refreshes, and reconciliation work around semantic dirty-state boundaries",
-          "status": "open",
-          "verify": "go test ./internal/workflowruntime ./internal/capabilityruntime ./internal/agentloop -run '^TestCoordinationCoalescesWithoutLostWork$' -count=1",
-          "rationale": "Reconnect flaps, repeated wake signals, duplicate deliveries, and unchanged capability probes produce one pending reconciliation rather than one run each. Claims and reads are batched within existing authority boundaries; every admitted item is processed once or remains visibly pending.",
-          "depends_on": [
-            "interaction-efficiency/incremental-context",
-            "webhook-ingress/workflow-dispatch"
-          ],
-          "capabilities": [
-            "workflow-runtime",
-            "reconciliation",
-            "idempotency",
-            "interaction-efficiency"
-          ]
-        },
-        {
           "id": "operator-decisions",
           "title": "Project one causal operation timeline and one pending-decision view for approvals, refusals, retries, quarantine, and rollback",
           "status": "open",

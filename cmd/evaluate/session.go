@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/sequencescore"
 )
 
 type evaluationSession interface {
@@ -71,12 +72,41 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		_ = runner.Close()
 		return fail(err)
 	}
-	campaign, err := evaluation.NewCampaign(store, runner, identity, environment, value.CodeCommit)
+	campaign, err := evaluation.NewCampaign(store, chatShapedRuntime{runner}, identity, environment, value.CodeCommit)
 	if err != nil {
 		_ = runner.Close()
 		return fail(err)
 	}
 	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model}, nil
+}
+
+// chatShapedRuntime scores multiple-choice prompts through the model's
+// own declared conversation framing: an instruct-tuned model measures
+// the format it was trained to answer in, and a model without any chat
+// declaration scores the raw prompt unchanged. Pure-sequence scoring —
+// the empty prompt — stays raw, because shaping would corrupt
+// full-sequence likelihoods.
+type chatShapedRuntime struct {
+	*inference.Runner
+}
+
+// ScoreContinuations shapes a non-empty prompt through the declared
+// chat template before scoring; see the type comment for the contract.
+func (r chatShapedRuntime) ScoreContinuations(
+	ctx context.Context,
+	prompt string,
+	candidates []string,
+) ([]sequencescore.Score, error) {
+	if prompt != "" {
+		shaped, err := r.Runner.FormatChatWithOptions(
+			[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: prompt}},
+			inference.ChatFormatOptions{AddGenerationPrompt: true},
+		)
+		if err == nil {
+			return r.Runner.ScoreContinuations(ctx, shaped, candidates)
+		}
+	}
+	return r.Runner.ScoreContinuations(ctx, prompt, candidates)
 }
 
 func (s *nativeSession) Evaluate(ctx context.Context, path string) error {

@@ -800,7 +800,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:e93d8c06dba3a49be16f683c6e39e8507faa03c3edb10a61f5f4a1ee2a29007c"
+     "identity": "file:sha256:34813aa6c922b687b05ad7582ca7165d03cb42a0aa86d1b2ef3cf1fa61db53f8"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",

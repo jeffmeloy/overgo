@@ -51,12 +51,13 @@ func TestChatJinjaQwen38Template(t *testing.T) {
 		t.Fatalf("non-thinking mode must carry no reasoning instructions, got %q", direct)
 	}
 
+	history := []ChatMessage{
+		{Role: ChatRoleUser, Content: "What is 2+2?"},
+		{Role: ChatRoleAssistant, Content: "4", ReasoningContent: "two plus two is four"},
+		{Role: ChatRoleUser, Content: "And doubled?"},
+	}
 	preserved, err := runner.FormatChatWithOptions(
-		[]ChatMessage{
-			{Role: ChatRoleUser, Content: "What is 2+2?"},
-			{Role: ChatRoleAssistant, Content: "4", ReasoningContent: "two plus two is four"},
-			{Role: ChatRoleUser, Content: "And doubled?"},
-		},
+		history,
 		ChatFormatOptions{AddGenerationPrompt: true, EnableThinking: true},
 	)
 	if err != nil {
@@ -64,5 +65,32 @@ func TestChatJinjaQwen38Template(t *testing.T) {
 	}
 	if !strings.Contains(preserved, "<|im_start|>assistant\n<think>\ntwo plus two is four\n</think>\n\n4<|im_end|>\n") {
 		t.Fatalf("preserved thinking must retain the historical think block, got %q", preserved)
+	}
+
+	dropped, err := runner.FormatChatWithOptions(
+		history,
+		ChatFormatOptions{
+			AddGenerationPrompt: true, EnableThinking: true,
+			TemplateKwargs: map[string]any{"preserve_thinking": false, "reasoning_effort": "low"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("kwargs render: %v", err)
+	}
+	if strings.Contains(dropped, "two plus two is four") {
+		t.Fatalf("preserve_thinking=false must drop the historical think block, got %q", dropped)
+	}
+	if !strings.Contains(dropped, "Reasoning effort is set to low.") {
+		t.Fatalf("reasoning_effort=low must select the low-effort instruction, got %q", dropped)
+	}
+
+	if _, err := runner.FormatChatWithOptions(
+		history,
+		ChatFormatOptions{
+			AddGenerationPrompt: true,
+			TemplateKwargs:      map[string]any{"messages": "override"},
+		},
+	); err == nil {
+		t.Fatal("a template kwarg overriding a reserved context key must refuse")
 	}
 }

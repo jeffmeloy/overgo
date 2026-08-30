@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "mmlu-protocol-fidelity",
-      "title": "Chat-template-aware benchmark scoring with declared template kwargs and shared-prefix reuse",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Chat-template-aware benchmark scoring with declared template kwargs and shared-prefix reuse",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1"
-        }
-      ]
-    },
-    {
       "id": "qwen38-serving-throughput",
       "title": "Recover Qwen3.8-27B serving throughput: extend CUDA graph coverage to the 16x(3+1) hybrid layout",
       "status": "open",

@@ -11,23 +11,11 @@ import (
 	"overgo/internal/testutil"
 )
 
-type frozenForwardFixture struct {
-	model artifact.ID
-	calls int
-}
-
-func (forward *frozenForwardFixture) ModelID() artifact.ID { return forward.model }
-
-func (forward *frozenForwardFixture) Forward(_ context.Context, input []float32) ([]float32, error) {
-	forward.calls++
-	return slices.Clone(input), nil
-}
-
 type datasetTrainingFixture struct {
 	store   *overgodb.Store
 	request Request
-	source  *frozenForwardFixture
-	target  *frozenForwardFixture
+	source  *testutil.FrozenForwardStub
+	target  *testutil.FrozenForwardStub
 }
 
 func TestDatasetBridgeTraining(t *testing.T) {
@@ -39,9 +27,9 @@ func TestDatasetBridgeTraining(t *testing.T) {
 	}
 	if slices.Equal(before, fixture.request.Weights) || result.BridgeBefore == result.BridgeAfter ||
 		result.Checkpoint.Kind() != artifact.KindCheckpoint || len(result.Metrics) != 2 ||
-		fixture.source.calls != len(fixture.request.Examples)*fixture.request.Epochs ||
-		fixture.target.calls != fixture.source.calls {
-		t.Fatalf("dataset training result=%+v weights=%v calls=%d/%d", result, fixture.request.Weights, fixture.source.calls, fixture.target.calls)
+		fixture.source.Calls != len(fixture.request.Examples)*fixture.request.Epochs ||
+		fixture.target.Calls != fixture.source.Calls {
+		t.Fatalf("dataset training result=%+v weights=%v calls=%d/%d", result, fixture.request.Weights, fixture.source.Calls, fixture.target.Calls)
 	}
 	if _, err := fixture.store.Commit(context.Background(), result.Batch); err != nil {
 		t.Fatal(err)
@@ -131,8 +119,8 @@ func newDatasetTrainingFixture(t *testing.T) datasetTrainingFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := &frozenForwardFixture{model: sourceID}
-	target := &frozenForwardFixture{model: targetID}
+	source := &testutil.FrozenForwardStub{Model: sourceID}
+	target := &testutil.FrozenForwardStub{Model: targetID}
 	return datasetTrainingFixture{
 		store: store, source: source, target: target,
 		request: Request{

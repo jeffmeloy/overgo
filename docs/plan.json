@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "candidate-realization",
-          "title": "Realize a candidate: align-init the adapter, train donors-frozen, assemble",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/bridgetrain -run '^TestCandidateRealizationFreezesDonorsTrainsAdapter$' -count=1",
-          "rationale": "Initialize the interface adapter from the seam alignment, train only the adapter via bridgetrain with donors frozen, assemble via synthesis. Reuses the tested freeze-donor and train-adapter and synthesis owners; adds only the align-init and the enumerate-to-realize wiring. Frozen donor tensors are referenced in place, never duplicated into the candidate.",
-          "depends_on": [
-            "composition-driver/candidate-enumeration"
-          ],
-          "capabilities": [
-            "interface-adapter",
-            "bridgetrain",
-            "synthesis"
-          ]
-        },
-        {
           "id": "fitness-gated-selection",
           "title": "Eval realized composites, score on multidimensional fitness, emit ablation-gated promotion candidates",
           "status": "open",

@@ -12,9 +12,12 @@ import (
 	"os"
 	"strings"
 
+	"overgo/internal/artifact"
+	"overgo/internal/bridgetrain"
 	"overgo/internal/clioptions"
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
+	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 )
 
@@ -28,8 +31,12 @@ func run() error {
 	repoFlag := flags.String("repo", "", "OvergoDB store for -enumerate")
 	measured := flags.String("measurements", "", "donor seam measurements JSON path for -enumerate ({measurements})")
 	limit := flags.Int("limit", 16, "shortlist size for -enumerate")
+	realize := flags.String("realize", "", "realization specification JSON path: align-init, train donors-frozen over recorded activations, assemble")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*realize) != "" {
+		return realizeCandidate(*repoFlag, *realize)
 	}
 	if strings.TrimSpace(*enumerate) != "" {
 		return enumerateCandidates(*repoFlag, *enumerate, *measured, *limit)
@@ -68,6 +75,84 @@ func run() error {
 		return err
 	}
 	return encoder.Encode(verdict)
+}
+
+// realizeCandidate realizes one enumerated candidate from a strict
+// specification: the adapter align-initializes from the recorded seam
+// activations, trains donors-frozen through bridgetrain with the recorded
+// activations replayed as the frozen forwards, and the assembled
+// composite record commits with its checkpoint evidence.
+func realizeCandidate(repository, specificationPath string) error {
+	if strings.TrimSpace(repository) == "" {
+		return errors.New("seam-align -realize requires -repo")
+	}
+	var specification struct {
+		Candidate   composition.CompositionCandidate `json:"candidate"`
+		Target      artifact.ID                      `json:"target"`
+		Activations struct {
+			Source [][]float64 `json:"source"`
+			Target [][]float64 `json:"target"`
+		} `json:"activations"`
+		Training struct {
+			Dataset        artifact.ID           `json:"dataset"`
+			Examples       []bridgetrain.Example `json:"examples"`
+			TrainingPolicy artifact.ID           `json:"training_policy"`
+			Config         optimizer.Config      `json:"config"`
+			Epochs         int                   `json:"epochs"`
+		} `json:"training"`
+		Assembly struct {
+			Architecture string      `json:"architecture"`
+			Recipe       artifact.ID `json:"recipe"`
+		} `json:"assembly"`
+	}
+	if err := jsonfile.DecodeStrict(specificationPath, &specification); err != nil {
+		return err
+	}
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	realized, err := composition.RealizeCompositionCandidate(
+		ctx, store, specification.Candidate, specification.Target,
+		composition.RealizationSeamActivations{
+			Source: specification.Activations.Source, Target: specification.Activations.Target,
+		},
+		composition.RealizationTraining{
+			Dataset: specification.Training.Dataset, Examples: specification.Training.Examples,
+			SourceForward:  composition.RecordedSeamForward{Model: specification.Candidate.Donor},
+			TargetForward:  composition.RecordedSeamForward{Model: specification.Target},
+			TrainingPolicy: specification.Training.TrainingPolicy,
+			Config:         specification.Training.Config, Epochs: specification.Training.Epochs,
+		},
+		composition.RealizationAssembly{
+			Architecture: specification.Assembly.Architecture, Recipe: specification.Assembly.Recipe,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if realized.Adapter.BridgeAfter.Valid() {
+		if _, err := store.Commit(ctx, realized.Adapter.Batch); err != nil {
+			return err
+		}
+	}
+	compositeBatch, err := realized.Composite.Batch("composition/realized/" + realized.Composite.ID.String())
+	if err != nil {
+		return err
+	}
+	if _, err := store.Commit(ctx, compositeBatch); err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(realized.Composite); err != nil {
+		return err
+	}
+	fmt.Printf("residual %.6f adapter %s composite %s\n",
+		realized.Residual, realized.Adapter.BridgeAfter, realized.Composite.ID)
+	return nil
 }
 
 // enumerateCandidates shortlists donors for one target component from the

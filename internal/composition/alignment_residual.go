@@ -22,30 +22,39 @@ const (
 // representations share nothing linear. The fit refuses when the samples
 // cannot determine the map.
 func SeamAlignmentResidual(source, target [][]float64) (float64, error) {
+	_, residual, err := AlignSeamAdapter(source, target)
+	return residual, err
+}
+
+// AlignSeamAdapter fits the best linear interface adapter over paired
+// bounded seam activations and returns it with its relative residual: the
+// align-init a candidate realization starts training from. Refusals are
+// exactly those of the residual computation.
+func AlignSeamAdapter(source, target [][]float64) ([][]float64, float64, error) {
 	if len(source) == 0 || len(source) != len(target) {
-		return 0, errors.New("composition: alignment residual requires paired seam activations")
+		return nil, 0, errors.New("composition: alignment residual requires paired seam activations")
 	}
 	samples, sourceWidth, targetWidth := len(source), len(source[0]), len(target[0])
 	if sourceWidth == 0 || targetWidth == 0 {
-		return 0, errors.New("composition: alignment residual requires nonempty activation vectors")
+		return nil, 0, errors.New("composition: alignment residual requires nonempty activation vectors")
 	}
 	if samples <= sourceWidth {
-		return 0, fmt.Errorf(
+		return nil, 0, fmt.Errorf(
 			"composition: %d paired samples cannot determine a %d-wide linear map", samples, sourceWidth,
 		)
 	}
 	for row := 0; row < samples; row++ {
 		if len(source[row]) != sourceWidth || len(target[row]) != targetWidth {
-			return 0, errors.New("composition: seam activations have inconsistent widths")
+			return nil, 0, errors.New("composition: seam activations have inconsistent widths")
 		}
 		for _, value := range source[row] {
 			if math.IsNaN(value) || math.IsInf(value, 0) {
-				return 0, errors.New("composition: seam activations hold a non-finite value")
+				return nil, 0, errors.New("composition: seam activations hold a non-finite value")
 			}
 		}
 		for _, value := range target[row] {
 			if math.IsNaN(value) || math.IsInf(value, 0) {
-				return 0, errors.New("composition: seam activations hold a non-finite value")
+				return nil, 0, errors.New("composition: seam activations hold a non-finite value")
 			}
 		}
 	}
@@ -71,7 +80,7 @@ func SeamAlignmentResidual(source, target [][]float64) (float64, error) {
 		}
 	}
 	if targetEnergy == 0 {
-		return 0, errors.New("composition: target seam activations carry no energy")
+		return nil, 0, errors.New("composition: target seam activations carry no energy")
 	}
 	for i := 0; i < sourceWidth; i++ {
 		for j := 0; j < i; j++ {
@@ -80,7 +89,7 @@ func SeamAlignmentResidual(source, target [][]float64) (float64, error) {
 	}
 	adapter, err := solveLinearSystems(gram, moment)
 	if err != nil {
-		return 0, err
+		return nil, 0, err
 	}
 	// ||T - SW||² = ||T||² - tr(Wᵀ SᵀT) when W solves the normal equations.
 	explained := 0.0
@@ -93,7 +102,7 @@ func SeamAlignmentResidual(source, target [][]float64) (float64, error) {
 	if residualEnergy < 0 {
 		residualEnergy = 0
 	}
-	return math.Sqrt(residualEnergy / targetEnergy), nil
+	return adapter, math.Sqrt(residualEnergy / targetEnergy), nil
 }
 
 // solveLinearSystems solves gram · X = moment by Gaussian elimination with

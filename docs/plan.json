@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "circuit-breaker",
-          "title": "Publish advisory, finding, quarantine, and operator-stop transitions from sustained correctness, failure, cost, latency, or coverage regressions",
-          "status": "open",
-          "verify": "go test ./internal/loop ./internal/runrecord -run '^TestCandidateCircuitBreakerTransitions$' -count=1",
-          "rationale": "The circuit breaker requires enough comparable observations and excludes skipped or inapplicable work from success and failure ratios. A single noisy window can advise; escalation follows the recorded confirmation policy.",
-          "depends_on": [
-            "live-safety/safety-window"
-          ],
-          "capabilities": [
-            "rsi-containment",
-            "circuit-breaker",
-            "finding"
-          ]
-        },
-        {
           "id": "atomic-rollback",
           "title": "Rollback the active alias with compare-and-set and publish the exact regression evidence and causal link",
           "status": "open",

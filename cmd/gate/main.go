@@ -3028,6 +3028,12 @@ func restoreCapturedIndex(repo string, intent gateCommitIntent) error {
 			if err := requireGateIntentKeepalive(repo, intent); err != nil {
 				return err
 			}
+			if err := normalizeGateIndexToStates(
+				repo, indexPath, fs.FileMode(intent.IndexMode),
+				intent.IndexBefore, intent.IndexAfter, intent.IndexRestore,
+			); err != nil {
+				return err
+			}
 			return replaceGateIndexStatesUnderLock(
 				indexPath,
 				[][]byte{intent.IndexAfter},
@@ -5452,7 +5458,13 @@ func gitCompletionFile(repo, revision, path string) ([]byte, error) {
 	return gitAuthorityOutput(repo, "show", revision+":"+path)
 }
 
-func restoreInterruptedParentIndexLocked(intent gateCommitIntent, indexPath string) error {
+func restoreInterruptedParentIndexLocked(repo string, intent gateCommitIntent, indexPath string) error {
+	if err := normalizeGateIndexToStates(
+		repo, indexPath, fs.FileMode(intent.IndexMode),
+		intent.IndexBefore, intent.IndexAfter, intent.IndexRestore,
+	); err != nil {
+		return err
+	}
 	if err := replaceGateIndexStatesUnderLock(
 		indexPath,
 		[][]byte{intent.IndexAfter},
@@ -5543,7 +5555,7 @@ func restoreInterruptedState(repo string, intent gateCommitIntent, observedHead 
 					return errors.New("gate: restored parent moved while preparing state recovery")
 				}
 			}
-			if err := restoreInterruptedParentIndexLocked(intent, indexPath); err != nil {
+			if err := restoreInterruptedParentIndexLocked(repo, intent, indexPath); err != nil {
 				return err
 			}
 			if gateRecoveryAfterStepHook != nil {
@@ -5594,6 +5606,11 @@ func requireExactRecoveredGitState(repo string, intent gateCommitIntent, indexPa
 }
 
 func requireExactRecoveredGitStateExceptHead(repo string, intent gateCommitIntent, indexPath string) error {
+	if err := normalizeGateIndexToStates(
+		repo, indexPath, fs.FileMode(intent.IndexMode), intent.IndexBefore, intent.IndexRestore,
+	); err != nil {
+		return err
+	}
 	if err := exactGateIndexState(
 		indexPath, fs.FileMode(intent.IndexMode), intent.IndexBefore, intent.IndexRestore,
 	); err != nil {
@@ -5798,9 +5815,52 @@ var gitOperationMarkers = [...]string{
 	"MERGE_AUTOSTASH", "SQUASH_MSG", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-apply", "rebase-merge", "sequencer",
 }
 
+// normalizeGateIndexToStates restores the exact write-ahead index bytes when
+// a concurrent read-only observer — a `git status` from another session —
+// has opportunistically refreshed the stat cache. A refresh rewrites entry
+// timestamps but never the tree the index resolves to, so when the live
+// bytes differ from every captured state yet write-tree to the same tree
+// authority as one of them, that state's exact bytes are restored under the
+// held gate lock; an index whose tree matches no captured state is genuine
+// drift and stays untouched for the byte comparison to refuse.
+func normalizeGateIndexToStates(repo, indexPath string, mode fs.FileMode, states ...[]byte) error {
+	current, err := gateIndexState(indexPath, mode)
+	if err != nil {
+		return err
+	}
+	for _, state := range states {
+		if bytes.Equal(current, state) {
+			return nil
+		}
+	}
+	currentTree, err := indexTreeForBytes(repo, current)
+	if err != nil {
+		return err
+	}
+	for _, state := range states {
+		stateTree, err := indexTreeForBytes(repo, state)
+		if err != nil {
+			return err
+		}
+		if stateTree == currentTree {
+			if err := atomicfile.Write(indexPath, state, mode.Perm()); err != nil {
+				return err
+			}
+			return exactGateIndexState(indexPath, mode, state)
+		}
+	}
+	return nil
+}
+
 func requireRecoverableGitState(repo string, intent gateCommitIntent, head string) error {
 	indexPath, err := gateIndexPath(repo)
 	if err != nil {
+		return err
+	}
+	if err := normalizeGateIndexToStates(
+		repo, indexPath, fs.FileMode(intent.IndexMode),
+		intent.IndexBefore, intent.IndexAfter, intent.IndexRestore,
+	); err != nil {
 		return err
 	}
 	indexBytes, err := gateIndexState(indexPath, fs.FileMode(intent.IndexMode))

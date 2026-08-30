@@ -4,6 +4,58 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
+      "id": "model-smoke",
+      "title": "Comprehensive smoke of every local complete model: inference, training, and lm-eval benchmarks, with regressions corrected",
+      "status": "open",
+      "steps": [
+        {
+          "id": "training-smoke",
+          "title": "Run one bounded recorded training step per model with an active or bootstrappable training recipe and correct any regression",
+          "status": "open",
+          "verify": "go run ./cmd/train-lane",
+          "rationale": "Build the train-lane over the capability catalog: every model with an active training-task recipe gets one bounded training step with frozen lexical tensors, recorded to the store as a run. Models without a training activation are reported as uncovered, never silently skipped. Fix regressions the lane surfaces; park larger findings with cmd/finding.",
+          "depends_on": [
+            "model-smoke/inference-smoke"
+          ],
+          "capabilities": [
+            "smoke",
+            "training",
+            "regression"
+          ]
+        },
+        {
+          "id": "benchmark-smoke",
+          "title": "Evaluate every servable model against one derived lm-eval suite family and correct any regression",
+          "status": "open",
+          "verify": "go run ./cmd/evaluate -all -repo overgodb-store -family mmlu",
+          "rationale": "The store's derived benchmark suites are the lm-eval substrate; one bounded family per model proves the whole path — suite derivation, per-model prompt templates, session evaluation, and evidence publication — still works for every servable model. Fix regressions and measured inefficiencies the run surfaces; park larger findings with cmd/finding.",
+          "depends_on": [
+            "model-smoke/inference-smoke"
+          ],
+          "capabilities": [
+            "smoke",
+            "benchmark",
+            "lm-eval"
+          ]
+        },
+        {
+          "id": "register-qwen38-27b",
+          "title": "Register models/Qwen3.8-27B-UD-Q6_K into OvergoDB and verify its declared multimodal capabilities",
+          "status": "open",
+          "verify": "go run ./cmd/smoke-lane",
+          "rationale": "Owner request 2026-08-30: register the local Qwen3.8-27B-UD-Q6_K.gguf (qwen35 architecture, 22 GB Q6_K mix) through the standard intake — activate its inference recipe with verified evidence — then read the model documentation saved beside the artifact and verify each multimodal capability it declares through the corresponding task activations, recording evidence per capability. The smoke lane must then serve it green alongside the existing matrix.",
+          "depends_on": [
+            "model-smoke/benchmark-smoke"
+          ],
+          "capabilities": [
+            "model-intake",
+            "multimodal",
+            "verification"
+          ]
+        }
+      ]
+    },
+    {
       "id": "parked-findings",
       "title": "Graduate parked findings into gated cleanups",
       "status": "open",

@@ -180,34 +180,6 @@
       ]
     },
     {
-      "id": "model-prototypes",
-      "title": "Adapt model, composition, mechanism, data, routing, steering, and code hypotheses to one candidate spine",
-      "status": "open",
-      "steps": [
-        {
-          "id": "prototype-materialization",
-          "title": "Atomically publish domain outputs, ablations, receipts, and candidate recipes from one successful cross-domain trial",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/trainingworkflow ./internal/runrecord ./internal/overgodb ./internal/composition ./internal/modelmerge -run '^(TestCrossDomainTrialMaterializesThroughOnePublicationOwner|TestPrototypeMaterializationClosure|TestStreamingTaskArithmetic|TestOfflineArtifactGenerationTaskArithmetic|TestTrainingRequestCannotOverrideExecutableCodeRevision)$' -count=1",
-          "rationale": "One semantic publication binds the Candidate, compiled trial, declared delta ablations, receipts, evaluation inputs, and immutable domain outputs. The first composition plugin streams the exact same-base task-arithmetic plan through the existing modelmerge and composition owners into content-addressed weights, tensor inventory, ModelDefinitionDocument, generation evidence, and candidate recipe without training or a plugin-specific publisher. Plan identity, coefficients, source lineage, output bytes, resource peaks, and deterministic rerun evidence are preserved. No raw observation, output, document named promotion, alias-only mutation, or plugin-specific publisher can activate the candidate. Adapter training, dataset stages, router observations, and other high-volume domain outputs remain behind the supervised proof and their shared bounded-evidence owner.",
-          "depends_on": [
-            "evidence-routing/evidence-selection"
-          ],
-          "capabilities": [
-            "model-definition",
-            "tensor-inventory",
-            "training-evidence",
-            "atomic-commit",
-            "dataset-lineage",
-            "moe-router-coverage",
-            "controller-checkpoint",
-            "candidate-spine",
-            "ablation-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "model-recipe-lifecycle",
       "title": "Evaluate every candidate plugin and activate it through one shared promotion lifecycle",
       "status": "open",

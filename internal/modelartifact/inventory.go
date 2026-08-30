@@ -53,9 +53,7 @@ func (i Inventory) Batch(key string) (artifact.Batch, error) {
 	return artifact.Batch{
 		Key: key, Artifacts: i.Components, Contents: []artifact.Content{tensors},
 		Manifests: []artifact.Manifest{i.Manifest}, Locations: locations,
-		Lineage: []artifact.Lineage{{
-			Child: i.TensorInventory.ID, Parent: i.Manifest.ID, Relation: artifact.RelationDerivedFrom,
-		}},
+		Lineage: i.TensorInventory.Lineage(),
 	}, nil
 }
 

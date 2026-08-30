@@ -116,6 +116,45 @@ func TestStreamingRefusal(t *testing.T) {
 	}
 }
 
+func TestStreamingRefusesSameGeometrySourceShardByteSubstitution(t *testing.T) {
+	model := testutil.ArtifactID(t, artifact.KindModel, "stream shard authority model")
+	authoritative := writeStreamingFixture(t, map[string][]float32{"weight": {1, 2}})
+	substituted := writeStreamingFixture(t, map[string][]float32{"weight": {3, 4}})
+	authoritativeBytes, err := os.ReadFile(filepath.Join(authoritative, streamingSingleShardName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	authoritativeID, err := artifact.IdentifyBytes(artifact.KindTensorSet, authoritativeBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	substitutedBytes, err := os.ReadFile(filepath.Join(substituted, streamingSingleShardName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	substitutedID, err := artifact.IdentifyBytes(artifact.KindTensorSet, substitutedBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if substitutedID == authoritativeID {
+		t.Fatal("same-geometry substitution retained the authoritative byte identity")
+	}
+	plan := sealStreamingPlan(
+		t, composition.OfflineArtifactExactPassthrough, []artifact.ID{model}, []float64{1},
+		[]streamingFixtureTensor{{name: "weight", shape: []uint64{2}}},
+	)
+	destination := filepath.Join(t.TempDir(), "substituted-output")
+	if _, err := ExecuteStreaming(t.Context(), plan, []StreamingSource{{
+		Model: model, Directory: substituted,
+		Shards: []StreamingShard{{Name: streamingSingleShardName, Artifact: authoritativeID}},
+	}}, destination); err == nil {
+		t.Fatal("same-geometry source shard byte substitution accepted")
+	}
+	if _, err := os.Stat(destination); !os.IsNotExist(err) {
+		t.Fatalf("refused substituted destination became visible: %v", err)
+	}
+}
+
 type streamingFixtureTensor struct {
 	name  string
 	shape []uint64

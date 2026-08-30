@@ -114,6 +114,12 @@ func NewBudgetCharge(budget artifact.ID, amount uint64, consumer artifact.ID, pu
 	})
 }
 
+// RequireBudgetCharge loads one exact immutable charge and its authority
+// lineage.
+func RequireBudgetCharge(ctx context.Context, reader artifact.Reader, id artifact.ID) (BudgetCharge, error) {
+	return budgetChargeCodec.RequireExactLineage(ctx, reader, id, BudgetCharge.Lineage)
+}
+
 func (value Budget) Content() (artifact.Content, error) { return budgetCodec.Content(value) }
 
 func (value BudgetCharge) Content() (artifact.Content, error) {

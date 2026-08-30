@@ -223,6 +223,27 @@ func CompileAdmittedCandidate(
 	return compiled, nil
 }
 
+// RequireStoredCandidateCompilation replays candidate compilation and then
+// requires every derived trial, plan, ablation, and plugin document to exist
+// with the exact bytes and lineage computed by the current Go owners.
+func RequireStoredCandidateCompilation(
+	ctx context.Context,
+	reader artifact.Reader,
+	candidateID, admissionID artifact.ID,
+	plugins ...CandidateDomainPlugin,
+) (CandidateCompilation, error) {
+	compiled, err := CompileAdmittedCandidate(ctx, reader, candidateID, admissionID, plugins...)
+	if err != nil {
+		return CandidateCompilation{}, err
+	}
+	if _, found, err := reader.Artifact(ctx, compiled.Trial.ID); err != nil {
+		return CandidateCompilation{}, err
+	} else if !found {
+		return CandidateCompilation{}, errors.New("model recipe: stored candidate compilation is absent")
+	}
+	return compiled, nil
+}
+
 func requireStoredCandidateCompilationIfPresent(
 	ctx context.Context,
 	reader artifact.Reader,

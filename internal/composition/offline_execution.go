@@ -186,7 +186,9 @@ func LoadOfflineTensorExecutionPlan(
 	reader artifact.Reader,
 	id artifact.ID,
 ) (OfflineTensorExecutionPlan, error) {
-	return offlineTensorExecutionPlanCodec.Require(ctx, reader, id)
+	return offlineTensorExecutionPlanCodec.RequireExactLineage(
+		ctx, reader, id, OfflineTensorExecutionPlan.Lineage,
+	)
 }
 
 // Lineage binds the tensor-execution plan to every exact input authority.

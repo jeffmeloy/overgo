@@ -63,7 +63,7 @@
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
-     "identity": "file:sha256:c8ef3742f02753874244bf282f0373ad6b9ccf9d0040df07ac2e16b3118da9dd"
+     "identity": "file:sha256:a47270d9f772f015567b7d1a9d2ac06df7a8aa16f9426c2b8613069b0ac97e84"
     },
     {
      "contains": "func TestOpenSourceRejectsInvalidRepositories(",

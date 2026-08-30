@@ -143,6 +143,13 @@ func (d TensorInventoryDocument) Content() (artifact.Content, error) {
 	return tensorInventoryCodec.Content(d)
 }
 
+// Lineage binds tensor facts to the exact model manifest they describe.
+func (d TensorInventoryDocument) Lineage() []artifact.Lineage {
+	return []artifact.Lineage{{
+		Child: d.ID, Parent: d.Owner, Relation: artifact.RelationDerivedFrom,
+	}}
+}
+
 func (d TensorInventoryDocument) Tensor(name string) (TensorFact, bool) {
 	index, found := slices.BinarySearchFunc(d.Tensors, name, func(fact TensorFact, target string) int {
 		return strings.Compare(fact.Name, target)

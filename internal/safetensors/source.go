@@ -1,6 +1,7 @@
 package safetensors
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -132,7 +133,16 @@ type Source struct {
 	Tensors  map[string]Tensor
 	Metadata map[string]map[string]string
 	files    []*os.File
+	shards   []string
 	indexed  bool
+	index    string
+}
+
+// ShardDigest is the exact identity input for one opened shard handle.
+type ShardDigest struct {
+	Name   string
+	Digest [sha256.Size]byte
+	Size   uint64
 }
 
 // OpenSource: open a repository with production bounds.
@@ -145,7 +155,7 @@ func OpenSourceWithLimits(directory string, limits Limits) (*Source, error) {
 	if err := validateLimits(limits); err != nil {
 		return nil, err
 	}
-	paths, weightMap, err := shardPaths(directory, limits)
+	paths, weightMap, index, err := shardPaths(directory, limits)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +163,7 @@ func OpenSourceWithLimits(directory string, limits Limits) (*Source, error) {
 		Tensors:  make(map[string]Tensor),
 		Metadata: make(map[string]map[string]string),
 		indexed:  weightMap != nil,
+		index:    index,
 	}
 	for _, path := range paths {
 		if err := source.openShard(directory, path, limits); err != nil {
@@ -172,6 +183,15 @@ func OpenSourceWithLimits(directory string, limits Limits) (*Source, error) {
 // Indexed reports whether a shard index owns the source catalog.
 func (s *Source) Indexed() bool {
 	return s != nil && s.indexed
+}
+
+// IndexName returns the exact repository-relative shard-index name used to
+// open this source, or the empty string for an unindexed source.
+func (s *Source) IndexName() string {
+	if s == nil {
+		return ""
+	}
+	return s.index
 }
 
 // Names: sorted tensor names.
@@ -232,6 +252,35 @@ func (s *Source) Shards() []string {
 	return shards
 }
 
+// ShardDigests hashes the exact open handles tensor readers consume. A caller
+// can therefore bind execution to stored bytes without reopening paths between
+// verification and streaming.
+func (s *Source) ShardDigests() ([]ShardDigest, error) {
+	if s == nil || len(s.files) == 0 || len(s.files) != len(s.shards) {
+		return nil, errors.New("safetensors: source shard handles are incomplete")
+	}
+	var shardStartOffset int64
+	result := make([]ShardDigest, len(s.files))
+	for index, file := range s.files {
+		before, err := file.Stat()
+		if err != nil || before.IsDir() || before.Size() <= 0 {
+			return nil, errors.Join(errors.New("safetensors: inspect opened shard"), err)
+		}
+		hasher := sha256.New()
+		if _, err := io.Copy(hasher, io.NewSectionReader(file, shardStartOffset, before.Size())); err != nil {
+			return nil, fmt.Errorf("safetensors: hash opened shard %s: %w", s.shards[index], err)
+		}
+		after, err := file.Stat()
+		if err != nil || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) {
+			return nil, errors.Join(errors.New("safetensors: opened shard changed while hashing"), err)
+		}
+		result[index] = ShardDigest{Name: s.shards[index], Size: uint64(after.Size())}
+		copy(result[index].Digest[:], hasher.Sum(nil))
+	}
+	slices.SortFunc(result, func(left, right ShardDigest) int { return strings.Compare(left.Name, right.Name) })
+	return result, nil
+}
+
 // ContainsShard reports whether any tensor uses name.
 func (s *Source) ContainsShard(name string) bool {
 	if s == nil {
@@ -268,6 +317,7 @@ func (s *Source) Close() error {
 		result = errors.Join(result, file.Close())
 	}
 	s.files = nil
+	s.shards = nil
 	return result
 }
 
@@ -280,44 +330,45 @@ func validateLimits(limits Limits) error {
 	return nil
 }
 
-func shardPaths(directory string, limits Limits) ([]string, map[string]string, error) {
+func shardPaths(directory string, limits Limits) ([]string, map[string]string, string, error) {
 	indexPath, err := shardIndexPath(directory)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, "", err
 	}
 	if indexPath == "" {
-		return unindexedShardPaths(directory, limits)
+		paths, weightMap, err := unindexedShardPaths(directory, limits)
+		return paths, weightMap, "", err
 	}
 	indexFile, err := os.Open(indexPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("safetensors: open shard index: %w", err)
+		return nil, nil, "", fmt.Errorf("safetensors: open shard index: %w", err)
 	}
 	defer indexFile.Close()
 	var index shardIndex
 	if err := strictjson.DecodeBounded(indexFile, limits.MaxIndexBytes, &index); err != nil {
-		return nil, nil, fmt.Errorf("safetensors: parse shard index: %w", err)
+		return nil, nil, "", fmt.Errorf("safetensors: parse shard index: %w", err)
 	}
 	if len(index.WeightMap) == 0 {
-		return nil, nil, errors.New("safetensors: shard index has no weights")
+		return nil, nil, "", errors.New("safetensors: shard index has no weights")
 	}
 	if len(index.WeightMap) > limits.MaxTensors {
-		return nil, nil, fmt.Errorf("safetensors: shard index tensor count exceeds limit %d", limits.MaxTensors)
+		return nil, nil, "", fmt.Errorf("safetensors: shard index tensor count exceeds limit %d", limits.MaxTensors)
 	}
 	shards := make(map[string]string)
 	weightMap := make(map[string]string, len(index.WeightMap))
 	for name, shard := range index.WeightMap {
 		if name == "" || len(name) > limits.MaxNameBytes {
-			return nil, nil, errors.New("safetensors: shard index has invalid tensor name")
+			return nil, nil, "", errors.New("safetensors: shard index has invalid tensor name")
 		}
 		clean, path, err := localShardPath(directory, shard)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, "", err
 		}
 		shards[clean] = path
 		weightMap[name] = clean
 	}
 	if len(shards) > limits.MaxShards {
-		return nil, nil, fmt.Errorf("safetensors: shard count %d exceeds limit %d", len(shards), limits.MaxShards)
+		return nil, nil, "", fmt.Errorf("safetensors: shard count %d exceeds limit %d", len(shards), limits.MaxShards)
 	}
 	names := make([]string, 0, len(shards))
 	for name := range shards {
@@ -328,7 +379,7 @@ func shardPaths(directory string, limits Limits) ([]string, map[string]string, e
 	for index, name := range names {
 		paths[index] = shards[name]
 	}
-	return paths, weightMap, nil
+	return paths, weightMap, filepath.Base(indexPath), nil
 }
 
 func shardIndexPath(directory string) (string, error) {
@@ -448,6 +499,7 @@ func (s *Source) openShard(directory string, path string, limits Limits) error {
 		return fmt.Errorf("safetensors: resolve shard name: %w", err)
 	}
 	shard = filepath.ToSlash(shard)
+	s.shards = append(s.shards, shard)
 	if metadata, ok := raw["__metadata__"]; ok {
 		var values map[string]string
 		if err := strictjson.DecodeBytes(metadata, &values); err != nil {

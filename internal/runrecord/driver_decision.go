@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -197,6 +198,10 @@ var driverDecisionCodec = artifact.JSONDocumentCodec(
 // NewDriverDecision reloads exact budget authorities, then derives,
 // canonicalizes, and identifies one driver fact.
 func NewDriverDecision(ctx context.Context, reader artifact.Reader, facts DriverDecisionFacts) (DriverDecision, error) {
+	return newDriverDecision(ctx, reader, facts)
+}
+
+func newDriverDecision(ctx context.Context, reader artifact.Reader, facts DriverDecisionFacts) (DriverDecision, error) {
 	interaction, err := deriveDriverBudgetState(ctx, reader, facts.InteractionBudget)
 	if err != nil {
 		return DriverDecision{}, err
@@ -212,6 +217,47 @@ func NewDriverDecision(ctx context.Context, reader artifact.Reader, facts Driver
 		SaturationEvidence: slices.Clone(facts.SaturationEvidence), OperatorStop: facts.OperatorStop,
 		Refusal: facts.Refusal, TieBreak: DriverTieCostThenActionThenIdentity,
 	})
+}
+
+// RequireDriverDecision loads one persisted decision and re-derives it from
+// the complete current charge sets of its exact budget grants. A decision
+// ceases to be executable as soon as either budget ledger changes.
+func RequireDriverDecision(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (DriverDecision, error) {
+	decision, err := RequireRecordedDriverDecision(ctx, reader, id)
+	if err != nil {
+		return DriverDecision{}, err
+	}
+	replayed, err := newDriverDecision(ctx, reader, DriverDecisionFacts{
+		Goal: decision.Goal, Causal: decision.Causal, Head: decision.Head,
+		Options:            cloneDriverOptions(decision.Options),
+		InteractionBudget:  DriverBudgetReference{Grant: decision.Interaction.Grant},
+		ResourceBudget:     DriverBudgetReference{Grant: decision.Resources.Grant},
+		SaturationEvidence: slices.Clone(decision.SaturationEvidence),
+		OperatorStop:       decision.OperatorStop, Refusal: decision.Refusal,
+	})
+	if err != nil {
+		return DriverDecision{}, err
+	}
+	if replayed.ID != decision.ID {
+		return DriverDecision{}, fmt.Errorf("run record: driver decision is stale: %s", id)
+	}
+	return replayed, nil
+}
+
+// RequireRecordedDriverDecision loads the immutable decision with its exact
+// stored authority lineage without asserting that its budget ledgers are still
+// executable. Consumers replaying historical closure use this after the
+// decision's own charge has necessarily made RequireDriverDecision stale.
+func RequireRecordedDriverDecision(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+) (DriverDecision, error) {
+	return driverDecisionCodec.RequireExactLineage(ctx, reader, id, DriverDecision.Lineage)
 }
 
 // Content returns the canonical driver-decision document.

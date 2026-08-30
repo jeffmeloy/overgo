@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "normalized-catalog",
-      "title": "Canonical comparable component catalog and cheap seam-viability proxy",
-      "status": "open",
-      "steps": [
-        {
-          "id": "alignment-residual-proxy",
-          "title": "Compute seam alignment residual and bias-audit it against post-training bridge parity",
-          "status": "open",
-          "verify": "go test ./internal/composition -run '^(TestSeamAlignmentResidual|TestAlignmentResidualBiasAudit)$' -count=1",
-          "rationale": "Procrustes or OT residual between candidate seam representations is the cheap causal proxy for whether an interface adapter can compose a seam. Bias-audit it against measured bridge parity: low residual admits a linear adapter, high residual down-ranks the seam. The residual computes over bounded seam activations, never whole checkpoints.",
-          "depends_on": [
-            "normalized-catalog/canonical-descriptor"
-          ],
-          "capabilities": [
-            "alignment",
-            "proxy-audit",
-            "interface-adapter"
-          ]
-        }
-      ]
-    },
-    {
       "id": "composition-driver",
       "title": "Evidence-gated driver that realizes composites toward the fitness objective",
       "status": "open",

@@ -298,9 +298,4 @@ func servingRoundTrip(modelPath string, trained *hybridtrain.Model) error {
 	return nil
 }
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "hybrid-stack-train-probe:", err)
-		os.Exit(1)
-	}
-}
+func main() { clioptions.MainNamed("hybrid-stack-train-probe", run) }

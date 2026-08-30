@@ -20,6 +20,16 @@ func publishSelectionEvidence(
 	t *testing.T, store artifact.Repository, name string, resource uint64, quality float64,
 ) (artifact.ID, recipe.Definition) {
 	t.Helper()
+	definition := publishSelectionModel(t, store, name, resource)
+	return publishSelectionEvaluation(t, store, definition, name, "base", quality), definition
+}
+
+// publishSelectionModel commits the model facts and candidate recipe for
+// one named fixture model.
+func publishSelectionModel(
+	t *testing.T, store artifact.Repository, name string, resource uint64,
+) recipe.Definition {
+	t.Helper()
 	ctx := context.Background()
 	modelID := planID(t, artifact.KindModel, name+"-model")
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -46,6 +56,16 @@ func publishSelectionEvidence(
 	); err != nil {
 		t.Fatal(err)
 	}
+	return definition
+}
+
+// publishSelectionEvaluation evaluates one already-published fixture model
+// once more, measuring the exact fixture metric at the given quality.
+func publishSelectionEvaluation(
+	t *testing.T, store artifact.Repository, definition recipe.Definition, name, tag string, quality float64,
+) artifact.ID {
+	t.Helper()
+	ctx := context.Background()
 	exact, err := CompileExact(exactFixture())
 	if err != nil {
 		t.Fatal(err)
@@ -73,10 +93,11 @@ func publishSelectionEvidence(
 	if err != nil {
 		t.Fatal(err)
 	}
+	durationNS := uint64(10 + len(tag))
 	run, err := runrecord.NewBoundRun(
 		plan.body.RuntimeRecipe, runrecord.OutcomeSucceeded, []artifact.ID{plan.identity}, []artifact.ID{report}, "",
-		plan.body.CodeCommit, plan.body.Environment, 10,
-		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: 10}},
+		plan.body.CodeCommit, plan.body.Environment, durationNS,
+		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: durationNS}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +110,7 @@ func publishSelectionEvidence(
 		key      string
 		document evidenceBatchDocument
 	}{{"run", run}, {"evaluation", record}} {
-		batch, err := publication.document.Batch("routing/fixture/" + name + "/" + publication.key)
+		batch, err := publication.document.Batch("routing/fixture/" + name + "/" + tag + "/" + publication.key)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +122,7 @@ func publishSelectionEvidence(
 	if err != nil {
 		t.Fatal(err)
 	}
-	return evidence.ID, definition
+	return evidence.ID
 }
 
 // TestEvidenceDerivedSelection pins the live selection contract: candidates

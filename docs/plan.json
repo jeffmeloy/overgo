@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "capability-gap-targets",
-          "title": "Derive typed capability-gap targets from the evaluation store",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/composition -run '^TestCapabilityGapTargetsFromEvalStore$' -count=1",
-          "rationale": "Turn weakest-domain, regression, and frontier-gap eval results into typed improvement targets the driver consumes; reuse the evidence-routing domain routing rather than a second domain-mapping owner.",
-          "depends_on": [
-            "normalized-catalog/canonical-descriptor",
-            "evidence-routing/evidence-selection"
-          ],
-          "capabilities": [
-            "targets",
-            "evidence-routing"
-          ]
-        },
-        {
           "id": "candidate-enumeration",
           "title": "Enumerate donor, seam, and adapter candidates ranked by residual and predicted fitness",
           "status": "open",

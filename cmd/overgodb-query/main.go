@@ -21,6 +21,7 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/dataset"
 	"overgo/internal/discovery"
+	"overgo/internal/evaluation"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -56,6 +57,7 @@ func run(args []string, output io.Writer) error {
 	admissions := flags.Bool("admissions", false, "list admission bindings: per-generation proposer/evaluator/decider authority domains and prior-generation approvals")
 	composed := flags.Bool("composed", false, "list composed model artifacts with their recipes, parents and constituent counts")
 	retrieve := flags.String("retrieve", "", "hypervector retrieval: rank the catalog against the named component (lexical organ + distributional signal)")
+	gapTargets := flags.Bool("gap-targets", false, "derive typed capability-gap targets (frontier, regression, weakest-domain) from admitted evaluation evidence")
 	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
 	configs := flags.Bool("configs", false, "list committed model-config declarations: sequence extensions and generation essentials with source digests")
 	profiles := flags.Bool("profiles", false, "audit registered architecture-profile publication")
@@ -99,6 +101,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *retrieve != "" {
 		return writeRetrieve(output, *repository, *retrieve, *limit)
+	}
+	if *gapTargets {
+		return writeGapTargets(output, *repository, *limit)
 	}
 	if *verifications {
 		return writeVerifications(output, *repository, *limit)
@@ -793,6 +798,46 @@ func writeRetrieve(output io.Writer, repository, name string, limit int) error {
 	}
 	fmt.Fprintf(output, "%d hit(s) over %d component(s), exact inverted index; honesty: advisory retrieval, candidates require blocked proposals and the experiment plane\n",
 		len(hits), index.Len())
+	return nil
+}
+
+// writeGapTargets derives the typed capability-gap targets the composition
+// driver consumes from every admitted evaluation evidence document.
+func writeGapTargets(output io.Writer, repository string, limit int) error {
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	var evidence []artifact.ID
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: evaluation.EvaluationEvidenceMediaType,
+		Schema: evaluation.EvaluationEvidenceSchema,
+	}, evaluation.ParseEvaluationEvidence, func(view overgodb.DocumentView, _ evaluation.EvaluationEvidence) error {
+		evidence = append(evidence, view.Content.Descriptor.ID)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(evidence) == 0 {
+		fmt.Fprintln(output, "0 target(s); honesty: no admitted evaluation evidence is committed")
+		return nil
+	}
+	targets, err := evaluation.DeriveCapabilityGapTargets(ctx, store, evidence)
+	if err != nil {
+		return err
+	}
+	if len(targets) > limit {
+		targets = targets[:limit]
+	}
+	for _, target := range targets {
+		fmt.Fprintf(output, "target %s metric=%s recipe=%s model=%s measured=%.4f reference=%.4f gap=%.4f\n",
+			target.Kind, target.Metric, target.Recipe, target.Model, target.Measured, target.Reference, target.Gap)
+	}
+	fmt.Fprintf(output, "%d target(s) over %d evidence document(s); honesty: targets derive only from admitted evidence, and a metric nobody measured produces no target\n",
+		len(targets), len(evidence))
 	return nil
 }
 

@@ -1,6 +1,6 @@
 {
   "campaign": "Deterministic RSI storage and execution control plane",
-  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. RSI additions use typed versioned Go records, existing Overgo owners, derived distribution-free decisions, explicit missing-data coverage, and architecture tests that refuse bypasses. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, projection scans, bytes, wakeups, context repetitions, model turns, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit.",
+  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. RSI additions use typed versioned Go records, existing Overgo owners, derived distribution-free decisions, explicit missing-data coverage, and architecture tests that refuse bypasses. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, projection scans, bytes, wakeups, context repetitions, model turns, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit. Efficiency work additionally minimizes processing and memory movement: bounded streaming reads over full-content copies, deltas over rebuilds, and reuse over reload, each admitted only through the measured efficiency gate. The absorbed composition campaign builds only the driver that sequences existing, tested composition owners (organ, tensorcatalog, composition, bridgetrain, modelmerge, synthesis) toward the multidimensional improvement fitness: no new model-unique code, components stay prototype and recipe data, every composite candidate is advisory until ablation-gated fitness-scored promotion through the existing composition promotion path, an average-only win cannot promote, HDC search stays shelved until the exact-index scan is the measured bottleneck, donor shortlists use the exact normalized catalog with the bias-audited alignment residual as the seam proxy, and driver budget, saturation, and every threshold derive from measured history rather than free knobs. Development pace doctrine: work lands as one gated commit per task, where a task is a single step or a short series of steps sized by its verification surface — a broad surface splits so every gate run stays cheap and attributable, and work never accumulates ungated across tasks. After every gated completion the plan is refactored in the same turn from the landed result, gate advisories, and any new understanding: re-scope, re-rank, add, or set-verify before the next dispatch, so the plan stays the current best hypothesis rather than a backlog. A gate refusal whose fix is deterministic must name or perform that fix; throughput work that shortens the gate itself is admitted under the same measured-evidence rules as every other efficiency claim.",
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
@@ -8,31 +8,6 @@
       "title": "Install permanent authority and Go-only ratchets before RSI construction",
       "status": "open",
       "steps": [
-        {
-          "id": "core-entry-guards",
-          "title": "Ratchet existing storage, process, capability, tool, trigger, and promotion entry authorities",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/overgodb ./internal/processcontrol ./internal/agenttool ./internal/inference ./internal/workflowruntime ./internal/loop -run '^(TestArchitectureRatchetAlwaysRequired|TestProductionAuthorityBoundaries)$' -count=1",
-          "rationale": "Register one manifest-owned, always-required gate ratchet, including documentation-only commits, by reusing the gate's existing candidate source and path inventories. Measure its wall cost and refuse bypasses around the authorities already established; retire it only when those authorities disappear. Every later construction row executes inside this ratchet without launching a redundant second test process.",
-          "depends_on": [
-            "architecture-ratchets/completion-reference-authority",
-            "storage-modular-core/repository-parity",
-            "common-publication-path/semantic-batches",
-            "storage-operational-boundary/transition-boundary",
-            "process-supervision/process-boundary-guard",
-            "causal-execution/causal-projection",
-            "stimulus-reconciliation/coalesced-followup",
-            "capability-bound-activation/placement-integration",
-            "webhook-ingress/workflow-dispatch",
-            "activation-matrix/profile-coverage"
-          ],
-          "capabilities": [
-            "architecture-guard",
-            "rsi-containment",
-            "single-authority",
-            "gate-ratchet"
-          ]
-        },
         {
           "id": "go-only-guard",
           "title": "Extend the permanent architecture ratchet to Go-only runtime authority",
@@ -69,6 +44,45 @@
             "multi-agent",
             "worktree-lease",
             "semantic-merge",
+            "interaction-efficiency"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gate-throughput",
+      "title": "Shorten the commit loop itself: self-remediating refusals and evidence reuse across attempts",
+      "status": "open",
+      "steps": [
+        {
+          "id": "self-remediating-refusals",
+          "title": "Make every deterministically-fixable gate refusal apply or name its exact remediation",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./cmd/closure-scan -run '^TestGateRefusalsCarryDeterministicRemediation$' -count=1",
+          "rationale": "The measured cost of a landing today is dominated by refusal round-trips whose fixes are mechanical: literal-offset rebinds after edits shift catalogued sites, stale grandfathered exceptions whose sites disappeared, formatting, and unambiguous lifecycle debt. Each such refusal class either applies its safe deterministic remediation inside the gate run and revalidates once, recording a typed remediation receipt, or prints the one exact command that fixes it. Ambiguous cases keep refusing; no remediation may alter admitted content, weaken an exception list, or bypass a review-bound decision.",
+          "depends_on": [
+            "architecture-ratchets/go-only-guard"
+          ],
+          "capabilities": [
+            "gate-throughput",
+            "remediation",
+            "automation",
+            "interaction-efficiency"
+          ]
+        },
+        {
+          "id": "attempt-evidence-reuse",
+          "title": "Reuse unchanged manifest-bound check evidence across consecutive gate attempts for the same step",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/automationcheck -run '^TestGateReusesUnchangedCheckEvidence$' -count=1",
+          "rationale": "A refusal-fix-retry cycle repays only the invalidated checks: terminal evidence from a prior attempt is reused when a check's manifest-bound input fingerprints are byte-identical, extending the existing bounded retry cache from its current check subset to every check with exact input identity. Reuse is recorded per check in the attempt evidence, never crosses differing inputs or environments, and the commit check itself is never reused.",
+          "depends_on": [
+            "architecture-ratchets/go-only-guard"
+          ],
+          "capabilities": [
+            "gate-throughput",
+            "evidence-reuse",
+            "determinism",
             "interaction-efficiency"
           ]
         }
@@ -166,13 +180,31 @@
           ]
         },
         {
+          "id": "memory-movement-reduction",
+          "title": "Trace dominant byte-copy and allocation paths and replace them with bounded streaming views and reuse without changing admitted content",
+          "status": "open",
+          "verify": "go test ./internal/overgodb ./internal/jsonfile -run '^TestMemoryMovementTraceReduction$' -count=1",
+          "rationale": "Measured traces over journal append, blob chunking, snapshot encode, projection rebuild, and delta serve identify the dominant full-content copies and repeated decodes. Each one is replaced by a bounded streaming view, buffer reuse, or an incremental delta with identical admitted bytes, digests, and evidence; a reduction that changes any admitted content, or that cannot show its trace, refuses. Complexity shrinks with the copies: a displaced buffering path is deleted in the same commit.",
+          "depends_on": [
+            "interaction-efficiency/projection-query-plans",
+            "interaction-efficiency/head-bound-deltas"
+          ],
+          "capabilities": [
+            "memory-movement",
+            "streaming",
+            "trace-derived",
+            "interaction-efficiency"
+          ]
+        },
+        {
           "id": "efficiency-gate",
           "title": "Reject interaction optimizations that lose capability, evidence, determinism, or merely shift work to another component",
           "status": "open",
           "verify": "go test ./internal/runrecord ./internal/overgodb ./internal/agentloop ./internal/workflowruntime -run '^TestInteractionEfficiencyGate$' -count=1",
-          "rationale": "Candidate and baseline traces must complete the same task contract with equivalent admitted inputs and evidence. A win requires a Pareto improvement or an explicit tradeoff decision across semantic commits, scans, bytes, wakeups, repeated context, model turns, tool calls, retries, waits, wall time, and resource peaks; missing counters block the claim.",
+          "rationale": "Candidate and baseline traces must complete the same task contract with equivalent admitted inputs and evidence. A win requires a Pareto improvement or an explicit tradeoff decision across semantic commits, scans, bytes, copied bytes, allocations, wakeups, repeated context, model turns, tool calls, retries, waits, wall time, and resource peaks; missing counters block the claim.",
           "depends_on": [
-            "interaction-efficiency/operator-decisions"
+            "interaction-efficiency/operator-decisions",
+            "interaction-efficiency/memory-movement-reduction"
           ],
           "capabilities": [
             "interaction-efficiency",
@@ -519,6 +551,186 @@
             "rsi-containment",
             "quarantine",
             "authority"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "normalized-catalog",
+      "title": "Canonical comparable component catalog and cheap seam-viability proxy",
+      "status": "open",
+      "steps": [
+        {
+          "id": "canonical-descriptor",
+          "title": "Emit one fixed-schema unit-normalized component descriptor with exact deterministic retrieval",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/tensorcatalog -run '^(TestCanonicalComponentDescriptorComparable|TestExactComponentRetrievalDeterministic)$' -count=1",
+          "rationale": "Replace HDC retrieval with an exact inverted index over the typed contract plus normalized characterization: same shortlist, exact, no extreme-value width derivation, and no full-catalog scan or whole-tensor load on the retrieval path. The descriptor is the durable asset the driver and any future fingerprint reuse.",
+          "depends_on": [
+            "architecture-ratchets/go-only-guard"
+          ],
+          "capabilities": [
+            "catalog",
+            "exact-retrieval",
+            "tightness"
+          ]
+        },
+        {
+          "id": "alignment-residual-proxy",
+          "title": "Compute seam alignment residual and bias-audit it against post-training bridge parity",
+          "status": "open",
+          "verify": "go test ./internal/composition -run '^(TestSeamAlignmentResidual|TestAlignmentResidualBiasAudit)$' -count=1",
+          "rationale": "Procrustes or OT residual between candidate seam representations is the cheap causal proxy for whether an interface adapter can compose a seam. Bias-audit it against measured bridge parity: low residual admits a linear adapter, high residual down-ranks the seam. The residual computes over bounded seam activations, never whole checkpoints.",
+          "depends_on": [
+            "normalized-catalog/canonical-descriptor"
+          ],
+          "capabilities": [
+            "alignment",
+            "proxy-audit",
+            "interface-adapter"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "composition-driver",
+      "title": "Evidence-gated driver that realizes composites toward the fitness objective",
+      "status": "open",
+      "steps": [
+        {
+          "id": "capability-gap-targets",
+          "title": "Derive typed capability-gap targets from the evaluation store",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/composition -run '^TestCapabilityGapTargetsFromEvalStore$' -count=1",
+          "rationale": "Turn weakest-domain, regression, and frontier-gap eval results into typed improvement targets the driver consumes; reuse the evidence-routing domain routing rather than a second domain-mapping owner.",
+          "depends_on": [
+            "normalized-catalog/canonical-descriptor",
+            "evidence-routing/evidence-selection"
+          ],
+          "capabilities": [
+            "targets",
+            "evidence-routing"
+          ]
+        },
+        {
+          "id": "candidate-enumeration",
+          "title": "Enumerate donor, seam, and adapter candidates ranked by residual and predicted fitness",
+          "status": "open",
+          "verify": "go test ./internal/composition -run '^TestCompositionCandidateEnumerationRanksByResidualAndFitness$' -count=1",
+          "rationale": "For a target, shortlist donors from the exact catalog, place clean seams (layer, expert, residual boundaries), choose the adapter rung by residual, and rank by residual then predicted multidimensional fitness.",
+          "depends_on": [
+            "normalized-catalog/alignment-residual-proxy",
+            "composition-driver/capability-gap-targets"
+          ],
+          "capabilities": [
+            "enumeration",
+            "interface-adapter",
+            "fitness-objective"
+          ]
+        },
+        {
+          "id": "candidate-realization",
+          "title": "Realize a candidate: align-init the adapter, train donors-frozen, assemble",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/bridgetrain -run '^TestCandidateRealizationFreezesDonorsTrainsAdapter$' -count=1",
+          "rationale": "Initialize the interface adapter from the seam alignment, train only the adapter via bridgetrain with donors frozen, assemble via synthesis. Reuses the tested freeze-donor and train-adapter and synthesis owners; adds only the align-init and the enumerate-to-realize wiring. Frozen donor tensors are referenced in place, never duplicated into the candidate.",
+          "depends_on": [
+            "composition-driver/candidate-enumeration"
+          ],
+          "capabilities": [
+            "interface-adapter",
+            "bridgetrain",
+            "synthesis"
+          ]
+        },
+        {
+          "id": "fitness-gated-selection",
+          "title": "Eval realized composites, score on multidimensional fitness, emit ablation-gated promotion candidates",
+          "status": "open",
+          "verify": "go test ./internal/composition -run '^(TestFitnessScoredCompositeSelection|TestSelectionEmitsAblationGatedPromotion)$' -count=1",
+          "rationale": "Score realized composites on the target held-out eval against the multidimensional improvement fitness without scalarization; emit winners through the existing ablation-armed composition promotion gate. Dropped-source and shuffled-source arms are part of the evidence, and attribution reuses the recipe-evaluation separation of model, recipe, and system deltas.",
+          "depends_on": [
+            "composition-driver/candidate-realization",
+            "model-recipe-lifecycle/recipe-evaluation"
+          ],
+          "capabilities": [
+            "fitness-objective",
+            "ablation-gate",
+            "promotion"
+          ]
+        },
+        {
+          "id": "improvement-loop",
+          "title": "Close the driver under derived budget, saturation, and operator-stop",
+          "status": "open",
+          "verify": "go test ./internal/composition ./internal/loop -run '^(TestCompositionImprovementLoopClosesUnderBudget|TestCompositionLoopSaturationStops)$' -count=1",
+          "rationale": "Sequence target to enumerate to realize to select to promote-or-refuse; every attempt records to the store. Budget, saturation (consecutive candidates failing their fitness gate), and stop derive from measured history, no free knobs.",
+          "depends_on": [
+            "composition-driver/fitness-gated-selection"
+          ],
+          "capabilities": [
+            "driver-loop",
+            "saturation",
+            "evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "loop-measurement",
+      "title": "Measure the driver so autonomy can be ratcheted on evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "operating-record",
+          "title": "Aggregate driver attempts into a learning curve",
+          "status": "open",
+          "verify": "go test ./internal/loop -run '^TestCompositionDriverLearningCurve$' -count=1",
+          "rationale": "Fitness delta per compute, candidate hit-rate, and adapter-train cost over recorded attempts; the go/no-go instrument for widening autonomy.",
+          "depends_on": [
+            "composition-driver/improvement-loop"
+          ],
+          "capabilities": [
+            "measurement",
+            "learning-curve"
+          ]
+        },
+        {
+          "id": "candidate-calibration",
+          "title": "Score predicted-versus-actual fitness delta per candidate",
+          "status": "open",
+          "verify": "go test ./internal/loop -run '^TestCompositionCandidateCalibration$' -count=1",
+          "rationale": "Distribution-free calibration of the enumeration predicted fitness against measured outcome; says whether the ranker is trustworthy enough to widen budget.",
+          "depends_on": [
+            "loop-measurement/operating-record"
+          ],
+          "capabilities": [
+            "measurement",
+            "calibration"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "autonomy-ratchet",
+      "title": "Widen the driver budget only on positive, calibrated, safe evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "canary-autonomy",
+          "title": "Ratchet driver budget on learning-curve positivity, calibration hold, and live-safety quiet",
+          "status": "open",
+          "verify": "go test ./cmd/gate ./internal/loop -run '^TestCompositionAutonomyRatchetGatesOnCurveAndSafety$' -count=1",
+          "rationale": "Autonomy is an evidence-gated promotion: start bounded with high ablation sampling and live-safety armed; widen budget only while the learning curve stays positive and calibration holds; roll back on regression. Reuses the deterministic-rollout promotion binding and live-safety quarantine reentry rather than a second safety owner.",
+          "depends_on": [
+            "loop-measurement/candidate-calibration",
+            "deterministic-rollout/promotion-binding",
+            "live-safety/reentry"
+          ],
+          "capabilities": [
+            "autonomy-ratchet",
+            "live-safety",
+            "rollout"
           ]
         }
       ]

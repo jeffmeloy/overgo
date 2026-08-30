@@ -498,6 +498,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2], published,
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
+		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitecture),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
 		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
@@ -505,8 +506,9 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies := map[string][]string{
 		"scope": {"protection"}, "profile": {"scope"}, "fmt": {"profile"}, "style": {"fmt"},
 		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
-		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "acceptance": {"magics"},
-		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
+		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "architecture": {"magics"},
+		"acceptance": {"architecture"},
+		"vet":        {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
 		"device": {"test"}, "commit": {"device"},
 	}
 	for index := range checks {
@@ -2089,6 +2091,47 @@ func activeMagicBindings(repo, storePath string) ([]closureledger.Document, map[
 		return nil, nil, err
 	}
 	return documents, aliases, nil
+}
+
+// stepArchitecture is the permanent entry-authority ratchet. Unlike magics it
+// never skips: a documentation-only commit still validates the complete
+// candidate source inventory, so no commit shape can land a bypass around the
+// established storage, process, capability, tool, trigger, and promotion
+// entry authorities. It reuses the gate's cached source snapshot in-process
+// and launches no second verification process; the check retires only when
+// the authorities it guards disappear.
+func (g *gateContext) stepArchitecture() (bool, error) {
+	started := time.Now()
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	required := []closurescan.EntryAuthorityDomain{
+		closurescan.EntryAuthorityStorage, closurescan.EntryAuthorityProcess,
+		closurescan.EntryAuthorityCapability, closurescan.EntryAuthorityTool,
+		closurescan.EntryAuthorityTrigger, closurescan.EntryAuthorityPromotion,
+	}
+	rules := make([]closurescan.EntryAuthorityRule, 0, len(required))
+	for _, domain := range required {
+		rule, found := closurescan.EntryAuthorityRuleFor(domain)
+		if !found {
+			return false, fmt.Errorf("architecture: entry authority table lost the %s domain", domain)
+		}
+		rules = append(rules, rule)
+	}
+	report, err := closurescan.ValidateEntryAuthorities(snapshot, rules)
+	if err != nil {
+		return false, fmt.Errorf("architecture: %w", err)
+	}
+	domains := make([]string, 0, len(report.Domains))
+	for _, domain := range report.Domains {
+		domains = append(domains, string(domain.Domain))
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"entry authority ratchet: domains=%s wall=%dms",
+		strings.Join(domains, ","), time.Since(started).Milliseconds(),
+	))
+	return false, nil
 }
 
 func (g *gateContext) stepAcceptance() (bool, error) {

@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "projection-evidence",
-          "title": "Materialize rollout reports with head, projector version, query contract, source chunk IDs, coverage, and result digest",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/overgodb -run '^TestRolloutProjectionEvidenceReproduces$' -count=1",
-          "rationale": "Promotion and rollback consume immutable reports, never a dashboard value or mutable projection row. Rebuilding the same projector at the same head reproduces the digest; a new projector version produces new evidence.",
-          "depends_on": [
-            "deterministic-rollout/stable-assignment"
-          ],
-          "capabilities": [
-            "projection-evidence",
-            "rollout",
-            "reproducibility"
-          ]
-        },
-        {
           "id": "promotion-binding",
           "title": "Require improvement promotion to bind rollout plan, baseline evidence, candidate evidence, coverage, and rollback contract",
           "status": "open",

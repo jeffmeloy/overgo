@@ -4,30 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "knowledge-promotion",
-      "title": "Turn useful episodes into admitted reusable datasets and prove the combined supervised loop",
-      "status": "open",
-      "steps": [
-        {
-          "id": "supervised-grounded-replay",
-          "title": "Run one supervised capability through grounded retrieval, routing, recovery, and knowledge promotion",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/repoanalysis ./internal/server -run '^(TestGroundedCapabilityUpgradeEndToEnd|TestGroundedCapabilityUpgradeUsesExistingAuthorities|TestEvaluationCampaignAPIRunsSupervisedGroundedReplay|TestEvaluationCampaignAPIRejectsMixedOrUnboundedGroundedReplay)$' -count=1",
-          "rationale": "One composite verifier exercises real production placement probes, selects an evidence-dominant stored route, detects and recovers from an exact no-progress branch, builds and consumes structurally cited hybrid retrieval, replays its receipt and held-out evaluation, and emits episode-derived dataset promotion evidence. The architecture census confirms projection, retrieval, receipt, routing, transform, probe, supervision, and promotion types remain inside existing dataset, run-record, and evaluation owners and refuses a new event log, memory service, provider router, vector or graph database, external runtime, Markdown workflow, or inward UTCP orchestration.",
-          "depends_on": [
-            "capability-control/intent-routing",
-            "knowledge-promotion/episode-dataset-promotion"
-          ],
-          "capabilities": [
-            "supervised-rsi",
-            "grounded-capability",
-            "cold-replay",
-            "architecture-ratchet"
-          ]
-        }
-      ]
-    },
-    {
       "id": "campaign-concurrency",
       "title": "Turn DAG slack into conflict-bound implementation lanes",
       "status": "open",

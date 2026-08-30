@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "composition-driver",
-      "title": "Evidence-gated driver that realizes composites toward the fitness objective",
-      "status": "open",
-      "steps": [
-        {
-          "id": "improvement-loop",
-          "title": "Close the driver under derived budget, saturation, and operator-stop",
-          "status": "open",
-          "verify": "go test ./internal/composition ./internal/loop -run '^(TestCompositionImprovementLoopClosesUnderBudget|TestCompositionLoopSaturationStops)$' -count=1",
-          "rationale": "Sequence target to enumerate to realize to select to promote-or-refuse; every attempt records to the store. Budget, saturation (consecutive candidates failing their fitness gate), and stop derive from measured history, no free knobs.",
-          "depends_on": [
-            "composition-driver/fitness-gated-selection"
-          ],
-          "capabilities": [
-            "driver-loop",
-            "saturation",
-            "evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "loop-measurement",
       "title": "Measure the driver so autonomy can be ratcheted on evidence",
       "status": "open",

@@ -34,8 +34,12 @@ func run() error {
 	realize := flags.String("realize", "", "realization specification JSON path: align-init, train donors-frozen over recorded activations, assemble")
 	selectFlag := flags.String("select", "", "composite scores JSON path: judge realized composites on the multidimensional fitness ({scores})")
 	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
+	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*drive) != "" {
+		return driveImprovementLoop(*repoFlag, *drive)
 	}
 	if strings.TrimSpace(*selectFlag) != "" {
 		return selectComposites(*selectFlag)
@@ -83,6 +87,164 @@ func run() error {
 		return err
 	}
 	return encoder.Encode(verdict)
+}
+
+// driveTargetSpecification binds one target's recorded evidence: the
+// catalog component to improve, the measured donor seams, the recorded
+// seam activations, the training and assembly authorities, the held-out
+// score dimensions, and the promotion policy and ablation evidence.
+type driveTargetSpecification struct {
+	Label        string                             `json:"label"`
+	Component    string                             `json:"component"`
+	Measurements []composition.DonorSeamMeasurement `json:"measurements"`
+	Activations  struct {
+		Source [][]float64 `json:"source"`
+		Target [][]float64 `json:"target"`
+	} `json:"activations"`
+	Target   artifact.ID `json:"target"`
+	Training struct {
+		Dataset        artifact.ID           `json:"dataset"`
+		Examples       []bridgetrain.Example `json:"examples"`
+		TrainingPolicy artifact.ID           `json:"training_policy"`
+		Config         optimizer.Config      `json:"config"`
+		Epochs         int                   `json:"epochs"`
+	} `json:"training"`
+	Assembly struct {
+		Architecture string      `json:"architecture"`
+		Recipe       artifact.ID `json:"recipe"`
+	} `json:"assembly"`
+	Score struct {
+		Evaluation artifact.ID                               `json:"evaluation"`
+		Dimensions map[string]composition.CompositeDimension `json:"dimensions"`
+	} `json:"score"`
+	Promotion struct {
+		Policy   composition.RepresentationBridgePromotionPolicy `json:"policy"`
+		Evidence composition.RepresentationBridgePromotion       `json:"evidence"`
+	} `json:"promotion"`
+}
+
+// driveImprovementLoop closes the composition improvement loop over
+// recorded evidence: every stage binds to the recorded documents in the
+// run specification, the budget and saturation derive from the recorded
+// attempt history, and every attempt publishes to the store.
+func driveImprovementLoop(repository, runPath string) error {
+	if strings.TrimSpace(repository) == "" {
+		return errors.New("seam-align -drive requires -repo")
+	}
+	var specification struct {
+		History []bool                     `json:"history"`
+		Limit   int                        `json:"limit"`
+		Targets []driveTargetSpecification `json:"targets"`
+	}
+	if err := jsonfile.DecodeStrict(runPath, &specification); err != nil {
+		return err
+	}
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	components, err := composition.LoadCatalog(ctx, store)
+	if err != nil {
+		return err
+	}
+	index, err := composition.NewExactComponentIndex(components)
+	if err != nil {
+		return err
+	}
+	limit := specification.Limit
+	if limit <= 0 {
+		limit = len(components)
+	}
+	byLabel := make(map[string]driveTargetSpecification, len(specification.Targets))
+	targets := make([]composition.CompositionTarget, 0, len(specification.Targets))
+	for _, target := range specification.Targets {
+		byLabel[target.Label] = target
+		var catalogComponent *composition.CatalogComponent
+		for componentIndex := range components {
+			if components[componentIndex].Name == target.Component {
+				catalogComponent = &components[componentIndex]
+				break
+			}
+		}
+		if catalogComponent == nil {
+			return fmt.Errorf("component %q is not in the committed catalog", target.Component)
+		}
+		targets = append(targets, composition.CompositionTarget{
+			Label: target.Label, Component: *catalogComponent,
+		})
+	}
+	stages := composition.CompositionDriverStages{
+		Enumerate: func(_ context.Context, target composition.CompositionTarget) ([]composition.CompositionCandidate, error) {
+			candidates, _, err := composition.EnumerateCompositionCandidates(
+				index, target.Component, byLabel[target.Label].Measurements, limit,
+			)
+			return candidates, err
+		},
+		Realize: func(realizeCtx context.Context, candidate composition.CompositionCandidate) (composition.CandidateRealization, error) {
+			bound := byLabel[candidateLabel(byLabel, candidate)]
+			return composition.RealizeCompositionCandidate(
+				realizeCtx, store, candidate, bound.Target,
+				composition.RealizationSeamActivations{
+					Source: bound.Activations.Source, Target: bound.Activations.Target,
+				},
+				composition.RealizationTraining{
+					Dataset: bound.Training.Dataset, Examples: bound.Training.Examples,
+					SourceForward:  composition.RecordedSeamForward{Model: candidate.Donor},
+					TargetForward:  composition.RecordedSeamForward{Model: bound.Target},
+					TrainingPolicy: bound.Training.TrainingPolicy,
+					Config:         bound.Training.Config, Epochs: bound.Training.Epochs,
+				},
+				composition.RealizationAssembly{
+					Architecture: bound.Assembly.Architecture, Recipe: bound.Assembly.Recipe,
+				},
+			)
+		},
+		Score: func(_ context.Context, realization composition.CandidateRealization) (composition.CompositeScore, error) {
+			bound := byLabel[candidateLabel(byLabel, realization.Candidate)]
+			return composition.CompositeScore{
+				Composite:  realization.Composite.ID,
+				Evaluation: bound.Score.Evaluation,
+				Dimensions: bound.Score.Dimensions,
+			}, nil
+		},
+		Promote: func(_ context.Context, verdict composition.CompositeFitnessVerdict, realization composition.CandidateRealization) (artifact.ID, error) {
+			bound := byLabel[candidateLabel(byLabel, realization.Candidate)]
+			policy, err := composition.NewRepresentationBridgePromotionPolicy(bound.Promotion.Policy)
+			if err != nil {
+				return artifact.ID{}, err
+			}
+			promotion, err := composition.EmitAblationGatedPromotion(verdict, policy, bound.Promotion.Evidence)
+			if err != nil {
+				return artifact.ID{}, err
+			}
+			return promotion.ID, nil
+		},
+		OperatorStop: func() bool { return false },
+	}
+	report, err := composition.RunCompositionImprovementLoop(
+		ctx, store, targets, stages, specification.History,
+	)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(report)
+}
+
+// candidateLabel resolves which target specification a candidate belongs
+// to by its donor and component; single-target runs bind directly.
+func candidateLabel(byLabel map[string]driveTargetSpecification, candidate composition.CompositionCandidate) string {
+	for label, target := range byLabel {
+		for _, measurement := range target.Measurements {
+			if measurement.Donor == candidate.Donor && measurement.Component == candidate.Component {
+				return label
+			}
+		}
+	}
+	return ""
 }
 
 // selectComposites judges realized composites on the multidimensional

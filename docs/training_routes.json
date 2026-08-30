@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "doctrine": "Model facts live in declarations: each route maps an architecture the model input itself declares (GGUF general.architecture, config.json model_type, or a checkpoint file form) to the production trainer that owns it, with the bounded recorded invocation the trainer's verification run established. The lane substitutes only recorded facts: {input} is the model's recorded weights path, {store} the OvergoDB root, and {t2v-dir} the unique recorded t2v video-stack directory a raw DiT checkpoint conditions on. Architectures without a route train through the dense workflow when their input is a dense representation, and are refused by name otherwise.",
+  "routes": {
+    "gguf:qwen35": {
+      "trainer": "hybrid-stack-train-probe",
+      "argv": ["go", "run", "./cmd/hybrid-stack-train-probe", "-store", "{store}", "-model", "{input}", "-lane", "layer-streamed", "-steps", "3", "-max-wall", "120m"]
+    },
+    "dir:t2v": {
+      "trainer": "dit-train-probe",
+      "argv": ["go", "run", "./cmd/dit-train-probe", "-store", "{store}", "-model-dir", "{input}", "-schedule-index", "0", "-steps", "3", "-max-wall", "60m"]
+    },
+    "file:pt": {
+      "trainer": "dit-train-probe",
+      "argv": ["go", "run", "./cmd/dit-train-probe", "-store", "{store}", "-model-dir", "{t2v-dir}", "-checkpoint", "{input}", "-schedule-index", "0", "-steps", "3", "-max-wall", "60m"]
+    },
+    "dir:unified_mot": {
+      "trainer": "mot-train-probe",
+      "argv": ["go", "run", "./cmd/mot-train-probe", "-store", "{store}", "-model", "{input}", "-fixtures", "C:/Users/jeffm/adaptive_new/fixtures", "-binding", "rxbrain", "-steps", "3", "-max-wall", "30m"]
+    }
+  }
+}

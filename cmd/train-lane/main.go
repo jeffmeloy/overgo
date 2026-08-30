@@ -37,10 +37,15 @@ const trainLaneCatalogBound = 10_000
 func main() { clioptions.MainNamed("train-lane", run) }
 
 func run() error {
-	steps := flag.Int("steps", 1, "bounded update steps per model")
-	sequence := flag.Int("seq", 128, "maximum token sequence for the bounded step")
-	maxWall := flag.Duration("max-wall", 10*time.Minute, "projected-wall bound per model; a step projected past it is refused and reported")
+	steps := flag.Int("steps", 1, "bounded update steps per dense-workflow model")
+	sequence := flag.Int("seq", 128, "maximum token sequence for the bounded dense step")
+	maxWall := flag.Duration("max-wall", 10*time.Minute, "projected-wall bound per dense step; declared routes carry their own recorded bounds")
+	routesPath := flag.String("routes", filepath.Join("docs", "training_routes.json"), "committed architecture-to-trainer route declarations")
 	flag.Parse()
+	catalog, err := loadRouteCatalog(*routesPath)
+	if err != nil {
+		return err
+	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
@@ -65,6 +70,7 @@ func run() error {
 	if err := os.WriteFile(corpus, []byte(strings.Repeat(smokeCorpus, 32)), 0o644); err != nil {
 		return err
 	}
+	t2vDir := resolveT2VDirectory(ctx, roots.Store, entries)
 	trainable := 0
 	passed, failed, unavailable, unsupported := 0, 0, 0, 0
 	for _, entry := range entries {
@@ -99,20 +105,30 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		route, routeErr := resolveRoute(catalog, modelInput, roots.Store, t2vDir,
+			denseArgv(roots.Store, training.Recipe.String(), modelInput, corpus, output, *steps, *sequence, *maxWall))
+		if routeErr != nil {
+			unavailable++
+			fmt.Printf("[train] %s UNAVAILABLE (%s)\n", entry.Model, routeErr)
+			if err := os.RemoveAll(output); err != nil {
+				return err
+			}
+			continue
+		}
 		began := time.Now()
-		stepErr := trainStep(roots.Store, training.Recipe.String(), modelInput, corpus, output, *steps, *sequence, *maxWall)
+		stepErr := trainStep(route)
 		wall := time.Since(began)
 		removeErr := os.RemoveAll(output)
 		switch {
 		case stepErr == nil:
 			passed++
-			fmt.Printf("[train] %s succeeded %7.1fs tier=%s\n", entry.Model, wall.Seconds(), training.Tier)
+			fmt.Printf("[train] %s route=%s succeeded %7.1fs tier=%s\n", entry.Model, route.Name, wall.Seconds(), training.Tier)
 		case isObjectiveUnsupported(stepErr):
 			unsupported++
-			fmt.Printf("[train] %s OBJECTIVE-UNSUPPORTED (%s)\n", entry.Model, clioptions.Tail(stepErr.Error(), 200))
+			fmt.Printf("[train] %s route=%s OBJECTIVE-UNSUPPORTED (%s)\n", entry.Model, route.Name, clioptions.Tail(stepErr.Error(), 200))
 		default:
 			failed++
-			fmt.Printf("[train] %s failed    %7.1fs\n        %s\n", entry.Model, wall.Seconds(), clioptions.Tail(stepErr.Error(), 600))
+			fmt.Printf("[train] %s route=%s failed    %7.1fs\n        %s\n", entry.Model, route.Name, wall.Seconds(), clioptions.Tail(stepErr.Error(), 600))
 		}
 		if removeErr != nil {
 			return removeErr
@@ -134,19 +150,22 @@ func run() error {
 	return nil
 }
 
-// trainableInput resolves the model input the training workflow loads: a
-// recorded GGUF file — a different representation of the same weights —
-// or a recorded directory holding config.json and safetensors weights. A
-// model with neither on record is reported, never guessed.
+// trainableInput resolves the model input the routed trainer loads: a
+// recorded weights file — GGUF or a raw checkpoint, each a different
+// representation of the same data — or a recorded directory holding a
+// model declaration. A model with neither on record is reported, never
+// guessed.
 func trainableInput(ctx context.Context, storePath string, entry discovery.CatalogEntry) (string, error) {
 	reader, err := overgodb.OpenReadOnly(storePath)
 	if err != nil {
 		return "", err
 	}
 	defer reader.Close()
-	if file, err := artifact.AvailablePath(ctx, reader, entry.Model, artifact.LocationFile); err == nil &&
-		strings.EqualFold(filepath.Ext(file), ".gguf") {
-		return file, nil
+	if file, err := artifact.AvailablePath(ctx, reader, entry.Model, artifact.LocationFile); err == nil {
+		switch strings.ToLower(filepath.Ext(file)) {
+		case ".gguf", ".pt":
+			return file, nil
+		}
 	}
 	directory, err := artifact.AvailablePath(ctx, reader, entry.Model, artifact.LocationDirectory)
 	if err != nil {
@@ -158,20 +177,28 @@ func trainableInput(ctx context.Context, storePath string, entry discovery.Catal
 	return directory, nil
 }
 
-// trainStep runs one bounded recorded training step through the same
-// subprocess a user runs, supervised by the process owner; the workflow
+// denseArgv is the dense-workflow invocation: the recipe-authorized
+// bounded step through cmd/train, lexically frozen so the update stays
+// device-resident inside the lane's wall instead of grinding the host
+// orthogonalization of the tied vocabulary matrix.
+func denseArgv(store, recipeID, model, dataset, output string, steps, sequence int, maxWall time.Duration) []string {
+	return []string{
+		"go", "run", "./cmd/train",
+		"-store", store, "-recipe", recipeID, "-model", model,
+		"-dataset", dataset, "-out", output,
+		"-steps", fmt.Sprintf("%d", steps), "-seq", fmt.Sprintf("%d", sequence),
+		"-max-wall", maxWall.String(), "-freeze-lexical",
+	}
+}
+
+// trainStep runs one bounded recorded training step through the routed
+// trainer subprocess, supervised by the process owner; the trainer
 // itself records the session observation to the store.
-func trainStep(store, recipeID, model, dataset, output string, steps, sequence int, maxWall time.Duration) error {
+func trainStep(route trainerRoute) error {
 	var combined bytes.Buffer
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
-		Path: "go",
-		Args: []string{
-			"run", "./cmd/train",
-			"-store", store, "-recipe", recipeID, "-model", model,
-			"-dataset", dataset, "-out", output,
-			"-steps", fmt.Sprintf("%d", steps), "-seq", fmt.Sprintf("%d", sequence),
-			"-max-wall", maxWall.String(),
-		},
+		Path:   route.Argv[0],
+		Args:   route.Argv[1:],
 		Stdout: &combined, Stderr: &combined,
 	})
 	if err != nil {

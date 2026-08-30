@@ -8,8 +8,15 @@ import (
 	"overgo/internal/artifact"
 )
 
-// MergeDocuments merges retained plan rows by identity.
+// MergeDocuments merges immutable plan snapshots by retained row identity.
+// Historical inputs may contain lifecycle states or dependency syntax that a
+// current live plan no longer accepts; callers publishing the result as live
+// state still pass through Save and its current Validate rules.
 func MergeDocuments(base, local, upstream Plan) (Plan, error) {
+	return mergeDocuments(base, local, upstream, validatePlanGraph)
+}
+
+func mergeDocuments(base, local, upstream Plan, validate func(Plan) error) (Plan, error) {
 	campaign, doctrine, err := mergeProjectionHeaders(base, local, upstream)
 	if err != nil {
 		return Plan{}, err
@@ -45,7 +52,7 @@ func MergeDocuments(base, local, upstream Plan) (Plan, error) {
 		}
 		merged.Items = append(merged.Items, item)
 	}
-	return merged, Validate(merged)
+	return merged, validate(merged)
 }
 
 func mergeProjectionHeaders(base, local, upstream Plan) (string, string, error) {

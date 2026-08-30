@@ -27,14 +27,18 @@ func dependencyFixture() Plan {
 func TestDependencyDispatchSkipsBlocked(t *testing.T) {
 	document := dependencyFixture()
 	document.Items[0], document.Items[1] = document.Items[1], document.Items[0]
-	item, _, ok := Current(document, "gui")
+	item, _, ok := Current(document, "gui", testCompletionAuthority(t, document))
 	if !ok || item.ID != "root" {
 		t.Fatalf("dispatch = (%s, %t), want the unblocked root despite file order", item.ID, ok)
 	}
-	// Completion removes the root row entirely; a reference to the
-	// absent row is a COMPLETED dependency, so the dependent dispatches.
+	// Completion removes the root row entirely, but absence alone is not
+	// evidence. The derived completion authority must name the exact row.
 	document.Items = document.Items[:1]
-	item, _, ok = Current(document, "gui")
+	if _, _, ok := Current(document, "gui", CompletionAuthority{}); ok {
+		t.Fatal("dependent dispatched from absence without completion authority")
+	}
+	authority := testCompletionAuthority(t, document, "root/do")
+	item, _, ok = Current(document, "gui", authority)
 	if !ok || item.ID != "dependent" {
 		t.Fatalf("dispatch = (%s, %t), want the dependent once its root completed and left", item.ID, ok)
 	}
@@ -42,15 +46,35 @@ func TestDependencyDispatchSkipsBlocked(t *testing.T) {
 	document.Items[0].Steps = append(document.Items[0].Steps,
 		Step{ID: "later", Status: StatusOpen, Verify: "go test ./..."})
 	document.Items[0].Steps[0].DependsOn = []string{"dependent/later"}
-	if item, step, ok := Current(document, "gui"); !ok || step.ID != "later" {
+	authority = testCompletionAuthority(t, document, "root/do")
+	if item, step, ok := Current(document, "gui", authority); !ok || step.ID != "later" {
 		t.Fatalf("dispatch = (%s/%s, %t), want the unblocked sibling", item.ID, step.ID, ok)
+	}
+}
+
+// TestPrunedDependencyRequiresExplicitAuthority pins the fail-closed scheduler
+// boundary: a syntactically valid missing row never satisfies depends_on until
+// the opaque, derived authority carries that exact completion.
+func TestPrunedDependencyRequiresExplicitAuthority(t *testing.T) {
+	document := dependencyFixture()
+	document.Items = document.Items[1:]
+	if _, _, open := Current(document, "gui", CompletionAuthority{}); open {
+		t.Fatal("unknown pruned dependency dispatched")
+	}
+	wrong := testCompletionAuthority(t, document, "other/do")
+	if _, _, open := Current(document, "gui", wrong); open {
+		t.Fatal("foreign completion evidence satisfied dependency")
+	}
+	exact := testCompletionAuthority(t, document, "root/do")
+	if item, step, open := Current(document, "gui", exact); !open || item.ID != "dependent" || step.ID != "do" {
+		t.Fatalf("exact completion did not dispatch dependent: %s/%s open=%v", item.ID, step.ID, open)
 	}
 }
 
 // TestDependencyValidationRefusesCycles pins the load-time contract:
 // the dependency graph must be acyclic among PRESENT rows; a reference
-// to an absent row is a completed dependency, never an error, because
-// completion removes rows.
+// to an absent row remains representable because completion removes rows,
+// while dispatch separately requires its completion authority.
 func TestDependencyValidationRefusesCycles(t *testing.T) {
 	valid := dependencyFixture()
 	if err := Validate(valid); err != nil {

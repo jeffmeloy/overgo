@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"io/fs"
 	"os"
-	"path/filepath"
 
+	"overgo/internal/atomicfile"
 	"overgo/internal/strictjson"
 )
 
@@ -31,8 +31,5 @@ func Write(path string, source any, mode fs.FileMode) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(data, '\n'), mode)
+	return atomicfile.Write(path, append(data, '\n'), mode)
 }

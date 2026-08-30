@@ -166,10 +166,13 @@ func (f *aliasFacet) restore(data []byte) error {
 }
 
 type commitCheckpointEntry struct {
-	Key      string            `json:"key"`
-	ID       artifact.CommitID `json:"id"`
-	Payload  string            `json:"payload"`
-	Sequence uint64            `json:"sequence"`
+	Key         string            `json:"key"`
+	ID          artifact.CommitID `json:"id"`
+	Payload     string            `json:"payload"`
+	Sequence    uint64            `json:"sequence"`
+	Segment     uint64            `json:"segment,omitempty"`
+	Offset      int64             `json:"offset"`
+	PayloadSize uint32            `json:"payload_size"`
 }
 
 func (f *commitFacet) checkpoint() ([]byte, error) {
@@ -177,6 +180,7 @@ func (f *commitFacet) checkpoint() ([]byte, error) {
 	for _, commit := range f.ordered {
 		entries = append(entries, commitCheckpointEntry{
 			Key: commit.key, ID: commit.id, Payload: hex.EncodeToString(commit.payload[:]), Sequence: commit.sequence,
+			Segment: commit.coordinate.segment, Offset: commit.coordinate.offset, PayloadSize: commit.coordinate.size,
 		})
 	}
 	return json.Marshal(entries)
@@ -189,13 +193,19 @@ func (f *commitFacet) restore(data []byte) error {
 	}
 	*f = newCommitFacet()
 	for _, entry := range entries {
+		coordinate := commitCoordinate{segment: entry.Segment, offset: entry.Offset, size: entry.PayloadSize}
+		if !coordinate.valid() {
+			return errors.New("commits checkpoint: invalid journal coordinate")
+		}
 		decoded, err := hex.DecodeString(entry.Payload)
 		if err != nil || len(decoded) != sha256.Size {
 			return fmt.Errorf("commits checkpoint payload digest: %w", err)
 		}
 		var payload [sha256.Size]byte
 		copy(payload[:], decoded)
-		f.add(committedBatch{key: entry.Key, id: entry.ID, payload: payload, sequence: entry.Sequence})
+		f.add(committedBatch{
+			key: entry.Key, id: entry.ID, payload: payload, sequence: entry.Sequence, coordinate: coordinate,
+		})
 	}
 	return nil
 }

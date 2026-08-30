@@ -20,13 +20,14 @@ func TestAutomationContextSnapshotEncoding(t *testing.T) {
 		ID: "automation", Title: "Automation", Status: "open",
 		Steps: []plan.Step{{ID: "context", Title: "Context", Status: "open", Verify: "go test ./..."}},
 	}}}
+	authority, worktree, head := mustTestCompletionAuthorityBinding(t, document)
 	facts := plan.ContextFacts{
-		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation",
-		Worktree: "C:/repo", Role: "sqa",
+		Head: head, Branch: "codex/automation",
+		Worktree: worktree, Role: "sqa",
 		EvidenceDebt: plan.EvidenceDebt{State: "possible", Source: "bin/gate_status.json", Reason: "fixture"},
 		Workflow:     plan.WorkflowContext{Phase: "sqa", Source: "git:HEAD+overgodb:overgodb-store"},
 	}
-	context, err := plan.BuildAutomationContext(document, facts)
+	context, err := plan.BuildAutomationContext(document, facts, authority)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,10 +75,10 @@ func TestGateDebtAutomationContext(t *testing.T) {
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}
+	debt, _ := authoritativeContextEvidence(store, "0123456789abcdef0123456789abcdef01234567")
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	debt, _ := authoritativeContextEvidence(worktree, "0123456789abcdef0123456789abcdef01234567")
 	if debt.State != "present" || debt.Source != "overgodb:overgodb-store" || debt.ResultID != prepared.ID.String() {
 		t.Fatalf("authoritative debt = %+v", debt)
 	}
@@ -121,10 +122,10 @@ func TestReviewPriority(t *testing.T) {
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		t.Fatal(err)
 	}
+	_, workflow := authoritativeContextEvidence(store, target)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	_, workflow := authoritativeContextEvidence(worktree, target)
 	if workflow.Phase != "sqa" || workflow.CandidateID != candidate.ID.String() || workflow.VerdictID != "" {
 		t.Fatalf("review priority = %+v", workflow)
 	}

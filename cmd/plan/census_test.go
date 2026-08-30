@@ -53,7 +53,7 @@ func TestPublishedCensusBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := bindCampaignCensus(root, document, &output); err != nil {
+	if err := bindCampaignCensus(root, &output); err != nil {
 		t.Fatal(err)
 	}
 	bound, err := plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path)))

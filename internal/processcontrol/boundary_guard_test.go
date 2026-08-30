@@ -19,7 +19,6 @@ var execExceptions = map[string]string{
 	"internal/repoanalysis/imports.go":             "read-only go toolchain fact reads; execution-semantics migration",
 	"internal/clioptions/command.go":               "command self-identification fact; execution-semantics migration",
 	"internal/testutil/process.go":                 "test-support process helpers consumed only by suites",
-	"cmd/plan/main.go":                             "plan verify and dispatch tooling; execution-semantics migration",
 	"cmd/plan/sync.go":                             "read-only git fact reads; execution-semantics migration",
 	"cmd/gate/main.go":                             "gate check invocations; execution-semantics binds gate steps to supervised receipts",
 	"cmd/loophook/main.go":                         "hook-time tooling; execution-semantics migration",

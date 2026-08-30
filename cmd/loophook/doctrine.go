@@ -16,9 +16,9 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
     Merges: git merge --no-ff --no-commit <branch> then go run ./cmd/gate -merge
     -plan <item>/<step> -message-file <f>. Read the exit code UNPIPED. Gate runs
     go in the background; confirm from git, not the notification.
- 4. Advance: ` + "`go run ./cmd/plan -advance <item> <step>`" + ` (gated on the step's
-    verify). Set a step's verify with -setverify; inject a task with -add (flags
-    BEFORE the positional id for both).
+ 4. The successful gate atomically removes the completed row. Do not run a
+    separate plan advance. Set a step's verify with -setverify; inject a task
+    with -add (flags BEFORE the positional id for both).
  5. Refactor the plan from the RESULT of the last task AND any USER INPUT:
     re-scope / re-rank / add / set-verify. A user request becomes the new #1
     AFTER the current work is committed -- it does NOT interrupt in-flight work.

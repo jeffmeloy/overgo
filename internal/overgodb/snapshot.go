@@ -24,7 +24,7 @@ const (
 	snapshotDirectory         = "snapshots"
 	snapshotExtension         = ".snapshot"
 	snapshotHeaderBytes       = 92
-	snapshotVersion           = 8
+	snapshotVersion           = 9
 	snapshotPayloadMultiplier = 4
 	maxSnapshotPayload        = maxFramePayload * snapshotPayloadMultiplier
 
@@ -60,10 +60,13 @@ type snapshotAlias struct {
 }
 
 type snapshotCommit struct {
-	Key      string            `json:"key"`
-	ID       artifact.CommitID `json:"id"`
-	Payload  string            `json:"payload"`
-	Sequence uint64            `json:"sequence"`
+	Key         string            `json:"key"`
+	ID          artifact.CommitID `json:"id"`
+	Payload     string            `json:"payload"`
+	Sequence    uint64            `json:"sequence"`
+	Segment     uint64            `json:"segment,omitempty"`
+	Offset      int64             `json:"offset"`
+	PayloadSize uint32            `json:"payload_size"`
 }
 
 type snapshotContent struct {
@@ -218,7 +221,13 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 		}
 		var payload [sha256.Size]byte
 		copy(payload[:], decoded)
-		state.addCommit(committedBatch{key: entry.Key, id: entry.ID, payload: payload, sequence: entry.Sequence})
+		coordinate := commitCoordinate{segment: entry.Segment, offset: entry.Offset, size: entry.PayloadSize}
+		if !coordinate.valid() {
+			return catalogState{}, errors.New("overgodb: invalid snapshot commit coordinate")
+		}
+		state.addCommit(committedBatch{
+			key: entry.Key, id: entry.ID, payload: payload, sequence: entry.Sequence, coordinate: coordinate,
+		})
 	}
 	if document.Commits[len(document.Commits)-1].ID != document.Head {
 		return catalogState{}, errors.New("overgodb: snapshot head is not a commit")
@@ -365,6 +374,7 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 		commit := state.commits.at(index)
 		stream.value(snapshotCommit{
 			Key: commit.key, ID: commit.id, Payload: hex.EncodeToString(commit.payload[:]), Sequence: commit.sequence,
+			Segment: commit.coordinate.segment, Offset: commit.coordinate.offset, PayloadSize: commit.coordinate.size,
 		})
 	})
 	stream.raw("}")

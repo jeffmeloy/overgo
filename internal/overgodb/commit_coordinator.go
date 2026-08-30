@@ -97,7 +97,13 @@ func (c commitCoordinator) commit(
 	}
 	bindContentLocators(locators, payloadOffset)
 	c.state.apply(delta, locators, next)
-	c.state.addCommit(committedBatch{key: normalized.Key, id: id, payload: payloadHash, sequence: next})
+	coordinate := commitCoordinate{
+		offset: payloadOffset - frameHeaderBytes,
+		size:   uint32(len(payload)),
+	}
+	c.state.addCommit(committedBatch{
+		key: normalized.Key, id: id, payload: payloadHash, sequence: next, coordinate: coordinate,
+	})
 	return commitAdvance{id: id, sequence: next, replayEnd: replayEnd}, false, nil
 }
 
@@ -121,6 +127,11 @@ func (c commitCoordinator) replay(record logRecord) error {
 		return err
 	}
 	c.state.apply(batch, locators, record.sequence)
-	c.state.addCommit(committedBatch{key: batch.Key, id: record.id, payload: payloadHash, sequence: record.sequence})
+	c.state.addCommit(committedBatch{
+		key: batch.Key, id: record.id, payload: payloadHash, sequence: record.sequence,
+		coordinate: commitCoordinate{
+			segment: record.segment, offset: record.offset - frameHeaderBytes, size: uint32(len(record.payload)),
+		},
+	})
 	return nil
 }

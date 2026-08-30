@@ -51,6 +51,21 @@ type testRequirements struct {
 	noPolicyCopies, classifiedFixtures bool
 }
 
+type closureAliasReview struct {
+	Reviewed, Retired, Preserved int
+}
+
+type closureCommitOperation string
+
+const (
+	closurePublishOperation             closureCommitOperation = "closure-scan/publish/"
+	closureImportOperation              closureCommitOperation = "closure-scan/import/"
+	closureRebindOperation              closureCommitOperation = "closure-scan/rebind/"
+	closureRetireUnmatchedOperation     closureCommitOperation = "closure-scan/retire-unmatched/"
+	closureRemediateRecoveryOperation   closureCommitOperation = "closure-scan/remediate-reactivation/"
+	closureRestoreReviewedHeadOperation closureCommitOperation = "closure-scan/restore-reviewed-head/"
+)
+
 func main() {
 	triagePath := flag.String("triage", "", "triage JSON ({rows:[{kind,name,file,scope,line,tier,status,understanding,closure_path,rerank_trigger}]})")
 	storePath := flag.String("store", "overgodb-store", "OvergoDB store directory (emit mode)")
@@ -59,10 +74,33 @@ func main() {
 	testLiterals := flag.Bool("test-literals", false, "report classified test literals and production overlaps")
 	assumptions := flag.Bool("assumptions", false, "report syntax-derived distribution, geometry, and shape hints")
 	census := flag.Bool("census", false, "report complete source denominators and consolidation pressure")
-	format := flag.String("format", "text", "census format: text or json")
+	inventoryUnclassified := flag.Bool("inventory-unclassified", false, "report every current constant without exact active authority and matching history")
+	inventoryUnclassifiedPolicy := flag.Bool("inventory-unclassified-policy", false, "report every current production policy candidate without exact active authority and matching history")
+	format := flag.String("format", "text", "structured report format: text or json")
 	publish := flag.Bool("publish", false, "publish census evidence to OvergoDB")
-	importStore := flag.String("import-store", "", "import and rebind matching active decisions from another OvergoDB store")
+	importStore := flag.String("import-store", "", "import matching active decisions; same-store mode safely rebinds unambiguous history")
 	reviewCallsites := flag.Bool("review-callsites", false, "with -import-store: accept reviewed callsite drift")
+	retireUnmatched := flag.Bool("retire-unmatched", false, "with same-store -import-store: CAS-retire active decisions that cannot rebind")
+	remediateCommit := flag.String("remediate-reactivation-commit", "", "reviewed reactivation commit to remediate")
+	var remediateSequence uint64
+	flag.Uint64Var(&remediateSequence, "remediate-reactivation-sequence", remediateSequence, "reviewed reactivation sequence to remediate")
+	remediateHead := flag.String("remediate-expected-head", "", "required reviewed current store head for reactivation remediation")
+	var remediateHeadSequence uint64
+	flag.Uint64Var(&remediateHeadSequence, "remediate-expected-sequence", remediateHeadSequence, "required reviewed current store sequence for reactivation remediation")
+	var remediateExpectedCount int
+	flag.IntVar(&remediateExpectedCount, "remediate-expected-count", remediateExpectedCount, "required reviewed active-alias count for reactivation remediation")
+	confirmUnverifiedRecovery := flag.Bool("confirm-unverified-recovery", false, "attest that a selected unverified reactivation was a reviewed recovery operation")
+	restoreSourceHead := flag.String("restore-reviewed-head", "", "reviewed historical store head whose closure alias facet should be restored")
+	var restoreSourceSequence uint64
+	flag.Uint64Var(&restoreSourceSequence, "restore-reviewed-sequence", restoreSourceSequence, "reviewed historical sequence whose closure alias facet should be restored")
+	restoreExpectedHead := flag.String("restore-current-head", "", "required exact current store head for reviewed alias restoration")
+	var restoreExpectedSequence uint64
+	flag.Uint64Var(&restoreExpectedSequence, "restore-current-sequence", restoreExpectedSequence, "required exact current store sequence for reviewed alias restoration")
+	restoreExpectedAliases := flag.Int("restore-expected-aliases", unreviewedRestoreCount, "confirmed reviewed alias count; omit for dry-run")
+	restoreExpectedChanges := flag.Int("restore-expected-changes", unreviewedRestoreCount, "confirmed reviewed alias delta count; omit for dry-run")
+	restoreExpectedStale := flag.Int("restore-expected-stale", unreviewedRestoreCount, "confirmed predicted stale binding count; omit for dry-run")
+	restoreExpectedAuthorityDigest := flag.String("restore-expected-authority-digest", "", "confirmed reviewed permanent-authority result digest; omit for dry-run")
+	confirmAliasRestore := flag.Bool("confirm-reviewed-restore", false, "commit the exact reviewed closure alias restoration")
 	checkScope := flag.String("check-scope", "", "comma-separated production package prefixes to validate")
 	checkAll := flag.Bool("check-all", false, "validate every production package")
 	checkTests := flag.Bool("check-tests", false, "validate test literal ownership")
@@ -74,8 +112,28 @@ func main() {
 	requireClassifiedFixtures := flag.Bool("require-classified-fixtures", false, "require an exact test-literal class")
 	requireZeroOpen := flag.Bool("require-zero-open", false, "reject active derivation-blocked closure rows")
 	flag.Parse()
-	if *reviewCallsites && *importStore == "" {
-		fatal(errors.New("-review-callsites requires -import-store"))
+	if (*reviewCallsites || *retireUnmatched) && *importStore == "" {
+		fatal(errors.New("-review-callsites and -retire-unmatched require -import-store"))
+	}
+	remediationMode := *remediateCommit != "" || remediateSequence != 0 || *remediateHead != "" ||
+		remediateHeadSequence != 0 || remediateExpectedCount != 0 || *confirmUnverifiedRecovery
+	if remediationMode && (*remediateCommit == "" || remediateSequence == 0 || *remediateHead == "" || remediateHeadSequence == 0) {
+		fatal(errors.New("reactivation remediation requires commit, sequence, expected head, expected sequence, and expected count"))
+	}
+	if remediationMode && remediateExpectedCount <= 0 {
+		fatal(errors.New("reactivation remediation expected count must be positive"))
+	}
+	restoreMode := *restoreSourceHead != "" || restoreSourceSequence != 0 || *restoreExpectedHead != "" ||
+		restoreExpectedSequence != 0 || *confirmAliasRestore
+	if restoreMode && (*restoreSourceHead == "" || restoreSourceSequence == 0 ||
+		*restoreExpectedHead == "" || restoreExpectedSequence == 0) {
+		fatal(errors.New("reviewed alias restore requires source and current commit/sequence coordinates"))
+	}
+	if *confirmAliasRestore && !validClosureAuthorityDigest(*restoreExpectedAuthorityDigest) {
+		fatal(errors.New("confirmed alias restore requires -restore-expected-authority-digest as exact lowercase SHA-256 hex"))
+	}
+	if !*confirmAliasRestore && *restoreExpectedAuthorityDigest != "" {
+		fatal(errors.New("-restore-expected-authority-digest requires -confirm-reviewed-restore"))
 	}
 	root, err := os.Getwd()
 	if err != nil {
@@ -83,8 +141,8 @@ func main() {
 	}
 	modes := 0
 	for _, enabled := range []bool{
-		*literals, *testLiterals, *assumptions, *census, *importStore != "",
-		*checkScope != "", *checkAll, *checkTests,
+		*literals, *testLiterals, *assumptions, *census, *inventoryUnclassified, *inventoryUnclassifiedPolicy, *importStore != "",
+		remediationMode, restoreMode, *checkScope != "", *checkAll, *checkTests,
 	} {
 		if enabled {
 			modes++
@@ -118,6 +176,84 @@ func main() {
 	if *requireClassified || *requireNoStale || *requireNoUncatalogued || *requireNoModelFacts ||
 		*requireNoPolicyCopies || *requireClassifiedFixtures || *requireZeroOpen {
 		fatal(errors.New("closure requirements need -check-scope, -check-all, or -check-tests"))
+	}
+	if *inventoryUnclassified || *inventoryUnclassifiedPolicy {
+		snapshot := mustSnapshot(root)
+		store, err := overgodb.OpenReadOnly(filepath.Join(root, *storePath))
+		if err != nil {
+			fatal(err)
+		}
+		var report unclassifiedReport
+		var reportErr error
+		if *inventoryUnclassifiedPolicy {
+			report, reportErr = buildUnclassifiedPolicyReport(context.Background(), snapshot, store)
+		} else {
+			report, reportErr = buildUnclassifiedReport(context.Background(), snapshot, store)
+		}
+		closeErr := store.Close()
+		if reportErr != nil || closeErr != nil {
+			fatal(errors.Join(reportErr, closeErr))
+		}
+		switch *format {
+		case "text":
+			if *inventoryUnclassifiedPolicy {
+				err = writeUnclassifiedPolicyReport(os.Stdout, report)
+			} else {
+				err = writeUnclassifiedReport(os.Stdout, report)
+			}
+		case "json":
+			err = clioptions.WritePrettyJSON(os.Stdout, report)
+		default:
+			err = fmt.Errorf("unknown inventory format %q", *format)
+		}
+		if err != nil {
+			fatal(err)
+		}
+		return
+	}
+	if remediationMode {
+		selector, err := parseClosureRemediationSelector(
+			*remediateCommit, remediateSequence, *remediateHead, remediateHeadSequence,
+			remediateExpectedCount, *confirmUnverifiedRecovery,
+		)
+		if err != nil {
+			fatal(err)
+		}
+		result, err := remediateClosureReactivations(context.Background(), filepath.Join(root, *storePath), selector)
+		if err != nil {
+			fatal(err)
+		}
+		if err := clioptions.WritePrettyJSON(os.Stdout, result); err != nil {
+			fatal(err)
+		}
+		return
+	}
+	if restoreMode {
+		sourceHead, err := parseClosureCommitID("reviewed restore head", *restoreSourceHead)
+		if err != nil {
+			fatal(err)
+		}
+		expectedHead, err := parseClosureCommitID("current restore head", *restoreExpectedHead)
+		if err != nil {
+			fatal(err)
+		}
+		result, err := restoreClosureAliasesAtReviewedHead(
+			context.Background(), filepath.Join(root, *storePath), mustSnapshot(root),
+			closureAliasRestoreSelector{
+				SourceHead: sourceHead, SourceSequence: restoreSourceSequence,
+				ExpectedHead: expectedHead, ExpectedSequence: restoreExpectedSequence,
+				ExpectedAliases: *restoreExpectedAliases, ExpectedChanges: *restoreExpectedChanges,
+				ExpectedStale: *restoreExpectedStale, ExpectedAuthorityDigest: *restoreExpectedAuthorityDigest,
+				Confirm: *confirmAliasRestore,
+			},
+		)
+		if err != nil {
+			fatal(err)
+		}
+		if err := clioptions.WritePrettyJSON(os.Stdout, result); err != nil {
+			fatal(err)
+		}
+		return
 	}
 	if *census {
 		snapshot := mustSnapshot(root)
@@ -154,13 +290,16 @@ func main() {
 		return
 	}
 	if *importStore != "" {
-		count, unmatched, first, err := importClosureDocuments(
-			root, *storePath, *importStore, mustSnapshot(root), *reviewCallsites,
+		count, unmatched, first, aliases, err := importClosureDocuments(
+			root, *storePath, *importStore, mustSnapshot(root), *reviewCallsites, *retireUnmatched,
 		)
 		if err != nil {
 			fatal(err)
 		}
-		fmt.Printf("imported %d closure document(s), unmatched=%d first=%s\n", count, unmatched, first)
+		fmt.Printf(
+			"imported %d closure document(s), unmatched=%d first=%s aliases_reviewed=%d retired=%d preserved=%d\n",
+			count, unmatched, first, aliases.Reviewed, aliases.Retired, aliases.Preserved,
+		)
 		return
 	}
 	if *literals {
@@ -227,12 +366,12 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 		return err
 	}
 	defer store.Close()
-	documents, _, err := activeClosureDocuments(context.Background(), store)
+	documents, aliases, err := activeClosureDocuments(context.Background(), store)
 	if err != nil {
 		return err
 	}
 	if requirements.noStale {
-		issues, err := closurescan.ValidateBindings(snapshot, scopedDocuments(documents, prefixes))
+		issues, err := closurescan.ValidateActiveBindings(snapshot, scopedDocuments(documents, prefixes), aliases)
 		if err != nil {
 			return err
 		}
@@ -240,7 +379,10 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			return fmt.Errorf("%d scoped closure binding(s) stale; first=%s:%s", len(issues), issues[0].File, issues[0].Name)
 		}
 	}
-	active := compileActiveClosures(documents)
+	active, err := compileActiveClosures(documents, aliases)
+	if err != nil {
+		return err
+	}
 	classified := 0
 	for _, candidate := range candidates {
 		document, found := activeCandidateClosure(active, candidate)
@@ -269,10 +411,20 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 	return nil
 }
 
-func compileActiveClosures(documents []closureledger.Document) map[string]closureledger.Document {
+func compileActiveClosures(
+	documents []closureledger.Document,
+	aliases map[string]artifact.ID,
+) (map[string]closureledger.Document, error) {
 	active := make(map[string]closureledger.Document, len(documents))
 	for _, document := range documents {
 		for _, binding := range document.Bindings {
+			alias, err := closureledger.ActiveAlias(binding)
+			if err != nil {
+				return nil, err
+			}
+			if aliases[alias] != document.ID {
+				continue
+			}
 			key := (closurescan.Candidate{
 				Kind: binding.Kind, Package: binding.Package, File: binding.File, Scope: binding.Scope,
 				Line: binding.Line, Name: binding.Name, StructuralID: binding.StructuralID,
@@ -280,7 +432,7 @@ func compileActiveClosures(documents []closureledger.Document) map[string]closur
 			active[key] = document
 		}
 	}
-	return active
+	return active, nil
 }
 
 func activeCandidateClosure(active map[string]closureledger.Document, candidate closurescan.Candidate) (closureledger.Document, bool) {
@@ -372,11 +524,11 @@ func scopedPath(path string, prefixes []string) bool {
 }
 
 func publishCensusEvidence(ctx context.Context, store *overgodb.Store, snapshot repoanalysis.SourceSnapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {
-	active, _, err := activeClosureDocuments(ctx, store)
+	active, aliases, err := activeClosureDocuments(ctx, store)
 	if err != nil {
 		return closurescan.CensusEvidence{}, err
 	}
-	issues, err := closurescan.ValidateBindings(snapshot, active)
+	issues, err := closurescan.ValidateActiveBindings(snapshot, active, aliases)
 	if err != nil {
 		return closurescan.CensusEvidence{}, err
 	}
@@ -413,19 +565,22 @@ func publishCensusEvidence(ctx context.Context, store *overgodb.Store, snapshot 
 func importClosureDocuments(
 	root, storePath, sourcePath string,
 	snapshot repoanalysis.SourceSnapshot,
-	reviewCallsites bool,
-) (count, unmatched int, first string, finalErr error) {
+	reviewCallsites, retireUnmatched bool,
+) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
 	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
-		return count, unmatched, first, err
+		return count, unmatched, first, aliases, err
 	}
 	destinationPath := filepath.Join(root, storePath)
 	sourceInfo, sourceErr := os.Stat(sourcePath)
 	destinationInfo, destinationErr := os.Stat(destinationPath)
 	sameStore := sourceErr == nil && destinationErr == nil && os.SameFile(sourceInfo, destinationInfo)
+	if retireUnmatched && !sameStore {
+		return count, unmatched, first, aliases, errors.New("-retire-unmatched requires source and destination to be the same store")
+	}
 	source, err := overgodb.OpenReadOnly(sourcePath)
 	if err != nil {
-		return count, unmatched, first, err
+		return count, unmatched, first, aliases, err
 	}
 	var target *overgodb.Store
 	defer func() {
@@ -438,7 +593,23 @@ func importClosureDocuments(
 	}()
 	documents, sourceAliases, err := activeClosureDocuments(context.Background(), source)
 	if err != nil {
-		return count, unmatched, first, err
+		return count, unmatched, first, aliases, err
+	}
+	if sameStore {
+		aliases.Reviewed = len(sourceAliases)
+		aliases.Preserved = len(sourceAliases)
+	}
+	historicalDocuments := documents
+	recoveryAuthority := map[string]artifact.ID{}
+	if sameStore && !retireUnmatched {
+		historicalDocuments, err = allClosureDocuments(context.Background(), source)
+		if err != nil {
+			return count, unmatched, first, aliases, err
+		}
+		recoveryAuthority, err = closureRecoveryAuthority(context.Background(), source, historicalDocuments)
+		if err != nil {
+			return count, unmatched, first, aliases, err
+		}
 	}
 	targetDocuments, targetAliases := documents, sourceAliases
 	if sameStore {
@@ -446,45 +617,53 @@ func importClosureDocuments(
 	} else {
 		target, err = overgodb.Open(destinationPath)
 		if err != nil {
-			return count, unmatched, first, err
+			return count, unmatched, first, aliases, err
 		}
 		targetDocuments, targetAliases, err = activeClosureDocuments(context.Background(), target)
 		if err != nil {
-			return count, unmatched, first, err
+			return count, unmatched, first, aliases, err
 		}
 	}
+	reviewedTargetHead, _ := target.Head()
 	var rebound []closureledger.Document
 	var retirements []artifact.AliasBinding
+	var unmatchedRetirements []artifact.AliasBinding
 	retired := map[string]bool{}
 	index := closurescan.CompileRebindIndex(candidates)
-	for _, document := range targetDocuments {
-		if len(document.Bindings) != 1 {
-			continue
-		}
-		binding := document.Bindings[0]
-		alias, err := closureledger.ActiveAlias(binding)
-		if err != nil {
-			return count, unmatched, first, err
-		}
-		current, matched, _, err := rebindClosure(index, document, reviewCallsites)
-		if err != nil {
-			return count, unmatched, first, err
-		}
-		if targetAliases[alias] != document.ID || retired[alias] {
-			continue
-		}
-		moved := false
-		if matched {
-			currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
-			if err != nil {
-				return count, unmatched, first, err
+	if !sameStore {
+		for _, document := range targetDocuments {
+			if len(document.Bindings) != 1 {
+				continue
 			}
-			moved = currentAlias != alias
+			binding := document.Bindings[0]
+			alias, err := closureledger.ActiveAlias(binding)
+			if err != nil {
+				return count, unmatched, first, aliases, err
+			}
+			current, matched, _, err := rebindClosure(index, document, reviewCallsites)
+			if err != nil {
+				return count, unmatched, first, aliases, err
+			}
+			if targetAliases[alias] != document.ID || retired[alias] {
+				continue
+			}
+			moved := false
+			if matched {
+				currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
+				if err != nil {
+					return count, unmatched, first, aliases, err
+				}
+				moved = currentAlias != alias
+			}
+			if !matched || moved {
+				retirements = append(retirements, artifact.AliasBinding{Name: alias, Target: document.ID, Previous: &document.ID, Remove: true})
+				retired[alias] = true
+			}
 		}
-		if !matched || moved {
-			retirements = append(retirements, artifact.AliasBinding{Name: alias, Target: document.ID, Previous: &document.ID, Remove: true})
-			retired[alias] = true
-		}
+	}
+	claimedAliases := make(map[string]bool, len(sourceAliases))
+	for alias := range sourceAliases {
+		claimedAliases[alias] = true
 	}
 	for _, document := range documents {
 		if len(document.Bindings) != 1 {
@@ -500,11 +679,19 @@ func importClosureDocuments(
 		}
 		current, matched, reason, err := rebindClosure(index, document, reviewCallsites)
 		if err != nil {
-			return count, unmatched, first, err
+			return count, unmatched, first, aliases, err
 		}
 		if !matched {
 			unmatched++
 			first = cmp.Or(first, document.Name+":"+reason)
+			if sameStore && retireUnmatched && !retired[previousAlias] {
+				unmatchedRetirements = append(unmatchedRetirements, artifact.AliasBinding{
+					Name: previousAlias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true,
+				})
+				retired[previousAlias] = true
+				aliases.Retired++
+				aliases.Preserved--
+			}
 			continue
 		}
 		if sameStore && current.ID == document.ID {
@@ -512,14 +699,115 @@ func importClosureDocuments(
 		}
 		currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
 		if err != nil {
-			return count, unmatched, first, err
+			return count, unmatched, first, aliases, err
 		}
+		claimedAliases[currentAlias] = true
 		if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
 			retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
 			retired[previousAlias] = true
 		}
 		rebound = append(rebound, current)
 	}
+	if sameStore && !retireUnmatched {
+		// Same-store import is recovery, not garbage collection. Retired
+		// documents remain discoverable in the current store's document
+		// history. Recovery is allowed only when the newest document for its
+		// retired alias still matches and every matching historical document
+		// agrees on one canonical current document, after alias-event history
+		// proves one exact predecessor-to-successor move. Conflicting
+		// classifications, explicit retirements, and rollbacks remain retired.
+		// Unmatched active decisions stay visible for the stale gate.
+		groups := map[string][]closureledger.Document{}
+		for _, document := range historicalDocuments {
+			if len(document.Bindings) != 1 {
+				continue
+			}
+			previousAlias, err := closureledger.ActiveAlias(document.Bindings[0])
+			if err != nil {
+				return count, unmatched, first, aliases, err
+			}
+			if _, active := sourceAliases[previousAlias]; !active {
+				groups[previousAlias] = append(groups[previousAlias], document)
+			}
+		}
+		previousAliases := make([]string, 0, len(groups))
+		for alias := range groups {
+			previousAliases = append(previousAliases, alias)
+		}
+		slices.Sort(previousAliases)
+		type historicalConsensus struct {
+			document  closureledger.Document
+			ambiguous bool
+		}
+		consensus := map[string]historicalConsensus{}
+		eligible := map[string]bool{}
+		blocked := map[string]bool{}
+		for _, previousAlias := range previousAliases {
+			documents := groups[previousAlias]
+			retiredTarget, authorized := recoveryAuthority[previousAlias]
+			if !authorized || documents[len(documents)-1].ID != retiredTarget {
+				continue
+			}
+			matches := make([]string, 0, len(documents))
+			for _, document := range documents {
+				current, matched, _, err := rebindClosure(index, document, reviewCallsites)
+				if err != nil {
+					return count, unmatched, first, aliases, err
+				}
+				if !matched {
+					continue
+				}
+				currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
+				if err != nil {
+					return count, unmatched, first, aliases, err
+				}
+				matches = append(matches, currentAlias)
+				agreement, exists := consensus[currentAlias]
+				switch {
+				case !exists:
+					agreement.document = current
+				case agreement.document.ID != current.ID:
+					agreement.ambiguous = true
+				}
+				consensus[currentAlias] = agreement
+			}
+			latest, latestMatches, _, err := rebindClosure(index, documents[len(documents)-1], reviewCallsites)
+			if err != nil {
+				return count, unmatched, first, aliases, err
+			}
+			latestAlias := ""
+			if latestMatches {
+				latestAlias, err = closureledger.ActiveAlias(latest.Bindings[0])
+				if err != nil {
+					return count, unmatched, first, aliases, err
+				}
+				eligible[latestAlias] = true
+			}
+			for _, matchAlias := range matches {
+				if !latestMatches || matchAlias != latestAlias {
+					blocked[matchAlias] = true
+				}
+			}
+		}
+		aliases := make([]string, 0, len(consensus))
+		for alias, agreement := range consensus {
+			if eligible[alias] && !blocked[alias] && !agreement.ambiguous && !claimedAliases[alias] {
+				aliases = append(aliases, alias)
+			}
+		}
+		slices.Sort(aliases)
+		for _, alias := range aliases {
+			rebound = append(rebound, consensus[alias].document)
+			claimedAliases[alias] = true
+		}
+	}
+	var reboundClaims int
+	unmatchedRetirements, reboundClaims, err = excludeReboundClosureRetirements(unmatchedRetirements, rebound)
+	if err != nil {
+		return count, unmatched, first, aliases, err
+	}
+	aliases.Retired -= reboundClaims
+	aliases.Preserved += reboundClaims
 	fixtures, err := closureFixtureImports(context.Background(), source, target, rebound)
 	sameView := target == source
 	closeErr := source.Close()
@@ -528,15 +816,72 @@ func importClosureDocuments(
 	}
 	source, target = nil, nil
 	if err != nil || closeErr != nil {
-		return count, unmatched, first, errors.Join(err, closeErr)
+		return count, unmatched, first, aliases, errors.Join(err, closeErr)
 	}
-	if rebound == nil && retirements == nil {
-		return count, unmatched, first, nil
+	if retireUnmatched && (len(rebound) != 0 || len(retirements) != 0 || len(fixtures) != 0) {
+		return count, unmatched, first, aliases, errors.New(
+			"closure-scan: retirement requires a settled rebind; run same-store import without -retire-unmatched first",
+		)
 	}
-	if _, _, err := commitClosureDocuments(root, destinationPath, rebound, retirements, fixtures); err != nil {
-		return count, unmatched, first, err
+	if rebound == nil && retirements == nil && unmatchedRetirements == nil {
+		return count, unmatched, first, aliases, nil
 	}
-	return len(rebound), unmatched, first, nil
+	operation := closureImportOperation
+	if sameStore {
+		operation = closureRebindOperation
+	}
+	commitHead := reviewedTargetHead
+	if rebound != nil || retirements != nil || fixtures != nil {
+		_, committed, err := commitClosureDocumentsAtHead(
+			root, destinationPath, operation, rebound, retirements, fixtures, &commitHead,
+		)
+		if err != nil {
+			return count, unmatched, first, aliases, err
+		}
+		commitHead = committed
+	}
+	// Explicit stale retirement is a separate, recognizable authority and
+	// deliberately follows recovery. Each removal compares against the exact
+	// ID observed at scan time, so concurrent review wins rather than being
+	// silently retired.
+	if unmatchedRetirements != nil {
+		if _, _, err := commitClosureDocumentsAtHead(
+			root, destinationPath, closureRetireUnmatchedOperation, nil, unmatchedRetirements, nil, &commitHead,
+		); err != nil {
+			return count, unmatched, first, aliases, err
+		}
+	}
+	return len(rebound), unmatched, first, aliases, nil
+}
+
+// excludeReboundClosureRetirements keeps the recovery and explicit-retirement
+// phases disjoint. A live rebound owns its destination alias; retiring the
+// pre-rebind target in the following commit would deterministically fail its
+// compare-and-set after the rebound has advanced that alias.
+func excludeReboundClosureRetirements(
+	retirements []artifact.AliasBinding,
+	documents []closureledger.Document,
+) ([]artifact.AliasBinding, int, error) {
+	claimed := make(map[string]struct{}, len(documents))
+	for _, document := range documents {
+		for _, binding := range document.Bindings {
+			alias, err := closureledger.ActiveAlias(binding)
+			if err != nil {
+				return nil, 0, err
+			}
+			claimed[alias] = struct{}{}
+		}
+	}
+	filtered := make([]artifact.AliasBinding, 0, len(retirements))
+	excluded := 0
+	for _, retirement := range retirements {
+		if _, rebound := claimed[retirement.Name]; rebound {
+			excluded++
+			continue
+		}
+		filtered = append(filtered, retirement)
+	}
+	return filtered, excluded, nil
 }
 
 func rebindClosure(
@@ -585,6 +930,485 @@ func activeClosureDocuments(ctx context.Context, store *overgodb.Store) ([]closu
 		return nil, nil, err
 	}
 	return documents, aliases, nil
+}
+
+func allClosureDocuments(ctx context.Context, store *overgodb.Store) ([]closureledger.Document, error) {
+	documents := make([]closureledger.Document, 0)
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
+		}}, Order: overgodb.DocumentOldestFirst,
+	}, closureledger.Parse, func(_ overgodb.DocumentView, document closureledger.Document) error {
+		documents = append(documents, document)
+		return nil
+	})
+	return documents, err
+}
+
+type closureAliasEventHistory struct {
+	latest   map[string]overgodb.AliasEvent
+	byCommit map[artifact.CommitID][]artifact.AliasBinding
+	byAlias  map[string][]overgodb.AliasEvent
+	reviewed closureReviewedOperations
+}
+
+type closureRecoveryDisposition struct {
+	Target            artifact.ID
+	Eligible          bool
+	Blocker           string
+	SuccessorAlias    string
+	SuccessorDocument artifact.ID
+}
+
+type closureRecoveryAnalysis struct {
+	Authorized    map[string]artifact.ID
+	Dispositions  map[string]closureRecoveryDisposition
+	Reactivations []closureRecoveryReactivation
+	History       closureAliasEventHistory
+}
+
+type closureRecoveryReactivation struct {
+	Alias               string
+	RetiredDocument     artifact.ID
+	ReactivatedDocument artifact.ID
+	CurrentDocument     artifact.ID
+	Commit              overgodb.CommitView
+	RetirementSequence  uint64
+	CurrentSequence     uint64
+	Provenance          string
+	Eligible            bool
+	Blocker             string
+}
+
+// closureRecoveryAuthority recognizes only technical alias-move chains that
+// end at the exact expected successor still active at the observed store head.
+func closureRecoveryAuthority(
+	ctx context.Context,
+	store *overgodb.Store,
+	documents []closureledger.Document,
+) (map[string]artifact.ID, error) {
+	analysis, err := analyzeClosureRecovery(ctx, store, documents)
+	return analysis.Authorized, err
+}
+
+func analyzeClosureRecovery(
+	ctx context.Context,
+	store *overgodb.Store,
+	documents []closureledger.Document,
+) (closureRecoveryAnalysis, error) {
+	analysis := closureRecoveryAnalysis{
+		Authorized: map[string]artifact.ID{}, Dispositions: map[string]closureRecoveryDisposition{},
+	}
+	_, sequence := store.Head()
+	if sequence == 0 {
+		return analysis, nil
+	}
+	history, err := readClosureAliasEventHistory(ctx, store, sequence)
+	if err != nil {
+		return closureRecoveryAnalysis{}, err
+	}
+	history.reviewed, err = authenticateClosureReviewedOperations(ctx, store, history, documents)
+	if err != nil {
+		return closureRecoveryAnalysis{}, err
+	}
+	analysis, err = resolveClosureRecovery(documents, history)
+	if err != nil {
+		return closureRecoveryAnalysis{}, err
+	}
+	analysis.Reactivations, err = auditClosureRecoveryReactivations(documents, history)
+	return analysis, err
+}
+
+func resolveClosureRecovery(
+	documents []closureledger.Document,
+	history closureAliasEventHistory,
+) (closureRecoveryAnalysis, error) {
+	analysis := closureRecoveryAnalysis{
+		Authorized: map[string]artifact.ID{}, Dispositions: map[string]closureRecoveryDisposition{}, History: history,
+	}
+	byID := make(map[artifact.ID]closureledger.Document, len(documents))
+	for _, document := range documents {
+		byID[document.ID] = document
+	}
+	type node struct {
+		alias  string
+		target artifact.ID
+	}
+	memo := map[node]closureRecoveryDisposition{}
+	visiting := map[node]bool{}
+	var evaluate func(node) (closureRecoveryDisposition, error)
+	evaluate = func(current node) (closureRecoveryDisposition, error) {
+		if disposition, found := memo[current]; found {
+			return disposition, nil
+		}
+		disposition := closureRecoveryDisposition{Target: current.target}
+		if visiting[current] {
+			disposition.Blocker = "move-cycle"
+			return disposition, nil
+		}
+		event, found := history.latest[current.alias]
+		if !found {
+			disposition.Blocker = "no-alias-history"
+			memo[current] = disposition
+			return disposition, nil
+		}
+		binding := event.Binding
+		if !binding.Remove {
+			if binding.Target == current.target {
+				disposition.Eligible = true
+			} else {
+				disposition.Blocker = "conflicting-supersession"
+			}
+			memo[current] = disposition
+			return disposition, nil
+		}
+		if binding.Previous == nil || binding.Target != *binding.Previous {
+			disposition.Blocker = "removal-not-exact-cas"
+			memo[current] = disposition
+			return disposition, nil
+		}
+		if binding.Target != current.target {
+			disposition.Blocker = "retired-target-mismatch"
+			memo[current] = disposition
+			return disposition, nil
+		}
+		if closureOperationKey(event.Commit.Key, string(closureRetireUnmatchedOperation)) {
+			disposition.Blocker = "later-explicit-retirement"
+			memo[current] = disposition
+			return disposition, nil
+		}
+		if history.reviewed.authenticates(event.Commit, closureRemediateRecoveryOperation) {
+			disposition.Blocker = "reviewed-reactivation-remediation"
+			memo[current] = disposition
+			return disposition, nil
+		}
+		if history.reviewed.authenticates(event.Commit, closureRestoreReviewedHeadOperation) {
+			disposition.Blocker = "reviewed-head-restore"
+			memo[current] = disposition
+			return disposition, nil
+		}
+		retired, found := byID[current.target]
+		if !found || len(retired.Bindings) != 1 {
+			disposition.Blocker = "missing-retired-decision"
+			memo[current] = disposition
+			return disposition, nil
+		}
+		retiredAlias, err := closureledger.ActiveAlias(retired.Bindings[0])
+		if err != nil {
+			return closureRecoveryDisposition{}, err
+		}
+		if retiredAlias != current.alias {
+			disposition.Blocker = "retired-alias-mismatch"
+			memo[current] = disposition
+			return disposition, nil
+		}
+		type successor struct {
+			alias    string
+			document artifact.ID
+		}
+		var successors []successor
+		predecessors := 0
+		noncanonical := false
+		for _, candidate := range history.byCommit[event.Commit.ID] {
+			document, found := byID[candidate.Target]
+			if !found || !sameClosureDecision(retired, document) {
+				continue
+			}
+			if len(document.Bindings) != 1 {
+				noncanonical = true
+				continue
+			}
+			alias, err := closureledger.ActiveAlias(document.Bindings[0])
+			if err != nil {
+				return closureRecoveryDisposition{}, err
+			}
+			if candidate.Name != alias {
+				noncanonical = true
+				continue
+			}
+			if candidate.Remove {
+				if candidate.Previous == nil || candidate.Target != *candidate.Previous {
+					noncanonical = true
+					continue
+				}
+				predecessors++
+				continue
+			}
+			if candidate.Target == retired.ID {
+				continue
+			}
+			successors = append(successors, successor{alias: alias, document: document.ID})
+		}
+		switch {
+		case noncanonical:
+			disposition.Blocker = "noncanonical-successor"
+		case predecessors != 1:
+			disposition.Blocker = "ambiguous-predecessor"
+		case len(successors) == 0:
+			disposition.Blocker = "missing-successor"
+		case len(successors) != 1:
+			disposition.Blocker = "ambiguous-successor"
+		default:
+			next := successors[0]
+			disposition.SuccessorAlias = next.alias
+			disposition.SuccessorDocument = next.document
+			visiting[current] = true
+			nextDisposition, err := evaluate(node{alias: next.alias, target: next.document})
+			delete(visiting, current)
+			if err != nil {
+				return closureRecoveryDisposition{}, err
+			}
+			if nextDisposition.Eligible {
+				disposition.Eligible = true
+			} else {
+				disposition.Blocker = "successor-chain-not-live"
+			}
+		}
+		memo[current] = disposition
+		return disposition, nil
+	}
+	for alias, event := range history.latest {
+		if !event.Binding.Remove {
+			continue
+		}
+		disposition, err := evaluate(node{alias: alias, target: event.Binding.Target})
+		if err != nil {
+			return closureRecoveryAnalysis{}, err
+		}
+		analysis.Dispositions[alias] = disposition
+		if disposition.Eligible {
+			analysis.Authorized[alias] = event.Binding.Target
+		}
+	}
+	return analysis, nil
+}
+
+func auditClosureRecoveryReactivations(
+	documents []closureledger.Document,
+	history closureAliasEventHistory,
+) ([]closureRecoveryReactivation, error) {
+	byID := make(map[artifact.ID]closureledger.Document, len(documents))
+	for _, document := range documents {
+		byID[document.ID] = document
+	}
+	aliases := make([]string, 0, len(history.byAlias))
+	for alias := range history.byAlias {
+		aliases = append(aliases, alias)
+	}
+	slices.Sort(aliases)
+	var audits []closureRecoveryReactivation
+	for _, alias := range aliases {
+		events := history.byAlias[alias]
+		if len(events) == 0 || events[len(events)-1].Binding.Remove {
+			continue
+		}
+		var retirement int
+		retired := false
+		for index := len(events) - 2; index >= 0; index-- {
+			if events[index].Binding.Remove {
+				retirement = index
+				retired = true
+				break
+			}
+		}
+		if !retired || retirement+1 >= len(events) {
+			continue
+		}
+		activation := events[retirement+1]
+		if history.reviewed.authenticates(activation.Commit, closureRestoreReviewedHeadOperation) {
+			continue
+		}
+		if activation.Binding.Remove || activation.Binding.Previous != nil {
+			continue
+		}
+		expectedAlias, expectedDocument, predecessorFound, err := closureLiveSuccessorBeforeReactivation(
+			alias, events[retirement].Binding.Target, activation.Commit.Sequence, history, byID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if predecessorFound && closureReactivationHasUniquePredecessor(
+			activation, expectedAlias, expectedDocument, history, byID,
+		) {
+			continue
+		}
+		retiredDocument, retiredFound := byID[events[retirement].Binding.Target]
+		reactivatedDocument, reactivatedFound := byID[activation.Binding.Target]
+		audit := closureRecoveryReactivation{
+			Alias: alias, RetiredDocument: events[retirement].Binding.Target,
+			ReactivatedDocument: activation.Binding.Target,
+			CurrentDocument:     events[len(events)-1].Binding.Target, Commit: activation.Commit,
+			RetirementSequence: events[retirement].Commit.Sequence,
+			CurrentSequence:    events[len(events)-1].Commit.Sequence,
+			Provenance:         closureReactivationProvenance(activation.Commit.Key),
+		}
+		if !retiredFound || !reactivatedFound || !sameClosureDecision(retiredDocument, reactivatedDocument) {
+			audit.Blocker = "reactivation-decision-mismatch"
+			audits = append(audits, audit)
+			continue
+		}
+		synthetic := history
+		synthetic.latest = make(map[string]overgodb.AliasEvent, len(history.latest))
+		for name, event := range history.latest {
+			synthetic.latest[name] = event
+		}
+		synthetic.latest[alias] = events[retirement]
+		analysis, err := resolveClosureRecovery(documents, synthetic)
+		if err != nil {
+			return nil, err
+		}
+		disposition, found := analysis.Dispositions[alias]
+		if !found {
+			audit.Blocker = "missing-recovery-disposition"
+		} else {
+			audit.Eligible = disposition.Eligible
+			audit.Blocker = disposition.Blocker
+		}
+		audits = append(audits, audit)
+	}
+	return audits, nil
+}
+
+func closureReactivationProvenance(key string) string {
+	if closureOperationKey(key, string(closureRebindOperation)) {
+		return "rebind-operation-unverified"
+	}
+	return "legacy-operation-unverified"
+}
+
+func closureReactivationHasUniquePredecessor(
+	activation overgodb.AliasEvent,
+	expectedAlias string,
+	expectedDocument artifact.ID,
+	history closureAliasEventHistory,
+	byID map[artifact.ID]closureledger.Document,
+) bool {
+	activated, found := byID[activation.Binding.Target]
+	if !found || len(activated.Bindings) != 1 {
+		return false
+	}
+	alias, err := closureledger.ActiveAlias(activated.Bindings[0])
+	if err != nil || alias != activation.Binding.Name {
+		return false
+	}
+	predecessors, successors := 0, 0
+	expectedPredecessor := false
+	actualSuccessor := false
+	for _, binding := range history.byCommit[activation.Commit.ID] {
+		document, found := byID[binding.Target]
+		if !found || len(document.Bindings) != 1 || !sameClosureDecision(document, activated) {
+			continue
+		}
+		documentAlias, err := closureledger.ActiveAlias(document.Bindings[0])
+		if err != nil || documentAlias != binding.Name {
+			return false
+		}
+		if binding.Remove {
+			if binding.Previous == nil || binding.Target != *binding.Previous {
+				return false
+			}
+			predecessors++
+			expectedPredecessor = expectedPredecessor ||
+				binding.Name == expectedAlias && binding.Target == expectedDocument
+			continue
+		}
+		successors++
+		actualSuccessor = actualSuccessor ||
+			binding.Name == activation.Binding.Name && binding.Target == activation.Binding.Target
+	}
+	return actualSuccessor && expectedPredecessor && predecessors == 1 && successors == 1
+}
+
+func closureLiveSuccessorBeforeReactivation(
+	alias string,
+	document artifact.ID,
+	activationSequence uint64,
+	history closureAliasEventHistory,
+	byID map[artifact.ID]closureledger.Document,
+) (string, artifact.ID, bool, error) {
+	before := closureAliasEventHistory{
+		latest: map[string]overgodb.AliasEvent{}, byCommit: map[artifact.CommitID][]artifact.AliasBinding{},
+		byAlias: map[string][]overgodb.AliasEvent{},
+	}
+	for name, events := range history.byAlias {
+		for _, event := range events {
+			if event.Commit.Sequence >= activationSequence {
+				break
+			}
+			before.latest[name] = event
+			before.byCommit[event.Commit.ID] = append(before.byCommit[event.Commit.ID], event.Binding)
+			before.byAlias[name] = append(before.byAlias[name], event)
+		}
+	}
+	documents := make([]closureledger.Document, 0, len(byID))
+	for _, candidate := range byID {
+		documents = append(documents, candidate)
+	}
+	analysis, err := resolveClosureRecovery(documents, before)
+	if err != nil {
+		return "", artifact.ID{}, false, err
+	}
+	seen := map[string]bool{}
+	for {
+		if seen[alias] {
+			return "", artifact.ID{}, false, nil
+		}
+		seen[alias] = true
+		event, found := before.latest[alias]
+		if !found || event.Binding.Target != document {
+			return "", artifact.ID{}, false, nil
+		}
+		if !event.Binding.Remove {
+			return alias, document, true, nil
+		}
+		disposition, found := analysis.Dispositions[alias]
+		if !found || !disposition.Eligible || disposition.SuccessorAlias == "" ||
+			!disposition.SuccessorDocument.Valid() {
+			return "", artifact.ID{}, false, nil
+		}
+		alias, document = disposition.SuccessorAlias, disposition.SuccessorDocument
+	}
+}
+
+func readClosureAliasEventHistory(
+	ctx context.Context,
+	store *overgodb.Store,
+	sequence uint64,
+) (closureAliasEventHistory, error) {
+	history := closureAliasEventHistory{
+		latest: map[string]overgodb.AliasEvent{}, byCommit: map[artifact.CommitID][]artifact.AliasBinding{},
+		byAlias: map[string][]overgodb.AliasEvent{},
+	}
+	if sequence == 0 {
+		return history, nil
+	}
+	err := store.VisitAliasEvents(ctx, overgodb.AliasEventRange{
+		Prefix: closureledger.ActiveAliasPrefix, ToSequence: sequence,
+	}, func(event overgodb.AliasEvent) error {
+		history.latest[event.Binding.Name] = event
+		history.byCommit[event.Commit.ID] = append(history.byCommit[event.Commit.ID], event.Binding)
+		history.byAlias[event.Binding.Name] = append(history.byAlias[event.Binding.Name], event)
+		return nil
+	})
+	return history, err
+}
+
+// closureOperationKey classifies an operation for fail-safe auditing only. A
+// matching key is never sufficient authority to recover or reactivate a
+// closure; those decisions require the structural history checks above.
+func closureOperationKey(key, prefix string) bool {
+	suffix := strings.TrimPrefix(key, prefix)
+	if suffix == key || len(suffix) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(suffix)
+	return err == nil
+}
+
+func sameClosureDecision(left, right closureledger.Document) bool {
+	return left.Version == right.Version && left.Name == right.Name && bytes.Equal(left.Value, right.Value) &&
+		left.Tier == right.Tier && left.Status == right.Status && left.Understanding == right.Understanding &&
+		left.ClosurePath == right.ClosurePath && left.RerankTrigger == right.RerankTrigger
 }
 
 func writeCensusText(destination io.Writer, census closurescan.Census) error {
@@ -696,7 +1520,9 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 		}
 		documents = append(documents, document)
 	}
-	owners, commit, err := commitClosureDocuments(root, filepath.Join(root, storePath), documents, nil, nil)
+	owners, commit, err := commitClosureDocuments(
+		root, filepath.Join(root, storePath), closurePublishOperation, documents, nil, nil,
+	)
 	if err != nil {
 		return err
 	}
@@ -705,13 +1531,37 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	return nil
 }
 
-func commitClosureDocuments(root, storePath string, documents []closureledger.Document, retirements []artifact.AliasBinding, fixtures []artifact.Descriptor) (int, artifact.CommitID, error) {
+func commitClosureDocuments(
+	root, storePath string,
+	operation closureCommitOperation,
+	documents []closureledger.Document,
+	retirements []artifact.AliasBinding,
+	fixtures []artifact.Descriptor,
+) (int, artifact.CommitID, error) {
+	return commitClosureDocumentsAtHead(root, storePath, operation, documents, retirements, fixtures, nil)
+}
+
+func commitClosureDocumentsAtHead(
+	root, storePath string,
+	operation closureCommitOperation,
+	documents []closureledger.Document,
+	retirements []artifact.AliasBinding,
+	fixtures []artifact.Descriptor,
+	expectedHead *artifact.CommitID,
+) (int, artifact.CommitID, error) {
+	if err := requireUniqueClosureDocumentAliases(documents); err != nil {
+		return 0, artifact.CommitID{}, err
+	}
 	store, err := overgodb.Open(storePath)
 	if err != nil {
 		return 0, artifact.CommitID{}, err
 	}
 	defer store.Close()
 	batch := artifact.Batch{Aliases: retirements}
+	if expectedHead != nil {
+		expected := *expectedHead
+		batch.ExpectedHead = &expected
+	}
 	for _, fixture := range fixtures {
 		if _, found, err := store.Artifact(context.Background(), fixture.ID); err != nil {
 			return 0, artifact.CommitID{}, err
@@ -754,13 +1604,10 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 				}
 				active.Previous = &previous
 			}
-			// A compacted target flattens supersede history, so one alias can
-			// collide within a single import: several source revisions of one
-			// decision rebind the same name, or a rebind lands on an alias the
-			// retirement pass already scheduled. One batch admits one binding
-			// per name; a live rebind replaces a scheduled retirement outright,
-			// and among rebinds the newest source document wins because
-			// documents iterate in commit order.
+			// Identical source revisions can repeat one alias in an import. The
+			// preflight above refuses distinct decisions for one alias; here an
+			// exact live claim replaces a scheduled retirement and duplicates
+			// collapse to one compare-and-set operation.
 			if index := slices.IndexFunc(batch.Aliases, func(bound artifact.AliasBinding) bool {
 				return bound.Name == alias
 			}); index >= 0 {
@@ -782,19 +1629,57 @@ func commitClosureDocuments(root, storePath string, documents []closureledger.Do
 	}
 	if batch.Empty() {
 		head, _ := store.Head()
+		if expectedHead != nil && head != *expectedHead {
+			return 0, artifact.CommitID{}, fmt.Errorf(
+				"closure-scan: reviewed store head moved from %s to %s", *expectedHead, head,
+			)
+		}
 		return len(files), head, nil
 	}
-	encoded, err := json.Marshal(batch)
-	if err != nil {
+	if err := bindClosureOperationKey(operation, &batch); err != nil {
 		return 0, artifact.CommitID{}, err
 	}
-	digest := sha256.Sum256(encoded)
-	batch.Key = "closure-scan/" + hex.EncodeToString(digest[:])
 	commit, err := store.Commit(context.Background(), batch)
 	if err != nil {
 		return 0, artifact.CommitID{}, err
 	}
 	return len(files), commit, nil
+}
+
+func requireUniqueClosureDocumentAliases(documents []closureledger.Document) error {
+	claims := map[string]artifact.ID{}
+	for _, document := range documents {
+		for _, binding := range document.Bindings {
+			alias, err := closureledger.ActiveAlias(binding)
+			if err != nil {
+				return err
+			}
+			if prior, found := claims[alias]; found && prior != document.ID {
+				return fmt.Errorf("closure-scan: conflicting reviewed decisions claim alias %s", alias)
+			}
+			claims[alias] = document.ID
+		}
+	}
+	return nil
+}
+
+func bindClosureOperationKey(operation closureCommitOperation, batch *artifact.Batch) error {
+	switch operation {
+	case closurePublishOperation, closureImportOperation, closureRebindOperation, closureRetireUnmatchedOperation,
+		closureRemediateRecoveryOperation, closureRestoreReviewedHeadOperation:
+	default:
+		return errors.New("closure-scan: invalid commit operation")
+	}
+	if batch == nil || batch.Key != "" {
+		return errors.New("closure-scan: invalid unkeyed operation batch")
+	}
+	encoded, err := json.Marshal(batch)
+	if err != nil {
+		return err
+	}
+	digest := sha256.Sum256(encoded)
+	batch.Key = string(operation) + hex.EncodeToString(digest[:])
+	return nil
 }
 
 func fileArtifact(root, relative string) (artifact.ID, artifact.Descriptor, artifact.LocationEvent, error) {

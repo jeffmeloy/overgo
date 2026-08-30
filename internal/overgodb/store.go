@@ -54,10 +54,11 @@ type relationKey struct {
 }
 
 type committedBatch struct {
-	key      string
-	id       artifact.CommitID
-	payload  [sha256.Size]byte
-	sequence uint64
+	key        string
+	id         artifact.CommitID
+	payload    [sha256.Size]byte
+	sequence   uint64
+	coordinate commitCoordinate
 }
 
 type persistedTransaction struct {
@@ -350,6 +351,12 @@ func (s *Store) sealActiveSegment() error {
 	}
 	if err := fsatomic.SyncDirectory(directory); err != nil {
 		return err
+	}
+	for index := range s.state.commits.ordered {
+		commit := &s.state.commits.ordered[index]
+		if commit.coordinate.segment == activeSegment && commit.coordinate.valid() {
+			commit.coordinate.segment = s.sequence
+		}
 	}
 	if err := s.log.file.Truncate(storeHeaderBytes); err != nil {
 		return fmt.Errorf("overgodb: reset active segment: %w", err)

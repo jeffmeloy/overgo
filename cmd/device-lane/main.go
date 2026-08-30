@@ -64,7 +64,7 @@ func run() error {
 		<-stopped
 		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), clioptions.Verdict(err))
 		if err != nil {
-			fmt.Print(clioptions.Tail(out, 2000))
+			fmt.Print(clioptions.Tail(out, clioptions.DiagnosticTailBytes))
 			if index == 0 {
 				return runrecord.LaneError(runrecord.LaneUnavailable, "cuda-info failed; no passing evidence exists")
 			}

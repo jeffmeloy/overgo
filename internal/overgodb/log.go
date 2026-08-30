@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 
 	"overgo/internal/artifact"
 )
@@ -27,6 +29,9 @@ const (
 	maxFramePayload    = artifact.MaxContentBytes
 	storeFileMode      = 0o644
 	storeDirectoryMode = 0o755
+	activeSegment      = uint64(0)
+	segmentNameRadix   = 10
+	segmentNameBitSize = 64
 
 	storeMagicOffset    = 0
 	storeVersionOffset  = 8
@@ -58,6 +63,7 @@ type logRecord struct {
 	sequence uint64
 	previous artifact.CommitID
 	id       artifact.CommitID
+	segment  uint64
 	offset   int64
 	payload  []byte
 }
@@ -66,6 +72,7 @@ type recordLog struct {
 	file     *os.File
 	writer   durableWriter
 	lock     *fileLock
+	segment  uint64
 	readOnly bool
 }
 
@@ -99,11 +106,16 @@ func replaySealedSegments(root string, apply func(logRecord) error) (replayResul
 	sort.Strings(paths)
 	chain := replayResult{}
 	for _, path := range paths {
+		base := strings.TrimSuffix(filepath.Base(path), segmentExtension)
+		segmentEnd, parseErr := strconv.ParseUint(base, segmentNameRadix, segmentNameBitSize)
+		if parseErr != nil || segmentEnd == 0 {
+			return replayResult{}, fmt.Errorf("overgodb: invalid sealed segment name %s", filepath.Base(path))
+		}
 		file, err := os.Open(path)
 		if err != nil {
 			return replayResult{}, fmt.Errorf("overgodb: open sealed segment: %w", err)
 		}
-		segment := &recordLog{file: file, readOnly: true}
+		segment := &recordLog{file: file, segment: segmentEnd, readOnly: true}
 		result, err := segment.replaySealed(chain, apply)
 		_ = file.Close()
 		if err != nil {
@@ -357,6 +369,7 @@ func (l *recordLog) replayFrames(result replayResult, anchor replayAnchor, apply
 			break
 		}
 		record.payload = body[:payloadSize]
+		record.segment = l.segment
 		record.offset = frameStart + frameHeaderBytes
 		checksum := binary.LittleEndian.Uint32(body[payloadSize:])
 		actual := crc32.Checksum(frameHeader, crcTable)

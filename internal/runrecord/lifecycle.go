@@ -1,11 +1,14 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 )
 
 // DefaultHeartbeatStaleAfter bounds silence before a running gate is classified stale.
@@ -14,6 +17,10 @@ const DefaultHeartbeatStaleAfter = 30 * time.Second
 const (
 	GateLifecycleMediaType = "application/vnd.overgo.gate-lifecycle+json"
 	GateLifecycleSchema    = "overgo/gate-lifecycle/v1"
+	// GateLifecycleCurrentAlias is the store-local lifecycle head. Its live
+	// presence deliberately prevents compaction from rewriting physical gate
+	// preparation and finalization receipts.
+	GateLifecycleCurrentAlias = overgodb.StoreLocalAliasPrefix + "gate-lifecycle/current"
 )
 
 type GateLifecycleState string
@@ -23,8 +30,12 @@ const (
 	GateFinalized GateLifecycleState = "finalized"
 )
 
+var gateLifecycleContract = artifact.DocumentContract{
+	Kind: artifact.KindEvidence, MediaType: GateLifecycleMediaType, Schema: GateLifecycleSchema,
+}
+
 var gateLifecycleCodec = artifact.JSONDocumentCodec(
-	"gate lifecycle", artifact.KindEvidence, GateLifecycleMediaType, GateLifecycleSchema, canonicalizeGateLifecycle,
+	"gate lifecycle", gateLifecycleContract.Kind, gateLifecycleContract.MediaType, gateLifecycleContract.Schema, canonicalizeGateLifecycle,
 	func(value GateLifecycle) artifact.ID { return value.ID },
 	func(value *GateLifecycle, id artifact.ID) { value.ID = id }, nil,
 )
@@ -67,6 +78,11 @@ func NewGateFinalization(preparation GateLifecycle, codeCommit string, result ar
 
 func ParseGateLifecycle(content []byte) (GateLifecycle, error) {
 	return gateLifecycleCodec.Parse(content)
+}
+
+// RequireGateLifecycle loads one exact typed gate lifecycle document.
+func RequireGateLifecycle(ctx context.Context, reader artifact.Reader, id artifact.ID) (GateLifecycle, error) {
+	return gateLifecycleCodec.Require(ctx, reader, id)
 }
 
 func (l GateLifecycle) Content() (artifact.Content, error) {
@@ -142,6 +158,26 @@ func OutstandingGateDebt(records []GateLifecycle) ([]GateLifecycle, error) {
 	}
 	sort.Slice(debt, func(i, j int) bool { return debt[i].ID.String() < debt[j].ID.String() })
 	return debt, nil
+}
+
+// GateLifecyclesInStore returns every exact typed lifecycle in durable order
+// so authority owners can validate more than unresolved-debt cardinality.
+func GateLifecyclesInStore(ctx context.Context, store *overgodb.Store) ([]GateLifecycle, error) {
+	if ctx == nil || store == nil {
+		return nil, errors.New("run record: gate lifecycle scan requires a store and context")
+	}
+	var records []GateLifecycle
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{gateLifecycleContract},
+		Order:     overgodb.DocumentOldestFirst,
+	}, gateLifecycleCodec.Parse, func(_ overgodb.DocumentView, lifecycle GateLifecycle) error {
+		records = append(records, lifecycle)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("run record: visit gate lifecycle documents: %w", err)
+	}
+	return records, nil
 }
 
 // ValidateIdentity verifies lifecycle content identity.

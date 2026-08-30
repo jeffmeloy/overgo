@@ -144,6 +144,9 @@ func TestProjectionRebuildEquivalence(t *testing.T) {
 			target.view.applyCommit(batch, locators, record.sequence)
 			independent.commits.add(committedBatch{
 				key: batch.Key, id: record.id, payload: payloadHash, sequence: record.sequence,
+				coordinate: commitCoordinate{
+					segment: record.segment, offset: record.offset - frameHeaderBytes, size: uint32(len(record.payload)),
+				},
 			})
 			return nil
 		})

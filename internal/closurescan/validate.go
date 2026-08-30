@@ -2,7 +2,9 @@ package closurescan
 
 import (
 	"bytes"
+	"slices"
 
+	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/repoanalysis"
 )
@@ -30,7 +32,40 @@ func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closurel
 	return validateCandidateBindings(candidates, documents)
 }
 
+// ValidateActiveBindings checks only bindings whose own canonical active alias
+// targets the document. Selecting a multi-binding document through one alias
+// does not grant authority to its retired sibling bindings.
+func ValidateActiveBindings(
+	snapshot repoanalysis.SourceSnapshot,
+	documents []closureledger.Document,
+	aliases map[string]artifact.ID,
+) ([]BindingIssue, error) {
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateAll)
+	if err != nil {
+		return nil, err
+	}
+	for _, document := range documents {
+		for _, binding := range document.Bindings {
+			if _, err := closureledger.ActiveAlias(binding); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return validateCandidateBindingsSelected(candidates, documents, func(document closureledger.Document, binding closureledger.SourceBinding) bool {
+		alias, _ := closureledger.ActiveAlias(binding)
+		return aliases[alias] == document.ID
+	})
+}
+
 func validateCandidateBindings(candidates []Candidate, documents []closureledger.Document) ([]BindingIssue, error) {
+	return validateCandidateBindingsSelected(candidates, documents, nil)
+}
+
+func validateCandidateBindingsSelected(
+	candidates []Candidate,
+	documents []closureledger.Document,
+	selected func(closureledger.Document, closureledger.SourceBinding) bool,
+) ([]BindingIssue, error) {
 	current := make(map[string][]Candidate, len(candidates))
 	for _, candidate := range candidates {
 		current["s\x00"+candidate.StructuralID] = append(current["s\x00"+candidate.StructuralID], candidate)
@@ -39,11 +74,19 @@ func validateCandidateBindings(candidates []Candidate, documents []closureledger
 	}
 	var issues []BindingIssue
 	for _, document := range documents {
+		if selected != nil && !slices.ContainsFunc(document.Bindings, func(binding closureledger.SourceBinding) bool {
+			return selected(document, binding)
+		}) {
+			continue
+		}
 		if err := document.ValidateIdentity(); err != nil {
 			issues = append(issues, BindingIssue{Kind: DriftDisposition, Name: document.Name})
 			continue
 		}
 		for _, binding := range document.Bindings {
+			if selected != nil && !selected(document, binding) {
+				continue
+			}
 			key := "s\x00" + binding.StructuralID
 			if binding.StructuralID == "" {
 				key = "m\x00" + rebindKey(binding.Kind, binding.Package, binding.File, binding.Scope, binding.Name, binding.Expression)

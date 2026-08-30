@@ -29,6 +29,9 @@ func TestProjectionContractIsClosedAndVersioned(t *testing.T) {
 		if registered.name == "contents" {
 			expectedVersion = contentProjectionVersion
 		}
+		if registered.name == "commits" {
+			expectedVersion = commitProjectionVersion
+		}
 		if registered.version != expectedVersion {
 			t.Fatalf("projection %q version %d, want %d",
 				registered.name, registered.version, expectedVersion)

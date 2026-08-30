@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -49,21 +50,55 @@ func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, 
 }
 
 func sourceOvergoDB(root, snapshot string) (string, error) {
-	raw, err := gitOutput(root, "worktree", "list", "--porcelain")
+	raw, err := gitOutput(root, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
 		return "", err
 	}
-	fields := strings.Fields(string(raw))
+	return sourceOvergoDBFromPorcelain(raw, snapshot)
+}
+
+func sourceOvergoDBFromPorcelain(raw []byte, snapshot string) (string, error) {
 	var match string
-	for index := 0; index+3 < len(fields); index++ {
-		if fields[index] != "worktree" || fields[index+2] != "HEAD" || fields[index+3] != snapshot {
-			continue
+	var worktree, head string
+	flush := func() error {
+		if worktree == "" || head != snapshot {
+			return nil
 		}
-		candidate := filepath.Join(filepath.FromSlash(fields[index+1]), "overgodb-store")
+		candidate := filepath.Join(filepath.FromSlash(worktree), "overgodb-store")
 		if match != "" {
-			return "", fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match %s", snapshot)
+			return fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match %s", snapshot)
 		}
 		match = candidate
+		return nil
+	}
+	for _, encoded := range bytes.Split(raw, []byte("\x00")) {
+		field := string(encoded)
+		if field == "" {
+			if err := flush(); err != nil {
+				return "", err
+			}
+			worktree, head = "", ""
+			continue
+		}
+		key, value, found := strings.Cut(field, " ")
+		if !found {
+			continue
+		}
+		switch key {
+		case "worktree":
+			if worktree != "" {
+				if err := flush(); err != nil {
+					return "", err
+				}
+				head = ""
+			}
+			worktree = value
+		case "HEAD":
+			head = value
+		}
+	}
+	if err := flush(); err != nil {
+		return "", err
 	}
 	return match, nil
 }

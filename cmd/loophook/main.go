@@ -18,6 +18,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
@@ -386,7 +388,16 @@ func nextAction() (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	it, st, ok := plan.Current(doc, role)
+	store, err := overgodb.OpenReadOnly("overgodb-store")
+	if err != nil {
+		return "plan: " + err.Error(), false
+	}
+	defer store.Close()
+	authority, err := plan.ResolveCompletionAuthority(context.Background(), ".", "HEAD", doc, store)
+	if err != nil {
+		return "plan: " + err.Error(), false
+	}
+	it, st, ok := plan.Current(doc, role, authority)
 	if !ok {
 		return "plan complete: every item is done", true
 	}

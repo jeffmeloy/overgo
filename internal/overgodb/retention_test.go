@@ -3,7 +3,10 @@ package overgodb
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -152,5 +155,47 @@ func TestRetentionRefusesExistingDestination(t *testing.T) {
 	}
 	if _, err := Compact(ctx, source, filepath.Join(root, "occupied")); err == nil {
 		t.Fatal("compaction wrote into an occupied store")
+	}
+}
+
+func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	source, err := Open(filepath.Join(root, "source"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	content := retentionContent(t, artifact.KindEvidence, map[string]any{"receipt": "physical"})
+	localAlias := StoreLocalAliasPrefix + "fixture/current"
+	if _, err := source.Commit(ctx, artifact.Batch{
+		Key: "test/retention/store-local", Contents: []artifact.Content{content},
+		Aliases: []artifact.AliasBinding{
+			{Name: localAlias, Target: content.Descriptor.ID},
+			{Name: "test/portable", Target: content.Descriptor.ID},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(root, "compact")
+	if _, err := Compact(ctx, source, destination); err == nil ||
+		!strings.Contains(err.Error(), localAlias) {
+		t.Fatalf("store-local compaction error = %v", err)
+	}
+	if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("refused compaction created destination: %v", err)
+	}
+	if _, err := source.Commit(ctx, artifact.Batch{
+		Key: "test/retention/retire-store-local",
+		Aliases: []artifact.AliasBinding{{
+			Name: localAlias, Target: content.Descriptor.ID,
+			Previous: artifact.IDPointer(content.Descriptor.ID), Remove: true,
+		}},
+	}); err == nil || !strings.Contains(err.Error(), "cannot be retired") {
+		t.Fatalf("store-local retirement error = %v", err)
+	}
+	if _, err := Compact(ctx, source, destination); err == nil ||
+		!strings.Contains(err.Error(), localAlias) {
+		t.Fatalf("irrevocable store-local compaction error = %v", err)
 	}
 }

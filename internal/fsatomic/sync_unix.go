@@ -11,10 +11,19 @@ import (
 // SyncDirectory makes a completed rename durable by flushing the
 // directory that received it.
 func SyncDirectory(path string) error {
-	directory, err := os.Open(path)
+	return syncPath(path, "directory")
+}
+
+// SyncFile commits file data and metadata changes to stable storage.
+func SyncFile(path string) error {
+	return syncPath(path, "file")
+}
+
+func syncPath(path, kind string) error {
+	file, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("fsatomic: open directory for sync: %w", err)
+		return fmt.Errorf("fsatomic: open %s for sync: %w", kind, err)
 	}
-	err = directory.Sync()
-	return errors.Join(err, directory.Close())
+	err = file.Sync()
+	return errors.Join(err, file.Close())
 }

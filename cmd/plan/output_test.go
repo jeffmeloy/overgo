@@ -16,8 +16,9 @@ func TestCompactAgentOutput(t *testing.T) {
 			ID: "do", Title: "make the bounded change", Status: "open", Verify: "go test ./x -run '^TestX$'",
 		}},
 	}}}
+	authority := mustTestCompletionAuthority(t, document)
 	var output bytes.Buffer
-	printPrompt(document, plan.UnassignedRole, &output)
+	printPrompt(document, plan.UnassignedRole, &output, authority)
 	text := output.String()
 	if len(text) > 700 || !strings.Contains(text, "TASK item/do") || !strings.Contains(text, "VERIFY go test") || !strings.Contains(text, "COMMIT go run ./cmd/gate") {
 		t.Fatalf("prompt is not compact and decision-complete (%d bytes):\n%s", len(text), text)

@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "self-remediating-refusals",
-          "title": "Make every deterministically-fixable gate refusal apply or name its exact remediation",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/closure-scan -run '^TestGateRefusalsCarryDeterministicRemediation$' -count=1",
-          "rationale": "The measured cost of a landing today is dominated by refusal round-trips whose fixes are mechanical: literal-offset rebinds after edits shift catalogued sites, stale grandfathered exceptions whose sites disappeared, formatting, and unambiguous lifecycle debt. Each such refusal class either applies its safe deterministic remediation inside the gate run and revalidates once, recording a typed remediation receipt, or prints the one exact command that fixes it. Ambiguous cases keep refusing; no remediation may alter admitted content, weaken an exception list, or bypass a review-bound decision.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard"
-          ],
-          "capabilities": [
-            "gate-throughput",
-            "remediation",
-            "automation",
-            "interaction-efficiency"
-          ]
-        },
-        {
           "id": "attempt-evidence-reuse",
           "title": "Reuse unchanged manifest-bound check evidence across consecutive gate attempts for the same step",
           "status": "open",

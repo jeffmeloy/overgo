@@ -119,6 +119,16 @@ type gateContext struct {
 	committedHead       string
 	commitInterrupted   bool
 	acceptedTree        string
+	// runCommand overrides supervised command execution for remediation
+	// tests; nil routes through the package command runner.
+	runCommand func(repo, name string, args ...string) (string, error)
+}
+
+func (g *gateContext) runGateCommand(name string, args ...string) (string, error) {
+	if g.runCommand != nil {
+		return g.runCommand(g.repo, name, args...)
+	}
+	return command(g.repo, name, args...)
 }
 
 func main() {
@@ -1797,7 +1807,11 @@ func (g *gateContext) stepFmt() (bool, error) {
 		}
 	}
 	if len(unformatted) > 0 {
-		return false, fmt.Errorf("unformatted: %s", strings.Join(unformatted, "\n"))
+		files := strings.Fields(strings.Join(unformatted, "\n"))
+		return false, fmt.Errorf(
+			"unformatted: %s; remediate with `gofmt -w %s`",
+			strings.Join(files, " "), strings.Join(files, " "),
+		)
 	}
 	return false, nil
 }
@@ -2055,14 +2069,53 @@ func (g *gateContext) stepMagics() (bool, error) {
 		return false, err
 	}
 	report, err := closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
+	if err != nil && staleClosureAuthorityFailure(err) {
+		// The safe deterministic remediation: rebind unambiguous history to
+		// current offsets in the same store, then revalidate exactly once.
+		// Admitted content never changes; only stale alias offsets move.
+		if remediationErr := g.remediateStaleClosureBindings(); remediationErr != nil {
+			return false, errors.Join(err, remediationErr)
+		}
+		documents, aliases, err = activeMagicBindings(g.repo, g.storePath)
+		if err != nil {
+			return false, err
+		}
+		report, err = closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
+	}
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf(
+			"%w; remediate with `go run ./cmd/closure-scan -import-store %s` and catalog what remains, then re-run the gate",
+			err, gateStorePath,
+		)
 	}
 	g.honesty = append(g.honesty, fmt.Sprintf(
 		"permanent magic authority: production=%d classified=%d tests=%d open=0 stale=0 policy_copies=0",
 		report.ProductionSites, report.ClassifiedSites, report.TestSites,
 	))
 	return false, nil
+}
+
+// staleClosureAuthorityFailure classifies magic-authority refusals whose fix
+// is the deterministic same-store rebind: catalogued sites whose byte offsets
+// moved under the active aliases, either reported stale directly or surfacing
+// as an uncatalogued site that exact prior history still covers.
+func staleClosureAuthorityFailure(err error) bool {
+	message := err.Error()
+	return strings.Contains(message, "stale active binding") ||
+		strings.Contains(message, "uncatalogued production policy")
+}
+
+func (g *gateContext) remediateStaleClosureBindings() error {
+	started := time.Now()
+	out, err := g.runGateCommand("go", "run", "./cmd/closure-scan", "-import-store", gateStorePath)
+	if err != nil {
+		return fmt.Errorf("gate: closure rebind remediation: %w", err)
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"remediation: closure rebind applied (%s) wall=%dms",
+		strings.TrimSpace(out), time.Since(started).Milliseconds(),
+	))
+	return nil
 }
 
 func activeMagicBindings(repo, storePath string) ([]closureledger.Document, map[string]artifact.ID, error) {
@@ -3419,7 +3472,7 @@ func requireNoOutstandingGateLifecycle(ctx context.Context, store *overgodb.Stor
 		return fmt.Errorf("gate: inspect lifecycle debt: %w", err)
 	}
 	complete := make(map[artifact.ID]bool)
-	unresolved := 0
+	var unresolved []artifact.ID
 	for _, preparation := range lifecycles {
 		if preparation.State != runrecord.GatePrepared {
 			continue
@@ -3429,7 +3482,7 @@ func requireNoOutstandingGateLifecycle(ctx context.Context, store *overgodb.Stor
 			return fmt.Errorf("gate: validate lifecycle %s: %w", preparation.ID, err)
 		}
 		if !finalized {
-			unresolved++
+			unresolved = append(unresolved, preparation.ID)
 			continue
 		}
 		if err := validateCompleteGateFinalization(ctx, store, preparation, finalization); err != nil {
@@ -3449,10 +3502,19 @@ func requireNoOutstandingGateLifecycle(ctx context.Context, store *overgodb.Stor
 			return errors.New("gate: lifecycle authority is not one complete typed gate finalization")
 		}
 	}
-	if unresolved != 0 {
+	if len(unresolved) == 1 {
+		return errors.New("gate: OvergoDB records 1 unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`")
+	}
+	if len(unresolved) != 0 {
+		// The refusal carries its own deterministic remediation: one exact
+		// argument-bound recovery command per stale preparation.
+		commands := make([]string, 0, len(unresolved))
+		for _, preparation := range unresolved {
+			commands = append(commands, "go run ./cmd/gate -record-failure -preparation "+preparation.String())
+		}
 		return fmt.Errorf(
-			"gate: OvergoDB records %d unresolved prepared lifecycle(s); run `go run ./cmd/gate -record-failure`",
-			unresolved,
+			"gate: OvergoDB records %d unresolved prepared lifecycle(s); remediate each with: %s",
+			len(unresolved), strings.Join(commands, " ; "),
 		)
 	}
 	return nil

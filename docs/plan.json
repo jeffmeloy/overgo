@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "production-probes",
-          "title": "Bind activation cases to execution through the real placement or agent coordinator path",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./internal/evaluation ./internal/runrecord -run '^(TestProductionCapabilityProbeBindsExecutionPath|TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence)$' -count=1",
-          "rationale": "A capability-probe result joins the existing ActivationCase, exact model recipe, capability selection, placement, environment, interaction trace, stage receipt, outcome, and resource evidence. The result identifies whether execution used the local, peer, or agent production entry. Direct adapter calls, stale selections, missing failure evidence, or a trace from another case cannot populate activation or model-verification claims.",
-          "depends_on": [
-            "experience-projection/capability-episodes"
-          ],
-          "capabilities": [
-            "production-path-probe",
-            "activation-matrix",
-            "model-verification",
-            "capability-evidence"
-          ]
-        },
-        {
           "id": "intent-routing",
           "title": "Select one exact evidence-dominant built-in, external, or peer capability for a declared intent",
           "status": "open",

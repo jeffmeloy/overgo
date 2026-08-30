@@ -67,8 +67,8 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"architecture-ratchets/completion-reference-authority": {"resource-coverage/fitness-integration"},
 		"architecture-ratchets/core-entry-guards":              {"architecture-ratchets/completion-reference-authority", "storage-modular-core/repository-parity", "common-publication-path/semantic-batches", "storage-operational-boundary/transition-boundary", "process-supervision/process-boundary-guard", "causal-execution/causal-projection", "stimulus-reconciliation/coalesced-followup", "capability-bound-activation/placement-integration", "webhook-ingress/workflow-dispatch", "activation-matrix/profile-coverage"},
 		"architecture-ratchets/go-only-guard":                  {"architecture-ratchets/core-entry-guards"},
-		"campaign-concurrency/ready-frontier-leases":           {"architecture-ratchets/go-only-guard", "supervised-composite/first-win"},
-		"interaction-efficiency/bounded-training-evidence":     {"storage-projections/atomic-publication", "resource-coverage/fitness-integration", "redundancy-interaction-baseline/interaction-traces", "architecture-ratchets/go-only-guard", "supervised-composite/first-win"},
+		"campaign-concurrency/ready-frontier-leases":           {"architecture-closure/go-only-guard"},
+		"interaction-efficiency/bounded-training-evidence":     {"storage-projections/atomic-publication", "resource-coverage/fitness-integration", "redundancy-interaction-baseline/interaction-traces", "architecture-closure/go-only-guard"},
 		"interaction-efficiency/projection-query-plans":        {"interaction-efficiency/bounded-training-evidence"},
 		"interaction-efficiency/head-bound-deltas":             {"interaction-efficiency/projection-query-plans", "storage-operational-boundary/transition-boundary"},
 		"interaction-efficiency/incremental-context":           {"interaction-efficiency/head-bound-deltas", "stimulus-reconciliation/stable-cursors", "capability-bound-activation/placement-integration"},
@@ -79,28 +79,29 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"model-prototypes/prototype-contract":                  {"architecture-ratchets/go-only-guard", "capability-bound-activation/capability-identity", "causal-execution/causal-context"},
 		"model-prototypes/prototype-admission":                 {"model-prototypes/prototype-contract", "resource-coverage/reference-relevance-admission"},
 		"model-prototypes/prototype-compile":                   {"model-prototypes/prototype-admission"},
-		"model-prototypes/prototype-materialization":           {"model-prototypes/prototype-compile"},
+		"model-prototypes/prototype-materialization":           {"evidence-routing/evidence-selection"},
 		"model-recipe-lifecycle/recipe-derivation":             {"model-prototypes/prototype-materialization"},
 		"model-recipe-lifecycle/recipe-validation":             {"model-recipe-lifecycle/recipe-derivation"},
-		"model-recipe-lifecycle/isolated-performance-evidence": {"evidence-routing/evidence-selection", "process-supervision/process-boundary-guard"},
+		"model-recipe-lifecycle/isolated-performance-evidence": {"model-recipe-lifecycle/recipe-validation", "process-supervision/process-boundary-guard"},
 		"model-recipe-lifecycle/recipe-evaluation":             {"model-recipe-lifecycle/isolated-performance-evidence"},
-		"model-recipe-lifecycle/recipe-activation":             {"model-recipe-lifecycle/recipe-evaluation"},
+		"model-recipe-lifecycle/recipe-activation":             {"architecture-ratchets/go-only-guard", "model-prototypes/prototype-contract"},
 		"evidence-routing/decision-contract":                   {"architecture-ratchets/go-only-guard", "resource-coverage/fitness-integration", "resource-coverage/reference-relevance-admission"},
-		"evidence-routing/evidence-selection":                  {"evidence-routing/decision-contract", "model-recipe-lifecycle/recipe-validation", "capability-bound-activation/placement-integration", "resource-coverage/reference-relevance-admission"},
-		"evidence-routing/counterfactual-replay":               {"evidence-routing/evidence-selection", "causal-execution/causal-projection", "supervised-composite/first-win"},
-		"supervised-composite/first-win":                       {"model-recipe-lifecycle/recipe-activation"},
-		"composition-expansion/alignment-adapter":              {"supervised-composite/first-win"},
+		"evidence-routing/evidence-selection":                  {"evidence-routing/decision-contract", "model-prototypes/prototype-compile", "capability-bound-activation/placement-integration", "resource-coverage/reference-relevance-admission"},
+		"evidence-routing/counterfactual-replay":               {"evidence-routing/evidence-selection", "causal-execution/causal-projection", "architecture-closure/go-only-guard"},
+		"supervised-composite/first-win":                       {"model-recipe-lifecycle/recipe-evaluation", "model-recipe-lifecycle/recipe-activation"},
+		"composition-expansion/alignment-adapter":              {"architecture-closure/go-only-guard"},
 		"composition-expansion/search-ratchet":                 {"composition-expansion/alignment-adapter", "evidence-routing/counterfactual-replay", "live-safety/safety-window"},
-		"advanced-domain-plugins/realization":                  {"supervised-composite/first-win"},
+		"advanced-domain-plugins/realization":                  {"architecture-closure/go-only-guard"},
 		"advanced-domain-plugins/evidence":                     {"advanced-domain-plugins/realization", "interaction-efficiency/bounded-training-evidence", "live-safety/safety-window"},
-		"outward-capabilities/peer-invocation":                 {"supervised-composite/first-win"},
+		"outward-capabilities/peer-invocation":                 {"architecture-closure/go-only-guard"},
 		"deterministic-rollout/rollout-plan":                   {"model-recipe-lifecycle/recipe-evaluation", "evidence-routing/evidence-selection", "supervised-composite/first-win", "live-safety/safety-window"},
 		"deterministic-rollout/promotion-binding":              {"deterministic-rollout/projection-evidence", "model-recipe-lifecycle/recipe-activation"},
-		"live-safety/safety-window":                            {"model-recipe-lifecycle/isolated-performance-evidence", "supervised-composite/first-win"},
+		"live-safety/safety-window":                            {"model-recipe-lifecycle/isolated-performance-evidence", "architecture-closure/go-only-guard"},
 		"live-safety/circuit-breaker":                          {"live-safety/safety-window", "deterministic-rollout/projection-evidence", "model-recipe-lifecycle/recipe-activation"},
 		"live-safety/atomic-rollback":                          {"live-safety/circuit-breaker", "deterministic-rollout/promotion-binding"},
-		"architecture-closure/single-entry-guards":             {"architecture-ratchets/go-only-guard", "interaction-efficiency/tool-call-propensity-control", "evidence-routing/counterfactual-replay", "live-safety/reentry", "composition-expansion/search-ratchet", "advanced-domain-plugins/evidence", "outward-capabilities/peer-invocation"},
+		"architecture-closure/single-entry-guards":             {"architecture-ratchets/go-only-guard", "supervised-composite/first-win"},
 		"architecture-closure/go-only-guard":                   {"architecture-closure/single-entry-guards"},
+		"architecture-closure/migration-drill":                 {"campaign-concurrency/ready-frontier-leases", "interaction-efficiency/tool-call-propensity-control", "evidence-routing/counterfactual-replay", "live-safety/reentry", "composition-expansion/search-ratchet", "advanced-domain-plugins/evidence", "outward-capabilities/peer-invocation"},
 	}
 	for id, want := range wantDependencies {
 		if step, found := retainedCampaignStep(document, id); found {
@@ -219,14 +220,14 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		}
 	}
 	if step, found := retainedCampaignStep(document, "model-prototypes/prototype-admission"); found {
-		for _, required := range []string{"subject-relevant typed evidence", "existing AdmissionBinding", "one causal subject", "Admission grants eligibility only", "post-proof domain-plugin work"} {
+		for _, required := range []string{"separate non-authorizing publication", "exact canonical bytes and dependency lineage", "one production call site", "unsupported domain fails closed", "later DriverDecision owner records refusal", "cannot construct a candidate"} {
 			if !strings.Contains(step.Rationale, required) {
 				t.Errorf("candidate admission rationale omits consolidated source-plan requirement %q", required)
 			}
 		}
 	}
 	if step, found := retainedCampaignStep(document, "model-prototypes/prototype-compile"); found {
-		for _, required := range []string{"first plugin is deliberately narrow", "same-base task arithmetic", "same base ModelDefinition", "compatible tensor inventory", "DenseToMoE", "post-proof plugins", "cannot create its own"} {
+		for _, required := range []string{"narrow composition admission adapter", "same-base task arithmetic", "same base ModelDefinition", "compatible tensor inventory", "DenseToMoE", "post-proof plugins", "cannot create its own candidate, admission"} {
 			if !strings.Contains(step.Rationale, required) {
 				t.Errorf("candidate compiler rationale omits consolidated source-plan requirement %q", required)
 			}
@@ -261,14 +262,14 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		}
 	}
 	if step, found := retainedCampaignStep(document, "model-recipe-lifecycle/recipe-activation"); found {
-		for _, required := range []string{"one evidence-gated lifecycle", "before any supervised verification", "supply typed subject validation", "migrate and delete their parallel", "StageReceipt published atomically", "non-serving verified binding", "preserve the production active alias", "unattended authority widening"} {
+		for _, required := range []string{"one evidence-gated lifecycle", "before any supervised verification", "supply typed subject validation", "migrate and delete parallel", "StageReceipt published atomically", "non-serving-verified path", "preserve the production active alias", "unattended authority widening"} {
 			if !strings.Contains(step.Rationale, required) {
 				t.Errorf("promotion-spine rationale omits %q", required)
 			}
 		}
 	}
 	if step, found := retainedCampaignStep(document, "evidence-routing/evidence-selection"); found {
-		for _, required := range []string{"active incumbent plus admitted validated or experimental candidates", "Before supervised verification", "missing-evidence request", "first local same-base composition", "Cross-boundary resolution is a post-proof extension", "no domain loop or free knob", "after production promotion"} {
+		for _, required := range []string{"active incumbent plus admitted candidates", "pre-materialization eligible state", "Before supervised verification", "missing-evidence request", "first local same-base composition", "Cross-boundary resolution is a post-proof extension", "no domain loop or free knob", "after production promotion"} {
 			if !strings.Contains(step.Rationale, required) {
 				t.Errorf("evidence driver rationale omits %q", required)
 			}
@@ -480,29 +481,28 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 		}
 	}
 	critical := []string{
-		"architecture-ratchets/go-only-guard",
-		"model-prototypes/prototype-contract",
 		"model-prototypes/prototype-admission",
 		"model-prototypes/prototype-compile",
+		"evidence-routing/evidence-selection",
 		"model-prototypes/prototype-materialization",
 		"model-recipe-lifecycle/recipe-derivation",
 		"model-recipe-lifecycle/recipe-validation",
-		"evidence-routing/evidence-selection",
 		"model-recipe-lifecycle/isolated-performance-evidence",
 		"model-recipe-lifecycle/recipe-evaluation",
-		"model-recipe-lifecycle/recipe-activation",
 		"supervised-composite/first-win",
 	}
-	if allCampaignStepsRetained(document, critical...) {
-		positions := make(map[string]int, len(wantIDs))
-		for layer, ids := range layers {
-			for _, id := range ids {
-				positions[id] = layer
-			}
+	for index := 1; index < len(critical); index++ {
+		before, after := critical[index-1], critical[index]
+		_, beforeRetained := retainedCampaignStep(document, before)
+		_, afterRetained := retainedCampaignStep(document, after)
+		if beforeRetained && afterRetained && !campaignDependsOn(document, after, before, map[string]bool{}) {
+			t.Errorf("supervised path %s does not depend on %s", after, before)
 		}
-		for wantLayer, id := range critical {
-			if got := positions[id]; got != wantLayer {
-				t.Errorf("supervised critical path %s layer = %d, want %d", id, got, wantLayer)
+	}
+	if _, retained := retainedCampaignStep(document, "supervised-composite/first-win"); retained {
+		for _, predecessor := range []string{"model-recipe-lifecycle/recipe-evaluation", "model-recipe-lifecycle/recipe-activation"} {
+			if _, present := retainedCampaignStep(document, predecessor); present && !campaignDependsOn(document, "supervised-composite/first-win", predecessor, map[string]bool{}) {
+				t.Errorf("supervised first win does not join %s", predecessor)
 			}
 		}
 	}

@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 
 	"overgo/internal/artifact"
@@ -39,6 +40,11 @@ func NewCodeRevision(commit string) (CodeRevision, error) {
 		return CodeRevision{}, errors.New("run record: code revision is absent")
 	}
 	return codeRevisionCodec.New(CodeRevision{Version: artifact.InitialDocumentVersion, Commit: commit})
+}
+
+// RequireCodeRevision loads one exact source revision through its owning contract.
+func RequireCodeRevision(ctx context.Context, reader artifact.Reader, id artifact.ID) (CodeRevision, error) {
+	return codeRevisionCodec.Require(ctx, reader, id)
 }
 
 // Publication returns the canonical content-addressed revision batch.

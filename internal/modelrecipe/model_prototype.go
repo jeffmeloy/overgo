@@ -1,7 +1,9 @@
 package modelrecipe
 
 import (
+	"context"
 	"errors"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/model"
@@ -45,6 +47,34 @@ func NewModelPrototype(profile ProfileDocument) (ModelPrototype, error) {
 		Version: artifact.InitialDocumentVersion, Architecture: profile.Architecture, Profile: profile.ID,
 	})
 	return ModelPrototype{document: document}, err
+}
+
+// RequireModelPrototype loads one exact prototype and closes it against the
+// currently compiled and published architecture profile.
+func RequireModelPrototype(ctx context.Context, reader artifact.Reader, id artifact.ID) (ModelPrototype, error) {
+	document, err := modelPrototypeCodec.Require(ctx, reader, id)
+	if err != nil {
+		return ModelPrototype{}, err
+	}
+	value := ModelPrototype{document: document}
+	profile, err := ResolveRegisteredArchitectureProfile(ctx, reader, value.Architecture())
+	if err != nil {
+		return ModelPrototype{}, err
+	}
+	canonical, err := NewModelPrototype(profile)
+	if err != nil || canonical.ID() != value.ID() || profile.ID != value.Profile() {
+		return ModelPrototype{}, errors.Join(err, errors.New("model recipe: stored prototype differs from its compiled profile"))
+	}
+	parents, err := reader.Parents(ctx, value.ID())
+	if err != nil {
+		return ModelPrototype{}, err
+	}
+	if !slices.Contains(parents, artifact.Lineage{
+		Child: value.ID(), Parent: value.Profile(), Relation: artifact.RelationDependsOn,
+	}) {
+		return ModelPrototype{}, errors.New("model recipe: prototype profile lineage is absent")
+	}
+	return value, nil
 }
 
 // ID returns the prototype's content identity.

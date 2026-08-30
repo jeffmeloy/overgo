@@ -1,6 +1,7 @@
 package modelrecipe
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -72,6 +73,7 @@ type CandidateSpec struct {
 	Parent            artifact.ID               `json:"parent"`
 	Components        []CandidateComponent      `json:"components"`
 	Prediction        recipe.SteeringPrediction `json:"prediction"`
+	CostUnit          string                    `json:"cost_unit"`
 	Falsifier         artifact.ID               `json:"falsifier"`
 	References        []CandidateReference      `json:"references"`
 	DevelopmentSplit  artifact.ID               `json:"development_split"`
@@ -108,6 +110,30 @@ func NewCandidate(spec CandidateSpec) (Candidate, error) {
 		Version: artifact.InitialDocumentVersion, CandidateSpec: cloneCandidateSpec(spec),
 	})
 	return Candidate{document: document}, err
+}
+
+// RequireCandidate loads the exact canonical candidate and refuses lineage
+// added outside the candidate owner's immutable dependency contract.
+func RequireCandidate(ctx context.Context, reader artifact.Reader, id artifact.ID) (Candidate, error) {
+	document, err := candidateCodec.Require(ctx, reader, id)
+	if err != nil {
+		return Candidate{}, err
+	}
+	value := Candidate{document: document}
+	parents, err := reader.Parents(ctx, value.ID())
+	if err != nil {
+		return Candidate{}, err
+	}
+	expected := value.Lineage()
+	if len(parents) != len(expected) {
+		return Candidate{}, errors.New("model recipe: candidate lineage differs from its canonical dependencies")
+	}
+	for _, edge := range expected {
+		if !slices.Contains(parents, edge) {
+			return Candidate{}, errors.New("model recipe: candidate lineage differs from its canonical dependencies")
+		}
+	}
+	return value, nil
 }
 
 // ID returns the candidate's content identity.
@@ -150,6 +176,7 @@ func canonicalizeCandidateDocument(value *candidateDocument) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
 		!value.Subject.Valid() || !value.Parent.Valid() || value.Parent == value.Subject ||
 		len(value.Components) == 0 || value.Falsifier.Kind() != artifact.KindRecipe || len(value.References) == 0 ||
+		strings.TrimSpace(value.CostUnit) == "" || value.CostUnit != strings.TrimSpace(value.CostUnit) ||
 		value.DevelopmentSplit.Kind() != artifact.KindDatasetShard || value.PromotionSplit.Kind() != artifact.KindDatasetShard ||
 		value.DevelopmentSplit == value.PromotionSplit || value.DevelopmentBudget.Kind() != artifact.KindEvidence ||
 		value.PromotionBudget.Kind() != artifact.KindEvidence || value.Code.Kind() != artifact.KindEvidence ||

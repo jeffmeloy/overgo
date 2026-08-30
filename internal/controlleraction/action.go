@@ -18,6 +18,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelmerge"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -51,6 +52,10 @@ const (
 	KindEvaluatorPromotion   Kind = "evaluator-promotion"
 	KindObjectiveComposition Kind = "objective-composition"
 	KindCandidateScheduling  Kind = "candidate-scheduling"
+	// KindCandidateProposal publishes one immutable, non-authorizing hypothesis.
+	KindCandidateProposal Kind = "candidate-proposal"
+	// KindCandidateAdmission compiles one immutable candidate and its sole eligibility decision.
+	KindCandidateAdmission Kind = "candidate-admission"
 	// KindCompositionExecutionPlan compiles the active source-target-task
 	// composition authority into its sole executable plan.
 	KindCompositionExecutionPlan Kind = "composition-execution-plan"
@@ -137,6 +142,18 @@ type CandidateSchedulingAction struct {
 	Budget     plan.SchedulerBudget      `json:"budget"`
 }
 
+// CandidateProposalAction carries hypothesis data only and grants no eligibility.
+type CandidateProposalAction struct {
+	Spec modelrecipe.CandidateSpec `json:"spec"`
+}
+
+// CandidateAdmissionAction names an already-persisted candidate. The admission
+// owner reloads its canonical bytes and lineage before considering authority.
+type CandidateAdmissionAction struct {
+	Candidate artifact.ID `json:"candidate"`
+	Authority artifact.ID `json:"authority"`
+}
+
 // CompositionExecutionPlanAction selects one active composition by its exact
 // source, target, and task scope; the recipe itself remains OvergoDB-authoritative.
 type CompositionExecutionPlanAction struct {
@@ -174,6 +191,8 @@ type Action struct {
 	Evaluator     *EvaluatorPromotionAction       `json:"evaluator,omitempty"`
 	Objective     *ObjectiveCompositionAction     `json:"objective,omitempty"`
 	Scheduling    *CandidateSchedulingAction      `json:"scheduling,omitempty"`
+	Candidate     *CandidateProposalAction        `json:"candidate,omitempty"`
+	Admission     *CandidateAdmissionAction       `json:"admission,omitempty"`
 	Composition   *CompositionExecutionPlanAction `json:"composition,omitempty"`
 	Offline       *OfflineArtifactPlanAction      `json:"offline,omitempty"`
 }
@@ -195,7 +214,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Composition != nil, a.Offline != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Candidate != nil, a.Admission != nil, a.Composition != nil, a.Offline != nil} {
 		if present {
 			payloads++
 		}
@@ -239,6 +258,15 @@ func (a Action) validate() error {
 	case KindCandidateScheduling:
 		if a.Scheduling == nil {
 			return errors.New("controller action: candidate-scheduling requires typed evidence")
+		}
+	case KindCandidateProposal:
+		if a.Candidate == nil {
+			return errors.New("controller action: candidate-proposal requires one hypothesis")
+		}
+	case KindCandidateAdmission:
+		if a.Admission == nil || a.Admission.Candidate.Kind() != artifact.KindRecipe ||
+			a.Admission.Authority.Kind() != artifact.KindEvidence {
+			return errors.New("controller action: candidate-admission requires one persisted candidate and authority binding")
 		}
 	case KindCompositionExecutionPlan:
 		if a.Composition == nil {
@@ -381,6 +409,32 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		return []artifact.Content{content}, scheduler.Lineage(), nil
+	case KindCandidateProposal:
+		candidate, err := modelrecipe.NewCandidate(action.Candidate.Spec)
+		if err != nil {
+			return nil, nil, err
+		}
+		content, err := candidate.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{content}, candidate.Lineage(), nil
+	case KindCandidateAdmission:
+		candidate, err := modelrecipe.RequireCandidate(ctx, reader, action.Admission.Candidate)
+		if err != nil {
+			return nil, nil, err
+		}
+		admission, err := runrecord.AdmitCandidate(
+			ctx, reader, candidate, action.Admission.Authority, modelrecipe.CandidateAdmissionAdapters()...,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		admissionContent, err := admission.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{admissionContent}, admission.Lineage(), nil
 	case KindCompositionExecutionPlan:
 		plan, err := composition.CompileCompositionExecutionPlan(
 			ctx, reader, action.Composition.Source, action.Composition.Target, action.Composition.Task,

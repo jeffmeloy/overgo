@@ -1,6 +1,7 @@
 package recipe
 
 import (
+	"context"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
@@ -120,6 +121,11 @@ func NewDecision(
 
 func ParseDecision(content []byte) (Decision, error) {
 	return decisionCodec.Parse(content)
+}
+
+// RequireDecision loads one exact typed decision from its owning contract.
+func RequireDecision(ctx context.Context, reader artifact.Reader, id artifact.ID) (Decision, error) {
+	return decisionCodec.Require(ctx, reader, id)
 }
 
 func (d Decision) ValidateIdentity() error {

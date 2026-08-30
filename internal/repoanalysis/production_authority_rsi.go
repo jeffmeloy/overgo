@@ -12,6 +12,7 @@ const (
 	modelRecipePackage = "internal/modelrecipe"
 	recipePackage      = "internal/recipe"
 	invocationPackage  = "internal/invocation"
+	runRecordImport    = "overgo/internal/runrecord"
 )
 
 // auditRSIAuthorities reserves the cross-domain RSI spines before their
@@ -29,6 +30,8 @@ func auditCrossDomainOwners(sources []productionAuthoritySource, report *Product
 		authorityOwnerRule{Family: "candidate-admission", Kind: "type", Symbol: "AdmissionBinding", Owner: runRecordPackage},
 		authorityOwnerRule{Family: "candidate-admission", Kind: "func", Symbol: "NewAdmissionBinding", Owner: runRecordPackage},
 		authorityOwnerRule{Family: "candidate-admission", Kind: "func", Symbol: "ValidateAdmissionSuccession", Owner: runRecordPackage},
+		authorityOwnerRule{Family: "candidate-admission", Kind: "type", Symbol: "CandidateAdmission", Owner: runRecordPackage},
+		authorityOwnerRule{Family: "candidate-admission", Kind: "func", Symbol: "AdmitCandidate", Owner: runRecordPackage},
 		authorityOwnerRule{Family: "promotion-lifecycle", Kind: "type", Symbol: "LifecycleEvent", Owner: recipePackage},
 		authorityOwnerRule{Family: "promotion-lifecycle", Kind: "func", Symbol: "NewLifecycleEvent", Owner: recipePackage},
 		authorityOwnerRule{Family: "promotion-lifecycle", Kind: "func", Symbol: "Transition", Owner: modelRecipePackage},
@@ -47,6 +50,22 @@ func auditCrossDomainOwners(sources []productionAuthoritySource, report *Product
 	reserveAuthorityOwnersInPackages(sources, report, rsiCandidatePackages,
 		authorityOwnerRule{Family: "candidate-admission", Kind: "type", Symbol: "Candidate", Owner: modelRecipePackage},
 	)
+	auditCandidateAdmissionEntry(sources, report)
+}
+
+func auditCandidateAdmissionEntry(sources []productionAuthoritySource, report *ProductionAuthorityReport) {
+	sites := map[authoritySiteKey][]int{}
+	for _, source := range sources {
+		inspectProductionAuthoritySource(source, func(function string, node ast.Node) {
+			call, ok := node.(*ast.CallExpr)
+			if ok && authorityCallNames(source, call.Fun, runRecordPackage, runRecordImport, "AdmitCandidate") {
+				recordAuthoritySite(sites, source, function, call.Pos())
+			}
+		})
+	}
+	verifyAuthoritySites(report, "candidate-admission", "AdmitCandidate call", sites, []authorityAllowance{{
+		File: "internal/controlleraction/action.go", Function: "compileAction", Count: oneAuthoritySite,
+	}})
 }
 
 // requireConcreteTypeOwner distinguishes the canonical definition from API

@@ -26,10 +26,14 @@ func TestCrossDomainCandidateHasSingleAdmissionOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := architectureRSIOverlay(t, snapshot, map[string][]byte{
-		"internal/controlleraction/duplicate_admission.go": []byte("package controlleraction\ntype AdmissionBinding struct{}\n"),
+		"internal/controlleraction/duplicate_admission.go": []byte("package controlleraction\ntype CandidateAdmission struct{}\nfunc AdmitCandidate() {}\n"),
 	})
 	report := architectureRSIAudit(t, candidate)
 	requireArchitectureFinding(t, report, "candidate-admission", "owner")
+	bypass := architectureRSIOverlay(t, snapshot, map[string][]byte{
+		"internal/loop/bypass_candidate_admission.go": []byte("package loop\nimport \"overgo/internal/runrecord\"\nfunc bypassCandidateAdmission() { _, _ = runrecord.AdmitCandidate() }\n"),
+	})
+	requireArchitectureFinding(t, architectureRSIAudit(t, bypass), "candidate-admission", "bypass")
 }
 
 func TestCrossDomainPromotionLifecycleHasOneTransitionOwner(t *testing.T) {

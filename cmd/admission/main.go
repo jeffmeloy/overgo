@@ -99,10 +99,9 @@ func runMechanism(path, recordStore string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	admission, err := runrecord.AdmitMechanismCandidate(
+	if err := runrecord.ValidateMechanismCandidateEvidence(
 		context.Background(), store, candidate, provenance, specification.Authority,
-	)
-	if err != nil {
+	); err != nil {
 		return err
 	}
 	censusContent, err := census.Content()
@@ -113,19 +112,14 @@ func runMechanism(path, recordStore string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	admissionContent, err := admission.Content()
-	if err != nil {
-		return err
-	}
 	lineage := append(census.Lineage(), candidate.Lineage()...)
-	lineage = append(lineage, admission.Lineage()...)
 	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
-		Key:      "admission/mechanism/" + admission.ID.String(),
-		Contents: []artifact.Content{censusContent, candidateContent, admissionContent}, Lineage: lineage,
+		Key:      "admission/mechanism-evidence/" + candidate.ID().String(),
+		Contents: []artifact.Content{censusContent, candidateContent}, Lineage: lineage,
 	}); err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "mechanism candidate admitted: %s candidate=%s census=%s\n", admission.ID, candidate.ID(), census.ID())
+	fmt.Fprintf(output, "mechanism candidate evidence validated: candidate=%s census=%s\n", candidate.ID(), census.ID())
 	return nil
 }
 

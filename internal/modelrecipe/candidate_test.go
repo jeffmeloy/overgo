@@ -90,6 +90,7 @@ func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 		"prediction benefit":     func(value *CandidateSpec) { value.Prediction.Benefit = 0.3 },
 		"prediction cost":        func(value *CandidateSpec) { value.Prediction.Cost++ },
 		"prediction unit":        func(value *CandidateSpec) { value.Prediction.Unit = "fraction" },
+		"cost unit":              func(value *CandidateSpec) { value.CostUnit = "gpu-seconds" },
 		"prediction uncertainty": func(value *CandidateSpec) { value.Prediction.Uncertainty = 0.2 },
 		"falsifier": func(value *CandidateSpec) {
 			value.Falsifier = candidateID(t, artifact.KindRecipe, "other falsifier")
@@ -144,6 +145,7 @@ func TestCrossDomainCandidateIdentityAndValidation(t *testing.T) {
 		"missing prediction metric": func(value *CandidateSpec) { value.Prediction.Metric = "" },
 		"non-finite benefit":        func(value *CandidateSpec) { value.Prediction.Benefit = math.NaN() },
 		"zero cost":                 func(value *CandidateSpec) { value.Prediction.Cost = 0 },
+		"missing cost unit":         func(value *CandidateSpec) { value.CostUnit = "" },
 		"unbounded uncertainty":     func(value *CandidateSpec) { value.Prediction.Uncertainty = 1.1 },
 		"wrong falsifier kind": func(value *CandidateSpec) {
 			value.Falsifier = candidateID(t, artifact.KindEvidence, "wrong falsifier")
@@ -204,6 +206,7 @@ func candidateFixture(t testing.TB) CandidateSpec {
 			{Domain: CandidateModelPrototype, Specification: prototype},
 		},
 		Prediction: recipePredictionFixture(),
+		CostUnit:   "queries",
 		Falsifier:  candidateID(t, artifact.KindRecipe, "candidate falsifier"),
 		References: []CandidateReference{
 			{Role: CandidateReferenceProvenance, Subject: prototype, Evidence: candidateID(t, artifact.KindEvidence, "provenance")},

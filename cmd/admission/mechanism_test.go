@@ -15,7 +15,7 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-func TestRunMechanismPublishesEvidenceGatedAdmission(t *testing.T) {
+func TestRunMechanismPublishesValidatedEvidence(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	mechanism := id(artifact.KindRecipe, "mechanism")
 	claim := func(role trainingprogram.MechanismEvidenceRole, sourceKind artifact.Kind, name string) trainingprogram.MechanismEvidence {
@@ -127,7 +127,7 @@ func TestRunMechanismPublishesEvidenceGatedAdmission(t *testing.T) {
 	if err := run([]string{"-mechanism", input, "-record", storePath}, &output); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(output.String(), "mechanism candidate admitted:") {
+	if !strings.Contains(output.String(), "mechanism candidate evidence validated:") {
 		t.Fatalf("output = %q", output.String())
 	}
 

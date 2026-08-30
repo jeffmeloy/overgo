@@ -29,6 +29,7 @@ func TestCompositeCandidateBindsModelRoutingSteeringAndTransform(t *testing.T) {
 		Prediction: recipe.SteeringPrediction{
 			Metric: "held-out composite quality", Benefit: 0.15, Cost: 20, Unit: "ratio", Uncertainty: 0.1,
 		},
+		CostUnit:  "queries",
 		Falsifier: component(artifact.KindRecipe, "composite falsifier"),
 		References: []modelrecipe.CandidateReference{
 			{Role: modelrecipe.CandidateReferenceBaseline, Subject: parent, Evidence: component(artifact.KindEvidence, "baseline")},

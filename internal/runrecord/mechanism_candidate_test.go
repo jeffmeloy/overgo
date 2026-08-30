@@ -23,29 +23,21 @@ func TestMarinCandidateAdmissionRequiresRelevantTypedEvidence(t *testing.T) {
 	fixture := newMechanismAdmissionFixture(t)
 	defer fixture.store.Close()
 
-	admission, err := AdmitMechanismCandidate(
+	err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, fixture.candidate, fixture.provenance, fixture.binding.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := admission.Content()
-	if err != nil || content.Descriptor.ID != admission.ID {
-		t.Fatalf("admission content = (%s, %v)", content.Descriptor.ID, err)
-	}
-	lineage := admission.Lineage()
-	if len(lineage) != 2 || lineage[0].Parent != fixture.candidate.ID() || lineage[1].Parent != fixture.binding.ID {
-		t.Fatalf("admission lineage = %+v", lineage)
-	}
 
 	foreign := fixture.provenance
 	foreign.Census = testutil.ArtifactID(t, artifact.KindRecipe, "foreign-census")
-	if _, err := AdmitMechanismCandidate(
+	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, fixture.candidate, foreign, fixture.binding.ID,
 	); err == nil {
 		t.Fatal("foreign provenance admitted candidate")
 	}
-	if _, err := AdmitMechanismCandidate(
+	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, fixture.candidate, fixture.provenance,
 		testutil.ArtifactID(t, artifact.KindEvidence, "untyped-authority"),
 	); err == nil {
@@ -84,7 +76,7 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := AdmitMechanismCandidate(
+	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, unrelated, fixture.provenance, fixture.binding.ID,
 	); err == nil {
 		t.Fatal("typed evidence for a foreign mechanism subject was admitted")
@@ -114,7 +106,7 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := AdmitMechanismCandidate(
+	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, wrongRoleCandidate, fixture.provenance, fixture.binding.ID,
 	); err == nil {
 		t.Fatal("cost evidence used as benefit evidence was admitted")
@@ -133,7 +125,7 @@ func TestMechanismAdmissionRejectsUnrelatedEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := AdmitMechanismCandidate(
+	if err := ValidateMechanismCandidateEvidence(
 		t.Context(), fixture.store, descriptorCandidate, fixture.provenance, fixture.binding.ID,
 	); err == nil {
 		t.Fatal("descriptor-only benefit evidence was admitted")

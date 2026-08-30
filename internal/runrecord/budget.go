@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -90,6 +91,11 @@ func ParseSplitPartition(data []byte) (SplitPartition, error) {
 
 func ParseBudget(data []byte) (Budget, error) {
 	return budgetCodec.Parse(data)
+}
+
+// RequireBudget loads one exact immutable budget grant.
+func RequireBudget(ctx context.Context, reader artifact.Reader, id artifact.ID) (Budget, error) {
+	return budgetCodec.Require(ctx, reader, id)
 }
 
 func ParseBudgetCharge(data []byte) (BudgetCharge, error) {

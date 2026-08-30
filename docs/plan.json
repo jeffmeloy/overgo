@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "grounded-retrieval",
-      "title": "Extend the dataset retrieval owner with structural, hybrid, and replayable grounded evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "retrieval-evidence",
-          "title": "Bind consumed retrieval context to a replayable receipt and evaluate citation-aware quality and work",
-          "status": "open",
-          "verify": "go test ./internal/dataset ./internal/runrecord ./internal/evaluation ./internal/server -run '^(TestAgentRetrievalColdReadsRejectForgedLineage|TestRetrievalReceiptReplay|TestRetrievalEvaluationMetricsAndCoverage|TestAgentWorkspaceRetrievalEvidence)$' -count=1",
-          "rationale": "The production agent-retrieval endpoint enters one run-record-owned search-and-publish operation: it executes SearchWithWork itself, derives rather than accepts scores, work, and candidate stages, and atomically publishes the resulting receipt with an InteractionTrace while preserving the endpoint's result-array response. The receipt binds the query digest, source head, corpus, projection, providers, filters, bounds, dense, lexical, and bounded-union stage digests, exact inspected and loaded work, ordered results, structural parents, and citations. Evaluation accepts only that consumed receipt and reloads all dataset authorities. A codec-backed held-out case and evaluator bind the ordered result digest and report recall, reciprocal rank, normalized discounted gain, citation coverage, abstention, bytes, facts, and provider work.",
-          "depends_on": [
-            "grounded-retrieval/structural-hybrid-search"
-          ],
-          "capabilities": [
-            "retrieval-receipt",
-            "replay",
-            "retrieval-evaluation",
-            "resource-fitness"
-          ]
-        }
-      ]
-    },
-    {
       "id": "capability-control",
       "title": "Qualify, route, and supervise capabilities through measured production behavior",
       "status": "open",

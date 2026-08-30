@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "benchmark-smoke",
-          "title": "Evaluate every servable model against one derived lm-eval suite family and correct any regression",
-          "status": "open",
-          "verify": "go run ./cmd/evaluate -all -repo overgodb-store -family mmlu",
-          "rationale": "The store's derived benchmark suites are the lm-eval substrate; one bounded family per model proves the whole path — suite derivation, per-model prompt templates, session evaluation, and evidence publication — still works for every servable model. Fix regressions and measured inefficiencies the run surfaces; park larger findings with cmd/finding.",
-          "depends_on": [
-            "model-smoke/inference-smoke"
-          ],
-          "capabilities": [
-            "smoke",
-            "benchmark",
-            "lm-eval"
-          ]
-        },
-        {
           "id": "register-qwen38-27b",
           "title": "Register models/Qwen3.8-27B-UD-Q6_K into OvergoDB and verify its declared multimodal capabilities",
           "status": "open",

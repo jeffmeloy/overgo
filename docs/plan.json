@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "recipe-derivation",
-          "title": "Derive inference, training, evaluation, composition, and agent-facing recipe candidates from resolved model definitions and compiled module catalogs",
-          "status": "open",
-          "verify": "go test ./internal/recipe ./internal/modelrecipe ./internal/workflowrecipe -run '^TestPrototypeRecipeDerivation$' -count=1",
-          "rationale": "Recipes remain immutable recipe.Definition artifacts: closed-world node and edge graphs whose modules are compiled Go capabilities. They bind model definition, profile, processor, placement, residency, session, evaluation, and policy artifacts without embedding code or discovering filesystem instructions.",
-          "depends_on": [
-            "model-prototypes/prototype-materialization"
-          ],
-          "capabilities": [
-            "recipe",
-            "model-recipe",
-            "workflow-recipe",
-            "go-only"
-          ]
-        },
-        {
           "id": "recipe-validation",
           "title": "Compile each candidate recipe against exact model, peer, tool, and runtime capabilities and publish verification evidence",
           "status": "open",

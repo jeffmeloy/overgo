@@ -26,12 +26,14 @@ func materializeTrial(arguments []string) error {
 	admissionFlag := flags.String("admission", "", "improvement admission evidence ID")
 	runFlag := flags.String("run", "", "trial run receipt artifact ID")
 	candidatesFlag := flags.String("candidates", "", "comma-separated candidate recipe IDs")
+	tasksFlag := flags.String("tasks", "", "comma-separated tasks whose candidate recipes derive from the resolved definition")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
 	if flags.NArg() != 1 || strings.TrimSpace(*prototypeFlag) == "" || strings.TrimSpace(*runFlag) == "" ||
-		strings.TrimSpace(*admissionFlag) == "" || strings.TrimSpace(*candidatesFlag) == "" {
-		return errors.New("usage: recipe materialize-trial -prototype <id> -admission <id> -run <id> -candidates <csv> [-repo <store>] <model>")
+		strings.TrimSpace(*admissionFlag) == "" ||
+		strings.TrimSpace(*candidatesFlag) == "" == (strings.TrimSpace(*tasksFlag) == "") {
+		return errors.New("usage: recipe materialize-trial -prototype <id> -admission <id> -run <id> (-candidates <csv> | -tasks <csv>) [-repo <store>] <model>")
 	}
 	prototypeID, err := artifact.ParseID(*prototypeFlag)
 	if err != nil {
@@ -46,12 +48,14 @@ func materializeTrial(arguments []string) error {
 		return err
 	}
 	candidates := []artifact.ID{}
-	for _, raw := range strings.Split(*candidatesFlag, ",") {
-		candidate, parseErr := artifact.ParseID(strings.TrimSpace(raw))
-		if parseErr != nil {
-			return parseErr
+	if strings.TrimSpace(*candidatesFlag) != "" {
+		for _, raw := range strings.Split(*candidatesFlag, ",") {
+			candidate, parseErr := artifact.ParseID(strings.TrimSpace(raw))
+			if parseErr != nil {
+				return parseErr
+			}
+			candidates = append(candidates, candidate)
 		}
-		candidates = append(candidates, candidate)
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -88,10 +92,36 @@ func materializeTrial(arguments []string) error {
 		Prototype: prototype, Admission: admission,
 		Objective: trainingprogram.ObjectiveTokenPrediction,
 	}
+	derivedContents := []artifact.Content{}
+	if strings.TrimSpace(*tasksFlag) != "" {
+		tasks := []recipe.Task{}
+		for _, raw := range strings.Split(*tasksFlag, ",") {
+			tasks = append(tasks, recipe.Task(strings.TrimSpace(raw)))
+		}
+		derived, deriveErr := modelrecipe.DerivePrototypeRecipes(
+			candidate.resolved, recipe.PlacementHybrid, recipe.SessionCapacity,
+			recipe.ResidencyHybridNative, tasks,
+		)
+		if deriveErr != nil {
+			return deriveErr
+		}
+		for _, definition := range derived {
+			definitionContent, contentErr := modelrecipe.Content(definition)
+			if contentErr != nil {
+				return contentErr
+			}
+			derivedContents = append(derivedContents, definitionContent)
+			candidates = append(candidates, definition.ID)
+		}
+	}
 	batch, err := modelrecipe.MaterializePrototypeTrial(
 		trial, candidate.resolved, candidate.inventory, trialRun, candidates,
 	)
 	if err != nil {
+		return err
+	}
+	batch.Contents = append(batch.Contents, derivedContents...)
+	if err := batch.Validate(); err != nil {
 		return err
 	}
 	if _, err := store.Commit(ctx, batch); err != nil {

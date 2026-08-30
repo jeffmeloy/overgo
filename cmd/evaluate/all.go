@@ -191,8 +191,22 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 			fmt.Printf("  %s = %v %s\n", metric.Name, metric.Value, metric.Unit)
 		}
 	}
-	if selected == 0 {
-		return errors.New("evaluate: no derived suite matched the family filter")
+	return familyFilterOutcome(selected, declared, domains, family)
+}
+
+// familyFilterOutcome decides an empty family selection: a model whose
+// declared domains admit other suites but not this family is excluded
+// by its own declaration — the honest outcome is a named skip, exactly
+// like the domain filter admitting nothing at all. Undeclared models
+// keep full coverage, so a missed filter there names a family the
+// catalog cannot serve.
+func familyFilterOutcome(selected int, declared bool, domains []string, family string) error {
+	if selected > 0 {
+		return nil
 	}
-	return nil
+	if declared {
+		fmt.Printf("model domains %v admit no %s suite; nothing to evaluate\n", domains, family)
+		return nil
+	}
+	return errors.New("evaluate: no derived suite matched the family filter")
 }

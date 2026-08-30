@@ -4,30 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "interaction-efficiency",
-      "title": "Reduce component, agent, tool, peer, and operator interactions without losing admitted work or evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "efficiency-gate",
-          "title": "Reject interaction optimizations that lose capability, evidence, determinism, or merely shift work to another component",
-          "status": "open",
-          "verify": "go test ./internal/runrecord ./internal/overgodb ./internal/agentloop ./internal/workflowruntime -run '^TestInteractionEfficiencyGate$' -count=1",
-          "rationale": "Candidate and baseline traces must complete the same task contract with equivalent admitted inputs and evidence. A win requires a Pareto improvement or an explicit tradeoff decision across semantic commits, scans, bytes, copied bytes, allocations, wakeups, repeated context, model turns, tool calls, retries, waits, wall time, and resource peaks; missing counters block the claim.",
-          "depends_on": [
-            "interaction-efficiency/operator-decisions",
-            "interaction-efficiency/memory-movement-reduction"
-          ],
-          "capabilities": [
-            "interaction-efficiency",
-            "evaluation",
-            "coverage",
-            "rsi-gate"
-          ]
-        }
-      ]
-    },
-    {
       "id": "grunt-automation",
       "title": "Convert repeated model grunt work into Go-owned automation",
       "status": "open",

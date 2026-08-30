@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -187,6 +188,35 @@ func printLocalitySchedule(root, inputPath string, output io.Writer) error {
 	encoder := json.NewEncoder(output)
 	encoder.SetEscapeHTML(false)
 	return encoder.Encode(schedule)
+}
+
+// judgeInteractionEfficiency renders the typed verdict for one measured
+// interaction-efficiency claim; the exit code is the verdict, so drivers and
+// operators consume one machine decision instead of comparing counters by
+// hand.
+func judgeInteractionEfficiency(inputPath string, output io.Writer) error {
+	var claim struct {
+		Candidate runrecord.EfficiencyTrace     `json:"candidate"`
+		Baseline  runrecord.EfficiencyTrace     `json:"baseline"`
+		Covered   []string                      `json:"covered"`
+		Tradeoff  *runrecord.EfficiencyTradeoff `json:"tradeoff,omitempty"`
+	}
+	if err := jsonfile.DecodeStrict(inputPath, &claim); err != nil {
+		return err
+	}
+	comparison, err := runrecord.CompareEfficiencyTraces(claim.Candidate, claim.Baseline, claim.Covered, claim.Tradeoff)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(output)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(comparison); err != nil {
+		return err
+	}
+	if !comparison.Win {
+		return errors.New("plan: the efficiency claim does not win")
+	}
+	return nil
 }
 
 // printReadyFrontier prints every dispatchable row and refuses when the live

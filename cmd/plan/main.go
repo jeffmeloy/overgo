@@ -50,6 +50,7 @@ import (
 func main() {
 	next := flag.Bool("next", false, "print the top open action")
 	frontier := flag.Bool("frontier", false, "print every dispatchable row (the ready frontier) and validate live worktree leases against it")
+	judgeEfficiency := flag.String("judge-efficiency", "", "judge an interaction-efficiency claim JSON ({candidate, baseline, tradeoff?}); exit code is the verdict")
 	admitProposalFlag := flag.String("admit-proposal", "", "admit one typed steering proposal from a JSON spec into the store and the plan")
 	history := flag.String("history", "", "print attempt history from the store: aggregates and recent attempts (pass a plan item id, or all)")
 	prompt := flag.Bool("prompt", false, "print the generated self-contained task for the top open step")
@@ -81,7 +82,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, frontier: *frontier, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -90,6 +91,7 @@ func main() {
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop bool
 	frontier                                                                         bool
+	judgeEfficiency                                                                  string
 	pruneDone                                                                        bool
 	title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane   string
 	prepareMerge                                                                     string
@@ -139,6 +141,8 @@ func run(c cli, args []string) error {
 		return printLeaseReport(".", c.capacity, os.Stdout)
 	case c.frontier:
 		return printReadyFrontier(".", document, os.Stdout)
+	case c.judgeEfficiency != "":
+		return judgeInteractionEfficiency(c.judgeEfficiency, os.Stdout)
 	case c.localitySchedule != "":
 		return printLocalitySchedule(".", c.localitySchedule, os.Stdout)
 	case c.bindCensus:

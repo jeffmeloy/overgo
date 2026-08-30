@@ -4,30 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "capability-control",
-      "title": "Qualify, route, and supervise capabilities through measured production behavior",
-      "status": "open",
-      "steps": [
-        {
-          "id": "trajectory-supervision",
-          "title": "Stop exact no-progress loops and emit supervised recovery decisions without hidden thresholds",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/agentloop ./internal/executionfailure -run '^(TestTrajectorySupervisorStopsExactNoProgress|TestTrajectorySupervisorPermitsNewEvidence)$' -count=1",
-          "rationale": "The supervisor reloads two complete InteractionTrace documents, their exact stored arguments, manuals, tool results, and current StageReceipt closure. Repeating the same manual, canonical arguments, request state, and result without a newly stored typed obligation resolution is a structural special cause that retires the session. A changed action or exact resolution whose evidence closes over the obligation, current result, and receipt permits continuation; an unrelated fresh ID does not. Statistical drift remains outside this row, and model-authored advice cannot alter the deterministic disposition.",
-          "depends_on": [
-            "experience-projection/atomic-interaction-context",
-            "capability-control/production-probes"
-          ],
-          "capabilities": [
-            "loop-health",
-            "no-progress-detection",
-            "supervised-recovery",
-            "deterministic-disposition"
-          ]
-        }
-      ]
-    },
-    {
       "id": "knowledge-promotion",
       "title": "Turn useful episodes into admitted reusable datasets and prove the combined supervised loop",
       "status": "open",

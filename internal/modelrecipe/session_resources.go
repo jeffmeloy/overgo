@@ -101,7 +101,11 @@ func compileComponentSessionPlan(
 		if !node.Session.Valid() || !node.Residency.Valid() {
 			return ComponentSessionPlan{}, errors.New("model recipe: component lifetime is invalid")
 		}
-		modelID, ok := definition.Dependency(recipe.DependencyModel, node.ModelSlot)
+		componentRole := recipe.DependencyModel
+		if role, declared := sessionComponentRoles[node.Module]; declared {
+			componentRole = role
+		}
+		modelID, ok := definition.Dependency(componentRole, node.ModelSlot)
 		if !ok {
 			return ComponentSessionPlan{}, errors.New("model recipe: component model binding is absent")
 		}

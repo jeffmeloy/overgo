@@ -9,24 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "prototype-contract",
-          "title": "Define an immutable model prototype binding parent, architecture profile, derivation policy, training objective, dataset splits, capability hypothesis, budgets, and code evidence",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/trainingprogram -run '^TestModelPrototypeIdentityAndValidation$' -count=1",
-          "rationale": "A prototype is a content-addressed hypothesis, not executable code, weights, or an active recipe. Its architecture name must resolve to a compiled Go registration; all policy and evidence dependencies are exact artifact IDs; code identity is evidence and cannot authorize execution.",
-          "depends_on": [
-            "campaign-concurrency/ready-frontier-leases",
-            "capability-bound-activation/capability-identity",
-            "causal-execution/causal-context"
-          ],
-          "capabilities": [
-            "model-prototype",
-            "model-recipe",
-            "artifact-identity",
-            "go-only"
-          ]
-        },
-        {
           "id": "prototype-admission",
           "title": "Extend improvement proposals and controller actions to admit model-prototype candidates with causal, authority, budget, development-split, and falsifier closure",
           "status": "open",

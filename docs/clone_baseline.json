@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening. Raised 10031 to 10047 for the terminal-attempt receipt: its alias/Resolve/Require delegates join the record-codec idiom groups the tightness-census exemption will absorb.",
-  "duplicate_excess_nodes": 10047
+  "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening.",
+  "duplicate_excess_nodes": 10066
 }

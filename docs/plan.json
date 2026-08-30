@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "episode-dataset-promotion",
-          "title": "Promote cited, redacted episode knowledge only after independent held-out benefit",
-          "status": "open",
-          "verify": "go test ./internal/dataset ./internal/evaluation ./internal/modelrecipe ./internal/runrecord -run '^(TestEpisodeKnowledgePromotionRequiresHeldOutBenefit|TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate|TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence)$' -count=1",
-          "rationale": "An agent may propose the existing cross-domain CandidateDatasetTransform over a dataset-owned deterministic transform. The candidate binds selected episode sources and consumed retrieval citations; a single typed hygiene report binds redaction, deduplication, conflict resolution, replay evidence, development split, and zero promotion overlap without three redundant policy records. Stored retrieval evaluations compare output and incumbent on the same sealed case and independent promotion split. Only a strict Pareto benefit with no quality or work regression emits promotion evidence; raw, uncited, contaminated, tied, or merely successful-looking output never becomes reusable knowledge.",
-          "depends_on": [
-            "grounded-retrieval/retrieval-evidence",
-            "capability-control/trajectory-supervision"
-          ],
-          "capabilities": [
-            "knowledge-candidate",
-            "dataset-transform",
-            "held-out-evaluation",
-            "promotion-authority"
-          ]
-        },
-        {
           "id": "supervised-grounded-replay",
           "title": "Run one supervised capability through grounded retrieval, routing, recovery, and knowledge promotion",
           "status": "open",

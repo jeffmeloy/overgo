@@ -59,6 +59,14 @@ func (s *Store) CommitAt(ctx context.Context, sequence uint64) (CommitView, bool
 // CommitDeltaAt reads exactly one indexed journal coordinate. It neither
 // scans catalog contents nor replays preceding commits.
 func (s *Store) CommitDeltaAt(ctx context.Context, sequence uint64) (CommitDelta, bool, error) {
+	return s.commitDeltaAt(ctx, sequence, true)
+}
+
+// commitDeltaAt reads one indexed commit coordinate; materialize selects
+// whether content payloads load. Metadata-only consumers — head-bound delta
+// serving drops payload bytes anyway — skip the load entirely instead of
+// copying content they discard.
+func (s *Store) commitDeltaAt(ctx context.Context, sequence uint64, materialize bool) (CommitDelta, bool, error) {
 	if err := contextError(ctx); err != nil {
 		return CommitDelta{}, false, err
 	}
@@ -117,6 +125,9 @@ func (s *Store) CommitDeltaAt(ctx context.Context, sequence uint64) (CommitDelta
 		locator, found := s.state.contents.locator(id)
 		if !found || locator.sequence != sequence {
 			return CommitDelta{}, false, errors.New("overgodb: exact commit content introduction differs")
+		}
+		if !materialize {
+			continue
 		}
 		data, err := s.materializeContent(id, locator)
 		if err != nil {

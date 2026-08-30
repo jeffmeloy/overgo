@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "memory-movement-reduction",
-          "title": "Trace dominant byte-copy and allocation paths and replace them with bounded streaming views and reuse without changing admitted content",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/jsonfile -run '^TestMemoryMovementTraceReduction$' -count=1",
-          "rationale": "Measured traces over journal append, blob chunking, snapshot encode, projection rebuild, and delta serve identify the dominant full-content copies and repeated decodes. Each one is replaced by a bounded streaming view, buffer reuse, or an incremental delta with identical admitted bytes, digests, and evidence; a reduction that changes any admitted content, or that cannot show its trace, refuses. Complexity shrinks with the copies: a displaced buffering path is deleted in the same commit.",
-          "depends_on": [
-            "interaction-efficiency/projection-query-plans",
-            "interaction-efficiency/head-bound-deltas"
-          ],
-          "capabilities": [
-            "memory-movement",
-            "streaming",
-            "trace-derived",
-            "interaction-efficiency"
-          ]
-        },
-        {
           "id": "efficiency-gate",
           "title": "Reject interaction optimizations that lose capability, evidence, determinism, or merely shift work to another component",
           "status": "open",

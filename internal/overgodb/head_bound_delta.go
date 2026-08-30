@@ -99,7 +99,7 @@ func (s *Store) DeltasSince(
 	finalAliases := map[string]artifact.AliasBinding{}
 	aliasOrder := []string{}
 	for next := previousSequence + 1; next <= last; next++ {
-		commit, found, err := s.CommitDeltaAt(ctx, next)
+		commit, found, err := s.commitDeltaAt(ctx, next, false)
 		if err != nil {
 			return HeadBoundDelta{}, false, err
 		}

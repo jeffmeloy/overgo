@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "evidence-routing",
-      "title": "Route task execution to models through typed evidence-derived decisions",
-      "status": "open",
-      "steps": [
-        {
-          "id": "counterfactual-replay",
-          "title": "Replay recorded routing decisions under a candidate policy and publish measured counterfactual deltas",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/overgodb -run '^TestRoutingCounterfactualReplay$' -count=1",
-          "rationale": "A candidate selection policy is evaluated against the recorded decision corpus before any live rollout: identical inputs, both policies, published deltas with coverage. Counterfactual evidence is a required admission input for routing-policy rollout plans, so policy improvement is measured at near-zero cost before it is trusted with live work.",
-          "depends_on": [
-            "evidence-routing/evidence-selection",
-            "causal-execution/causal-projection"
-          ],
-          "capabilities": [
-            "rsi-routing",
-            "counterfactual-evidence",
-            "deterministic-replay"
-          ]
-        }
-      ]
-    },
-    {
       "id": "deterministic-rollout",
       "title": "Validate promoted candidates through immutable deterministic rollout plans",
       "status": "open",

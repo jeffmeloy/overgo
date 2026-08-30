@@ -17,10 +17,15 @@ const (
 	RoutingDecisionMediaType = "application/vnd.overgo.routing-decision+json"
 	// RoutingDecisionSchema identifies the routing decision contract.
 	RoutingDecisionSchema = "overgo/routing-decision/v1"
-	// RoutingDerivationCheapestEligible names the one registered derivation
+	// RoutingDerivationCheapestEligible is the live registered derivation
 	// rule: among candidates whose published evidence meets the signal's
 	// admitted threshold, the cheapest by measured resource is selected.
 	RoutingDerivationCheapestEligible = "overgo/routing-derivation/cheapest-eligible/v1"
+	// RoutingDerivationBestQualityEligible is the registered counterfactual
+	// candidate rule: among eligible candidates, the highest measured
+	// quality is selected, with ties broken by cheaper resource then recipe
+	// identity.
+	RoutingDerivationBestQualityEligible = "overgo/routing-derivation/best-quality-eligible/v1"
 	// routingTextBytes bounds every free-text signal field.
 	routingTextBytes = 512
 )
@@ -123,10 +128,50 @@ func canonicalizeRoutingDecision(value *RoutingDecision) error {
 	}) {
 		return errors.New("model recipe: routing selection must name a considered candidate")
 	}
-	if value.Derivation != RoutingDerivationCheapestEligible {
+	if value.Derivation != RoutingDerivationCheapestEligible && value.Derivation != RoutingDerivationBestQualityEligible {
 		return fmt.Errorf("model recipe: unregistered routing derivation %q", value.Derivation)
 	}
 	return nil
+}
+
+// selectByDerivation applies one registered derivation rule to the eligible
+// candidate set; both rules share one eligibility test — the signal's
+// evidence-derived threshold — and differ only in the preference among
+// eligibles, so a corpus recorded under either replays under the other.
+func selectByDerivation(
+	derivation string, signal RoutingSignal, candidates []RoutingCandidate,
+) (*RoutingCandidate, error) {
+	prefer := func(candidate, incumbent *RoutingCandidate) bool {
+		if candidate.ResourceBytes != incumbent.ResourceBytes {
+			return candidate.ResourceBytes < incumbent.ResourceBytes
+		}
+		return strings.Compare(candidate.Recipe.String(), incumbent.Recipe.String()) < 0
+	}
+	if derivation == RoutingDerivationBestQualityEligible {
+		cheapest := prefer
+		prefer = func(candidate, incumbent *RoutingCandidate) bool {
+			if candidate.Quality != incumbent.Quality {
+				return candidate.Quality > incumbent.Quality
+			}
+			return cheapest(candidate, incumbent)
+		}
+	} else if derivation != RoutingDerivationCheapestEligible {
+		return nil, fmt.Errorf("model recipe: unregistered routing derivation %q", derivation)
+	}
+	var selected *RoutingCandidate
+	for index := range candidates {
+		candidate := &candidates[index]
+		if candidate.Quality < signal.QualityThreshold {
+			continue
+		}
+		if selected == nil || prefer(candidate, selected) {
+			selected = candidate
+		}
+	}
+	if selected == nil {
+		return nil, errors.New("model recipe: no candidate's published evidence meets the routing threshold")
+	}
+	return selected, nil
 }
 
 // DeriveRoutingDecision applies the one registered derivation rule to a
@@ -138,20 +183,9 @@ func canonicalizeRoutingDecision(value *RoutingDecision) error {
 func DeriveRoutingDecision(
 	signal RoutingSignal, candidates []RoutingCandidate,
 ) (RoutingDecision, error) {
-	var selected *RoutingCandidate
-	for index := range candidates {
-		candidate := &candidates[index]
-		if candidate.Quality < signal.QualityThreshold {
-			continue
-		}
-		if selected == nil || candidate.ResourceBytes < selected.ResourceBytes ||
-			(candidate.ResourceBytes == selected.ResourceBytes &&
-				strings.Compare(candidate.Recipe.String(), selected.Recipe.String()) < 0) {
-			selected = candidate
-		}
-	}
-	if selected == nil {
-		return RoutingDecision{}, errors.New("model recipe: no candidate's published evidence meets the routing threshold")
+	selected, err := selectByDerivation(RoutingDerivationCheapestEligible, signal, candidates)
+	if err != nil {
+		return RoutingDecision{}, err
 	}
 	return NewRoutingDecision(RoutingDecision{
 		Signal: signal, Candidates: candidates, Selected: selected.Recipe,

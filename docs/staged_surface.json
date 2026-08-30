@@ -51,6 +51,18 @@
       "retire_with": "evidence-routing/decision-contract"
     },
     {
+      "package": "overgo/internal/modelrecipe",
+      "name": "NewCandidate",
+      "reason": "Cross-domain candidate construction lands with the immutable contract before its single admission owner.",
+      "retire_with": "model-prototypes/prototype-admission"
+    },
+    {
+      "package": "overgo/internal/modelrecipe",
+      "name": "NewModelPrototype",
+      "reason": "Compiled-profile prototype construction lands before model-prototype admission consumes it.",
+      "retire_with": "model-prototypes/prototype-admission"
+    },
+    {
       "package": "overgo/internal/operation",
       "name": "NewManagerWithRepository",
       "reason": "Operation manager bound to a store repository.",

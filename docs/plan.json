@@ -187,30 +187,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "prototype-contract",
-          "title": "Define one immutable cross-domain candidate contract with typed components, predicted benefit and cost, falsifier, relevant references, budgets, and code evidence",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/trainingprogram ./internal/runrecord ./internal/dataset ./internal/composition ./internal/representation -run '^(TestCrossDomainCandidateIdentityAndValidation|TestCompositeCandidateBindsModelRoutingSteeringAndTransform|TestModelPrototypeIdentityAndValidation|TestMarinMechanismCensusBindsExistingOwnersAndFalsifiers|TestExternalMechanismProvenanceIsExactAndNoRuntimeDependencyIsAdmitted|TestDatasetTransformIdentityRejectsCallableAndAdvisoryVersionSemantics)$' -count=1",
-          "rationale": "Create one content-addressed Candidate envelope whose typed component graph can describe a model prototype, composition, Marin mechanism or router change, dataset transform, residual steering direction, code change, or a combination of them. The common fields bind subject and parent, predicted benefit and cost with units and uncertainty, falsifiable check, semantically relevant references, development and promotion splits, budgets, and exact code and environment evidence. Domain specifications remain immutable plugin data, not executable code, weights, active recipes, or capability grants. Every executable architecture, transform, controller, evaluator, or realization path resolves to a compiled Go registration; source and provenance identities remain evidence only. Normalized component catalogs, cross-basis seam residuals, and adapter search are post-proof plugins, not fields or authorities forced into the common envelope.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard",
-            "capability-bound-activation/capability-identity",
-            "causal-execution/causal-context"
-          ],
-          "capabilities": [
-            "model-prototype",
-            "model-recipe",
-            "artifact-identity",
-            "go-only",
-            "mechanism-hypothesis",
-            "dataset-pipeline",
-            "moe-routing-target",
-            "external-provenance",
-            "candidate-spine",
-            "cross-domain-composition"
-          ]
-        },
-        {
           "id": "prototype-admission",
           "title": "Admit every domain candidate through one grounded, relevant, budgeted, and falsifiable decision owner",
           "status": "open",

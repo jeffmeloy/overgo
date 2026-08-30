@@ -26,6 +26,17 @@ type SteeringPrediction struct {
 	Uncertainty float64 `json:"uncertainty"`
 }
 
+// Validate checks the shared quantified benefit, cost, and uncertainty claim.
+func (prediction SteeringPrediction) Validate() error {
+	if !boundedStatement(prediction.Metric) || !boundedStatement(prediction.Unit) ||
+		!checked.Finite64(prediction.Benefit) || prediction.Benefit <= 0 || prediction.Cost == 0 ||
+		!checked.Finite64(prediction.Uncertainty) || prediction.Uncertainty < 0 ||
+		prediction.Uncertainty > float64(artifact.InitialDocumentVersion) {
+		return errors.New("recipe: invalid steering prediction")
+	}
+	return nil
+}
+
 // SteeringPlanRow is one verifier-bound plan row the proposal would admit.
 type SteeringPlanRow struct {
 	Item         string      `json:"item"`
@@ -90,10 +101,12 @@ func (v SteeringProposal) Lineage() []artifact.Lineage {
 }
 
 func canonicalizeSteeringProposal(v *SteeringProposal) error {
-	if v == nil || v.Version != artifact.InitialDocumentVersion || !boundedStatement(v.Goal) || !boundedStatement(v.Prediction.Metric) || !boundedStatement(v.Prediction.Unit) ||
-		!checked.Finite64(v.Prediction.Benefit) || v.Prediction.Benefit <= 0 || !checked.Finite64(v.Prediction.Uncertainty) || v.Prediction.Uncertainty < 0 || v.Prediction.Uncertainty > float64(artifact.InitialDocumentVersion) ||
+	if v == nil || v.Version != artifact.InitialDocumentVersion || !boundedStatement(v.Goal) ||
 		v.Evaluation.Kind() != artifact.KindProfile {
 		return errors.New("recipe: invalid steering proposal")
+	}
+	if err := v.Prediction.Validate(); err != nil {
+		return err
 	}
 	if !checked.Nonempty(v.AffectedAuthorities) {
 		return errors.New("recipe: steering proposal has no affected authority")

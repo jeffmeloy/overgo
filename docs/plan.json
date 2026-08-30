@@ -4,29 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "experience-projection",
-      "title": "Compile existing attempts, traces, receipts, and outcomes into bounded capability-episode views",
-      "status": "open",
-      "steps": [
-        {
-          "id": "atomic-interaction-context",
-          "title": "Select branch-visible interaction arcs without splitting or fabricating protocol evidence",
-          "status": "open",
-          "verify": "go test ./internal/dataset ./internal/runrecord -run '^(TestInteractionArcProjectionPreservesAtomicEvidence|TestInteractionArcSelectionIsHeadBound)$' -count=1",
-          "rationale": "A bounded derived arc groups request and response turns plus every tool-call/result pair and the complete trace reference closure needed to interpret it. Each arc is independently resolvable immutable evidence with arc-to-trace and projection-to-arc lineage. A run-record-owned, non-resumable admission reads committed measurement policy and cost evidence against one stable repository head. It may omit a closed older arc but cannot concatenate pages past one aggregate budget, split a pair, invent a repair, cross a branch boundary, or hide admitted evidence.",
-          "depends_on": [
-            "experience-projection/capability-episodes"
-          ],
-          "capabilities": [
-            "interaction-efficiency",
-            "bounded-context",
-            "protocol-integrity",
-            "head-bound-selection"
-          ]
-        }
-      ]
-    },
-    {
       "id": "grounded-retrieval",
       "title": "Extend the dataset retrieval owner with structural, hybrid, and replayable grounded evidence",
       "status": "open",

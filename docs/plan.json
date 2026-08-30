@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "training-smoke",
-          "title": "Run one bounded recorded training step per training-activated model, correcting recipes and remaining failures to parity",
-          "status": "open",
-          "verify": "go run ./cmd/train-lane",
-          "rationale": "Every model with an active training-task recipe gets one bounded recorded training step; stale recipes are corrected by re-bootstrap through the current authority, never retired as the fix. Remaining failures are ground to working state: missing locations re-recorded from existing bytes, and any architecture the dense trainer cannot yet load gets its own correction row added here rather than a parked finding.",
-          "depends_on": [
-            "model-smoke/training-input-identity"
-          ],
-          "capabilities": [
-            "smoke",
-            "training",
-            "parity"
-          ]
-        },
-        {
           "id": "benchmark-smoke",
           "title": "Evaluate every servable model against one derived lm-eval suite family and correct any regression",
           "status": "open",

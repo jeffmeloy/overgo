@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "operator-decisions",
-          "title": "Project one causal operation timeline and one pending-decision view for approvals, refusals, retries, quarantine, and rollback",
-          "status": "open",
-          "verify": "go test ./internal/server ./internal/runrecord -run '^TestOperatorDecisionInteractionContract$' -count=1",
-          "rationale": "The operator should not reconstruct state across logs, dashboards, recipes, and peer pages. The view cites canonical evidence and exposes idempotent typed actions; it creates no new decision authority and does not duplicate domain state.",
-          "depends_on": [
-            "interaction-efficiency/coalesced-coordination"
-          ],
-          "capabilities": [
-            "operator-interaction",
-            "explainability",
-            "human-decision",
-            "projection"
-          ]
-        },
-        {
           "id": "memory-movement-reduction",
           "title": "Trace dominant byte-copy and allocation paths and replace them with bounded streaming views and reuse without changing admitted content",
           "status": "open",

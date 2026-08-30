@@ -85,6 +85,8 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/compositions/generate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).compositeGeneration},
 	{Path: "/operations", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).operationStatus},
 	{Path: "/operations/inbox", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).operationInbox},
+	{Path: "/operations/decisions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).operatorDecisions},
+	{Path: "/operations/timeline", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).operatorTimeline},
 	{Path: "/operations/dag", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).operationDAG},
 	{Path: "/operations/cancel", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).operationCancel},
 	{Path: "/operations/decision", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).operationDecision},

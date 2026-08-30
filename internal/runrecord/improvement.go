@@ -93,6 +93,36 @@ func AdmitImprovement(
 	})
 }
 
+// AdmitModelPrototype admits a model-prototype improvement proposal only
+// with complete closure: the proposal must carry the prototype kind with its
+// motivating code and proposer evidence, an incumbent to reject it against,
+// a promotion split independent of the development split, a positive
+// resource ceiling, and an objective recipe that can reject the hypothesis.
+// The controller may propose freely; nothing constructs or trains until this
+// closure holds.
+func AdmitModelPrototype(
+	proposal trainingprogram.ImprovementProposal,
+	authority, evaluator, promotionSplit, objective artifact.ID,
+	gpuMinutes uint64,
+) (ImprovementAdmission, error) {
+	if proposal.ProposalKind() != trainingprogram.ImprovementModelPrototype {
+		return ImprovementAdmission{}, errors.New("run record: prototype admission requires a model-prototype proposal")
+	}
+	if !proposal.Incumbent().Valid() {
+		return ImprovementAdmission{}, errors.New("run record: prototype admission requires an incumbent to reject against")
+	}
+	if promotionSplit.Kind() != artifact.KindDatasetShard || promotionSplit == proposal.DevelopmentSplit() {
+		return ImprovementAdmission{}, errors.New("run record: prototype admission requires an independent promotion split")
+	}
+	if objective.Kind() != artifact.KindRecipe {
+		return ImprovementAdmission{}, errors.New("run record: prototype admission requires an objective that can reject the hypothesis")
+	}
+	if gpuMinutes == 0 {
+		return ImprovementAdmission{}, errors.New("run record: prototype admission requires a positive resource ceiling")
+	}
+	return AdmitImprovement(proposal, authority, evaluator, promotionSplit)
+}
+
 func DecideImprovement(
 	admission ImprovementAdmission, child artifact.ID, run Run, evaluation Evaluation,
 	decider artifact.ID, state ImprovementDecisionState,

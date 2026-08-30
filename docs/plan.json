@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "prototype-admission",
-          "title": "Extend improvement proposals and controller actions to admit model-prototype candidates with causal, authority, budget, development-split, and falsifier closure",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/controlleraction ./internal/runrecord -run '^TestModelPrototypeAdmissionContract$' -count=1",
-          "rationale": "The controller may propose a prototype but cannot construct or train it until admission binds the motivating evidence, incumbent, independent promotion split, resource ceiling, registered Go implementation, and objective that can reject the hypothesis.",
-          "depends_on": [
-            "model-prototypes/prototype-contract"
-          ],
-          "capabilities": [
-            "rsi-proposal",
-            "model-prototype",
-            "budget",
-            "authority"
-          ]
-        },
-        {
           "id": "prototype-compile",
           "title": "Compile an admitted prototype into scratch construction, training program, evaluation plan, and candidate task recipes without source generation",
           "status": "open",

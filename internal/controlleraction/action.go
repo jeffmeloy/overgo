@@ -93,7 +93,13 @@ type ImprovementAction struct {
 	PromotionSplit artifact.ID                     `json:"promotion_split"`
 	Evaluator      artifact.ID                     `json:"evaluator"`
 	Authority      artifact.ID                     `json:"authority"`
-	Decision       *ImprovementDecisionAction      `json:"decision,omitempty"`
+	// Objective and GPUMinutes close a model-prototype admission: the
+	// objective recipe that can reject the hypothesis and the positive
+	// resource ceiling the trial may not exceed. Required exactly for
+	// model-prototype proposals.
+	Objective  artifact.ID                `json:"objective,omitzero"`
+	GPUMinutes uint64                     `json:"gpu_minutes,omitempty"`
+	Decision   *ImprovementDecisionAction `json:"decision,omitempty"`
 }
 
 type ImprovementDecisionAction struct {
@@ -507,7 +513,15 @@ func compileImprovementTrial(
 	if err != nil {
 		return nil, nil, err
 	}
-	admission, err := runrecord.AdmitImprovement(proposal, action.Authority, action.Evaluator, action.PromotionSplit)
+	var admission runrecord.ImprovementAdmission
+	if action.Proposal.Kind == trainingprogram.ImprovementModelPrototype {
+		admission, err = runrecord.AdmitModelPrototype(
+			proposal, action.Authority, action.Evaluator, action.PromotionSplit,
+			action.Objective, action.GPUMinutes,
+		)
+	} else {
+		admission, err = runrecord.AdmitImprovement(proposal, action.Authority, action.Evaluator, action.PromotionSplit)
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -554,6 +568,12 @@ func validImprovementDecisionFields(action ImprovementAction) bool {
 		return false
 	}
 	if (action.Proposal.Kind == trainingprogram.ImprovementDerivationProfile) != (action.Profile != nil) {
+		return false
+	}
+	// The prototype closure fields travel with exactly the prototype kind:
+	// present there, absent everywhere else.
+	prototype := action.Proposal.Kind == trainingprogram.ImprovementModelPrototype
+	if prototype != (action.Objective.Valid() && action.GPUMinutes != 0) {
 		return false
 	}
 	if action.Decision == nil {

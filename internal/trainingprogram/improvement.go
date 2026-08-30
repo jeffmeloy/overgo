@@ -26,6 +26,11 @@ const (
 	ImprovementDerivationProfile    ImprovementKind = "derivation-profile"
 	ImprovementEvaluator            ImprovementKind = "evaluator"
 	ImprovementComponentComposition ImprovementKind = "component-composition"
+	// ImprovementModelPrototype proposes one declared model-prototype
+	// hypothesis document as the candidate; proposing authorizes nothing
+	// until admission closes causally over incumbent, split, budget, and
+	// objective.
+	ImprovementModelPrototype ImprovementKind = "model-prototype"
 )
 
 type ImprovementSpec struct {
@@ -144,6 +149,8 @@ func improvementCandidateKind(kind ImprovementKind) artifact.Kind {
 		return artifact.KindEvidence
 	case ImprovementComponentComposition:
 		return artifact.KindModelDefinition
+	case ImprovementModelPrototype:
+		return artifact.KindProfile
 	default:
 		return artifact.KindInvalid
 	}

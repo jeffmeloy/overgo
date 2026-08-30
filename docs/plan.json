@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "safety-window",
-          "title": "Derive live comparison windows and alarm boundaries from each metric history with explicit coverage requirements",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/runrecord -run '^TestLiveSafetyWindowDerivation$' -count=1",
-          "rationale": "No Gaussian, stationary, or IID assumption is introduced. Small samples refuse decisions unless envelopes separate; larger histories use the repository doctrine's distribution-free summaries and record the derivation evidence.",
-          "depends_on": [
-            "deterministic-rollout/projection-evidence"
-          ],
-          "capabilities": [
-            "live-evaluation",
-            "distribution-discipline",
-            "coverage"
-          ]
-        },
-        {
           "id": "circuit-breaker",
           "title": "Publish advisory, finding, quarantine, and operator-stop transitions from sustained correctness, failure, cost, latency, or coverage regressions",
           "status": "open",

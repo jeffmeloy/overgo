@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "atomic-rollback",
-          "title": "Rollback the active alias with compare-and-set and publish the exact regression evidence and causal link",
-          "status": "open",
-          "verify": "go test ./internal/loop ./internal/overgodb -run '^TestAtomicCandidateRollback$' -count=1",
-          "rationale": "Only the promotion authority can change the active binding. Concurrent promotion, rollback, or operator action has one winner; stale decisions refuse and preserve their evidence without overwriting a newer head.",
-          "depends_on": [
-            "live-safety/circuit-breaker",
-            "deterministic-rollout/promotion-binding"
-          ],
-          "capabilities": [
-            "rollback",
-            "alias-cas",
-            "causality",
-            "authority"
-          ]
-        },
-        {
           "id": "reentry",
           "title": "Require new evidence and explicit authority before a quarantined candidate or mechanism family re-enters rollout",
           "status": "open",

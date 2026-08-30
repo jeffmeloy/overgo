@@ -4,30 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "autonomy-ratchet",
-      "title": "Widen the driver budget only on positive, calibrated, safe evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "canary-autonomy",
-          "title": "Ratchet driver budget on learning-curve positivity, calibration hold, and live-safety quiet",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/loop -run '^TestCompositionAutonomyRatchetGatesOnCurveAndSafety$' -count=1",
-          "rationale": "Autonomy is an evidence-gated promotion: start bounded with high ablation sampling and live-safety armed; widen budget only while the learning curve stays positive and calibration holds; roll back on regression. Reuses the deterministic-rollout promotion binding and live-safety quarantine reentry rather than a second safety owner.",
-          "depends_on": [
-            "loop-measurement/candidate-calibration",
-            "deterministic-rollout/promotion-binding",
-            "live-safety/reentry"
-          ],
-          "capabilities": [
-            "autonomy-ratchet",
-            "live-safety",
-            "rollout"
-          ]
-        }
-      ]
-    },
-    {
       "id": "parked-findings",
       "title": "Graduate parked findings into gated cleanups",
       "status": "open",

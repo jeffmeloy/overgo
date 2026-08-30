@@ -38,8 +38,12 @@ func run() error {
 	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
 	curve := flags.String("curve", "", "recorded driver attempts JSON path: aggregate the learning curve the autonomy ratchet judges ({attempts})")
 	calibrate := flags.String("calibrate", "", "predicted-versus-measured fitness JSON path: audit the enumeration ranker ({predicted, measured})")
+	ratchet := flags.String("ratchet", "", "autonomy review JSON path: widen or roll back the driver budget on the three recorded instruments")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if strings.TrimSpace(*ratchet) != "" {
+		return reviewAutonomy(*ratchet)
 	}
 	if strings.TrimSpace(*calibrate) != "" {
 		return calibrateRanker(*calibrate)
@@ -96,6 +100,37 @@ func run() error {
 		return err
 	}
 	return encoder.Encode(verdict)
+}
+
+// reviewAutonomy runs one autonomy review over the three recorded
+// instruments: the driver attempt record, the ranker calibration samples,
+// and the latest breaker state per metric.
+func reviewAutonomy(reviewPath string) error {
+	var review struct {
+		CurrentBudget uint64                          `json:"current_budget"`
+		Attempts      []loop.DriverAttemptMeasurement `json:"attempts"`
+		Predicted     []float64                       `json:"predicted"`
+		Measured      []float64                       `json:"measured"`
+		Safety        []loop.CircuitBreakerTransition `json:"safety"`
+	}
+	if err := jsonfile.DecodeStrict(reviewPath, &review); err != nil {
+		return err
+	}
+	curve, err := loop.DeriveDriverLearningCurve(review.Attempts)
+	if err != nil {
+		return err
+	}
+	calibration, err := loop.CalibrateCandidatePredictions(review.Predicted, review.Measured)
+	if err != nil {
+		return err
+	}
+	decision, err := loop.RatchetDriverAutonomy(review.CurrentBudget, curve, calibration, review.Safety)
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(decision)
 }
 
 // calibrateRanker audits the enumeration ranker's predicted fitness

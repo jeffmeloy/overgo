@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
+      "id": "training-architecture-routing",
+      "title": "Route each training activation to its architecture's production trainer in train-lane",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Route each training activation to its architecture's production trainer in train-lane",
+          "status": "open",
+          "verify": "go test ./cmd/train-lane -run TestTrainerRoute -count=1"
+        }
+      ]
+    },
+    {
       "id": "model-smoke",
       "title": "Comprehensive smoke of every local complete model: inference, training, and lm-eval benchmarks, with regressions corrected",
       "status": "open",

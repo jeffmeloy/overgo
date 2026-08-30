@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "structural-hybrid-search",
-          "title": "Preserve document structure and combine exact lexical and dense candidates before deterministic reranking",
-          "status": "open",
-          "verify": "go test ./internal/dataset -run '^(TestGroundedHybridRetrievalPreservesStructureAndCitations|TestGroundedHybridRetrievalFiltersBeforeCandidateLimit|TestGroundedHybridRetrievalDeterministic|TestAgentRetrievalBuildRejectsFabricatedSourceContentOrStructure)$' -count=1",
-          "rationale": "The existing AgentRetrievalBuilder gains typed structural spans, parent and neighbor references, closed metadata facets, and exact lexical terms alongside embeddings. Dataset, source, structure, and facet predicates apply before the bounded candidate set. The search unions exact lexical and dense candidates and lets the existing identified reranker order them; it introduces no weighted-sum knob. Every result retains the exact source and span citation and reports component scores and inspected work.",
-          "capabilities": [
-            "structural-ingestion",
-            "hybrid-retrieval",
-            "filter-pushdown",
-            "grounded-citation"
-          ]
-        },
-        {
           "id": "retrieval-evidence",
           "title": "Bind consumed retrieval context to a replayable receipt and evaluate citation-aware quality and work",
           "status": "open",

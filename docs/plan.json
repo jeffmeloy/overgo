@@ -9,17 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "closure-rebind-by-content",
-          "title": "Rebind offset-shifted literals automatically when file, scope, and closure text match a retired predecessor",
-          "status": "open",
-          "verify": "go test ./internal/closurescan -run '^TestContentMatchedRebind$' -count=1",
-          "rationale": "Every cmd dispatch edit shifts the same flags.Arg(0) literal, and each landing repeats propose, fill the identical triage text, and triage. When a genuinely-new literal's owner file, scope, value, and prior closure text match a just-retired binding, closure-scan should re-emit the closure itself and report it as rebound, eliminating the recurring manual cycle.",
-          "capabilities": [
-            "automation",
-            "closure-ledger"
-          ]
-        },
-        {
           "id": "codec-idiom-consolidation",
           "title": "Consolidate the per-document codec idiom so new record types stop growing the clone ceiling",
           "status": "open",

@@ -684,6 +684,12 @@ func importClosureDocuments(
 	for alias := range sourceAliases {
 		claimedAliases[alias] = true
 	}
+	type contentRetry struct {
+		document      closureledger.Document
+		previousAlias string
+		reason        string
+	}
+	var contentRetries []contentRetry
 	for _, document := range documents {
 		if len(document.Bindings) != 1 {
 			unmatched++
@@ -701,16 +707,9 @@ func importClosureDocuments(
 			return count, unmatched, first, aliases, err
 		}
 		if !matched {
-			unmatched++
-			first = cmp.Or(first, document.Name+":"+reason)
-			if sameStore && retireUnmatched && !retired[previousAlias] {
-				unmatchedRetirements = append(unmatchedRetirements, artifact.AliasBinding{
-					Name: previousAlias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true,
-				})
-				retired[previousAlias] = true
-				aliases.Retired++
-				aliases.Preserved--
-			}
+			contentRetries = append(contentRetries, contentRetry{
+				document: document, previousAlias: previousAlias, reason: reason,
+			})
 			continue
 		}
 		if sameStore && current.ID == document.ID {
@@ -726,6 +725,43 @@ func importClosureDocuments(
 			retired[previousAlias] = true
 		}
 		rebound = append(rebound, current)
+	}
+	// Content-matched recovery runs after every structural rebind has
+	// claimed its alias, so the only free candidates left are genuinely
+	// new sites; an offset-shifted successor with the same file, scope,
+	// and exact value inherits the reviewed closure instead of being
+	// retired and retyped.
+	for _, retry := range contentRetries {
+		document, previousAlias, reason := retry.document, retry.previousAlias, retry.reason
+		current, matched, _, err := closurescan.ContentMatchedRebind(
+			document, candidates, func(alias string) bool { return claimedAliases[alias] },
+		)
+		if err != nil {
+			return count, unmatched, first, aliases, err
+		}
+		if matched {
+			currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
+			if err != nil {
+				return count, unmatched, first, aliases, err
+			}
+			claimedAliases[currentAlias] = true
+			if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
+				retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
+				retired[previousAlias] = true
+			}
+			rebound = append(rebound, current)
+			continue
+		}
+		unmatched++
+		first = cmp.Or(first, document.Name+":"+reason)
+		if sameStore && retireUnmatched && !retired[previousAlias] {
+			unmatchedRetirements = append(unmatchedRetirements, artifact.AliasBinding{
+				Name: previousAlias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true,
+			})
+			retired[previousAlias] = true
+			aliases.Retired++
+			aliases.Preserved--
+		}
 	}
 	if sameStore && !retireUnmatched {
 		// Same-store import is recovery, not garbage collection. Retired

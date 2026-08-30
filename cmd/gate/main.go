@@ -955,6 +955,10 @@ func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
 // the manifest already binds this check to the candidate tree, and a second
 // test process would only repeat source discovery while weakening ordering.
 func (g *gateContext) stepArchitectureRatchet() (bool, error) {
+	staged, err := codeprofile.LoadStagedSurface(filepath.Join(g.repo, "docs", "staged_surface.json"))
+	if err != nil {
+		return false, err
+	}
 	snapshot, err := g.sourceSnapshot()
 	if err != nil {
 		return false, err
@@ -966,7 +970,11 @@ func (g *gateContext) stepArchitectureRatchet() (bool, error) {
 	if err := runrecord.ValidateTriggerRegistry(); err != nil {
 		return false, err
 	}
-	report.Rules++
+	// The staged-surface declaration is gate authority even when no Go file
+	// changed: every deferred export must still resolve to an open canonical
+	// step or an evidence-bound retained classification.
+	report.Rules += len(staged.Staged) + 1
+	report.Sites += len(staged.Staged)
 	g.honesty = append(g.honesty, fmt.Sprintf(
 		"architecture ratchet: source=%s paths=%d rules=%d sites=%d findings=%d",
 		report.SourceIdentity, len(g.paths), report.Rules, report.Sites, len(report.Findings),

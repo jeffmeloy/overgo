@@ -136,10 +136,11 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 	}
 	var result json.RawMessage
 	if body.Agent == "" {
-		result, err = h.agentCoordinator.Propose(request.Context(), session, body.Tool, arguments, body.Approve)
+		result, err = h.agentCoordinator.Propose(request.Context(), session, body.Tool, arguments)
 	} else {
+		session.Ceiling = active.Definition.ID
 		result, err = h.agentCoordinator.ProposeWithManuals(
-			request.Context(), session, body.Tool, arguments, body.Approve, active.Definition.ToolManuals,
+			request.Context(), session, body.Tool, arguments, active.Definition.ToolManuals,
 		)
 	}
 	if err != nil {
@@ -147,7 +148,7 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
-		"session": session.ID, "steps": session.Steps, "inspected": session.Inspected,
+		"session": session.ID, "steps": session.Steps, "inspected": session.Inspection.Valid(),
 		"interaction": idText(session.Interaction), "result": result,
 	})
 }
@@ -261,7 +262,7 @@ func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.R
 			continue
 		}
 		sessions = append(sessions, map[string]any{
-			"id": id, "steps": session.Steps, "inspected": session.Inspected,
+			"id": id, "steps": session.Steps, "inspected": session.Inspection.Valid(),
 			"interaction": idText(session.Interaction),
 		})
 	}

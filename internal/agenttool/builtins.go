@@ -19,12 +19,14 @@ func StandardManuals() ([]Manual, error) {
 			Name:        "store.head",
 			Description: "Report the catalog head commit and sequence.",
 			Effect:      EffectInspection,
+			Ceiling:     EffectCeiling{Targets: []EffectTargetBinding{{Scope: EffectScopeRepository, Value: "overgodb"}}},
 			Transport:   Transport{Kind: TransportBuiltin},
 		},
 		{
 			Name:        "store.alias",
 			Description: "Resolve one catalog alias to its artifact identity.",
 			Effect:      EffectInspection,
+			Ceiling:     EffectCeiling{Targets: []EffectTargetBinding{{Scope: EffectScopeRepository, Value: "overgodb"}}},
 			Arguments: []Field{
 				{Name: "name", Kind: FieldString, Required: true, Description: "exact alias"},
 			},

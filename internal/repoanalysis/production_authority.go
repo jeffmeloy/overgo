@@ -66,6 +66,7 @@ func AuditProductionAuthorityBoundaries(snapshot SourceSnapshot) (ProductionAuth
 	auditStorageAndProcessAuthorities(sources, &report)
 	auditCapabilityAndToolAuthorities(sources, &report)
 	auditTriggerAndPromotionAuthorities(sources, &report)
+	auditRSIAuthorities(sources, &report)
 	slices.SortFunc(report.Findings, func(left, right ProductionAuthorityFinding) int {
 		return strings.Compare(strings.Join([]string{
 			left.Family, left.Kind, left.Symbol, left.File,

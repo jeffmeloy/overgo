@@ -55,7 +55,7 @@ func TestSingleCanonicalCampaignPlan(t *testing.T) {
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
 	assertIntegratedReconciliationSnapshot(t, document)
-	for _, required := range []string{"sole live execution plan", "imported branch plans", "four shared components", "cross-domain candidate spine", "promotion and rollback lifecycle", "evidence-driven budget and stop driver", "transport-neutral UTCP", "deterministic in-process orchestration", "first capability proof", "supervised non-serving verified state", "built from its persisted trace"} {
+	for _, required := range []string{"sole live execution plan", "imported branch plans", "four shared components", "cross-domain candidate spine", "promotion and rollback lifecycle", "evidence-driven budget and stop driver", "transport-neutral UTCP", "deterministic in-process orchestration", "shared sequential-control owner", "common-cause or insufficient evidence cannot request", "first capability proof", "supervised non-serving verified state", "built from its persisted trace"} {
 		if !strings.Contains(document.Doctrine, required) {
 			t.Errorf("campaign doctrine omits shared-spine decision %q", required)
 		}
@@ -74,7 +74,7 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"interaction-efficiency/incremental-context":           {"interaction-efficiency/head-bound-deltas", "stimulus-reconciliation/stable-cursors", "capability-bound-activation/placement-integration"},
 		"interaction-efficiency/coalesced-coordination":        {"interaction-efficiency/head-bound-deltas", "webhook-ingress/workflow-dispatch"},
 		"interaction-efficiency/operator-decisions":            {"interaction-efficiency/head-bound-deltas", "causal-execution/causal-projection"},
-		"interaction-efficiency/efficiency-gate":               {"interaction-efficiency/incremental-context", "interaction-efficiency/coalesced-coordination", "interaction-efficiency/operator-decisions"},
+		"interaction-efficiency/efficiency-gate":               {"interaction-efficiency/incremental-context", "interaction-efficiency/coalesced-coordination", "interaction-efficiency/operator-decisions", "live-safety/safety-window"},
 		"interaction-efficiency/tool-call-propensity-control":  {"interaction-efficiency/efficiency-gate", "model-prototypes/prototype-contract"},
 		"model-prototypes/prototype-contract":                  {"architecture-ratchets/go-only-guard", "capability-bound-activation/capability-identity", "causal-execution/causal-context"},
 		"model-prototypes/prototype-admission":                 {"model-prototypes/prototype-contract", "resource-coverage/reference-relevance-admission"},
@@ -90,11 +90,11 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"evidence-routing/counterfactual-replay":               {"evidence-routing/evidence-selection", "causal-execution/causal-projection", "supervised-composite/first-win"},
 		"supervised-composite/first-win":                       {"model-recipe-lifecycle/recipe-activation"},
 		"composition-expansion/alignment-adapter":              {"supervised-composite/first-win"},
-		"composition-expansion/search-ratchet":                 {"composition-expansion/alignment-adapter", "evidence-routing/counterfactual-replay"},
+		"composition-expansion/search-ratchet":                 {"composition-expansion/alignment-adapter", "evidence-routing/counterfactual-replay", "live-safety/safety-window"},
 		"advanced-domain-plugins/realization":                  {"supervised-composite/first-win"},
-		"advanced-domain-plugins/evidence":                     {"advanced-domain-plugins/realization", "interaction-efficiency/bounded-training-evidence"},
+		"advanced-domain-plugins/evidence":                     {"advanced-domain-plugins/realization", "interaction-efficiency/bounded-training-evidence", "live-safety/safety-window"},
 		"outward-capabilities/peer-invocation":                 {"supervised-composite/first-win"},
-		"deterministic-rollout/rollout-plan":                   {"model-recipe-lifecycle/recipe-evaluation", "evidence-routing/evidence-selection", "supervised-composite/first-win"},
+		"deterministic-rollout/rollout-plan":                   {"model-recipe-lifecycle/recipe-evaluation", "evidence-routing/evidence-selection", "supervised-composite/first-win", "live-safety/safety-window"},
 		"deterministic-rollout/promotion-binding":              {"deterministic-rollout/projection-evidence", "model-recipe-lifecycle/recipe-activation"},
 		"live-safety/safety-window":                            {"model-recipe-lifecycle/isolated-performance-evidence", "supervised-composite/first-win"},
 		"live-safety/circuit-breaker":                          {"live-safety/safety-window", "deterministic-rollout/projection-evidence", "model-recipe-lifecycle/recipe-activation"},
@@ -125,9 +125,10 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"model-prototypes/prototype-materialization":           {"TestStreamingTaskArithmetic", "TestOfflineArtifactGenerationTaskArithmetic"},
 		"supervised-composite/first-win":                       {"TestSupervisedCompositeFirstWin"},
 		"composition-expansion/alignment-adapter":              {"TestCanonicalComponentDescriptorComparable", "TestSeamAlignmentResidual", "TestExactComponentRetrievalDeterministic", "TestCompositionCandidateEnumerationRanksByResidualAndFitness", "TestCandidateRealizationFreezesDonorsTrainsAdapter", "TestAlignmentResidualBiasAudit", "TestFitnessScoredCompositeSelection", "TestSelectionEmitsAblationGatedPromotion"},
-		"composition-expansion/search-ratchet":                 {"TestCapabilityGapTargetsFromEvalStore", "TestCompositionImprovementLoopClosesUnderBudget", "TestCompositionLoopSaturationStops", "TestCompositionDriverLearningCurve", "TestCompositionCandidateCalibration", "TestCompositionAutonomyRatchetGatesOnCurveAndSafety"},
+		"composition-expansion/search-ratchet":                 {"TestCapabilityGapTargetsFromEvalStore", "TestCompositionImprovementLoopClosesUnderBudget", "TestCompositionLoopSaturationStops", "TestCompositionDriverLearningCurve", "TestCompositionCandidateCalibration", "TestCompositionAutonomyRatchetGatesOnCurveAndSafety", "TestCompositionAutonomyRatchetIgnoresCommonCause"},
 		"advanced-domain-plugins/realization":                  {"TestExpertParallelCandidateRequiresMeasuredScaleBlockerAndExecutionAuthority", "TestFrontierArchitectureCandidatesRemainIndependentAblations", "TestModelAuthoredCandidatePredictionCalibration", "TestDatasetPipelineStreamsWithinBudgetAndResumesExactStages", "TestExpertPlacementDoesNotChangeDeclaredRouterSemantics", "TestDenseToMoEEvidenceScreen", "TestDenseToMoEExpertInventory", "TestDenseToMoEPromotionRefusal"},
 		"advanced-domain-plugins/evidence":                     {"TestIsolatedTrainingEvidenceUsesBoundedOwner", "TestExpertParallelEvidenceAttributesTransportCapacityAndDrops", "TestExpertParallelPrototypeIsBoundedPairedAndExactlyResumable", "TestArchitecturePromotionRequiresPairedBenefitAndNoHiddenRegression"},
+		"live-safety/safety-window":                            {"TestSequentialControlPhaseICalibratesBeforePhaseIIEnforces", "TestSequentialControlCombinedRulesUseOrderedCorrelatedReplay", "TestSequentialControlReportsRealizedARLAndDetectionDelay", "TestSequentialControlCommonCauseIsNoAction", "TestSequentialControlHasSingleOwner"},
 		"outward-capabilities/peer-invocation":                 {"TestDelegatedCapabilityRuntimeConsumesStagedOwners", "TestAgentDelegationStagedSurfaceRetired", "TestPeerCapabilityManualAndPlacement", "TestPeerHTTPJSONStreamInvocationReceipt", "TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode", "TestRemoteRecipeCapabilityRequiresExactUTCPManual"},
 		"architecture-closure/rsi-end-to-end":                  {"TestDeterministicRSIControlPlane", "TestIntegratedRSIRaceRestartBrowserDeviceReleaseMatrix"},
 		"architecture-closure/tightness-census":                {"TestFourSpineTightnessCensus", "TestSourcePlanAssumptionsRemainEvidenceOnly", "TestDeferredMechanismsRequireReopenOrRetirementTrigger"},
@@ -302,7 +303,7 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		}
 	}
 	if step, found := retainedCampaignStep(document, "composition-expansion/search-ratchet"); found {
-		for _, required := range []string{"shared DriverDecision", "held-out fitness delta per compute", "candidate hit rate", "adapter cost", "predicted-versus-actual calibration", "positive held-out learning curve", "quiet safety evidence", "no composition loop", "shared rollout and promotion adapter"} {
+		for _, required := range []string{"shared DriverDecision", "held-out fitness delta per compute", "candidate hit rate", "adapter cost", "predicted-versus-actual calibration", "positive held-out learning curve", "beneficial special-cause evidence", "common cause and insufficient evidence preserve", "no composition loop", "shared rollout and promotion adapter"} {
 			if !strings.Contains(step.Rationale, required) {
 				t.Errorf("composition search rationale omits %q", required)
 			}
@@ -361,18 +362,18 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"campaign-concurrency/ready-frontier-leases",
 		"interaction-efficiency/bounded-training-evidence",
 		"evidence-routing/counterfactual-replay",
-		"deterministic-rollout/rollout-plan",
 		"live-safety/safety-window",
 		"composition-expansion/alignment-adapter",
 		"advanced-domain-plugins/realization",
 		"outward-capabilities/peer-invocation")
 	assertCampaignFrontier(t, document,
+		"deterministic-rollout/rollout-plan",
+		"composition-expansion/search-ratchet",
+		"advanced-domain-plugins/evidence")
+	assertCampaignFrontier(t, document,
 		"interaction-efficiency/incremental-context",
 		"interaction-efficiency/coalesced-coordination",
 		"interaction-efficiency/operator-decisions")
-	assertCampaignFrontier(t, document,
-		"composition-expansion/search-ratchet",
-		"advanced-domain-plugins/evidence")
 	assertCampaignFrontier(t, document,
 		"deterministic-rollout/promotion-binding",
 		"live-safety/circuit-breaker")
@@ -464,7 +465,6 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 		"campaign-concurrency/ready-frontier-leases",
 		"interaction-efficiency/bounded-training-evidence",
 		"evidence-routing/counterfactual-replay",
-		"deterministic-rollout/rollout-plan",
 		"live-safety/safety-window",
 		"composition-expansion/alignment-adapter",
 		"advanced-domain-plugins/realization",
@@ -515,6 +515,7 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 		"interaction-efficiency/coalesced-coordination",
 		"interaction-efficiency/operator-decisions")
 	assertSameCampaignLayerIfRetained(t, document, layers,
+		"deterministic-rollout/rollout-plan",
 		"composition-expansion/search-ratchet",
 		"advanced-domain-plugins/evidence")
 	assertSameCampaignLayerIfRetained(t, document, layers,

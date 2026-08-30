@@ -79,7 +79,12 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	session := &agentloop.Session{ID: strings.TrimSpace(*sessionID)}
-	result, err := coordinator.Propose(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments), *approve)
+	if *approve {
+		if _, err := coordinator.ApproveMutation(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments)); err != nil {
+			return err
+		}
+	}
+	result, err := coordinator.Propose(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments))
 	if err != nil {
 		return err
 	}

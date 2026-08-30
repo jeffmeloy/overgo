@@ -13,7 +13,7 @@ func TestLateStimulusReconciliation(t *testing.T) {
 	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	session := &Session{ID: "followup-session"}
-	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{"step":1}`), false); err != nil {
+	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{"step":1}`)); err != nil {
 		t.Fatal(err)
 	}
 	interaction, found, err := runrecord.ResolveInteraction(ctx, store, "followup-session-step-1")

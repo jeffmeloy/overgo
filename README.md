@@ -1,11 +1,11 @@
 # Overgo
 
-Overgo is a systems platform for reliable recursive
-self-improvement (RSI) of model-driven software agents.
+Overgo is an operating recursive self-improvement (RSI) system platform for
+model-driven software agents.
 
 It has two permanent uses:
 
-- provide the deterministic framework needed to build and study RSI;
+- provide the deterministic framework needed to build RSI automation;
 - expose the same model, agent, training, evaluation, and automation framework
   to people for useful work through the operator workbench, APIs, and command
   line.
@@ -15,6 +15,16 @@ deterministic code controls state, authority, execution, verification, and
 recovery. A model may interpret a problem or generate a candidate patch, but
 acceptance still depends on measured evidence and executable policy.
 
+A second design rule governs how models enter the system. Overgo owns no
+model-family executors. It ports llama.cpp behavior -- container formats,
+numerical rules, quantization, and kernels -- into generic Go and CUDA
+components, and expresses each model family as a typed prototype definition in
+OvergoDB: the tensor layout, execution modes, operators, and numerical features
+that family needs. Specific checkpoints are verified as instances inside a
+prototype. Adding a model is adding a prototype definition and a recipe, not a
+new code path -- model identity lives in the store as data, never in a switch
+statement in shared code.
+
 An operator can steer the framework by supplying goals, constraints,
 priorities, and decisions about what to investigate next. The graphical
 workbench is an external interface for steering and observation; it is not the
@@ -23,11 +33,23 @@ measurements and state alongside human-directed work. Both paths use the same
 deterministic control plane to admit, evaluate, activate, reject, or recover
 work.
 
-Overgo is not a proven RSI system. The recursive loop is implemented end to
-end -- measurement, controlled experiments, evidence-gated policy promotion,
-typed steering proposals, and a driver that consumes them under mechanical
-stop conditions -- but its effectiveness is itself a measured question that
-live unattended campaigns must still answer.
+Overgo was built by the loop it describes. Every commit in its history was
+dispatched by `cmd/plan`, gated by `cmd/gate`, and carries the trailers that
+record it -- the plan step it closed, the code and recipe manifests it
+observed, and the falsifiable check that passed (`Overgo-Plan-Item`,
+`Overgo-Code-Manifest`, `Overgo-Verify`) -- so the repository is the loop's
+output, not a description of a loop that has yet to run.
+
+What that demonstrates is bounded, and the boundary is the point. Supervised,
+system-level RSI is not a future goal here: it is how this repository exists --
+an external model proposes and executes work, the deterministic control plane
+admits, gates, and records it, and an operator steers goals and priorities. The
+recursive loop is implemented end to end: measurement, controlled experiments,
+evidence-gated policy promotion, typed steering proposals, and a driver that
+consumes them under mechanical stop conditions. What remains open is narrower
+and specific -- unattended operation at scale, improvement of the proposing
+model's own cognition, and measured effectiveness against competing strategies
+(see What remains before fully autonomous RSI).
 
 ![Overgo system architecture](docs/assets/overgo-platform-architecture-scientific.png)
 

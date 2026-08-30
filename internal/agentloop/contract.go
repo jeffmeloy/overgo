@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"overgo/internal/agenttool"
+	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -37,6 +38,14 @@ func NewContractState(contract recipe.AgentTaskContract, obligations []runrecord
 		}
 	}
 	return &ContractState{contract: contract, obligations: slices.Clone(obligations), epochs: map[string]uint64{}}, nil
+}
+
+// Authority returns the immutable task ceiling this runtime view enforces.
+func (state *ContractState) Authority() artifact.ID {
+	if state == nil {
+		return artifact.ID{}
+	}
+	return state.contract.ID
 }
 
 // Admit refuses mutations outside the contract's exact effect ceiling.

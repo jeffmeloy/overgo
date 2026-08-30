@@ -51,7 +51,7 @@ func TestAgentSessionRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	session := &Session{ID: "recover-session"}
-	if _, err := coordinator.Propose(ctx, session, manual.Name, json.RawMessage(`{}`), false); err != nil {
+	if _, err := coordinator.Propose(ctx, session, manual.Name, json.RawMessage(`{}`)); err != nil {
 		t.Fatal(err)
 	}
 	recovered, err := coordinator.RecoverAgentSession(ctx, session.ID, SessionRecoveryAuthority{Task: task, Agent: agent, Model: coordinator.identity.Model, Catalog: snapshot.ID, Policies: []artifact.ID{policy}, Lease: &lease, Obligations: []runrecord.AgentObligation{obligation}, Resolutions: []runrecord.AgentObligationResolution{resolution}})

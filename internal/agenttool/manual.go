@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/invocation"
 	"overgo/internal/runrecord"
 	"overgo/internal/textcheck"
 )
@@ -28,20 +29,15 @@ const (
 	ManualSchema = "overgo/agent-tool-manual/v1"
 )
 
-// Effect classifies what a tool invocation does to the world.
-type Effect string
+// Effect is the transport-neutral invocation class.
+type Effect = invocation.Class
 
 const (
 	// EffectInspection reads state and changes nothing.
-	EffectInspection Effect = "inspection"
+	EffectInspection = invocation.ClassInspection
 	// EffectMutation changes state and is gated behind inspection.
-	EffectMutation Effect = "mutation"
+	EffectMutation = invocation.ClassMutation
 )
-
-// Valid reports whether the effect is a declared class.
-func (effect Effect) Valid() bool {
-	return effect == EffectInspection || effect == EffectMutation
-}
 
 // FieldKind types one manual argument.
 type FieldKind string
@@ -76,24 +72,19 @@ type Field struct {
 	Description string    `json:"description,omitzero"`
 }
 
-// EffectScope names the authority boundary containing an invocation target.
-type EffectScope string
+// EffectScope is the transport-neutral invocation target scope.
+type EffectScope = invocation.Scope
 
 const (
 	// EffectScopeWorkspace targets files inside the leased worktree.
-	EffectScopeWorkspace EffectScope = "workspace"
+	EffectScopeWorkspace = invocation.ScopeWorkspace
 	// EffectScopeRepository targets the common artifact repository.
-	EffectScopeRepository EffectScope = "repository"
+	EffectScopeRepository = invocation.ScopeRepository
 	// EffectScopeHost targets host state outside workspace and repository.
-	EffectScopeHost EffectScope = "host"
+	EffectScopeHost = invocation.ScopeHost
 	// EffectScopeExternal targets systems beyond the host boundary.
-	EffectScopeExternal EffectScope = "external"
+	EffectScopeExternal = invocation.ScopeExternal
 )
-
-func (scope EffectScope) valid() bool {
-	return scope == EffectScopeWorkspace || scope == EffectScopeRepository ||
-		scope == EffectScopeHost || scope == EffectScopeExternal
-}
 
 // EffectTargetBinding declares how a concrete target is resolved. Argument
 // names are explicit authority; no consumer guesses path semantics from names.
@@ -283,7 +274,7 @@ func (manual *Manual) validate() error {
 		seen[field.Name] = true
 	}
 	for _, binding := range manual.Ceiling.Targets {
-		if !binding.Scope.valid() || (binding.Argument == "") == (binding.Value == "") {
+		if !binding.Scope.Valid() || (binding.Argument == "") == (binding.Value == "") {
 			return fmt.Errorf("agent tool: manual %q effect target must declare one source and a valid scope", manual.Name)
 		}
 		if binding.Argument != "" {

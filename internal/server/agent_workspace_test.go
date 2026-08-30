@@ -56,6 +56,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 		write, err := agenttool.NewManual(agenttool.Manual{
 			Name: "store.commit", Description: "A mutation manual for the approval gate.",
 			Effect:    agenttool.EffectMutation,
+			Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 			Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
 		})
 		if err != nil {
@@ -101,7 +102,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	// the projection surfaces the coordinator's typed refusal.
 	refused := serveTestRequest(handler, http.MethodPost, "/agent/step",
 		`{"session":"s1","tool":"store.commit"}`)
-	if refused.Code != http.StatusUnprocessableEntity || !strings.Contains(refused.Body.String(), "approval") {
+	if refused.Code != http.StatusUnprocessableEntity || !strings.Contains(refused.Body.String(), "preflight") {
 		t.Fatalf("unapproved mutation status=%d body=%s", refused.Code, refused.Body.String())
 	}
 

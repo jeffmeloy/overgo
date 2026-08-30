@@ -8,13 +8,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/invocation"
 )
 
 const (
 	// AttemptStimulusMediaType identifies exact admitted agent-attempt boundaries.
 	AttemptStimulusMediaType = "application/vnd.overgo.attempt-stimulus+json"
 	// AttemptStimulusSchema identifies the boundary document contract.
-	AttemptStimulusSchema = "overgo/attempt-stimulus/v1"
+	AttemptStimulusSchema = "overgo/attempt-stimulus/v2"
 	// AttemptStimulusAliasRoot scopes immutable boundaries by operation and attempt.
 	AttemptStimulusAliasRoot = "attempt/stimulus/"
 	// AttemptArgumentMediaType identifies exact raw tool-argument bytes.
@@ -30,13 +31,20 @@ var attemptArgumentContract = artifact.DocumentContract{
 // AttemptStimulusBoundary fixes the store head and complete cited selection an
 // agent attempt could observe before execution begins.
 type AttemptStimulusBoundary struct {
-	Version   uint16                       `json:"version"`
-	Operation artifact.ID                  `json:"operation"`
-	Attempt   uint32                       `json:"attempt"`
-	Manual    artifact.ID                  `json:"manual"`
-	Prior     artifact.ID                  `json:"prior,omitzero"`
-	Selection dataset.InteractionSelection `json:"selection"`
-	ID        artifact.ID                  `json:"-"`
+	Version          uint16                       `json:"version"`
+	Operation        artifact.ID                  `json:"operation"`
+	Attempt          uint32                       `json:"attempt"`
+	Manual           artifact.ID                  `json:"manual"`
+	Class            invocation.Class             `json:"class"`
+	Arguments        artifact.ID                  `json:"arguments"`
+	Effect           artifact.ID                  `json:"effect"`
+	Inspection       artifact.ID                  `json:"inspection,omitzero"`
+	InspectionEffect artifact.ID                  `json:"inspection_effect,omitzero"`
+	Ceiling          artifact.ID                  `json:"ceiling"`
+	CausalContext    artifact.ID                  `json:"causal_context,omitzero"`
+	Prior            artifact.ID                  `json:"prior,omitzero"`
+	Selection        dataset.InteractionSelection `json:"selection"`
+	ID               artifact.ID                  `json:"-"`
 }
 
 var attemptStimulusCodec = artifact.JSONDocumentCodec(
@@ -87,7 +95,8 @@ func PublishAttemptStimulus(ctx context.Context, repository artifact.Repository,
 	if err != nil {
 		return AttemptStimulusBoundary{}, err
 	}
-	parents := []artifact.ID{identified.Operation, identified.Manual, identified.Prior}
+	parents := []artifact.ID{identified.Operation, identified.Manual, identified.Arguments, identified.Effect,
+		identified.Inspection, identified.InspectionEffect, identified.Ceiling, identified.CausalContext, identified.Prior}
 	for _, source := range identified.Selection.Sources {
 		parents = append(parents, source.Source, source.CausalRoot)
 	}
@@ -109,8 +118,25 @@ func PublishAttemptStimulus(ctx context.Context, repository artifact.Repository,
 
 func canonicalizeAttemptStimulus(value *AttemptStimulusBoundary) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Operation.Kind() != artifact.KindEvidence ||
-		value.Attempt == 0 || !value.Manual.Valid() || value.Prior.Valid() && value.Prior.Kind() != artifact.KindEvidence {
+		value.Attempt == 0 || value.Manual.Kind() != artifact.KindRecipe || !value.Class.Valid() ||
+		value.Arguments.Kind() != artifact.KindEvidence || value.Effect.Kind() != artifact.KindEvidence ||
+		value.Ceiling.Kind() != artifact.KindRecipe || !value.Selection.Head.Valid() ||
+		value.Prior.Valid() && value.Prior.Kind() != artifact.KindEvidence ||
+		value.CausalContext.Valid() && value.CausalContext.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid attempt stimulus boundary")
+	}
+	if !slices.ContainsFunc(value.Selection.Sources, func(source dataset.InteractionSelectionSource) bool {
+		return source.Source == value.Arguments && source.CausalRoot == value.Operation
+	}) {
+		return errors.New("run record: attempt stimulus omits exact arguments")
+	}
+	if value.Class == invocation.ClassMutation {
+		if value.Inspection.Kind() != artifact.KindEvidence || value.InspectionEffect.Kind() != artifact.KindEvidence ||
+			value.CausalContext.Kind() != artifact.KindEvidence || value.CausalContext != value.Prior {
+			return errors.New("run record: mutation requires action-bound inspection and causal context")
+		}
+	} else if value.Inspection.Valid() || value.InspectionEffect.Valid() {
+		return errors.New("run record: inspection cannot claim prior inspection authority")
 	}
 	if err := value.Selection.Validate(); err != nil {
 		return errors.Join(errors.New("run record: invalid attempt stimulus selection"), err)

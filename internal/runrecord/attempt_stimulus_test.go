@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/invocation"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -16,12 +17,23 @@ func TestAttemptStimulusBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	manual := testutil.ArtifactID(t, artifact.KindEvidence, "stimulus-manual")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "stimulus/authority", Artifacts: []artifact.Descriptor{{ID: manual}}}); err != nil {
+	manual := testutil.ArtifactID(t, artifact.KindRecipe, "stimulus-manual")
+	ceiling := testutil.ArtifactID(t, artifact.KindRecipe, "stimulus-ceiling")
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "stimulus/authority", Artifacts: []artifact.Descriptor{{ID: manual}, {ID: ceiling}}}); err != nil {
 		t.Fatal(err)
 	}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "stimulus-operation")
 	arguments, err := AttemptArgumentContent([]byte(`{"query":"before"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	effect, err := invocation.NewEffect(invocation.Effect{
+		Manual: manual, Arguments: arguments.Descriptor.ID, Class: invocation.ClassInspection, Known: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	effectContent, err := effect.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,8 +49,9 @@ func TestAttemptStimulusBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	boundary, err := PublishAttemptStimulus(ctx, store, AttemptStimulusBoundary{
-		Operation: operation, Attempt: 1, Manual: manual, Selection: selection,
-	}, []artifact.Content{arguments})
+		Operation: operation, Attempt: 1, Manual: manual, Class: invocation.ClassInspection,
+		Arguments: arguments.Descriptor.ID, Effect: effect.ID, Ceiling: ceiling, Selection: selection,
+	}, []artifact.Content{arguments, effectContent})
 	if err != nil {
 		t.Fatal(err)
 	}

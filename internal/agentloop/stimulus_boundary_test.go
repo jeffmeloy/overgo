@@ -13,7 +13,7 @@ func TestAttemptStimulusBoundary(t *testing.T) {
 	coordinator, store := coordinatorFixture(t)
 	session := &Session{ID: "stimulus-session"}
 	arguments := json.RawMessage(`{"step":1}`)
-	if _, err := coordinator.Propose(ctx, session, "probe.read", arguments, false); err != nil {
+	if _, err := coordinator.Propose(ctx, session, "probe.read", arguments); err != nil {
 		t.Fatal(err)
 	}
 	operation, err := MutationReceiptOperation("stimulus-session-step-1")

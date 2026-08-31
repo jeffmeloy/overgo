@@ -1,10 +1,12 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
@@ -12,6 +14,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/sequencescore"
 )
 
 type evaluationSession interface {
@@ -71,12 +74,53 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		_ = runner.Close()
 		return fail(err)
 	}
-	campaign, err := evaluation.NewCampaign(store, runner, identity, environment, value.CodeCommit)
+	runtime := evaluation.Runtime(runner)
+	if value.ChatProtocol {
+		runtime = chatShapedRuntime{runner}
+	}
+	campaign, err := evaluation.NewCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
 		_ = runner.Close()
 		return fail(err)
 	}
 	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model}, nil
+}
+
+// chatShapedRuntime scores multiple-choice prompts through the model's
+// own declared conversation framing: an instruct-tuned model measures
+// the format it was trained to answer in, and a model without any chat
+// declaration scores the raw prompt unchanged. Pure-sequence scoring —
+// the empty prompt — stays raw, because shaping would corrupt
+// full-sequence likelihoods.
+type chatShapedRuntime struct {
+	*inference.Runner
+}
+
+// ScoreContinuations shapes a non-empty prompt through the declared
+// chat template before scoring; see the type comment for the contract.
+// A shaped prompt ends at the assistant turn opener, so candidates
+// score as that turn's opening tokens: the raw-completion leading space
+// belongs to the base-style "Answer:" continuation and mis-tokenizes
+// after the opener's newline, measured as below-random letter scores.
+func (r chatShapedRuntime) ScoreContinuations(
+	ctx context.Context,
+	prompt string,
+	candidates []string,
+) ([]sequencescore.Score, error) {
+	if prompt != "" {
+		shaped, err := r.Runner.FormatChatWithOptions(
+			[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: prompt}},
+			inference.ChatFormatOptions{AddGenerationPrompt: true},
+		)
+		if err == nil {
+			opening := make([]string, len(candidates))
+			for index, candidate := range candidates {
+				opening[index] = cmp.Or(strings.TrimPrefix(candidate, " "), candidate)
+			}
+			return r.Runner.ScoreContinuations(ctx, shaped, opening)
+		}
+	}
+	return r.Runner.ScoreContinuations(ctx, prompt, candidates)
 }
 
 func (s *nativeSession) Evaluate(ctx context.Context, path string) error {

@@ -51,11 +51,11 @@ func formatChatRequest(
 	if addGenerationPrompt != nil {
 		addPrompt = *addGenerationPrompt
 	}
-	enableThinking, err := chatThinkingEnabled(kwargs)
+	enableThinking, extras, err := chatTemplateKwargs(kwargs)
 	if err != nil {
 		return "", err
 	}
-	if len(tools) == 0 && addPrompt && enableThinking {
+	if len(tools) == 0 && addPrompt && enableThinking && len(extras) == 0 {
 		return formatter.FormatChat(messages)
 	}
 	extended, ok := formatter.(ToolAwareChatFormatter)
@@ -66,6 +66,7 @@ func formatChatRequest(
 		Tools:               tools,
 		AddGenerationPrompt: addPrompt,
 		EnableThinking:      enableThinking,
+		TemplateKwargs:      extras,
 	})
 }
 
@@ -355,26 +356,49 @@ func (h *Handler) normalizeChatPrompt(
 	return nativePrompt{Text: prompt, Response: prompt}, nil
 }
 
-func chatThinkingEnabled(kwargs map[string]any) (bool, error) {
+// chatTemplateKwargs admits the declared template variables: the typed
+// enable_thinking plus the pass-through keys thinking-family templates
+// consume — preserve_thinking and reasoning_effort. Unknown keys refuse.
+func chatTemplateKwargs(kwargs map[string]any) (bool, map[string]any, error) {
 	enabled := true
-	if value, exists := kwargs["enable_thinking"]; exists {
-		var ok bool
-		enabled, ok = value.(bool)
-		if !ok {
-			return false, errors.New(
-				"chat_template_kwargs.enable_thinking must be a boolean",
-			)
-		}
-	}
-	for key := range kwargs {
-		if key != "enable_thinking" {
-			return false, fmt.Errorf(
+	extras := make(map[string]any, len(kwargs))
+	for key, value := range kwargs {
+		switch key {
+		case "enable_thinking":
+			var ok bool
+			if enabled, ok = value.(bool); !ok {
+				return false, nil, errors.New("chat_template_kwargs.enable_thinking must be a boolean")
+			}
+		case "preserve_thinking":
+			preserved, ok := value.(bool)
+			if !ok {
+				return false, nil, errors.New("chat_template_kwargs.preserve_thinking must be a boolean")
+			}
+			extras[key] = preserved
+		case "reasoning_effort":
+			effort, ok := value.(string)
+			if !ok || effort != "xhigh" && effort != "high" && effort != "medium" && effort != "low" {
+				return false, nil, errors.New("chat_template_kwargs.reasoning_effort must be xhigh, high, medium, or low")
+			}
+			extras[key] = effort
+		default:
+			return false, nil, fmt.Errorf(
 				"unsupported chat_template_kwargs key %q",
 				key,
 			)
 		}
 	}
-	return enabled, nil
+	return enabled, extras, nil
+}
+
+// chatThinkingEnabled admits the thinking toggle alone for request paths
+// that cannot carry pass-through template variables.
+func chatThinkingEnabled(kwargs map[string]any) (bool, error) {
+	enabled, extras, err := chatTemplateKwargs(kwargs)
+	if err == nil && len(extras) != 0 {
+		return false, errors.New("chat_template_kwargs beyond enable_thinking are unsupported for this request")
+	}
+	return enabled, err
 }
 
 func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Request) {

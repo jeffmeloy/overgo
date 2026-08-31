@@ -499,7 +499,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:8425a4c5f55b68346a6e4aa8a9fe88c5f9a9fad42576248ed18b621c8c46cba4"
+     "identity": "file:sha256:c9aa4fd9ebfc628868059362f3b731386a9723163311cd340e60cb4b0cb42e0c"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -800,7 +800,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:87ee3b4d1f5f9078b51088943994af42523d334479a384a2fa68b9f42f43ca7c"
+     "identity": "file:sha256:89d15090446854a0f5c13821c9f166a84060c84f7ba83bfbbe6ca75b2fe7ae4a"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",

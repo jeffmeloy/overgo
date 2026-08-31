@@ -1261,12 +1261,13 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, conv2DStagingBytes)
 			}
 		}
-		if node.Op == tensor.OpMulMat && node.Inputs[0].Type == dtype.Q8_0 &&
+		if fast := node.Op == tensor.OpMulMat && len(node.Inputs) == 2 &&
+			q8InputFastPathType(node.Inputs[0].Type); fast &&
 			node.Inputs[1].Shape.Rank == 2 && node.Inputs[1].Shape.Dims[1] == 1 {
 			elements, elementErr := node.Inputs[1].Shape.Elements()
 			if elementErr != nil || elements%q8InputTraits.BlockSize != 0 ||
 				elements/q8InputTraits.BlockSize > math.MaxUint64/q8InputTraits.TypeSize {
-				return nil, errors.New("Q8_0 mul_mat input storage overflows")
+				return nil, fmt.Errorf("%s mul_mat input storage overflows", node.Inputs[0].Type)
 			}
 			compiled.q8InputBytes = max(
 				compiled.q8InputBytes,

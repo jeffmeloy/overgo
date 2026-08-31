@@ -37,7 +37,7 @@ var kernels = []kernel{
 var runtimePins = map[string]string{
 	"VectorAddSHA256":      "internal/cuda/kernel/vector_add.ptx",
 	"OpsF32SHA256":         "internal/cuda/kernel/ops_f32.ptx",
-	"TorchCudaRandnSHA256": "internal/cuda/kernel/torch_cuda_randn.ptx",
+	"TorchCUDARandnSHA256": "internal/cuda/kernel/torch_cuda_randn.ptx",
 }
 
 func main() {

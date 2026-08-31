@@ -390,6 +390,31 @@ func (p *eparser) parseExpr() (expr, error) {
 	return p.parseFilters(e)
 }
 
+// parseCondExpr parses a complete expression including the inline
+// conditional `value if cond else alt`. Bracketed contexts — parentheses,
+// call arguments, list and dict literals — use this level; statement
+// parsers keep parseExpr because they own the trailing `if` keyword
+// themselves (the for-loop filter, output, and set forms).
+func (p *eparser) parseCondExpr() (expr, error) {
+	e, err := p.parseExpr()
+	if err != nil || !p.matchName("if") {
+		return e, err
+	}
+	cond, err := p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+	node := condNode{value: e, cond: cond}
+	if p.matchName("else") {
+		alt, err := p.parseCondExpr()
+		if err != nil {
+			return nil, err
+		}
+		node.alt = alt
+	}
+	return node, nil
+}
+
 func (p *eparser) parseOr() (expr, error) {
 	l, err := p.parseAnd()
 	if err != nil {
@@ -634,7 +659,7 @@ func (p *eparser) parseCallArgs() ([]expr, []kwarg, error) {
 			}
 			continue
 		}
-		v, err := p.parseExpr()
+		v, err := p.parseCondExpr()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -643,7 +668,7 @@ func (p *eparser) parseCallArgs() ([]expr, []kwarg, error) {
 			if nn, ok := v.(nameNode); ok {
 				name = nn.name
 			}
-			val, err := p.parseExpr()
+			val, err := p.parseCondExpr()
 			if err != nil {
 				return nil, nil, err
 			}
@@ -816,7 +841,7 @@ func (p *eparser) parseParenOrTuple() (expr, error) {
 	if p.matchSym(")") {
 		return tupleNode{}, nil
 	}
-	first, err := p.parseExpr()
+	first, err := p.parseCondExpr()
 	if err != nil {
 		return nil, err
 	}
@@ -828,7 +853,7 @@ func (p *eparser) parseParenOrTuple() (expr, error) {
 		if p.peekSym(")") {
 			break
 		}
-		e, err := p.parseExpr()
+		e, err := p.parseCondExpr()
 		if err != nil {
 			return nil, err
 		}
@@ -845,7 +870,7 @@ func (p *eparser) parseList() (expr, error) {
 	if p.matchSym("]") {
 		return listNode{}, nil
 	}
-	e, err := p.parseExpr()
+	e, err := p.parseCondExpr()
 	if err != nil {
 		return nil, err
 	}
@@ -854,7 +879,7 @@ func (p *eparser) parseList() (expr, error) {
 		if p.peekSym("]") {
 			break
 		}
-		e, err := p.parseExpr()
+		e, err := p.parseCondExpr()
 		if err != nil {
 			return nil, err
 		}
@@ -900,7 +925,7 @@ func (p *eparser) parseDictPair() (pairNode, error) {
 	if !p.matchSym(":") {
 		return pairNode{}, fmt.Errorf("jinja: expected ':' in dict")
 	}
-	v, err := p.parseExpr()
+	v, err := p.parseCondExpr()
 	if err != nil {
 		return pairNode{}, err
 	}

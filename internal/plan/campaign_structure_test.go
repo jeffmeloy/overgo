@@ -442,8 +442,19 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 		want[id] = true
 	}
 	seen := make(map[string]bool, len(wantIDs))
+	mergeRows := 0
 	for _, item := range document.Items {
 		if item.ID == "reconcile-integrated-rsi-20260829" || item.ID == "resequence-supervised-first-win-20260829" || item.ID == "grounded-upgrade-plan-admission-20260830" {
+			continue
+		}
+		if strings.HasPrefix(item.ID, "merge-") {
+			mergeRows++
+			revision := strings.TrimPrefix(item.ID, "merge-")
+			if len(revision) != 12 || strings.Trim(revision, "0123456789abcdef") != "" ||
+				item.Status != StatusOpen || len(item.Steps) != 1 || item.Steps[0].ID != "do" ||
+				item.Steps[0].Status != StatusOpen || item.Steps[0].Verify != "go run ./cmd/compatibility -check" {
+				t.Errorf("invalid prepared merge boundary %+v", item)
+			}
 			continue
 		}
 		if item.Status != StatusOpen {
@@ -460,6 +471,9 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 				t.Errorf("reconciled step %s status = %q, want %q", id, step.Status, StatusOpen)
 			}
 		}
+	}
+	if mergeRows > 1 {
+		t.Errorf("reconciled campaign has %d prepared merge boundaries, want at most one", mergeRows)
 	}
 	for _, id := range wantIDs {
 		if planning && !seen[id] {

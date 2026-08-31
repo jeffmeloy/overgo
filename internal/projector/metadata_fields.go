@@ -219,6 +219,14 @@ func readRotaryVisionBackbone(file *gguf.File, projectorType string, projection 
 	if err := readVisionBackbone(file, projectorType, projection, spec); err != nil {
 		return err
 	}
+	// Converters may omit the vision rope base; the reference runtime
+	// serves such towers at theta 10000, so an absent key takes that
+	// declared-default while a present key of the wrong type still
+	// refuses.
+	if _, present := file.MetadataValue(visionRopeFrequencyKey); !present {
+		spec.RopeFrequency = defaultVisionRopeFrequency
+		return nil
+	}
 	frequency, err := metadataFloat32(file, visionRopeFrequencyKey)
 	if err != nil {
 		return err
@@ -226,3 +234,7 @@ func readRotaryVisionBackbone(file *gguf.File, projectorType string, projection 
 	spec.RopeFrequency = frequency
 	return nil
 }
+
+// defaultVisionRopeFrequency is the reference runtime's rotary base for
+// vision towers whose converter omitted the declaration.
+const defaultVisionRopeFrequency = 10000

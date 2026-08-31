@@ -29,7 +29,13 @@ func openServingRepository(config Config) (*overgodb.Store, runrecord.Environmen
 		var batch artifact.Batch
 		batch, err = environment.Batch("serving/environment/" + environment.ID.String())
 		if err == nil {
-			_, err = artifact.CommitBatch(context.Background(), repository, batch)
+			// An identical environment from an earlier serving session is
+			// already the stored fact; a restart on the same machine must
+			// serve, not refuse on the no-op batch.
+			if _, commitErr := artifact.CommitBatch(context.Background(), repository, batch); commitErr != nil &&
+				!errors.Is(commitErr, artifact.ErrNoChange) {
+				err = commitErr
+			}
 		}
 	}
 	return repository, environment, err

@@ -62,6 +62,13 @@ type unaryNode struct {
 }
 type notNode struct{ term expr }
 
+// condNode is the inline conditional expression `value if cond else alt`
+// inside bracketed contexts; alt may be nil, which evaluates to nil like
+// Jinja's undefined branch.
+type condNode struct {
+	value, cond, alt expr
+}
+
 func (litNode) isExpr()     {}
 func (nameNode) isExpr()    {}
 func (listNode) isExpr()    {}
@@ -76,6 +83,7 @@ func (testNode) isExpr()    {}
 func (binNode) isExpr()     {}
 func (unaryNode) isExpr()   {}
 func (notNode) isExpr()     {}
+func (condNode) isExpr()    {}
 
 // ---- statement AST ----
 

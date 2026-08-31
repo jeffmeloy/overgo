@@ -91,6 +91,11 @@ type ChatFormatOptions struct {
 	Tools               []ChatTool
 	AddGenerationPrompt bool
 	EnableThinking      bool
+	// TemplateKwargs carries declared chat-template variables beyond the
+	// typed options — preserve_thinking, reasoning_effort — consumed by
+	// templates that read them and inert otherwise. Reserved context keys
+	// cannot be overridden.
+	TemplateKwargs map[string]any
 }
 
 func (m ChatMessage) MarshalJSON() ([]byte, error) {
@@ -428,7 +433,7 @@ func (r *Runner) buildChatContext(
 	}
 	bos := vocabularyTokenText(r.vocab, r.vocab.BOS)
 	eos := vocabularyTokenText(r.vocab, r.vocab.EOS)
-	return map[string]any{
+	context := map[string]any{
 		"messages":              wireMessages,
 		"bos_token":             bos,
 		"eos_token":             eos,
@@ -436,7 +441,14 @@ func (r *Runner) buildChatContext(
 		"enable_thinking":       options.EnableThinking,
 		"tools":                 wireTools,
 		"documents":             nil,
-	}, nil
+	}
+	for name, value := range options.TemplateKwargs {
+		if _, reserved := context[name]; reserved {
+			return nil, fmt.Errorf("inference: chat template kwarg %q overrides a reserved context key", name)
+		}
+		context[name] = value
+	}
+	return context, nil
 }
 
 func validateChatTool(tool ChatTool) error {

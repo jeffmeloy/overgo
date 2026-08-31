@@ -47,7 +47,7 @@ func servableModelPaths(ctx context.Context, repository string, limit int) ([]st
 // runAllParent fans one worker process out per servable model, the
 // same isolation the manifest path uses: a model that dies cannot take
 // the remaining evaluations with it.
-func runAllParent(ctx context.Context, repository string, device int, family string, limit int) error {
+func runAllParent(ctx context.Context, repository string, device int, family string, limit int, chatProtocol bool) error {
 	models, err := servableModelPaths(ctx, repository, limit)
 	if err != nil {
 		return err
@@ -67,6 +67,9 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 		if family != "" {
 			arguments = append(arguments, "-family", family)
 		}
+		if chatProtocol {
+			arguments = append(arguments, "-chat-protocol")
+		}
 		command := exec.CommandContext(ctx, executable, arguments...)
 		command.Stdout, command.Stderr = os.Stdout, os.Stderr
 		if err := command.Run(); err != nil {
@@ -80,7 +83,7 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 // derived suites and publishes the evidence through the campaign
 // ledger -- the same session the manifest path opens, fed by suites
 // compiled from the store instead of files.
-func runAllWorker(ctx context.Context, repository string, device int, family string, limit, index int) error {
+func runAllWorker(ctx context.Context, repository string, device int, family string, limit, index int, chatProtocol bool) error {
 	models, err := servableModelPaths(ctx, repository, limit)
 	if err != nil {
 		return err
@@ -92,7 +95,7 @@ func runAllWorker(ctx context.Context, repository string, device int, family str
 	if err != nil {
 		return err
 	}
-	shared := manifest{Repository: repository, CodeCommit: commit, Device: device}
+	shared := manifest{Repository: repository, CodeCommit: commit, Device: device, ChatProtocol: chatProtocol}
 	session, err := openEvaluationSession(ctx, shared, modelRequest{Path: models[index], Suites: []string{"derived"}})
 	if err != nil {
 		return err

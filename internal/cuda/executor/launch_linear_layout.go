@@ -313,14 +313,14 @@ func launchLinearLayout(
 			}
 			function := functions[quantKernels[leftNode.Type].mulMat]
 			quantizedRight := right
-			if leftNode.Type == dtype.Q8_0 && rightRows == 1 {
+			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast && rightRows == 1 {
 				if q8Input == nil || q8Input.staging == 0 {
-					return errors.New("Q8_0 mul_mat input workspace is unavailable")
+					return fmt.Errorf("%s mul_mat input workspace is unavailable", leftNode.Type)
 				}
 				if q8Input.stagedNode != rightNode {
 					blocks := uint64(inner) * uint64(rightRows) / q8InputTraits.BlockSize
 					if blocks > math.MaxUint32 {
-						return errors.New("Q8_0 mul_mat input block count exceeds uint32")
+						return fmt.Errorf("%s mul_mat input block count exceeds uint32", leftNode.Type)
 					}
 					blockCount := uint32(blocks)
 					if err := launchQ8InputQuantization(
@@ -330,7 +330,7 @@ func launchLinearLayout(
 					}
 					q8Input.stagedNode = rightNode
 				}
-				function = functions[kernelMulMatQ80InputF32]
+				function = functions[inputKernel]
 				quantizedRight = q8Input.staging
 			}
 			launchCount, err := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
@@ -1121,27 +1121,41 @@ func launchQ8ArgmaxReduction(
 	)
 }
 
+// q8InputMulMatKernels names the decode fast path per storage type: a
+// single input vector quantizes once to q8 blocks and the weight dot
+// products run integer dp4a. Types without an entry keep the float
+// path.
+var q8InputMulMatKernels = map[dtype.Type]kernelFunctionID{
+	dtype.Q8_0: kernelMulMatQ80InputF32,
+	dtype.Q4K:  kernelMulMatQ4KInputF32,
+	dtype.Q5K:  kernelMulMatQ5KInputF32,
+	dtype.Q6K:  kernelMulMatQ6KInputF32,
+}
+
+// q8InputFastPathType reports storage types whose single-vector decode
+// routes through the q8-input integer kernels.
+func q8InputFastPathType(storage dtype.Type) (ok bool) {
+	_, ok = q8InputMulMatKernels[storage]
+	return ok
+}
+
+// quantMulMatLaunchCount sizes the thread grid for the warp-cooperative
+// quantized mul_mat kernels: one warp per output element, with Q8_0's
+// kernel additionally tiling four input vectors per warp.
 func quantMulMatLaunchCount(storage dtype.Type, leftRows, rightRows uint32) (uint32, error) {
 	const (
-		q8DotProductThreads = uint32(32)
-		q8VectorsPerWarp    = uint32(4)
+		dotProductThreads = uint32(32)
+		q8VectorsPerWarp  = uint32(4)
 	)
 	warps := uint64(leftRows) * uint64(rightRows)
 	if storage == dtype.Q8_0 {
 		rightTiles := (rightRows-1)/q8VectorsPerWarp + 1
 		warps = uint64(leftRows) * uint64(rightTiles)
 	}
-	if warps > uint64(math.MaxUint32/q8DotProductThreads) && storage == dtype.Q8_0 {
-		return 0, errors.New("Q8_0 mul_mat launch size exceeds uint32")
-	}
-	if warps > math.MaxUint32 {
+	if warps > uint64(math.MaxUint32/dotProductThreads) {
 		return 0, errors.New("quantized mul_mat launch size exceeds uint32")
 	}
-	launches := uint32(warps)
-	if storage == dtype.Q8_0 {
-		launches *= q8DotProductThreads
-	}
-	return launches, nil
+	return uint32(warps) * dotProductThreads, nil
 }
 
 func launchNormalizationABI(

@@ -211,6 +211,15 @@ var projectionStages = map[recipe.DataKind]projectionStage{
 	recipe.DataVideo: {"video", recipe.DataVideo, recipe.DataVideoTensor, workflowrecipe.ModuleDecodeVideo, workflowrecipe.ModuleProjectVideo},
 }
 
+// sessionComponentRoles names the dependency role a session-bearing
+// node's module loads when it is not the model slot: projector modules
+// load the projector artifact, so their sessions account those bytes.
+var sessionComponentRoles = map[recipe.ModuleID]recipe.DependencyRole{
+	workflowrecipe.ModuleProjectImage: recipe.DependencyProjector,
+	workflowrecipe.ModuleProjectAudio: recipe.DependencyProjector,
+	workflowrecipe.ModuleProjectVideo: recipe.DependencyProjector,
+}
+
 // ProjectionDefinition returns one exact projector bundle with one branch per supported modality.
 func ProjectionDefinition(
 	modelID, projectorID, processorProfile artifact.ID,
@@ -233,9 +242,12 @@ func ProjectionDefinition(
 		}
 		decodeID := recipe.NodeID(stage.name + "-decode")
 		projectID := recipe.NodeID(stage.name + "-project")
+		// The decode node is a pure media transform; the project node loads
+		// the projector artifact per request, so it carries the session the
+		// component plan accounts for.
 		nodes = append(nodes,
 			recipe.Node{ID: decodeID, Module: stage.decode, Placement: recipe.PlacementHybrid},
-			recipe.Node{ID: projectID, Module: stage.project, Placement: recipe.PlacementHybrid},
+			recipe.Node{ID: projectID, Module: stage.project, Placement: recipe.PlacementHybrid, Session: recipe.SessionRequest},
 		)
 		edges = append(edges, recipe.Edge{
 			From: recipe.Endpoint{Node: decodeID, Port: "tensor"},

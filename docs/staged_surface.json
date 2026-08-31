@@ -418,12 +418,6 @@
       "name": "RepeatAgreementForCommand",
       "reason": "Repeat-agreement verdict for flaky-command detection, delivered ahead of the verification-depth lanes.",
       "retire_with": "verification-depth/inference-coverage"
-    },
-    {
-      "package": "overgo/internal/plan",
-      "name": "CompetingPlans",
-      "reason": "Git-aware competing-plan discovery owner consumed by the canonical-plan test now and by the read-only preflight command when it lands.",
-      "retire_with": "gate-preflight/preflight-command"
     }
   ]
 }

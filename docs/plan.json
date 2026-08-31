@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-preflight",
-      "title": "Add one read-only preflight command for cheap pre-gate validation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "preflight-command",
-          "title": "Create a read-only command checking nested plans, generated identities, compatibility hashes, SBOM and kernel identities, formatting, and dirty generated files",
-          "status": "open",
-          "verify": "go run ./cmd/preflight",
-          "rationale": "One cheap command runs before expensive tests and before the gate, so stale generated state is caught in seconds, not after a full gate run."
-        }
-      ]
-    },
-    {
       "id": "staged-surface-reconciliation",
       "title": "Reconcile the staged surface delivered for steps master completed without consuming it",
       "status": "open",

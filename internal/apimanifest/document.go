@@ -167,9 +167,9 @@ func clone(value Manifest) Manifest {
 	}
 	value.Routes = slices.Clone(value.Routes)
 	for index := range value.Routes {
-		value.Routes[index].Request = cloneRef(value.Routes[index].Request)
+		value.Routes[index].Request = artifact.ClonePointer(value.Routes[index].Request)
 		value.Routes[index].Responses = slices.Clone(value.Routes[index].Responses)
-		value.Routes[index].Stream = cloneRef(value.Routes[index].Stream)
+		value.Routes[index].Stream = artifact.ClonePointer(value.Routes[index].Stream)
 	}
 	value.Documents = slices.Clone(value.Documents)
 	for index := range value.Documents {
@@ -194,14 +194,6 @@ func clone(value Manifest) Manifest {
 		}
 	}
 	return value
-}
-
-func cloneRef(value *ContractRef) *ContractRef {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }
 
 func canonicalize(value *Manifest) error {

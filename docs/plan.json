@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "clone-ref-consolidation",
-          "title": "Consolidate the cloneRef and cloneCommitID exact clone into one owner",
-          "status": "open",
-          "verify": "go run ./cmd/clone-census -require-absent cloneRef",
-          "rationale": "The gate's review advisory names an exact clone between apimanifest cloneRef and overgodb cloneCommitID. If the copy semantics are one contract, one owner keeps it, callers migrate, and the displaced path is deleted in the same commit; if they are genuinely distinct, the census decision records why.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard"
-          ],
-          "capabilities": [
-            "finding-closure",
-            "common-code",
-            "tightness"
-          ]
-        },
-        {
           "id": "reference-paper-decision",
           "title": "Decide the unplanned reference paper in docs and pin that docs holds no unplanned binaries",
           "status": "open",

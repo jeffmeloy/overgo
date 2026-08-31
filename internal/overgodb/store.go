@@ -143,7 +143,7 @@ func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]cont
 }
 
 func (s catalogState) delta(batch artifact.Batch) artifact.Batch {
-	delta := artifact.Batch{Key: batch.Key, ExpectedHead: cloneCommitID(batch.ExpectedHead)}
+	delta := artifact.Batch{Key: batch.Key, ExpectedHead: artifact.ClonePointer(batch.ExpectedHead)}
 	s.artifacts.delta(batch, &delta)
 	s.contents.delta(batch, &delta)
 	s.aliases.delta(batch, &delta)
@@ -846,7 +846,7 @@ func bindContentLocators(locators map[artifact.ID]contentLocator, payloadOffset 
 func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 	result := artifact.Batch{
 		Key:          batch.Key,
-		ExpectedHead: cloneCommitID(batch.ExpectedHead),
+		ExpectedHead: artifact.ClonePointer(batch.ExpectedHead),
 		Artifacts:    slices.Clone(batch.Artifacts),
 		Contents:     cloneValues(batch.Contents),
 		Manifests:    cloneValues(batch.Manifests),
@@ -977,14 +977,6 @@ func adjacentDuplicate[T any](values []T, equal func(T, T) bool) (T, bool) {
 	}
 	var zero T
 	return zero, false
-}
-
-func cloneCommitID(value *artifact.CommitID) *artifact.CommitID {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }
 
 func cloneValues[T interface{ Clone() T }](values []T) []T {

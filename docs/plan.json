@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
+      "id": "mtp-recurrent-checkpoint",
+      "title": "Checkpoint and roll back hybrid recurrent decode state at draft boundaries",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Checkpoint and roll back hybrid recurrent decode state at draft boundaries",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run TestRecurrentCheckpoint -count=1"
+        }
+      ]
+    },
+    {
       "id": "qwen38-mtp-speculation",
       "title": "Compose NextN MTP speculative decode into generation: read weights less than once per emitted token",
       "status": "open",

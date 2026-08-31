@@ -33,6 +33,10 @@ type deviceKVCache struct {
 	Candidates    []LogitCandidate
 	Selection     executor.DeviceValue
 	Selected      tokenizer.TokenID
+	// SpanSelected holds the per-position greedy selections of a
+	// span append — one token per consumed position, the MTP verify
+	// batch's output.
+	SpanSelected []tokenizer.TokenID
 }
 
 type deviceCacheStorage struct {
@@ -408,7 +412,20 @@ func (r *Runner) forwardDeviceCachedGreedyStepLocked(
 	tokenIDs []tokenizer.TokenID,
 	past *deviceKVCache,
 ) (*deviceKVCache, error) {
-	plan, err := compileDeviceOutputPlan(deviceOutputGreedy, 0, r.spec.VocabularySize)
+	return r.forwardDeviceCachedModeLocked(ctx, deviceOutputGreedy, tokenIDs, past)
+}
+
+// forwardDeviceCachedModeLocked: single-branch forward under a chosen output
+// plan. With deviceOutputGreedySpan every appended position stays in the
+// output head and selects greedily — the MTP verify batch; the result cache
+// carries SpanSelected, one token per consumed position.
+func (r *Runner) forwardDeviceCachedModeLocked(
+	ctx context.Context,
+	mode deviceOutputMode,
+	tokenIDs []tokenizer.TokenID,
+	past *deviceKVCache,
+) (*deviceKVCache, error) {
+	plan, err := compileDeviceOutputPlan(mode, 0, r.spec.VocabularySize)
 	if err != nil {
 		return nil, err
 	}
@@ -567,7 +584,7 @@ func (r *Runner) parameterizedDecodeCapacity(
 	for index, item := range appends {
 		past := item.Past
 		if len(item.Tokens) != 1 || past == nil || past.Tokens == 0 || past.storage == nil ||
-			(plan.retainsSelection() && past.Selection.Pointer == 0) ||
+			(plan.is(deviceOutputGreedy) && past.Selection.Pointer == 0) ||
 			past.Tokens >= r.spec.ContextLength || past.Tokens == math.MaxUint32 {
 			return 0, false
 		}
@@ -1114,7 +1131,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	deviceFeeds.Add(embeddingTable, embeddingPointer)
 	dynamicEmbedding := embeddingTable.Type == dtype.F32 || embeddingTable.Type == dtype.Q8_0
 	var feedback *tensor.Tensor
-	if plan.retainsSelection() && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
+	if plan.is(deviceOutputGreedy) && dynamicEmbedding && past != nil && past.Selection.Pointer != 0 && tokensPerSequence == 1 {
 		selection := builder.Input(prefix+"selected_token", dtype.F32, tensor.MustShape(sequences))
 		deviceFeeds.Add(selection, past.Selection.Pointer)
 		current = builder.GatherLast(embeddingTable, selection)
@@ -1194,7 +1211,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	values := make([]*tensor.Tensor, len(r.weights.Layers))
 	states := make([]deviceGraphStates, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
-	decodeCatalog := plan.retainsSelection() && tokensPerSequence == 1 && r.decodeWeights != nil
+	decodeCatalog := plan.is(deviceOutputGreedy) && tokensPerSequence == 1 && r.decodeWeights != nil
 	bindLayerTensor := model.DeviceTensorBinder(r.deviceInput)
 	if decodeCatalog {
 		bindLayerTensor = r.decodeDeviceInput
@@ -1269,7 +1286,11 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		return fail(err)
 	}
 	lastHidden := current
-	if sequences == 1 {
+	if plan.is(deviceOutputGreedySpan) {
+		if sequences != 1 {
+			return fail(errors.New("span output selection requires one sequence"))
+		}
+	} else if sequences == 1 {
 		lastHidden = builder.FlatSlice(current, hiddenElements-width, width, 1)
 	} else if tokensPerSequence != 1 {
 		return fail(errors.New("packed output selection requires one token per sequence"))

@@ -26,6 +26,7 @@ func TestCompiledOutputPolicyOwnsAllDecodePaths(t *testing.T) {
 	}{
 		{mode: deviceOutputLogits, want: graph.logits},
 		{mode: deviceOutputGreedy, want: graph.selection},
+		{mode: deviceOutputGreedySpan, want: graph.selection},
 		{mode: deviceOutputTopK, topK: candidateCount, want: graph.candidates},
 	}
 	for _, test := range tests {
@@ -42,9 +43,10 @@ func TestCompiledOutputPolicyOwnsAllDecodePaths(t *testing.T) {
 		topK uint32
 	}{
 		{mode: deviceOutputLogits, topK: candidateCount},
+		{mode: deviceOutputGreedySpan, topK: candidateCount},
 		{mode: deviceOutputTopK},
 		{mode: deviceOutputTopK, topK: vocabulary + 1},
-		{mode: deviceOutputTopK + 1},
+		{mode: deviceOutputGreedySpan + 1},
 	} {
 		if _, err := compileDeviceOutputPlan(invalid.mode, invalid.topK, vocabulary); err == nil {
 			t.Fatalf("invalid output policy accepted: %+v", invalid)

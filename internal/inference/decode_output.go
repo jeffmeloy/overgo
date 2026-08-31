@@ -16,6 +16,10 @@ const (
 	deviceOutputLogits deviceOutputMode = iota
 	deviceOutputGreedy
 	deviceOutputTopK
+	// deviceOutputGreedySpan keeps every position of a span append in
+	// the output head and selects greedily per position — the MTP
+	// verify batch: one weight read scores the whole draft span.
+	deviceOutputGreedySpan
 )
 
 // deviceOutputPlan: graph reduction and publication contract.
@@ -26,7 +30,7 @@ type deviceOutputPlan struct {
 
 func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (deviceOutputPlan, error) {
 	switch mode {
-	case deviceOutputLogits, deviceOutputGreedy:
+	case deviceOutputLogits, deviceOutputGreedy, deviceOutputGreedySpan:
 		if topK != 0 {
 			return deviceOutputPlan{}, errors.New("inference: decode output count requires top-K mode")
 		}
@@ -40,13 +44,16 @@ func compileDeviceOutputPlan(mode deviceOutputMode, topK, vocabulary uint32) (de
 	return deviceOutputPlan{mode: mode, topK: topK}, nil
 }
 
-func (p deviceOutputPlan) fullLogits() bool { return p.mode == deviceOutputLogits }
-
-func (p deviceOutputPlan) retainsSelection() bool { return p.mode == deviceOutputGreedy }
+// is names the plan's mode contracts at call sites: deviceOutputLogits
+// publishes full logits, deviceOutputGreedy retains the device-resident
+// selection for feedback, and deviceOutputGreedySpan keeps every span
+// position in the output head with its own greedy selection — the MTP
+// verify batch.
+func (p deviceOutputPlan) is(mode deviceOutputMode) bool { return p.mode == mode }
 
 func (p deviceOutputPlan) reduce(builder *tensor.Builder, logits *tensor.Tensor) (selection, candidates *tensor.Tensor) {
 	switch p.mode {
-	case deviceOutputGreedy:
+	case deviceOutputGreedy, deviceOutputGreedySpan:
 		selection = builder.TopK(logits, 1)
 	case deviceOutputTopK:
 		candidates = builder.TopKPairs(logits, p.topK)
@@ -56,7 +63,7 @@ func (p deviceOutputPlan) reduce(builder *tensor.Builder, logits *tensor.Tensor)
 
 func (p deviceOutputPlan) graphOutput(graph deviceBatchGraph) *tensor.Tensor {
 	switch p.mode {
-	case deviceOutputGreedy:
+	case deviceOutputGreedy, deviceOutputGreedySpan:
 		return graph.selection
 	case deviceOutputTopK:
 		return graph.candidates
@@ -69,6 +76,17 @@ func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *exec
 	count := len(caches)
 	vocabulary := int(r.spec.VocabularySize)
 	switch p.mode {
+	case deviceOutputGreedySpan:
+		if count != 1 {
+			return errors.New("inference: span selection covers exactly one sequence")
+		}
+		selected, _, err := retainedDeviceGreedySelections(
+			ctx, retained, graph.selection, int(graph.tokenCount), vocabulary,
+		)
+		if err != nil {
+			return err
+		}
+		caches[0].SpanSelected = selected
 	case deviceOutputGreedy:
 		selected, device, err := retainedDeviceGreedySelections(
 			ctx, retained, graph.selection, count, vocabulary,

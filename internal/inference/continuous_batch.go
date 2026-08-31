@@ -193,7 +193,7 @@ func (b *ContinuousBatch) step(
 	if b.options.Device {
 		return b.stepDeviceLocked(ctx, inputs, plan)
 	}
-	if !plan.fullLogits() {
+	if !plan.is(deviceOutputLogits) {
 		return nil, errors.New("inference: reduced device output requires a device batch")
 	}
 	candidates := make(map[SequenceID]*continuousSequence, len(inputs))

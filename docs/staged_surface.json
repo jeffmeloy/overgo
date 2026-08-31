@@ -234,12 +234,6 @@
       }
     },
     {
-      "package": "overgo/internal/overgodb",
-      "name": "subscribePublished",
-      "reason": "Head-publication observer seam delivered by storage-projections/atomic-publication with its atomicity contract complete; live subscribers arrive with head-bound deltas.",
-      "retire_with": "interaction-efficiency/head-bound-deltas"
-    },
-    {
       "package": "overgo/internal/runrecord",
       "name": "PublishOperationalTransition",
       "reason": "The one conversion door from operational state to canonical records, proven across runrecord, workflowruntime, and capabilityruntime.",

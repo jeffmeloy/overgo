@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "head-bound-deltas",
-          "title": "Serve initial snapshots plus ordered head-bound deltas to read-only peers, runtime views, and the embedded UI",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/server ./internal/capabilityruntime ./internal/trainingworkflow -run '^(TestHeadBoundDeltaReconciliation|TestTrainingEvidenceDeltaIsSummaryOnly)$' -count=1",
-          "rationale": "Consumers receive an initial snapshot followed by ordered canonical deltas naming previous and resulting heads. Training deltas carry compact coverage or aggregate identities, never raw chunk bytes or fan-out copies of child observation IDs. Only commutative view changes coalesce; discontinuity or projector-version mismatch forces a bounded snapshot resync.",
-          "depends_on": [
-            "interaction-efficiency/projection-query-plans",
-            "storage-operational-boundary/transition-boundary"
-          ],
-          "capabilities": [
-            "overgodb",
-            "read-only-replica",
-            "server",
-            "delta-reconciliation"
-          ]
-        },
-        {
           "id": "incremental-context",
           "title": "Reuse content identities and admitted stimulus cursors so resumable sessions receive only new interaction arcs",
           "status": "open",

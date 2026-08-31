@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-decomposition",
-      "title": "Split cmd/gate into an internal/gate hierarchy with one transaction path",
-      "status": "open",
-      "steps": [
-        {
-          "id": "extract-phases",
-          "title": "Extract admission, preparation, verification, commit, finalization, and recovery into internal/gate packages; cmd/gate keeps flags and composition",
-          "status": "open",
-          "verify": "go test ./cmd/gate -count=1",
-          "rationale": "One top-level transaction path remains; the split must not create independently callable competing gates."
-        }
-      ]
-    },
-    {
       "id": "server-decomposition",
       "title": "Narrow the server assembly root by capability boundary",
       "status": "open",

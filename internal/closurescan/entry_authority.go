@@ -210,7 +210,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				"internal/clioptions/command.go":               "command self-identification fact; execution-semantics migration",
 				"internal/testutil/process.go":                 "test-support process helpers consumed only by suites",
 				"cmd/plan/sync.go":                             "read-only git fact reads; execution-semantics migration",
-				"cmd/gate/main.go":                             "gate check invocations; execution-semantics binds gate steps to supervised receipts",
+				"internal/gate/gate.go":                        "gate check invocations; execution-semantics binds gate steps to supervised receipts",
 				"cmd/loophook/main.go":                         "hook-time tooling; execution-semantics migration",
 				"cmd/release/main.go":                          "release lane tooling; execution-semantics migration",
 				"cmd/reverify/main.go":                         "reverify lane tooling; execution-semantics migration",

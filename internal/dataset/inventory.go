@@ -61,7 +61,7 @@ type Inventory struct {
 
 // NewInventory validates and identifies one file inventory.
 func NewInventory(files []InventoryFile) (Inventory, error) {
-	return inventoryCodec.New(Inventory{Version: artifact.InitialDocumentVersion, Files: slices.Clone(files)})
+	return inventoryCodec.NewInitial(Inventory{Files: slices.Clone(files)})
 }
 
 func loadInventory(ctx context.Context, reader artifact.Reader, id artifact.ID) (Inventory, bool, error) {

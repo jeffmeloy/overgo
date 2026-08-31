@@ -112,8 +112,8 @@ func NewDecision(
 	decider Decider,
 	evidence []artifact.ID,
 ) (Decision, error) {
-	return decisionCodec.New(Decision{
-		Version: artifact.InitialDocumentVersion, Subject: subject, Outcome: outcome, Tier: tier,
+	return decisionCodec.NewInitial(Decision{
+		Subject: subject, Outcome: outcome, Tier: tier,
 		Reason: reason, Decider: decider, Evidence: slices.Clone(evidence),
 	})
 }

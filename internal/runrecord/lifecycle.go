@@ -57,8 +57,8 @@ type GateLifecycle struct {
 }
 
 func NewGatePreparation(treeKey string, environment artifact.ID, started time.Time) (GateLifecycle, error) {
-	return gateLifecycleCodec.New(GateLifecycle{
-		Version: artifact.InitialDocumentVersion, State: GatePrepared, TreeKey: treeKey,
+	return gateLifecycleCodec.NewInitial(GateLifecycle{
+		State: GatePrepared, TreeKey: treeKey,
 		Environment: environment, Started: started.UTC().Format(time.RFC3339Nano),
 	})
 }
@@ -69,8 +69,8 @@ func NewGateFinalization(preparation GateLifecycle, codeCommit string, result ar
 	}
 	preparationID := preparation.ID
 	resultID := result
-	return gateLifecycleCodec.New(GateLifecycle{
-		Version: artifact.InitialDocumentVersion, State: GateFinalized, TreeKey: preparation.TreeKey,
+	return gateLifecycleCodec.NewInitial(GateLifecycle{
+		State: GateFinalized, TreeKey: preparation.TreeKey,
 		Environment: preparation.Environment, Started: preparation.Started,
 		Preparation: &preparationID, CodeCommit: codeCommit, Result: &resultID, Outcome: outcome,
 	})

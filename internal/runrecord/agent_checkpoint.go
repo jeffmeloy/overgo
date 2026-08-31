@@ -65,8 +65,7 @@ var agentMutationCheckpointCodec = artifact.JSONDocumentCodec(
 
 // NewAgentMutationCheckpoint canonicalizes and identifies one checkpoint manifest.
 func NewAgentMutationCheckpoint(value AgentMutationCheckpoint) (AgentMutationCheckpoint, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return agentMutationCheckpointCodec.New(value)
+	return agentMutationCheckpointCodec.NewInitial(value)
 }
 
 // Content returns the canonical committed bytes of the checkpoint.

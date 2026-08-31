@@ -35,8 +35,7 @@ type RemotePeerCapability struct {
 
 // NewRemotePeerCapability identifies one immutable declared task transport.
 func NewRemotePeerCapability(value RemotePeerCapability) (RemotePeerCapability, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return remotePeerCapabilityCodec.New(value)
+	return remotePeerCapabilityCodec.NewInitial(value)
 }
 
 // RequireRemotePeerCapability returns one validated immutable declaration.

@@ -59,9 +59,7 @@ var generationCodec = artifact.JSONDocumentCodec(
 // production caller is composition.RecordViability (the graft probe's
 // recording path), which arrived with the generation-lifecycle wiring.
 func NewGenerationRecord(record GenerationRecord) (GenerationRecord, error) {
-	record.Version = artifact.InitialDocumentVersion
-	record.ID = artifact.ID{}
-	return generationCodec.New(record)
+	return generationCodec.NewInitial(record)
 }
 
 // ValidateGenerationBudget proves a record's seed consumption fits its bound

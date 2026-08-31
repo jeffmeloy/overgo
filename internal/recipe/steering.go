@@ -66,8 +66,7 @@ var steeringProposalCodec = artifact.JSONDocumentCodec(
 
 // NewSteeringProposal canonicalizes and identifies one immutable steering proposal.
 func NewSteeringProposal(v SteeringProposal) (SteeringProposal, error) {
-	v.Version, v.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return steeringProposalCodec.New(v)
+	return steeringProposalCodec.NewInitial(v)
 }
 
 // Content returns the canonical committed bytes of the proposal.

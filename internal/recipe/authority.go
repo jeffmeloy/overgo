@@ -38,8 +38,7 @@ var authoritySubjectCodec = artifact.JSONDocumentCodec(
 // caller must name every governed artifact explicitly; nested subjects remain
 // ordinary members and therefore compose without a second storage model.
 func NewAuthoritySubject(members ...artifact.ID) (AuthoritySubject, error) {
-	return authoritySubjectCodec.New(AuthoritySubject{
-		Version: artifact.InitialDocumentVersion,
+	return authoritySubjectCodec.NewInitial(AuthoritySubject{
 		Members: slices.Clone(members),
 	})
 }

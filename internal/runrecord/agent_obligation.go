@@ -60,14 +60,12 @@ var agentObligationResolutionCodec = artifact.JSONDocumentCodec(
 
 // NewAgentObligation canonicalizes and identifies one immutable obligation.
 func NewAgentObligation(value AgentObligation) (AgentObligation, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return agentObligationCodec.New(value)
+	return agentObligationCodec.NewInitial(value)
 }
 
 // NewAgentObligationResolution canonicalizes and identifies one immutable resolution.
 func NewAgentObligationResolution(value AgentObligationResolution) (AgentObligationResolution, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return agentObligationResolutionCodec.New(value)
+	return agentObligationResolutionCodec.NewInitial(value)
 }
 
 // Content returns the canonical committed bytes of the obligation.

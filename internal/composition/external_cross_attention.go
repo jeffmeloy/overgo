@@ -88,8 +88,7 @@ var externalCrossAttentionPlanCodec = artifact.JSONDocumentCodec(
 // NewExternalCrossAttentionDefinition validates and identifies an immutable
 // recipe authority.
 func NewExternalCrossAttentionDefinition(value ExternalCrossAttentionDefinition) (ExternalCrossAttentionDefinition, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return externalCrossAttentionDefinitionCodec.New(value)
+	return externalCrossAttentionDefinitionCodec.NewInitial(value)
 }
 
 // ValidateIdentity verifies the exact definition content identity.

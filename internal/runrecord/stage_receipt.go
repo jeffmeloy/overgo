@@ -65,8 +65,7 @@ var stageReceiptCodec = artifact.JSONDocumentCodec(
 
 // NewStageReceipt identifies one validated node transition.
 func NewStageReceipt(value StageReceipt) (StageReceipt, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return stageReceiptCodec.New(value)
+	return stageReceiptCodec.NewInitial(value)
 }
 
 // ParseStageReceipt decodes and validates one immutable stage transition.

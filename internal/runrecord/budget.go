@@ -97,14 +97,14 @@ func ParseBudgetCharge(data []byte) (BudgetCharge, error) {
 }
 
 func NewBudget(unit string, split artifact.ID, issued uint64, authority artifact.ID) (Budget, error) {
-	return budgetCodec.New(Budget{
-		Version: artifact.InitialDocumentVersion, Unit: unit, Split: split, Issued: issued, Authority: authority,
+	return budgetCodec.NewInitial(Budget{
+		Unit: unit, Split: split, Issued: issued, Authority: authority,
 	})
 }
 
 func NewBudgetCharge(budget artifact.ID, amount uint64, consumer artifact.ID, purpose string) (BudgetCharge, error) {
-	return budgetChargeCodec.New(BudgetCharge{
-		Version: artifact.InitialDocumentVersion, Budget: budget, Amount: amount, Consumer: consumer, Purpose: purpose,
+	return budgetChargeCodec.NewInitial(BudgetCharge{
+		Budget: budget, Amount: amount, Consumer: consumer, Purpose: purpose,
 	})
 }
 

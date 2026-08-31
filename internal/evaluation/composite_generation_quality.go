@@ -86,8 +86,7 @@ var compositeGenerationQualityCodec = artifact.JSONDocumentCodec(
 func (CompositeGenerationQualityAuthority) NewPolicy(
 	value CompositeGenerationQualityPolicy,
 ) (CompositeGenerationQualityPolicy, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return compositeGenerationQualityPolicyCodec.New(value)
+	return compositeGenerationQualityPolicyCodec.NewInitial(value)
 }
 
 // Evaluate loads exact execution records and derives worst-case quality evidence.

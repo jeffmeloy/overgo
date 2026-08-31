@@ -37,8 +37,8 @@ var approvalCodec = artifact.JSONDocumentCodec(
 
 // NewApprovalRequest identifies exact operation recovery work.
 func NewApprovalRequest(operation, recipe artifact.ID, action Action, prior artifact.ID) (ApprovalRequest, error) {
-	return approvalCodec.New(ApprovalRequest{
-		Version: artifact.InitialDocumentVersion, Operation: operation, Recipe: recipe,
+	return approvalCodec.NewInitial(ApprovalRequest{
+		Operation: operation, Recipe: recipe,
 		Tool: action.Code, Arguments: slices.Clone(action.Argv), Prior: prior,
 	})
 }

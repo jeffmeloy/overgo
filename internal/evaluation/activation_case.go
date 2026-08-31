@@ -68,8 +68,7 @@ func NewActivationCase(value ActivationCase) (ActivationCase, error) {
 	if value.Version != 0 && value.Version != artifact.InitialDocumentVersion {
 		return ActivationCase{}, errors.New("evaluation: unsupported activation case version")
 	}
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return activationCaseCodec.New(value)
+	return activationCaseCodec.NewInitial(value)
 }
 
 // PublishActivationCaseRegistry atomically publishes cases and advances the

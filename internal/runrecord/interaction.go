@@ -150,8 +150,8 @@ func cloneInteractionTranscript(value InteractionTranscript) InteractionTranscri
 
 // NewInteractionTranscript identifies one immutable message sequence.
 func NewInteractionTranscript(messages []InteractionMessage) (InteractionTranscript, error) {
-	return interactionTranscriptCodec.New(InteractionTranscript{
-		Version: artifact.InitialDocumentVersion, Messages: messages,
+	return interactionTranscriptCodec.NewInitial(InteractionTranscript{
+		Messages: messages,
 	})
 }
 
@@ -162,8 +162,7 @@ func RequireInteractionTranscript(ctx context.Context, reader artifact.Reader, i
 
 // NewInteraction identifies one immutable response event.
 func NewInteraction(value Interaction) (Interaction, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return interactionCodec.New(value)
+	return interactionCodec.NewInitial(value)
 }
 
 // ParseInteraction decodes and validates one immutable response event.

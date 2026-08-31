@@ -73,8 +73,8 @@ func NewCatalogSnapshot(manuals []Manual) (CatalogSnapshot, error) {
 			Effect: manual.Effect, Arguments: slices.Clone(manual.Arguments),
 		}
 	}
-	return catalogSnapshotCodec.New(CatalogSnapshot{
-		Version: artifact.InitialDocumentVersion, Entries: entries,
+	return catalogSnapshotCodec.NewInitial(CatalogSnapshot{
+		Entries: entries,
 	})
 }
 

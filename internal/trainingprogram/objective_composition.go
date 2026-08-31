@@ -44,8 +44,8 @@ var objectiveCompositionCodec = artifact.JSONDocumentCodec(
 )
 
 func NewObjectiveComposition(spec ObjectiveCompositionSpec) (ObjectiveComposition, error) {
-	return objectiveCompositionCodec.New(ObjectiveComposition{
-		Version: artifact.InitialDocumentVersion, ObjectiveCompositionSpec: spec,
+	return objectiveCompositionCodec.NewInitial(ObjectiveComposition{
+		ObjectiveCompositionSpec: spec,
 	})
 }
 

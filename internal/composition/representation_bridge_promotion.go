@@ -113,8 +113,7 @@ var representationBridgePromotionPolicyCodec = artifact.JSONDocumentCodec(
 func NewRepresentationBridgePromotionPolicy(
 	value RepresentationBridgePromotionPolicy,
 ) (RepresentationBridgePromotionPolicy, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return representationBridgePromotionPolicyCodec.New(value)
+	return representationBridgePromotionPolicyCodec.NewInitial(value)
 }
 
 // Content returns the exact recipe-owned promotion policy document.

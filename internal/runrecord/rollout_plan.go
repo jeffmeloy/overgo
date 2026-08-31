@@ -102,8 +102,7 @@ func canonicalizeRolloutPlan(value *RolloutPlan) error {
 
 // NewRolloutPlan canonicalizes and identifies one immutable rollout plan.
 func NewRolloutPlan(value RolloutPlan) (RolloutPlan, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return rolloutPlanCodec.New(value)
+	return rolloutPlanCodec.NewInitial(value)
 }
 
 // ParseRolloutPlan decodes one canonical rollout plan document and proves

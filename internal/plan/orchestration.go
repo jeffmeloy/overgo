@@ -80,8 +80,7 @@ type WorkLease struct {
 
 // NewWorkLease validates and identifies one immutable lease declaration.
 func NewWorkLease(value WorkLease) (WorkLease, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return workLeaseCodec.New(value)
+	return workLeaseCodec.NewInitial(value)
 }
 
 var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, WorkLeaseMediaType, WorkLeaseSchema,

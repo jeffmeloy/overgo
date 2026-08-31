@@ -41,8 +41,8 @@ func NewManifestAnalysis(
 	selection SelectionMetrics,
 	measurements ManifestMeasurements,
 ) (ManifestAnalysis, error) {
-	return manifestAnalysisCodec.New(ManifestAnalysis{
-		Version: artifact.InitialDocumentVersion, Delta: delta, Impact: impact,
+	return manifestAnalysisCodec.NewInitial(ManifestAnalysis{
+		Delta: delta, Impact: impact,
 		Plan: plan, Selection: selection, Measurements: measurements,
 	})
 }

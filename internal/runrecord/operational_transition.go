@@ -81,8 +81,7 @@ func canonicalizeOperationalTransition(value *OperationalTransition) error {
 
 // NewOperationalTransition canonicalizes and identifies one conversion.
 func NewOperationalTransition(value OperationalTransition) (OperationalTransition, error) {
-	value.Version = artifact.InitialDocumentVersion
-	return operationalTransitionCodec.New(value)
+	return operationalTransitionCodec.NewInitial(value)
 }
 
 // Content returns the canonical committed bytes of the transition.

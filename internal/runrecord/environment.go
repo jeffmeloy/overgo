@@ -36,9 +36,7 @@ type Environment struct {
 
 // NewEnvironment identifies a typed execution-platform record.
 func NewEnvironment(environment Environment) (Environment, error) {
-	environment.Version = artifact.InitialDocumentVersion
-	environment.ID = artifact.ID{}
-	return environmentCodec.New(environment)
+	return environmentCodec.NewInitial(environment)
 }
 
 // RequireEnvironment loads one exact execution-platform identity through the

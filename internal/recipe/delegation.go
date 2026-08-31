@@ -61,8 +61,7 @@ var delegatedAgentInvocationCodec = artifact.JSONDocumentCodec(
 // NewDelegatedAgentInvocation canonicalizes and identifies one immutable
 // delegated invocation.
 func NewDelegatedAgentInvocation(v DelegatedAgentInvocation) (DelegatedAgentInvocation, error) {
-	v.Version, v.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return delegatedAgentInvocationCodec.New(v)
+	return delegatedAgentInvocationCodec.NewInitial(v)
 }
 
 // Content returns the canonical committed bytes of the invocation.

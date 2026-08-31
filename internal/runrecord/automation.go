@@ -84,8 +84,8 @@ func newAutomationActivation(
 	if err := definition.ValidateIdentity(); err != nil {
 		return AutomationActivation{}, err
 	}
-	return automationActivationCodec.New(AutomationActivation{
-		Version: artifact.InitialDocumentVersion, Name: definition.Name,
+	return automationActivationCodec.NewInitial(AutomationActivation{
+		Name:       definition.Name,
 		Definition: definition.ID, Authority: authority, Prior: prior,
 	})
 }

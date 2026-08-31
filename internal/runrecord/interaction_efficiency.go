@@ -231,8 +231,7 @@ func canonicalizeEfficiencyTrace(value *EfficiencyTrace) error {
 
 // NewEfficiencyTrace canonicalizes and identifies one trace.
 func NewEfficiencyTrace(value EfficiencyTrace) (EfficiencyTrace, error) {
-	value.Version = artifact.InitialDocumentVersion
-	return efficiencyTraceCodec.New(value)
+	return efficiencyTraceCodec.NewInitial(value)
 }
 
 // ParseEfficiencyTrace decodes one canonical trace document.

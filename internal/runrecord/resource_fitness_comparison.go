@@ -68,9 +68,8 @@ var resourceFitnessComparisonCodec = artifact.JSONDocumentCodec(
 // chunks. Producers should use CompareResourceFitness; consumers should use
 // RequireResourceFitnessComparison.
 func NewResourceFitnessComparison(lanes []ResourceFitnessLane) (ResourceFitnessComparison, error) {
-	return resourceFitnessComparisonCodec.New(ResourceFitnessComparison{
-		Version: artifact.InitialDocumentVersion,
-		Lanes:   cloneResourceFitnessLanes(lanes),
+	return resourceFitnessComparisonCodec.NewInitial(ResourceFitnessComparison{
+		Lanes: cloneResourceFitnessLanes(lanes),
 	})
 }
 

@@ -55,9 +55,7 @@ var admissionBindingCodec = artifact.JSONDocumentCodec(
 
 // NewAdmissionBinding identifies one generation's authority binding.
 func NewAdmissionBinding(value AdmissionBinding) (AdmissionBinding, error) {
-	value.Version = artifact.InitialDocumentVersion
-	value.ID = artifact.ID{}
-	return admissionBindingCodec.New(value)
+	return admissionBindingCodec.NewInitial(value)
 }
 
 func ParseAdmissionBinding(content []byte) (AdmissionBinding, error) {

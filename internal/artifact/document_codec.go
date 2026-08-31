@@ -48,6 +48,21 @@ func JSONDocumentCodec[T any](
 	}
 }
 
+// NewInitial identifies a fresh document: the canonical Version field is
+// stamped to the initial document version before canonical identification,
+// and any prior identity is discarded by the canonical pass. This is the
+// shared constructor for every typed record — new document types delegate
+// here instead of restating the stamp.
+func (c DocumentCodec[T]) NewInitial(value T) (T, error) {
+	field := reflect.ValueOf(&value).Elem().FieldByName("Version")
+	if !field.IsValid() || !field.CanSet() || field.Kind() != reflect.Uint16 {
+		var zero T
+		return zero, fmt.Errorf("%s: document has no settable uint16 Version field", c.Name)
+	}
+	field.SetUint(uint64(InitialDocumentVersion))
+	return c.New(value)
+}
+
 func (c DocumentCodec[T]) New(value T) (T, error) {
 	if err := c.validate(); err != nil {
 		return value, err

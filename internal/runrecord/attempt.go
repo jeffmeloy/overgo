@@ -158,8 +158,7 @@ func canonicalizeAttempt(value *AttemptRecord) error {
 
 // NewAttemptRecord validates and identifies one attempt.
 func NewAttemptRecord(record AttemptRecord) (AttemptRecord, error) {
-	record.Version = artifact.InitialDocumentVersion
-	return attemptCodec.New(record)
+	return attemptCodec.NewInitial(record)
 }
 
 // ValidateIdentity proves that the attempt still matches its immutable

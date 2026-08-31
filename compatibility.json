@@ -863,7 +863,7 @@
      "contains": "func PublishInteraction(",
      "path": "internal/runrecord/interaction.go",
      "role": "source",
-     "identity": "file:sha256:1a368279126a001187b933e4a32ce34084dae08baa279425cd4db5f7a7975559"
+     "identity": "file:sha256:871662f04dadf130149f2f37ba2b4130d6fc9da14abd4163b1ff1d3ab0ce20b0"
     },
     {
      "contains": "func TestResponsesContinuationRestart(",

@@ -179,8 +179,7 @@ func (value ServingObservation) Batch(key string) (artifact.Batch, error) {
 // NewServingObservation validates and identifies one immutable serving fact
 // without committing it, allowing callers to publish a larger atomic graph.
 func NewServingObservation(value ServingObservation) (ServingObservation, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return servingObservationCodec.New(value)
+	return servingObservationCodec.NewInitial(value)
 }
 
 // PublishServingObservation identifies and commits one serving fact.

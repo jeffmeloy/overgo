@@ -117,8 +117,8 @@ func CompileNumericTargetPlan(view SFTEvaluationView, suite NumericTargetSuite) 
 			return NumericTargetPlan{}, errors.New("evaluation: numeric target record is outside held-out view")
 		}
 	}
-	return numericTargetPlanCodec.New(NumericTargetPlan{
-		Version: artifact.InitialDocumentVersion, View: view.ID, Signature: view.Signature.Clone(),
+	return numericTargetPlanCodec.NewInitial(NumericTargetPlan{
+		View: view.ID, Signature: view.Signature.Clone(),
 		Scorers: slices.Clone(suite.Scorers), Cases: cloneNumericCases(suite.Cases),
 	})
 }

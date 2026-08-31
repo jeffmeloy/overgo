@@ -165,8 +165,8 @@ func ScoreTextTargets(plan TextTargetPlan, observations []TextTargetObservation)
 			Name: string(scorer.Kind), Value: sum / float64(len(observations)), Direction: runrecord.DirectionMaximize,
 		})
 	}
-	return textTargetReportCodec.New(TextTargetReport{
-		Version: artifact.InitialDocumentVersion, Plan: plan.ID, Observations: observations, Metrics: metrics,
+	return textTargetReportCodec.NewInitial(TextTargetReport{
+		Plan: plan.ID, Observations: observations, Metrics: metrics,
 	})
 }
 

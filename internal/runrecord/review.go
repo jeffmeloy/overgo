@@ -207,30 +207,27 @@ var reviewVerdictCodec = artifact.JSONDocumentCodec("review verdict", artifact.K
 	func(value ReviewVerdict) ReviewVerdict { value.Findings = slices.Clone(value.Findings); return value })
 
 func NewReviewActor(principal string, role ReviewRole) (ReviewActor, error) {
-	return reviewActorCodec.New(ReviewActor{Version: artifact.InitialDocumentVersion, Principal: principal, Role: role})
+	return reviewActorCodec.NewInitial(ReviewActor{Principal: principal, Role: role})
 }
 
 func NewReviewWorktree(path, branch, head string, clean bool) (ReviewWorktree, error) {
-	return reviewWorktreeCodec.New(ReviewWorktree{Version: artifact.InitialDocumentVersion, Path: path, Branch: branch, Head: head, Clean: clean})
+	return reviewWorktreeCodec.NewInitial(ReviewWorktree{Path: path, Branch: branch, Head: head, Clean: clean})
 }
 
 func NewReviewEvaluator(name string, definition artifact.ID, revision string) (ReviewEvaluator, error) {
-	return reviewEvaluatorCodec.New(ReviewEvaluator{Version: artifact.InitialDocumentVersion, Name: name, Definition: definition, Revision: revision})
+	return reviewEvaluatorCodec.NewInitial(ReviewEvaluator{Name: name, Definition: definition, Revision: revision})
 }
 
 func NewReviewCandidate(candidate ReviewCandidate) (ReviewCandidate, error) {
-	candidate.Version = artifact.InitialDocumentVersion
-	return reviewCandidateCodec.New(candidate)
+	return reviewCandidateCodec.NewInitial(candidate)
 }
 
 func NewReviewFinding(finding ReviewFinding) (ReviewFinding, error) {
-	finding.Version = artifact.InitialDocumentVersion
-	return reviewFindingCodec.New(finding)
+	return reviewFindingCodec.NewInitial(finding)
 }
 
 func NewReviewVerdict(verdict ReviewVerdict) (ReviewVerdict, error) {
-	verdict.Version = artifact.InitialDocumentVersion
-	return reviewVerdictCodec.New(verdict)
+	return reviewVerdictCodec.NewInitial(verdict)
 }
 
 func (value ReviewActor) Content() (artifact.Content, error) { return reviewActorCodec.Content(value) }

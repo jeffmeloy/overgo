@@ -67,8 +67,8 @@ func CompileSFTEvaluationView(
 			return SFTEvaluationView{}, errors.New("evaluation: held-out group occurs in training membership")
 		}
 	}
-	return sftEvaluationViewCodec.New(SFTEvaluationView{
-		Version: artifact.InitialDocumentVersion, Objective: objective.ID, Dataset: objective.Dataset,
+	return sftEvaluationViewCodec.NewInitial(SFTEvaluationView{
+		Objective: objective.ID, Dataset: objective.Dataset,
 		TrainingMembership: training.ID, HeldoutMembership: heldout.ID,
 		Processors: slices.Clone(objective.Processors), Projectors: slices.Clone(objective.Projectors),
 		Codecs: slices.Clone(objective.Codecs), Signature: objective.Signature.Clone(),

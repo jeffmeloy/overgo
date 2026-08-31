@@ -90,8 +90,7 @@ func (value CapabilityIdentity) Identify() (CapabilityIdentity, error) {
 	if value.Version != 0 && value.Version != artifact.InitialDocumentVersion {
 		return CapabilityIdentity{}, errors.New("run record: unsupported capability identity version")
 	}
-	value.Version = artifact.InitialDocumentVersion
-	return capabilityIdentityCodec.New(value)
+	return capabilityIdentityCodec.NewInitial(value)
 }
 
 // RequireCapabilityIdentity resolves one exact capability identity.

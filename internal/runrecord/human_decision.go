@@ -45,8 +45,8 @@ var humanDecisionCodec = artifact.JSONDocumentCodec(
 
 // NewHumanDecision binds an answer to the exact approval request.
 func NewHumanDecision(request operatoraction.ApprovalRequest, answer operatoraction.Answer) (HumanDecision, error) {
-	return humanDecisionCodec.New(HumanDecision{
-		Version: artifact.InitialDocumentVersion, Request: request.ID,
+	return humanDecisionCodec.NewInitial(HumanDecision{
+		Request:   request.ID,
 		Operation: request.Operation, Recipe: request.Recipe, Tool: request.Tool,
 		Arguments: slices.Clone(request.Arguments), Answer: answer, Prior: request.Prior,
 	})

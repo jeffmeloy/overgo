@@ -114,8 +114,8 @@ func NewInteractionTrace(value Interaction, request artifact.ID, messages []Inte
 	if value.Run.Valid() {
 		final = append(final, value.Run)
 	}
-	return interactionTraceCodec.New(InteractionTrace{
-		Version: artifact.InitialDocumentVersion, Recipe: value.Recipe, Model: value.Model,
+	return interactionTraceCodec.NewInitial(InteractionTrace{
+		Recipe: value.Recipe, Model: value.Model,
 		Operation: value.Operation, Request: request, Events: events,
 		ToolActions: slices.Clone(value.Tools), Decisions: slices.Clone(decisions), FinalArtifacts: final,
 	})

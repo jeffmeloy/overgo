@@ -95,8 +95,8 @@ func CompilePreferenceTargetPlan(
 	for index, record := range view.Records {
 		records[index] = record.ID
 	}
-	return preferenceTargetPlanCodec.New(PreferenceTargetPlan{
-		Version: artifact.InitialDocumentVersion, View: view.ID, Objective: objective.ID,
+	return preferenceTargetPlanCodec.NewInitial(PreferenceTargetPlan{
+		View: view.ID, Objective: objective.ID,
 		Heldout: view.HeldoutMembership, Signature: view.Signature.Clone(), Policy: suite.Policy, Records: records,
 	})
 }

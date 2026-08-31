@@ -131,8 +131,8 @@ func CompileMediaTargetPlan(view SFTEvaluationView, suite MediaTargetSuite) (Med
 			return MediaTargetPlan{}, errors.New("evaluation: media target record is outside held-out view")
 		}
 	}
-	return mediaTargetPlanCodec.New(MediaTargetPlan{
-		Version: artifact.InitialDocumentVersion, View: view.ID, Signature: view.Signature.Clone(),
+	return mediaTargetPlanCodec.NewInitial(MediaTargetPlan{
+		View: view.ID, Signature: view.Signature.Clone(),
 		Oracles: slices.Clone(suite.Oracles), Scorers: slices.Clone(suite.Scorers), Cases: cloneMediaCases(suite.Cases),
 	})
 }

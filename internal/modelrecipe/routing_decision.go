@@ -196,8 +196,7 @@ func DeriveRoutingDecision(
 // NewRoutingDecision canonicalizes and identifies one immutable routing
 // decision record.
 func NewRoutingDecision(value RoutingDecision) (RoutingDecision, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return routingDecisionCodec.New(value)
+	return routingDecisionCodec.NewInitial(value)
 }
 
 // ParseRoutingDecision decodes one canonical routing decision document and

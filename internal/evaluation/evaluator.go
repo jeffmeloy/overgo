@@ -46,8 +46,8 @@ var evaluatorCodec = artifact.JSONDocumentCodec(
 )
 
 func NewEvaluator(plan artifact.ID, acceptance AcceptancePolicy) (Evaluator, error) {
-	return evaluatorCodec.New(Evaluator{
-		Version: artifact.InitialDocumentVersion, Plan: plan, Acceptance: acceptance.ID, Metrics: slices.Clone(acceptance.Metrics),
+	return evaluatorCodec.NewInitial(Evaluator{
+		Plan: plan, Acceptance: acceptance.ID, Metrics: slices.Clone(acceptance.Metrics),
 	})
 }
 

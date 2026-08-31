@@ -43,9 +43,9 @@ var trainingDecisionCodec = artifact.JSONDocumentCodec(
 )
 
 func NewTrainingDecision(run, recipeID, parent, checkpoint, trace artifact.ID) (TrainingDecision, error) {
-	return trainingDecisionCodec.New(TrainingDecision{
-		Version: artifact.InitialDocumentVersion, State: TrainingEvaluationRequired,
-		Run: run, Recipe: recipeID, Parent: parent, Checkpoint: checkpoint, Trace: trace, Rollback: parent,
+	return trainingDecisionCodec.NewInitial(TrainingDecision{
+		State: TrainingEvaluationRequired,
+		Run:   run, Recipe: recipeID, Parent: parent, Checkpoint: checkpoint, Trace: trace, Rollback: parent,
 	})
 }
 

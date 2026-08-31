@@ -49,8 +49,7 @@ var agentDefinitionCodec = artifact.JSONDocumentCodec(
 
 // NewAgentDefinition validates and identifies one immutable agent definition.
 func NewAgentDefinition(value AgentDefinition) (AgentDefinition, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return agentDefinitionCodec.New(value)
+	return agentDefinitionCodec.NewInitial(value)
 }
 
 // RequireAgentDefinition loads one exact agent definition.

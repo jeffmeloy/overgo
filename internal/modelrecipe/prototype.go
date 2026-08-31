@@ -104,8 +104,7 @@ func canonicalizeModelPrototype(value *ModelPrototype) error {
 
 // NewModelPrototype canonicalizes and identifies one immutable prototype.
 func NewModelPrototype(value ModelPrototype) (ModelPrototype, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return modelPrototypeCodec.New(value)
+	return modelPrototypeCodec.NewInitial(value)
 }
 
 // ParseModelPrototype decodes one canonical prototype document and proves

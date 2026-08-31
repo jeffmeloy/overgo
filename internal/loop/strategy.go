@@ -77,7 +77,7 @@ func NewStrategy(worker recipe.AgentDefinition, catalog artifact.ID, config Conf
 	if err := worker.ValidateIdentity(); err != nil {
 		return Strategy{}, err
 	}
-	return strategyCodec.New(Strategy{Version: artifact.InitialDocumentVersion, Worker: worker.ID, Prompt: worker.Prompt,
+	return strategyCodec.NewInitial(Strategy{Worker: worker.ID, Prompt: worker.Prompt,
 		ModelRecipe: worker.ModelRecipe, Catalog: catalog, Policies: slices.Clone(worker.Policies), Loop: config})
 }
 

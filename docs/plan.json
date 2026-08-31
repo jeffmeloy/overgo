@@ -9,17 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "codec-idiom-consolidation",
-          "title": "Consolidate the per-document codec idiom so new record types stop growing the clone ceiling",
-          "status": "open",
-          "verify": "go run ./cmd/clone-census -max-excess 9999 -summary",
-          "rationale": "The identical New/Parse/Batch wrappers now span 20+ document types (exact-clone group of 21 nodes) and every new typed record raises docs/clone_baseline.json by ~21 nodes. Migrate the wrappers onto shared DocumentCodec methods, delete the displaced copies, and lower the reviewed ceiling below 10000 in the same commit.",
-          "capabilities": [
-            "consolidation",
-            "determinism"
-          ]
-        },
-        {
           "id": "legacy-lease-retirement",
           "title": "Retire or migrate pre-contract work-lease documents so the lease report reads the live set",
           "status": "open",

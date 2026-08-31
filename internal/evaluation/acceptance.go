@@ -37,7 +37,7 @@ func newAcceptancePolicy(metrics []runrecord.Metric) (AcceptancePolicy, error) {
 	for index, metric := range metrics {
 		contracts[index] = MetricContract{Name: metric.Name, Unit: metric.Unit, Direction: metric.Direction}
 	}
-	return acceptancePolicyCodec.New(AcceptancePolicy{Version: artifact.InitialDocumentVersion, Metrics: contracts})
+	return acceptancePolicyCodec.NewInitial(AcceptancePolicy{Metrics: contracts})
 }
 
 func (policy AcceptancePolicy) Content() (artifact.Content, error) {

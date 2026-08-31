@@ -249,8 +249,8 @@ func NewRun(
 	inputs, outputs []artifact.ID,
 	failure string,
 ) (Run, error) {
-	return runCodec.New(Run{
-		Version: artifact.InitialDocumentVersion, Recipe: recipeID, Outcome: outcome,
+	return runCodec.NewInitial(Run{
+		Recipe: recipeID, Outcome: outcome,
 		Inputs: slices.Clone(inputs), Outputs: slices.Clone(outputs), Failure: failure,
 	})
 }

@@ -58,8 +58,7 @@ var agentTaskContractCodec = artifact.JSONDocumentCodec(
 
 // NewAgentTaskContract canonicalizes and identifies one immutable task contract.
 func NewAgentTaskContract(value AgentTaskContract) (AgentTaskContract, error) {
-	value.Version, value.ID = artifact.InitialDocumentVersion, artifact.ID{}
-	return agentTaskContractCodec.New(value)
+	return agentTaskContractCodec.NewInitial(value)
 }
 
 // RequireAgentTaskContract loads one canonical task contract.

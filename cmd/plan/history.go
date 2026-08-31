@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -55,8 +56,12 @@ func admitProposal(root, specPath string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
+		// The replay set is the core adapters plus the composition owner's:
+		// alignment-ladder candidates become plan rows through the same
+		// door as every other domain.
+		adapters := append(modelrecipe.CandidateAdmissionAdapters(), composition.CandidateAdmissionAdapter())
 		admission, err := runrecord.RequireReplayedCandidateAdmission(
-			ctx, store, proposal.Admission, candidate, modelrecipe.CandidateAdmissionAdapters()...,
+			ctx, store, proposal.Admission, candidate, adapters...,
 		)
 		if err != nil {
 			return err

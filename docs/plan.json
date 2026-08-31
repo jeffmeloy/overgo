@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "alignment-adapter",
-          "title": "Add deterministic component retrieval and one bounded frozen-donor alignment-adapter ladder",
-          "status": "open",
-          "verify": "go test ./internal/tensorcatalog ./internal/composition ./internal/bridgetrain ./internal/evaluation ./internal/modelrecipe -run '^(TestCanonicalComponentDescriptorComparable|TestSeamAlignmentResidual|TestExactComponentRetrievalDeterministic|TestCompositionCandidateEnumerationRanksByResidualAndFitness|TestCandidateRealizationFreezesDonorsTrainsAdapter|TestAlignmentResidualBiasAudit|TestFitnessScoredCompositeSelection|TestSelectionEmitsAblationGatedPromotion)$' -count=1",
-          "rationale": "Only after the reproducible held-out same-base win, extend the existing projection with fixed-schema unit-normalized component descriptors, exact deterministic retrieval, content-addressed Procrustes or OT seam evidence, and one bounded donor-to-seam-to-adapter ladder. Freeze donors, train only the interface adapter through bridgetrain, assemble through synthesis, bias-audit the pretraining residual against post-training parity, and require target, composed, dropped-source, and shuffled-source arms under multidimensional fitness. These are Candidate source, realization, and evaluator plugins of the shared spines, not a normalized-catalog service, composition runtime, admission owner, publisher, or lifecycle. HDC and broad cross-architecture search remain refused until exact retrieval is a measured blocker with an explicit reopen trigger.",
-          "depends_on": [
-            "architecture-closure/go-only-guard"
-          ],
-          "capabilities": [
-            "composition-plugin",
-            "deterministic-retrieval",
-            "alignment-residual",
-            "adapter-training",
-            "multidimensional-fitness"
-          ]
-        },
-        {
           "id": "search-ratchet",
           "title": "Admit bounded composition search and budget widening only from measured learning and calibration",
           "status": "open",

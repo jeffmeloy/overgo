@@ -9,24 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "incremental-context",
-          "title": "Reuse content identities and admitted stimulus cursors so resumable sessions receive only new interaction arcs",
-          "status": "open",
-          "verify": "go test ./internal/agentloop ./internal/dataset ./internal/runrecord -run '^TestIncrementalContextPreservesEvidence$' -count=1",
-          "rationale": "Repeated source content is referenced once and later occurrences preserve provenance without duplicating bytes. A runtime capability that proves session continuity may receive only the stable cursor delta; stateless or retired sessions deterministically rebuild the bounded full context. Optimization cannot omit an admitted stimulus.",
-          "depends_on": [
-            "interaction-efficiency/head-bound-deltas",
-            "stimulus-reconciliation/stable-cursors",
-            "capability-bound-activation/placement-integration"
-          ],
-          "capabilities": [
-            "agent-loop",
-            "bounded-context",
-            "session-health",
-            "interaction-efficiency"
-          ]
-        },
-        {
           "id": "coalesced-coordination",
           "title": "Coalesce wakeups, claims, capability refreshes, and reconciliation work around semantic dirty-state boundaries",
           "status": "open",

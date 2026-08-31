@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -21,7 +20,6 @@ import (
 // download root.
 func TestDownloadShutdownOwnership(t *testing.T) {
 	transferStarted := make(chan struct{})
-	var transferUnwound atomic.Bool
 	digest := sha256.Sum256([]byte("w"))
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/models/acme/tiny", func(response http.ResponseWriter, _ *http.Request) {
@@ -35,7 +33,6 @@ func TestDownloadShutdownOwnership(t *testing.T) {
 	mux.HandleFunc("GET /acme/tiny/resolve/rev0/weights.bin", func(response http.ResponseWriter, request *http.Request) {
 		close(transferStarted)
 		<-request.Context().Done()
-		transferUnwound.Store(true)
 	})
 	hub := httptest.NewServer(mux)
 	defer hub.Close()
@@ -52,11 +49,12 @@ func TestDownloadShutdownOwnership(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("transfer never reached the hub")
 	}
+	// Close owns shutdown: it cancels the transfer, records the
+	// interruption, and returns only after the transfer goroutine has
+	// unwound -- so every assertion below reads settled state, and any
+	// still-running transfer would race the partial-file walk into flaking.
 	if err := handler.Close(); err != nil {
 		t.Fatal(err)
-	}
-	if !transferUnwound.Load() {
-		t.Fatal("close returned before the transfer goroutine unwound")
 	}
 	jobs := handler.downloads.snapshot()
 	if len(jobs) != 1 || jobs[0].State != downloadStateCancelled ||

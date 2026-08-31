@@ -7,22 +7,38 @@ import (
 	"path/filepath"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
-	"overgo/internal/steering"
 )
 
-// admitProposal runs one typed steering proposal through deterministic
-// admission: the store records the proposal, and the plan gains the
-// row it becomes -- on top, dispatchable, carrying the proposal as its
-// rationale. Refusal changes nothing.
+// candidateProposal names one already-admitted candidate and the plan row it
+// should become. The plan door holds no eligibility authority of its own:
+// admission happens once, through runrecord.AdmitCandidate, and this spec
+// merely cites the decision.
+type candidateProposal struct {
+	Candidate artifact.ID `json:"candidate"`
+	Admission artifact.ID `json:"admission"`
+	Slug      string      `json:"slug"`
+	Goal      string      `json:"goal"`
+	Verify    string      `json:"verify"`
+}
+
+// admitProposal appends the plan row one admitted candidate becomes. The
+// admission is replayed through the common entry with the core adapters --
+// a spec citing a decision the replay cannot reproduce is refused, so the
+// plan door can never mint steering eligibility on its own.
 func admitProposal(root, specPath string, output io.Writer) error {
 	return withPlanMutation(root, false, func(document plan.Plan) error {
-		var proposal steering.Proposal
+		var proposal candidateProposal
 		if err := jsonfile.Decode(specPath, &proposal); err != nil {
 			return err
+		}
+		if proposal.Slug == "" || proposal.Goal == "" || proposal.Verify == "" {
+			return fmt.Errorf("plan: proposal requires slug, goal, and verify")
 		}
 		for _, item := range document.Items {
 			if item.ID == proposal.Slug {
@@ -34,26 +50,40 @@ func admitProposal(root, specPath string, output io.Writer) error {
 			return err
 		}
 		defer store.Close()
-		probe := document
-		probe.Items = append([]plan.Item{{
+		ctx := context.Background()
+		candidate, err := modelrecipe.RequireCandidate(ctx, store, proposal.Candidate)
+		if err != nil {
+			return err
+		}
+		admission, err := runrecord.RequireReplayedCandidateAdmission(
+			ctx, store, proposal.Admission, candidate, modelrecipe.CandidateAdmissionAdapters()...,
+		)
+		if err != nil {
+			return err
+		}
+		prediction := candidate.Spec().Prediction
+		row := plan.Item{
 			ID: proposal.Slug, Title: proposal.Goal, Status: plan.StatusOpen,
 			Steps: []plan.Step{{
 				ID: "do", Title: proposal.Goal, Status: plan.StatusOpen,
-				Verify: proposal.FalsifiableCheck,
+				Verify: proposal.Verify,
+				Rationale: fmt.Sprintf(
+					"candidate %s admitted as %s: predicts %s benefit %g at cost %d %s; uncertainty %g",
+					candidate.ID(), admission.ID, prediction.Metric, prediction.Benefit,
+					prediction.Cost, prediction.Unit, prediction.Uncertainty,
+				),
 			}},
-		}}, document.Items...)
-		if _, err := plan.ResolveCompletionAuthority(context.Background(), root, "HEAD", probe, store); err != nil {
-			return err
 		}
-		admitted, row, err := steering.Admit(context.Background(), store, proposal)
-		if err != nil {
+		probe := document
+		probe.Items = append([]plan.Item{row}, document.Items...)
+		if _, err := plan.ResolveCompletionAuthority(ctx, root, "HEAD", probe, store); err != nil {
 			return err
 		}
 		document.Items = append([]plan.Item{row}, document.Items...)
 		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document); err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(output, "admitted proposal %s as plan row %s\n", admitted.ID, row.ID)
+		_, err = fmt.Fprintf(output, "admitted candidate %s as plan row %s\n", candidate.ID(), row.ID)
 		return err
 	})
 }

@@ -42,6 +42,7 @@ func (value Candidate) AdmissionFacts() runrecord.CandidateAdmissionFacts {
 func CandidateAdmissionAdapters() []runrecord.CandidateComponentAdmissionAdapter {
 	return []runrecord.CandidateComponentAdmissionAdapter{
 		modelPrototypeAdmissionAdapter{}, datasetTransformAdmissionAdapter{}, codeAdmissionAdapter{},
+		SteeringCandidatePlugin{},
 	}
 }
 

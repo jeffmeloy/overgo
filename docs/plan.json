@@ -4,35 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "tool-propensity",
-      "title": "Control tool-call propensity through thin candidate plugins over the common lifecycle",
-      "status": "open",
-      "steps": [
-        {
-          "id": "tool-call-propensity-control",
-          "title": "Admit or refuse recipe-bound residual control of tool-call propensity from exact-model Pareto evidence",
-          "status": "open",
-          "verify": "go test ./internal/representation ./internal/inference ./internal/modelrecipe ./internal/evaluation ./internal/runrecord ./internal/agenttool ./internal/agentloop ./internal/plan ./internal/loop -run '^(TestToolCallResidualDirection|TestRecipeBoundToolCallPropensityControl|TestToolCallPropensityPreservesEffectAuthority|TestToolBudgetProposalAdmission|TestPositiveToolSteeringRequiresInspectionOnlyCatalog|TestMutationProposalUsesZeroAlpha|TestCapabilityProxyCannotHideMutationFromPropensityGate)$' -count=1",
-          "rationale": "Treat residual tool-call control as training-free but distribution- and harness-dependent. Extraction and Pareto evaluation are thin Candidate source and evaluator plugins; they publish a content-addressed ResidualDirection bound to the exact TapLayerInput contract, model and definition, effect-classed UTCP manuals, shared tool-open readout, corpus and split, quantiles, extraction run, and environment, but own no recipe or activation path. This row migrates the existing steering proposal path through the common persisted-Candidate admission entry and removes any direct steering eligibility owner before activation. The shared candidate and recipe spines may activate it only after common admission, compilation, validation, and evaluation, using an alpha derived by a predeclared objective-constrained selector with explicit normalization, target, and tie-break; alpha is never a request knob. A nonzero intervention is admitted only in an inspection-only proposal phase where mutation manuals are masked and every dynamically resolved capability-proxy target is an inspection effect. Any decode exposing mutation or opaque effects runs at alpha zero, and a model format whose shared open token cannot isolate the inspection action space is verification-only. Mutation proposals remain on the unsteered path behind action-bound inspection, task or delegation ceiling, active AutomationPolicyLifecycle standing grant or argument-bound HumanDecision, and shared StageReceipt. Admission also requires alpha-zero identity, signed monotonic realized inspection-call rate, cached and device parity, well-formed proposals, and nondominated quality and cost evidence on the exact harness. Measure inspection proposals and calls, mutation proposals, approval prompts, and admitted, receipted, and executed mutations separately. The intervention can increase looking and verification but can never increase mutation propensity or grant, approve, dispatch, or receipt authority.",
-          "depends_on": [
-            "interaction-efficiency/efficiency-gate",
-            "model-prototypes/prototype-contract"
-          ],
-          "capabilities": [
-            "interaction-efficiency",
-            "residual-intervention",
-            "model-recipe",
-            "agent-tool",
-            "rsi-proposal",
-            "inspection-only-steering",
-            "utcp-effect-class",
-            "candidate-plugin",
-            "shared-evaluator"
-          ]
-        }
-      ]
-    },
-    {
       "id": "composition-expansion",
       "title": "Add harder composition rungs through the same spines only after the same-base proof",
       "status": "open",

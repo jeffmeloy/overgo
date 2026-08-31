@@ -3,7 +3,7 @@
   "doc": "Source-bound Go 1.26 guideline closure. Exact sites and owned exception oracles remain in the ratchet authority.",
   "target_go": "1.26",
   "build_context": "windows/amd64",
-  "source_identity": "95623b034d385ca10ee8455bed2508b97608dd32ba50da1889e9dc6f092d2c9d",
+  "source_identity": "4a526aa258fd4cac3bc9c794b2cd61ae18d939d72c0f30225aae6055bee32d3a",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
   "exceptions_sha256": "78a7b609c8cfb0196ad5d7f9fc974bbd84270820a92009c60bacc5f04dc37081",

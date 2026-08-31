@@ -33,12 +33,6 @@
       "retire_with": "outward-capabilities/peer-invocation"
     },
     {
-      "package": "overgo/internal/evaluation",
-      "name": "EvaluateCrossDomainCandidate",
-      "reason": "Shared immutable candidate evaluation remains test-proven until the integrated RSI campaign supplies its production observation streams and runtime consumer.",
-      "retire_with": "advanced-domain-plugins/evidence"
-    },
-    {
       "package": "overgo/internal/recipe",
       "name": "NewAgentTaskContract",
       "reason": "Typed agent task contract records.",

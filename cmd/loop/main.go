@@ -77,6 +77,7 @@ func run(args []string) error {
 	resourceLanesSpec := flags.String("compare-resource-fitness", "", "replay one resource no-regression proof from this lanes spec")
 	deriveRecipesSpec := flags.String("derive-recipes", "", "derive one materialized candidate's per-arm recipes from this spec")
 	moeCoverageSpec := flags.String("moe-coverage", "", "run one indexed MoE router observation read from this spec")
+	evaluateCandidateSpec := flags.String("evaluate-candidate", "", "judge one candidate's measured arms through the cross-domain evaluator from this spec")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -93,6 +94,8 @@ func run(args []string) error {
 		return deriveRecipes(*repoPath, *deriveRecipesSpec, os.Stdout)
 	case *moeCoverageSpec != "":
 		return queryMoECoverage(*repoPath, *moeCoverageSpec, os.Stdout)
+	case *evaluateCandidateSpec != "":
+		return evaluateCandidate(*repoPath, *evaluateCandidateSpec, os.Stdout)
 	}
 	var loaded config
 	if err := jsonfile.Decode(*configPath, &loaded); err != nil {

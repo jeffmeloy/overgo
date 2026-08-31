@@ -4,31 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "advanced-domain-plugins",
-      "title": "Adapt data, routing, scale, health, and architecture mechanisms after the first proven loop",
-      "status": "open",
-      "steps": [
-        {
-          "id": "evidence",
-          "title": "Extend isolated evaluation with bounded scaling, training-health, router-coverage, and expert-parallel evidence",
-          "status": "open",
-          "verify": "go test ./internal/processcontrol ./internal/sequentialcontrol ./internal/runrecord ./internal/evaluation ./internal/modelrecipe ./internal/trainingworkflow -run '^(TestIsolatedTrainingEvidenceUsesBoundedOwner|TestScalingAccountingBindsTotalActiveMeasuredAndAnalyticCosts|TestScalingStudyRungsBindConfigsSeedsDataAndEvaluators|TestTrainingHealthObservationsBindPhaseStepAndAuthority|TestTrainingHealthClassificationUsesSequentialControlOwner|TestExpertParallelEvidenceAttributesTransportCapacityAndDrops|TestScalingFitRefusesUnsupportedExtrapolationAndRegimeMixing|TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits|TestEffectiveSpeedupCanonicalOrderIsPermutationInvariant|TestMoERoutingBaselineMatrixHasExactPairedAuthorities|TestCapacityEvaluationPairsConstrainedAndDroplessRuns|TestMoERoutingEvaluationDetectsNonIIDMixtureAndLagFailures|TestExpertParallelPrototypeIsBoundedPairedAndExactlyResumable|TestArchitecturePromotionRequiresPairedBenefitAndNoHiddenRegression)$' -count=1",
-          "rationale": "Extend the already-proven isolated process and evaluator owners, using the post-proof bounded training-evidence mechanic for raw router and health samples. Bind exact scaling rungs, configurations, seeds, datasets, evaluators, active and measured costs, health phases, controller checkpoints, router scope coverage, assignments, bytes, collectives, topology, sender and receiver overflow, drops, synchronization, and memory. Training-health adapters supply typed ordered statistics to the shared sequential-control owner and consume its evidence; they cannot own windows, persistence, boundaries, or action. Fits refuse extrapolation or regime mixing; effective speedup compares identical observed quality and compatible units; MoE arms include paired baseline, constrained, dropless, shift, and lag cases. Expert-parallel evidence selects at most one bounded transport against the local reference and proves checkpoint and retry recovery. Plugin summaries cannot duplicate raw telemetry or create comparison, promotion, retry, rollback, or lifecycle authority; incomplete coverage or partial publication refuses.",
-          "depends_on": [
-            "advanced-domain-plugins/realization",
-            "live-safety/safety-window"
-          ],
-          "capabilities": [
-            "shared-evaluator",
-            "scaling-evidence",
-            "training-health",
-            "moe-router-coverage",
-            "expert-parallel-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "outward-capabilities",
       "title": "Use the shared invocation contract for agent-initiated and cross-boundary capability reuse",
       "status": "open",

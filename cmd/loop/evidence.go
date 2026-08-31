@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"overgo/internal/artifact"
+	"overgo/internal/composition"
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
@@ -125,6 +126,65 @@ func publishFitness(root, specPath string, output io.Writer) error {
 		return err
 	}
 	_, err = fmt.Fprintf(output, "published improvement fitness %s\n", fitness.ID)
+	return err
+}
+
+// candidateEvaluationSpec binds one controlled comparison: the admitted
+// candidate, the driver decision that authorized evaluation, the frozen
+// evaluator and inputs, the pre-declared requirements and tradeoffs, and
+// the measured arms.
+type candidateEvaluationSpec struct {
+	Candidate    artifact.ID                              `json:"candidate"`
+	Admission    artifact.ID                              `json:"admission"`
+	Decision     artifact.ID                              `json:"decision"`
+	Evaluator    artifact.ID                              `json:"evaluator"`
+	Inputs       artifact.ID                              `json:"inputs"`
+	Requirements []evaluation.CandidateFitnessRequirement `json:"requirements"`
+	Tradeoffs    []evaluation.CandidateAcceptedTradeoff   `json:"tradeoffs,omitempty"`
+	Arms         []evaluation.CandidateEvaluationArm      `json:"arms"`
+}
+
+// evaluateCandidate recompiles the admitted candidate deterministically,
+// re-derives the frozen evaluation contract, and judges the measured arms
+// through the one cross-domain evaluator. A refusal prints as evidence;
+// nothing activates.
+func evaluateCandidate(root, specPath string, output io.Writer) error {
+	var spec candidateEvaluationSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	store, err := overgodb.OpenReadOnly(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	decision, err := runrecord.RequireDriverDecision(ctx, store, spec.Decision)
+	if err != nil {
+		return err
+	}
+	compiled, err := modelrecipe.CompileAdmittedCandidate(
+		ctx, store, spec.Candidate, spec.Admission,
+		composition.SameBaseCandidatePlugin{}, modelrecipe.SteeringCandidatePlugin{},
+	)
+	if err != nil {
+		return err
+	}
+	contract, err := evaluation.NewCrossDomainEvaluationContract(
+		decision, compiled, spec.Evaluator, spec.Inputs, spec.Requirements, spec.Tradeoffs,
+	)
+	if err != nil {
+		return err
+	}
+	result, err := evaluation.EvaluateCrossDomainCandidate(contract, decision, compiled, spec.Arms)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(result, "", " ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", encoded)
 	return err
 }
 

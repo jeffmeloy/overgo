@@ -45,4 +45,21 @@ func TestRSIRuntimeIsGoOnly(t *testing.T) {
 		!strings.Contains(err.Error(), "internal/rogue/rogue.go bypasses the owner") {
 		t.Fatalf("dynamic library loading was not refused: %v", err)
 	}
+
+	interpreter := filepath.Join(root, "internal", "rogue", "interpreter")
+	if err := os.MkdirAll(interpreter, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	embedded := "package interpreter\n\nimport _ \"github.com/dop251/goja\"\n"
+	if err := os.WriteFile(filepath.Join(interpreter, "embedded.go"), []byte(embedded), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	embeddedSnapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := closurescan.ValidateEntryAuthorities(embeddedSnapshot, []closurescan.EntryAuthorityRule{rule}); err == nil ||
+		!strings.Contains(err.Error(), "bypasses the owner") {
+		t.Fatalf("embedded interpreter import was not refused: %v", err)
+	}
 }

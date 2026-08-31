@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "go-only-guard",
-          "title": "Re-run the permanent Go-only ratchet against the completed RSI surface",
-          "status": "open",
-          "verify": "go test ./internal/recipe ./internal/agenttool ./internal/loop -run '^TestRSIRuntimeIsGoOnly$' -count=1",
-          "rationale": "Re-run the same early Go-only ratchet after every planned extension exists. Prompts and descriptions remain typed artifact data, but Markdown skills, plugin manifests, embedded interpreters, runtime scripts, and filesystem discovery cannot grant capabilities or alter runtime semantics; no duplicate check is introduced.",
-          "depends_on": [
-            "architecture-closure/single-entry-guards"
-          ],
-          "capabilities": [
-            "go-only",
-            "architecture-guard",
-            "authority",
-            "gate-ratchet"
-          ]
-        },
-        {
           "id": "migration-drill",
           "title": "Rebuild a legacy store into segmented journal, blob, and projection layout and execute backup, restore, retention, and rollback drills",
           "status": "open",

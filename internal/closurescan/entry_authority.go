@@ -130,6 +130,21 @@ func literalSites(file *ast.File, fragment string) int {
 	return sites
 }
 
+// embeddedInterpreterImport reports imports that would embed a script
+// interpreter in the runtime — the door the Go-only authority closes for
+// scripts that never touch the filesystem.
+func embeddedInterpreterImport(importPath string) bool {
+	for _, fragment := range []string{
+		"github.com/dop251/goja", "go.starlark.net", "github.com/robertkrimen/otto",
+		"github.com/yuin/gopher-lua", "github.com/traefik/yaegi", "github.com/d5/tengo",
+	} {
+		if strings.Contains(importPath, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
 func underAny(filePath string, prefixes []string) bool {
 	directory := path.Dir(filePath)
 	for _, prefix := range prefixes {
@@ -297,7 +312,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 		},
 		{
 			Domain: EntryAuthorityGoOnly,
-			Owner:  "compiled Go registrations are the only runtime authority: no Go plugin loading, no dynamic library loading outside the enumerated OS-ABI owners, no runtime script invocation, and no harness-configuration discovery outside the protection guard",
+			Owner:  "compiled Go registrations are the only runtime authority: no Go plugin loading, no embedded script interpreters, no dynamic library loading outside the enumerated OS-ABI owners, no runtime script invocation, and no harness-configuration discovery outside the protection guard",
 			Exceptions: map[string]string{
 				"internal/cuda/driver/driver_windows.go":        "OS-ABI owner: loads the NVIDIA driver library through the Windows ABI",
 				"internal/fsatomic/replace_windows.go":          "OS-ABI owner: kernel32 MoveFileExW for durable atomic replace",
@@ -310,7 +325,10 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Detect: func(file *ast.File) int {
 				sites := 0
 				for _, spec := range file.Imports {
-					if spec.Path != nil && spec.Path.Value == `"plugin"` {
+					if spec.Path == nil {
+						continue
+					}
+					if spec.Path.Value == `"plugin"` || embeddedInterpreterImport(spec.Path.Value) {
 						sites++
 					}
 				}

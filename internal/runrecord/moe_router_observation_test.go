@@ -21,9 +21,9 @@ func TestMoERouterObservationIdentityCoverageAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := observation.Content()
-	if err != nil || content.Descriptor.ID != observation.ID || len(observation.Lineage()) != 8 {
-		t.Fatalf("observation content/lineage = (%s, %d, %v)", content.Descriptor.ID, len(observation.Lineage()), err)
+	content, err := observation.content()
+	if err != nil || content.Descriptor.ID != observation.ID {
+		t.Fatalf("observation content = (%s, %v)", content.Descriptor.ID, err)
 	}
 	repeated, err := NewMoERouterObservation(fixture)
 	if err != nil || repeated.ID != observation.ID {

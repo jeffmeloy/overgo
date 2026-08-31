@@ -30,24 +30,36 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 			observations = append(observations, identified)
 		}
 	}
-	coverage, err := NewMoERouterObservationCoverage(observations, 5, 2, []uint32{3, 1})
+	chunk, err := NewMoERouterObservationChunk(observations, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	coverage, err := NewMoERouterObservationCoverage(chunk, 5, 2, []uint32{3, 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if coverage.Run != run || coverage.FirstStep != 5 || coverage.Steps != 2 ||
-		len(coverage.Observations) != len(observations) || coverage.ObservationBytes == 0 {
+		coverage.Chunk != chunk.ID || coverage.ObservationCount != uint64(len(observations)) || coverage.ObservationBytes == 0 {
 		t.Fatalf("coverage = %+v", coverage)
 	}
 	if _, err := coverage.Content(); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := NewMoERouterObservationCoverage(observations[:len(observations)-1], 5, 2, []uint32{1, 3}); err == nil {
+	incomplete, err := NewMoERouterObservationChunk(observations[:len(observations)-1], artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewMoERouterObservationCoverage(incomplete, 5, 2, []uint32{1, 3}); err == nil {
 		t.Fatal("missing layer observation accepted")
 	}
 	duplicate := append([]MoERouterObservation(nil), observations...)
 	duplicate[len(duplicate)-1] = duplicate[0]
-	if _, err := NewMoERouterObservationCoverage(duplicate, 5, 2, []uint32{1, 3}); err == nil {
+	duplicateChunk, err := NewMoERouterObservationChunk(duplicate, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewMoERouterObservationCoverage(duplicateChunk, 5, 2, []uint32{1, 3}); err == nil {
 		t.Fatal("duplicate observation accepted")
 	}
 	scopeChanges := []struct {
@@ -87,12 +99,13 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 				t.Fatal(err)
 			}
 			changed[1] = identified
-			if _, err := NewMoERouterObservationCoverage(changed, 5, 2, []uint32{1, 3}); err == nil {
+			changedChunk, err := NewMoERouterObservationChunk(changed, artifact.ID{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := NewMoERouterObservationCoverage(changedChunk, 5, 2, []uint32{1, 3}); err == nil {
 				t.Fatal("mixed observation scope accepted")
 			}
 		})
-	}
-	if err := validateMoERouterRetentionBytes(artifact.MaxContentBytes, 1); err == nil {
-		t.Fatal("retention beyond the repository content bound accepted")
 	}
 }

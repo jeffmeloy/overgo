@@ -54,4 +54,24 @@ func TestRunPublishesRouterObservation(t *testing.T) {
 	if !strings.Contains(output.String(), "rows=1 selections=1") {
 		t.Fatalf("output = %q", output.String())
 	}
+	store, err = overgodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	coverageID, found, err := store.ResolveAlias(t.Context(), runrecord.MoERouterObservationCoverageAlias)
+	if err != nil || !found {
+		t.Fatalf("resolve coverage alias: found=%v err=%v", found, err)
+	}
+	coverage, chunk, err := runrecord.RequireMoERouterObservationCoverage(t.Context(), store, coverageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := runrecord.NewMoERouterObservation(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if coverage.ObservationCount != 1 || len(chunk.Observations) != 1 || chunk.Observations[0].ID != expected.ID {
+		t.Fatalf("coverage = %#v chunk = %#v", coverage, chunk)
+	}
 }

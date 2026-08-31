@@ -1,8 +1,6 @@
 package trainingworkflow
 
 import (
-	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -97,17 +95,13 @@ func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testin
 	if err != nil || !found || coverageTarget != got.RouterObservationCoverage {
 		t.Fatalf("router coverage alias = (%s, %t, %v)", coverageTarget, found, err)
 	}
-	_, reader, found, err := store.OpenContent(t.Context(), got.RouterObservations[0])
-	if err != nil || !found {
-		t.Fatalf("open router observation: found=%t err=%v", found, err)
+	coverage, chunk, err := runrecord.RequireMoERouterObservationCoverage(t.Context(), store, got.RouterObservationCoverage)
+	if err != nil || coverage.Chunk != got.RouterObservations[0] || len(chunk.Observations) != 1 {
+		t.Fatalf("router chunk = (coverage=%+v observations=%d err=%v)", coverage, len(chunk.Observations), err)
 	}
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var router runrecord.MoERouterObservation
-	if err := json.Unmarshal(body, &router); err != nil {
-		t.Fatal(err)
+	router := chunk.Observations[0]
+	if router.ID.Kind() != artifact.KindEvidence {
+		t.Fatalf("router observation identity = %s", router.ID)
 	}
 	run, err := runrecord.RequireRun(t.Context(), store, router.Run)
 	if err != nil {

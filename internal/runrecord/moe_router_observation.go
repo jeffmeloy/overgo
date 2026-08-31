@@ -70,30 +70,8 @@ func NewMoERouterObservation(value MoERouterObservation) (MoERouterObservation, 
 	return moeRouterObservationCodec.New(value)
 }
 
-// Content returns the canonical router observation document.
-func (value MoERouterObservation) Content() (artifact.Content, error) {
+func (value MoERouterObservation) content() (artifact.Content, error) {
 	return moeRouterObservationCodec.Content(value)
-}
-
-// ValidateIdentity verifies the canonical router observation identity.
-func (value MoERouterObservation) ValidateIdentity() error {
-	return moeRouterObservationCodec.ValidateIdentity(value)
-}
-
-// Lineage binds an observation to all execution, data, checkpoint, and policy authorities.
-func (value MoERouterObservation) Lineage() []artifact.Lineage {
-	return artifact.DependencyLineage(value.ID, value.Run, value.Model, value.Dataset, value.Split,
-		value.Recipe, value.Code, value.Checkpoint, value.Policy)
-}
-
-// RouterObservationBatch publishes one observation through its typed owner.
-func RouterObservationBatch(value MoERouterObservation, content artifact.Content) (artifact.Batch, error) {
-	if content.Descriptor.ID != value.ID {
-		return artifact.Batch{}, errors.New("run record: router observation content identity differs")
-	}
-	return artifact.NewDocumentBatch(
-		"observation/moe-router/"+value.ID.String(), []artifact.Content{content}, value.Lineage(), nil,
-	)
 }
 
 func canonicalizeMoERouterObservation(value *MoERouterObservation) error {

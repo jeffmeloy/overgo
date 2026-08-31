@@ -149,12 +149,26 @@ func publishTrainingBracket(
 	session, model, recipeID artifact.ID,
 	pre, post BracketSlice,
 ) (artifact.ID, error) {
+	bracket, batch, err := trainingBracketBatch(session, model, recipeID, pre, post)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		return artifact.ID{}, err
+	}
+	return bracket.ID, nil
+}
+
+func trainingBracketBatch(
+	session, model, recipeID artifact.ID,
+	pre, post BracketSlice,
+) (TrainingBracket, artifact.Batch, error) {
 	bracket, err := trainingBracketCodec.New(TrainingBracket{
 		Version: artifact.InitialDocumentVersion, Session: session, Model: model, Recipe: recipeID,
 		Pre: pre, Post: post, Deltas: bracketDeltas(pre, post),
 	})
 	if err != nil {
-		return artifact.ID{}, err
+		return TrainingBracket{}, artifact.Batch{}, err
 	}
 	batch, err := trainingBracketCodec.Batch(
 		"training-bracket/"+bracket.ID.String(), bracket,
@@ -164,10 +178,7 @@ func publishTrainingBracket(
 		}, nil,
 	)
 	if err != nil {
-		return artifact.ID{}, err
+		return TrainingBracket{}, artifact.Batch{}, err
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
-		return artifact.ID{}, err
-	}
-	return bracket.ID, nil
+	return bracket, batch, nil
 }

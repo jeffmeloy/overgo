@@ -9,26 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "bounded-training-evidence",
-          "title": "Normalize high-volume training evidence through one reusable bounded chunk owner",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/runrecord ./internal/trainingworkflow ./internal/overgodb -run '^(TestBoundedTrainingEvidencePreservesFacts|TestTrainingEvidenceSinglePublicationAuthority|TestTrainingEvidenceJournalAmplificationBound)$' -count=1",
-          "rationale": "Start from the exact representative execution and interaction trace persisted by the supervised composite first win, then measure the merged Marin training path and replace per-step and per-layer router documents and whole-run health arrays with one reusable Go chunk mechanic: bounded immutable payload blobs, ordinal and previous linkage, compact typed coverage summaries, and one workflow-owned atomic publication. Preserve every admitted router selection, margin, acceptance, health sample, authority, and explicit missing state under shared fact, chunk, and raw-byte budgets. The metadata journal and head deltas carry summaries and chunk identities only; projections decode no raw blob unless the query contract requests exact samples. Delete or route standalone publication paths through the same owner in this step; no efficiency claim may precede the real loop trace.",
-          "depends_on": [
-            "storage-projections/atomic-publication",
-            "resource-coverage/fitness-integration",
-            "redundancy-interaction-baseline/interaction-traces",
-            "architecture-closure/go-only-guard"
-          ],
-          "capabilities": [
-            "overgodb",
-            "observation-chunk",
-            "training-evidence",
-            "interaction-efficiency",
-            "common-code"
-          ]
-        },
-        {
           "id": "projection-query-plans",
           "title": "Route bounded queries through exact compiled indexes and report inspected, matched, returned, and loaded facts",
           "status": "open",

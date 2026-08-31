@@ -2,8 +2,10 @@ package trainingworkflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"overgo/internal/artifact"
@@ -13,6 +15,22 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
+
+// TrainingEvidencePublication is the single workflow-owned atomic publication
+// request for training evidence assembled through shared run-record contracts.
+type TrainingEvidencePublication struct {
+	Batch artifact.Batch
+}
+
+// PublishTrainingEvidence admits exactly one semantic batch. Producers may
+// prepare typed facts and raw chunks, but cannot create another commit path.
+func PublishTrainingEvidence(ctx context.Context, repository artifact.Repository, publication TrainingEvidencePublication) error {
+	if ctx == nil || repository == nil || !strings.HasPrefix(publication.Batch.Key, "training/evidence/") {
+		return errors.New("training workflow: training evidence publication is incomplete")
+	}
+	_, err := artifact.CommitBatch(ctx, repository, publication.Batch)
+	return err
+}
 
 // Observer: one measured training session.
 type Observer struct {
@@ -202,10 +220,16 @@ func (o *Observer) finish(
 	var published runrecord.ServingObservation
 	var routerIDs []artifact.ID
 	var routerCoverage artifact.ID
+	var post BracketSlice
+	if store, typed := o.store.(*overgodb.Store); typed && o.bracketing {
+		post = captureBracketSlice(ctx, store, model, recipeID)
+	}
 	if len(result.router) == 0 {
 		published, err = runrecord.PublishServingObservation(ctx, o.store, observation)
 	} else {
-		published, routerIDs, routerCoverage, err = o.publishRouterTrainingEvidence(ctx, observation, result, measured)
+		published, routerIDs, routerCoverage, err = o.publishRouterTrainingEvidence(
+			ctx, observation, result, measured, o.pre, post, o.bracketing,
+		)
 	}
 	if err != nil {
 		return artifact.ID{}, nil, artifact.ID{}, fmt.Errorf("training observation: publish: %w", err)
@@ -213,8 +237,7 @@ func (o *Observer) finish(
 	// The bracket binds this session to the evidence before and after
 	// it. A bracket that cannot publish must not fail the session whose
 	// observation already committed -- it reports and stands aside.
-	if store, typed := o.store.(*overgodb.Store); typed && o.bracketing {
-		post := captureBracketSlice(ctx, store, model, recipeID)
+	if _, typed := o.store.(*overgodb.Store); typed && o.bracketing && len(result.router) == 0 {
 		if _, err := publishTrainingBracket(ctx, o.store, published.ID, model, recipeID, o.pre, post); err != nil {
 			fmt.Printf("training observation: bracket: %v\n", err)
 		}
@@ -227,6 +250,8 @@ func (o *Observer) publishRouterTrainingEvidence(
 	serving runrecord.ServingObservation,
 	result Result,
 	measured uint64,
+	pre, post BracketSlice,
+	bracket bool,
 ) (runrecord.ServingObservation, []artifact.ID, artifact.ID, error) {
 	if result.Checkpoint.ID().Kind() != artifact.KindCheckpoint {
 		return runrecord.ServingObservation{}, nil, artifact.ID{}, fmt.Errorf("router evidence requires a committed checkpoint")
@@ -268,7 +293,7 @@ func (o *Observer) publishRouterTrainingEvidence(
 	if err != nil {
 		return runrecord.ServingObservation{}, nil, artifact.ID{}, err
 	}
-	batch := artifact.Batch{Key: "training/router-observations/" + run.ID.String()}
+	batch := artifact.Batch{Key: "training/evidence/" + run.ID.String()}
 	// Checkpoint and compiled recipes are exact external publications. Register
 	// their identities so this atomic evidence graph resolves without copying
 	// checkpoint bytes into OvergoDB.
@@ -289,7 +314,6 @@ func (o *Observer) publishRouterTrainingEvidence(
 	appendBatch(codeBatch)
 	appendBatch(runBatch)
 	appendBatch(servingBatch)
-	routerIDs := make([]artifact.ID, 0, len(result.router))
 	routerValues := make([]runrecord.MoERouterObservation, 0, len(result.router))
 	for _, record := range result.router {
 		raw, err := decodeRouterObservation(record)
@@ -300,33 +324,34 @@ func (o *Observer) publishRouterTrainingEvidence(
 		if err != nil {
 			return runrecord.ServingObservation{}, nil, artifact.ID{}, err
 		}
-		content, err := value.Content()
-		if err != nil {
-			return runrecord.ServingObservation{}, nil, artifact.ID{}, err
-		}
-		part, err := runrecord.RouterObservationBatch(value, content)
-		if err != nil {
-			return runrecord.ServingObservation{}, nil, artifact.ID{}, err
-		}
-		appendBatch(part)
 		routerValues = append(routerValues, value)
-		routerIDs = append(routerIDs, value.ID)
+	}
+	chunk, err := runrecord.NewMoERouterObservationChunk(routerValues, artifact.ID{})
+	if err != nil {
+		return runrecord.ServingObservation{}, nil, artifact.ID{}, err
 	}
 	coverage, err := runrecord.NewMoERouterObservationCoverage(
-		routerValues, result.routerExpectation.firstStep, result.routerExpectation.steps, result.routerExpectation.layers,
+		chunk, result.routerExpectation.firstStep, result.routerExpectation.steps, result.routerExpectation.layers,
 	)
 	if err != nil {
 		return runrecord.ServingObservation{}, nil, artifact.ID{}, err
 	}
-	coverageBatch, err := coverage.Batch(ctx, o.store)
+	coverageBatch, err := coverage.Batch(ctx, o.store, chunk)
 	if err != nil {
 		return runrecord.ServingObservation{}, nil, artifact.ID{}, err
 	}
 	appendBatch(coverageBatch)
-	if _, err := artifact.CommitBatch(ctx, o.store, batch); err != nil {
+	if bracket {
+		_, bracketBatch, err := trainingBracketBatch(published.ID, result.authority.model, serving.Recipe, pre, post)
+		if err != nil {
+			return runrecord.ServingObservation{}, nil, artifact.ID{}, err
+		}
+		appendBatch(bracketBatch)
+	}
+	if err := PublishTrainingEvidence(ctx, o.store, TrainingEvidencePublication{Batch: batch}); err != nil {
 		return runrecord.ServingObservation{}, nil, artifact.ID{}, err
 	}
-	return published, routerIDs, coverage.ID, nil
+	return published, []artifact.ID{chunk.ID}, coverage.ID, nil
 }
 
 var executableCodeCommit = runrecord.ExecutableCodeCommit

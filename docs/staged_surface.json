@@ -64,30 +64,6 @@
     },
     {
       "package": "overgo/internal/plan",
-      "name": "NewWorkLease",
-      "reason": "Multi-lane work lease API for plan orchestration.",
-      "retire_with": "campaign-concurrency/ready-frontier-leases"
-    },
-    {
-      "package": "overgo/internal/plan",
-      "name": "ResolveWorkspaceClaims",
-      "reason": "Workspace claim resolution for plan orchestration.",
-      "retire_with": "campaign-concurrency/ready-frontier-leases"
-    },
-    {
-      "package": "overgo/internal/plan",
-      "name": "WorkLeaseAlias",
-      "reason": "Work lease alias naming for plan orchestration.",
-      "retire_with": "campaign-concurrency/ready-frontier-leases"
-    },
-    {
-      "package": "overgo/internal/plan",
-      "name": "WorkspaceClaimOrder",
-      "reason": "Deterministic workspace claim ordering for plan orchestration.",
-      "retire_with": "campaign-concurrency/ready-frontier-leases"
-    },
-    {
-      "package": "overgo/internal/plan",
       "name": "AdmitSteeringProposal",
       "reason": "Typed steering proposal admission into the plan.",
       "retire_with": "interaction-efficiency/tool-call-propensity-control"
@@ -391,6 +367,12 @@
       "name": "ReplayLoopObligations",
       "reason": "Store-backed replay lands ahead of the production ObligationWorld implementation.",
       "retire_with": "interaction-efficiency/coalesced-coordination"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "RequireMoERouterObservationCoverage",
+      "reason": "Exact raw-chunk decode is retained for the isolated scaling, health, and router evaluator that consumes the bounded training stream.",
+      "retire_with": "advanced-domain-plugins/evidence"
     },
     {
       "package": "overgo/internal/runrecord",

@@ -114,8 +114,6 @@ type reservedArchitectureOwnerCase struct {
 
 var reservedArchitectureOwnerCases = map[string]reservedArchitectureOwnerCase{
 	"training-evidence-publication": {
-		ownerPath:     "internal/trainingworkflow/evidence_publication.go",
-		ownerBody:     "package trainingworkflow\ntype TrainingEvidencePublication struct{}\nfunc PublishTrainingEvidence() {}\n",
 		duplicatePath: "internal/runrecord/evidence_publication.go",
 		duplicateBody: "package runrecord\ntype TrainingEvidencePublication struct{}\nfunc PublishTrainingEvidence() {}\n",
 	},
@@ -134,9 +132,12 @@ func requireReservedArchitectureOwner(t *testing.T, family string) {
 		t.Fatalf("unknown reserved architecture family %q", family)
 	}
 	snapshot := architectureRSISnapshot(t)
-	owned := architectureRSIOverlay(t, snapshot, map[string][]byte{
-		test.ownerPath: []byte(test.ownerBody),
-	})
+	owned := snapshot
+	if test.ownerPath != "" {
+		owned = architectureRSIOverlay(t, snapshot, map[string][]byte{
+			test.ownerPath: []byte(test.ownerBody),
+		})
+	}
 	if report := architectureRSIAudit(t, owned); report.Error() != nil {
 		t.Fatalf("reserved %s owner was refused: %v", family, report.Error())
 	}

@@ -1,4 +1,5 @@
-// Command router-observation publishes an exact per-layer MoE router observation.
+// Command router-observation publishes one exact per-layer MoE router observation
+// through the bounded raw-chunk and coverage authorities.
 package main
 
 import (
@@ -43,7 +44,12 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	content, err := observation.Content()
+	chunk, err := runrecord.NewMoERouterObservationChunk([]runrecord.MoERouterObservation{observation}, artifact.ID{})
+	if err != nil {
+		return err
+	}
+	steps := uint64(len(chunk.Observations))
+	coverage, err := runrecord.NewMoERouterObservationCoverage(chunk, observation.Step, steps, []uint32{observation.Layer})
 	if err != nil {
 		return err
 	}
@@ -52,14 +58,14 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	batch, err := runrecord.RouterObservationBatch(observation, content)
+	batch, err := coverage.Batch(context.Background(), store, chunk)
 	if err != nil {
 		return err
 	}
 	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "router-observation: committed %s step=%d layer=%d rows=%d selections=%d\n",
-		observation.ID, observation.Step, observation.Layer, observation.Rows, len(observation.Selections))
+	fmt.Fprintf(output, "router-observation: committed %s chunk=%s step=%d layer=%d rows=%d selections=%d\n",
+		coverage.ID, chunk.ID, observation.Step, observation.Layer, observation.Rows, len(observation.Selections))
 	return nil
 }

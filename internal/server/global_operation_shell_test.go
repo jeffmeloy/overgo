@@ -111,8 +111,12 @@ func TestGlobalOperationDecisionRecovery(t *testing.T) {
 	if err != nil || blocked.State != operation.StateBlocked {
 		t.Fatalf("blocked operation=(%+v, %v)", blocked, err)
 	}
+	advertised, err := operatoraction.NewApprovalRequest(id, recipeID, action, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	response := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalAutomationJSON(t, map[string]any{
-		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant,
+		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant, "request": advertised.ID,
 	}))
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("decision status=%d body=%s", response.Code, response.Body.String())

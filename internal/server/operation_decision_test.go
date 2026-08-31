@@ -48,8 +48,12 @@ func TestDecisionAPI(t *testing.T) {
 	if _, err := handler.operations.Wait(t.Context(), operationID); err != nil {
 		t.Fatal(err)
 	}
+	advertised, err := operatoraction.NewApprovalRequest(operationID, recipeID, action, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	body, err := json.Marshal(operationDecisionRequest{
-		Operation: operationID, Tool: action.Code, Answer: operatoraction.AnswerGrant,
+		Operation: operationID, Tool: action.Code, Answer: operatoraction.AnswerGrant, Request: advertised.ID,
 	})
 	if err != nil {
 		t.Fatal(err)

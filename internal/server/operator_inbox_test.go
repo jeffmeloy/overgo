@@ -53,8 +53,12 @@ func TestOperatorInbox(t *testing.T) {
 		!strings.Contains(waiting.Body.String(), `"resume"`) {
 		t.Fatalf("waiting inbox status=%d body=%s", waiting.Code, waiting.Body.String())
 	}
+	advertised, err := operatoraction.NewApprovalRequest(id, recipeID, action, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	grant := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalAutomationJSON(t, map[string]any{
-		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant,
+		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant, "request": advertised.ID,
 	}))
 	if grant.Code != http.StatusAccepted {
 		t.Fatalf("grant status=%d body=%s", grant.Code, grant.Body.String())

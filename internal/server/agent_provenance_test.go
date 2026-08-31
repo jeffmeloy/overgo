@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -42,8 +43,16 @@ func TestAgentProvenance(t *testing.T) {
 		`{"session":"walk","tool":"store.head"}`); code.Code != http.StatusOK {
 		t.Fatalf("inspection status=%d body=%s", code.Code, code.Body.String())
 	}
+	preview := serveTestRequest(handler, http.MethodPost, "/agent/approval",
+		`{"session":"walk","tool":"store.commit","arguments":{}}`)
+	var previewed struct {
+		Operation string `json:"operation"`
+	}
+	if err := json.Unmarshal(preview.Body.Bytes(), &previewed); err != nil || previewed.Operation == "" {
+		t.Fatalf("preview status=%d operation=%q %v", preview.Code, previewed.Operation, err)
+	}
 	if code := serveTestRequest(handler, http.MethodPost, "/agent/step",
-		`{"session":"walk","tool":"store.commit","arguments":{},"approve":true}`); code.Code != http.StatusOK {
+		`{"session":"walk","tool":"store.commit","arguments":{},"approval":"`+previewed.Operation+`"}`); code.Code != http.StatusOK {
 		t.Fatalf("mutation status=%d body=%s", code.Code, code.Body.String())
 	}
 

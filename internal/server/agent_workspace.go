@@ -126,10 +126,16 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 	}
 	// An approved step first RECORDS the operator's grant as a durable
 	// decision bound to the exact tool identity and argument bytes; the
-	// proposal gate then verifies that committed decision -- the request
-	// flag alone authorizes nothing.
-	if body.Approve {
-		if _, err := h.agentCoordinator.ApproveMutation(request.Context(), session, body.Tool, arguments); err != nil {
+	// proposal gate then verifies that committed decision. The grant must
+	// name the operation identity the /agent/approval preview projected --
+	// a step request cannot approve state its operator never saw.
+	if body.Approval != "" {
+		approved, parseErr := artifact.ParseID(body.Approval)
+		if parseErr != nil {
+			writeError(response, http.StatusBadRequest, "invalid_request", "approval must name the previewed operation identity")
+			return
+		}
+		if _, err := h.agentCoordinator.ApproveMutation(request.Context(), session, body.Tool, arguments, approved); err != nil {
 			writeError(response, http.StatusUnprocessableEntity, "agent_step_refused", err.Error())
 			return
 		}
@@ -166,7 +172,9 @@ type agentStepRequest struct {
 	Session   string          `json:"session"`
 	Tool      string          `json:"tool"`
 	Arguments json.RawMessage `json:"arguments,omitempty"`
-	Approve   bool            `json:"approve,omitzero"`
+	// Approval names the operation identity the /agent/approval preview
+	// projected for this step; a boolean can no longer grant blind.
+	Approval string `json:"approval,omitzero"`
 }
 
 // agentApprovalPreview projects the decision facts an operator grants

@@ -288,6 +288,9 @@ func (c *Coordinator) RestoreSession(ctx context.Context, id string) (*Session, 
 // session's NEXT step: an approval request naming the exact manual and
 // the exact argument bytes, answered granted, chained under the same
 // per-step operation identity the mutation's receipt will use. The
+// caller must pass the operation identity PreviewMutationDecision
+// projected -- a grant that does not name what was previewed is
+// refused, so the deciding action cannot mint its own approval. The
 // proposal gate verifies THIS committed decision -- a request boolean
 // asserts nothing on its own.
 func (c *Coordinator) ApproveMutation(
@@ -295,6 +298,7 @@ func (c *Coordinator) ApproveMutation(
 	session *Session,
 	name string,
 	arguments json.RawMessage,
+	approved artifact.ID,
 ) (artifact.ID, error) {
 	if ctx == nil || session == nil || session.ID == "" {
 		return artifact.ID{}, errors.New("agent loop: nil context or session")
@@ -330,6 +334,18 @@ func (c *Coordinator) ApproveMutation(
 		return artifact.ID{}, fmt.Errorf("agent loop: inspection is not relevant to mutation %q", name)
 	}
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
+	// The grant must name the previewed operation identity before anything
+	// durable is admitted: approving and deciding stay two actions -- the
+	// operator reads the preview, then grants exactly what it projected.
+	previewed, err := MutationReceiptOperation(callID)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if approved != previewed {
+		return artifact.ID{}, fmt.Errorf(
+			"agent loop: approval does not name the previewed operation for %q; preview the decision first", name,
+		)
+	}
 	stimulus, err := c.admitAttemptStimulus(ctx, session, callID, manual, arguments, plannedEffect)
 	if err != nil {
 		return artifact.ID{}, err

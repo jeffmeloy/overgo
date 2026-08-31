@@ -70,6 +70,17 @@ func coordinatorFixture(t *testing.T) (*Coordinator, *overgodb.Store) {
 	return coordinator, store
 }
 
+// previewedOperation mirrors the operator flow: read the decision preview
+// first, then grant by naming exactly the operation it projected.
+func previewedOperation(t *testing.T, coordinator *Coordinator, session *Session, name string) artifact.ID {
+	t.Helper()
+	preview, err := coordinator.PreviewMutationDecision(t.Context(), session, name, json.RawMessage(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return preview.Operation
+}
+
 // TestCoordinatorGatesMutationBehindInspectionAndApproval pins the
 // admission ladder: unregistered names refuse, mutation refuses before
 // inspection, refuses without approval, and runs after both -- with
@@ -86,7 +97,8 @@ func TestCoordinatorGatesMutationBehindInspectionAndApproval(t *testing.T) {
 		!strings.Contains(err.Error(), "preflight") {
 		t.Fatalf("mutation admitted before inspection: %v", err)
 	}
-	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`)); err == nil ||
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`),
+		previewedOperation(t, coordinator, session, "probe.write")); err == nil ||
 		!strings.Contains(err.Error(), "inspection") {
 		t.Fatalf("mutation preflight admitted before inspection: %v", err)
 	}
@@ -97,7 +109,12 @@ func TestCoordinatorGatesMutationBehindInspectionAndApproval(t *testing.T) {
 		!strings.Contains(err.Error(), "preflight") {
 		t.Fatalf("mutation admitted without approval: %v", err)
 	}
-	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`)); err != nil {
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`), session.Interaction); err == nil ||
+		!strings.Contains(err.Error(), "does not name the previewed operation") {
+		t.Fatalf("grant naming the wrong operation admitted: %v", err)
+	}
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`),
+		previewedOperation(t, coordinator, session, "probe.write")); err != nil {
 		t.Fatal(err)
 	}
 	result, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`))
@@ -191,7 +208,8 @@ func TestMutationReceiptPrecedesExecution(t *testing.T) {
 	if _, found, err := runrecord.ResolveStageReceipt(ctx, store, inspectOperation, coordinator.identity.Node); err != nil || found {
 		t.Fatalf("inspection carried a receipt: found=%t err=%v", found, err)
 	}
-	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`)); err != nil {
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.write", json.RawMessage(`{}`),
+		previewedOperation(t, coordinator, session, "probe.write")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := coordinator.Propose(ctx, session, "probe.write", json.RawMessage(`{}`)); err != nil {
@@ -248,7 +266,8 @@ func TestFailingMutationStillLeavesReceipt(t *testing.T) {
 	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{}`)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := coordinator.ApproveMutation(ctx, session, "probe.break", json.RawMessage(`{}`)); err != nil {
+	if _, err := coordinator.ApproveMutation(ctx, session, "probe.break", json.RawMessage(`{}`),
+		previewedOperation(t, coordinator, session, "probe.break")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := coordinator.Propose(ctx, session, "probe.break", json.RawMessage(`{}`)); err == nil {

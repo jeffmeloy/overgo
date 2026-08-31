@@ -20,6 +20,11 @@ type operationDecisionRequest struct {
 	Operation artifact.ID           `json:"operation"`
 	Tool      string                `json:"tool"`
 	Answer    operatoraction.Answer `json:"answer"`
+	// Request names the exact advertised approval request this decision
+	// answers; the decision view publishes it per blocked action. A
+	// decision that does not name the request it grants is refused, so a
+	// grant can never bind to state the operator did not see.
+	Request artifact.ID `json:"request"`
 }
 
 type operationDecisionResponse struct {
@@ -219,6 +224,13 @@ func (h *Handler) operationDecision(response http.ResponseWriter, request *http.
 	approval, err := operatoraction.NewApprovalRequest(body.Operation, status.Recipe, action, priorID)
 	if err != nil {
 		writeInvalidRequest(response, err)
+		return
+	}
+	if body.Request != approval.ID {
+		writeError(
+			response, http.StatusConflict, "decision_request_mismatch",
+			"decision does not name the advertised approval request; re-read /operations/decisions",
+		)
 		return
 	}
 	decision, err := runrecord.NewHumanDecision(approval, body.Answer)

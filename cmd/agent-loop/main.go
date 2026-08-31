@@ -34,7 +34,8 @@ func run(args []string, output io.Writer) error {
 	sessionID := flags.String("session", "", "agent session identifier")
 	tool := flags.String("tool", "", "registered tool manual name to propose")
 	arguments := flags.String("arguments", "{}", "strict JSON object of tool arguments")
-	approve := flags.Bool("approve", false, "exact approval for a mutation step")
+	approve := flags.String("approve", "", "grant the mutation step by naming the operation identity -preview printed")
+	preview := flags.Bool("preview", false, "print the decision preview for this step instead of proposing it")
 	recipeText := flags.String("recipe", "", "serving recipe artifact id the step records against")
 	modelText := flags.String("model", "", "serving model artifact id the step records against")
 	node := flags.String("node", "respond", "interaction node the step records against")
@@ -44,7 +45,7 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || strings.TrimSpace(*sessionID) == "" || strings.TrimSpace(*tool) == "" || maxSteps <= 0 {
-		return errors.New("usage: agent-loop [-repo <path>] -session <id> -tool <name> -recipe <id> -model <id> -max-steps <n> [-node <id>] [-arguments <json>] [-approve]")
+		return errors.New("usage: agent-loop [-repo <path>] -session <id> -tool <name> -recipe <id> -model <id> -max-steps <n> [-node <id>] [-arguments <json>] [-preview] [-approve <operation-id>]")
 	}
 	recipeID, err := artifact.ParseID(strings.TrimSpace(*recipeText))
 	if err != nil {
@@ -79,8 +80,27 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	session := &agentloop.Session{ID: strings.TrimSpace(*sessionID)}
-	if *approve {
-		if _, err := coordinator.ApproveMutation(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments)); err != nil {
+	if *preview {
+		// Approving is a separate invocation: this one only projects the
+		// decision facts -- including the operation identity a later
+		// -approve must name -- and records nothing.
+		projected, err := coordinator.PreviewMutationDecision(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments))
+		if err != nil {
+			return err
+		}
+		encoded, err := json.Marshal(projected)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(output, "%s\n", encoded)
+		return err
+	}
+	if strings.TrimSpace(*approve) != "" {
+		approved, err := artifact.ParseID(strings.TrimSpace(*approve))
+		if err != nil {
+			return fmt.Errorf("agent-loop: approval operation id: %w", err)
+		}
+		if _, err := coordinator.ApproveMutation(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments), approved); err != nil {
 			return err
 		}
 	}

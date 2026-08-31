@@ -9,13 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "approval-decision-separation",
-          "title": "Separate operator approval from decision recording so one action cannot both decide and approve",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestApprovalDecisionSeparation$' -count=1",
-          "rationale": "An approval names the decision it approves; a decision cannot self-approve, and the store records both identities."
-        },
-        {
           "id": "download-shutdown-ownership",
           "title": "Give downloads one shutdown owner so cancellation cannot orphan partial artifacts",
           "status": "open",

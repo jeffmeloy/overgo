@@ -63,7 +63,13 @@
 
   async function decideOperation(host, id, tool, answer) {
     try {
-      await api.post("/operations/decision", { operation: id, tool, answer });
+      // A decision must name the advertised approval request, so read the
+      // pending-decision view and grant exactly what it advertises now.
+      const view = await api.get("/operations/decisions");
+      const blocked = (view.blocked || []).find((item) => item.operation === id);
+      const action = blocked && (blocked.actions || []).find((item) => item.code === tool);
+      if (!action || !action.request) throw new Error("operation no longer advertises this decision");
+      await api.post("/operations/decision", { operation: id, tool, answer, request: action.request });
       await loadDetail(host, id);
     } catch (err) {
       renderDetailError(host, err);

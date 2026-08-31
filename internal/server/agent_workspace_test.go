@@ -120,13 +120,25 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	if !strings.Contains(preview.Body.String(), `"call_id":"s1-step-2"`) {
 		t.Fatalf("preview call identity = %s", preview.Body.String())
 	}
-	// An approved step records the grant durably and executes; the
-	// session advances, so the next preview names the NEXT step with no
-	// decision yet -- each step's decision is its own, never inherited.
-	// (The binds-versus-diverged diff itself is pinned at the coordinator
-	// level, where approval and proposal are separate calls.)
-	approved := serveTestRequest(handler, http.MethodPost, "/agent/step",
+	// An approved step names the operation identity the preview projected,
+	// records the grant durably, and executes; the session advances, so the
+	// next preview names the NEXT step with no decision yet -- each step's
+	// decision is its own, never inherited. (The binds-versus-diverged diff
+	// itself is pinned at the coordinator level, where approval and
+	// proposal are separate calls.)
+	var previewed struct {
+		Operation string `json:"operation"`
+	}
+	if err := json.Unmarshal(preview.Body.Bytes(), &previewed); err != nil || previewed.Operation == "" {
+		t.Fatalf("preview operation = %q, %v", previewed.Operation, err)
+	}
+	blind := serveTestRequest(handler, http.MethodPost, "/agent/step",
 		`{"session":"s1","tool":"store.commit","arguments":{},"approve":true}`)
+	if blind.Code != http.StatusBadRequest {
+		t.Fatalf("boolean grant status=%d body=%s", blind.Code, blind.Body.String())
+	}
+	approved := serveTestRequest(handler, http.MethodPost, "/agent/step",
+		`{"session":"s1","tool":"store.commit","arguments":{},"approval":"`+previewed.Operation+`"}`)
 	if approved.Code != http.StatusOK || !strings.Contains(approved.Body.String(), `"steps":2`) {
 		t.Fatalf("approved mutation status=%d body=%s", approved.Code, approved.Body.String())
 	}

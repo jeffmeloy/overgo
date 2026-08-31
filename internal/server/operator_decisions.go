@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
+	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -23,13 +24,22 @@ type operatorDecisionView struct {
 }
 
 type operatorBlockedOperation struct {
-	Operation artifact.ID   `json:"operation"`
-	Task      recipe.Task   `json:"task"`
-	Recipe    artifact.ID   `json:"recipe"`
-	Reason    string        `json:"reason"`
-	Subject   artifact.ID   `json:"subject"`
-	Actions   []string      `json:"actions,omitempty"`
-	Evidence  []artifact.ID `json:"evidence,omitempty"`
+	Operation artifact.ID             `json:"operation"`
+	Task      recipe.Task             `json:"task"`
+	Recipe    artifact.ID             `json:"recipe"`
+	Reason    string                  `json:"reason"`
+	Subject   artifact.ID             `json:"subject"`
+	Actions   []operatorBlockedAction `json:"actions,omitempty"`
+	Evidence  []artifact.ID           `json:"evidence,omitempty"`
+}
+
+// operatorBlockedAction advertises one recovery action beside the exact
+// approval-request identity a decision for it must name. The identity is
+// content-derived from the operation, recipe, action, and decision chain,
+// so a grant recorded against it can only bind the advertised facts.
+type operatorBlockedAction struct {
+	Code    string      `json:"code"`
+	Request artifact.ID `json:"request"`
 }
 
 // operatorDecisions serves the single pending-decision view.
@@ -53,8 +63,20 @@ func (h *Handler) operatorDecisions(response http.ResponseWriter, request *http.
 			Reason: status.Recovery.Reason, Subject: status.Recovery.Subject,
 			Evidence: status.Recovery.Evidence,
 		}
+		var prior artifact.ID
+		if decision, found, err := runrecord.ResolveHumanDecision(request.Context(), store, status.ID); err != nil {
+			writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
+			return
+		} else if found {
+			prior = decision.ID
+		}
 		for _, action := range status.Recovery.Actions {
-			blocked.Actions = append(blocked.Actions, action.Code)
+			advertised, err := operatoraction.NewApprovalRequest(status.ID, status.Recipe, action, prior)
+			if err != nil {
+				writeError(response, http.StatusInternalServerError, "approval_derivation_failed", err.Error())
+				return
+			}
+			blocked.Actions = append(blocked.Actions, operatorBlockedAction{Code: action.Code, Request: advertised.ID})
 		}
 		view.Blocked = append(view.Blocked, blocked)
 	}

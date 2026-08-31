@@ -4,31 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "outward-capabilities",
-      "title": "Use the shared invocation contract for agent-initiated and cross-boundary capability reuse",
-      "status": "open",
-      "steps": [
-        {
-          "id": "peer-invocation",
-          "title": "Complete staged delegation and receipted peer capability invocation without routing internal Go through UTCP",
-          "status": "open",
-          "verify": "go test ./cmd/agent-tool ./internal/plan ./internal/agenttool ./internal/agentloop ./internal/operatoraction ./internal/operation ./internal/workflowruntime ./internal/capabilityruntime ./internal/modelrecipe ./internal/loop ./internal/runrecord -run '^(TestDelegatedCapabilityRuntimeConsumesStagedOwners|TestAgentDelegationStagedSurfaceRetired|TestPeerCapabilityManualAndPlacement|TestPeerHTTPJSONStreamInvocationReceipt|TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode|TestRemoteRecipeCapabilityRequiresExactUTCPManual)$' -count=1",
-          "rationale": "Complete and retire the staged CapabilityProxyManual and RegisterCapabilityProxy, NewDelegatedCoordinator, CompileDelegatedAgentInvocation, and NewMutationCheckpointRuntime surfaces through existing command, server, runtime, approval, execution, and receipt owners. A lane or peer exposes a compiled Go capability as an exact effect-classed UTCP manual; consumers invoke it across the boundary instead of importing or duplicating runtime code. Bind PeerCapabilityPublication, enrollment, heartbeat, compatibility, and placement to the active CatalogSnapshot, Manual, and CapabilityIdentity; recheck publication and lease immediately before bounded no-redirect http-json-stream dispatch; then publish the shared StageReceipt with canonical arguments, effect, targets, inspection, task or delegation ceiling, HumanDecision or active policy, causal context, and head. Remote recipe validation requires that exact manual and placement. Inspection propensity may later be steered only while every resolved capability is inspection-class; mutation stays alpha zero and behind approval. Deterministic in-process orchestration continues to call Go owners directly and never enters UTCP resolution or transport. This adds no second registry, admission, placement, execution, approval, receipt, lifecycle, or policy owner.",
-          "depends_on": [
-            "architecture-closure/go-only-guard"
-          ],
-          "capabilities": [
-            "utcp-peer",
-            "delegated-capability",
-            "http-json-stream",
-            "cross-lane-reuse",
-            "mutation-receipt",
-            "direct-go-orchestration"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gate-decomposition",
       "title": "Split cmd/gate into an internal/gate hierarchy with one transaction path",
       "status": "open",

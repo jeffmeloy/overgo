@@ -560,7 +560,24 @@ func executeCapability(
 			return err
 		}
 		if selection == modelrecipe.SessionSpillover {
-			return capabilityruntime.ExecuteRemotePeer(ctx, http.DefaultClient, selected, strings.NewReader(input), os.Stdout)
+			// Spillover reaches the peer only through its exact derived
+			// UTCP manual, and every invocation leaves a receipt chain
+			// under the request's own operation identity.
+			manual, manualErr := capabilityruntime.PeerCapabilityManual(selected, task)
+			if manualErr != nil {
+				return manualErr
+			}
+			operation, operationErr := artifact.IdentifyBytes(
+				artifact.KindEvidence, []byte("overgo/peer-invocation/"+selected.Peer.ID.String()+"/"+string(task)),
+			)
+			if operationErr != nil {
+				return operationErr
+			}
+			_, err = capabilityruntime.InvokeRemotePeer(
+				ctx, http.DefaultClient, store, manual, selected, task,
+				operation, strings.NewReader(input), os.Stdout,
+			)
+			return err
 		}
 	} else if selection == modelrecipe.SessionSpillover || compatibility.Valid() {
 		return errors.New("recipe: spillover requires an evidence-bound alias")

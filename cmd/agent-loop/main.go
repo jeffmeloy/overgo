@@ -38,6 +38,7 @@ func run(args []string, output io.Writer) error {
 	approve := flags.String("approve", "", "grant the mutation step by naming the operation identity -preview printed")
 	preview := flags.Bool("preview", false, "print the decision preview for this step instead of proposing it")
 	steered := flags.String("steered", "", "print the steered proposal phase for this residual direction instead of proposing")
+	delegated := flags.String("delegated", "", "run the step under this delegated agent invocation identity")
 	recipeText := flags.String("recipe", "", "serving recipe artifact id the step records against")
 	modelText := flags.String("model", "", "serving model artifact id the step records against")
 	node := flags.String("node", "respond", "interaction node the step records against")
@@ -73,6 +74,12 @@ func run(args []string, output io.Writer) error {
 	ctx := context.Background()
 	if strings.TrimSpace(*steered) != "" {
 		return printSteeredPhase(ctx, store, strings.TrimSpace(*steered), output)
+	}
+	if strings.TrimSpace(*delegated) != "" {
+		return runDelegatedStep(
+			ctx, store, strings.TrimSpace(*delegated), strings.TrimSpace(*sessionID),
+			strings.TrimSpace(*tool), json.RawMessage(*arguments), *preview, output,
+		)
 	}
 	executor := agenttool.NewOperatorExecutor()
 	if err := agenttool.RegisterStandardBuiltins(executor, store); err != nil {
@@ -110,6 +117,77 @@ func run(args []string, output io.Writer) error {
 		}
 	}
 	result, err := coordinator.Propose(ctx, session, strings.TrimSpace(*tool), json.RawMessage(*arguments))
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", result)
+	return err
+}
+
+// runDelegatedStep proposes one step under the exact delegated invocation:
+// the joined delegated capability runtime compiles the grant, wires the
+// coordinator, checkpoints, and grant-admitted proxy, and the step runs
+// only over the invocation's own manual set. With -preview it prints the
+// session's visible manuals and proposes nothing.
+func runDelegatedStep(
+	ctx context.Context,
+	store *overgodb.Store,
+	invocationText, sessionName, toolName string,
+	arguments json.RawMessage,
+	preview bool,
+	output io.Writer,
+) error {
+	invocationID, err := artifact.ParseID(invocationText)
+	if err != nil {
+		return fmt.Errorf("agent-loop: delegated invocation id: %w", err)
+	}
+	invocation, err := recipe.RequireDelegatedAgentInvocation(ctx, store, invocationID)
+	if err != nil {
+		return err
+	}
+	worker, err := recipe.RequireAgentDefinition(ctx, store, invocation.Worker)
+	if err != nil {
+		return err
+	}
+	task, err := recipe.RequireAgentTaskContract(ctx, store, invocation.Task)
+	if err != nil {
+		return err
+	}
+	executor := agenttool.NewOperatorExecutor()
+	if err := agenttool.RegisterStandardBuiltins(executor, store); err != nil {
+		return err
+	}
+	runtime, err := agentloop.NewDelegatedCapabilityRuntime(
+		ctx, store, executor, invocation, worker, task, "agent", ".",
+	)
+	if err != nil {
+		return err
+	}
+	if preview {
+		manuals, manualErr := runtime.SessionManuals()
+		if manualErr != nil {
+			return manualErr
+		}
+		names := make([]string, 0, len(manuals))
+		for _, manual := range manuals {
+			names = append(names, manual.Name)
+		}
+		encoded, encodeErr := json.Marshal(struct {
+			Invocation  artifact.ID `json:"invocation"`
+			Manuals     []string    `json:"manuals"`
+			Obligations int         `json:"obligations"`
+		}{invocation.ID, names, len(runtime.Obligations)})
+		if encodeErr != nil {
+			return encodeErr
+		}
+		_, err = fmt.Fprintf(output, "%s\n", encoded)
+		return err
+	}
+	if sessionName == "" || toolName == "" {
+		return errors.New("agent-loop: delegated step requires -session and -tool")
+	}
+	session := &agentloop.Session{ID: sessionName}
+	result, err := runtime.Coordinator.Propose(ctx, session, toolName, arguments)
 	if err != nil {
 		return err
 	}

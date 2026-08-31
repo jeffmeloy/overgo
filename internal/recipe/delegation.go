@@ -1,6 +1,7 @@
 package recipe
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sort"
@@ -62,6 +63,11 @@ var delegatedAgentInvocationCodec = artifact.JSONDocumentCodec(
 // delegated invocation.
 func NewDelegatedAgentInvocation(v DelegatedAgentInvocation) (DelegatedAgentInvocation, error) {
 	return delegatedAgentInvocationCodec.NewInitial(v)
+}
+
+// RequireDelegatedAgentInvocation loads one canonical delegated invocation.
+func RequireDelegatedAgentInvocation(ctx context.Context, reader artifact.Reader, id artifact.ID) (DelegatedAgentInvocation, error) {
+	return delegatedAgentInvocationCodec.Require(ctx, reader, id)
 }
 
 // Content returns the canonical committed bytes of the invocation.

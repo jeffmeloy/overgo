@@ -78,6 +78,10 @@ func run(args []string) error {
 	deriveRecipesSpec := flags.String("derive-recipes", "", "derive one materialized candidate's per-arm recipes from this spec")
 	moeCoverageSpec := flags.String("moe-coverage", "", "run one indexed MoE router observation read from this spec")
 	evaluateCandidateSpec := flags.String("evaluate-candidate", "", "judge one candidate's measured arms through the cross-domain evaluator from this spec")
+	publishTaskSpec := flags.String("publish-task", "", "publish one agent task contract from this spec")
+	publishDelegationSpec := flags.String("publish-delegation", "", "publish one delegated agent invocation from this spec")
+	automationTransitionSpecPath := flags.String("publish-automation-transition", "", "publish one automation policy lifecycle transition from this spec")
+	trajectoryPlanSpecPath := flags.String("bind-trajectory-plan", "", "bind agent trajectories onto one stored evaluation plan from this spec")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -96,6 +100,14 @@ func run(args []string) error {
 		return queryMoECoverage(*repoPath, *moeCoverageSpec, os.Stdout)
 	case *evaluateCandidateSpec != "":
 		return evaluateCandidate(*repoPath, *evaluateCandidateSpec, os.Stdout)
+	case *publishTaskSpec != "":
+		return publishTaskContract(*repoPath, *publishTaskSpec, os.Stdout)
+	case *publishDelegationSpec != "":
+		return publishDelegation(*repoPath, *publishDelegationSpec, os.Stdout)
+	case *automationTransitionSpecPath != "":
+		return publishAutomationTransition(*repoPath, *automationTransitionSpecPath, os.Stdout)
+	case *trajectoryPlanSpecPath != "":
+		return bindTrajectoryPlan(*repoPath, *trajectoryPlanSpecPath, os.Stdout)
 	}
 	var loaded config
 	if err := jsonfile.Decode(*configPath, &loaded); err != nil {

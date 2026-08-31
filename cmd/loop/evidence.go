@@ -129,6 +129,151 @@ func publishFitness(root, specPath string, output io.Writer) error {
 	return err
 }
 
+// taskContractSpec is one operator-authored agent task contract.
+type taskContractSpec struct {
+	Contract recipe.AgentTaskContract `json:"contract"`
+}
+
+// publishTaskContract mints and commits one agent task contract; the
+// contract is the delegation ceiling every invocation must name.
+func publishTaskContract(root, specPath string, output io.Writer) error {
+	var spec taskContractSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	contract, err := recipe.NewAgentTaskContract(spec.Contract)
+	if err != nil {
+		return err
+	}
+	return commitDocument(root, "loop/agent-task/"+contract.ID.String(), contract, output,
+		fmt.Sprintf("published agent task contract %s\n", contract.ID))
+}
+
+// delegationSpec is one operator-authored delegated agent invocation.
+type delegationSpec struct {
+	Invocation recipe.DelegatedAgentInvocation `json:"invocation"`
+}
+
+// publishDelegation mints and commits one delegated agent invocation: the
+// exact worker, grant, scheduler, catalog, and model a delegated session
+// runs under.
+func publishDelegation(root, specPath string, output io.Writer) error {
+	var spec delegationSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	invocation, err := recipe.NewDelegatedAgentInvocation(spec.Invocation)
+	if err != nil {
+		return err
+	}
+	return commitDocument(root, "loop/delegation/"+invocation.ID.String(), invocation, output,
+		fmt.Sprintf("published delegated invocation %s\n", invocation.ID))
+}
+
+// automationTransitionSpec is one automation policy lifecycle transition.
+type automationTransitionSpec struct {
+	Lifecycle runrecord.AutomationPolicyLifecycle `json:"lifecycle"`
+}
+
+// publishAutomationTransition commits one standing-grant lifecycle
+// transition through its chained owner; an invalid chain refuses.
+func publishAutomationTransition(root, specPath string, output io.Writer) error {
+	var spec automationTransitionSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	store, err := overgodb.Open(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	published, err := runrecord.PublishAutomationPolicyTransition(context.Background(), store, spec.Lifecycle)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "published automation policy transition %s\n", published.ID)
+	return err
+}
+
+// trajectoryPlanSpec binds agent trajectories and advisory judges onto one
+// stored evaluation plan.
+type trajectoryPlanSpec struct {
+	Plan           artifact.ID   `json:"plan"`
+	Trajectories   []artifact.ID `json:"trajectories"`
+	AdvisoryJudges []artifact.ID `json:"advisory_judges,omitempty"`
+}
+
+// bindTrajectoryPlan loads the base evaluation plan, binds the trajectory
+// authorities -- deterministic scores stay fixed, model judges stay
+// advisory -- and commits the re-identified plan.
+func bindTrajectoryPlan(root, specPath string, output io.Writer) error {
+	var spec trajectoryPlanSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	store, err := overgodb.Open(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	content, found, err := artifact.ReadContent(ctx, store, spec.Plan)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("loop: base evaluation plan is not in the store")
+	}
+	base, err := evaluation.ParsePlan(content.Data)
+	if err != nil {
+		return err
+	}
+	bound, err := evaluation.BindAgentTrajectoryPlan(base, spec.Trajectories, spec.AdvisoryJudges)
+	if err != nil {
+		return err
+	}
+	boundContent, err := bound.Content()
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
+		Key:       "loop/trajectory-plan/" + bound.Identity().String(),
+		Artifacts: []artifact.Descriptor{boundContent.Descriptor},
+		Contents:  []artifact.Content{boundContent},
+		Lineage:   bound.Lineage(),
+	}); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "bound trajectory plan %s\n", bound.Identity())
+	return err
+}
+
+// commitDocument commits one content-addressed document with its lineage.
+func commitDocument(root, key string, document interface {
+	Content() (artifact.Content, error)
+	Lineage() []artifact.Lineage
+}, output io.Writer, message string) error {
+	store, err := overgodb.Open(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	content, err := document.Content()
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+		Key:       key,
+		Artifacts: []artifact.Descriptor{content.Descriptor},
+		Contents:  []artifact.Content{content},
+		Lineage:   document.Lineage(),
+	}); err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(output, message)
+	return err
+}
+
 // candidateEvaluationSpec binds one controlled comparison: the admitted
 // candidate, the driver decision that authorized evaluation, the frozen
 // evaluator and inputs, the pre-declared requirements and tradeoffs, and

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"overgo/internal/artifact"
@@ -140,6 +141,23 @@ func recordWorkLease(root, inputPath string, output io.Writer) error {
 		return fmt.Errorf("record work lease: %w", err)
 	}
 	_, err = fmt.Fprintf(output, "recorded advisory work lease %s for %s\n", lease.ID, lease.Task)
+	return err
+}
+
+// retireLegacyWorkLeases retires every pre-contract work-lease alias through
+// reviewed compare-and-set; the caller states the expected legacy count.
+func retireLegacyWorkLeases(root string, expected int, output io.Writer) error {
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	retired, err := plan.RetireLegacyLeases(context.Background(), store, expected)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "retired %d legacy work lease(s): %s\n",
+		len(retired), strings.Join(retired, ", "))
 	return err
 }
 

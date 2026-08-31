@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "legacy-lease-retirement",
-          "title": "Retire or migrate pre-contract work-lease documents so the lease report reads the live set",
-          "status": "open",
-          "verify": "go run ./cmd/plan -lease-report",
-          "rationale": "The store holds work-lease documents written before the current lease contract; lease-report refuses on them while the frontier merely counts them as legacy-unreadable. Retire them through a reviewed CAS or migrate them to canonical replacements so both readers serve the live set.",
-          "depends_on": [
-            "campaign-concurrency/ready-frontier-leases"
-          ],
-          "capabilities": [
-            "finding-closure",
-            "lease",
-            "store-hygiene"
-          ]
-        },
-        {
           "id": "clone-ref-consolidation",
           "title": "Consolidate the cloneRef and cloneCommitID exact clone into one owner",
           "status": "open",

@@ -9,24 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "rsi-end-to-end",
-          "title": "Run one prototype through model and recipe materialization, execution, evaluation, rollout, live regression, atomic rollback, and reproducible explanation",
-          "status": "open",
-          "verify": "go test ./internal/loop ./internal/evaluation ./internal/runrecord ./internal/overgodb -run '^TestDeterministicRSIControlPlane$' -count=1",
-          "rationale": "Acceptance requires externally visible control behavior, not only new record types: admitted prototype, compiled Go construction, resolved model definition, validated task recipe, exact strategy identity, semantically relevant typed references, exact capability placement, bounded stimuli, terminal attempt evidence, explicit missing and degraded coverage states under shared fact, chunk, and raw-byte budgets, resource comparison, measured interaction reduction without lost work, deterministic cohorting, live containment, and causal evidence reproduced after cold rebuild.",
-          "depends_on": [
-            "architecture-closure/migration-drill"
-          ],
-          "capabilities": [
-            "rsi-loop",
-            "overgodb",
-            "evaluation",
-            "rollout",
-            "rollback",
-            "explainability"
-          ]
-        },
-        {
           "id": "tightness-census",
           "title": "Re-run common-code and policy-copy census and record the campaign tightening delta",
           "status": "open",

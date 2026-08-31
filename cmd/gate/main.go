@@ -74,7 +74,7 @@ const (
 	gateProgressLine     = "gate: phase=%s heartbeat=%s\n"
 	// Recovery roots and transient Git authority must not be readable by
 	// other users. Directory traversal is likewise restricted to the owner.
-	gatePrivateFileMode      = fs.FileMode(0o600)
+	gatePrivateFileMode      = clioptions.PrivateFileMode
 	gatePrivateDirectoryMode = fs.FileMode(0o700)
 )
 

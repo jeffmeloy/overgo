@@ -31,6 +31,11 @@ func run() error {
 	catalogLimit := flag.Int("catalog-limit", 256, "servable catalog listing bound")
 	defaultModel := flag.String("default", "", "model served for model-less requests before any child runs")
 	flag.Parse()
+	// The proxy forwards requests to its children without authenticating
+	// them itself, so it must never listen beyond this host.
+	if err := clioptions.RequireLoopbackWithoutCredential(*listen, ""); err != nil {
+		return err
+	}
 	resolver := &modelswap.CatalogResolver{Store: *store, Limit: *catalogLimit}
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: *binary, Store: *store}, *idle)
 	if err != nil {

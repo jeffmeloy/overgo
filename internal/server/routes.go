@@ -117,13 +117,18 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/slots", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).slotStatus},
 	{Path: "/lora-adapters", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost}, Handler: (*Handler).loraAdapters},
 	{Path: "/catalog/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).catalogModels},
-	{Path: "/hub/search", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).hubSearch},
-	{Path: "/hub/downloads", Authentication: routePublic, Methods: []string{http.MethodGet, http.MethodPost, http.MethodDelete}, Handler: (*Handler).hubDownloads},
-	{Path: "/agent/tools", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).agentTools},
-	{Path: "/agent/step", Authentication: routePublic, Methods: []string{http.MethodPost}, Handler: (*Handler).agentStep},
-	{Path: "/agent/approval", Authentication: routePublic, Methods: []string{http.MethodPost}, Handler: (*Handler).agentApprovalPreview},
-	{Path: "/agent/provenance", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).agentProvenance},
-	{Path: "/agent/sessions", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).agentSessionList},
+	// Hub search reaches outward and downloads mutate local disk; agent
+	// routes execute tools and expose session transcripts. All of them
+	// require the bearer credential -- only local read-only catalogs, the
+	// health/metrics probes, and the signature-verified automation webhook
+	// stay public.
+	{Path: "/hub/search", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).hubSearch},
+	{Path: "/hub/downloads", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost, http.MethodDelete}, Handler: (*Handler).hubDownloads},
+	{Path: "/agent/tools", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentTools},
+	{Path: "/agent/step", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentStep},
+	{Path: "/agent/approval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentApprovalPreview},
+	{Path: "/agent/provenance", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentProvenance},
+	{Path: "/agent/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentSessionList},
 }
 
 var routesByPath = compileRouteIndex(routeCatalog)

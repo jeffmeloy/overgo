@@ -121,6 +121,20 @@ func run() error {
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
 	}
+	apiKey := strings.TrimSpace(os.Getenv("OVERGO_API_KEY"))
+	if *apiKeyFile != "" {
+		data, readErr := os.ReadFile(*apiKeyFile)
+		if readErr != nil {
+			return fmt.Errorf("read API key: %w", readErr)
+		}
+		apiKey = strings.TrimSpace(string(data))
+		if apiKey == "" {
+			return errors.New("API key file is empty")
+		}
+	}
+	if err := clioptions.RequireLoopbackWithoutCredential(*address, apiKey); err != nil {
+		return fmt.Errorf("%w (set -api-key-file or OVERGO_API_KEY)", err)
+	}
 	var loraScale float32
 	if !*loraDisabled {
 		loraScale = tensor.UnitScale
@@ -246,17 +260,6 @@ func run() error {
 		defer vision.Close()
 		if vision.Capabilities().Audio {
 			audio = vision
-		}
-	}
-	apiKey := strings.TrimSpace(os.Getenv("OVERGO_API_KEY"))
-	if *apiKeyFile != "" {
-		data, readErr := os.ReadFile(*apiKeyFile)
-		if readErr != nil {
-			return fmt.Errorf("read API key: %w", readErr)
-		}
-		apiKey = strings.TrimSpace(string(data))
-		if apiKey == "" {
-			return errors.New("API key file is empty")
 		}
 	}
 	var mediaPolicy *llamaserver.RemoteMediaPolicy

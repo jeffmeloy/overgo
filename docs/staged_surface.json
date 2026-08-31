@@ -6,139 +6,139 @@
       "package": "overgo/internal/agentloop",
       "name": "NewMutationCheckpointRuntime",
       "reason": "Agent-loop mutation checkpointing API delivered by the manifest lane with internals and tests complete.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/agentloop",
       "name": "NewDelegatedCoordinator",
       "reason": "Delegated multi-agent coordination API delivered by the manifest lane.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/agenttool",
       "name": "CapabilityProxyManual",
       "reason": "Capability proxy manual surface for agent tool invocation.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/agenttool",
       "name": "RegisterCapabilityProxy",
       "reason": "Capability proxy registration for agent tool invocation.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/closurescan",
       "name": "AgentHarnessSurfaceRegressions",
       "reason": "Harness surface regression audit delivered ahead of the final common-code and policy-copy census.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "BindAgentTrajectoryPlan",
       "reason": "Agent trajectory evaluation binding delivered ahead of trajectory scoring.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "EvaluateCrossDomainCandidate",
       "reason": "Shared immutable candidate evaluation remains test-proven until the integrated RSI campaign supplies its production observation streams and runtime consumer.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/loop",
       "name": "CompareStrategyExperiment",
       "reason": "Strategy comparison evidence becomes a recorded policy input during counterfactual driver replay.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/loop",
       "name": "NewStrategy",
       "reason": "Strategy construction becomes a candidate-policy input during counterfactual driver replay.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/operation",
       "name": "NewManagerWithRepository",
       "reason": "Operation manager bound to a store repository.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/plan",
       "name": "AdmitSteeringProposal",
       "reason": "Typed steering proposal admission into the plan.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/recipe",
       "name": "NewAgentTaskContract",
       "reason": "Typed agent task contract records.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/recipe",
       "name": "NewDelegatedAgentInvocation",
       "reason": "Typed delegated agent invocation records.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/recipe",
       "name": "NewSteeringProposal",
       "reason": "Typed steering proposal records.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/repoanalysis",
       "name": "AuditAgentHarnessConsolidation",
       "reason": "Agent harness consolidation audit delivered ahead of the final common-code and policy-copy census.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewAgentObligation",
       "reason": "Typed agent obligation records.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewAgentObligationResolution",
       "reason": "Typed agent obligation resolution records.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ObserveAttemptDirection",
       "reason": "Attempt-direction pivots become typed saturation inputs during counterfactual driver replay.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "SummarizeAttemptHistory",
       "reason": "Attempt history supplies measured policy costs during counterfactual driver replay.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishAutomationPolicyTransition",
       "reason": "Automation policy lifecycle transition records.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/workflowruntime",
       "name": "CompileDelegatedAgentInvocation",
       "reason": "Delegated agent invocation compilation in the workflow runtime.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/apimanifest",
       "name": "Compare",
       "reason": "API manifest diffing delivered ahead of its gate integration.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/artifact",
       "name": "sameLocalLocation",
       "reason": "Location comparison helper landing with the location tightening; its production caller arrives with location dedup.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/testutil",
@@ -198,13 +198,13 @@
       "package": "overgo/internal/runrecord",
       "name": "NewEfficiencyTrace",
       "reason": "Efficiency-trace construction remains test-proven until the measured efficiency gate publishes persisted comparison claims.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ParseEfficiencyTrace",
       "reason": "Cold efficiency-trace parsing remains test-proven until the measured efficiency gate consumes persisted trace claims.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/artifact/repositorytest",
@@ -237,49 +237,49 @@
       "package": "overgo/internal/runrecord",
       "name": "PublishOperationalTransition",
       "reason": "The one conversion door from operational state to canonical records, proven across runrecord, workflowruntime, and capabilityruntime.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewOperationalTransition",
       "reason": "Constructor for the conversion door; staged with it.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ParseOperationalTransition",
       "reason": "Reader for conversion records; staged with its constructor.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "OperationalTransition",
       "reason": "Typed conversion record; staged with its owner functions.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "CanonicalOutcomes",
       "reason": "Closed execution-outcome vocabulary delivered by execution-semantics/canonical-outcomes; live per-record adoption follows in the same item.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ValidOutcome",
       "reason": "Membership rule for the canonical vocabulary; staged with it.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "StepOutcomeCanonical",
       "reason": "Total mapping from gate step outcomes onto the canonical set.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "LaneOutcomeCanonical",
       "reason": "Total mapping from lane outcomes onto the canonical set.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/testutil",
@@ -294,109 +294,109 @@
       "package": "overgo/internal/runrecord",
       "name": "NormalizeFailureObservation",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ParseFailureObservation",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishFailureNormalization",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishFailureObservation",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "RequireFailureNormalization",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ResolveFailureNormalization",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/executionfailure",
       "name": "ValidDecision",
       "reason": "Membership guard for the decision vocabulary; staged with the vocabulary.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "RequireTerminalAttemptReceipt",
       "reason": "Typed read of one stored terminal receipt.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ResolveTerminalAttemptReceipt",
       "reason": "Per-operation attempt-ordinal receipt lookup.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishLoopObligation",
       "reason": "Durable follow-up admission lands ahead of the production loop world wiring.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ReplayLoopObligations",
       "reason": "Store-backed replay lands ahead of the production ObligationWorld implementation.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "RequireMoERouterObservationCoverage",
       "reason": "Exact raw-chunk decode is retained for the isolated scaling, health, and router evaluator that consumes the bounded training stream.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "QueryMoERouterObservationCoverage",
       "reason": "Indexed summary-first router queries remain test-proven until the isolated scaling, health, and router evaluator consumes the bounded training stream.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewCausalRoot",
       "reason": "Root minting lands ahead of the trigger registry and integration rows.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "TriggerContractFor",
       "reason": "Contract lookup lands ahead of enqueue-path admission wiring.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ValidateTriggerRegistry",
       "reason": "Registry closure validation lands ahead of admission wiring.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "PublishImprovementFitness",
       "reason": "Exact multidimensional fitness publication lands with resource-coverage/fitness-integration and its read-side authority ratchets complete.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "CompareResourceFitness",
       "reason": "Exact replay-verified resource comparison is retained for the bounded multi-strategy system campaign that produces its first production observation streams.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "staged-surface-reconciliation/consume-or-retire"
     },
     {
       "package": "overgo/internal/modelrecipetest",
@@ -408,22 +408,16 @@
       }
     },
     {
-      "package": "overgo/internal/clioptions",
-      "name": "PrivateFileMode",
-      "reason": "Owner-only file mode for secret-bearing local state, delivered ahead of route-credential storage.",
-      "retire_with": "merge-b22cef0339de/do"
-    },
-    {
       "package": "overgo/internal/modelrecipe",
       "name": "DeriveCandidateRecipes",
       "reason": "Candidate recipe derivation over the cross-domain spine, delivered ahead of domain-plugin realization.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "advanced-domain-plugins/realization"
     },
     {
       "package": "overgo/internal/testevidence",
       "name": "RepeatAgreementForCommand",
       "reason": "Repeat-agreement verdict for flaky-command detection, delivered ahead of the verification-depth lanes.",
-      "retire_with": "merge-b22cef0339de/do"
+      "retire_with": "verification-depth/inference-coverage"
     }
   ]
 }

@@ -207,35 +207,6 @@
       ]
     },
     {
-      "id": "supervised-composite",
-      "title": "Prove a measurable model capability win before optimizing or widening autonomy",
-      "status": "open",
-      "steps": [
-        {
-          "id": "first-win",
-          "title": "Run one same-base composite through admission, realization, held-out evaluation, and supervised non-serving verification",
-          "status": "open",
-          "verify": "go test ./internal/loop ./internal/overgodb -run '^TestSupervisedCompositeFirstWin$' -count=1",
-          "rationale": "Close the first vertical RSI slice with exactly one local, already-admitted same-base task-arithmetic candidate. Resolve the production incumbent and every parent definition and tensor inventory; let DriverDecision select the declared realization, promotion-split evaluation, and dropped-delta ablations; bind the exact strategy identity on the attempt; materialize deterministic content-addressed output; and compare the candidate with the unchanged incumbent and parent specialists under the same held-out inputs, budgets, coverage, and multidimensional fitness. A win requires the predeclared measurable Pareto improvement or accepted tradeoff; missing evidence or regression persists a refusal, never a ceremonial success. This is human-watched and non-serving: derive one closed supervised-verification effect with canonical arguments and targets, action-bound preflight evidence, exact task ceiling, and argument-bound HumanDecision; publish admitted, running, and terminal StageReceipt states; and submit only the candidate or experimental to validated or verified compare-and-set to the shared lifecycle. The production active alias and unattended AutomationPolicyLifecycle remain unchanged. Persist Candidate, DriverDecision, strategy-tagged attempt, materialization, evaluation, ablations, HumanDecision, receipt chain, lifecycle transition, and the representative execution and interaction trace in OvergoDB, then cold-reopen and reproduce every identity, result, and incumbent binding. No live traffic, rollout, autonomy widening, peer transport, residual steering, advanced composition, or high-volume training is admitted by this milestone, and it creates no new admission, driver, process, publication, lifecycle, approval, receipt, or promotion owner.",
-          "depends_on": [
-            "model-recipe-lifecycle/recipe-evaluation",
-            "model-recipe-lifecycle/recipe-activation"
-          ],
-          "capabilities": [
-            "rsi-loop",
-            "supervised-composite",
-            "capability-win",
-            "held-out-evaluation",
-            "human-decision",
-            "stage-receipt",
-            "alias-cas",
-            "cold-reopen",
-            "interaction-trace"
-          ]
-        }
-      ]
-    },
-    {
       "id": "composition-expansion",
       "title": "Add harder composition rungs through the same spines only after the same-base proof",
       "status": "open",

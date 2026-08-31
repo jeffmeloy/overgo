@@ -41,8 +41,8 @@
     {
       "package": "overgo/internal/evaluation",
       "name": "EvaluateCrossDomainCandidate",
-      "reason": "Shared immutable candidate evaluator delivered before the first supervised composite consumes its outcome.",
-      "retire_with": "supervised-composite/first-win"
+      "reason": "Shared immutable candidate evaluation remains test-proven until the integrated RSI campaign supplies its production observation streams and runtime consumer.",
+      "retire_with": "architecture-closure/rsi-end-to-end"
     },
     {
       "package": "overgo/internal/loop",
@@ -431,8 +431,8 @@
     {
       "package": "overgo/internal/runrecord",
       "name": "CompareResourceFitness",
-      "reason": "Exact persisted resource comparison lands with resource-coverage/fitness-integration ahead of live candidate evaluation.",
-      "retire_with": "model-recipe-lifecycle/recipe-evaluation"
+      "reason": "Exact replay-verified resource comparison is retained for the bounded multi-strategy system campaign that produces its first production observation streams.",
+      "retire_with": "architecture-closure/rsi-end-to-end"
     },
     {
       "package": "overgo/internal/modelrecipetest",

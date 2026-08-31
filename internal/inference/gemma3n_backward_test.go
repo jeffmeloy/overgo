@@ -325,7 +325,7 @@ func TestGemma3nCorrectAndInjectBackwardFD(t *testing.T) {
 func testActivateFFNBackward(t *testing.T, sparse bool) {
 	t.Helper()
 	rng := rand.New(rand.NewSource(6))
-	const width, tokens = 8, 3
+	const width, tokens = 8, 5
 	gate := g3nRandShape(rng, tensor.MustShape(width, tokens), 0, 1.0)
 	up := g3nRandShape(rng, tensor.MustShape(width, tokens), 0.3, 0.6)
 	seed := g3nRandShape(rng, tensor.MustShape(width, tokens), 0, 1)

@@ -88,7 +88,7 @@ func TestCarbonSpeculativeChain(t *testing.T) {
 		return text, time.Since(started)
 	}
 
-	const window, total = 8, 16
+	const window, total = 6, 16
 	straight, straightWall := generate(prompt, total)
 	drafted, draftWall := generate(prompt, window)
 	continued, _ := generate(prompt+drafted, total-window)

@@ -126,7 +126,7 @@ func TestPackedDeviceViewRequiresContiguousSequenceSlabs(t *testing.T) {
 	const (
 		width        = 4
 		heads        = 2
-		tokens       = 3
+		tokens       = 5
 		sequences    = 2
 		firstPointer = driver.DevicePtr(16384)
 	)

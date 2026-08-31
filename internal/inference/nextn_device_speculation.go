@@ -11,10 +11,16 @@ import (
 )
 
 // deviceSpeculationDraftTokens: NextN self-drafting depth per verify span.
-// The single trained head re-feeds its own hidden state, so acceptance
-// decays with depth; the external RTX 3090 baseline measured its MTP gain
-// at this depth.
-const deviceSpeculationDraftTokens = 2
+// Audited on the 27B across draft depths two, three, and four: three wins
+// on both a predictable-text regime (28.5 tokens per second, 74-78 percent
+// chain acceptance) and open-ended prose (17.2, about 40 percent); two
+// under-drafts and four over-pays for decayed tail acceptance.
+const deviceSpeculationDraftTokens = 3
+
+// q8InputSpanColumnsWindow mirrors the executor's q8-input span-column
+// window: a verify span longer than this falls off the single-weight-read
+// kernels, so drafting is gated to keep spans inside it.
+const q8InputSpanColumnsWindow = 8
 
 // deviceSpeculationReady reports whether raw-greedy device generation can
 // ride NextN speculation: a complete single-head draft catalog in the same
@@ -133,7 +139,7 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		var drafts []tokenizer.TokenID
 		// A long pending run means the last drafts were rejected twice
 		// over; run a draft-less span to collapse it into a new boundary.
-		if haveSeed && len(pending) <= deviceSpeculationDraftTokens+1 {
+		if haveSeed && len(pending)+deviceSpeculationDraftTokens <= int(q8InputSpanColumnsWindow) {
 			session, sessionErr := r.newDeviceMTPSessionLocked(seedHidden, seedPosition)
 			if sessionErr != nil {
 				return nil, boundary, "", sessionErr

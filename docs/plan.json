@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "server-hardening",
-      "title": "Harden the serving surface: route authentication, decision separation, and shutdown ownership",
-      "status": "open",
-      "steps": [
-        {
-          "id": "download-shutdown-ownership",
-          "title": "Give downloads one shutdown owner so cancellation cannot orphan partial artifacts",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestDownloadShutdownOwnership$' -count=1",
-          "rationale": "One owner supervises download lifecycle: shutdown cancels in-flight transfers, removes partial files, and records the interruption."
-        }
-      ]
-    },
-    {
       "id": "plan-discovery-hardening",
       "title": "Make canonical-plan discovery Git-aware",
       "status": "open",

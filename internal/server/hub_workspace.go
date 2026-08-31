@@ -196,12 +196,19 @@ const (
 	downloadStateCancelled = "cancelled"
 )
 
+// errDownloadsShutDown refuses admission once the registry owns shutdown.
+var errDownloadsShutDown = errors.New("download workspace is shut down")
+
 type downloadRegistry struct {
 	mu                      sync.Mutex
 	next                    atomic.Uint64
 	jobs                    map[uint64]*DownloadJob
 	cancels                 map[uint64]context.CancelFunc
 	maxRunning, maxRetained int
+	// transfers tracks every running transfer goroutine so shutdown
+	// returns only after the last one unwound; closed refuses new work.
+	transfers sync.WaitGroup
+	closed    bool
 }
 
 func newDownloadRegistry(maxRunning, maxRetained int) downloadRegistry {
@@ -214,6 +221,9 @@ func newDownloadRegistry(maxRunning, maxRetained int) downloadRegistry {
 func (r *downloadRegistry) admit(job *DownloadJob, cancel context.CancelFunc) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.closed {
+		return errDownloadsShutDown
+	}
 	running := 0
 	for _, existing := range r.jobs {
 		if existing.State == downloadStateRunning {
@@ -241,7 +251,33 @@ func (r *downloadRegistry) admit(job *DownloadJob, cancel context.CancelFunc) er
 	}
 	r.jobs[job.ID] = job
 	r.cancels[job.ID] = cancel
+	r.transfers.Add(1)
 	return nil
+}
+
+// shutdown is the one download lifecycle owner on the way out: it stops
+// admission, cancels every running transfer with the interruption
+// recorded on the job, and returns only after the last transfer
+// goroutine has unwound -- so close never races a write to disk. The
+// transfer path removes its own partial file when its context ends.
+func (r *downloadRegistry) shutdown() {
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return
+	}
+	r.closed = true
+	for id, job := range r.jobs {
+		if job.State != downloadStateRunning {
+			continue
+		}
+		if stop := r.cancels[id]; stop != nil {
+			stop()
+		}
+		job.State, job.Error = downloadStateCancelled, "server shutdown interrupted the transfer"
+	}
+	r.mu.Unlock()
+	r.transfers.Wait()
 }
 
 // cancel stops one running job; finished jobs report their state.
@@ -335,6 +371,10 @@ func (h *Handler) startHubDownload(response http.ResponseWriter, request *http.R
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := h.downloads.admit(job, cancel); err != nil {
 		cancel()
+		if errors.Is(err, errDownloadsShutDown) {
+			writeError(response, http.StatusServiceUnavailable, "hub_unavailable", err.Error())
+			return
+		}
 		writeError(response, http.StatusTooManyRequests, "download_backlog", err.Error())
 		return
 	}
@@ -357,6 +397,7 @@ func (h *Handler) cancelHubDownload(response http.ResponseWriter, request *http.
 }
 
 func (h *Handler) runHubDownload(ctx context.Context, client *hfhub.Client, kind hfhub.RepoKind, body downloadRequestBody, destination string, job *DownloadJob) {
+	defer h.downloads.transfers.Done()
 	resolved, err := client.Download(ctx, hfhub.DownloadRequest{
 		Kind: kind, Repository: body.Repository, Revision: body.Revision, Destination: destination,
 		Observe: func(progress hfhub.Progress) {

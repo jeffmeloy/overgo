@@ -542,7 +542,13 @@ func New(config Config, generator Generator) (*Handler, error) {
 		return nil, fmt.Errorf("server response identity seed: %w", err)
 	}
 	handler.buildAgentRuntime()
-	handler.operations, err = operation.NewManager(config.MaxStoredResponses)
+	// With a repository configured the manager admits workspace claims
+	// through CAS over durable state; without one it stays in-memory.
+	if config.Repository != nil {
+		handler.operations, err = operation.NewManagerWithRepository(config.MaxStoredResponses, config.Repository)
+	} else {
+		handler.operations, err = operation.NewManager(config.MaxStoredResponses)
+	}
 	if err != nil {
 		_ = handler.Close()
 		return nil, err

@@ -123,23 +123,6 @@ func CanonicalLocalLocation(id ID, kind LocationKind, path string) (Location, er
 	return location, nil
 }
 
-// sameLocalLocation compares two local addresses by filesystem identity. The
-// artifact and location kind remain part of the identity; aliases cannot make
-// one artifact's bytes satisfy another artifact's location claim.
-func sameLocalLocation(left, right Location) (bool, error) {
-	if err := left.Validate(); err != nil {
-		return false, err
-	}
-	if err := right.Validate(); err != nil {
-		return false, err
-	}
-	if left.Artifact != right.Artifact || left.Kind != right.Kind ||
-		left.Kind != LocationFile && left.Kind != LocationDirectory {
-		return false, nil
-	}
-	return pathidentity.Same(left.Value, right.Value)
-}
-
 // AvailablePath returns the first recorded live file or directory.
 func AvailablePath(ctx context.Context, reader Reader, id ID, kind LocationKind) (string, error) {
 	if ctx == nil || reader == nil || !id.Valid() || kind != LocationFile && kind != LocationDirectory {

@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "staged-surface-reconciliation",
-      "title": "Reconcile the staged surface delivered for steps master completed without consuming it",
-      "status": "open",
-      "steps": [
-        {
-          "id": "consume-or-retire",
-          "title": "Decide every staged entry whose retiring step is historical: wire a production consumer or delete the surface",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile -run '^TestStagedSurfaceResolvesOnlyCanonicalPlanSteps$' -count=1",
-          "rationale": "The lane delivered exported surface for rollout, efficiency, routing, and census steps that master completed independently; each entry either gains its consumer or leaves in the same commit."
-        }
-      ]
-    },
-    {
       "id": "tool-propensity",
       "title": "Control tool-call propensity through thin candidate plugins over the common lifecycle",
       "status": "open",

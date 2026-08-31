@@ -65,8 +65,18 @@ func run() error {
 			return err
 		}
 		if parsed.ID != manifest.ID {
-			return fmt.Errorf("api-manifest: %s is stale (have %s want %s); regenerate with -update",
-				manifestJSONPath, parsed.ID, manifest.ID)
+			// Name what moved, not just that something did: the structured
+			// diff turns a staleness refusal into an actionable review.
+			changes, compareErr := apimanifest.Compare(parsed, manifest)
+			if compareErr != nil {
+				return fmt.Errorf("api-manifest: %s is stale and undiffable (%v); regenerate with -update",
+					manifestJSONPath, compareErr)
+			}
+			for _, change := range changes {
+				fmt.Printf("api-manifest: changed %s %s %s\n", change.Class, change.Kind, change.Key)
+			}
+			return fmt.Errorf("api-manifest: %s is stale (have %s want %s, %d change(s)); regenerate with -update",
+				manifestJSONPath, parsed.ID, manifest.ID, len(changes))
 		}
 		fmt.Printf("api-manifest: current at %s\n", manifest.ID)
 		return nil

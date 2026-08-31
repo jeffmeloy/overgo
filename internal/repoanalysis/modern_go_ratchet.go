@@ -149,7 +149,14 @@ func AdmitModernGoRatchet(baseline ModernGoBaseline, census ModernGoCensus, toda
 		if finding.ID != ceiling.ID || finding.Risk != ceiling.Risk || !finding.Measured {
 			return fmt.Errorf("modern-Go ratchet coverage lost at %s", ceiling.ID)
 		}
-		if finding.InspectedFiles == 0 || baseline.Coverage.InspectedFiles*finding.TypedFiles < baseline.Coverage.TypedFiles*finding.InspectedFiles {
+		// Typed coverage ratchets on the untyped-file count, not the
+		// ratio: deleting a fully typed file lowers the ratio without
+		// losing any coverage, and must not wedge the ratchet. The ratio
+		// stands as a secondary acceptance so a grown tree with the same
+		// untyped count still admits.
+		ratioHeld := baseline.Coverage.InspectedFiles*finding.TypedFiles >= baseline.Coverage.TypedFiles*finding.InspectedFiles
+		untypedGrew := finding.InspectedFiles-finding.TypedFiles > baseline.Coverage.InspectedFiles-baseline.Coverage.TypedFiles
+		if finding.InspectedFiles == 0 || !ratioHeld && untypedGrew {
 			return fmt.Errorf("modern-Go ratchet typed coverage fell at %s: %d/%d below %d/%d",
 				finding.ID, finding.TypedFiles, finding.InspectedFiles,
 				baseline.Coverage.TypedFiles, baseline.Coverage.InspectedFiles)

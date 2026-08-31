@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "plan-discovery-hardening",
-      "title": "Make canonical-plan discovery Git-aware",
-      "status": "open",
-      "steps": [
-        {
-          "id": "worktree-safe-discovery",
-          "title": "Skip nested Git checkouts by detecting .git markers instead of tool-specific directory names",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestSingleCanonicalCampaignPlan$' -count=1",
-          "rationale": "One rule covers .claude worktrees, IDE worktrees, and any nested checkout: a directory holding a .git file or directory is another repository, not a competing plan."
-        }
-      ]
-    },
-    {
       "id": "generated-authority-refresh",
       "title": "Regenerate and re-verify every generated authority document over the merged tree",
       "status": "open",

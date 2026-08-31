@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -15,34 +15,40 @@ func TestSingleCanonicalCampaignPlan(t *testing.T) {
 		t.Fatal("campaign test path is unavailable")
 	}
 	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	want := filepath.ToSlash(Path)
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			switch entry.Name() {
-			case ".git", "tmp", "overgodb-store", "external", "vendor":
-				if path != root {
-					return fs.SkipDir
-				}
-			}
-			return nil
-		}
-		if entry.Name() != "plan.json" {
-			return nil
-		}
-		relative, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		if got := filepath.ToSlash(relative); got != want {
-			t.Errorf("competing live plan file %s; %s is the sole plan authority", got, want)
-		}
-		return nil
-	})
+	competing, err := CompetingPlans(root)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, path := range competing {
+		t.Errorf("competing live plan file %s; %s is the sole plan authority", path, filepath.ToSlash(Path))
+	}
+
+	// The .git-marker rule, pinned against a synthetic tree: a nested
+	// checkout (marker file, as worktrees use, or marker directory) hides
+	// its plan.json, while a plain nested directory's plan.json competes.
+	synthetic := t.TempDir()
+	write := func(relative, content string) {
+		t.Helper()
+		path := filepath.Join(synthetic, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.ToSlash(Path), "{}")
+	write(".claude/worktrees/lane/.git", "gitdir: elsewhere")
+	write(".claude/worktrees/lane/docs/plan.json", "{}")
+	write("nested-checkout/.git/HEAD", "ref: refs/heads/main")
+	write("nested-checkout/docs/plan.json", "{}")
+	write("plain/docs/plan.json", "{}")
+	competing, err = CompetingPlans(synthetic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(competing, []string{"plain/docs/plan.json"}) {
+		t.Fatalf("synthetic competing plans = %v, want only the plain nested copy", competing)
 	}
 }
 

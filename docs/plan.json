@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "migration-drill",
-          "title": "Rebuild a legacy store into segmented journal, blob, and projection layout and execute backup, restore, retention, and rollback drills",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestRSIStoreMigrationDrill$' -count=1",
-          "rationale": "The drill uses the pinned compatibility and scale corpus, compares query and content digests, injects interruption at each publication boundary, opens the destination read-only, and proves the source remains untouched and recoverable.",
-          "depends_on": [
-            "architecture-closure/go-only-guard"
-          ],
-          "capabilities": [
-            "overgodb",
-            "migration",
-            "backup",
-            "retention",
-            "rollback"
-          ]
-        },
-        {
           "id": "rsi-end-to-end",
           "title": "Run one prototype through model and recipe materialization, execution, evaluation, rollout, live regression, atomic rollback, and reproducible explanation",
           "status": "open",

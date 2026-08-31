@@ -11,6 +11,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -124,6 +125,86 @@ func publishFitness(root, specPath string, output io.Writer) error {
 		return err
 	}
 	_, err = fmt.Fprintf(output, "published improvement fitness %s\n", fitness.ID)
+	return err
+}
+
+// recipeDerivationSpec binds one materialization to the exact serving
+// policy the derived per-arm recipes must satisfy.
+type recipeDerivationSpec struct {
+	Materialization artifact.ID            `json:"materialization"`
+	Placement       recipe.Placement       `json:"placement"`
+	Session         recipe.SessionPolicy   `json:"session"`
+	Residency       recipe.ResidencyPolicy `json:"residency"`
+	Tasks           []recipe.Task          `json:"tasks"`
+}
+
+// deriveRecipes projects one materialized candidate into its per-arm
+// execution and evaluation recipes and prints the immutable set; it
+// activates and serves nothing.
+func deriveRecipes(root, specPath string, output io.Writer) error {
+	var spec recipeDerivationSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	store, err := overgodb.OpenReadOnly(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	set, err := modelrecipe.DeriveCandidateRecipes(context.Background(), store, spec.Materialization, modelrecipe.CandidateRecipePolicy{
+		Placement: spec.Placement, Session: spec.Session, Residency: spec.Residency, Tasks: spec.Tasks,
+	})
+	if err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(set, "", " ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", encoded)
+	return err
+}
+
+// moeCoverageSpec is one indexed router-observation evidence read; a
+// summary identity additionally resolves its exact chunk.
+type moeCoverageSpec struct {
+	Query   runrecord.MoERouterObservationQuery `json:"query"`
+	Summary artifact.ID                         `json:"summary,omitzero"`
+}
+
+// queryMoECoverage runs one auditable indexed read over MoE router
+// observation evidence, optionally resolving one summary's raw chunk.
+func queryMoECoverage(root, specPath string, output io.Writer) error {
+	var spec moeCoverageSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	store, err := overgodb.OpenReadOnly(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	result, err := runrecord.QueryMoERouterObservationCoverage(ctx, store, spec.Query)
+	if err != nil {
+		return err
+	}
+	payload := struct {
+		Result runrecord.MoERouterObservationQueryResult `json:"result"`
+		Chunk  *runrecord.MoERouterObservationChunk      `json:"chunk,omitempty"`
+	}{Result: result}
+	if spec.Summary.Valid() {
+		_, chunk, err := runrecord.RequireMoERouterObservationCoverage(ctx, store, spec.Summary)
+		if err != nil {
+			return err
+		}
+		payload.Chunk = &chunk
+	}
+	encoded, err := json.MarshalIndent(payload, "", " ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", encoded)
 	return err
 }
 

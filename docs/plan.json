@@ -9,24 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "realization",
-          "title": "Extend candidate compilation and materialization with evidence-gated data, MoE, DenseToMoE, architecture, and expert-placement plugins",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/controlleraction ./internal/dataset ./internal/densecausal ./internal/modelmerge ./internal/trainingworkflow ./internal/runrecord ./internal/modelrecipe -run '^(TestMarinCandidateAdmissionRequiresGapCostBenefitAndFalsifier|TestMarinCandidateAdmissionRequiresRelevantTypedEvidence|TestMechanismAdmissionRejectsUnrelatedEvidence|TestDatasetPipelineCandidateRequiresMeasuredExistingOwnerFailure|TestExpertParallelCandidateRequiresMeasuredScaleBlockerAndExecutionAuthority|TestFrontierArchitectureCandidatesRemainIndependentAblations|TestModelAuthoredCandidatePredictionCalibration|TestDatasetPipelineStreamsWithinBudgetAndResumesExactStages|TestExpertPlacementDoesNotChangeDeclaredRouterSemantics|TestMoERoutingTargetRequiresDeclaredPriorStrataAndReopenTriggers|TestQuantileEstimatorReportsRankErrorSmallSampleAndStratumFailures|TestQuantileBiasChangesSelectionButNotUnbiasedCombineWeights|TestDatasetTrialPublishesExactStageResumeAndFailureEvidence|TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics|TestMoERouterObservationIdentityCoverageAndValidation|TestRouterObservationCoverageAndRetentionFailClosed|TestRecipeDerivationBindsDatasetTransformRouterAndCheckpoint|TestDenseToMoEEvidenceScreen|TestDenseToMoEExpertInventory|TestDenseToMoEPromotionRefusal)$' -count=1",
-          "rationale": "After the simple composite proves the shared loop, migrate Marin mechanism, dataset-transform, routing, DenseToMoE, model-architecture, and expert-placement eligibility through compiled adapters on the persisted-Candidate admission entry, then delete their parallel admission records and private eligibility codecs in the same slice. They remain registered Go Candidate source and realization plugins rather than new control planes. Deterministic data stages bind memory and intermediate-byte budgets, durable stage checkpoints, exact resume, and classified failure. MoE targets and quantile estimates remain evidence-bound; controller code alone changes routing; router semantics stay separate from placement and transport. DenseToMoE is a later architecture-change rung requiring exact screen and expert inventory evidence and cannot self-promote. Expert parallelism refuses without a measured single-device placement, memory, or throughput blocker and one authorized multi-device target. Model-authored predictions retain measured outcome and calibration; frontier mechanisms remain independent candidates with component ablations rather than a bundled label. Plugins reuse and extend the admission ratchet, common compiler, publication, recipe, driver, and lifecycle owners and introduce no distributed platform or scheduler.",
-          "depends_on": [
-            "architecture-closure/go-only-guard"
-          ],
-          "capabilities": [
-            "candidate-plugin",
-            "dataset-transform",
-            "moe-routing-controller",
-            "dense-to-moe",
-            "expert-parallel",
-            "architecture-candidate"
-          ]
-        },
-        {
           "id": "evidence",
           "title": "Extend isolated evaluation with bounded scaling, training-health, router-coverage, and expert-parallel evidence",
           "status": "open",

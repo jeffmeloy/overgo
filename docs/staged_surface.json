@@ -36,7 +36,7 @@
       "package": "overgo/internal/evaluation",
       "name": "EvaluateCrossDomainCandidate",
       "reason": "Shared immutable candidate evaluation remains test-proven until the integrated RSI campaign supplies its production observation streams and runtime consumer.",
-      "retire_with": "advanced-domain-plugins/realization"
+      "retire_with": "advanced-domain-plugins/evidence"
     },
     {
       "package": "overgo/internal/recipe",
@@ -165,18 +165,6 @@
       }
     },
     {
-      "package": "overgo/internal/runrecord",
-      "name": "RequireMoERouterObservationCoverage",
-      "reason": "Exact raw-chunk decode is retained for the isolated scaling, health, and router evaluator that consumes the bounded training stream.",
-      "retire_with": "advanced-domain-plugins/realization"
-    },
-    {
-      "package": "overgo/internal/runrecord",
-      "name": "QueryMoERouterObservationCoverage",
-      "reason": "Indexed summary-first router queries remain test-proven until the isolated scaling, health, and router evaluator consumes the bounded training stream.",
-      "retire_with": "advanced-domain-plugins/realization"
-    },
-    {
       "package": "overgo/internal/modelrecipetest",
       "name": "PublishModelDefinition",
       "reason": "Shared cross-package model-definition fixture replaces divergent descriptor-only test setup; test-support surface is test-consumed by design.",
@@ -184,12 +172,6 @@
         "classification": "test-support",
         "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
       }
-    },
-    {
-      "package": "overgo/internal/modelrecipe",
-      "name": "DeriveCandidateRecipes",
-      "reason": "Candidate recipe derivation over the cross-domain spine, delivered ahead of domain-plugin realization.",
-      "retire_with": "advanced-domain-plugins/realization"
     },
     {
       "package": "overgo/internal/testevidence",

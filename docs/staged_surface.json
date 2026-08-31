@@ -177,18 +177,6 @@
       "retire_with": "advanced-domain-plugins/realization"
     },
     {
-      "package": "overgo/internal/evaluation",
-      "name": "PublishImprovementFitness",
-      "reason": "Exact multidimensional fitness publication lands with resource-coverage/fitness-integration and its read-side authority ratchets complete.",
-      "retire_with": "composition-expansion/search-ratchet"
-    },
-    {
-      "package": "overgo/internal/runrecord",
-      "name": "CompareResourceFitness",
-      "reason": "Exact replay-verified resource comparison is retained for the bounded multi-strategy system campaign that produces its first production observation streams.",
-      "retire_with": "composition-expansion/search-ratchet"
-    },
-    {
       "package": "overgo/internal/modelrecipetest",
       "name": "PublishModelDefinition",
       "reason": "Shared cross-package model-definition fixture replaces divergent descriptor-only test setup; test-support surface is test-consumed by design.",
@@ -208,30 +196,6 @@
       "name": "RepeatAgreementForCommand",
       "reason": "Repeat-agreement verdict for flaky-command detection, delivered ahead of the verification-depth lanes.",
       "retire_with": "verification-depth/inference-coverage"
-    },
-    {
-      "package": "overgo/internal/loop",
-      "name": "CompareStrategyExperiment",
-      "reason": "Strategy comparison evidence becomes a recorded policy input during counterfactual driver replay.",
-      "retire_with": "composition-expansion/search-ratchet"
-    },
-    {
-      "package": "overgo/internal/loop",
-      "name": "NewStrategy",
-      "reason": "Strategy construction becomes a candidate-policy input during counterfactual driver replay.",
-      "retire_with": "composition-expansion/search-ratchet"
-    },
-    {
-      "package": "overgo/internal/runrecord",
-      "name": "ObserveAttemptDirection",
-      "reason": "Attempt-direction pivots become typed saturation inputs during counterfactual driver replay.",
-      "retire_with": "composition-expansion/search-ratchet"
-    },
-    {
-      "package": "overgo/internal/runrecord",
-      "name": "SummarizeAttemptHistory",
-      "reason": "Attempt history supplies measured policy costs during counterfactual driver replay.",
-      "retire_with": "composition-expansion/search-ratchet"
     },
     {
       "package": "overgo/internal/closurescan",
@@ -261,19 +225,7 @@
       "package": "overgo/internal/representation",
       "name": "NewResidualDirection",
       "reason": "Constructor for extracted residual-direction claims, delivered ahead of the extraction pipeline the improvement loop runs.",
-      "retire_with": "composition-expansion/search-ratchet"
-    },
-    {
-      "package": "overgo/internal/representation",
-      "name": "ParseResidualDirection",
-      "reason": "Decoder for stored residual-direction claims, delivered ahead of the evaluation readers the improvement loop runs.",
-      "retire_with": "composition-expansion/search-ratchet"
-    },
-    {
-      "package": "overgo/internal/agentloop",
-      "name": "ProposalSteeringPhase",
-      "reason": "Steered proposal-phase derivation, delivered ahead of the serving-side activation the improvement loop admits.",
-      "retire_with": "composition-expansion/search-ratchet"
+      "retire_with": "verification-depth/inference-coverage"
     }
   ]
 }

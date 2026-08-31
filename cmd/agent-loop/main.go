@@ -21,6 +21,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/representation"
 )
 
 func main() {
@@ -36,6 +37,7 @@ func run(args []string, output io.Writer) error {
 	arguments := flags.String("arguments", "{}", "strict JSON object of tool arguments")
 	approve := flags.String("approve", "", "grant the mutation step by naming the operation identity -preview printed")
 	preview := flags.Bool("preview", false, "print the decision preview for this step instead of proposing it")
+	steered := flags.String("steered", "", "print the steered proposal phase for this residual direction instead of proposing")
 	recipeText := flags.String("recipe", "", "serving recipe artifact id the step records against")
 	modelText := flags.String("model", "", "serving model artifact id the step records against")
 	node := flags.String("node", "respond", "interaction node the step records against")
@@ -69,6 +71,9 @@ func run(args []string, output io.Writer) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
+	if strings.TrimSpace(*steered) != "" {
+		return printSteeredPhase(ctx, store, strings.TrimSpace(*steered), output)
+	}
 	executor := agenttool.NewOperatorExecutor()
 	if err := agenttool.RegisterStandardBuiltins(executor, store); err != nil {
 		return err
@@ -109,5 +114,62 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	_, err = fmt.Fprintf(output, "%s\n", result)
+	return err
+}
+
+// printSteeredPhase projects the steered proposal phase one residual
+// direction would run under the ACTIVE tool catalog: the masked
+// inspection-only action space and the gate-derived alpha. It records and
+// activates nothing -- an operator reads exactly what a steered decode
+// could see before any admission is proposed.
+func printSteeredPhase(ctx context.Context, store *overgodb.Store, directionText string, output io.Writer) error {
+	directionID, err := artifact.ParseID(directionText)
+	if err != nil {
+		return fmt.Errorf("agent-loop: steered direction id: %w", err)
+	}
+	content, found, err := artifact.ReadContent(ctx, store, directionID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("agent-loop: steered direction is not in the store")
+	}
+	direction, err := representation.ParseResidualDirection(content.Data)
+	if err != nil {
+		return err
+	}
+	active, activeFound, err := store.ResolveAlias(ctx, agenttool.ActiveCatalogAlias)
+	if err != nil {
+		return err
+	}
+	if !activeFound {
+		return errors.New("agent-loop: no active tool catalog to steer over")
+	}
+	snapshot, err := agenttool.RequireCatalogSnapshot(ctx, store, active)
+	if err != nil {
+		return err
+	}
+	visible := make([]agenttool.Manual, 0, len(snapshot.Entries))
+	for _, entry := range snapshot.Entries {
+		manual, manualErr := agenttool.LoadManual(ctx, store, entry.Manual)
+		if manualErr != nil {
+			return manualErr
+		}
+		visible = append(visible, manual)
+	}
+	phase := agentloop.ProposalSteeringPhase(direction.ID, direction.Selector.Target, visible, visible)
+	names := make([]string, 0, len(phase.Manuals))
+	for _, manual := range phase.Manuals {
+		names = append(names, manual.Name)
+	}
+	encoded, err := json.MarshalIndent(struct {
+		Direction artifact.ID `json:"direction"`
+		Alpha     float64     `json:"alpha"`
+		Manuals   []string    `json:"manuals"`
+	}{phase.Direction, phase.Alpha, names}, "", " ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", encoded)
 	return err
 }

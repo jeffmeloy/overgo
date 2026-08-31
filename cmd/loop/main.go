@@ -70,8 +70,23 @@ func main() {
 func run(args []string) error {
 	flags := flag.NewFlagSet("loop", flag.ContinueOnError)
 	configPath := flags.String("config", "docs/loop.json", "machine-local loop configuration")
+	repoPath := flags.String("repo", "overgodb-store", "OvergoDB root for the evidence doors")
+	publishStrategySpec := flags.String("publish-strategy", "", "publish one strategy from this spec (worker, catalog, loop config) and exit")
+	experimentSpec := flags.String("experiment", "", "replay one strategy experiment from this spec and print the comparison")
+	publishFitnessSpec := flags.String("publish-fitness", "", "publish one pairwise improvement-fitness proof from this request spec")
+	resourceLanesSpec := flags.String("compare-resource-fitness", "", "replay one resource no-regression proof from this lanes spec")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	switch {
+	case *publishStrategySpec != "":
+		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)
+	case *experimentSpec != "":
+		return compareStrategies(*repoPath, *experimentSpec, os.Stdout)
+	case *publishFitnessSpec != "":
+		return publishFitness(*repoPath, *publishFitnessSpec, os.Stdout)
+	case *resourceLanesSpec != "":
+		return compareResourceLanes(*repoPath, *resourceLanesSpec, os.Stdout)
 	}
 	var loaded config
 	if err := jsonfile.Decode(*configPath, &loaded); err != nil {

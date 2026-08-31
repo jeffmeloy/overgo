@@ -4,32 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "composition-expansion",
-      "title": "Add harder composition rungs through the same spines only after the same-base proof",
-      "status": "open",
-      "steps": [
-        {
-          "id": "search-ratchet",
-          "title": "Admit bounded composition search and budget widening only from measured learning and calibration",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/composition ./internal/modelrecipe ./internal/runrecord ./internal/loop ./internal/controlleraction ./internal/sequentialcontrol -run '^(TestCapabilityGapTargetsFromEvalStore|TestCompositionImprovementLoopClosesUnderBudget|TestCompositionLoopSaturationStops|TestCompositionDriverLearningCurve|TestCompositionCandidateCalibration|TestCompositionAutonomyRatchetGatesOnCurveAndSafety|TestCompositionAutonomyRatchetIgnoresCommonCause)$' -count=1",
-          "rationale": "Extend the shared DriverDecision only after the alignment ladder exists and generic counterfactual replay can measure it. Derive weakest-domain, regression, and frontier-gap requests from immutable evaluations; aggregate strategy-tagged attempts into held-out fitness delta per compute, candidate hit rate, adapter cost, refusal and saturation history, and predicted-versus-actual calibration without a hidden threshold. A composition budget may widen only after a positive held-out learning curve, calibrated predictions, complete ablations, and beneficial special-cause evidence from the shared frozen sequential-control plan; adverse special cause narrows or stops, while common cause and insufficient evidence preserve the current budget. This step adds no composition loop, free search knob, policy, activation path, or lifecycle authority; any later production request still traverses the shared rollout and promotion adapter.",
-          "depends_on": [
-            "composition-expansion/alignment-adapter",
-            "evidence-routing/counterfactual-replay",
-            "live-safety/safety-window"
-          ],
-          "capabilities": [
-            "composition-plugin",
-            "evidence-driver",
-            "counterfactual-evidence",
-            "calibration",
-            "autonomy-ratchet"
-          ]
-        }
-      ]
-    },
-    {
       "id": "advanced-domain-plugins",
       "title": "Adapt data, routing, scale, health, and architecture mechanisms after the first proven loop",
       "status": "open",

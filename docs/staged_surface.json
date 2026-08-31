@@ -376,12 +376,6 @@
     },
     {
       "package": "overgo/internal/runrecord",
-      "name": "NewProcessTermination",
-      "reason": "Adapter from supervisor receipts into receipt evidence.",
-      "retire_with": "supervised-composite/first-win"
-    },
-    {
-      "package": "overgo/internal/runrecord",
       "name": "RequireTerminalAttemptReceipt",
       "reason": "Typed read of one stored terminal receipt.",
       "retire_with": "evidence-routing/counterfactual-replay"
@@ -402,7 +396,7 @@
       "package": "overgo/internal/runrecord",
       "name": "ReplayLoopObligations",
       "reason": "Store-backed replay lands ahead of the production ObligationWorld implementation.",
-      "retire_with": "supervised-composite/first-win"
+      "retire_with": "interaction-efficiency/coalesced-coordination"
     },
     {
       "package": "overgo/internal/runrecord",

@@ -8,7 +8,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/executionfailure"
-	"overgo/internal/processcontrol"
 )
 
 const (
@@ -44,16 +43,6 @@ type ProcessTermination struct {
 	StdoutBytes    int64 `json:"stdout_bytes,omitzero"`
 	StderrBytes    int64 `json:"stderr_bytes,omitzero"`
 	WallNS         int64 `json:"wall_ns"`
-}
-
-// NewProcessTermination adapts a supervisor receipt into receipt
-// evidence.
-func NewProcessTermination(receipt processcontrol.Receipt) ProcessTermination {
-	return ProcessTermination{
-		ExitCode: int32(receipt.ExitCode), Interrupted: receipt.Interrupted,
-		TreeTerminated: receipt.TreeTerminated, StdoutBytes: receipt.StdoutBytes,
-		StderrBytes: receipt.StderrBytes, WallNS: receipt.WallNS,
-	}
 }
 
 // TerminalAttemptReceipt is the one self-contained terminal record of

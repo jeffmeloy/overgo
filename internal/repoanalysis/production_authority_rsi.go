@@ -9,10 +9,12 @@ import (
 )
 
 const (
-	modelRecipePackage = "internal/modelrecipe"
-	recipePackage      = "internal/recipe"
-	invocationPackage  = "internal/invocation"
-	runRecordImport    = "overgo/internal/runrecord"
+	modelRecipePackage       = "internal/modelrecipe"
+	recipePackage            = "internal/recipe"
+	invocationPackage        = "internal/invocation"
+	trainingWorkflowPackage  = "internal/trainingworkflow"
+	sequentialControlPackage = "internal/sequentialcontrol"
+	runRecordImport          = "overgo/internal/runrecord"
 )
 
 // auditRSIAuthorities reserves the cross-domain RSI spines before their
@@ -43,6 +45,11 @@ func auditCrossDomainOwners(sources []productionAuthoritySource, report *Product
 	reserveAuthorityOwners(sources, report,
 		authorityOwnerRule{Family: "evidence-driver", Kind: "type", Symbol: "DriverDecision", Owner: runRecordPackage},
 		authorityOwnerRule{Family: "evidence-driver", Kind: "func", Symbol: "NewDriverDecision", Owner: runRecordPackage},
+		authorityOwnerRule{Family: "training-evidence-publication", Kind: "type", Symbol: "TrainingEvidencePublication", Owner: trainingWorkflowPackage},
+		authorityOwnerRule{Family: "training-evidence-publication", Kind: "func", Symbol: "PublishTrainingEvidence", Owner: trainingWorkflowPackage},
+		authorityOwnerRule{Family: "sequential-control", Kind: "type", Symbol: "SequentialControlPlan", Owner: sequentialControlPackage},
+		authorityOwnerRule{Family: "sequential-control", Kind: "func", Symbol: "CalibrateSequentialControl", Owner: sequentialControlPackage},
+		authorityOwnerRule{Family: "sequential-control", Kind: "func", Symbol: "EvaluateSequentialControl", Owner: sequentialControlPackage},
 	)
 
 	// Candidate is intentionally a domain-scoped reservation: unrelated local

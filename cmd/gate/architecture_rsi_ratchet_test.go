@@ -99,6 +99,53 @@ func TestEvidenceDriverHasSingleDecisionOwner(t *testing.T) {
 	requireArchitectureFinding(t, architectureRSIAudit(t, bypass), "evidence-driver", "bypass")
 }
 
+func TestTrainingEvidenceSinglePublicationAuthority(t *testing.T) {
+	requireReservedArchitectureOwner(t, "training-evidence-publication")
+}
+
+func TestSequentialControlHasSingleOwner(t *testing.T) {
+	requireReservedArchitectureOwner(t, "sequential-control")
+}
+
+type reservedArchitectureOwnerCase struct {
+	ownerPath, ownerBody         string
+	duplicatePath, duplicateBody string
+}
+
+var reservedArchitectureOwnerCases = map[string]reservedArchitectureOwnerCase{
+	"training-evidence-publication": {
+		ownerPath:     "internal/trainingworkflow/evidence_publication.go",
+		ownerBody:     "package trainingworkflow\ntype TrainingEvidencePublication struct{}\nfunc PublishTrainingEvidence() {}\n",
+		duplicatePath: "internal/runrecord/evidence_publication.go",
+		duplicateBody: "package runrecord\ntype TrainingEvidencePublication struct{}\nfunc PublishTrainingEvidence() {}\n",
+	},
+	"sequential-control": {
+		ownerPath:     "internal/sequentialcontrol/plan.go",
+		ownerBody:     "package sequentialcontrol\ntype SequentialControlPlan struct{}\nfunc CalibrateSequentialControl() {}\nfunc EvaluateSequentialControl() {}\n",
+		duplicatePath: "internal/trainingworkflow/sequential_control.go",
+		duplicateBody: "package trainingworkflow\ntype SequentialControlPlan struct{}\nfunc CalibrateSequentialControl() {}\nfunc EvaluateSequentialControl() {}\n",
+	},
+}
+
+func requireReservedArchitectureOwner(t *testing.T, family string) {
+	t.Helper()
+	test, found := reservedArchitectureOwnerCases[family]
+	if !found {
+		t.Fatalf("unknown reserved architecture family %q", family)
+	}
+	snapshot := architectureRSISnapshot(t)
+	owned := architectureRSIOverlay(t, snapshot, map[string][]byte{
+		test.ownerPath: []byte(test.ownerBody),
+	})
+	if report := architectureRSIAudit(t, owned); report.Error() != nil {
+		t.Fatalf("reserved %s owner was refused: %v", family, report.Error())
+	}
+	duplicate := architectureRSIOverlay(t, owned, map[string][]byte{
+		test.duplicatePath: []byte(test.duplicateBody),
+	})
+	requireArchitectureFinding(t, architectureRSIAudit(t, duplicate), family, "reserved-owner")
+}
+
 func TestRSIRuntimeIsGoOnly(t *testing.T) {
 	snapshot := architectureRSISnapshot(t)
 	tests := []struct {

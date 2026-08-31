@@ -486,29 +486,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "single-entry-guards",
-          "title": "Install the shared-spine entry ratchet before opening the post-proof frontier",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./cmd/agent-tool ./internal/overgodb ./internal/processcontrol ./internal/sequentialcontrol ./internal/agenttool ./internal/agentloop ./internal/operatoraction ./internal/operation ./internal/capabilityruntime ./internal/inference ./internal/workflowruntime ./internal/loop ./internal/runrecord ./internal/trainingworkflow ./internal/evaluation ./internal/modelrecipe ./internal/composition -run '^(TestProductionAuthorityBoundaries|TestTrainingEvidenceSinglePublicationAuthority|TestRSIMutationEffectApprovalReceiptRatchet|TestInternalOrchestrationDoesNotInvokeUTCPTransport|TestCrossDomainCandidateHasSingleAdmissionOwner|TestCrossDomainPromotionLifecycleHasOneTransitionOwner|TestEvidenceDriverHasSingleDecisionOwner|TestSequentialControlHasSingleOwner)$' -count=1",
-          "rationale": "Immediately after the supervised proof, extend the early always-required, manifest-owned gate ratchet over the four shared components: Candidate admission, promotion and rollback lifecycle, evidence DriverDecision, and transport-neutral invocation effect, authority, and StageReceipt, while reserving the one shared sequential-control owner used by safety, autonomy, health, and efficiency. Every later implementation slice must extend this permanent ratchet when it adds an entry point; this row installs the boundary before that post-proof construction rather than discovering bypasses at closure. Domain plugins may prepare typed specifications, realizations, evaluator facts, statistics, or requests but cannot own a second admission, lifecycle, driver, transport registry, approval, receipt, calibration, detector, action, or publication path. Prove mechanism evidence is subject-relevant, dataset transforms cannot execute callables, router aliases cannot activate, documents named promotion cannot mutate, common-cause classifications cannot request action, classifiers cannot contain without lifecycle authority, all training-launch, promotion, activation, containment, retry, and rollback mutations use the common contract, and deterministic internal Go never invokes UTCP transport. No second guard process or policy owner is introduced.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard",
-            "supervised-composite/first-win"
-          ],
-          "capabilities": [
-            "architecture-guard",
-            "rsi-containment",
-            "single-authority",
-            "gate-ratchet",
-            "reference-relevance",
-            "evidence-only-promotion",
-            "candidate-spine",
-            "promotion-spine",
-            "evidence-driver",
-            "utcp-boundary"
-          ]
-        },
-        {
           "id": "go-only-guard",
           "title": "Seal the Go-only plugin and UTCP boundary before post-proof expansion",
           "status": "open",

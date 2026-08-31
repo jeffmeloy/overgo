@@ -8,7 +8,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/executionfailure"
 	"overgo/internal/overgodb"
-	"overgo/internal/processcontrol"
 	"overgo/internal/testutil"
 )
 
@@ -51,9 +50,9 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	disposition := executionfailure.Decide(executionfailure.Situation{
 		Cause: normalization.Cause, Attempts: 1, MaxAttempts: 3,
 	})
-	process := NewProcessTermination(processcontrol.Receipt{
+	process := ProcessTermination{
 		ExitCode: 1, TreeTerminated: true, StdoutBytes: 11, StderrBytes: 42, WallNS: 5_000_000,
-	})
+	}
 
 	first, err := PublishTerminalAttemptReceipt(ctx, store, TerminalAttemptReceipt{
 		Operation: operation, Capability: capability.ID, Outcome: OutcomeFailed,

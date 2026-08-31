@@ -1061,7 +1061,9 @@ func TestExecutorQ6KMulMatMatchesDequantizedReference(t *testing.T) {
 			const inputQuantizedDecodeTolerance = 8e-2
 			for _, testCase := range []residentProjectionCase{
 				{name: "decode", rightRows: 1, tolerance: inputQuantizedDecodeTolerance},
-				{name: "prefill", rightRows: 3, tolerance: accuracyQuantized},
+				// Short prefills within the span-column window now ride the
+				// same int8 activation path as decode.
+				{name: "prefill", rightRows: 3, tolerance: inputQuantizedDecodeTolerance},
 				{name: "greedy", rightRows: 1, selectTopK: true, tolerance: accuracyExact},
 			} {
 				t.Run(testCase.name, func(t *testing.T) {

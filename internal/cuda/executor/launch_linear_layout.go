@@ -313,7 +313,9 @@ func launchLinearLayout(
 			}
 			function := functions[quantKernels[leftNode.Type].mulMat]
 			quantizedRight := right
-			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast && rightRows == 1 {
+			spanInput := false
+			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast &&
+				rightRows <= q8InputSpanColumns {
 				if q8Input == nil || q8Input.staging == 0 {
 					return fmt.Errorf("%s mul_mat input workspace is unavailable", leftNode.Type)
 				}
@@ -332,13 +334,16 @@ func launchLinearLayout(
 				}
 				function = functions[inputKernel]
 				quantizedRight = q8Input.staging
+				spanInput = true
 			}
 			launchCount, err := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
 			if err != nil {
 				return err
 			}
-			if leftNode.Type == dtype.Q8_0 && rightRows == 1 {
-				launchCount, err = q8InputMulMatLaunchCount(leftRows, rightRows)
+			if spanInput {
+				// One warp per output row serves every span column from a
+				// single weight read.
+				launchCount, err = q8InputMulMatLaunchCount(leftRows, 1)
 				if err != nil {
 					return err
 				}
@@ -1120,6 +1125,11 @@ func launchQ8ArgmaxReduction(
 		&partials, &output, &partialCount,
 	)
 }
+
+// q8InputSpanColumns: input columns one warp serves per weight read in
+// the q8-input mul_mat kernels — mirrors the kernels' Q8_INPUT_SPAN_MAX
+// and bounds the speculation verify batch.
+const q8InputSpanColumns = 8
 
 // q8InputMulMatKernels names the decode fast path per storage type: a
 // single input vector quantizes once to q8 blocks and the weight dot

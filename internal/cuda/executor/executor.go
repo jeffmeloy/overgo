@@ -1264,7 +1264,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		}
 		if fast := node.Op == tensor.OpMulMat && len(node.Inputs) == 2 &&
 			q8InputFastPathType(node.Inputs[0].Type); fast &&
-			node.Inputs[1].Shape.Rank == 2 && node.Inputs[1].Shape.Dims[1] == 1 {
+			node.Inputs[1].Shape.Rank == 2 && node.Inputs[1].Shape.Dims[1] <= q8InputSpanColumns {
 			elements, elementErr := node.Inputs[1].Shape.Elements()
 			if elementErr != nil || elements%q8InputTraits.BlockSize != 0 ||
 				elements/q8InputTraits.BlockSize > math.MaxUint64/q8InputTraits.TypeSize {

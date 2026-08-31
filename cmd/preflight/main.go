@@ -15,8 +15,11 @@ import (
 	"strings"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/closurescan"
+	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
+	"overgo/internal/repoanalysis"
 )
 
 // generatedFiles enumerates the generated authority outputs whose
@@ -45,6 +48,7 @@ func run() error {
 		{"compatibility", repoCheck("./cmd/compatibility")},
 		{"sbom", repoCheck("./cmd/sbom")},
 		{"formatting", checkFormatting},
+		{"structure-budgets", checkStructureBudgets},
 		{"dirty-generated", checkDirtyGenerated},
 	}
 	failures := 0
@@ -93,6 +97,51 @@ func checkFormatting() (string, error) {
 	}
 	if unformatted := strings.TrimSpace(output); unformatted != "" {
 		return "", fmt.Errorf("unformatted files: %s", strings.Join(strings.Fields(unformatted), ", "))
+	}
+	return "", nil
+}
+
+// checkStructureBudgets holds the tree to its reviewed size and coupling
+// ceilings and the agent-harness surface to its stored baseline: file
+// sizes, per-package internal imports, command-package spread, the
+// harness consolidation audit, and harness-surface regressions all refuse
+// silent growth here, before any gate run.
+func checkStructureBudgets() (string, error) {
+	budgets, err := repoanalysis.LoadStructureBudgets(repoanalysis.StructureBudgetsFile)
+	if err != nil {
+		return "", err
+	}
+	snapshot, err := repoanalysis.DiscoverGo(".", "internal", "cmd")
+	if err != nil {
+		return "", err
+	}
+	findings := repoanalysis.MeasureStructureBudgets(snapshot, budgets)
+	if len(findings) > 0 {
+		first := findings[0]
+		return "", fmt.Errorf("%d budget exceedance(s); first: %s %s = %d over limit %d",
+			len(findings), first.Budget, first.Subject, first.Value, first.Limit)
+	}
+	consolidation, err := repoanalysis.AuditAgentHarnessConsolidation(snapshot)
+	if err != nil {
+		return "", err
+	}
+	if len(consolidation.Findings) > 0 {
+		first := consolidation.Findings[0]
+		return "", fmt.Errorf("harness consolidation: %d finding(s); first: %s %s expected %s got %s",
+			len(consolidation.Findings), first.Kind, first.Symbol, first.Expected, first.Actual)
+	}
+	var baseline closurescan.HarnessSurface
+	if err := jsonfile.DecodeStrict("docs/harness_surface_baseline.json", &baseline); err != nil {
+		return "", err
+	}
+	surface, err := closurescan.BuildAgentHarnessSurface(snapshot)
+	if err != nil {
+		return "", err
+	}
+	if regressions := closurescan.AgentHarnessSurfaceRegressions(baseline, surface); len(regressions) > 0 {
+		first := regressions[0]
+		return "", fmt.Errorf("harness surface: %d regression(s); first: %s %d -> %d %s",
+			len(regressions), first.Metric, first.Base, first.Value, first.Detail)
 	}
 	return "", nil
 }

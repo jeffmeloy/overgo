@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "structure-budgets",
-      "title": "Establish enforceable size and coupling budgets",
-      "status": "open",
-      "steps": [
-        {
-          "id": "budget-ratchets",
-          "title": "Ratchet maximum production file size, direct internal dependencies per package, command-package responsibility, and staged path count per ordinary gate commit",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestStructureBudgetRatchets$' -count=1",
-          "rationale": "Warnings first, enforcement after existing exceptions are recorded as reviewed entries."
-        }
-      ]
-    },
-    {
       "id": "model-abstraction-exactness",
       "title": "Tighten the model abstraction to its stated boundary",
       "status": "open",

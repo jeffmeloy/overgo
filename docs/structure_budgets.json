@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "doc": "Reviewed size and coupling budgets over the production tree: maximum lines per production file, maximum direct internal imports per package, maximum production files per command package, and the advisory staged-path bound per ordinary gate commit. Ceilings only tighten; a standing exceedance is a reviewed exception with its reason, retired by decomposition.",
+  "max_production_file_lines": 2000,
+  "max_direct_internal_imports": 30,
+  "max_command_package_files": 12,
+  "max_staged_paths_per_commit": 96,
+  "exceptions": [
+    {
+      "budget": "file-lines",
+      "subject": "internal/cuda/executor/executor.go",
+      "limit": 2400,
+      "reason": "The CUDA executor holds one dispatch table over every device operator; splitting it is a device-runtime decomposition, tracked separately from this budget."
+    },
+    {
+      "budget": "file-lines",
+      "subject": "internal/gate/commit.go",
+      "limit": 2350,
+      "reason": "The two-phase Git commit transaction keeps intent, keepalive, index authority, reference exchange, and merge metadata in one phase file by design; further splitting risks a second transaction path."
+    },
+    {
+      "budget": "internal-imports",
+      "subject": "internal/server",
+      "limit": 40,
+      "reason": "The server is the assembly root: it composes every workspace dependency explicitly, and the workspace-boundary audit holds each handler file to its declared couplings."
+    },
+    {
+      "budget": "command-files",
+      "subject": "cmd/recipe",
+      "limit": 24,
+      "reason": "cmd/recipe aggregates the recipe lifecycle subcommands; its per-task files are thin dispatchers over internal owners."
+    }
+  ]
+}

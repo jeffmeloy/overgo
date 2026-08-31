@@ -114,18 +114,6 @@
       "retire_with": "verification-depth/inference-coverage"
     },
     {
-      "package": "overgo/internal/closurescan",
-      "name": "AgentHarnessSurfaceRegressions",
-      "reason": "Harness surface regression audit delivered ahead of the final common-code and policy-copy census.",
-      "retire_with": "structure-budgets/budget-ratchets"
-    },
-    {
-      "package": "overgo/internal/repoanalysis",
-      "name": "AuditAgentHarnessConsolidation",
-      "reason": "Agent harness consolidation audit delivered ahead of the final common-code and policy-copy census.",
-      "retire_with": "structure-budgets/budget-ratchets"
-    },
-    {
       "package": "overgo/internal/runrecord",
       "name": "ResolveTerminalAttemptReceipt",
       "reason": "Per-operation attempt-ordinal receipt lookup.",

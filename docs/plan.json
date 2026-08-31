@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "projection-query-plans",
-          "title": "Route bounded queries through exact compiled indexes and report inspected, matched, returned, and loaded facts",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/runrecord ./internal/dataset -run '^(TestProjectionQueryPlanEfficiency|TestTrainingEvidenceQueryPlanLoadsSummariesOnly|TestRetrievalBuildAndSearchStayWithinBudget)$' -count=1",
-          "rationale": "Kind, media, schema, sequence, alias, lineage, contract, causal, router-coverage, health, scaling, rollout, and candidate-component lookups use their owning compiled projection rather than scanning the catalog. Retrieval construction and exact search both bind fact, memory, intermediate-byte, decode, inspected, and result budgets; resumable index construction publishes through the common projection checkpoint owner, and a missing or stale index refuses an unbounded fallback. Training-evidence queries select summaries by run, model, dataset, split, recipe, and head and load raw chunks only when the exact query contract requests samples. Every result reports inspected, matched, returned, and loaded facts, blobs, and bytes.",
-          "depends_on": [
-            "interaction-efficiency/bounded-training-evidence"
-          ],
-          "capabilities": [
-            "overgodb",
-            "query-plan",
-            "projection",
-            "interaction-efficiency"
-          ]
-        },
-        {
           "id": "head-bound-deltas",
           "title": "Serve initial snapshots plus ordered head-bound deltas to read-only peers, runtime views, and the embedded UI",
           "status": "open",

@@ -164,6 +164,35 @@ type AgentRetrievalBuild struct {
 	Policy       AgentRetrievalPolicy
 	Embedder     AgentEmbeddingProvider
 	RerankPolicy artifact.ID
+	Budget       AgentRetrievalBuildBudget
+}
+
+// AgentRetrievalBuildBudget bounds source facts, generated chunks, provider
+// calls, encoded intermediate bytes, and facts admitted by one build.
+type AgentRetrievalBuildBudget struct {
+	MaxDocuments         uint64 `json:"max_documents"`
+	MaxSourceBytes       uint64 `json:"max_source_bytes"`
+	MaxChunks            uint64 `json:"max_chunks"`
+	MaxEmbeddingCalls    uint64 `json:"max_embedding_calls"`
+	MaxIntermediateBytes uint64 `json:"max_intermediate_bytes"`
+	MaxPublishedFacts    uint64 `json:"max_published_facts"`
+}
+
+// AgentRetrievalBuildWork reports exact work performed by a build.
+type AgentRetrievalBuildWork struct {
+	DocumentsInspected uint64 `json:"documents_inspected"`
+	SourceBytesLoaded  uint64 `json:"source_bytes_loaded"`
+	ChunksBuilt        uint64 `json:"chunks_built"`
+	EmbeddingCalls     uint64 `json:"embedding_calls"`
+	IntermediateBytes  uint64 `json:"intermediate_bytes"`
+	PublishedFacts     uint64 `json:"published_facts"`
+}
+
+// AgentRetrievalBuildResult pairs the projection with measured build work.
+type AgentRetrievalBuildResult struct {
+	Projection AgentRetrievalProjection  `json:"projection"`
+	Budget     AgentRetrievalBuildBudget `json:"budget"`
+	Work       AgentRetrievalBuildWork   `json:"work"`
 }
 
 // AgentRetrievalBuilder publishes dataset-owned retrieval artifacts.
@@ -182,6 +211,19 @@ type AgentRetrievalQuery struct {
 	AllowedParents  []artifact.ID
 	Embedder        AgentEmbeddingProvider
 	Reranker        AgentRerankProvider
+	Budget          AgentRetrievalSearchBudget
+}
+
+// AgentRetrievalSearchBudget bounds compiled-index inspection, decodes,
+// loaded bytes, provider calls, and returned facts.
+type AgentRetrievalSearchBudget struct {
+	MaxEntriesInspected uint64 `json:"max_entries_inspected"`
+	MaxChunksLoaded     uint64 `json:"max_chunks_loaded"`
+	MaxEmbeddingsLoaded uint64 `json:"max_embeddings_loaded"`
+	MaxBytesLoaded      uint64 `json:"max_bytes_loaded"`
+	MaxEmbeddingCalls   uint64 `json:"max_embedding_calls"`
+	MaxRerankCalls      uint64 `json:"max_rerank_calls"`
+	MaxResults          uint64 `json:"max_results"`
 }
 
 // AgentRetrievalCitation preserves exact source and span identity.
@@ -234,11 +276,12 @@ type AgentRetrievalWork struct {
 // AgentRetrievalSearchResult is the auditable form of a grounded retrieval.
 // Search remains the compatibility surface for callers that only need hits.
 type AgentRetrievalSearchResult struct {
-	Results               []AgentRetrievalResult `json:"results"`
-	Work                  AgentRetrievalWork     `json:"work"`
-	DenseCandidateStage   artifact.ID            `json:"dense_candidate_stage"`
-	LexicalCandidateStage artifact.ID            `json:"lexical_candidate_stage"`
-	UnionCandidateStage   artifact.ID            `json:"union_candidate_stage"`
+	Results               []AgentRetrievalResult     `json:"results"`
+	Budget                AgentRetrievalSearchBudget `json:"budget"`
+	Work                  AgentRetrievalWork         `json:"work"`
+	DenseCandidateStage   artifact.ID                `json:"dense_candidate_stage"`
+	LexicalCandidateStage artifact.ID                `json:"lexical_candidate_stage"`
+	UnionCandidateStage   artifact.ID                `json:"union_candidate_stage"`
 }
 
 type agentRetrievalCandidateStage string
@@ -373,20 +416,47 @@ func RequireAgentRetrievalProjection(ctx context.Context, reader artifact.Reader
 
 // Build chunks, embeds, and publishes one deterministic projection.
 func (builder AgentRetrievalBuilder) Build(ctx context.Context, request AgentRetrievalBuild) (AgentRetrievalProjection, error) {
+	result, err := builder.BuildWithWork(ctx, request)
+	return result.Projection, err
+}
+
+// BuildWithWork applies one finite budget and reports the exact construction
+// work. A zero budget derives conservative finite bounds from the request for
+// compatibility; partially specified budgets are refused.
+func (builder AgentRetrievalBuilder) BuildWithWork(ctx context.Context, request AgentRetrievalBuild) (AgentRetrievalBuildResult, error) {
 	policyID, err := request.Policy.Identify()
 	if ctx == nil || builder.Repository == nil || request.Dataset.Kind() != artifact.KindDataset ||
 		request.Embedder == nil || request.Embedder.ModelIdentity().Kind() != artifact.KindModel ||
 		request.RerankPolicy.Kind() != artifact.KindProfile || len(request.Documents) == 0 || err != nil {
-		return AgentRetrievalProjection{}, errors.Join(errors.New("dataset: invalid agent retrieval build"), err)
+		return AgentRetrievalBuildResult{}, errors.Join(errors.New("dataset: invalid agent retrieval build"), err)
+	}
+	budget, err := resolveAgentRetrievalBuildBudget(request)
+	if err != nil {
+		return AgentRetrievalBuildResult{}, err
+	}
+	work := AgentRetrievalBuildWork{}
+	if uint64(len(request.Documents)) > budget.MaxDocuments {
+		return AgentRetrievalBuildResult{}, errors.New("dataset: agent retrieval build budget exceeded")
 	}
 	documents := slices.Clone(request.Documents)
 	for index := range documents {
+		work.DocumentsInspected++
 		documents[index].Structure = slices.Clone(documents[index].Structure)
 		if err := validateAgentRetrievalDocument(documents[index]); err != nil {
-			return AgentRetrievalProjection{}, err
+			return AgentRetrievalBuildResult{}, err
+		}
+		sourceBytes, err := agentRetrievalStoredSize(ctx, builder.Repository, documents[index].Source)
+		if err != nil {
+			return AgentRetrievalBuildResult{}, err
+		}
+		work.SourceBytesLoaded, err = agentRetrievalAdd(
+			work.SourceBytesLoaded, sourceBytes, "dataset: agent retrieval source byte count overflows",
+		)
+		if err != nil || work.SourceBytesLoaded > budget.MaxSourceBytes {
+			return AgentRetrievalBuildResult{}, errors.Join(errors.New("dataset: agent retrieval build budget exceeded"), err)
 		}
 		if err := requireAgentRetrievalSourceDocument(ctx, builder.Repository, documents[index]); err != nil {
-			return AgentRetrievalProjection{}, err
+			return AgentRetrievalBuildResult{}, err
 		}
 	}
 	slices.SortFunc(documents, compareAgentRetrievalDocument)
@@ -401,32 +471,56 @@ func (builder AgentRetrievalBuilder) Build(ctx context.Context, request AgentRet
 	}
 	for index, document := range documents {
 		if index > 0 && compareAgentRetrievalDocument(documents[index-1], document) == 0 {
-			return AgentRetrievalProjection{}, errors.New("dataset: duplicate agent retrieval document")
+			return AgentRetrievalBuildResult{}, errors.New("dataset: duplicate agent retrieval document")
 		}
 		chunks, chunkErr := agentRetrievalChunks(request.Dataset, policyID, document, request.Policy)
 		if chunkErr != nil {
-			return AgentRetrievalProjection{}, chunkErr
+			return AgentRetrievalBuildResult{}, chunkErr
 		}
 		for _, chunk := range chunks {
+			if work.ChunksBuilt == budget.MaxChunks || work.EmbeddingCalls == budget.MaxEmbeddingCalls {
+				return AgentRetrievalBuildResult{}, errors.New("dataset: agent retrieval build budget exceeded")
+			}
+			work.ChunksBuilt++
 			vector, embedErr := request.Embedder.Embed(ctx, chunk.Text)
+			work.EmbeddingCalls++
 			if embedErr != nil {
-				return AgentRetrievalProjection{}, embedErr
+				return AgentRetrievalBuildResult{}, embedErr
 			}
 			embedding, identifyErr := agentRetrievalEmbeddingCodec.New(AgentRetrievalEmbedding{
 				Version: artifact.InitialDocumentVersion, Chunk: chunk.ID,
 				Model: request.Embedder.ModelIdentity(), Vector: vector,
 			})
 			if identifyErr != nil {
-				return AgentRetrievalProjection{}, identifyErr
+				return AgentRetrievalBuildResult{}, identifyErr
 			}
 			chunkContent, contentErr := agentRetrievalChunkCodec.Content(chunk)
 			if contentErr != nil {
-				return AgentRetrievalProjection{}, contentErr
+				return AgentRetrievalBuildResult{}, contentErr
+			}
+			publishedFacts := uint64(len([...]artifact.ID{chunk.ID, embedding.ID}))
+			if work.PublishedFacts > budget.MaxPublishedFacts ||
+				budget.MaxPublishedFacts-work.PublishedFacts < publishedFacts {
+				return AgentRetrievalBuildResult{}, errors.New("dataset: agent retrieval build budget exceeded")
 			}
 			embeddingContent, contentErr := agentRetrievalEmbeddingCodec.Content(embedding)
 			if contentErr != nil {
-				return AgentRetrievalProjection{}, contentErr
+				return AgentRetrievalBuildResult{}, contentErr
 			}
+			encodedBytes, addErr := agentRetrievalAdd(
+				chunkContent.Descriptor.Size, embeddingContent.Descriptor.Size,
+				"dataset: agent retrieval build byte count overflows",
+			)
+			if addErr != nil {
+				return AgentRetrievalBuildResult{}, addErr
+			}
+			work.IntermediateBytes, addErr = agentRetrievalAdd(
+				work.IntermediateBytes, encodedBytes, "dataset: agent retrieval build byte count overflows",
+			)
+			if addErr != nil || work.IntermediateBytes > budget.MaxIntermediateBytes {
+				return AgentRetrievalBuildResult{}, errors.Join(errors.New("dataset: agent retrieval build budget exceeded"), addErr)
+			}
+			work.PublishedFacts += publishedFacts
 			contents = append(contents, chunkContent, embeddingContent)
 			lineage = append(lineage, agentRetrievalChunkLineage(chunk)...)
 			lineage = append(lineage, agentRetrievalEmbeddingLineage(embedding)...)
@@ -442,32 +536,42 @@ func (builder AgentRetrievalBuilder) Build(ctx context.Context, request AgentRet
 		RerankPolicy: request.RerankPolicy, Entries: entries,
 	})
 	if err != nil {
-		return AgentRetrievalProjection{}, err
+		return AgentRetrievalBuildResult{}, err
 	}
 	projectionContent, err := agentRetrievalProjectionCodec.Content(projection)
 	if err != nil {
-		return AgentRetrievalProjection{}, err
+		return AgentRetrievalBuildResult{}, err
+	}
+	if work.PublishedFacts == budget.MaxPublishedFacts {
+		return AgentRetrievalBuildResult{}, errors.New("dataset: agent retrieval build budget exceeded")
+	}
+	work.PublishedFacts++
+	work.IntermediateBytes, err = agentRetrievalAdd(
+		work.IntermediateBytes, projectionContent.Descriptor.Size, "dataset: agent retrieval build byte count overflows",
+	)
+	if err != nil || work.IntermediateBytes > budget.MaxIntermediateBytes {
+		return AgentRetrievalBuildResult{}, errors.Join(errors.New("dataset: agent retrieval build budget exceeded"), err)
 	}
 	contents = append(contents, projectionContent)
 	lineage = append(lineage, agentRetrievalProjectionLineage(projection)...)
 	aliasName := agentRetrievalAlias(request.Dataset, policyID, request.Embedder.ModelIdentity(), request.RerankPolicy)
 	current, found, err := artifact.ResolveAlias(ctx, builder.Repository, aliasName)
 	if err != nil {
-		return AgentRetrievalProjection{}, err
+		return AgentRetrievalBuildResult{}, err
 	}
 	if found && current == projection.ID {
 		if _, err := RequireAgentRetrievalProjection(ctx, builder.Repository, projection.ID); err != nil {
-			return AgentRetrievalProjection{}, err
+			return AgentRetrievalBuildResult{}, err
 		}
 		for _, entry := range projection.Entries {
 			if _, err := RequireAgentRetrievalChunk(ctx, builder.Repository, entry.Chunk); err != nil {
-				return AgentRetrievalProjection{}, err
+				return AgentRetrievalBuildResult{}, err
 			}
 			if _, err := RequireAgentRetrievalEmbedding(ctx, builder.Repository, entry.Embedding); err != nil {
-				return AgentRetrievalProjection{}, err
+				return AgentRetrievalBuildResult{}, err
 			}
 		}
-		return projection, nil
+		return AgentRetrievalBuildResult{Projection: projection, Budget: budget, Work: work}, nil
 	}
 	alias := artifact.AliasBinding{Name: aliasName, Target: projection.ID}
 	if found {
@@ -477,7 +581,7 @@ func (builder AgentRetrievalBuilder) Build(ctx context.Context, request AgentRet
 	for _, id := range parents {
 		descriptor, present, descriptorErr := builder.Repository.Artifact(ctx, id)
 		if descriptorErr != nil {
-			return AgentRetrievalProjection{}, descriptorErr
+			return AgentRetrievalBuildResult{}, descriptorErr
 		}
 		if !present {
 			descriptor = artifact.Descriptor{ID: id}
@@ -488,9 +592,89 @@ func (builder AgentRetrievalBuilder) Build(ctx context.Context, request AgentRet
 		Key: "dataset/agent-retrieval/" + projection.ID.String(), Artifacts: descriptors,
 		Contents: contents, Lineage: lineage, Aliases: []artifact.AliasBinding{alias},
 	}); err != nil {
-		return AgentRetrievalProjection{}, err
+		return AgentRetrievalBuildResult{}, err
 	}
-	return projection, nil
+	return AgentRetrievalBuildResult{Projection: projection, Budget: budget, Work: work}, nil
+}
+
+func resolveAgentRetrievalBuildBudget(request AgentRetrievalBuild) (AgentRetrievalBuildBudget, error) {
+	budget := request.Budget
+	if budget == (AgentRetrievalBuildBudget{}) {
+		budget.MaxDocuments = uint64(len(request.Documents))
+		var ok bool
+		budget.MaxSourceBytes, ok = checked.Mul64(budget.MaxDocuments, artifact.MaxContentBytes)
+		if !ok {
+			return AgentRetrievalBuildBudget{}, errors.New("dataset: agent retrieval derived build budget overflows")
+		}
+		for _, document := range request.Documents {
+			var err error
+			budget.MaxChunks, err = agentRetrievalAdd(
+				budget.MaxChunks, uint64(utf8.RuneCountInString(document.Text)),
+				"dataset: agent retrieval derived build budget overflows",
+			)
+			if err != nil {
+				return AgentRetrievalBuildBudget{}, err
+			}
+		}
+		budget.MaxEmbeddingCalls = budget.MaxChunks
+		factsPerChunk := uint64(len([...]artifact.Kind{artifact.KindDatasetShard, artifact.KindTensorSet}))
+		facts, ok := checked.Mul64(budget.MaxChunks, factsPerChunk)
+		if !ok {
+			return AgentRetrievalBuildBudget{}, errors.New("dataset: agent retrieval derived build budget overflows")
+		}
+		projectionFacts := uint64(len([...]artifact.Kind{artifact.KindProfile}))
+		budget.MaxPublishedFacts, ok = checked.Add64(facts, projectionFacts)
+		if !ok {
+			return AgentRetrievalBuildBudget{}, errors.New("dataset: agent retrieval derived build budget overflows")
+		}
+		budget.MaxIntermediateBytes, ok = checked.Mul64(budget.MaxPublishedFacts, artifact.MaxContentBytes)
+		if !ok {
+			return AgentRetrievalBuildBudget{}, errors.New("dataset: agent retrieval derived build budget overflows")
+		}
+	}
+	if budget.MaxDocuments == 0 || budget.MaxSourceBytes == 0 || budget.MaxChunks == 0 || budget.MaxEmbeddingCalls == 0 ||
+		budget.MaxIntermediateBytes == 0 || budget.MaxPublishedFacts == 0 {
+		return AgentRetrievalBuildBudget{}, errors.New("dataset: incomplete agent retrieval build budget")
+	}
+	return budget, nil
+}
+
+func resolveAgentRetrievalSearchBudget(
+	query AgentRetrievalQuery,
+	projection AgentRetrievalProjection,
+) (AgentRetrievalSearchBudget, error) {
+	budget := query.Budget
+	if budget == (AgentRetrievalSearchBudget{}) {
+		entries := uint64(len(projection.Entries))
+		budget = AgentRetrievalSearchBudget{
+			MaxEntriesInspected: entries, MaxChunksLoaded: entries, MaxEmbeddingsLoaded: entries,
+			MaxEmbeddingCalls: uint64(len([...]AgentEmbeddingProvider{query.Embedder})),
+			MaxRerankCalls:    projection.CandidateLimit, MaxResults: query.Limit,
+		}
+		factsPerEntry := uint64(len([...]artifact.Kind{artifact.KindDatasetShard, artifact.KindTensorSet}))
+		loadedFacts, ok := checked.Mul64(entries, factsPerEntry)
+		if !ok {
+			return AgentRetrievalSearchBudget{}, errors.New("dataset: agent retrieval derived search budget overflows")
+		}
+		budget.MaxBytesLoaded, ok = checked.Mul64(loadedFacts, artifact.MaxContentBytes)
+		if !ok {
+			return AgentRetrievalSearchBudget{}, errors.New("dataset: agent retrieval derived search budget overflows")
+		}
+	}
+	if budget.MaxEntriesInspected == 0 || budget.MaxChunksLoaded == 0 || budget.MaxEmbeddingsLoaded == 0 ||
+		budget.MaxBytesLoaded == 0 || budget.MaxEmbeddingCalls == 0 || budget.MaxRerankCalls == 0 || budget.MaxResults == 0 {
+		return AgentRetrievalSearchBudget{}, errors.New("dataset: incomplete agent retrieval search budget")
+	}
+	return budget, nil
+}
+
+func agentRetrievalSearchFitsBytes(work AgentRetrievalWork, next, maximum uint64) bool {
+	total, ok := checked.Add64(work.ChunkBytesLoaded, work.EmbeddingBytesLoaded)
+	if !ok {
+		return false
+	}
+	total, ok = checked.Add64(total, next)
+	return ok && total <= maximum
 }
 
 // Search verifies exact provider identities and returns deterministic cited
@@ -520,7 +704,19 @@ func (builder AgentRetrievalBuilder) SearchWithWork(ctx context.Context, query A
 	if len(query.AllowedDatasets) != 0 && !slices.Contains(query.AllowedDatasets, projection.Dataset) {
 		return AgentRetrievalSearchResult{}, errors.New("dataset: retrieval projection is outside active agent authority")
 	}
+	budget, err := resolveAgentRetrievalSearchBudget(query, projection)
+	if err != nil {
+		return AgentRetrievalSearchResult{}, err
+	}
+	if query.Limit > budget.MaxResults {
+		return AgentRetrievalSearchResult{}, errors.New("dataset: agent retrieval search budget exceeded")
+	}
+	search := AgentRetrievalSearchResult{Budget: budget}
+	if search.Work.QueryEmbeddings == budget.MaxEmbeddingCalls {
+		return AgentRetrievalSearchResult{}, errors.New("dataset: agent retrieval search budget exceeded")
+	}
 	queryVector, err := query.Embedder.Embed(ctx, query.Text)
+	search.Work.QueryEmbeddings++
 	if err != nil {
 		return AgentRetrievalSearchResult{}, err
 	}
@@ -529,9 +725,11 @@ func (builder AgentRetrievalBuilder) SearchWithWork(ctx context.Context, query A
 		return AgentRetrievalSearchResult{}, err
 	}
 	queryTerms := agentRetrievalTerms(query.Text)
-	search := AgentRetrievalSearchResult{Work: AgentRetrievalWork{QueryEmbeddings: 1}}
 	scored := make([]AgentRetrievalResult, 0, len(projection.Entries))
 	for _, entry := range projection.Entries {
+		if search.Work.EntriesInspected == budget.MaxEntriesInspected {
+			return AgentRetrievalSearchResult{}, errors.New("dataset: agent retrieval search budget exceeded")
+		}
 		search.Work.EntriesInspected++
 		if !agentRetrievalEntryMayMatch(query, entry) {
 			search.Work.FilteredEntries++
@@ -540,6 +738,10 @@ func (builder AgentRetrievalBuilder) SearchWithWork(ctx context.Context, query A
 		chunkBytes, sizeErr := agentRetrievalStoredSize(ctx, builder.Repository, entry.Chunk)
 		if sizeErr != nil {
 			return AgentRetrievalSearchResult{}, sizeErr
+		}
+		if search.Work.ChunksLoaded == budget.MaxChunksLoaded ||
+			!agentRetrievalSearchFitsBytes(search.Work, chunkBytes, budget.MaxBytesLoaded) {
+			return AgentRetrievalSearchResult{}, errors.New("dataset: agent retrieval search budget exceeded")
 		}
 		chunk, chunkErr := RequireAgentRetrievalChunk(ctx, builder.Repository, entry.Chunk)
 		search.Work.ChunksLoaded++
@@ -560,6 +762,10 @@ func (builder AgentRetrievalBuilder) SearchWithWork(ctx context.Context, query A
 		embeddingBytes, sizeErr := agentRetrievalStoredSize(ctx, builder.Repository, entry.Embedding)
 		if sizeErr != nil {
 			return AgentRetrievalSearchResult{}, sizeErr
+		}
+		if search.Work.EmbeddingsLoaded == budget.MaxEmbeddingsLoaded ||
+			!agentRetrievalSearchFitsBytes(search.Work, embeddingBytes, budget.MaxBytesLoaded) {
+			return AgentRetrievalSearchResult{}, errors.New("dataset: agent retrieval search budget exceeded")
 		}
 		embedding, embeddingErr := RequireAgentRetrievalEmbedding(ctx, builder.Repository, entry.Embedding)
 		search.Work.EmbeddingsLoaded++
@@ -635,6 +841,9 @@ func (builder AgentRetrievalBuilder) SearchWithWork(ctx context.Context, query A
 		return AgentRetrievalSearchResult{}, err
 	}
 	for index := range candidates {
+		if search.Work.RerankCalls == budget.MaxRerankCalls {
+			return AgentRetrievalSearchResult{}, errors.New("dataset: agent retrieval search budget exceeded")
+		}
 		rerank, scoreErr := query.Reranker.Score(ctx, query.Text, candidates[index].Citation.Text)
 		search.Work.RerankCalls++
 		if scoreErr != nil || !finiteRetrievalNumber(rerank) {

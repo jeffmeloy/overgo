@@ -194,6 +194,60 @@ func TestAgentRetrievalBuildRejectsFabricatedSourceContentOrStructure(t *testing
 	}
 }
 
+func TestRetrievalBuildAndSearchStayWithinBudget(t *testing.T) {
+	fixture := newAgentRetrievalFixture(t)
+	defer fixture.store.Close()
+	if _, err := fixture.Build(t); err != nil {
+		t.Fatal(err)
+	}
+	build := fixture.build
+	build.Budget = AgentRetrievalBuildBudget{
+		MaxDocuments: 3, MaxSourceBytes: artifact.MaxContentBytes, MaxChunks: 3, MaxEmbeddingCalls: 3,
+		MaxIntermediateBytes: artifact.MaxContentBytes, MaxPublishedFacts: 7,
+	}
+	built, err := fixture.builder.BuildWithWork(t.Context(), build)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if built.Budget != build.Budget || built.Work.DocumentsInspected != 3 || built.Work.ChunksBuilt != 3 ||
+		built.Work.EmbeddingCalls != 3 || built.Work.PublishedFacts != 7 ||
+		built.Work.SourceBytesLoaded == 0 || built.Work.SourceBytesLoaded > build.Budget.MaxSourceBytes ||
+		built.Work.IntermediateBytes == 0 || built.Work.IntermediateBytes > build.Budget.MaxIntermediateBytes {
+		t.Fatalf("bounded retrieval build = %+v", built)
+	}
+	tightBuild := build
+	tightBuild.Budget.MaxChunks = 2
+	if _, err := fixture.builder.BuildWithWork(t.Context(), tightBuild); err == nil || !strings.Contains(err.Error(), "budget exceeded") {
+		t.Fatalf("over-budget retrieval build was not refused: %v", err)
+	}
+
+	query := AgentRetrievalQuery{
+		Projection: built.Projection.ID, Text: "target", Limit: 1,
+		Embedder: fixture.build.Embedder, Reranker: fixture.reranker,
+		Budget: AgentRetrievalSearchBudget{
+			MaxEntriesInspected: 3, MaxChunksLoaded: 3, MaxEmbeddingsLoaded: 3,
+			MaxBytesLoaded: artifact.MaxContentBytes, MaxEmbeddingCalls: 1,
+			MaxRerankCalls: 3, MaxResults: 1,
+		},
+	}
+	searched, err := fixture.builder.SearchWithWork(t.Context(), query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loadedBytes := searched.Work.ChunkBytesLoaded + searched.Work.EmbeddingBytesLoaded
+	if searched.Budget != query.Budget || searched.Work.EntriesInspected != 3 ||
+		searched.Work.ChunksLoaded != 3 || searched.Work.EmbeddingsLoaded != 3 ||
+		searched.Work.QueryEmbeddings != 1 || searched.Work.RerankCalls > query.Budget.MaxRerankCalls ||
+		searched.Work.Returned != 1 || loadedBytes == 0 || loadedBytes > query.Budget.MaxBytesLoaded {
+		t.Fatalf("bounded retrieval search = %+v", searched)
+	}
+	tightQuery := query
+	tightQuery.Budget.MaxEntriesInspected = 2
+	if _, err := fixture.builder.SearchWithWork(t.Context(), tightQuery); err == nil || !strings.Contains(err.Error(), "budget exceeded") {
+		t.Fatalf("over-budget retrieval search was not refused: %v", err)
+	}
+}
+
 func TestAgentRetrievalColdReadsRejectForgedLineage(t *testing.T) {
 	for _, target := range []string{"source", "chunk", "embedding", "projection"} {
 		t.Run(target, func(t *testing.T) {

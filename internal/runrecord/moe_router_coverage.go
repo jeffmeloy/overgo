@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
 )
 
@@ -19,8 +20,8 @@ const (
 	MoERouterObservationChunkMediaType = "application/vnd.overgo.moe-router-observation-chunk+json"
 	// MoERouterObservationCoverageMediaType identifies compact router coverage.
 	MoERouterObservationCoverageMediaType = "application/vnd.overgo.moe-router-observation-coverage+json"
-	// MoERouterObservationCoverageSchema identifies the compact v2 contract.
-	MoERouterObservationCoverageSchema = "overgo/moe-router-observation-coverage/v2"
+	// MoERouterObservationCoverageSchema identifies the indexed compact contract.
+	MoERouterObservationCoverageSchema = "overgo/moe-router-observation-coverage/v3"
 	// MoERouterObservationCoverageAlias names the retained router evidence head.
 	MoERouterObservationCoverageAlias = "observation/moe-router/head"
 )
@@ -38,6 +39,10 @@ type MoERouterObservationChunk struct {
 type MoERouterObservationCoverage struct {
 	Version          uint16      `json:"version"`
 	Run              artifact.ID `json:"run"`
+	Model            artifact.ID `json:"model"`
+	Dataset          artifact.ID `json:"dataset"`
+	Split            artifact.ID `json:"split"`
+	Recipe           artifact.ID `json:"recipe"`
 	FirstStep        uint64      `json:"first_step"`
 	Steps            uint64      `json:"steps"`
 	Layers           []uint32    `json:"layers"`
@@ -46,6 +51,39 @@ type MoERouterObservationCoverage struct {
 	ObservationCount uint64      `json:"observation_count"`
 	ObservationBytes uint64      `json:"observation_bytes"`
 	ID               artifact.ID `json:"-"`
+}
+
+// MoERouterObservationQuery selects compact coverage by exact indexed
+// authorities. Head selects only the retained alias. Raw chunks are decoded
+// only when IncludeSamples is explicit.
+type MoERouterObservationQuery struct {
+	Run            artifact.ID
+	Model          artifact.ID
+	Dataset        artifact.ID
+	Split          artifact.ID
+	Recipe         artifact.ID
+	Head           bool
+	IncludeSamples bool
+	Limit          int
+}
+
+// MoERouterObservationQueryWork reports exact query and decode work.
+type MoERouterObservationQueryWork struct {
+	SummariesInspected uint64 `json:"summaries_inspected"`
+	SummariesMatched   uint64 `json:"summaries_matched"`
+	SummariesReturned  uint64 `json:"summaries_returned"`
+	SummaryBlobsLoaded uint64 `json:"summary_blobs_loaded"`
+	SummaryBytesLoaded uint64 `json:"summary_bytes_loaded"`
+	RawChunksLoaded    uint64 `json:"raw_chunks_loaded"`
+	RawBytesLoaded     uint64 `json:"raw_bytes_loaded"`
+}
+
+// MoERouterObservationQueryResult is one auditable indexed evidence read.
+type MoERouterObservationQueryResult struct {
+	Summaries []MoERouterObservationCoverage `json:"summaries"`
+	Chunks    []MoERouterObservationChunk    `json:"chunks,omitempty"`
+	Plan      overgodb.QueryPlanReport       `json:"plan"`
+	Work      MoERouterObservationQueryWork  `json:"work"`
 }
 
 var moeRouterObservationCoverageCodec = artifact.JSONDocumentCodec(
@@ -179,7 +217,8 @@ func NewMoERouterObservationCoverage(chunk MoERouterObservationChunk, firstStep,
 		}
 	}
 	return moeRouterObservationCoverageCodec.New(MoERouterObservationCoverage{
-		Version: artifact.InitialDocumentVersion, Run: scope.Run,
+		Version: artifact.InitialDocumentVersion, Run: scope.Run, Model: scope.Model,
+		Dataset: scope.Dataset, Split: scope.Split, Recipe: scope.Recipe,
 		FirstStep: firstStep, Steps: steps, Layers: canonicalLayers,
 		Chunk: chunk.ID, Previous: chunk.Previous,
 		ObservationCount: expected, ObservationBytes: content.Descriptor.Size,
@@ -202,10 +241,14 @@ func (value MoERouterObservationCoverage) ValidateIdentity() error {
 	return moeRouterObservationCoverageCodec.ValidateIdentity(value)
 }
 
-// Lineage binds one summary to its run and raw chunk only.
+// Lineage binds one summary to its indexed scope authorities and raw chunk.
 func (value MoERouterObservationCoverage) Lineage() []artifact.Lineage {
 	return []artifact.Lineage{
 		{Child: value.ID, Parent: value.Run, Relation: artifact.RelationDependsOn},
+		{Child: value.ID, Parent: value.Model, Relation: artifact.RelationDependsOn},
+		{Child: value.ID, Parent: value.Dataset, Relation: artifact.RelationDependsOn},
+		{Child: value.ID, Parent: value.Split, Relation: artifact.RelationDependsOn},
+		{Child: value.ID, Parent: value.Recipe, Relation: artifact.RelationDependsOn},
 		{Child: value.ID, Parent: value.Chunk, Relation: artifact.RelationContains},
 	}
 }
@@ -239,9 +282,35 @@ func (value MoERouterObservationCoverage) Batch(ctx context.Context, reader arti
 		[]artifact.Content{raw, summary}, value.Lineage(), []artifact.AliasBinding{alias})
 }
 
+// RequireMoERouterObservationCoverageSummary loads one exact compact summary
+// without opening its raw chunk.
+func RequireMoERouterObservationCoverageSummary(ctx context.Context, reader artifact.Reader, id artifact.ID) (MoERouterObservationCoverage, error) {
+	value, err := moeRouterObservationCoverageCodec.Require(ctx, reader, id)
+	if err != nil {
+		return MoERouterObservationCoverage{}, err
+	}
+	stored, err := reader.Parents(ctx, id)
+	if err != nil {
+		return MoERouterObservationCoverage{}, err
+	}
+	expected := value.Lineage()
+	if len(stored) != len(expected) {
+		return MoERouterObservationCoverage{}, errors.New("run record: moe router coverage stored lineage differs")
+	}
+	for _, edge := range expected {
+		if !slices.Contains(stored, edge) {
+			return MoERouterObservationCoverage{}, errors.New("run record: moe router coverage stored lineage differs")
+		}
+		if _, found, parentErr := reader.Artifact(ctx, edge.Parent); parentErr != nil || !found {
+			return MoERouterObservationCoverage{}, errors.Join(errors.New("run record: moe router coverage lineage parent is absent"), parentErr)
+		}
+	}
+	return value, nil
+}
+
 // RequireMoERouterObservationCoverage loads a summary and verifies its raw chunk.
 func RequireMoERouterObservationCoverage(ctx context.Context, reader artifact.Reader, id artifact.ID) (MoERouterObservationCoverage, MoERouterObservationChunk, error) {
-	value, err := moeRouterObservationCoverageCodec.Require(ctx, reader, id)
+	value, err := RequireMoERouterObservationCoverageSummary(ctx, reader, id)
 	if err != nil {
 		return MoERouterObservationCoverage{}, MoERouterObservationChunk{}, err
 	}
@@ -259,8 +328,112 @@ func RequireMoERouterObservationCoverage(ctx context.Context, reader artifact.Re
 	return value, chunk, nil
 }
 
+// QueryMoERouterObservationCoverage selects summaries through the retained
+// alias or one exact lineage index, then applies remaining scope filters to
+// compact documents. Raw payloads remain unopened unless requested.
+func QueryMoERouterObservationCoverage(
+	ctx context.Context,
+	store *overgodb.Store,
+	query MoERouterObservationQuery,
+) (MoERouterObservationQueryResult, error) {
+	seed, err := validateMoERouterObservationQuery(query)
+	if ctx == nil || store == nil || err != nil {
+		return MoERouterObservationQueryResult{}, errors.Join(errors.New("run record: invalid moe router observation query"), err)
+	}
+	request := overgodb.Query{
+		MediaType: MoERouterObservationCoverageMediaType, Schema: MoERouterObservationCoverageSchema,
+		MaxResults: MaximumAttemptPopulation,
+		Projection: overgodb.ProjectContentPresence, RequireIndex: true,
+	}
+	if query.Head {
+		request.Alias = MoERouterObservationCoverageAlias
+	} else {
+		request.Artifact = &seed
+		request.Follow = overgodb.FollowChildren
+		request.MaxDepth = uint32(len([...]overgodb.FollowDirection{overgodb.FollowChildren}))
+		request.Relation = artifact.RelationDependsOn
+	}
+	selected, err := store.Query(ctx, request)
+	if err != nil {
+		return MoERouterObservationQueryResult{}, err
+	}
+	result := MoERouterObservationQueryResult{Plan: selected.Plan}
+	for _, content := range selected.Contents {
+		result.Work.SummariesInspected++
+		descriptor, found, descriptorErr := store.Artifact(ctx, content.Artifact)
+		if descriptorErr != nil || !found {
+			return MoERouterObservationQueryResult{}, errors.Join(errors.New("run record: moe router coverage descriptor is absent"), descriptorErr)
+		}
+		summary, summaryErr := RequireMoERouterObservationCoverageSummary(ctx, store, content.Artifact)
+		if summaryErr != nil {
+			return MoERouterObservationQueryResult{}, summaryErr
+		}
+		result.Work.SummaryBlobsLoaded++
+		result.Work.SummaryBytesLoaded += descriptor.Size
+		if !matchesMoERouterObservationQuery(summary, query) {
+			continue
+		}
+		result.Work.SummariesMatched++
+		if len(result.Summaries) == query.Limit {
+			continue
+		}
+		result.Summaries = append(result.Summaries, summary)
+		result.Work.SummariesReturned++
+		if !query.IncludeSamples {
+			continue
+		}
+		chunk, chunkErr := RequireMoERouterObservationChunk(ctx, store, summary.Chunk)
+		if chunkErr != nil {
+			return MoERouterObservationQueryResult{}, chunkErr
+		}
+		want, deriveErr := NewMoERouterObservationCoverage(chunk, summary.FirstStep, summary.Steps, summary.Layers)
+		if deriveErr != nil || !reflect.DeepEqual(summary, want) {
+			return MoERouterObservationQueryResult{}, errors.Join(errors.New("run record: moe router coverage summary differs"), deriveErr)
+		}
+		result.Chunks = append(result.Chunks, chunk)
+		result.Work.RawChunksLoaded++
+		result.Work.RawBytesLoaded += summary.ObservationBytes
+	}
+	return result, nil
+}
+
+func validateMoERouterObservationQuery(query MoERouterObservationQuery) (artifact.ID, error) {
+	if query.Limit <= 0 || query.Limit >= MaximumAttemptPopulation {
+		return artifact.ID{}, errors.New("run record: invalid moe router observation query bound")
+	}
+	filters := []struct {
+		id   artifact.ID
+		kind artifact.Kind
+	}{{query.Run, artifact.KindRun}, {query.Model, artifact.KindModel}, {query.Dataset, artifact.KindDataset},
+		{query.Split, artifact.KindDatasetShard}, {query.Recipe, artifact.KindRecipe}}
+	var seed artifact.ID
+	for _, filter := range filters {
+		if !filter.id.Valid() {
+			continue
+		}
+		if filter.id.Kind() != filter.kind {
+			return artifact.ID{}, errors.New("run record: invalid moe router observation query authority")
+		}
+		if !seed.Valid() {
+			seed = filter.id
+		}
+	}
+	if !query.Head && !seed.Valid() {
+		return artifact.ID{}, errors.New("run record: query requires a head or indexed scope seed")
+	}
+	return seed, nil
+}
+
+func matchesMoERouterObservationQuery(value MoERouterObservationCoverage, query MoERouterObservationQuery) bool {
+	return (!query.Run.Valid() || value.Run == query.Run) && (!query.Model.Valid() || value.Model == query.Model) &&
+		(!query.Dataset.Valid() || value.Dataset == query.Dataset) && (!query.Split.Valid() || value.Split == query.Split) &&
+		(!query.Recipe.Valid() || value.Recipe == query.Recipe)
+}
+
 func canonicalizeMoERouterObservationCoverage(value *MoERouterObservationCoverage) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Run.Kind() != artifact.KindRun ||
+		value.Model.Kind() != artifact.KindModel || value.Dataset.Kind() != artifact.KindDataset ||
+		value.Split.Kind() != artifact.KindDatasetShard || value.Recipe.Kind() != artifact.KindRecipe ||
 		value.Chunk.Kind() != artifact.KindFile || value.Steps == 0 || len(value.Layers) == 0 ||
 		value.ObservationCount == 0 || value.ObservationBytes == 0 || value.ObservationBytes > artifact.MaxContentBytes ||
 		!slices.IsSorted(value.Layers) || len(slices.Compact(slices.Clone(value.Layers))) != len(value.Layers) {

@@ -81,7 +81,8 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if seeded.Plan.Index != "seed" || seeded.Plan.Returned != 1 {
+	if seeded.Plan.Index != "seed" || seeded.Plan.Inspected != 1 || seeded.Plan.Matched != 1 ||
+		seeded.Plan.Returned != 1 || seeded.Plan.Loaded != 1 {
 		t.Fatalf("seed plan = %+v", seeded.Plan)
 	}
 

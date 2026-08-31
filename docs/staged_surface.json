@@ -197,14 +197,14 @@
     {
       "package": "overgo/internal/runrecord",
       "name": "NewEfficiencyTrace",
-      "reason": "Interaction-efficiency baseline document delivered by redundancy-interaction-baseline/interaction-traces with contract and measured storage baseline complete.",
-      "retire_with": "interaction-efficiency/bounded-training-evidence"
+      "reason": "Efficiency-trace construction remains test-proven until the measured efficiency gate publishes persisted comparison claims.",
+      "retire_with": "interaction-efficiency/efficiency-gate"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ParseEfficiencyTrace",
-      "reason": "Reader for the interaction-efficiency baseline document; staged with its constructor.",
-      "retire_with": "interaction-efficiency/projection-query-plans"
+      "reason": "Cold efficiency-trace parsing remains test-proven until the measured efficiency gate consumes persisted trace claims.",
+      "retire_with": "interaction-efficiency/efficiency-gate"
     },
     {
       "package": "overgo/internal/artifact/repositorytest",
@@ -214,12 +214,6 @@
         "classification": "test-support",
         "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
       }
-    },
-    {
-      "package": "overgo/internal/artifact",
-      "name": "ReadContents",
-      "reason": "Batched content reader consolidating per-item fan-out reads; consumed by evaluation resume and modelrecipe decision loading.",
-      "retire_with": "interaction-efficiency/projection-query-plans"
     },
     {
       "package": "overgo/internal/artifact",
@@ -372,6 +366,12 @@
       "package": "overgo/internal/runrecord",
       "name": "RequireMoERouterObservationCoverage",
       "reason": "Exact raw-chunk decode is retained for the isolated scaling, health, and router evaluator that consumes the bounded training stream.",
+      "retire_with": "advanced-domain-plugins/evidence"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "QueryMoERouterObservationCoverage",
+      "reason": "Indexed summary-first router queries remain test-proven until the isolated scaling, health, and router evaluator consumes the bounded training stream.",
       "retire_with": "advanced-domain-plugins/evidence"
     },
     {

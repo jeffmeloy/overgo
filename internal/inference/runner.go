@@ -183,6 +183,10 @@ type runnerState struct {
 	promptCaches  []*cachedPrompt
 	loraAdapters  []loadedLoRA
 	decodeSession *deviceDecodeSession
+	// spanDecodeSessions retains compiled span decode sessions keyed by
+	// identity: speculation replays a handful of span lengths per boundary
+	// capacity, each compiled once.
+	spanDecodeSessions map[decodeSessionIdentity]*deviceDecodeSession
 }
 
 // Runner: prepared assets + mutable request state.

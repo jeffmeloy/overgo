@@ -585,17 +585,28 @@ func (r *Runner) parameterizedDecodeCapacity(
 	if len(appends) == 0 || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity {
 		return 0, false
 	}
+	// Span plans parameterize one bounded multi-token append; every other
+	// plan parameterizes exactly one token per branch.
+	span := plan.is(deviceOutputGreedySpan)
+	if span && len(appends) != 1 {
+		return 0, false
+	}
 	var capacity, tokens uint32
 	for index, item := range appends {
 		past := item.Past
-		if len(item.Tokens) != 1 || past == nil || past.Tokens == 0 || past.storage == nil ||
+		appended := uint32(len(item.Tokens))
+		if !span && appended != 1 {
+			return 0, false
+		}
+		if appended == 0 || past == nil || past.Tokens == 0 || past.storage == nil ||
 			(plan.is(deviceOutputGreedy) && past.Selection.Pointer == 0) ||
-			past.Tokens >= r.spec.ContextLength || past.Tokens == math.MaxUint32 {
+			uint64(past.Tokens)+uint64(appended) > uint64(r.spec.ContextLength) ||
+			past.Tokens == math.MaxUint32 {
 			return 0, false
 		}
 		current := cachePageCapacity(past.Tokens, r.spec.ContextLength, r.program.Decode.Session)
-		next := cachePageCapacity(past.Tokens+1, r.spec.ContextLength, r.program.Decode.Session)
-		if current < past.Tokens || next <= past.Tokens {
+		next := cachePageCapacity(past.Tokens+appended, r.spec.ContextLength, r.program.Decode.Session)
+		if current < past.Tokens || next < past.Tokens+appended {
 			return 0, false
 		}
 		if index == 0 {
@@ -615,17 +626,27 @@ func (r *Runner) executeParameterizedDecodeSession(
 	if session == nil || session.execution.Graph == nil || len(appends) != len(session.graphs) ||
 		!session.program.identity.matches(
 			session.program.identity.capacity,
+			session.program.identity.tokenCount,
 			session.program.identity.output,
 			r.currentLoRASignature(),
 		) {
 		return nil, errors.New("inference: parameterized decode session is invalid")
 	}
 	for index, item := range appends {
-		if len(item.Tokens) != 1 || item.Tokens[0] < 0 || int(item.Tokens[0]) >= r.vocab.Len() {
-			return nil, errors.New("inference: parameterized decode token is invalid")
+		if len(item.Tokens) != int(session.program.identity.tokenCount) {
+			return nil, errors.New("inference: parameterized decode token count differs")
+		}
+		for _, token := range item.Tokens {
+			if token < 0 || int(token) >= r.vocab.Len() {
+				return nil, errors.New("inference: parameterized decode token is invalid")
+			}
+		}
+		rows, err := r.vocab.TensorIndices(item.Tokens)
+		if err != nil {
+			return nil, err
 		}
 		if err := session.program.updateBranch(
-			index, uint32(item.Tokens[0]), item.Past.Position, item.Past.Tokens,
+			index, rows, item.Past.Position, item.Past.Tokens,
 		); err != nil {
 			return nil, err
 		}
@@ -711,27 +732,47 @@ func bindParameterizedDecodeInputs(session *deviceDecodeSession, appends []devic
 	return nil
 }
 
+// spanDecodeSessionLimit bounds the retained span decode sessions: a
+// generation traverses power-of-two capacity bands times the speculation
+// window of span lengths, so the bound must hold every live combination —
+// measured 35 identities across a 512-token run — before a full clear.
+const spanDecodeSessionLimit = 64
+
 func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	ctx context.Context,
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
 	capacity, parameterized := r.parameterizedDecodeCapacity(appends, plan)
+	tokenCount := uint32(1)
 	if parameterized {
+		tokenCount = uint32(len(appends[0].Tokens))
 		identity := decodeSessionIdentity{
 			capacity: capacity,
-			branches: uint32(len(appends)), tokenCount: 1, output: plan,
+			branches: uint32(len(appends)), tokenCount: tokenCount, output: plan,
 			lora: r.currentLoRASignature(),
 		}
 		session := appends[0].Past.session
-		if session == nil && r.decodeSession != nil && r.decodeSession.program.identity == identity {
-			session = r.decodeSession
+		if session == nil || session.program.identity != identity {
+			session = nil
+			if r.decodeSession != nil && r.decodeSession.program.identity == identity {
+				session = r.decodeSession
+			} else if cached, ok := r.spanDecodeSessions[identity]; ok {
+				session = cached
+			}
 		}
 		compatible := session != nil && session.program.identity.branches == uint32(len(appends)) &&
 			session.program.identity.matches(
-				capacity, plan, r.currentLoRASignature(),
+				capacity, tokenCount, plan, r.currentLoRASignature(),
 			)
 		for index, item := range appends {
+			// Span sessions rebind every cache input per replay and carry
+			// one branch, so a past cache produced by another session is
+			// still a valid boundary; the multi-branch decode session keeps
+			// its strict branch affinity.
+			if plan.is(deviceOutputGreedySpan) {
+				continue
+			}
 			compatible = compatible && (item.Past.session == nil ||
 				(item.Past.session == session && item.Past.sessionBranch == index))
 		}
@@ -797,7 +838,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		program, programErr := compileDecodeSessionPlan(
 			execution.Graph, graphs, targetPlans, decodeSessionIdentity{
 				capacity: capacity,
-				branches: uint32(len(graphs)), tokenCount: 1, output: plan,
+				branches: uint32(len(graphs)), tokenCount: tokenCount, output: plan,
 				lora: r.currentLoRASignature(),
 			},
 		)
@@ -810,7 +851,17 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			rebuilds:  rebuilds, replays: replays,
 		}
 		session.owners = repeatDecodeSession(session, len(graphs))
-		r.decodeSession = session
+		if plan.is(deviceOutputGreedySpan) {
+			if r.spanDecodeSessions == nil {
+				r.spanDecodeSessions = make(map[decodeSessionIdentity]*deviceDecodeSession)
+			}
+			if len(r.spanDecodeSessions) >= spanDecodeSessionLimit {
+				clear(r.spanDecodeSessions)
+			}
+			r.spanDecodeSessions[program.identity] = session
+		} else {
+			r.decodeSession = session
+		}
 		sessions = session.owners
 	}
 	targets, storages, err := r.prepareDeviceCacheTargets(ctx, execution.Graph, graphs, appends, targetPlans)

@@ -89,12 +89,13 @@ func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = program.updateBranch(0, 2, 3, 3); err != nil {
+	rows := []uint32{2}
+	if err = program.updateBranch(0, rows, 3, 3); err != nil {
 		t.Fatal(err)
 	}
 	var updateErr error
 	allocations := testing.AllocsPerRun(100, func() {
-		updateErr = program.updateBranch(0, 2, 3, 3)
+		updateErr = program.updateBranch(0, rows, 3, 3)
 	})
 	if updateErr != nil {
 		t.Fatal(updateErr)

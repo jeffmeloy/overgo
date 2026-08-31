@@ -4,15 +4,28 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "mtp-span-sessions",
-      "title": "Replay-compile span verify and draft steps as decode sessions: close the 46 tok/s gap",
+      "id": "mtp-multicolumn-kernels",
+      "title": "Tile quantized mul_mat kernels over span columns: one weight read serves the whole verify batch",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Replay-compile span verify and draft steps as decode sessions: close the 46 tok/s gap",
+          "title": "Tile quantized mul_mat kernels over span columns: one weight read serves the whole verify batch",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run TestSpanDecodeSession -count=1"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run TestExecutorSpanColumns -count=1"
+        }
+      ]
+    },
+    {
+      "id": "mtp-acceptance-audit",
+      "title": "Audit long-text draft acceptance: 2.06 emissions per read decays to 1.40 over 512 tokens",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Audit long-text draft acceptance: 2.06 emissions per read decays to 1.40 over 512 tokens",
+          "status": "open",
+          "verify": "go run ./cmd/plan -verify-manual mtp-acceptance-audit"
         }
       ]
     },

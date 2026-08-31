@@ -37,12 +37,12 @@ type decodeSessionIdentity struct {
 }
 
 func (i decodeSessionIdentity) matches(
-	capacity uint32,
+	capacity, tokenCount uint32,
 	output deviceOutputPlan,
 	lora [32]byte,
 ) bool {
 	return i.capacity == capacity &&
-		i.branches > 0 && i.tokenCount == 1 && i.output == output && i.lora == lora
+		i.branches > 0 && i.tokenCount == tokenCount && i.output == output && i.lora == lora
 }
 
 type decodeSessionBranchPlan struct {
@@ -222,12 +222,13 @@ func appendUniqueGraphOutputs(
 
 func (p *decodeSessionPlan) updateBranch(
 	branch int,
-	row, position, pastTokens uint32,
+	rows []uint32,
+	position, pastTokens uint32,
 ) error {
 	if p == nil || p.attributes == nil {
 		return errors.New("inference: decode session plan is unavailable")
 	}
-	if branch < 0 || branch >= len(p.branches) || p.identity.tokenCount != 1 {
+	if branch < 0 || branch >= len(p.branches) || int(p.identity.tokenCount) != len(rows) {
 		return errors.New("inference: decode session branch is invalid")
 	}
 	if uint64(pastTokens)+uint64(p.identity.tokenCount) > uint64(p.identity.capacity) {
@@ -240,19 +241,21 @@ func (p *decodeSessionPlan) updateBranch(
 		}
 		switch slot.kind {
 		case decodeDynamicTokenRows:
-			if len(slot.positions[0]) != 1 {
+			if len(slot.positions[0]) != len(rows) {
 				return errors.New("inference: decode token-row count changed")
 			}
-			slot.positions[0][0] = row
+			copy(slot.positions[0], rows)
 		case decodeDynamicPositions:
 			for _, target := range slot.positions {
 				if len(target) == 0 {
 					continue
 				}
-				if len(target) != 1 {
+				if len(target) != len(rows) {
 					return errors.New("inference: decode position count changed")
 				}
-				target[0] = position
+				for offset := range target {
+					target[offset] = position + uint32(offset)
+				}
 			}
 		case decodeDynamicAttention:
 			slot.attention.QueryStart = pastTokens

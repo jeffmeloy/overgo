@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "parked-findings",
-      "title": "Graduate parked findings into gated cleanups",
-      "status": "open",
-      "steps": [
-        {
-          "id": "reference-paper-decision",
-          "title": "Decide the unplanned reference paper in docs and pin that docs holds no unplanned binaries",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestDocsHoldNoUnplannedBinaries$' -count=1",
-          "rationale": "An arXiv paper sits untracked in docs and every gate run warns about it. Either ship it with a citation as planned reference material or delete it, then pin the decision with a check that docs holds no untracked binary documents, so future reference material enters through a plan row.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard"
-          ],
-          "capabilities": [
-            "finding-closure",
-            "docs",
-            "repo-hygiene"
-          ]
-        }
-      ]
-    },
-    {
       "id": "architecture-closure",
       "title": "Enforce the Go-only RSI architecture and prove the storage transition end to end",
       "status": "open",

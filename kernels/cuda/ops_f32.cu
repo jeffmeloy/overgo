@@ -6295,6 +6295,227 @@ extern "C" __global__ void mul_mat_q6_K_f32(
     }
 }
 
+// mul_mat_q4_K_input_f32: integer fast path for decode — per 32-column
+// group the contribution splits into d*scale*dot(q,x) minus
+// dmin*min*sum(x), both reduced with dp4a over the q8 input blocks.
+// Bit layout mirrors dequant_q4_K_value exactly.
+extern "C" __global__ void mul_mat_q4_K_input_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    if (warp_index >= left_rows * right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    const unsigned int superblocks = inner / 256;
+    const unsigned char * weight_row =
+        left + (size_t) left_row * superblocks * 144;
+    const unsigned char * input_blocks =
+        right + (size_t) right_row * (inner / 32) * Q8_INPUT_BLOCK_BYTES;
+    float sum = 0.0f;
+    for (unsigned int super = 0; super < superblocks; ++super) {
+        const unsigned char * block = weight_row + super * 144;
+        const float d =
+            __half2float(*reinterpret_cast<const __half *>(block));
+        const float dmin =
+            __half2float(*reinterpret_cast<const __half *>(block + 2));
+        const unsigned char * scales = block + 4;
+        const unsigned char * quantized = block + 16;
+        for (unsigned int run = lane; run < 64; run += CUDA_WARP_WIDTH) {
+            const unsigned int column = run * 4;
+            const unsigned int group = column / 32;
+            const unsigned int qlane = column % 32;
+            unsigned int group_scale;
+            unsigned int group_minimum;
+            scale_min_k4(group, scales, &group_scale, &group_minimum);
+            const unsigned char * q_bytes =
+                quantized + (group / 2) * 32 + qlane;
+            unsigned int packed = 0;
+#pragma unroll
+            for (unsigned int b = 0; b < 4; ++b) {
+                const unsigned int value = group % 2 == 0
+                    ? (q_bytes[b] & 0x0f)
+                    : (unsigned int) (q_bytes[b] >> 4);
+                packed |= value << (8 * b);
+            }
+            const unsigned char * input_block = input_blocks +
+                (super * 8 + group) * Q8_INPUT_BLOCK_BYTES;
+            const float input_scale =
+                *reinterpret_cast<const float *>(input_block);
+            const int input_word = load_i32_unaligned(
+                input_block + sizeof(float) + qlane);
+            const int dot = __dp4a((int) packed, input_word, 0);
+            const int input_sum = __dp4a(0x01010101, input_word, 0);
+            sum += input_scale *
+                (d * (float) ((int) group_scale * dot) -
+                    dmin * (float) ((int) group_minimum * input_sum));
+        }
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffffu, sum, offset);
+    }
+    if (lane == 0) {
+        output[warp_index] = sum;
+    }
+}
+
+// mul_mat_q5_K_input_f32: the q4_K split plus the fifth bit from the
+// high plane. Bit layout mirrors dequant_q5_K_value exactly.
+extern "C" __global__ void mul_mat_q5_K_input_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    if (warp_index >= left_rows * right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    const unsigned int superblocks = inner / 256;
+    const unsigned char * weight_row =
+        left + (size_t) left_row * superblocks * 176;
+    const unsigned char * input_blocks =
+        right + (size_t) right_row * (inner / 32) * Q8_INPUT_BLOCK_BYTES;
+    float sum = 0.0f;
+    for (unsigned int super = 0; super < superblocks; ++super) {
+        const unsigned char * block = weight_row + super * 176;
+        const float d =
+            __half2float(*reinterpret_cast<const __half *>(block));
+        const float dmin =
+            __half2float(*reinterpret_cast<const __half *>(block + 2));
+        const unsigned char * scales = block + 4;
+        const unsigned char * high = block + 16;
+        const unsigned char * quantized = block + 48;
+        for (unsigned int run = lane; run < 64; run += CUDA_WARP_WIDTH) {
+            const unsigned int column = run * 4;
+            const unsigned int group = column / 32;
+            const unsigned int qlane = column % 32;
+            unsigned int group_scale;
+            unsigned int group_minimum;
+            scale_min_k4(group, scales, &group_scale, &group_minimum);
+            const unsigned char * q_bytes =
+                quantized + (group / 2) * 32 + qlane;
+            const unsigned char * high_bytes = high + qlane;
+            unsigned int packed = 0;
+#pragma unroll
+            for (unsigned int b = 0; b < 4; ++b) {
+                unsigned int value = group % 2 == 0
+                    ? (q_bytes[b] & 0x0f)
+                    : (unsigned int) (q_bytes[b] >> 4);
+                if ((high_bytes[b] & (1u << group)) != 0) {
+                    value += 16;
+                }
+                packed |= value << (8 * b);
+            }
+            const unsigned char * input_block = input_blocks +
+                (super * 8 + group) * Q8_INPUT_BLOCK_BYTES;
+            const float input_scale =
+                *reinterpret_cast<const float *>(input_block);
+            const int input_word = load_i32_unaligned(
+                input_block + sizeof(float) + qlane);
+            const int dot = __dp4a((int) packed, input_word, 0);
+            const int input_sum = __dp4a(0x01010101, input_word, 0);
+            sum += input_scale *
+                (d * (float) ((int) group_scale * dot) -
+                    dmin * (float) ((int) group_minimum * input_sum));
+        }
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffffu, sum, offset);
+    }
+    if (lane == 0) {
+        output[warp_index] = sum;
+    }
+}
+
+// mul_mat_q6_K_input_f32: integer fast path for decode — the input
+// vector arrives as q8 blocks (quantize_q8_0_input_f32), and each
+// four-column run reduces through one dp4a with the q6_K -32 offset
+// folded through a ones-vector dot. Bit layout mirrors
+// dequant_q6_K_value exactly.
+extern "C" __global__ void mul_mat_q6_K_input_f32(
+        const unsigned char * left,
+        const unsigned char * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    if (warp_index >= left_rows * right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    const unsigned int superblocks = inner / 256;
+    const unsigned char * weight_row =
+        left + (size_t) left_row * superblocks * 210;
+    const unsigned char * input_blocks =
+        right + (size_t) right_row * (inner / 32) * Q8_INPUT_BLOCK_BYTES;
+    float sum = 0.0f;
+    for (unsigned int super = 0; super < superblocks; ++super) {
+        const unsigned char * block = weight_row + super * 210;
+        const unsigned char * lower = block;
+        const unsigned char * high = block + 128;
+        const signed char * scales =
+            reinterpret_cast<const signed char *>(block + 192);
+        const float d =
+            __half2float(*reinterpret_cast<const __half *>(block + 208));
+        for (unsigned int run = lane; run < 64; run += CUDA_WARP_WIDTH) {
+            const unsigned int column = run * 4;
+            const unsigned int group = column / 128;
+            const unsigned int within = column % 128;
+            const unsigned int quarter = within / 32;
+            const unsigned int qlane = within % 32;
+            const unsigned char * low_bytes =
+                lower + group * 64 + qlane +
+                (quarter == 1 || quarter == 3 ? 32 : 0);
+            const unsigned char * high_bytes = high + group * 32 + qlane;
+            const unsigned int high_shift = quarter * 2;
+            unsigned int packed = 0;
+#pragma unroll
+            for (unsigned int b = 0; b < 4; ++b) {
+                const unsigned int low = quarter < 2
+                    ? (low_bytes[b] & 0x0f)
+                    : (unsigned int) (low_bytes[b] >> 4);
+                const unsigned int hi =
+                    ((high_bytes[b] >> high_shift) & 0x03) << 4;
+                packed |= (low | hi) << (8 * b);
+            }
+            const unsigned char * input_block = input_blocks +
+                (super * 8 + column / 32) * Q8_INPUT_BLOCK_BYTES;
+            const float input_scale =
+                *reinterpret_cast<const float *>(input_block);
+            const int input_word = load_i32_unaligned(
+                input_block + sizeof(float) + (column % 32));
+            int dot = __dp4a((int) packed, input_word, 0);
+            dot -= 32 * __dp4a(0x01010101, input_word, 0);
+            const signed char block_scale =
+                scales[group * 8 + quarter * 2 + qlane / 16];
+            sum += d * input_scale * (float) ((int) block_scale * dot);
+        }
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffffu, sum, offset);
+    }
+    if (lane == 0) {
+        output[warp_index] = sum;
+    }
+}
+
 __device__ float moe_expert_value(
         const void * weights,
         size_t index,

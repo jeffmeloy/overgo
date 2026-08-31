@@ -313,14 +313,14 @@ func launchLinearLayout(
 			}
 			function := functions[quantKernels[leftNode.Type].mulMat]
 			quantizedRight := right
-			if leftNode.Type == dtype.Q8_0 && rightRows == 1 {
+			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast && rightRows == 1 {
 				if q8Input == nil || q8Input.staging == 0 {
-					return errors.New("Q8_0 mul_mat input workspace is unavailable")
+					return fmt.Errorf("%s mul_mat input workspace is unavailable", leftNode.Type)
 				}
 				if q8Input.stagedNode != rightNode {
 					blocks := uint64(inner) * uint64(rightRows) / q8InputTraits.BlockSize
 					if blocks > math.MaxUint32 {
-						return errors.New("Q8_0 mul_mat input block count exceeds uint32")
+						return fmt.Errorf("%s mul_mat input block count exceeds uint32", leftNode.Type)
 					}
 					blockCount := uint32(blocks)
 					if err := launchQ8InputQuantization(
@@ -330,7 +330,7 @@ func launchLinearLayout(
 					}
 					q8Input.stagedNode = rightNode
 				}
-				function = functions[kernelMulMatQ80InputF32]
+				function = functions[inputKernel]
 				quantizedRight = q8Input.staging
 			}
 			launchCount, err := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
@@ -1119,6 +1119,24 @@ func launchQ8ArgmaxReduction(
 		kernel.Grid1D(1), kernel.DefaultBlock1D(),
 		&partials, &output, &partialCount,
 	)
+}
+
+// q8InputMulMatKernels names the decode fast path per storage type: a
+// single input vector quantizes once to q8 blocks and the weight dot
+// products run integer dp4a. Types without an entry keep the float
+// path.
+var q8InputMulMatKernels = map[dtype.Type]kernelFunctionID{
+	dtype.Q8_0: kernelMulMatQ80InputF32,
+	dtype.Q4K:  kernelMulMatQ4KInputF32,
+	dtype.Q5K:  kernelMulMatQ5KInputF32,
+	dtype.Q6K:  kernelMulMatQ6KInputF32,
+}
+
+// q8InputFastPathType reports storage types whose single-vector decode
+// routes through the q8-input integer kernels.
+func q8InputFastPathType(storage dtype.Type) bool {
+	_, fast := q8InputMulMatKernels[storage]
+	return fast
 }
 
 // quantMulMatLaunchCount sizes the thread grid for the warp-cooperative

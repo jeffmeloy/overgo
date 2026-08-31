@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
+      "id": "qwen38-throughput-stage2",
+      "title": "Beat the 46 tok/s external baseline: q8-input integer-dot fast path for K-quant mul_mat",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Beat the 46 tok/s external baseline: q8-input integer-dot fast path for K-quant mul_mat",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -count=1"
+        }
+      ]
+    },
+    {
       "id": "parked-findings",
       "title": "Graduate parked findings into gated cleanups",
       "status": "open",

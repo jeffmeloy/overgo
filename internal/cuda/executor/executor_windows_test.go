@@ -1038,6 +1038,52 @@ func TestExecutorQ8MulMatMatchesDequantizedReference(t *testing.T) {
 	checkResidentMulMat(t, dtype.Q8_0, leftShape, storage, dequantized)
 }
 
+// TestExecutorQ6KMulMatMatchesDequantizedReference pins the q6_K decode
+// fast path: the single-vector case routes through the q8-input integer
+// kernel. Its int8 activation quantization carries ~0.5% relative error
+// against the dequantized float reference on these 512-wide dots, so
+// the decode case holds a documented looser absolute bound; the greedy
+// case demands exact selection — the serving invariant — and prefill
+// rides the float path at the shared quantized tolerance.
+func TestExecutorQ6KMulMatMatchesDequantizedReference(t *testing.T) {
+	for _, storageType := range []dtype.Type{dtype.Q4K, dtype.Q5K, dtype.Q6K} {
+		t.Run(storageType.String(), func(t *testing.T) {
+			leftShape := tensor.MustShape(512, 19)
+			leftValue := patternedValue(leftShape, 11, 0.03, -0.1)
+			storage, err := quant.Quantize(storageType, leftValue.Data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dequantized, err := quant.Dequantize(storageType, storage, uint64(len(leftValue.Data)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			const inputQuantizedDecodeTolerance = 8e-2
+			for _, testCase := range []residentProjectionCase{
+				{name: "decode", rightRows: 1, tolerance: inputQuantizedDecodeTolerance},
+				{name: "prefill", rightRows: 3, tolerance: accuracyQuantized},
+				{name: "greedy", rightRows: 1, selectTopK: true, tolerance: accuracyExact},
+			} {
+				t.Run(testCase.name, func(t *testing.T) {
+					rightShape := tensor.MustShape(leftShape.Slice()[0], testCase.rightRows)
+					rightValue := patternedValue(rightShape, 7, 0.05, 0.02)
+					checkResidentBinaryGraph(
+						t, storageType, leftShape, storage, dequantized, rightValue,
+						func(builder *tensor.Builder, left, right *tensor.Tensor) *tensor.Tensor {
+							output := builder.MulMat(left, right)
+							if testCase.selectTopK {
+								return builder.TopK(output, 1)
+							}
+							return output
+						},
+						testCase.tolerance,
+					)
+				})
+			}
+		})
+	}
+}
+
 func TestExecutorActivatedGatesMatchReference(t *testing.T) {
 	for _, build := range []struct {
 		name string

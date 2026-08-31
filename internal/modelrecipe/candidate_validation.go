@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -61,6 +62,76 @@ func ValidateCandidateRecipe(definition recipe.Definition) CandidateRecipeClosur
 	if definition.Task != recipe.TaskInference {
 		if _, err := CompileCapability(definition); err != nil {
 			closure.Refusals = append(closure.Refusals, "capability compile: "+err.Error())
+		}
+	}
+	closure.Runnable = len(closure.Refusals) == 0
+	return closure
+}
+
+// ValidateStoredCandidateRecipe adds local artifact closure to the compiled
+// graph verdict. Every direct dependency and transitive lineage parent must
+// exist in the supplied reader; a content-shaped ID alone cannot stand in for
+// a registered transform, controller policy, checkpoint, or other capability.
+func ValidateStoredCandidateRecipe(
+	ctx context.Context,
+	reader artifact.Reader,
+	definition recipe.Definition,
+) CandidateRecipeClosure {
+	closure := ValidateCandidateRecipe(definition)
+	if ctx == nil || reader == nil {
+		closure.Refusals = append(closure.Refusals, "local capability authority is absent")
+		closure.Runnable = false
+		return closure
+	}
+	if err := ctx.Err(); err != nil {
+		closure.Refusals = append(closure.Refusals, "local capability authority: "+err.Error())
+		closure.Runnable = false
+		return closure
+	}
+
+	roles := make(map[artifact.ID]string, len(definition.Dependencies))
+	frontier := make([]artifact.ID, 0, len(definition.Dependencies))
+	for _, dependency := range definition.Dependencies {
+		if _, found := roles[dependency.Artifact]; found {
+			continue
+		}
+		roles[dependency.Artifact] = fmt.Sprintf("%s[%d]", dependency.Role, dependency.Slot)
+		frontier = append(frontier, dependency.Artifact)
+	}
+	seen := make(map[artifact.ID]bool, len(frontier))
+	for len(frontier) != 0 {
+		slices.SortFunc(frontier, artifact.CompareID)
+		id := frontier[0]
+		frontier = frontier[1:]
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		descriptor, found, err := reader.Artifact(ctx, id)
+		if err != nil {
+			closure.Refusals = append(closure.Refusals,
+				fmt.Sprintf("capability %s artifact %s: %v", roles[id], id, err))
+			continue
+		}
+		if !found || descriptor.ID != id {
+			closure.Refusals = append(closure.Refusals,
+				fmt.Sprintf("capability %s artifact %s is absent", roles[id], id))
+			continue
+		}
+		parents, err := reader.Parents(ctx, id)
+		if err != nil {
+			closure.Refusals = append(closure.Refusals,
+				fmt.Sprintf("capability %s lineage for %s: %v", roles[id], id, err))
+			continue
+		}
+		for _, edge := range parents {
+			if seen[edge.Parent] {
+				continue
+			}
+			if _, found := roles[edge.Parent]; !found {
+				roles[edge.Parent] = "lineage"
+			}
+			frontier = append(frontier, edge.Parent)
 		}
 	}
 	closure.Runnable = len(closure.Refusals) == 0

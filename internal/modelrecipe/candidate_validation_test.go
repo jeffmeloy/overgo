@@ -1,6 +1,8 @@
 package modelrecipe
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -60,5 +62,71 @@ func TestCandidateRecipeCapabilityClosure(t *testing.T) {
 	}
 	if _, err := PublishCandidateClosure(ctx, store, CandidateRecipeClosure{}); err == nil {
 		t.Fatal("closure without a definition identity published")
+	}
+}
+
+func TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint(t *testing.T) {
+	modelContent, err := artifact.JSONContent(artifact.DocumentContract{
+		Kind: artifact.KindModel, MediaType: "application/vnd.overgo.test-model+json", Schema: "overgo/test-model/v1",
+	}, struct {
+		Name string `json:"name"`
+	}{Name: "candidate-capability-model"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := CapabilityDefinition(recipe.TaskForecast, modelContent.Descriptor.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.Commit(t.Context(), artifact.Batch{
+		Key: "candidate/capability-model", Contents: []artifact.Content{modelContent},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if closure := ValidateStoredCandidateRecipe(t.Context(), store, definition); !closure.Runnable {
+		t.Fatalf("locally closed candidate refused: %+v", closure)
+	}
+
+	unknown := []struct {
+		name string
+		role recipe.DependencyRole
+		kind artifact.Kind
+	}{
+		{name: "transform", role: recipe.DependencyCandidateComponent, kind: artifact.KindProfile},
+		{name: "controller", role: recipe.DependencyDerivationProfile, kind: artifact.KindProfile},
+		{name: "checkpoint", role: recipe.DependencyCheckpoint, kind: artifact.KindCheckpoint},
+	}
+	for slot, capability := range unknown {
+		t.Run(capability.name, func(t *testing.T) {
+			missing := testutil.ArtifactID(t, capability.kind, "unknown-"+capability.name)
+			dependencies := append([]recipe.Dependency(nil), definition.Dependencies...)
+			dependencies = append(dependencies, recipe.Dependency{
+				Role: capability.role, Slot: uint32(slot), Artifact: missing,
+			})
+			candidate, err := recipe.NewDefinitionWithDependencies(
+				definition.Task, dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			closure := ValidateStoredCandidateRecipe(t.Context(), store, candidate)
+			if closure.Runnable || len(closure.Refusals) == 0 {
+				t.Fatalf("unknown %s validated: %+v", capability.name, closure)
+			}
+			want := fmt.Sprintf("capability %s[%d] artifact %s is absent", capability.role, slot, missing)
+			if !slices.Contains(closure.Refusals, want) {
+				t.Fatalf("unknown %s refusals = %v, want %q", capability.name, closure.Refusals, want)
+			}
+			for _, refusal := range closure.Refusals {
+				if strings.Contains(refusal, "fallback") {
+					t.Fatalf("unknown %s selected fallback: %q", capability.name, refusal)
+				}
+			}
+		})
 	}
 }

@@ -185,22 +185,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "recipe-validation",
-          "title": "Compile each candidate recipe against exact local domain-plugin and runtime capabilities and publish verification evidence",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/capabilityruntime ./internal/trainingprogram ./internal/dataset -run '^(TestCandidateRecipeCapabilityClosure|TestCandidateRecipeRejectsUnknownTransformControllerOrCheckpoint)$' -count=1",
-          "rationale": "A recipe candidate is not runnable because it parses. Validation proves every local module, port, dependency, placement, residency, session policy, deterministic transform, routing target, estimator, controller, observation contract, checkpoint state, and resource requirement against exact compiled capability identities. The supervised first win remains local and direct-Go. Unsupported, mismatched, advisory-versioned, or incomplete identities record refusal rather than selecting a fallback topology; remote UTCP validation is added only by the post-proof outward-capability step.",
-          "depends_on": [
-            "model-recipe-lifecycle/recipe-derivation"
-          ],
-          "capabilities": [
-            "recipe-validation",
-            "capability-runtime",
-            "agent-tool",
-            "refusal"
-          ]
-        },
-        {
           "id": "isolated-performance-evidence",
           "title": "Publish identity-bound cross-domain performance observations from isolated supervised processes",
           "status": "open",

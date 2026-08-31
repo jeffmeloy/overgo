@@ -58,7 +58,7 @@ func validateCandidate(arguments []string) error {
 	if err != nil {
 		return err
 	}
-	closure := modelrecipe.ValidateCandidateRecipe(definition)
+	closure := modelrecipe.ValidateStoredCandidateRecipe(ctx, store, definition)
 	evidence, err := modelrecipe.PublishCandidateClosure(ctx, store, closure)
 	if err != nil {
 		return err

@@ -37,9 +37,7 @@ func TestAutomationScheduleClaim(t *testing.T) {
 	var winners atomic.Uint32
 	var wait sync.WaitGroup
 	for range contenders {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			<-start
 			_, won, claimErr := authority.Claim(t.Context(), "daily-report", plan, due)
 			if claimErr != nil {
@@ -49,7 +47,7 @@ func TestAutomationScheduleClaim(t *testing.T) {
 			if won {
 				winners.Add(1)
 			}
-		}()
+		})
 	}
 	close(start)
 	wait.Wait()

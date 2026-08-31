@@ -48,6 +48,19 @@ func (request ApprovalRequest) Content() (artifact.Content, error) {
 	return approvalCodec.Content(request)
 }
 
+// ApprovalDocumentContract names the durable approval-request contract so
+// decision views enumerate requests through the owning projection index.
+func ApprovalDocumentContract() artifact.DocumentContract {
+	return artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: approvalMediaType, Schema: approvalSchema,
+	}
+}
+
+// ParseApprovalRequest decodes one canonical durable approval request.
+func ParseApprovalRequest(content []byte) (ApprovalRequest, error) {
+	return approvalCodec.Parse(content)
+}
+
 // Binds reports exact action identity and arguments.
 func (request ApprovalRequest) Binds(action Action) bool {
 	return action.Validate() == nil && request.Tool == action.Code && slices.Equal(request.Arguments, action.Argv)

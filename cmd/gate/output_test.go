@@ -17,14 +17,14 @@ import (
 )
 
 func TestGateAdvisoryFindingPublication(t *testing.T) {
-	store := mustReview(overgodb.Open(filepath.Join(t.TempDir(), "store")))
+	store := mustGateValue(overgodb.Open(filepath.Join(t.TempDir(), "store")))
 	defer store.Close()
 	batch := artifact.Batch{Key: "gate/fixture"}
 	honesty := []string{"magic backlog: 2 inherited uncatalogued constants"}
 	if err := appendGateAdvisoryFinding(t.Context(), store, &batch, []string{"internal/p"}, honesty); err != nil {
 		t.Fatal(err)
 	}
-	mustReview(store.Commit(t.Context(), batch))
+	mustGateValue(store.Commit(t.Context(), batch))
 	next := artifact.Batch{Key: "gate/fixture/repeat"}
 	if err := appendGateAdvisoryFinding(t.Context(), store, &next, []string{"internal/p"}, honesty); err != nil ||
 		len(next.Aliases) != 1 || next.Aliases[0].Previous == nil || *next.Aliases[0].Previous != batch.Aliases[0].Target {

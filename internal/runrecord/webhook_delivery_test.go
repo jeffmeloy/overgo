@@ -38,9 +38,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	errorsSeen := make(chan error, 2)
 	var wait sync.WaitGroup
 	for range 2 {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			<-start
 			record, publishErr := ledger.Publish(ctx, input)
 			if publishErr != nil {
@@ -48,7 +46,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 				return
 			}
 			results <- record
-		}()
+		})
 	}
 	close(start)
 	wait.Wait()

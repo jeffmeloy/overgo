@@ -140,6 +140,37 @@ const (
 	DependencyEvaluation        DependencyRole = "training-evaluation"
 	DependencyEvaluator         DependencyRole = "evaluator"
 	DependencyPromotion         DependencyRole = "training-promotion"
+	// DependencyCandidateTrial binds a derived graph to the admitted,
+	// closed-world candidate compilation it executes or evaluates.
+	DependencyCandidateTrial DependencyRole = "candidate-trial"
+	// DependencyCandidateEvaluation binds the pre-execution evaluation plan.
+	DependencyCandidateEvaluation DependencyRole = "candidate-evaluation"
+	// DependencyCandidateComponent binds one compiled domain component plan.
+	DependencyCandidateComponent DependencyRole = "candidate-component"
+	// DependencyCandidateAblation binds one declared drop-delta arm.
+	DependencyCandidateAblation DependencyRole = "candidate-ablation"
+	// DependencyCandidateMaterialization binds the exact realized arm closure.
+	DependencyCandidateMaterialization DependencyRole = "candidate-materialization"
+	// DependencyCodeAuthority binds the compiled code revision used to realize a candidate.
+	DependencyCodeAuthority DependencyRole = "code-authority"
+	// DependencyEnvironmentAuthority binds the realization environment observation.
+	DependencyEnvironmentAuthority DependencyRole = "environment-authority"
+	// DependencyFalsifier binds the typed evaluation intent selected before execution.
+	DependencyFalsifier DependencyRole = "falsifier"
+	// DependencyExecutionRecipe binds evaluation to an exact derived execution graph.
+	DependencyExecutionRecipe DependencyRole = "execution-recipe"
+	// DependencyBudget binds a split-scoped resource grant.
+	DependencyBudget DependencyRole = "budget"
+	// DependencyDatasetShard binds an exact held-out or development split.
+	DependencyDatasetShard DependencyRole = "dataset-shard"
+	// DependencyTensorInventory binds the exact realized tensor inventory.
+	DependencyTensorInventory DependencyRole = "tensor-inventory"
+	// DependencyOutput binds the immutable output produced by a realized arm.
+	DependencyOutput DependencyRole = "output"
+	// DependencyRun binds the supervised realization run.
+	DependencyRun DependencyRole = "run"
+	// DependencyObservation binds the realization's typed observation contract.
+	DependencyObservation DependencyRole = "observation"
 	// DependencyCapabilityBundle binds typed instruction and resource data.
 	DependencyCapabilityBundle DependencyRole = "capability-bundle"
 	// DependencyToolManual binds a compiled workflow to one exact callable manual.
@@ -268,10 +299,15 @@ func validateDependency(dependency Dependency) error {
 		want = artifact.KindModel
 	case DependencyProfile, DependencyProcessorProfile, DependencyFlowProfile, DependencyDerivationProfile,
 		DependencyCapabilityBundle, DependencyObjective, DependencyPrecision, DependencyPlacement,
-		DependencyMemory, DependencyOptimizer, DependencyCheckpointPolicy, DependencyEvaluation, DependencyPromotion:
+		DependencyMemory, DependencyOptimizer, DependencyCheckpointPolicy, DependencyEvaluation, DependencyPromotion,
+		DependencyCandidateTrial, DependencyCandidateEvaluation, DependencyCandidateComponent,
+		DependencyCandidateAblation:
 		want = artifact.KindProfile
-	case DependencyEvaluator:
+	case DependencyEvaluator, DependencyCandidateMaterialization, DependencyCodeAuthority,
+		DependencyEnvironmentAuthority, DependencyBudget, DependencyObservation:
 		want = artifact.KindEvidence
+	case DependencyFalsifier, DependencyExecutionRecipe:
+		want = artifact.KindRecipe
 	case DependencyTokenizer:
 		want = artifact.KindTokenizer
 	case DependencyProjector:
@@ -280,10 +316,18 @@ func validateDependency(dependency Dependency) error {
 		want = artifact.KindAdapter
 	case DependencyDataset:
 		want = artifact.KindDataset
+	case DependencyDatasetShard:
+		want = artifact.KindDatasetShard
 	case DependencyCheckpoint:
 		want = artifact.KindCheckpoint
 	case DependencyDefinition:
 		want = artifact.KindModelDefinition
+	case DependencyTensorInventory:
+		want = artifact.KindTensorInventory
+	case DependencyOutput:
+		want = artifact.KindOutput
+	case DependencyRun:
+		want = artifact.KindRun
 	case DependencyToolManual:
 		want = artifact.KindRecipe
 	default:

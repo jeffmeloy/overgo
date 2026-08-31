@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
@@ -255,9 +256,17 @@ func (w *execWorld) AdmitNext() (string, bool, error) {
 
 // Block marks a parked proposal row blocked so dispatch moves past it
 // to the next proposal; the row and its finding stay for the operator.
-func (w *execWorld) Block(step loop.Step, reason string) error {
+func (w *execWorld) Block(step loop.Step, reason string) (err error) {
+	lock, err := authoritylock.Acquire(".")
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, lock.Close()) }()
 	document, err := plan.Load("")
 	if err != nil {
+		return err
+	}
+	if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
 		return err
 	}
 	for index := range document.Items {

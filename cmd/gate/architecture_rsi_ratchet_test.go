@@ -1,13 +1,53 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"overgo/internal/closurescan"
 	"overgo/internal/repoanalysis"
 )
 
 func TestArchitectureRatchetIncludesGoOnlyPolicy(t *testing.T) {
+	rule, found := closurescan.EntryAuthorityRuleFor(closurescan.EntryAuthorityGoOnly)
+	if !found || !strings.Contains(rule.Owner, "Go") {
+		t.Fatalf("go-only entry authority rule = (found=%t, owner=%q)", found, rule.Owner)
+	}
+	gate := &gateContext{repo: filepath.Join("..", ".."), paths: []string{"README.md"}}
+	if skipped, err := gate.stepArchitecture(); err != nil || skipped {
+		t.Fatalf("architecture ratchet over the live tree = (skipped=%t, %v)", skipped, err)
+	}
+	governed := false
+	for _, line := range gate.honesty {
+		if strings.HasPrefix(line, "entry authority ratchet:") && strings.Contains(line, "go-only") {
+			governed = true
+		}
+	}
+	if !governed {
+		t.Fatalf("gate ratchet does not report go-only governance: %q", gate.honesty)
+	}
+	root := t.TempDir()
+	rogue := filepath.Join(root, "internal", "rogue")
+	if err := os.MkdirAll(rogue, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(rogue, "rogue.go"),
+		[]byte("package rogue\n\nconst deployHook = \"deploy.ps1\"\n"), 0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	violation, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := closurescan.ValidateEntryAuthorities(
+		violation, []closurescan.EntryAuthorityRule{rule},
+	); err == nil || !strings.Contains(err.Error(), "internal/rogue/rogue.go bypasses the owner") {
+		t.Fatalf("runtime script literal was not refused: %v", err)
+	}
 	architectureRSIFinding(t, "internal/loop/rogue_markdown.go", "package loop\nimport \"os\"\nfunc loadBehavior() { _, _ = os.ReadFile(\"skill.md\") }\n", "go-only", "non-go-behavior")
 }
 

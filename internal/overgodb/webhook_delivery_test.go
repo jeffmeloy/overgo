@@ -45,9 +45,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	}, len(records))
 	var wait sync.WaitGroup
 	for index := range records {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			batch, batchErr := artifact.NewDocumentBatch(
 				"webhook/cas/contender/"+records[index].Descriptor.ID.String(),
 				[]artifact.Content{payload, records[index]},
@@ -62,7 +60,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 				index int
 				err   error
 			}{index: index, err: batchErr}
-		}()
+		})
 	}
 	close(start)
 	wait.Wait()

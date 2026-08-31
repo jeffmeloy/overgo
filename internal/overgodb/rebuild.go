@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 
 	"overgo/internal/artifact"
 )
@@ -48,6 +49,20 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	if strip == nil {
 		strip = func(artifact.Descriptor) bool { return false }
 	}
+	source.mu.RLock()
+	if err := source.ready(false); err != nil {
+		source.mu.RUnlock()
+		return RebuildReport{}, err
+	}
+	for _, alias := range source.state.aliasViews("") {
+		if strings.HasPrefix(alias.Name, StoreLocalAliasPrefix) {
+			source.mu.RUnlock()
+			return RebuildReport{}, fmt.Errorf(
+				"overgodb: live store-local alias %q prevents rebuild", alias.Name,
+			)
+		}
+	}
+	source.mu.RUnlock()
 	target, err := Open(destination)
 	if err != nil {
 		return RebuildReport{}, err

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
@@ -81,4 +82,48 @@ func initializePlanTestRepository(t *testing.T, document plan.Plan) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+func TestNonDispatchCommandsDoNotRequireCompletionAuthority(t *testing.T) {
+	census, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("census"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := plan.Plan{Census: &census, Items: []plan.Item{{
+		ID: "dependent", Status: plan.StatusOpen, Steps: []plan.Step{{
+			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
+			DependsOn: []string{"missing/do"},
+		}},
+	}}}
+	root := initializePlanTestRepository(t, document)
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previous); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+
+	for name, invocation := range map[string]func() error{
+		"status":  func() error { return run(cli{status: true}, nil) },
+		"history": func() error { return run(cli{history: "all"}, nil) },
+		"stop":    func() error { return run(cli{stop: true}, []string{"user-stop: fixture"}) },
+		"control": func() error {
+			return run(cli{contain: "device-instability", lane: "fixture"}, []string{"fixture"})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := invocation(); err != nil {
+				t.Fatalf("non-dispatch command required broken completion evidence: %v", err)
+			}
+		})
+	}
+	if _, err := testCompletionAuthority(t, document); err == nil || !strings.Contains(err.Error(), "lacks gated ancestor completion evidence") {
+		t.Fatalf("fixture completion evidence is not broken: %v", err)
+	}
 }

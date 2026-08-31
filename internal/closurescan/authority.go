@@ -3,7 +3,9 @@ package closurescan
 import (
 	"bytes"
 	"fmt"
+	"slices"
 
+	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/repoanalysis"
 )
@@ -20,11 +22,40 @@ func ValidatePermanentAuthority(
 	snapshot repoanalysis.SourceSnapshot,
 	documents []closureledger.Document,
 ) (AuthorityReport, error) {
+	return validatePermanentAuthority(snapshot, documents, nil)
+}
+
+// ValidatePermanentActiveAuthority validates authority per exact canonical
+// alias target, including when only part of a multi-binding document remains
+// active.
+func ValidatePermanentActiveAuthority(
+	snapshot repoanalysis.SourceSnapshot,
+	documents []closureledger.Document,
+	aliases map[string]artifact.ID,
+) (AuthorityReport, error) {
+	for _, document := range documents {
+		for _, binding := range document.Bindings {
+			if _, err := closureledger.ActiveAlias(binding); err != nil {
+				return AuthorityReport{}, err
+			}
+		}
+	}
+	return validatePermanentAuthority(snapshot, documents, func(document closureledger.Document, binding closureledger.SourceBinding) bool {
+		alias, _ := closureledger.ActiveAlias(binding)
+		return aliases[alias] == document.ID
+	})
+}
+
+func validatePermanentAuthority(
+	snapshot repoanalysis.SourceSnapshot,
+	documents []closureledger.Document,
+	selected func(closureledger.Document, closureledger.SourceBinding) bool,
+) (AuthorityReport, error) {
 	candidates, err := ScanSnapshot(snapshot, nil, CandidateAll)
 	if err != nil {
 		return AuthorityReport{}, err
 	}
-	issues, err := validateCandidateBindings(candidates, documents)
+	issues, err := validateCandidateBindingsSelected(candidates, documents, selected)
 	if err != nil {
 		return AuthorityReport{}, err
 	}
@@ -34,8 +65,13 @@ func ValidatePermanentAuthority(
 			len(issues), issues[0].Kind, issues[0].Name,
 		)
 	}
-	active := compileAuthority(documents)
+	active := compileAuthority(documents, selected)
 	for _, document := range documents {
+		if selected != nil && !slices.ContainsFunc(document.Bindings, func(binding closureledger.SourceBinding) bool {
+			return selected(document, binding)
+		}) {
+			continue
+		}
 		if document.Status == closureledger.StatusOpen {
 			return AuthorityReport{}, fmt.Errorf("permanent authority: open closure row %s", document.Name)
 		}
@@ -74,10 +110,16 @@ type authorityRecord struct {
 	binding  closureledger.SourceBinding
 }
 
-func compileAuthority(documents []closureledger.Document) map[string][]authorityRecord {
+func compileAuthority(
+	documents []closureledger.Document,
+	selected func(closureledger.Document, closureledger.SourceBinding) bool,
+) map[string][]authorityRecord {
 	active := make(map[string][]authorityRecord)
 	for _, document := range documents {
 		for _, binding := range document.Bindings {
+			if selected != nil && !selected(document, binding) {
+				continue
+			}
 			key := (Candidate{
 				Kind: binding.Kind, Package: binding.Package, File: binding.File, Scope: binding.Scope,
 				Line: binding.Line, Name: binding.Name, StructuralID: binding.StructuralID,

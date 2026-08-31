@@ -13,6 +13,9 @@ import (
 )
 
 const (
+	// DiagnosticTailBytes bounds command failure details while retaining enough
+	// output to identify the failing package and assertion.
+	DiagnosticTailBytes = 2000
 	// OutputFileMode is the owner-writable, world-readable mode every
 	// generated output file is written with.
 	OutputFileMode = os.FileMode(0o644)

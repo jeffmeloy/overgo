@@ -185,22 +185,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "recipe-derivation",
-          "title": "Derive immutable execution and evaluation recipes from a candidate's resolved outputs and compiled domain-plugin catalogs",
-          "status": "open",
-          "verify": "go test ./internal/recipe ./internal/modelrecipe ./internal/workflowrecipe ./internal/trainingprogram ./internal/composition -run '^(TestCandidateRecipeDerivationUsesSharedSpine|TestPrototypeRecipeDerivation)$' -count=1",
-          "rationale": "Recipes remain immutable recipe.Definition artifacts produced by the shared candidate compiler: closed-world node and edge graphs whose modules are compiled Go capabilities. The first same-base composition plugin contributes its typed local module and ports to that graph; every later model, routing, data, steering, and code plugin must extend the same format rather than define another recipe. Recipes bind resolved outputs, local placement, evaluator, declared delta ablations, observation contract, effect ceiling, and policy artifacts without embedding code or discovering filesystem instructions.",
-          "depends_on": [
-            "model-prototypes/prototype-materialization"
-          ],
-          "capabilities": [
-            "recipe",
-            "model-recipe",
-            "workflow-recipe",
-            "go-only"
-          ]
-        },
-        {
           "id": "recipe-validation",
           "title": "Compile each candidate recipe against exact local domain-plugin and runtime capabilities and publish verification evidence",
           "status": "open",

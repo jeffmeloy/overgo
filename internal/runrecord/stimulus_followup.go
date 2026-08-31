@@ -46,6 +46,16 @@ type StimulusFollowupAuthority struct {
 	Repository artifact.Repository
 }
 
+// Current resolves the one admitted follow-up for a boundary.
+func (authority StimulusFollowupAuthority) Current(
+	ctx context.Context,
+	boundary artifact.ID,
+) (StimulusFollowup, bool, error) {
+	return stimulusFollowupCodec.Resolve(
+		ctx, authority.Repository, StimulusFollowupAliasRoot+boundary.String(),
+	)
+}
+
 // Admit sorts and coalesces observed sources, then atomically admits at most one
 // causally linked follow-up for the consumed boundary.
 func (authority StimulusFollowupAuthority) Admit(ctx context.Context, boundaryID artifact.ID, sources []artifact.ID) (StimulusFollowup, bool, error) {
@@ -56,9 +66,7 @@ func (authority StimulusFollowupAuthority) Admit(ctx context.Context, boundaryID
 	if err != nil {
 		return StimulusFollowup{}, false, err
 	}
-	if current, found, currentErr := stimulusFollowupCodec.Resolve(
-		ctx, authority.Repository, StimulusFollowupAliasRoot+boundaryID.String(),
-	); currentErr != nil {
+	if current, found, currentErr := authority.Current(ctx, boundaryID); currentErr != nil {
 		return StimulusFollowup{}, false, currentErr
 	} else if found {
 		return current, false, nil
@@ -115,9 +123,7 @@ func (authority StimulusFollowupAuthority) Admit(ctx context.Context, boundaryID
 	if err == nil {
 		return admission, true, nil
 	}
-	winner, found, resolveErr := stimulusFollowupCodec.Resolve(
-		ctx, authority.Repository, StimulusFollowupAliasRoot+boundary.ID.String(),
-	)
+	winner, found, resolveErr := authority.Current(ctx, boundary.ID)
 	if resolveErr == nil && found {
 		return winner, false, nil
 	}

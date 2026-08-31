@@ -508,6 +508,15 @@ func transition(
 			Name: activeAlias(definition.Model, definition.Task), Target: definition.ID,
 			Previous: artifact.CloneID(supersedes),
 		})
+		// A rollback supersedes an alias holder that is already retired;
+		// its superseded event stands, so only the alias moves.
+		if active {
+			if oldEvent, loadErr := currentEvent(ctx, store, activeID); loadErr != nil {
+				return artifact.CommitID{}, recipe.LifecycleEvent{}, loadErr
+			} else if oldEvent.To == recipe.StatusSuperseded {
+				active = false
+			}
+		}
 		if active {
 			oldDefinition, loadErr := recipe.RequireDefinition(ctx, store, activeID)
 			if loadErr != nil {
@@ -637,6 +646,14 @@ func resolveActiveCapability(ctx context.Context, store artifact.Reader, modelID
 	}
 	if err != nil {
 		return Activation{}, recipe.Program{}, err
+	}
+	// Inference executes through the compiled runner, never through a
+	// capability program, but its ordered program still resolves here: the
+	// catalog carries the inference module contracts, and selection needs
+	// the program only for its definition, resources, and policy bindings.
+	if activation.Definition.Task == recipe.TaskInference {
+		program, err := recipe.CompileProgram(activation.Definition, catalog)
+		return activation, program, err
 	}
 	program, err := CompileCapability(activation.Definition)
 	return activation, program, err

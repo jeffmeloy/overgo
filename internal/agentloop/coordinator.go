@@ -23,6 +23,7 @@ import (
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/workflowruntime"
 )
 
 // Identity names the serving authorities every recorded step binds to.
@@ -46,6 +47,13 @@ type Session struct {
 	Steps            int
 	Contract         *ContractState
 	Checkpoints      *MutationCheckpointRuntime
+	// held is the last admitted stimulus boundary this session still holds;
+	// nil for a stateless or resumed session, which rebuilds the bounded
+	// full context instead of receiving a cursor delta.
+	held *runrecord.AttemptStimulusBoundary
+	// handoff is the context this session's latest attempt received: the
+	// bounded full context or the verified stable cursor delta.
+	handoff sessionContext
 }
 
 // Coordinator admits and records agent tool steps.
@@ -54,6 +62,9 @@ type Coordinator struct {
 	executor *agenttool.Executor
 	identity Identity
 	maxSteps int
+	// wakeups coalesces repeated late-stimulus notifications into one
+	// pending reconciliation per consumed boundary.
+	wakeups *workflowruntime.ReconcileCoalescer
 }
 
 // New binds a coordinator to the store, the transport executor, and
@@ -65,7 +76,10 @@ func New(store artifact.Repository, executor *agenttool.Executor, identity Ident
 	if identity.Recipe.Kind() != artifact.KindRecipe || identity.Model.Kind() != artifact.KindModel || identity.Node == "" {
 		return nil, errors.New("agent loop: incomplete serving identity")
 	}
-	return &Coordinator{store: store, executor: executor, identity: identity, maxSteps: maxSteps}, nil
+	return &Coordinator{
+		store: store, executor: executor, identity: identity, maxSteps: maxSteps,
+		wakeups: workflowruntime.NewReconcileCoalescer(),
+	}, nil
 }
 
 // ServingIdentity reports the authorities every recorded step binds.
@@ -148,6 +162,9 @@ func (c *Coordinator) propose(
 	}
 	if err != nil {
 		return nil, fmt.Errorf("agent loop: attempt preflight was not admitted: %w", err)
+	}
+	if session.handoff, err = incrementalSessionContext(session, stimulus); err != nil {
+		return nil, fmt.Errorf("agent loop: attempt context handoff was not proven: %w", err)
 	}
 	// A mutation admits a durable receipt BEFORE it executes and closes
 	// it after: if the receipt cannot persist the side effect never

@@ -235,10 +235,11 @@ func publishCompletionAttempt(
 	verify, acceptanceVerify string,
 	manifest, codeManifest artifact.ID,
 	preparation runrecord.GateLifecycle,
+	mergeAuthorities ...FirstParentTargetMergeAuthority,
 ) runrecord.AttemptRecord {
 	return publishCompletionAttemptWithManifestAnalysis(
 		t, store, commit, item, step, verify, acceptanceVerify,
-		manifest, codeManifest, preparation, true,
+		manifest, codeManifest, preparation, true, mergeAuthorities...,
 	)
 }
 
@@ -250,6 +251,7 @@ func publishCompletionAttemptWithManifestAnalysis(
 	manifest, codeManifest artifact.ID,
 	preparation runrecord.GateLifecycle,
 	atomicAnalysis bool,
+	mergeAuthorities ...FirstParentTargetMergeAuthority,
 ) runrecord.AttemptRecord {
 	t.Helper()
 	ctx := t.Context()
@@ -311,6 +313,21 @@ func publishCompletionAttemptWithManifestAnalysis(
 	batch.Contents = append(batch.Contents, finalizationContent, attemptContent)
 	batch.Lineage = append(batch.Lineage, finalization.Lineage()...)
 	batch.Lineage = append(batch.Lineage, attempt.Lineage()...)
+	if len(mergeAuthorities) > 1 {
+		t.Fatal("completion fixture accepts at most one projected merge authority")
+	}
+	if len(mergeAuthorities) == 1 {
+		authority := mergeAuthorities[0]
+		content, err := authority.Content()
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch.Contents = append(batch.Contents, content)
+		batch.Lineage = append(batch.Lineage, authority.Lineage()...)
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{
+			Child: gate.Result.ID, Parent: authority.ID, Relation: artifact.RelationDependsOn,
+		})
+	}
 	var delayedAnalysis *artifact.Batch
 	manifestPlan := completionManifestPlan(t, codeManifest, preparation.TreeKey)
 	if manifestPlan.ID == manifest {
@@ -714,26 +731,28 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 				trailers.preparation, trailers.preparationCommit, completion, err,
 			)
 		}
-		if trailers.item != fixture.item || trailers.step != fixture.step ||
-			trailers.manifest != fixture.manifest || trailers.codeManifest != fixture.codeManifest ||
-			trailers.preparation != fixture.preparation.ID ||
-			trailers.preparationCommit != fixture.preparationCommit {
-			t.Fatal("canonical completion tuple differs from the writer inputs")
-		}
-		if err := verifyCompletionSnapshot(fixture.preAdvance, trailers); err != nil {
-			t.Fatalf("canonical completion snapshot refused: %v", err)
+		if err := VerifyCompletionCommitMessageWithMergeAuthority(
+			string(message), fixture.preAdvance, fixture.item, fixture.step,
+			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit,
+			MergeProjectionSemanticUnion, artifact.ID{},
+		); err != nil {
+			t.Fatalf("canonical completion tuple refused: %v", err)
 		}
 		foreignCommit := fixture.preparationCommit
 		foreignCommit[0] ^= 1
-		if trailers.preparationCommit == foreignCommit {
-			t.Fatal("canonical completion tuple accepted a foreign preparation commit")
+		if err := VerifyCompletionCommitMessageWithMergeAuthority(
+			string(message), fixture.preAdvance, fixture.item, fixture.step,
+			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, foreignCommit,
+			MergeProjectionSemanticUnion, artifact.ID{},
+		); err == nil || !strings.Contains(err.Error(), "authority tuple") {
+			t.Fatalf("foreign expected preparation commit error = %v", err)
 		}
 		badIndex := replaceCompletionTrailer(message, completionItemIndexTrailer, "1")
-		badIndexTrailers, completion, err := parseCompletionTrailers(string(badIndex))
-		if err != nil || !completion {
-			t.Fatalf("parse mismatched completion item index: completion=%v err=%v", completion, err)
-		}
-		if err := verifyCompletionSnapshot(fixture.preAdvance, badIndexTrailers); err == nil {
+		if err := VerifyCompletionCommitMessageWithMergeAuthority(
+			string(badIndex), fixture.preAdvance, fixture.item, fixture.step,
+			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit,
+			MergeProjectionSemanticUnion, artifact.ID{},
+		); err == nil {
 			t.Fatal("mismatched completion item index accepted")
 		}
 		badSnapshot := replaceCompletionTrailer(message, completionSnapshotTrailer, "%%%")
@@ -750,12 +769,11 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		alteredTrailers, completion, err := parseCompletionTrailers(string(alteredMessage))
-		if err != nil || !completion {
-			t.Fatalf("parse altered completion snapshot: completion=%v err=%v", completion, err)
-		}
-		if err := verifyCompletionSnapshot(fixture.preAdvance, alteredTrailers); err == nil ||
-			!strings.Contains(err.Error(), "snapshot differs") {
+		if err := VerifyCompletionCommitMessageWithMergeAuthority(
+			string(alteredMessage), fixture.preAdvance, fixture.item, fixture.step,
+			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit,
+			MergeProjectionSemanticUnion, artifact.ID{},
+		); err == nil || !strings.Contains(err.Error(), "snapshot differs") {
 			t.Fatalf("mismatched completion item snapshot error = %v", err)
 		}
 		trailers, completion, err = parseCompletionTrailers(string(fixture.legacyMessage()))
@@ -870,6 +888,641 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 			t.Fatalf("raw deletion hid reused identity: %v", err)
 		}
 	})
+}
+
+func TestProtectedCompletionAuthorityBindsRetainedRevisionIdentities(t *testing.T) {
+	fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
+	fixture.commit(fixture.canonicalMessage(), true)
+
+	withoutItem := fixture.child
+	withoutItem.Items = nil
+	withoutStep := fixture.child
+	withoutStep.Items = slices.Clone(fixture.child.Items)
+	withoutStep.Items[0].Steps = nil
+	for name, document := range map[string]Plan{
+		"item": withoutItem,
+		"step": withoutStep,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := resolveFixture(fixture, document, "HEAD"); err == nil ||
+				!strings.Contains(err.Error(), "live plan deleted an item or step retained at protected revision") {
+				t.Fatalf("protected live-plan deletion error = %v", err)
+			}
+		})
+	}
+}
+
+func TestCompletionAuthorityRequiresExplicitCanonicalRepository(t *testing.T) {
+	t.Run("ambient Git repository redirect", func(t *testing.T) {
+		requested := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
+		redirect := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
+		t.Setenv("GIT_DIR", filepath.Join(redirect.repository, ".git"))
+		t.Setenv("GIT_WORK_TREE", redirect.repository)
+
+		authority, err := resolveFixture(requested, requested.parent, "HEAD")
+		if err != nil {
+			t.Fatal(err)
+		}
+		requestedInfo, err := os.Stat(requested.repository)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolvedInfo, err := os.Stat(authority.repository)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !os.SameFile(requestedInfo, resolvedInfo) {
+			t.Fatalf("authority repository = %q, want explicit %q", authority.repository, requested.repository)
+		}
+	})
+
+	t.Run("subdirectory", func(t *testing.T) {
+		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
+		_, err := ResolveCompletionAuthority(
+			t.Context(), filepath.Join(fixture.repository, "docs"), "HEAD", fixture.parent, fixture.store,
+		)
+		if err == nil || !strings.Contains(err.Error(), "exact repository root") {
+			t.Fatalf("non-root completion repository error = %v", err)
+		}
+	})
+}
+
+func TestGitCompletionMessagesRejectRawCommitNUL(t *testing.T) {
+	fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
+	raw := runGit(t, fixture.repository, nil, "cat-file", "commit", "HEAD")
+	header, _, found := bytes.Cut(raw, []byte("\n\n"))
+	if !found {
+		t.Fatal("fixture commit lacks its message separator")
+	}
+	malformed := append(slices.Clone(header), []byte("\n\nsubject\x00hidden completion\n")...)
+	hash := strings.TrimSpace(string(runGit(
+		t, fixture.repository, malformed,
+		"hash-object", "-t", "commit", "-w", "--stdin", "--literally",
+	)))
+
+	_, err := gitCompletionMessages(t.Context(), fixture.repository, hash)
+	if err == nil || !strings.Contains(err.Error(), "contains NUL") {
+		t.Fatalf("raw commit NUL error = %v", err)
+	}
+}
+
+func TestVerifyProspectiveCompletionTransition(t *testing.T) {
+	parent := standardCompletionPlan()
+	child, err := Advance(parent, "root", "do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := testutil.ArtifactID(t, artifact.KindRecipe, "prospective-manifest")
+	codeManifest := testutil.ArtifactID(t, artifact.KindProfile, "prospective-code-manifest")
+	preparation := testutil.ArtifactID(t, artifact.KindEvidence, "prospective-preparation")
+	preparationCommit := artifact.CommitID{1}
+	message, err := CompletionCommitMessage(
+		[]byte("prospective completion"), parent, "root", "do",
+		manifest, codeManifest, preparation, preparationCommit,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyProspectiveCompletionTransition(
+		[]Plan{parent}, nil, parent, child, string(message),
+	); err != nil {
+		t.Fatalf("exact prospective transition refused: %v", err)
+	}
+	withAddedWork := parent
+	withAddedWork.Items = slices.Clone(parent.Items)
+	withAddedWork.Items = append(withAddedWork.Items, Item{
+		ID: "new-work", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+	})
+	childWithAddedWork, err := Advance(withAddedWork, "root", "do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	messageWithAddedWork, err := CompletionCommitMessage(
+		[]byte("prospective completion with added work"), withAddedWork, "root", "do",
+		manifest, codeManifest, preparation, preparationCommit,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyProspectiveCompletionTransition(
+		[]Plan{parent}, nil, withAddedWork, childWithAddedWork, string(messageWithAddedWork),
+	); err != nil {
+		t.Fatalf("prospective transition with added open work refused: %v", err)
+	}
+	baselineWithUnrelated := parent
+	baselineWithUnrelated.Items = append(baselineWithUnrelated.Items, Item{ID: "empty", Status: StatusOpen})
+	if err := VerifyProspectiveCompletionTransition(
+		[]Plan{baselineWithUnrelated}, nil, parent, child, string(message),
+	); err == nil || !strings.Contains(err.Error(), "deleted a baseline") {
+		t.Fatalf("prospective unrelated deletion error = %v", err)
+	}
+	if err := VerifyProspectiveCompletionTransition(
+		[]Plan{parent, parent, parent}, nil, parent, child, string(message),
+	); err == nil || !strings.Contains(err.Error(), "one or two parents") {
+		t.Fatalf("prospective octopus merge error = %v", err)
+	}
+
+	base := standardCompletionPlan()
+	local := base
+	local.Items = slices.Clone(base.Items)
+	local.Items[0].Title = "local title"
+	upstream := base
+	upstream.Doctrine = "upstream doctrine"
+	merged, err := MergeDocuments(base, local, upstream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mergeChild, err := Advance(merged, "root", "do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mergeMessage, err := CompletionCommitMessage(
+		[]byte("prospective merge completion"), merged, "root", "do",
+		manifest, codeManifest, preparation, preparationCommit,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyProspectiveCompletionTransition(
+		[]Plan{local, upstream}, &base, merged, mergeChild, string(mergeMessage),
+	); err != nil {
+		t.Fatalf("exact prospective merge transition refused: %v", err)
+	}
+
+	completedMain, err := Advance(base, "root", "do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	completedMainChild, err := Advance(completedMain, "dependent", "do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleMergeMessage, err := CompletionCommitMessage(
+		[]byte("stale-source merge"), completedMain, "dependent", "do",
+		manifest, codeManifest, preparation, preparationCommit,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyProspectiveCompletionTransition(
+		[]Plan{completedMain, base}, &base, completedMain, completedMainChild, string(staleMergeMessage),
+	); err == nil || !strings.Contains(err.Error(), "merge source must be rebased onto the current protected plan") {
+		t.Fatalf("stale merge source policy error = %v", err)
+	}
+}
+
+func TestProspectiveMergeAuthorityRequiresTargetCompletionEvidence(t *testing.T) {
+	const repository = "test-repository"
+	const localRevision = "1111111111111111111111111111111111111111"
+	const incomingRevision = "2222222222222222222222222222222222222222"
+	local := Plan{Items: []Item{{
+		ID: "local", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+	}}}
+	incoming := Plan{Items: []Item{{
+		ID: "incoming", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+	}}}
+	merged := Plan{Items: []Item{
+		local.Items[0], incoming.Items[0], {
+			ID: "waiting", Status: StatusOpen,
+			Steps: []Step{{
+				ID: "do", Status: StatusOpen, Verify: "go test ./...",
+				DependsOn: []string{"retired/do"},
+			}},
+		},
+	}}
+	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
+	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
+	if err := VerifyProspectiveMergeAuthority(
+		repository, localRevision, incomingRevision,
+		local, incoming, merged, localAuthority, incomingAuthority,
+	); err == nil || !strings.Contains(err.Error(), "pruned dependency retired/do") {
+		t.Fatalf("missing target evidence error = %v", err)
+	}
+	incomingAuthority.completedReferences["retired/do"] = completionEvidence{commit: incomingRevision}
+	if err := VerifyProspectiveMergeAuthority(
+		repository, localRevision, incomingRevision,
+		local, incoming, merged, localAuthority, incomingAuthority,
+	); err != nil {
+		t.Fatalf("target-authorized merge refused: %v", err)
+	}
+}
+
+func TestProspectiveMergeAuthorityRejectsCrossParentIdentityReuse(t *testing.T) {
+	const repository = "test-repository"
+	const localRevision = "1111111111111111111111111111111111111111"
+	const incomingRevision = "2222222222222222222222222222222222222222"
+	local := Plan{Items: []Item{{
+		ID: "reused", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+	}}}
+	incoming := Plan{}
+	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
+	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
+	incomingAuthority.completedReferences["reused/do"] = completionEvidence{commit: incomingRevision}
+	if err := VerifyProspectiveMergeAuthority(
+		repository, localRevision, incomingRevision,
+		local, incoming, local, localAuthority, incomingAuthority,
+	); err == nil || !strings.Contains(err.Error(), "reuses completed identity reused/do") {
+		t.Fatalf("cross-parent identity reuse error = %v", err)
+	}
+	incomingAuthority.completedReferences = map[string]completionEvidence{}
+	incomingAuthority.retiredItems["reused"] = completionEvidence{commit: incomingRevision, retiredItem: true}
+	if err := VerifyProspectiveMergeAuthority(
+		repository, localRevision, incomingRevision,
+		local, incoming, local, localAuthority, incomingAuthority,
+	); err == nil || !strings.Contains(err.Error(), "reuses retired item reused") {
+		t.Fatalf("cross-parent retired item reuse error = %v", err)
+	}
+}
+
+func TestProspectiveMergeAuthorityRejectsAmbiguousParentEvidence(t *testing.T) {
+	const repository = "test-repository"
+	const localRevision = "1111111111111111111111111111111111111111"
+	const incomingRevision = "2222222222222222222222222222222222222222"
+	local, incoming := Plan{}, Plan{}
+	merged := Plan{Items: []Item{{
+		ID: "waiting", Status: StatusOpen,
+		Steps: []Step{{
+			ID: "do", Status: StatusOpen, Verify: "go test ./...",
+			DependsOn: []string{"retired/do"},
+		}},
+	}}}
+	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
+	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
+	localAuthority.completedReferences["retired/do"] = completionEvidence{commit: localRevision}
+	incomingAuthority.completedReferences["retired/do"] = completionEvidence{commit: incomingRevision}
+	if err := VerifyProspectiveMergeAuthority(
+		repository, localRevision, incomingRevision,
+		local, incoming, merged, localAuthority, incomingAuthority,
+	); err == nil || !strings.Contains(err.Error(), "ambiguous completion authority for retired/do") {
+		t.Fatalf("ambiguous parent evidence error = %v", err)
+	}
+}
+
+func TestProspectiveMergeAuthorityRequiresCommonProtectedEpoch(t *testing.T) {
+	const repository = "test-repository"
+	const localRevision = "1111111111111111111111111111111111111111"
+	const incomingRevision = "2222222222222222222222222222222222222222"
+	local, incoming, merged := Plan{}, Plan{}, Plan{}
+	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "local-seed")
+	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "incoming-seed")
+	if err := VerifyProspectiveMergeAuthority(
+		repository, localRevision, incomingRevision,
+		local, incoming, merged, localAuthority, incomingAuthority,
+	); err == nil || !strings.Contains(err.Error(), "do not share a protected completion epoch") {
+		t.Fatalf("disjoint protected epoch error = %v", err)
+	}
+}
+
+func TestProspectiveMergeAuthorityCanonicalizesRelativeRepository(t *testing.T) {
+	repository, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const localRevision = "1111111111111111111111111111111111111111"
+	const incomingRevision = "2222222222222222222222222222222222222222"
+	local, incoming, merged := Plan{}, Plan{}, Plan{}
+	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
+	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
+	if err := VerifyProspectiveMergeAuthority(
+		".", localRevision, incomingRevision,
+		local, incoming, merged, localAuthority, incomingAuthority,
+	); err != nil {
+		t.Fatalf("relative repository refused: %v", err)
+	}
+}
+
+func TestProspectiveMergeAuthorityBindsBothParents(t *testing.T) {
+	const repository = "test-repository"
+	const localRevision = "1111111111111111111111111111111111111111"
+	const incomingRevision = "2222222222222222222222222222222222222222"
+	local, incoming, merged := Plan{}, Plan{}, Plan{}
+	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
+	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
+	other := Plan{Items: []Item{{
+		ID: "other", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+	}}}
+	for _, test := range []struct {
+		name                        string
+		requestedRepository         string
+		requestedLocal, requestedIn string
+		local, incoming             CompletionAuthority
+	}{
+		{name: "wrong repository", requestedRepository: repository + "-other", requestedLocal: localRevision, requestedIn: incomingRevision, local: localAuthority, incoming: incomingAuthority},
+		{name: "stale local", requestedRepository: repository, requestedLocal: incomingRevision, requestedIn: incomingRevision, local: localAuthority, incoming: incomingAuthority},
+		{name: "stale incoming", requestedRepository: repository, requestedLocal: localRevision, requestedIn: localRevision, local: localAuthority, incoming: incomingAuthority},
+		{name: "cross-plan local", requestedRepository: repository, requestedLocal: localRevision, requestedIn: incomingRevision, local: prospectiveMergeAuthority(t, other, repository, localRevision, "common"), incoming: incomingAuthority},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := VerifyProspectiveMergeAuthority(
+				test.requestedRepository, test.requestedLocal, test.requestedIn,
+				local, incoming, merged, test.local, test.incoming,
+			); err == nil {
+				t.Fatal("mismatched parent authority accepted")
+			}
+		})
+	}
+}
+
+func prospectiveMergeAuthority(
+	t *testing.T,
+	document Plan,
+	repository, revision, protectionSeed string,
+) CompletionAuthority {
+	t.Helper()
+	authority := testCompletionAuthorityAt(t, document, repository, revision)
+	authority.protectionSeeds = map[string]bool{protectionSeed: true}
+	return authority
+}
+
+func TestProtectedCompletionCommitsIgnoreHistoryOrder(t *testing.T) {
+	commits := []gitCompletionMessage{
+		{hash: "merge", parents: []string{"left", "right"}},
+		{hash: "unrelated-child", parents: []string{"unrelated"}},
+		{hash: "seed", parents: []string{"old"}},
+		{hash: "tip", parents: []string{"merge"}},
+		{hash: "right", parents: []string{"seed"}},
+		{hash: "old"},
+		{hash: "left", parents: []string{"seed"}},
+		{hash: "unrelated"},
+	}
+	protected, protectionSeeds := protectedCompletionCommits(commits, map[string]bool{"seed": true})
+	got := make(map[string]bool, len(protected))
+	for _, commit := range protected {
+		got[commit.hash] = true
+	}
+	for _, want := range []string{"seed", "left", "right", "merge", "tip"} {
+		if !got[want] {
+			t.Errorf("skewed merge descendant %s escaped protected history", want)
+		}
+	}
+	for _, unwanted := range []string{"old", "unrelated", "unrelated-child"} {
+		if got[unwanted] {
+			t.Errorf("pre-activation or unrelated commit %s became protected", unwanted)
+		}
+	}
+	if !protectionSeeds["merge"]["seed"] || !protectionSeeds["tip"]["seed"] {
+		t.Fatalf("prepared seed provenance did not cross the skewed merge DAG: %v", protectionSeeds)
+	}
+}
+
+func TestProtectedMergeRequiresRebasedSourceHistory(t *testing.T) {
+	fixture := newCompletionFixture(t, standardCompletionPlan(), "activation", "do")
+	fixture.preAdvance.Items = append(slices.Clone(fixture.parent.Items), Item{
+		ID: "activation", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: fixture.verify}},
+	})
+	root := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD")))
+	rootTree := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD^{tree}")))
+	transient := Item{
+		ID: "transient-x", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+	}
+	withTransient := fixture.parent
+	withTransient.Items = append(slices.Clone(withTransient.Items), transient)
+	if err := Save(filepath.Join(fixture.repository, filepath.FromSlash(Path)), withTransient); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, fixture.repository, nil, "add", "--", Path)
+	transientTree := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "write-tree")))
+	sideAdd := commitFixtureTree(t, fixture.repository, []byte("add transient row\n"), transientTree, root)
+	sideDelete := commitFixtureTree(t, fixture.repository, []byte("raw-delete transient row\n"), rootTree, sideAdd)
+
+	fixture.commit(fixture.canonicalMessage(), true)
+	merge := commitFixtureTree(
+		t, fixture.repository, []byte("merge unreconciled side history\n"), rootTree,
+		fixture.completionHash, sideDelete,
+	)
+	runGit(t, fixture.repository, nil, "update-ref", "HEAD", merge)
+	reused := fixture.child
+	reused.Items = append(slices.Clone(reused.Items), transient)
+	if _, err := resolveFixture(fixture, reused, "HEAD"); err == nil ||
+		!strings.Contains(err.Error(), "rebase the merge source onto the protected plan") {
+		t.Fatalf("unprotected transient side history error = %v", err)
+	}
+}
+
+func TestProtectedMergeRequiresCommonPreparedAncestor(t *testing.T) {
+	fixture := newCompletionFixture(t, standardCompletionPlan(), "main-activation", "do")
+	fixture.preAdvance.Items = append(slices.Clone(fixture.parent.Items), Item{
+		ID: "main-activation", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: fixture.verify}},
+	})
+	root := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD")))
+	rootTree := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD^{tree}")))
+	transient := Item{
+		ID: "transient-x", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+	}
+	withTransient := fixture.parent
+	withTransient.Items = append(slices.Clone(withTransient.Items), transient)
+	if err := Save(filepath.Join(fixture.repository, filepath.FromSlash(Path)), withTransient); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, fixture.repository, nil, "add", "--", Path)
+	transientTree := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "write-tree")))
+	sideAdd := commitFixtureTree(t, fixture.repository, []byte("side transient add\n"), transientTree, root)
+	sideDelete := commitFixtureTree(t, fixture.repository, []byte("side transient delete\n"), rootTree, sideAdd)
+
+	fixture.commit(fixture.canonicalMessage(), true)
+	mainSeed := fixture.completionHash
+	fixture.item, fixture.step = "side-activation", "do"
+	fixture.preAdvance = fixture.parent
+	fixture.preAdvance.Items = append(slices.Clone(fixture.parent.Items), Item{
+		ID: "side-activation", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: fixture.verify}},
+	})
+	fixture.child = fixture.parent
+	fixture.rotatePreparation(strings.Repeat("f", 64), time.Unix(5, 0))
+	fixture.manifest = testutil.ArtifactID(t, artifact.KindRecipe, "side-seed-manifest")
+	fixture.codeManifest = testutil.ArtifactID(t, artifact.KindProfile, "side-seed-code-manifest")
+	sideSeed := commitFixtureTree(
+		t, fixture.repository, fixture.canonicalMessage(), rootTree, sideDelete,
+	)
+	publishCompletionAttempt(
+		t, fixture.store, sideSeed, fixture.item, fixture.step, fixture.verify, fixture.acceptance,
+		fixture.manifest, fixture.codeManifest, fixture.preparation,
+	)
+	merge := commitFixtureTree(
+		t, fixture.repository, []byte("merge independently activated history\n"), rootTree,
+		mainSeed, sideSeed,
+	)
+	runGit(t, fixture.repository, nil, "update-ref", "HEAD", merge)
+	reused := fixture.parent
+	reused.Items = append(slices.Clone(reused.Items), transient)
+	if _, err := resolveFixture(fixture, reused, "HEAD"); err == nil ||
+		!strings.Contains(err.Error(), "has no common prepared ancestor") {
+		t.Fatalf("independent prepared seeds were merged: %v", err)
+	}
+}
+
+func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
+	t.Run("retired step and item", func(t *testing.T) {
+		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
+		fixture.commit(fixture.canonicalMessage(), true)
+		for name, row := range map[string]Item{
+			"same step": {ID: "root", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}}},
+			"new step":  {ID: "root", Status: StatusOpen, Steps: []Step{{ID: "again", Status: StatusOpen, Verify: "go test ./..."}}},
+		} {
+			t.Run(name, func(t *testing.T) {
+				reused := fixture.child
+				reused.Items = append(reused.Items, row)
+				if _, err := resolveFixture(fixture, reused, "HEAD"); err == nil || !strings.Contains(err.Error(), "cannot be reused") {
+					t.Fatalf("reuse error = %v", err)
+				}
+			})
+		}
+		foreign := fixture.child
+		foreign.Items = append(foreign.Items, Item{
+			ID: "other", Status: StatusOpen,
+			Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+		})
+		if _, err := resolveFixture(fixture, foreign, "HEAD"); err != nil {
+			t.Fatalf("same step under a new item refused: %v", err)
+		}
+	})
+	t.Run("multi step item remains live", func(t *testing.T) {
+		parent := standardCompletionPlan()
+		parent.Items[0].Steps = append(parent.Items[0].Steps, Step{
+			ID: "later", Status: StatusOpen, Verify: "go test ./...",
+		})
+		fixture := newCompletionFixture(t, parent, "root", "do")
+		fixture.commit(fixture.canonicalMessage(), true)
+		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err != nil {
+			t.Fatalf("remaining item step refused: %v", err)
+		}
+	})
+	t.Run("second completion is ambiguous", func(t *testing.T) {
+		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
+		fixture.commit(fixture.canonicalMessage(), true)
+		fixture.manifest = testutil.ArtifactID(t, artifact.KindRecipe, "second-manifest")
+		fixture.codeManifest = testutil.ArtifactID(t, artifact.KindProfile, "second-code-manifest")
+		message := fixture.canonicalMessage()
+		runGit(t, fixture.repository, message, "commit", "-q", "--allow-empty", "-F", "-")
+		second := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD")))
+		publishCompletionAttempt(
+			t, fixture.store, second, fixture.item, fixture.step, fixture.verify, fixture.acceptance,
+			fixture.manifest, fixture.codeManifest, fixture.preparation,
+		)
+		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err == nil {
+			t.Fatalf("repeated no-op completion error = %v", err)
+		}
+	})
+	t.Run("prepared identity is global without a surviving dependency", func(t *testing.T) {
+		parent := Plan{Campaign: "completion", Doctrine: "fixture", Items: []Item{{
+			ID: "root", Status: StatusOpen,
+			Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
+		}}}
+		fixture := newCompletionFixture(t, parent, "root", "do")
+		fixture.commit(fixture.canonicalMessage(), true)
+
+		if err := Save(filepath.Join(fixture.repository, filepath.FromSlash(Path)), parent); err != nil {
+			t.Fatal(err)
+		}
+		runGit(t, fixture.repository, nil, "add", "--", Path)
+		runGit(t, fixture.repository, nil, "commit", "-q", "-m", "re-add completed identity")
+
+		fixture.rotatePreparation(strings.Repeat("b", 64), time.Unix(2, 0))
+		fixture.preAdvance = parent
+		fixture.manifest = testutil.ArtifactID(t, artifact.KindRecipe, "second-global-manifest")
+		fixture.codeManifest = testutil.ArtifactID(t, artifact.KindProfile, "second-global-code-manifest")
+		fixture.commit(fixture.canonicalMessage(), true)
+
+		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "is ambiguous") {
+			t.Fatalf("globally repeated prepared identity error = %v", err)
+		}
+	})
+}
+
+func TestCompletionAuthorityDerivesMergeTransition(t *testing.T) {
+	fixture := newCompletionFixture(t, standardCompletionPlan(), "activation", "do")
+	fixture.preAdvance.Items = append(slices.Clone(fixture.parent.Items), Item{
+		ID: "activation", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: fixture.verify}},
+	})
+	fixture.commit(fixture.canonicalMessage(), true)
+	primary := strings.TrimSpace(string(runGit(
+		t, fixture.repository, nil, "rev-parse", "--abbrev-ref", "HEAD",
+	)))
+	runGit(t, fixture.repository, nil, "checkout", "-q", "-b", "completion-side")
+	runGit(t, fixture.repository, nil, "commit", "-q", "--allow-empty", "-m", "side parent")
+	runGit(t, fixture.repository, nil, "checkout", "-q", primary)
+	runGit(t, fixture.repository, nil, "commit", "-q", "--allow-empty", "-m", "first parent")
+	runGit(t, fixture.repository, nil, "merge", "--no-ff", "--no-commit", "completion-side")
+	fixture.item, fixture.step = "root", "do"
+	fixture.verify, fixture.acceptance = "go test ./...", "go test ./..."
+	fixture.preAdvance = fixture.parent
+	var err error
+	fixture.child, err = Advance(fixture.parent, fixture.item, fixture.step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.rotatePreparation(strings.Repeat("e", 64), time.Unix(4, 0))
+	fixture.manifest = testutil.ArtifactID(t, artifact.KindRecipe, "merge-manifest")
+	fixture.codeManifest = testutil.ArtifactID(t, artifact.KindProfile, "merge-code-manifest")
+	if err := Save(filepath.Join(fixture.repository, filepath.FromSlash(Path)), fixture.child); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, fixture.repository, nil, "add", "--", Path)
+	runGit(t, fixture.repository, fixture.canonicalMessage(), "commit", "-q", "-F", "-")
+	fixture.completionHash = strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD")))
+	parents := strings.Fields(string(runGit(
+		t, fixture.repository, nil, "rev-list", "--parents", "-n", "1", fixture.completionHash,
+	)))
+	if len(parents) != 3 {
+		t.Fatalf("completion fixture is not a two-parent merge: %q", parents)
+	}
+	publishCompletionAttempt(
+		t, fixture.store, fixture.completionHash, fixture.item, fixture.step,
+		fixture.verify, fixture.acceptance, fixture.manifest, fixture.codeManifest, fixture.preparation,
+	)
+	if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCompletionAuthorityRejectsAmbiguousMergeBase(t *testing.T) {
+	fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
+	root := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD")))
+	rootTree := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD^{tree}")))
+	left := commitFixtureTree(t, fixture.repository, []byte("left\n"), rootTree, root)
+	right := commitFixtureTree(t, fixture.repository, []byte("right\n"), rootTree, root)
+	leftMerge := commitFixtureTree(t, fixture.repository, []byte("left merge\n"), rootTree, left, right)
+	rightMerge := commitFixtureTree(t, fixture.repository, []byte("right merge\n"), rootTree, right, left)
+	bases := strings.Fields(string(runGit(
+		t, fixture.repository, nil, "merge-base", "--all", leftMerge, rightMerge,
+	)))
+	if len(bases) != 2 {
+		t.Fatalf("criss-cross fixture merge bases = %v, want two", bases)
+	}
+
+	if err := Save(filepath.Join(fixture.repository, filepath.FromSlash(Path)), fixture.child); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, fixture.repository, nil, "add", "--", Path)
+	childTree := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "write-tree")))
+	fixture.completionHash = commitFixtureTree(
+		t, fixture.repository, fixture.canonicalMessage(), childTree, leftMerge, rightMerge,
+	)
+	_, err := completionTransitionPlans(t.Context(), fixture.repository, []gitCompletionMessage{{
+		hash: fixture.completionHash, parents: []string{leftMerge, rightMerge},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "exactly one merge base, found 2") {
+		t.Fatalf("ambiguous completion merge-base error = %v", err)
+	}
+}
+
+func commitFixtureTree(t *testing.T, repository string, message []byte, tree string, parents ...string) string {
+	t.Helper()
+	arguments := []string{"commit-tree", tree}
+	for _, parent := range parents {
+		arguments = append(arguments, "-p", parent)
+	}
+	return strings.TrimSpace(string(runGit(t, repository, message, arguments...)))
 }
 
 func runGit(t *testing.T, repository string, input []byte, arguments ...string) []byte {

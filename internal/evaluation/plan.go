@@ -1,15 +1,13 @@
 package evaluation
 
 import (
-	"crypto/sha1"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"slices"
 	"sort"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gitauthority"
 	"overgo/internal/strictjson"
 )
 
@@ -323,6 +321,5 @@ func authorityContent(contract artifact.DocumentContract, value any) (artifact.C
 }
 
 func validCommit(value string) bool {
-	decoded, err := hex.DecodeString(value)
-	return err == nil && (len(decoded) == sha1.Size || len(decoded) == sha256.Size)
+	return gitauthority.ValidObjectID(value)
 }

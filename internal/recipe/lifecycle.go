@@ -183,6 +183,11 @@ func validTransition(from, to Status) bool {
 		return to == StatusRefused
 	case StatusActive:
 		return to == StatusActive || to == StatusSuperseded
+	case StatusSuperseded:
+		// Rollback: a superseded predecessor may return to service, but only
+		// through the full verified-activation door — fresh gate/run proof
+		// bound to its own identity, never a state reversal.
+		return to == StatusActive
 	default:
 		return false
 	}

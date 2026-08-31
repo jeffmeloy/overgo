@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
+	"overgo/internal/testutil"
 )
 
 func TestGateLifecycleAndDebt(t *testing.T) {
@@ -35,6 +37,89 @@ func TestGateLifecycleAndDebt(t *testing.T) {
 	debt, err = OutstandingGateDebt([]GateLifecycle{prepared, finalized})
 	if err != nil || len(debt) != 0 {
 		t.Fatalf("finalized debt = (%+v, %v)", debt, err)
+	}
+}
+
+func TestGateLifecycleStoreScanAndDebt(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if GateLifecycleCurrentAlias != overgodb.StoreLocalAliasPrefix+"gate-lifecycle/current" {
+		t.Fatalf("gate lifecycle alias = %q", GateLifecycleCurrentAlias)
+	}
+	environment := testutil.ArtifactID(t, artifact.KindEvidence, "store-lifecycle-environment")
+	result := testutil.ArtifactID(t, artifact.KindEvidence, "store-lifecycle-result")
+	testutil.PublishArtifact(t, store, environment)
+	prepared, err := NewGatePreparation(
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		environment, time.Unix(100, 0),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preparedContent, err := prepared.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	unrelatedContract := artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: "application/json", Schema: "test/unrelated-lifecycle/v1",
+	}
+	unrelated, err := unrelatedContract.ContentBytes([]byte(`{"state":"prepared"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "test/gate-lifecycle/prepared", Contents: []artifact.Content{preparedContent, unrelated},
+		Lineage: prepared.Lineage(),
+		Aliases: []artifact.AliasBinding{{Name: GateLifecycleCurrentAlias, Target: prepared.ID}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	records, err := GateLifecyclesInStore(ctx, store)
+	if err != nil || len(records) != 1 || records[0].ID != prepared.ID {
+		t.Fatalf("stored prepared records = (%+v, %v)", records, err)
+	}
+	debt, err := OutstandingGateDebt(records)
+	if err != nil || len(debt) != 1 || debt[0].ID != prepared.ID {
+		t.Fatalf("stored prepared debt = (%+v, %v)", debt, err)
+	}
+
+	testutil.PublishArtifact(t, store, result)
+	finalized, err := NewGateFinalization(
+		prepared, "0123456789abcdef0123456789abcdef01234567", result, OutcomeSucceeded,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finalizedContent, err := finalized.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "test/gate-lifecycle/finalized", Contents: []artifact.Content{finalizedContent},
+		Lineage: finalized.Lineage(),
+		Aliases: []artifact.AliasBinding{{
+			Name: GateLifecycleCurrentAlias, Target: finalized.ID, Previous: artifact.IDPointer(prepared.ID),
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	records, err = GateLifecyclesInStore(ctx, store)
+	if err != nil || len(records) != 2 || records[0].ID != prepared.ID || records[1].ID != finalized.ID {
+		t.Fatalf("stored finalized records = (%+v, %v)", records, err)
+	}
+	debt, err = OutstandingGateDebt(records)
+	if err != nil || len(debt) != 0 {
+		t.Fatalf("stored finalized debt = (%+v, %v)", debt, err)
+	}
+	if _, err := GateLifecyclesInStore(nil, store); err == nil {
+		t.Fatal("nil lifecycle context accepted")
+	}
+	if _, err := GateLifecyclesInStore(ctx, nil); err == nil {
+		t.Fatal("nil lifecycle store accepted")
 	}
 }
 

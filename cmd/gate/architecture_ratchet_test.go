@@ -43,6 +43,11 @@ func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
 		positions["scope"] >= positions["architecture"] || positions["architecture"] >= positions["profile"] {
 		t.Fatalf("architecture dependency order = scope:%d architecture:%d profile:%d", positions["scope"], positions["architecture"], positions["profile"])
 	}
+	for _, expensive := range []string{"acceptance", "vet", "build", "test", "device"} {
+		if positions["architecture"] >= positions[expensive] {
+			t.Fatalf("architecture ratchet at %d follows %s at %d", positions["architecture"], expensive, positions[expensive])
+		}
+	}
 
 	// A documentation-only impact excludes ownership-selected checks, but the
 	// architecture ratchet remains selected because it owns no exclusion path.
@@ -68,6 +73,11 @@ func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
 	}
 	if evidence.Inapplicable || evidence.DurationNS == 0 {
 		t.Fatalf("architecture evidence = %+v", evidence)
+	}
+	if !slices.ContainsFunc(gate.honesty, func(line string) bool {
+		return strings.HasPrefix(line, "entry authority ratchet:") && strings.Contains(line, "wall=")
+	}) {
+		t.Fatalf("architecture ratchet omitted measured entry-authority evidence: %q", gate.honesty)
 	}
 
 	base, err := artifact.JSONID(artifact.KindProfile, struct{ Name string }{"base"})

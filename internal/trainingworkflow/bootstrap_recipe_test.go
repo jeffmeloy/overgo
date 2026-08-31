@@ -11,6 +11,47 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
+// TestBootstrapRecordsModelLocation pins the discoverability contract:
+// bootstrapping a recipe from a weights file records that file's location
+// for the identified model, so every bootstrapped activation resolves to
+// its bytes without a separate intake; the rerun keeps the recorded fact.
+func TestBootstrapRecordsModelLocation(t *testing.T) {
+	root := t.TempDir()
+	modelPath := filepath.Join(root, "model.gguf")
+	datasetPath := filepath.Join(root, "dataset.txt")
+	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(datasetPath, []byte("training data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(filepath.Join(root, "repodb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	ctx := t.Context()
+	if _, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath); err != nil {
+		t.Fatal(err)
+	}
+	modelID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("weights"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorded, err := artifact.AvailablePath(ctx, store, modelID, artifact.LocationFile)
+	if err != nil {
+		t.Fatalf("bootstrapped model has no recorded weights location: %v", err)
+	}
+	data, err := os.ReadFile(recorded)
+	if err != nil || string(data) != "weights" {
+		t.Fatalf("recorded location %s = (%q, %v), want the bootstrapped weights", recorded, data, err)
+	}
+	if _, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath); err != nil {
+		t.Fatalf("repeat bootstrap with a recorded location: %v", err)
+	}
+}
+
 func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	root := t.TempDir()
 	modelPath := filepath.Join(root, "model.gguf")

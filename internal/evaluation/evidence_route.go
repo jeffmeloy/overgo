@@ -169,25 +169,26 @@ func requireRouteCandidate(
 	reader artifact.Reader,
 	candidate EvidenceRouteCandidate,
 ) (CapabilityProbeResult, agenttool.Manual, invocation.Boundary, runrecord.RouteMeasurement, error) {
+	var manual agenttool.Manual
 	probe, err := RequireCapabilityProbeResult(ctx, reader, candidate.Probe)
 	if err != nil || probe.Outcome != runrecord.OutcomeSucceeded {
-		return CapabilityProbeResult{}, agenttool.Manual{}, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route probe is not current successful production evidence"), err)
+		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route probe is not current successful production evidence"), err)
 	}
-	manual, err := agenttool.RequireManual(ctx, reader, candidate.Manual)
+	manual, err = requireRegisteredRouteManual(ctx, reader, candidate.Manual)
 	if err != nil || manual.Capability != probe.ModelCapability {
-		return CapabilityProbeResult{}, agenttool.Manual{}, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route manual addresses another capability"), err)
+		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route manual addresses another capability"), err)
 	}
 	boundary, err := probeRouteBoundary(probe.Entry)
 	if err != nil {
-		return CapabilityProbeResult{}, agenttool.Manual{}, "", runrecord.RouteMeasurement{}, err
+		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, err
 	}
 	check, err := recipe.RequireDecision(ctx, reader, probe.CheckDecision)
 	if err != nil || check.Outcome != recipe.DecisionAccepted {
-		return CapabilityProbeResult{}, agenttool.Manual{}, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route probe check is not accepted"), err)
+		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route probe check is not accepted"), err)
 	}
 	latency, measured := probe.Resources.Measure(runrecord.ResourceWallNS)
 	if !measured {
-		return CapabilityProbeResult{}, agenttool.Manual{}, "", runrecord.RouteMeasurement{}, errors.New("evaluation: route probe lacks measured latency")
+		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.New("evaluation: route probe lacks measured latency")
 	}
 	measurement := runrecord.RouteMeasurement{
 		Attempts: 1, Succeeded: 1, EvidenceUnits: uint64(len(check.Evidence)), LatencyNS: latency,
@@ -196,6 +197,18 @@ func requireRouteCandidate(
 		measurement.CostUnits, measurement.CostObserved = cost, true
 	}
 	return probe, manual, boundary, measurement, nil
+}
+
+func requireRegisteredRouteManual(ctx context.Context, reader artifact.Reader, id artifact.ID) (agenttool.Manual, error) {
+	exact, err := agenttool.LoadManual(ctx, reader, id)
+	if err != nil {
+		return exact, err
+	}
+	registered, err := agenttool.ResolveRegisteredManual(ctx, reader, exact.Name)
+	if err != nil || registered.ID != exact.ID {
+		return registered, errors.Join(errors.New("evaluation: route manual is not currently registered"), err)
+	}
+	return registered, nil
 }
 
 func probeRouteBoundary(entry ProductionCapabilityEntry) (invocation.Boundary, error) {

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/plan"
@@ -79,6 +81,44 @@ func TestEnforceSetVerify(t *testing.T) {
 	}
 	if _, err := assignVerify(base, "nope", "s1", "x"); err == nil {
 		t.Fatal("unknown item must be rejected")
+	}
+}
+
+func TestSetVerifyResolvesUpdatedAuthorityBeforeSaving(t *testing.T) {
+	document := plan.Plan{Items: []plan.Item{{
+		ID: "item", Status: plan.StatusOpen, Steps: []plan.Step{{
+			ID: "do", Status: plan.StatusOpen, Verify: "old verifier",
+		}},
+	}}}
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, filepath.FromSlash(plan.Path))
+	if err := plan.Save(path, document); err != nil {
+		t.Fatal(err)
+	}
+	previous, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(previous); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+	if err := setStepVerify(root, "item", "do", "new verifier", plan.UnassignedRole); err == nil {
+		t.Fatal("setverify saved without resolving the updated plan authority")
+	}
+	stored, err := plan.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := stored.Items[0].Steps[0].Verify; got != "old verifier" {
+		t.Fatalf("verify changed before authority resolved: %q", got)
 	}
 }
 

@@ -90,6 +90,95 @@ func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
 	}
 }
 
+func TestPrepareMergeFirstParentTargetRetainsOnlyLocalPlan(t *testing.T) {
+	item := func(id string) plan.Item {
+		return plan.Item{ID: id, Status: plan.StatusOpen, Steps: []plan.Step{{
+			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
+		}}}
+	}
+	base := plan.Plan{Campaign: "campaign", Doctrine: "doctrine", Items: []plan.Item{item("shared")}}
+	local := clonePlan(t, base)
+	local.Items = append(local.Items, item("local-only"))
+	incoming := clonePlan(t, base)
+	incoming.Items = append(incoming.Items, item("incoming-only"))
+
+	projected, err := projectMergePlan(
+		base, local, incoming, plan.CompletionAuthority{}, plan.CompletionAuthority{},
+		plan.MergeProjectionFirstParentTarget,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.EqualFunc(projected.Items, local.Items, func(left, right plan.Item) bool {
+		return left.ID == right.ID
+	}) || slices.ContainsFunc(projected.Items, func(item plan.Item) bool { return item.ID == "incoming-only" }) {
+		t.Fatalf("target projection = %+v, want local identities only", projected.Items)
+	}
+	projected, err = insertItem(
+		projected, "merge-0123456789ab", "Merge source", "", "go run ./cmd/compatibility -check",
+	)
+	if err != nil || projected.Items[0].ID != "merge-0123456789ab" ||
+		projected.Items[1].ID != "shared" || projected.Items[2].ID != "local-only" {
+		t.Fatalf("target merge row projection = %+v, %v", projected.Items, err)
+	}
+}
+
+func TestMergeFinalizeProjectionArguments(t *testing.T) {
+	if got, err := mergeFinalizeProjectionArguments(plan.MergeProjectionSemanticUnion, `C:\source lane\overgodb-store`); err != nil || got != "" {
+		t.Fatalf("semantic-union arguments = %q, %v", got, err)
+	}
+
+	source := filepath.Join(t.TempDir(), "source lane", "overgodb-store")
+	want := ` -plan-projection first-parent-target -merge-source-store "` + source + `"`
+	got, err := mergeFinalizeProjectionArguments(plan.MergeProjectionFirstParentTarget, source)
+	if err != nil || got != want {
+		t.Fatalf("first-parent-target arguments = %q, %v, want %q", got, err, want)
+	}
+	if _, err := mergeFinalizeProjectionArguments(plan.MergeProjectionFirstParentTarget, ""); err == nil ||
+		!strings.Contains(err.Error(), "requires its live source store") {
+		t.Fatalf("missing first-parent-target source store error = %v", err)
+	}
+}
+
+func TestFirstParentTargetSourceStoreRequiresRegisteredWorktree(t *testing.T) {
+	repository, runGit := mergeTestRepository(t)
+	revision := runGit("rev-parse", "HEAD")
+	if _, err := firstParentTargetSourceStore(t.Context(), repository, revision, ""); err == nil ||
+		!strings.Contains(err.Error(), "registered source worktree") {
+		t.Fatalf("missing source store error = %v", err)
+	}
+
+	unregistered := filepath.Join(t.TempDir(), "overgodb-store")
+	if err := os.Mkdir(unregistered, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := firstParentTargetSourceStore(t.Context(), repository, revision, unregistered); err == nil {
+		t.Fatalf("unregistered source store error = %v", err)
+	}
+
+	sourceRoot := filepath.Join(t.TempDir(), "source lane")
+	runGit("worktree", "add", "--detach", sourceRoot, revision)
+	sourceStore := filepath.Join(sourceRoot, "overgodb-store")
+	if err := os.Mkdir(sourceStore, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, err := firstParentTargetSourceStore(t.Context(), repository, revision, sourceStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotInfo, err := os.Stat(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantInfo, err := os.Stat(sourceStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(gotInfo, wantInfo) {
+		t.Fatalf("registered source store = %q, want %q", got, sourceStore)
+	}
+}
+
 func clonePlan(t *testing.T, document plan.Plan) plan.Plan {
 	t.Helper()
 	data, err := json.Marshal(document)
@@ -227,7 +316,7 @@ func TestPrepareMergeRequiresExactRepositoryRoot(t *testing.T) {
 	if err := os.Mkdir(subdirectory, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	err := prepareMerge(subdirectory, "HEAD", plan.Plan{}, io.Discard)
+	err := prepareMerge(subdirectory, "HEAD", io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "exact repository root") {
 		t.Fatalf("subdirectory prepare merge error = %v", err)
 	}

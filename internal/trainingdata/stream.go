@@ -299,9 +299,7 @@ func (batcher *Batcher) decode(ctx context.Context, references []recordRef) ([]E
 	var first error
 	var errorOnce sync.Once
 	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for index := range jobs {
 				if ctx.Err() != nil {
 					continue
@@ -321,7 +319,7 @@ func (batcher *Batcher) decode(ctx context.Context, references []recordRef) ([]E
 					})
 				}
 			}
-		}()
+		})
 	}
 send:
 	for index := range references {

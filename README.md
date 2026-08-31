@@ -187,7 +187,7 @@ deliberately no MCP bridge in the tree.
 
 A manual is a store document (`overgo/agent-tool-manual/v1`) declaring the
 tool's name, its **effect class** — `inspection` reads state, `mutation`
-changes it and is gated behind inspection — its typed arguments, and its
+changes it and is permitted only after a prior inspection — its typed arguments, and its
 transport binding: a built-in Go function or an http-json-stream endpoint.
 Manuals are published to OvergoDB under registered aliases; orchestration
 resolves tools from the store, never from code alone, so an unregistered tool
@@ -224,9 +224,14 @@ varies by capability.
 | Measurement of automation effectiveness | Implemented: every gate run emits a typed attempt record, success and failure |
 | Durable cross-run measurement history for steering | Implemented: attempt history is store-queried and aggregated per step and strategy |
 | Controlled comparison of competing automation strategies | Implemented: isolated-worktree experiments from one baseline, judged by each step's own verify |
-| Evidence-gated promotion of automation policies | Implemented: declared to active on recorded evidence and measured wins, rollback retained |
+| Evidence-conditioned promotion of automation policies | Implemented: declared to active on recorded evidence and measured wins, rollback retained |
 | Model-proposed steering from accumulated evidence | Implemented: typed falsifiable proposals through deterministic admission; history-free proposals are refused |
 | Closed recursive policy-improvement loop | Implemented: the driver consumes admitted proposals under budget, saturation, and operator-stop conditions; live unattended campaigns remain to accumulate evidence |
+| Evidence-derived model routing | Implemented: typed routing decisions derived from admitted evaluation evidence, every selection recorded, candidate routing rules measured by counterfactual replay over recorded decisions |
+| Deterministic rollout of promoted candidates | Implemented: content-addressed rollout plans, deterministic cohort assignment that is identical across retry, replay, and restart, reproducible projection reports, promotion only after the required evidence is present |
+| Live-safety containment | Implemented: comparison windows derived from each metric's own history without distributional assumptions, staged circuit-breaker escalation ending in operator stop, atomic rollback with recorded cause, and quarantine reentry that requires evidence committed after the quarantine |
+| Prototype recipe lifecycle with rollback | Implemented: candidate, validated, active, refused, superseded, and rollback transitions; a superseded recipe returns to service only through a new verified activation |
+| Composition improvement driver | Implemented: exact retrieval over normalized component descriptors, seam alignment residual audited against measured bridge results, ranked candidate enumeration, adapter training with both models frozen, multidimensional fitness selection without averaging, promotion through the existing ablation-controlled check, and run bounds computed from measured history; live composite campaigns remain to accumulate evidence |
 
 Architecture support and artifact verification are separate claims. Shared
 components can express more model types than are installed and tested on the
@@ -266,6 +271,43 @@ store-recorded:
   their falsifiable check passing — and the explicit recorded operator stop.
   Proposals never execute anything; every row still advances only through
   the gate.
+- **Routing.** Which model serves a task is a recorded decision. Candidates
+  are admitted only through verified evaluation evidence measured on the
+  same data split. The quality threshold is the current model's own
+  measured value, and one registered rule picks the cheapest candidate
+  that meets it. A new routing rule is first replayed against the recorded
+  decisions to measure what it would have changed; only then can it serve
+  live traffic.
+- **Rollout and containment.** A promoted candidate is activated for
+  everyone only after a rollout: an immutable plan assigns each workload
+  to the baseline or the candidate by a hash of stable identities, so the
+  assignment is the same across retries and restarts. Reports over the
+  rollout are reproducible: reading the same store state twice produces
+  the same bytes. Promotion requires the observation count the plan
+  demands, a committed rollback authority, and the plan's baseline still
+  in service. If the live metrics regress past bounds computed from the
+  metric's own history, a circuit breaker escalates step by step —
+  advisory, finding, quarantine, operator stop — and rollback restores the
+  previous model in one step with the causing evidence recorded. A
+  quarantined candidate can only return with new evidence committed after
+  the quarantine; resubmitting old evidence does nothing.
+- **Composition.** The model-improvement driver follows the same structure
+  as the policy loop. Improvement targets come from admitted evaluation
+  results. Donor components are found through an exact index over
+  normalized component descriptors. For each candidate seam, a linear
+  least-squares fit over recorded activations measures how well a simple
+  adapter could connect the two models; that residual is checked against
+  measured bridge results before it is trusted. Realization initializes
+  the adapter from that fit and trains only the adapter — both models
+  stay frozen, and the result proves their bytes did not change. A
+  composite is selected only if no fitness dimension got worse and at
+  least one got better; averaging across dimensions is not allowed.
+  Promotion requires ablation evidence through the existing promotion
+  check: the composite must lose its measured gains when the donor input
+  is dropped or shuffled. The run stops at an attempt budget and failure streak
+  computed from its own history. Hit rate, fitness per compute, and
+  adapter training cost are aggregated into a learning curve, which is
+  the record the autonomy ratchet reads.
 
 ## What remains before autonomous RSI
 

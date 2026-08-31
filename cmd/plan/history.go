@@ -18,45 +18,44 @@ import (
 // admission: the store records the proposal, and the plan gains the
 // row it becomes -- on top, dispatchable, carrying the proposal as its
 // rationale. Refusal changes nothing.
-func admitProposal(root, specPath string, document plan.Plan, output io.Writer) error {
-	var proposal steering.Proposal
-	if err := jsonfile.Decode(specPath, &proposal); err != nil {
-		return err
-	}
-	for _, item := range document.Items {
-		if item.ID == proposal.Slug {
-			return fmt.Errorf("plan: proposal slug %q collides with an open item", proposal.Slug)
+func admitProposal(root, specPath string, output io.Writer) error {
+	return withPlanMutation(root, false, func(document plan.Plan) error {
+		var proposal steering.Proposal
+		if err := jsonfile.Decode(specPath, &proposal); err != nil {
+			return err
 		}
-	}
-	// Check the exact identity the admitted proposal would introduce before
-	// steering mutates the append-only store. A completed item cannot be
-	// republished under a fresh proposal and then left as broken plan state.
-	probe := document
-	probe.Items = append([]plan.Item{{
-		ID: proposal.Slug, Title: proposal.Goal, Status: plan.StatusOpen,
-		Steps: []plan.Step{{
-			ID: "do", Title: proposal.Goal, Status: plan.StatusOpen,
-			Verify: proposal.FalsifiableCheck,
-		}},
-	}}, document.Items...)
-	if _, err := resolveCompletionAuthority(root, "HEAD", probe); err != nil {
+		for _, item := range document.Items {
+			if item.ID == proposal.Slug {
+				return fmt.Errorf("plan: proposal slug %q collides with an open item", proposal.Slug)
+			}
+		}
+		store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		probe := document
+		probe.Items = append([]plan.Item{{
+			ID: proposal.Slug, Title: proposal.Goal, Status: plan.StatusOpen,
+			Steps: []plan.Step{{
+				ID: "do", Title: proposal.Goal, Status: plan.StatusOpen,
+				Verify: proposal.FalsifiableCheck,
+			}},
+		}}, document.Items...)
+		if _, err := plan.ResolveCompletionAuthority(context.Background(), root, "HEAD", probe, store); err != nil {
+			return err
+		}
+		admitted, row, err := steering.Admit(context.Background(), store, proposal)
+		if err != nil {
+			return err
+		}
+		document.Items = append([]plan.Item{row}, document.Items...)
+		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document); err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(output, "admitted proposal %s as plan row %s\n", admitted.ID, row.ID)
 		return err
-	}
-	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	admitted, row, err := steering.Admit(context.Background(), store, proposal)
-	if err != nil {
-		return err
-	}
-	document.Items = append([]plan.Item{row}, document.Items...)
-	if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document); err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "admitted proposal %s as plan row %s\n", admitted.ID, row.ID)
-	return err
+	})
 }
 
 // printAttemptHistory renders the store's attempt measurements for

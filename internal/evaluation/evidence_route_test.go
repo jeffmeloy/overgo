@@ -3,6 +3,7 @@ package evaluation
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/agenttool"
@@ -55,6 +56,35 @@ func TestEvidenceRouteRejectsSyntheticCandidate(t *testing.T) {
 	fixture.candidates[0].Probe = synthetic
 	if _, _, err := CompileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates); err == nil {
 		t.Fatal("descriptor-only route probe was admitted")
+	}
+}
+
+func TestEvidenceRouteRejectsUnregisteredManual(t *testing.T) {
+	store := newCapabilityEvaluationStore(t)
+	var declaration agenttool.Manual
+	declaration.Name = "unregistered.inspect"
+	declaration.Description = "Inspect a capability that never entered the registered catalog."
+	declaration.Effect = agenttool.EffectInspection
+	declaration.Transport.Kind = agenttool.TransportBuiltin
+	manual, err := agenttool.NewManual(declaration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := manual.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := artifact.Content{Descriptor: artifact.Descriptor{
+		ID: manual.ID, Size: uint64(len(data)), MediaType: agenttool.ManualMediaType, Schema: agenttool.ManualSchema,
+	}, Data: data}
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
+		Key: "test/evidence-route/unregistered-manual", Contents: []artifact.Content{content},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := requireRegisteredRouteManual(t.Context(), store, manual.ID); err == nil ||
+		!strings.Contains(err.Error(), "not currently registered") {
+		t.Fatalf("unregistered manual was not refused: %v", err)
 	}
 }
 

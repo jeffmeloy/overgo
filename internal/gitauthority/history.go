@@ -92,6 +92,12 @@ func RepositoryRoot(ctx context.Context, repository string) (string, error) {
 	return root, nil
 }
 
+// RequireRepositoryRoot proves that repository names the exact worktree root.
+func RequireRepositoryRoot(ctx context.Context, repository string) error {
+	_, err := RepositoryRoot(ctx, repository)
+	return err
+}
+
 // RepositoryEnvironment returns the current process environment without Git
 // variables. Authority operations must derive repository identity from their
 // explicit working directory rather than ambient repository, object, index,

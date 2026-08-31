@@ -9,9 +9,15 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 )
+
+// StoreLocalAliasPrefix marks live authorities whose meaning depends on this
+// store's physical commit history. Compaction must refuse these aliases because
+// rebuilding logical facts cannot preserve their original commit receipts.
+const StoreLocalAliasPrefix = "store-local/"
 
 // RetentionReport counts one compaction.
 type RetentionReport struct {
@@ -49,6 +55,15 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 		source.mu.RUnlock()
 		return report, err
 	}
+	aliases := source.state.aliasViews("")
+	for _, alias := range aliases {
+		if strings.HasPrefix(alias.Name, StoreLocalAliasPrefix) {
+			source.mu.RUnlock()
+			return report, fmt.Errorf(
+				"overgodb retention: live store-local alias %q prevents compaction", alias.Name,
+			)
+		}
+	}
 	for execution, link := range source.state.causality.records {
 		causality[execution] = link.Clone()
 	}
@@ -63,7 +78,6 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 			manifests[id] = record.manifest.Clone()
 		}
 	}
-	aliases := source.state.aliasViews("")
 	source.mu.RUnlock()
 
 	retained := map[artifact.ID]bool{}

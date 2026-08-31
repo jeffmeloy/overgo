@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/repoanalysis"
 )
@@ -23,6 +24,49 @@ func TestValidateBindingsDetectsSourceDrift(t *testing.T) {
 	issues, err := ValidateBindings(changed, []closureledger.Document{document})
 	if err != nil || len(issues) != 1 || issues[0].Kind != DriftSource {
 		t.Fatalf("source issues = (%+v, %v)", issues, err)
+	}
+}
+
+func TestPermanentAuthorityRequiresEachMultiBindingAlias(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{
+		"internal/policy.go": "package policy\nconst First = 8\nconst Second = 8\n",
+	})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateConstants)
+	if err != nil || len(candidates) != 2 {
+		t.Fatalf("candidates = (%+v, %v)", candidates, err)
+	}
+	bindings := make([]closureledger.SourceBinding, len(candidates))
+	aliases := map[string]artifact.ID{}
+	for index, candidate := range candidates {
+		bindings[index], err = candidate.Binding()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	document, err := closureledger.New(
+		"shared-policy", candidates[0].ValueJSON(), closureledger.TierImplementation, closureledger.StatusClosed,
+		"Shared fixture policy.", bindings, "Replace when policy ownership changes.",
+		"Policy ownership change.", bindings[0].Owner,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstAlias, err := closureledger.ActiveAlias(bindings[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliases[firstAlias] = document.ID
+	if _, err := ValidatePermanentActiveAuthority(snapshot, []closureledger.Document{document}, aliases); err == nil {
+		t.Fatal("one active alias authorized both bindings")
+	}
+	secondAlias, err := closureledger.ActiveAlias(bindings[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliases[secondAlias] = document.ID
+	report, err := ValidatePermanentActiveAuthority(snapshot, []closureledger.Document{document}, aliases)
+	if err != nil || report.ClassifiedSites != 2 {
+		t.Fatalf("fully active multi-binding authority = (%+v, %v)", report, err)
 	}
 }
 

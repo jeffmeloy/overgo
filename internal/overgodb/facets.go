@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 )
@@ -55,6 +56,10 @@ const initialProjectionVersion uint16 = 1
 // snapshot or journal replay.
 const contentProjectionVersion = initialProjectionVersion + 1
 
+// commitProjectionVersion advances when exact journal coordinates become a
+// durable part of the commit projection.
+const commitProjectionVersion = initialProjectionVersion + 1
+
 // projections enumerates the seven facet projections in commit-
 // application order; this table is the closed world and the single
 // owner of projection names and versions.
@@ -66,7 +71,7 @@ func projections(state *catalogState) []registeredProjection {
 		{name: "causality", version: CausalityProjectionVersion, view: &state.causality},
 		{name: "locations", version: initialProjectionVersion, view: &state.locations},
 		{name: "aliases", version: initialProjectionVersion, view: &state.aliases},
-		{name: "commits", version: initialProjectionVersion, view: &state.commits},
+		{name: "commits", version: commitProjectionVersion, view: &state.commits},
 	}
 }
 
@@ -84,6 +89,7 @@ type artifactFacet struct {
 	records    map[artifact.ID]*artifactRecord
 	byMedia    map[string][]artifact.ID
 	bySchema   map[string][]artifact.ID
+	byKind     map[artifact.Kind][]artifact.ID
 	bySequence []artifact.ID
 }
 
@@ -91,6 +97,7 @@ func newArtifactFacet() artifactFacet {
 	return artifactFacet{
 		records: map[artifact.ID]*artifactRecord{},
 		byMedia: map[string][]artifact.ID{}, bySchema: map[string][]artifact.ID{},
+		byKind: map[artifact.Kind][]artifact.ID{},
 	}
 }
 
@@ -129,6 +136,7 @@ func (f *artifactFacet) add(descriptor artifact.Descriptor, sequence uint64) {
 	f.records[descriptor.ID] = &artifactRecord{descriptor: descriptor, sequence: sequence}
 	indexDescriptor(f.byMedia, descriptor.MediaType, descriptor.ID)
 	indexDescriptor(f.bySchema, descriptor.Schema, descriptor.ID)
+	f.byKind[descriptor.ID.Kind()] = append(f.byKind[descriptor.ID.Kind()], descriptor.ID)
 	f.bySequence = append(f.bySequence, descriptor.ID)
 }
 
@@ -413,6 +421,9 @@ func (f aliasFacet) each(visit func(name string, target artifact.ID)) {
 
 func (f aliasFacet) validate(batch artifact.Batch, hasArtifact func(artifact.ID) bool) error {
 	for _, binding := range batch.Aliases {
+		if binding.Remove && strings.HasPrefix(binding.Name, StoreLocalAliasPrefix) {
+			return fmt.Errorf("overgodb: store-local alias %q cannot be retired", binding.Name)
+		}
 		if !binding.Remove && !hasArtifact(binding.Target) {
 			return fmt.Errorf("overgodb: alias %q targets unknown artifact %s", binding.Name, binding.Target)
 		}

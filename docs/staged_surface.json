@@ -186,6 +186,33 @@
       }
     },
     {
+      "package": "overgo/internal/testutil",
+      "name": "GGUFScalar",
+      "reason": "Shared hermetic GGUF fixture metadata builder consolidating the inference and trainingworkflow copies; test-support surface is test-consumed by design.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
+    },
+    {
+      "package": "overgo/internal/testutil",
+      "name": "GGUFArray",
+      "reason": "Shared hermetic GGUF fixture metadata builder consolidating the inference and trainingworkflow copies; test-support surface is test-consumed by design.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
+    },
+    {
+      "package": "overgo/internal/testutil",
+      "name": "GGUFTensorF32",
+      "reason": "Shared hermetic GGUF fixture tensor builder consolidating the inference and trainingworkflow copies; test-support surface is test-consumed by design.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
+    },
+    {
       "package": "overgo/internal/runrecord",
       "name": "NewEfficiencyTrace",
       "reason": "Interaction-efficiency baseline document delivered by redundancy-interaction-baseline/interaction-traces with contract and measured storage baseline complete.",
@@ -400,6 +427,12 @@
       "name": "CompareResourceFitness",
       "reason": "Exact persisted resource comparison lands with resource-coverage/fitness-integration ahead of live candidate evaluation.",
       "retire_with": "model-recipe-lifecycle/recipe-evaluation"
+    },
+    {
+      "package": "overgo/internal/modelrecipe",
+      "name": "DeriveCandidateRecipes",
+      "reason": "Exact read-only projection of the admitted Candidate to CandidateCompilation to CandidateMaterialization spine lands immediately before capability-closure validation consumes it.",
+      "retire_with": "model-recipe-lifecycle/recipe-validation"
     },
     {
       "package": "overgo/internal/modelrecipetest",

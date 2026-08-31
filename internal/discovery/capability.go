@@ -67,6 +67,13 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		}
 		if found {
 			entry.Location, entry.Present = presence(ctx, store, manifest, identities, memo)
+		} else if path, pathErr := artifact.AvailablePath(ctx, store, model, artifact.LocationFile); pathErr == nil {
+			// Models recorded through location records rather than piece
+			// manifests — safetensors directories and single-file weights —
+			// are present when a recorded location still resolves on disk.
+			entry.Location, entry.Present = path, true
+		} else if path, pathErr := artifact.AvailablePath(ctx, store, model, artifact.LocationDirectory); pathErr == nil {
+			entry.Location, entry.Present = path, true
 		}
 		tasks := tasksByModel[model]
 		sort.Slice(tasks, func(i, j int) bool { return tasks[i] < tasks[j] })

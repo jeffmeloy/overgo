@@ -138,6 +138,9 @@ func TestModernCensusCheckRequiresCompleteRatchetAdmission(t *testing.T) {
 	if err := os.WriteFile(path, []byte("package sample\n\nfunc identity(value string) string { return value }\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := run([]string{"-write-baseline", "-root", root}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
@@ -200,6 +203,9 @@ func TestModernCensusExceptionClosureIsDeterministic(t *testing.T) {
 	}
 	source := []byte("package sample\n\nfunc fallback(value string) string { if value == \"\" { value = derive() }; return value }\nfunc derive() string { return \"fallback\" }\n")
 	if err := os.WriteFile(filepath.Join(directory, "sample.go"), source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := run([]string{"-write-baseline", "-root", root}, io.Discard); err != nil {

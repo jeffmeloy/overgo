@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "generated-authority-refresh",
-      "title": "Regenerate and re-verify every generated authority document over the merged tree",
-      "status": "open",
-      "steps": [
-        {
-          "id": "regenerate-authorities",
-          "title": "Run api-manifest, compatibility, and sbom updates from a clean tree and verify their check modes bind the exact source identity",
-          "status": "open",
-          "verify": "go run ./cmd/sbom -check",
-          "rationale": "Generated files carry the source identity that produced them; checks run from a clean tree after regeneration."
-        }
-      ]
-    },
-    {
       "id": "gate-preflight",
       "title": "Add one read-only preflight command for cheap pre-gate validation",
       "status": "open",

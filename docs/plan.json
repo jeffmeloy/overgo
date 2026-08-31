@@ -9,27 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "single-entry-guards",
-          "title": "Extend and re-run the permanent authority ratchet over completed RSI entry points",
-          "status": "open",
-          "verify": "go test ./internal/overgodb ./internal/processcontrol ./internal/agenttool ./internal/inference ./internal/workflowruntime ./internal/loop -run '^TestProductionAuthorityBoundaries$' -count=1",
-          "rationale": "Extend the same early always-required, manifest-owned gate ratchet over the newly created model, recipe, routing, rollout, and safety authorities. Re-run its architecture contract after convergence; do not create a second guard process or policy owner.",
-          "depends_on": [
-            "architecture-ratchets/go-only-guard",
-            "interaction-efficiency/efficiency-gate",
-            "model-recipe-lifecycle/recipe-activation",
-            "evidence-routing/counterfactual-replay",
-            "deterministic-rollout/promotion-binding",
-            "live-safety/reentry"
-          ],
-          "capabilities": [
-            "architecture-guard",
-            "rsi-containment",
-            "single-authority",
-            "gate-ratchet"
-          ]
-        },
-        {
           "id": "go-only-guard",
           "title": "Re-run the permanent Go-only ratchet against the completed RSI surface",
           "status": "open",

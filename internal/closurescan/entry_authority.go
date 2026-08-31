@@ -31,6 +31,16 @@ const (
 	// dynamic libraries outside OS-ABI owners, runtime scripts, or harness
 	// configuration discovery.
 	EntryAuthorityGoOnly EntryAuthorityDomain = "go-only"
+	// EntryAuthorityModel guards model-prototype admission owned by internal/modelrecipe.
+	EntryAuthorityModel EntryAuthorityDomain = "model"
+	// EntryAuthorityRouting guards routing-decision construction owned by internal/modelrecipe.
+	EntryAuthorityRouting EntryAuthorityDomain = "routing"
+	// EntryAuthorityRollout guards rollout-plan construction owned by internal/runrecord.
+	EntryAuthorityRollout EntryAuthorityDomain = "rollout"
+	// EntryAuthorityEfficiency guards efficiency-trace construction owned by internal/runrecord.
+	EntryAuthorityEfficiency EntryAuthorityDomain = "efficiency"
+	// EntryAuthoritySafety guards live-safety-window construction owned by internal/evaluation.
+	EntryAuthoritySafety EntryAuthorityDomain = "safety"
 )
 
 // EntryAuthorityRule binds one domain's bypass detection to its single owner.
@@ -82,6 +92,23 @@ func compositeSites(file *ast.File, base, name string) int {
 	ast.Inspect(file, func(node ast.Node) bool {
 		composite, ok := node.(*ast.CompositeLit)
 		if !ok {
+			return true
+		}
+		if selector, ok := composite.Type.(*ast.SelectorExpr); ok && selectorIs(selector, base, name) {
+			sites++
+		}
+		return true
+	})
+	return sites
+}
+
+// nonEmptyCompositeSites counts only populated composite literals: a zero
+// value returned on an error path constructs no document and stays admitted.
+func nonEmptyCompositeSites(file *ast.File, base, name string) int {
+	sites := 0
+	ast.Inspect(file, func(node ast.Node) bool {
+		composite, ok := node.(*ast.CompositeLit)
+		if !ok || len(composite.Elts) == 0 {
 			return true
 		}
 		if selector, ok := composite.Type.(*ast.SelectorExpr); ok && selectorIs(selector, base, name) {
@@ -217,6 +244,56 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				return literalSites(file, "recipe.active.")
 			},
 			Retire: "internal/modelrecipe stops owning capability activation aliases",
+		},
+		{
+			Domain:     EntryAuthorityModel,
+			Owner:      "internal/modelrecipe owns model-prototype admission; prototypes enter through its constructor and lifecycle",
+			OwnerPaths: []string{"internal/modelrecipe"},
+			Exceptions: map[string]string{},
+			Detect: func(file *ast.File) int {
+				return nonEmptyCompositeSites(file, "modelrecipe", "ModelPrototype")
+			},
+			Retire: "internal/modelrecipe stops owning model-prototype admission",
+		},
+		{
+			Domain:     EntryAuthorityRouting,
+			Owner:      "internal/modelrecipe owns routing decisions; selections enter through its constructor over admitted evidence",
+			OwnerPaths: []string{"internal/modelrecipe"},
+			Exceptions: map[string]string{},
+			Detect: func(file *ast.File) int {
+				return nonEmptyCompositeSites(file, "modelrecipe", "RoutingDecision")
+			},
+			Retire: "internal/modelrecipe stops owning routing decisions",
+		},
+		{
+			Domain:     EntryAuthorityRollout,
+			Owner:      "internal/runrecord owns rollout plans; deterministic rollouts enter through its constructor and promotion binding",
+			OwnerPaths: []string{"internal/runrecord"},
+			Exceptions: map[string]string{},
+			Detect: func(file *ast.File) int {
+				return nonEmptyCompositeSites(file, "runrecord", "RolloutPlan")
+			},
+			Retire: "internal/runrecord stops owning rollout plans",
+		},
+		{
+			Domain:     EntryAuthorityEfficiency,
+			Owner:      "internal/runrecord owns efficiency traces; interaction-efficiency claims enter through its constructor and judgment",
+			OwnerPaths: []string{"internal/runrecord"},
+			Exceptions: map[string]string{},
+			Detect: func(file *ast.File) int {
+				return nonEmptyCompositeSites(file, "runrecord", "EfficiencyTrace")
+			},
+			Retire: "internal/runrecord stops owning efficiency traces",
+		},
+		{
+			Domain:     EntryAuthoritySafety,
+			Owner:      "internal/evaluation owns live safety windows; reentry decisions read windows built by its constructor",
+			OwnerPaths: []string{"internal/evaluation"},
+			Exceptions: map[string]string{},
+			Detect: func(file *ast.File) int {
+				return nonEmptyCompositeSites(file, "evaluation", "LiveSafetyWindow")
+			},
+			Retire: "internal/evaluation stops owning live safety windows",
 		},
 		{
 			Domain: EntryAuthorityGoOnly,

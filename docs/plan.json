@@ -185,26 +185,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "isolated-performance-evidence",
-          "title": "Publish identity-bound cross-domain performance observations from isolated supervised processes",
-          "status": "open",
-          "verify": "go test ./internal/processcontrol ./internal/runrecord ./internal/evaluation ./internal/modelrecipe ./internal/operation -run '^(TestIsolatedModelProcess|TestIsolatedModelPerformanceEvidence|TestTrainingLaunchUsesDirectOwnerWithCapabilityReceipt)$' -count=1",
-          "rationale": "Acquire performance evidence in one supervised process or session per exact validated candidate and local recipe. Execute through the existing operation and process-supervision owners after deriving the closed evaluation or training-launch effect, canonical arguments and targets, action-bound preflight inspection, task or delegation ceiling, argument-bound HumanDecision, and shared admitted-running-terminal StageReceipt; no UTCP transport is inserted inward. Bind candidate, resolved model or composition, held-out dataset and split digest, environment, recipe, placement, code, attempt, ResourceFitness, and explicit missing coverage in one semantic publication. Domain summaries may describe derived facts but cannot create comparison, promotion, retry, or rollback authority. Refuse child or cleanup failure, mixed observation scope, stale operation heads, unrelated or argument-drifted preflight evidence, or partial publication. High-volume training, scaling, health, MoE, and expert-parallel evidence are post-proof plugins of this owner.",
-          "depends_on": [
-            "model-recipe-lifecycle/recipe-validation",
-            "process-supervision/process-boundary-guard"
-          ],
-          "capabilities": [
-            "performance-evidence",
-            "process-isolation",
-            "resource-fitness",
-            "artifact-identity",
-            "scaling-accounting",
-            "training-health",
-            "moe-router-coverage"
-          ]
-        },
-        {
           "id": "recipe-evaluation",
           "title": "Evaluate candidates and their component ablations while separating model, composition, routing, steering, data, recipe, and system deltas",
           "status": "open",

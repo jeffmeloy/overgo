@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 
@@ -40,6 +41,12 @@ type EvaluationEvidence struct {
 	CodeCommit      string                  `json:"code_commit"`
 	Phases          []runrecord.PhaseMetric `json:"phases"`
 	Metrics         []runrecord.Metric      `json:"metrics"`
+	// ResourceObservation names the exact raw-chunk summary published in the
+	// same semantic batch as an isolated run. Resources preserves measured
+	// zero versus missing dimensions without forcing high-volume samples into
+	// this evidence document.
+	ResourceObservation artifact.ID                `json:"resource_observation,omitzero"`
+	Resources           *runrecord.ResourceFitness `json:"resources,omitempty"`
 	// Causal explains why the evaluation ran.
 	Causal *runrecord.CausalContext `json:"causal,omitempty"`
 }
@@ -78,6 +85,10 @@ func (value EvaluationEvidence) Lineage() []artifact.Lineage {
 		value.ModelDefinition, value.Recipe, value.Dataset, value.Split, value.Environment,
 	}
 	parents = append(parents, value.Shards...)
+	if value.ResourceObservation.Valid() {
+		parents = append(parents, value.ResourceObservation)
+		parents = append(parents, value.Resources.Authorities()...)
+	}
 	return artifact.DependencyLineage(value.ID, uniqueArtifactIDs(parents)...)
 }
 
@@ -114,6 +125,15 @@ func ValidateEvaluationEvidence(ctx context.Context, reader artifact.Reader, val
 		!slices.Equal(run.Phases, value.Phases) || !slices.Equal(record.Metrics, value.Metrics) {
 		return errors.New("evaluation: stored run or metrics differ from evidence")
 	}
+	if value.ResourceObservation.Valid() {
+		observation, err := runrecord.RequireObservationChunkSummary(ctx, reader, value.ResourceObservation)
+		if err != nil || !reflect.DeepEqual(observation.Aggregate, *value.Resources) {
+			return errors.Join(err, errors.New("evaluation: stored resource observation differs from evidence"))
+		}
+		if err := validateIsolatedResources(ctx, reader, plan, run, *value.Resources); err != nil {
+			return err
+		}
+	}
 	reportContent, found, err := artifact.ReadContent(ctx, reader, value.Report)
 	if err != nil || !found {
 		return errors.Join(err, errors.New("evaluation: stored report is absent"))
@@ -137,6 +157,32 @@ func PublishEvaluationEvidence(
 	report artifact.ID,
 	run runrecord.Run,
 	record runrecord.Evaluation,
+	causal ...runrecord.CausalContext,
+) (EvaluationEvidence, error) {
+	evidence, err := newEvaluationEvidence(
+		ctx, repository, plan, acceptance, evaluator, report, run, record, nil, causal...,
+	)
+	if err != nil {
+		return EvaluationEvidence{}, err
+	}
+	batch := artifact.Batch{Key: "evaluation/evidence/" + evidence.ID.String()}
+	if err := appendEvaluationEvidence(&batch, acceptance, evaluator, evidence); err != nil {
+		return EvaluationEvidence{}, err
+	}
+	_, err = artifact.CommitBatch(ctx, repository, batch)
+	return evidence, err
+}
+
+func newEvaluationEvidence(
+	ctx context.Context,
+	repository artifact.Reader,
+	plan Plan,
+	acceptance AcceptancePolicy,
+	evaluator Evaluator,
+	report artifact.ID,
+	run runrecord.Run,
+	record runrecord.Evaluation,
+	observation *runrecord.ObservationChunkSummary,
 	causal ...runrecord.CausalContext,
 ) (EvaluationEvidence, error) {
 	if len(causal) > 1 || ctx == nil || repository == nil || report.Kind() != artifact.KindEvaluation ||
@@ -163,7 +209,7 @@ func PublishEvaluationEvidence(
 	if len(causal) == 1 {
 		causalBinding = &causal[0]
 	}
-	evidence, err := evaluationEvidenceCodec.New(EvaluationEvidence{
+	value := EvaluationEvidence{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Acceptance: acceptance.ID, Evaluator: evaluator.ID,
 		Report: report, Run: run.ID, Evaluation: record.ID,
 		ModelDefinition: plan.body.ModelDefinition, Recipe: plan.body.RuntimeRecipe,
@@ -171,34 +217,101 @@ func PublishEvaluationEvidence(
 		Environment: plan.body.Environment, CodeCommit: plan.body.CodeCommit,
 		Phases: slices.Clone(run.Phases), Metrics: slices.Clone(record.Metrics),
 		Causal: causalBinding,
-	})
+	}
+	if observation != nil {
+		if err := observation.ValidateIdentity(); err != nil || observation.Aggregate.Scope.Attempt != run.ID {
+			return EvaluationEvidence{}, errors.Join(err, errors.New("evaluation: resource observation differs from run"))
+		}
+		resources := observation.Aggregate
+		value.ResourceObservation = observation.ID
+		value.Resources = &resources
+		if err := validateIsolatedResources(ctx, repository, plan, run, resources); err != nil {
+			return EvaluationEvidence{}, err
+		}
+	}
+	evidence, err := evaluationEvidenceCodec.New(value)
 	if err != nil {
 		return EvaluationEvidence{}, err
+	}
+	return evidence, nil
+}
+
+func appendEvaluationEvidence(
+	batch *artifact.Batch,
+	acceptance AcceptancePolicy,
+	evaluator Evaluator,
+	evidence EvaluationEvidence,
+) error {
+	if batch == nil {
+		return errors.New("evaluation: evidence batch is absent")
 	}
 	policyContent, err := acceptance.Content()
 	if err != nil {
-		return EvaluationEvidence{}, err
+		return err
 	}
 	evaluatorContent, err := evaluator.Content()
 	if err != nil {
-		return EvaluationEvidence{}, err
+		return err
 	}
 	evidenceContent, err := evidence.Content()
 	if err != nil {
-		return EvaluationEvidence{}, err
+		return err
 	}
-	batch, err := artifact.NewDocumentBatch(
-		"evaluation/evidence/"+evidence.ID.String(), []artifact.Content{policyContent, evaluatorContent, evidenceContent},
-		evidence.Lineage(), nil,
+	batch.Contents = append(batch.Contents, policyContent, evaluatorContent, evidenceContent)
+	batch.Lineage = append(batch.Lineage, evidence.Lineage()...)
+	if err := runrecord.BindCausality(batch, evidence.ID, evidence.Causal); err != nil {
+		return err
+	}
+	return batch.Validate()
+}
+
+func prepareIsolatedEvaluationEvidence(
+	ctx context.Context,
+	repository artifact.Reader,
+	batch *artifact.Batch,
+	plan Plan,
+	acceptance AcceptancePolicy,
+	evaluator Evaluator,
+	report artifact.ID,
+	run runrecord.Run,
+	record runrecord.Evaluation,
+	observation runrecord.ObservationChunkSummary,
+) (EvaluationEvidence, error) {
+	evidence, err := newEvaluationEvidence(
+		ctx, repository, plan, acceptance, evaluator, report, run, record, &observation,
 	)
 	if err != nil {
 		return EvaluationEvidence{}, err
 	}
-	if err := runrecord.BindCausality(&batch, evidence.ID, evidence.Causal); err != nil {
+	if err := appendEvaluationEvidence(batch, acceptance, evaluator, evidence); err != nil {
 		return EvaluationEvidence{}, err
 	}
-	_, err = artifact.CommitBatch(ctx, repository, batch)
-	return evidence, err
+	return evidence, nil
+}
+
+func validateIsolatedResources(
+	ctx context.Context,
+	reader artifact.Reader,
+	plan Plan,
+	run runrecord.Run,
+	resources runrecord.ResourceFitness,
+) error {
+	execution, found, err := artifact.ReadContent(ctx, reader, plan.body.Execution)
+	if err != nil || !found {
+		return errors.Join(err, errors.New("evaluation: isolated execution authority is absent"))
+	}
+	var policy ExecutionPolicy
+	if err := strictjson.DecodeBytes(execution.Data, &policy); err != nil || policy.Lifecycle != LifecycleIsolated {
+		return errors.Join(err, errors.New("evaluation: resource evidence is not process isolated"))
+	}
+	wall, wallObserved := resources.Measure(runrecord.ResourceWallNS)
+	if err := resources.Validate(); err != nil || resources.Scope.Surface != runrecord.SurfaceEvaluation ||
+		resources.Scope.Model.Kind() != artifact.KindModel || resources.Scope.Hardware != run.Environment ||
+		resources.Scope.Workload != plan.identity || resources.Scope.Attempt != run.ID ||
+		!wallObserved || wall != run.MeasuredNS {
+		return errors.Join(err, errors.New("evaluation: isolated resource authorities differ"))
+	}
+	return nil
 }
 
 func evaluationReportShards(
@@ -310,6 +423,17 @@ func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {
 		len(value.Phases) == 0 || len(value.Metrics) == 0 {
 		return errors.New("evaluation: invalid evidence bundle")
 	}
+	if value.ResourceObservation.Valid() != (value.Resources != nil) ||
+		value.ResourceObservation.Valid() && value.ResourceObservation.Kind() != artifact.KindEvidence {
+		return errors.New("evaluation: incomplete resource evidence")
+	}
+	if value.Resources != nil {
+		resources, err := runrecord.NewResourceFitness(*value.Resources)
+		if err != nil {
+			return errors.Join(errors.New("evaluation: invalid resource evidence"), err)
+		}
+		value.Resources = &resources
+	}
 	value.Shards = uniqueArtifactIDs(value.Shards)
 	for _, shard := range value.Shards {
 		if shard.Kind() != artifact.KindDatasetShard || shard == value.Split {
@@ -345,6 +469,15 @@ func cloneEvaluationEvidence(value EvaluationEvidence) EvaluationEvidence {
 	value.Shards = slices.Clone(value.Shards)
 	value.Phases = slices.Clone(value.Phases)
 	value.Metrics = slices.Clone(value.Metrics)
+	if value.Resources != nil {
+		resources := *value.Resources
+		resources.Measures = slices.Clone(resources.Measures)
+		if resources.Interactions != nil {
+			interactions := *resources.Interactions
+			resources.Interactions = &interactions
+		}
+		value.Resources = &resources
+	}
 	if value.Causal != nil {
 		cloned := *value.Causal
 		cloned.Motivation = slices.Clone(value.Causal.Motivation)

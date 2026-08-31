@@ -78,7 +78,7 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 	if value.ChatProtocol {
 		runtime = chatShapedRuntime{runner}
 	}
-	campaign, err := evaluation.NewCampaign(store, runtime, identity, environment, value.CodeCommit)
+	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
 		_ = runner.Close()
 		return fail(err)

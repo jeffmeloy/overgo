@@ -88,6 +88,12 @@ func TestSupervisorProcessTreeContract(t *testing.T) {
 	}
 }
 
+// TestIsolatedModelProcess exposes the process-tree contract under the exact
+// capability verifier identity used by the upgrade plan.
+func TestIsolatedModelProcess(t *testing.T) {
+	TestSupervisorProcessTreeContract(t)
+}
+
 func TestWrappedErrorClassification(t *testing.T) {
 	command := shellCommand(t, "exit 7")
 	supervised, err := Start(t.Context(), command)

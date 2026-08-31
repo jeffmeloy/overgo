@@ -16,6 +16,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
+	"overgo/internal/workflowrecipe"
 )
 
 const (
@@ -108,14 +109,19 @@ func TestPrototypeRecipeLifecycleAndRollback(t *testing.T) {
 	})
 }
 
-// TestRecipeActivationRequiresCapabilityInvocationReceipt proves a document
-// named evaluation or promotion cannot advance lifecycle state: the exact
-// internal invocation, effect, preflight, ceiling, decision, and receipt chain
-// are all mandatory.
-func TestRecipeActivationRequiresCapabilityInvocationReceipt(t *testing.T) {
-	fixture := newSupervisedVerificationFixture(t)
+// TestTrainingLaunchUsesDirectOwnerWithCapabilityReceipt proves a training
+// candidate cannot become launch-eligible through a document named evaluation
+// or promotion. The direct internal invocation, effect, preflight, ceiling,
+// operator decision, and admitted-running-terminal receipt chain are mandatory;
+// no inward transport boundary can substitute for this owner.
+func TestTrainingLaunchUsesDirectOwnerWithCapabilityReceipt(t *testing.T) {
+	fixture := newSupervisedVerificationFixtureForTask(t, recipe.TaskTraining)
 	t.Cleanup(func() { _ = fixture.store.Close() })
 	ctx := t.Context()
+	if fixture.definition.Task != recipe.TaskTraining || fixture.terminal.Invocation == nil ||
+		fixture.terminal.Invocation.Boundary != invocation.BoundaryInternal {
+		t.Fatalf("training launch fixture is not direct: %+v", fixture.terminal)
+	}
 	if _, _, err := Transition(
 		ctx, fixture.store, "fixture/supervised/bypass", fixture.definition,
 		recipe.StatusVerified, []artifact.ID{fixture.decision.ID}, nil,
@@ -197,6 +203,10 @@ func TestRecipeActivationRequiresCapabilityInvocationReceipt(t *testing.T) {
 }
 
 func newSupervisedVerificationFixture(t *testing.T) supervisedVerificationFixture {
+	return newSupervisedVerificationFixtureForTask(t, recipe.TaskInference)
+}
+
+func newSupervisedVerificationFixtureForTask(t *testing.T, launchTask recipe.Task) supervisedVerificationFixture {
 	t.Helper()
 	ctx := t.Context()
 	path := t.TempDir()
@@ -206,7 +216,21 @@ func newSupervisedVerificationFixture(t *testing.T) supervisedVerificationFixtur
 	}
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "supervised-verification-model")
 	testutil.PublishArtifact(t, store, modelID)
-	definition, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
+	var definition recipe.Definition
+	if launchTask == recipe.TaskTraining {
+		definition, err = recipe.NewDefinitionWithDependencies(
+			recipe.TaskTraining,
+			[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
+			[]recipe.Node{{ID: "batch", Module: workflowrecipe.ModuleBatchDataset, Placement: recipe.PlacementHost}},
+			nil, nil,
+			[]recipe.Output{{
+				Name: "batch", Data: recipe.DataBatch,
+				Source: recipe.Endpoint{Node: "batch", Port: "batch"},
+			}},
+		)
+	} else {
+		definition, err = inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

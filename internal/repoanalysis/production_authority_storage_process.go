@@ -153,8 +153,6 @@ var processPrimitiveAllowances = []authorityAllowance{
 	{File: "cmd/compatibility/training.go", Count: oneAuthoritySite},
 	{File: "cmd/composite-generation-lane/run_windows.go", Count: oneAuthoritySite},
 	{File: "cmd/eval-lane/main.go", Count: oneAuthoritySite},
-	{File: "cmd/evaluate/all.go", Count: oneAuthoritySite},
-	{File: "cmd/evaluate/main.go", Count: oneAuthoritySite},
 	{File: "cmd/gate/main.go", Count: threeAuthoritySites},
 	{File: "cmd/loophook/main.go", Count: sixAuthoritySites},
 	{File: "cmd/plan/sync.go", Count: threeAuthoritySites},

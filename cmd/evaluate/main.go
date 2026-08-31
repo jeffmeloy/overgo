@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -20,6 +19,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/strictjson"
 )
 
@@ -160,11 +160,18 @@ func run() error {
 		return err
 	}
 	return runParent(context.Background(), compiled, func(ctx context.Context, index int) error {
-		command := exec.CommandContext(
-			ctx, executable, "-worker", "-manifest", absoluteManifest, "-model-index", strconv.Itoa(index),
-		)
-		command.Stdout, command.Stderr = os.Stdout, os.Stderr
-		return command.Run()
+		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+			Path:   executable,
+			Args:   []string{"-worker", "-manifest", absoluteManifest, "-model-index", strconv.Itoa(index)},
+			Stdout: os.Stdout, Stderr: os.Stderr,
+		})
+		if err != nil {
+			return err
+		}
+		if receipt.ExitCode != 0 {
+			return fmt.Errorf("evaluate: isolated worker exited with status %d", receipt.ExitCode)
+		}
+		return nil
 	})
 }
 

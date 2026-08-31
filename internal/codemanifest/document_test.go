@@ -14,6 +14,10 @@ func TestSchemaCanonicalIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	rebuildable, err := identifyManifest(fixtureManifest())
+	if err != nil || rebuildable.ID != first.ID {
+		t.Fatalf("rebuildable identity = %s, want %s: %v", rebuildable.ID, first.ID, err)
+	}
 	reordered := fixtureManifest()
 	slices.Reverse(reordered.Files)
 	slices.Reverse(reordered.Symbols)

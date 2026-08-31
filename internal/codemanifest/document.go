@@ -5,9 +5,11 @@ package codemanifest
 import (
 	"cmp"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -192,7 +194,14 @@ func Parse(data []byte) (Manifest, error) {
 
 // Validate verifies canonical ordering and content identity.
 func (m Manifest) Validate() error {
-	return codec.ValidateIdentity(m)
+	identified, err := identifyManifest(m)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(m, identified) {
+		return errors.New("code manifest: document is not canonical or has an invalid identity")
+	}
+	return nil
 }
 
 // ExclusionAuthority succeeds only for a valid canonical manifest whose
@@ -211,6 +220,23 @@ func (m Manifest) ExclusionAuthority() error {
 // Content returns the canonical stored representation.
 func (m Manifest) Content() (artifact.Content, error) {
 	return codec.Content(m)
+}
+
+// identifyManifest keeps the rebuildable analysis graph out of the durable
+// document-size policy. Large repositories can exceed one artifact document,
+// but PublishDigest stores only a bounded summary; identity remains the exact
+// SHA-256 of the same canonical JSON bytes used by the legacy full document.
+func identifyManifest(value Manifest) (Manifest, error) {
+	value.ID = artifact.ID{}
+	if err := canonicalize(&value); err != nil {
+		return Manifest{}, err
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return Manifest{}, err
+	}
+	value.ID, err = artifact.IdentifyBytes(artifact.KindProfile, data)
+	return value, err
 }
 
 func clone(value Manifest) Manifest {

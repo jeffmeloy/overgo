@@ -18,6 +18,7 @@ type Campaign struct {
 	identity    modelrecipe.ProgramIdentity
 	environment runrecord.Environment
 	commit      string
+	lifecycle   Lifecycle
 }
 
 type CampaignResult struct {
@@ -36,6 +37,30 @@ func NewCampaign(
 	environment runrecord.Environment,
 	commit string,
 ) (*Campaign, error) {
+	return newCampaign(repository, runtime, identity, environment, commit, LifecycleResident)
+}
+
+// NewIsolatedCampaign creates a campaign whose exact execution authority says
+// that one containing worker process owns this candidate and no other. The
+// caller remains responsible for launching that worker through processcontrol.
+func NewIsolatedCampaign(
+	repository artifact.Repository,
+	runtime Runtime,
+	identity modelrecipe.ProgramIdentity,
+	environment runrecord.Environment,
+	commit string,
+) (*Campaign, error) {
+	return newCampaign(repository, runtime, identity, environment, commit, LifecycleIsolated)
+}
+
+func newCampaign(
+	repository artifact.Repository,
+	runtime Runtime,
+	identity modelrecipe.ProgramIdentity,
+	environment runrecord.Environment,
+	commit string,
+	lifecycle Lifecycle,
+) (*Campaign, error) {
 	if repository == nil || runtime == nil {
 		return nil, errors.New("evaluation: campaign dependencies are absent")
 	}
@@ -45,12 +70,13 @@ func NewCampaign(
 	}
 	if identity.Model.Kind() != artifact.KindModel || identity.Definition.Kind() != artifact.KindModelDefinition ||
 		identity.Recipe.Kind() != artifact.KindRecipe ||
-		environment.ID.Kind() != artifact.KindEvidence || !validCommit(commit) {
+		environment.ID.Kind() != artifact.KindEvidence || !validCommit(commit) ||
+		lifecycle != LifecycleResident && lifecycle != LifecycleIsolated {
 		return nil, errors.New("evaluation: invalid campaign authorities")
 	}
 	return &Campaign{
 		repository: repository, documents: documents, runtime: runtime, identity: identity,
-		environment: environment, commit: commit,
+		environment: environment, commit: commit, lifecycle: lifecycle,
 	}, nil
 }
 
@@ -61,7 +87,7 @@ func (campaign *Campaign) Authorities() ExactAuthorities {
 	return ExactAuthorities{
 		ModelDefinition: campaign.identity.Definition, RuntimeRecipe: campaign.identity.Recipe,
 		CodeCommit: campaign.commit, Environment: campaign.environment.ID,
-		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
+		Execution: ExecutionPolicy{Lifecycle: campaign.lifecycle},
 	}
 }
 
@@ -134,11 +160,18 @@ func (campaign *Campaign) publishSuccess(
 	if err != nil {
 		return CampaignResult{}, err
 	}
-	if err := campaign.publish(ctx, run, &record, resources); err != nil {
+	batch, observation, err := campaign.preparePublication(ctx, run, &record, resources)
+	if err != nil {
 		return CampaignResult{}, err
 	}
-	evidence, err := PublishEvaluationEvidence(ctx, campaign.repository, plan, suite.acceptance, suite.evaluator, result.Report, run, record)
+	evidence, err := prepareIsolatedEvaluationEvidence(
+		ctx, campaign.repository, &batch, plan, suite.acceptance, suite.evaluator,
+		result.Report, run, record, observation,
+	)
 	if err != nil {
+		return CampaignResult{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, campaign.repository, batch); err != nil {
 		return CampaignResult{}, err
 	}
 	return CampaignResult{
@@ -167,25 +200,29 @@ func (campaign *Campaign) publishTerminal(
 	if err != nil {
 		return run, runrecord.ResourceFitness{}, err
 	}
-	if err := campaign.publish(ctx, run, nil, resources); err != nil {
+	batch, _, err := campaign.preparePublication(ctx, run, nil, resources)
+	if err != nil {
+		return run, resources, err
+	}
+	if _, err := artifact.CommitBatch(ctx, campaign.repository, batch); err != nil {
 		return run, resources, err
 	}
 	return run, resources, nil
 }
 
-func (campaign *Campaign) publish(
+func (campaign *Campaign) preparePublication(
 	ctx context.Context,
 	run runrecord.Run,
 	record *runrecord.Evaluation,
 	resources runrecord.ResourceFitness,
-) error {
+) (artifact.Batch, runrecord.ObservationChunkSummary, error) {
 	environmentContent, err := campaign.environment.Content()
 	if err != nil {
-		return err
+		return artifact.Batch{}, runrecord.ObservationChunkSummary{}, err
 	}
 	runContent, err := run.Content()
 	if err != nil {
-		return err
+		return artifact.Batch{}, runrecord.ObservationChunkSummary{}, err
 	}
 	contents := []artifact.Content{environmentContent, runContent}
 	lineage := run.Lineage()
@@ -196,7 +233,7 @@ func (campaign *Campaign) publish(
 	if record != nil {
 		recordContent, err := record.Content()
 		if err != nil {
-			return err
+			return artifact.Batch{}, runrecord.ObservationChunkSummary{}, err
 		}
 		contents = append(contents, recordContent)
 		lineage = append(lineage, record.Lineage()...)
@@ -207,17 +244,17 @@ func (campaign *Campaign) publish(
 	}
 	batch, err := artifact.NewDocumentBatch("evaluation/run/"+run.ID.String(), contents, lineage, aliases)
 	if err != nil {
-		return err
+		return artifact.Batch{}, runrecord.ObservationChunkSummary{}, err
 	}
 	chunk, err := runrecord.NewInitialObservationChunk(
 		resources, runrecord.ObservationSampleExecution, run.MeasuredNS,
 	)
 	if err != nil {
-		return err
+		return artifact.Batch{}, runrecord.ObservationChunkSummary{}, err
 	}
-	if _, err := runrecord.BindObservationChunk(ctx, campaign.repository, &batch, chunk); err != nil {
-		return err
+	observation, err := runrecord.BindObservationChunk(ctx, campaign.repository, &batch, chunk)
+	if err != nil {
+		return artifact.Batch{}, runrecord.ObservationChunkSummary{}, err
 	}
-	_, err = artifact.CommitBatch(ctx, campaign.repository, batch)
-	return err
+	return batch, observation, nil
 }

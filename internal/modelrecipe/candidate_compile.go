@@ -115,6 +115,62 @@ type CandidateCompilation struct {
 	Lineage        []artifact.Lineage
 }
 
+// ValidateIdentity verifies the complete uncommitted compilation closure. It
+// is intentionally read-only: downstream evaluators may consume the exact
+// compiler result without gaining publication, execution, or lifecycle
+// authority.
+func (value CandidateCompilation) ValidateIdentity() error {
+	if err := errors.Join(
+		candidateTrialCodec.ValidateIdentity(value.Trial),
+		candidateEvaluationPlanCodec.ValidateIdentity(value.EvaluationPlan),
+	); err != nil {
+		return err
+	}
+	componentIDs := make([]artifact.ID, len(value.Components))
+	for index, component := range value.Components {
+		if err := candidateComponentPlanCodec.ValidateIdentity(component); err != nil {
+			return err
+		}
+		componentIDs[index] = component.ID
+	}
+	ablationIDs := make([]artifact.ID, len(value.Ablations))
+	for index, ablation := range value.Ablations {
+		if err := candidateAblationCodec.ValidateIdentity(ablation); err != nil {
+			return err
+		}
+		ablationIDs[index] = ablation.ID
+	}
+	trial, plan := value.Trial, value.EvaluationPlan
+	if trial.EvaluationPlan != plan.ID || trial.Candidate != plan.Candidate ||
+		trial.Admission != plan.Admission || trial.Subject != plan.Subject ||
+		trial.Parent != plan.Parent || trial.Code != plan.Code || trial.Environment != plan.Environment ||
+		!slices.Equal(trial.Components, componentIDs) || !slices.Equal(plan.ComponentPlans, componentIDs) ||
+		!slices.Equal(trial.Ablations, ablationIDs) || !slices.Equal(plan.Ablations, ablationIDs) {
+		return errors.New("model recipe: candidate compilation closure differs")
+	}
+	planBySpecification := make(map[artifact.ID]CandidateComponentPlan, len(value.Components))
+	var declaredAblations []artifact.ID
+	for _, component := range value.Components {
+		if component.Subject != trial.Subject || planBySpecification[component.Specification].ID.Valid() {
+			return errors.New("model recipe: candidate compilation component differs")
+		}
+		planBySpecification[component.Specification] = component
+		declaredAblations = append(declaredAblations, component.Ablations...)
+	}
+	declaredAblations, err := canonicalCandidateIDs(declaredAblations, artifact.KindProfile)
+	if err != nil || !slices.Equal(declaredAblations, ablationIDs) {
+		return errors.Join(errors.New("model recipe: candidate compilation ablation union differs"), err)
+	}
+	for _, ablation := range value.Ablations {
+		component, found := planBySpecification[ablation.Specification]
+		if !found || ablation.Candidate != trial.Candidate || ablation.Admission != trial.Admission ||
+			ablation.Domain != component.Domain || !slices.Contains(component.Ablations, ablation.ID) {
+			return errors.New("model recipe: candidate compilation ablation differs")
+		}
+	}
+	return nil
+}
+
 var candidateComponentPlanCodec = artifact.JSONDocumentCodec(
 	"candidate component plan", artifact.KindProfile,
 	CandidateComponentPlanMediaType, CandidateComponentPlanSchema,

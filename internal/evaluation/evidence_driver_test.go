@@ -172,6 +172,150 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	})
 }
 
+// TestCrossDomainCandidateEvaluationAndAblationAttribution proves the shared
+// evaluator consumes the exact evidence-derived driver choice and compiler
+// closure, freezes the promotion inputs before measurement, requires every
+// incumbent/parent/joint/ablation arm, and emits evidence without mutating a
+// lifecycle or alias.
+func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
+	fixture := newEvidenceDriverFixture(t)
+	decision, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := modelrecipe.CompileAdmittedCandidate(
+		t.Context(), fixture.store, fixture.composition.ID(), fixture.compositionPermit.ID,
+		composition.SameBaseCandidatePlugin{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluator := testutil.ArtifactID(t, artifact.KindProfile, "shared cross-domain evaluator")
+	inputs := testutil.ArtifactID(t, artifact.KindDatasetShard, "shared held-out evaluator inputs")
+	requirements := []CandidateFitnessRequirement{
+		{Name: "capability", Direction: runrecord.DirectionMaximize, MinimumImprovement: 0.05},
+		{Name: "peak-bytes", Direction: runrecord.DirectionMinimize, MinimumImprovement: 5},
+		{Name: "wall-ns", Direction: runrecord.DirectionMinimize, MinimumImprovement: 5},
+	}
+	contract, err := NewCrossDomainEvaluationContract(
+		decision, compiled, evaluator, inputs, requirements, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metricVector := func(capability, peak, wall float64) []runrecord.Metric {
+		return []runrecord.Metric{
+			{Name: "capability", Value: capability, Unit: "ratio", Direction: runrecord.DirectionMaximize},
+			{Name: "peak-bytes", Value: peak, Unit: "bytes", Direction: runrecord.DirectionMinimize},
+			{Name: "wall-ns", Value: wall, Unit: "ns", Direction: runrecord.DirectionMinimize},
+		}
+	}
+	arm := func(role CandidateEvaluationRole, subject artifact.ID, fitness []runrecord.Metric) CandidateEvaluationArm {
+		return CandidateEvaluationArm{
+			Role: role, Subject: subject, Evaluator: evaluator, Inputs: inputs,
+			Split: contract.PromotionSplit, Budget: contract.PromotionBudget,
+			Evidence: testutil.ArtifactID(t, artifact.KindEvidence, "evaluation arm "+string(role)+subject.String()),
+			Fitness:  fitness, Covered: 32, Total: 32,
+		}
+	}
+	arms := []CandidateEvaluationArm{
+		arm(CandidateEvaluationIncumbent, contract.Incumbent, metricVector(0.60, 100, 100)),
+		arm(CandidateEvaluationParent, contract.Parents[0], metricVector(0.64, 98, 98)),
+		arm(CandidateEvaluationJoint, contract.Candidate, metricVector(0.72, 88, 84)),
+	}
+	arms[2].Dimensions = slices.Clone(contract.CandidateDimensions)
+	for _, declared := range contract.Ablations {
+		var ablation modelrecipe.CandidateAblation
+		for _, candidate := range compiled.Ablations {
+			if candidate.ID == declared.Ablation {
+				ablation = candidate
+			}
+		}
+		measured := arm(CandidateEvaluationAblation, ablation.Realization, metricVector(0.63, 94, 93))
+		measured.Ablation, measured.Omitted = declared.Ablation, declared.Omitted
+		measured.Dimensions = []CandidateDeltaDimension{declared.Dimension}
+		arms = append(arms, measured)
+	}
+	before, _ := fixture.store.Head()
+	result, err := EvaluateCrossDomainCandidate(contract, decision, compiled, arms)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, _ := fixture.store.Head()
+	if before != after || result.Verdict != CandidateEvaluationImproved || len(result.Reasons) != 0 ||
+		len(result.Contributions) != len(contract.Ablations) || result.Contract.ID != contract.ID {
+		t.Fatalf("shared evaluator result = %+v; head %s -> %s", result, before, after)
+	}
+	for _, contribution := range result.Contributions {
+		if len(contribution.Delta) != len(requirements) || contribution.Delta[0].Name != "capability" ||
+			contribution.Delta[0].Value <= 0 {
+			t.Fatalf("ablation contribution = %+v", contribution)
+		}
+	}
+
+	assertRefused := func(name, reason string, mutate func([]CandidateEvaluationArm) []CandidateEvaluationArm) {
+		t.Helper()
+		t.Run(name, func(t *testing.T) {
+			refused, refusalErr := EvaluateCrossDomainCandidate(
+				contract, decision, compiled, mutate(cloneCandidateEvaluationArms(arms)),
+			)
+			if refusalErr != nil || refused.Verdict != CandidateEvaluationRefused ||
+				!slices.ContainsFunc(refused.Reasons, func(value string) bool { return strings.Contains(value, reason) }) {
+				t.Fatalf("refusal = (%+v, %v), want reason %q", refused, refusalErr, reason)
+			}
+		})
+	}
+	assertRefused("missing ablation", "dropped-delta ablation", func(values []CandidateEvaluationArm) []CandidateEvaluationArm {
+		return slices.DeleteFunc(values, func(value CandidateEvaluationArm) bool {
+			return value.Role == CandidateEvaluationAblation
+		})
+	})
+	assertRefused("development split reuse", "promotion split", func(values []CandidateEvaluationArm) []CandidateEvaluationArm {
+		values[0].Split = compiled.EvaluationPlan.DevelopmentSplit
+		return values
+	})
+	assertRefused("incomplete coverage", "coverage", func(values []CandidateEvaluationArm) []CandidateEvaluationArm {
+		values[0].Covered--
+		return values
+	})
+	assertRefused("candidate regression", "regresses metric capability", func(values []CandidateEvaluationArm) []CandidateEvaluationArm {
+		for index := range values {
+			if values[index].Role == CandidateEvaluationJoint {
+				values[index].Fitness[0].Value = 0.50
+			}
+		}
+		return values
+	})
+
+	tradeoffAuthority := testutil.ArtifactID(t, artifact.KindEvidence, "predeclared peak tradeoff")
+	tradeoff, err := NewCrossDomainEvaluationContract(
+		decision, compiled, evaluator, inputs, requirements,
+		[]CandidateAcceptedTradeoff{{
+			RegressedMetric: "peak-bytes", MaximumRegression: 10,
+			ImprovedMetric: "capability", MinimumImprovement: 0.1, Authority: tradeoffAuthority,
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tradeoffArms := cloneCandidateEvaluationArms(arms)
+	for index := range tradeoffArms {
+		tradeoffArms[index].Split, tradeoffArms[index].Budget = tradeoff.PromotionSplit, tradeoff.PromotionBudget
+		if tradeoffArms[index].Role == CandidateEvaluationJoint {
+			for metricIndex := range tradeoffArms[index].Fitness {
+				if tradeoffArms[index].Fitness[metricIndex].Name == "peak-bytes" {
+					tradeoffArms[index].Fitness[metricIndex].Value = 106
+				}
+			}
+		}
+	}
+	accepted, err := EvaluateCrossDomainCandidate(tradeoff, decision, compiled, tradeoffArms)
+	if err != nil || accepted.Verdict != CandidateEvaluationImproved ||
+		!slices.Equal(accepted.AcceptedAuthorities, []artifact.ID{tradeoffAuthority}) {
+		t.Fatalf("predeclared tradeoff = (%+v, %v)", accepted, err)
+	}
+}
+
 func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 	t.Helper()
 	ctx := t.Context()

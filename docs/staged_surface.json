@@ -39,6 +39,12 @@
       "retire_with": "advanced-domain-plugins/evidence"
     },
     {
+      "package": "overgo/internal/evaluation",
+      "name": "EvaluateCrossDomainCandidate",
+      "reason": "Shared immutable candidate evaluator delivered before the first supervised composite consumes its outcome.",
+      "retire_with": "supervised-composite/first-win"
+    },
+    {
       "package": "overgo/internal/loop",
       "name": "CompareStrategyExperiment",
       "reason": "Strategy comparison evidence becomes a recorded policy input during counterfactual driver replay.",

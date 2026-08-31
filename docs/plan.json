@@ -180,35 +180,6 @@
       ]
     },
     {
-      "id": "model-recipe-lifecycle",
-      "title": "Evaluate every candidate plugin and activate it through one shared promotion lifecycle",
-      "status": "open",
-      "steps": [
-        {
-          "id": "recipe-evaluation",
-          "title": "Evaluate candidates and their component ablations while separating model, composition, routing, steering, data, recipe, and system deltas",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/modelrecipe ./internal/loop ./internal/composition -run '^(TestCrossDomainCandidateEvaluationAndAblationAttribution|TestRecipeCandidateEvaluationAttribution)$' -count=1",
-          "rationale": "One evaluator spine consumes the exact DriverDecision and scores the same-base candidate, production incumbent, parent specialists, joint merge, and predeclared dropped-delta ablations under identical inputs, independent promotion split, budgets, coverage, and multidimensional fitness contract. A capability win requires the predeclared measurable Pareto improvement or explicit accepted tradeoff; a scalarized best score, development-split reuse, missing arm, or regression records refusal. The same evaluator contracts later attribute model, architecture, composition, routing, steering, dataset, recipe, placement, and interaction deltas through plugins rather than siloed comparison stacks. Evaluators emit immutable facts only; a document named promotion cannot mutate any lifecycle or alias.",
-          "depends_on": [
-            "model-recipe-lifecycle/isolated-performance-evidence"
-          ],
-          "capabilities": [
-            "recipe-evaluation",
-            "causality",
-            "resource-fitness",
-            "coverage",
-            "paired-evidence",
-            "scaling-fit",
-            "effective-speedup",
-            "moe-routing-evidence",
-            "shared-evaluator",
-            "cross-domain-ablation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "evidence-routing",
       "title": "Drive admitted and active cross-domain candidates through one evidence-derived budget, saturation, stop, and routing loop",
       "status": "open",

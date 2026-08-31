@@ -6335,16 +6335,11 @@ extern "C" __global__ void mul_mat_q4_K_input_f32(
             unsigned int group_scale;
             unsigned int group_minimum;
             scale_min_k4(group, scales, &group_scale, &group_minimum);
-            const unsigned char * q_bytes =
-                quantized + (group / 2) * 32 + qlane;
-            unsigned int packed = 0;
-#pragma unroll
-            for (unsigned int b = 0; b < 4; ++b) {
-                const unsigned int value = group % 2 == 0
-                    ? (q_bytes[b] & 0x0f)
-                    : (unsigned int) (q_bytes[b] >> 4);
-                packed |= value << (8 * b);
-            }
+            const unsigned int q_word = (unsigned int) load_i32_unaligned(
+                quantized + (group / 2) * 32 + qlane);
+            const unsigned int packed = group % 2 == 0
+                ? (q_word & 0x0f0f0f0fu)
+                : ((q_word >> 4) & 0x0f0f0f0fu);
             const unsigned char * input_block = input_blocks +
                 (super * 8 + group) * Q8_INPUT_BLOCK_BYTES;
             const float input_scale =
@@ -6405,20 +6400,15 @@ extern "C" __global__ void mul_mat_q5_K_input_f32(
             unsigned int group_scale;
             unsigned int group_minimum;
             scale_min_k4(group, scales, &group_scale, &group_minimum);
-            const unsigned char * q_bytes =
-                quantized + (group / 2) * 32 + qlane;
-            const unsigned char * high_bytes = high + qlane;
-            unsigned int packed = 0;
-#pragma unroll
-            for (unsigned int b = 0; b < 4; ++b) {
-                unsigned int value = group % 2 == 0
-                    ? (q_bytes[b] & 0x0f)
-                    : (unsigned int) (q_bytes[b] >> 4);
-                if ((high_bytes[b] & (1u << group)) != 0) {
-                    value += 16;
-                }
-                packed |= value << (8 * b);
-            }
+            const unsigned int q_word = (unsigned int) load_i32_unaligned(
+                quantized + (group / 2) * 32 + qlane);
+            const unsigned int high_word = (unsigned int) load_i32_unaligned(
+                high + qlane);
+            const unsigned int low = group % 2 == 0
+                ? (q_word & 0x0f0f0f0fu)
+                : ((q_word >> 4) & 0x0f0f0f0fu);
+            const unsigned int packed = low |
+                (((high_word >> group) & 0x01010101u) << 4);
             const unsigned char * input_block = input_blocks +
                 (super * 8 + group) * Q8_INPUT_BLOCK_BYTES;
             const float input_scale =
@@ -6480,21 +6470,16 @@ extern "C" __global__ void mul_mat_q6_K_input_f32(
             const unsigned int within = column % 128;
             const unsigned int quarter = within / 32;
             const unsigned int qlane = within % 32;
-            const unsigned char * low_bytes =
+            const unsigned int low_word = (unsigned int) load_i32_unaligned(
                 lower + group * 64 + qlane +
-                (quarter == 1 || quarter == 3 ? 32 : 0);
-            const unsigned char * high_bytes = high + group * 32 + qlane;
-            const unsigned int high_shift = quarter * 2;
-            unsigned int packed = 0;
-#pragma unroll
-            for (unsigned int b = 0; b < 4; ++b) {
-                const unsigned int low = quarter < 2
-                    ? (low_bytes[b] & 0x0f)
-                    : (unsigned int) (low_bytes[b] >> 4);
-                const unsigned int hi =
-                    ((high_bytes[b] >> high_shift) & 0x03) << 4;
-                packed |= (low | hi) << (8 * b);
-            }
+                (quarter == 1 || quarter == 3 ? 32 : 0));
+            const unsigned int high_word = (unsigned int) load_i32_unaligned(
+                high + group * 32 + qlane);
+            const unsigned int low = quarter < 2
+                ? (low_word & 0x0f0f0f0fu)
+                : ((low_word >> 4) & 0x0f0f0f0fu);
+            const unsigned int packed = low |
+                (((high_word >> (quarter * 2)) & 0x03030303u) << 4);
             const unsigned char * input_block = input_blocks +
                 (super * 8 + column / 32) * Q8_INPUT_BLOCK_BYTES;
             const float input_scale =

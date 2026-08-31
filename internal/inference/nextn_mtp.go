@@ -62,6 +62,17 @@ func (r *Runner) AdvanceNextNMTP(
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.advanceNextNMTPLocked(ctx, tokenID, session)
+}
+
+func (r *Runner) advanceNextNMTPLocked(
+	ctx context.Context,
+	tokenID tokenizer.TokenID,
+	session *NextNMTPSession,
+) (reference.Value, *NextNMTPSession, error) {
+	if r == nil || session == nil {
+		return reference.Value{}, nil, errors.New("inference: NextN MTP session is invalid")
+	}
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: NextN MTP runner is unavailable")
 	}
@@ -178,6 +189,7 @@ func (r *Runner) AdvanceNextNMTP(
 		Layer:         nextLayer,
 		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
 		Position: session.Position + 1, targetModel: session.targetModel,
+		deviceTrunk: session.deviceTrunk,
 	}
 	return logitValue, next, nil
 }

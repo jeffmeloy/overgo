@@ -109,6 +109,7 @@ func (r *Runner) advanceSingleHeadMTP(
 		Layer:         LayerCache{Key: results[block.Key], Value: results[block.Value]},
 		PendingHidden: results[nextHidden], MTPStart: session.MTPStart,
 		Position: session.Position + 1, targetModel: session.targetModel,
+		deviceTrunk: session.deviceTrunk,
 	}, nil
 }
 
@@ -185,18 +186,22 @@ func (r *Runner) validateSingleHeadMTPSession(
 	label string,
 	boundedContext bool,
 ) error {
-	if session == nil || session.TrunkCache == nil {
+	if session == nil || (session.TrunkCache == nil && !session.deviceTrunk) {
 		return fmt.Errorf("inference: %s session is invalid", label)
 	}
-	if err := r.validateCache(session.TrunkCache); err != nil {
-		return fmt.Errorf("inference: %s trunk cache: %w", label, err)
+	trunkPosition := session.MTPStart
+	if session.TrunkCache != nil {
+		if err := r.validateCache(session.TrunkCache); err != nil {
+			return fmt.Errorf("inference: %s trunk cache: %w", label, err)
+		}
+		trunkPosition = effectiveCachePosition(session.TrunkCache)
 	}
 	if r.spec.ValidateSequenceRow(session.PendingHidden) != nil || session.Position == math.MaxUint32 {
 		return fmt.Errorf("inference: %s session state is incompatible", label)
 	}
 	tokens := uint64(session.Position - session.MTPStart)
 	emptyCache := !session.Layer.Key.Defined() && !session.Layer.Value.Defined()
-	validCache := session.Position >= effectiveCachePosition(session.TrunkCache) &&
+	validCache := session.Position >= trunkPosition &&
 		session.Position >= session.MTPStart &&
 		((emptyCache && tokens == 0) ||
 			(tensor.HasDimensions(session.Layer.Key.Shape, uint64(r.spec.KeyLength), uint64(r.spec.HeadCountKV), tokens) &&

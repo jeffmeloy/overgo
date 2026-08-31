@@ -36,7 +36,8 @@ func writeHermeticQwen35GGUF(t *testing.T) string {
 	metadata := []gguf.Metadata{
 		testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "qwen35"),
 		testutil.GGUFScalar("general.name", gguf.ValueTypeString, "hermetic-hybrid"),
-		testutil.GGUFScalar("qwen35.block_count", gguf.ValueTypeUint32, uint32(4)),
+		testutil.GGUFScalar("qwen35.block_count", gguf.ValueTypeUint32, uint32(5)),
+		testutil.GGUFScalar("qwen35.nextn_predict_layers", gguf.ValueTypeUint32, uint32(1)),
 		testutil.GGUFScalar("qwen35.context_length", gguf.ValueTypeUint32, hermeticContext),
 		testutil.GGUFScalar("qwen35.embedding_length", gguf.ValueTypeUint32, uint32(hybridEmbedding)),
 		testutil.GGUFScalar("qwen35.feed_forward_length", gguf.ValueTypeUint32, uint32(hybridFFN)),
@@ -88,18 +89,25 @@ func writeHermeticQwen35GGUF(t *testing.T) string {
 		tensor(block+"ffn_up.weight", hybridEmbedding, hybridFFN)
 		tensor(block+"ffn_down.weight", hybridFFN, hybridEmbedding)
 	}
-	attention := "blk.3."
-	tensor(attention+"attn_norm.weight", hybridEmbedding)
-	tensor(attention+"attn_q.weight", hybridEmbedding, hybridHeads*hybridHeadWidth*2)
-	tensor(attention+"attn_k.weight", hybridEmbedding, hybridKVHeads*hybridHeadWidth)
-	tensor(attention+"attn_v.weight", hybridEmbedding, hybridKVHeads*hybridHeadWidth)
-	tensor(attention+"attn_output.weight", hybridHeads*hybridHeadWidth, hybridEmbedding)
-	tensor(attention+"attn_q_norm.weight", hybridHeadWidth)
-	tensor(attention+"attn_k_norm.weight", hybridHeadWidth)
-	tensor(attention+"post_attention_norm.weight", hybridEmbedding)
-	tensor(attention+"ffn_gate.weight", hybridEmbedding, hybridFFN)
-	tensor(attention+"ffn_up.weight", hybridEmbedding, hybridFFN)
-	tensor(attention+"ffn_down.weight", hybridFFN, hybridEmbedding)
+	// blk.4 is the NextN draft layer: beyond the trunk the cadence falls
+	// back to attention, so it carries the gated-attention set plus the
+	// nextn projection tensors.
+	for _, attention := range []string{"blk.3.", "blk.4."} {
+		tensor(attention+"attn_norm.weight", hybridEmbedding)
+		tensor(attention+"attn_q.weight", hybridEmbedding, hybridHeads*hybridHeadWidth*2)
+		tensor(attention+"attn_k.weight", hybridEmbedding, hybridKVHeads*hybridHeadWidth)
+		tensor(attention+"attn_v.weight", hybridEmbedding, hybridKVHeads*hybridHeadWidth)
+		tensor(attention+"attn_output.weight", hybridHeads*hybridHeadWidth, hybridEmbedding)
+		tensor(attention+"attn_q_norm.weight", hybridHeadWidth)
+		tensor(attention+"attn_k_norm.weight", hybridHeadWidth)
+		tensor(attention+"post_attention_norm.weight", hybridEmbedding)
+		tensor(attention+"ffn_gate.weight", hybridEmbedding, hybridFFN)
+		tensor(attention+"ffn_up.weight", hybridEmbedding, hybridFFN)
+		tensor(attention+"ffn_down.weight", hybridFFN, hybridEmbedding)
+	}
+	tensor("blk.4.nextn.eh_proj.weight", 2*hybridEmbedding, hybridEmbedding)
+	tensor("blk.4.nextn.enorm.weight", hybridEmbedding)
+	tensor("blk.4.nextn.hnorm.weight", hybridEmbedding)
 
 	path := filepath.Join(t.TempDir(), "hermetic-hybrid.gguf")
 	file, err := os.Create(path)

@@ -4,15 +4,15 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "qwen38-mtp-speculation",
-      "title": "Compose NextN MTP speculative decode into generation: read weights less than once per emitted token",
+      "id": "mtp-span-sessions",
+      "title": "Replay-compile span verify and draft steps as decode sessions: close the 46 tok/s gap",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Compose NextN MTP speculative decode into generation: read weights less than once per emitted token",
+          "title": "Replay-compile span verify and draft steps as decode sessions: close the 46 tok/s gap",
           "status": "open",
-          "verify": "go test ./internal/inference -run TestNextNMTP -count=1"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run TestSpanDecodeSession -count=1"
         }
       ]
     },

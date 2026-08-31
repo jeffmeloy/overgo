@@ -45,6 +45,7 @@ type options struct {
 	CachePrompt    bool
 	BatchSequences int
 	ContextShift   bool
+	Speculative    bool
 	Temperature    float64
 	TopK           int
 	DeviceTopK     bool
@@ -99,6 +100,7 @@ type benchmarkResult struct {
 	Residency              recipe.ResidencyPolicy `json:"residency"`
 	CachePrompt            bool                   `json:"cache_prompt"`
 	BatchSequences         int                    `json:"batch_sequences"`
+	Speculative            bool                   `json:"speculative"`
 	Temperature            float64                `json:"temperature"`
 	TopK                   int                    `json:"top_k"`
 	DeviceTopK             bool                   `json:"device_top_k"`
@@ -126,6 +128,7 @@ func parseOptions(args []string) (options, error) {
 	flags.IntVar(&result.Runs, "runs", defaultBenchmarkRuns, "measured runs")
 	flags.IntVar(&result.Warmup, "warmup", defaultBenchmarkWarmup, "unmeasured warmup runs")
 	flags.BoolVar(&result.ContextShift, "context-shift", false, "enable rolling context shift")
+	flags.BoolVar(&result.Speculative, "speculative", false, "enable NextN MTP speculative decode")
 	flags.Float64Var(&result.Temperature, "temperature", 0, "sampling temperature")
 	flags.IntVar(&result.TopK, "top-k", 40, "sampling top-K limit")
 	flags.BoolVar(&result.DeviceTopK, "device-top-k", false, "transfer bounded top-K candidates")
@@ -231,9 +234,10 @@ func run(args []string) error {
 			MaxNewTokens: options.Tokens,
 			Sampler:      sampler,
 			// benchmark OnToken only counts; logits omission is acceptable
-			DeviceGreedy: options.Temperature == 0,
-			ContextShift: options.ContextShift,
-			CachePrompt:  options.CachePrompt,
+			DeviceGreedy:      options.Temperature == 0,
+			SpeculativeDecode: options.Speculative,
+			ContextShift:      options.ContextShift,
+			CachePrompt:       options.CachePrompt,
 			OnPromptEvaluated: func(evaluation inference.PromptEvaluation) {
 				promptEvaluation = evaluation
 			},

@@ -194,6 +194,9 @@ func decodeGraphOutputs(graph deviceBatchGraph, output deviceOutputPlan) []*tens
 	result := []*tensor.Tensor{first}
 	// Shared-KV aliases: collect each output once.
 	seen := map[*tensor.Tensor]struct{}{first: {}}
+	if graph.hidden != nil {
+		result = appendUniqueGraphOutputs(result, seen, graph.hidden)
+	}
 	for layer := range graph.keys {
 		result = appendUniqueGraphOutputs(result, seen, graph.states[layer].AppendValues(
 			[]*tensor.Tensor{graph.keys[layer], graph.values[layer]},

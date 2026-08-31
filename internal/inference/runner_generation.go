@@ -309,6 +309,17 @@ func (r *Runner) Generate(
 		return ids, text, decodeErr
 	}
 
+	if deviceGreedy && deviceCache != nil && r.deviceSpeculationReady(options) {
+		var speculatedText string
+		ids, deviceCache, speculatedText, err = r.generateDeviceSpeculativeGreedy(
+			ctx, ids, deviceCache, options,
+		)
+		if err != nil {
+			return nil, "", err
+		}
+		return ids, speculatedText, nil
+	}
+
 	var generatedText strings.Builder
 	for generatedIndex := range options.MaxNewTokens {
 		if generatedIndex > 0 {

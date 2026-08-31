@@ -43,6 +43,10 @@ type GenerateOptions struct {
 	Sampler      *sampling.Sampler
 	// DeviceGreedy: device argmax; TokenEvent.Logits omitted.
 	DeviceGreedy bool
+	// SpeculativeDecode: NextN MTP speculation under raw-greedy device
+	// decode — several emissions per trunk weight read. Opt-in until span
+	// decode sessions amortize per-round graph compilation.
+	SpeculativeDecode bool
 	// DeviceTopK: exact bounded sampling; TokenEvent.Logits omitted.
 	DeviceTopK bool
 	OnToken    func(TokenEvent) error

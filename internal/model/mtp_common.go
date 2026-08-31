@@ -47,6 +47,11 @@ func draftExecutableSpec(spec Spec, plan DraftPlan) (Spec, uint32) {
 	profile := spec.Profile()
 	profile.Capabilities &^= ArchitectureMoE
 	profile.Experts = ExpertPolicy{}
+	// The single-catalog draft block is a full-attention layer even on
+	// hybrid trunks: the weight catalog binds attention tensors, so the
+	// executable plan must not inherit the trunk's recurrent cadence.
+	profile.Cadence.Recurrent = recurrentCadenceExplicit
+	spec.RecurrentLayers = nil
 	return spec.withProfile(profile), tensor.FirstOffset
 }
 

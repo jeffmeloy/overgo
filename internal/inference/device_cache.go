@@ -37,6 +37,10 @@ type deviceKVCache struct {
 	// span append — one token per consumed position, the MTP verify
 	// batch's output.
 	SpanSelected []tokenizer.TokenID
+	// SpanHidden holds the pre-output-norm hidden rows of a span
+	// append, one column per consumed position — the trunk states the
+	// NextN draft head seeds from.
+	SpanHidden reference.Value
 }
 
 type deviceCacheStorage struct {
@@ -448,6 +452,7 @@ type deviceBatchGraph struct {
 	logits       *tensor.Tensor
 	selection    *tensor.Tensor
 	candidates   *tensor.Tensor
+	hidden       *tensor.Tensor
 	feedback     *tensor.Tensor
 	tokenInput   *tensor.Tensor
 	positionRows []*tensor.Tensor
@@ -1264,6 +1269,10 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		keys[layerIndex], values[layerIndex] = result.Key, result.Value
 		states[layerIndex] = result.States
 	}
+	// Span plans retain the pre-output-norm hidden rows: the NextN draft
+	// head normalizes the trunk hidden itself, so speculation seeds from
+	// the un-normed rows.
+	preNormHidden := current
 	current, err = r.applyDeviceOutputNorm(builder, current, deviceFeeds)
 	if err != nil {
 		return fail(err)
@@ -1308,9 +1317,13 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		logits = builder.Scale(logits, scale)
 	}
 	selection, candidates := plan.reduce(builder, logits)
+	var spanHidden *tensor.Tensor
+	if plan.is(deviceOutputGreedySpan) {
+		spanHidden = preNormHidden
+	}
 	return deviceBatchGraph{
 		logits: logits, selection: selection, candidates: candidates, feedback: feedback,
-		tokenInput: tokenRowInput, positionRows: positionRows,
+		hidden: spanHidden, tokenInput: tokenRowInput, positionRows: positionRows,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
 		pastTokens: pastTokens, nextPosition: nextPosition,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),

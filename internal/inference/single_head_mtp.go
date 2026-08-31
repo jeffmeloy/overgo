@@ -18,6 +18,10 @@ type MTPSession struct {
 	MTPStart      uint32
 	Position      uint32
 	targetModel   [32]byte
+	// deviceTrunk marks a session whose trunk lives in a device KV cache:
+	// PendingHidden is seeded from device span hidden rows and no host
+	// trunk cache exists to validate against.
+	deviceTrunk bool
 }
 
 func (r *Runner) singleHeadMTP() (model.DraftPlan, model.DraftWeightCatalog, error) {
@@ -87,6 +91,17 @@ func (r *Runner) AdvanceMTP(
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.advanceMTPLocked(ctx, tokenID, session)
+}
+
+func (r *Runner) advanceMTPLocked(
+	ctx context.Context,
+	tokenID tokenizer.TokenID,
+	session *MTPSession,
+) (reference.Value, *MTPSession, error) {
+	if r == nil || session == nil {
+		return reference.Value{}, nil, errors.New("inference: MTP session is invalid")
+	}
 	if r.closed {
 		return reference.Value{}, nil, errors.New("inference: MTP runner is unavailable")
 	}

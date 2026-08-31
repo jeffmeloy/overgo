@@ -87,6 +87,13 @@ func (p deviceOutputPlan) collect(ctx context.Context, r *Runner, retained *exec
 			return err
 		}
 		caches[0].SpanSelected = selected
+		if graph.hidden != nil {
+			hidden, hiddenErr := retained.CopyToHost(ctx, graph.hidden)
+			if hiddenErr != nil {
+				return hiddenErr
+			}
+			caches[0].SpanHidden = hidden
+		}
 	case deviceOutputGreedy:
 		selected, device, err := retainedDeviceGreedySelections(
 			ctx, retained, graph.selection, count, vocabulary,

@@ -1121,27 +1121,23 @@ func launchQ8ArgmaxReduction(
 	)
 }
 
+// quantMulMatLaunchCount sizes the thread grid for the warp-cooperative
+// quantized mul_mat kernels: one warp per output element, with Q8_0's
+// kernel additionally tiling four input vectors per warp.
 func quantMulMatLaunchCount(storage dtype.Type, leftRows, rightRows uint32) (uint32, error) {
 	const (
-		q8DotProductThreads = uint32(32)
-		q8VectorsPerWarp    = uint32(4)
+		dotProductThreads = uint32(32)
+		q8VectorsPerWarp  = uint32(4)
 	)
 	warps := uint64(leftRows) * uint64(rightRows)
 	if storage == dtype.Q8_0 {
 		rightTiles := (rightRows-1)/q8VectorsPerWarp + 1
 		warps = uint64(leftRows) * uint64(rightTiles)
 	}
-	if warps > uint64(math.MaxUint32/q8DotProductThreads) && storage == dtype.Q8_0 {
-		return 0, errors.New("Q8_0 mul_mat launch size exceeds uint32")
-	}
-	if warps > math.MaxUint32 {
+	if warps > uint64(math.MaxUint32/dotProductThreads) {
 		return 0, errors.New("quantized mul_mat launch size exceeds uint32")
 	}
-	launches := uint32(warps)
-	if storage == dtype.Q8_0 {
-		launches *= q8DotProductThreads
-	}
-	return launches, nil
+	return uint32(warps) * dotProductThreads, nil
 }
 
 func launchNormalizationABI(

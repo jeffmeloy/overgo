@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190",
   "items": [
     {
-      "id": "qwen38-serving-throughput",
-      "title": "Recover Qwen3.8-27B serving throughput: extend CUDA graph coverage to the 16x(3+1) hybrid layout",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Recover Qwen3.8-27B serving throughput: extend CUDA graph coverage to the 16x(3+1) hybrid layout",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1"
-        }
-      ]
-    },
-    {
       "id": "parked-findings",
       "title": "Graduate parked findings into gated cleanups",
       "status": "open",

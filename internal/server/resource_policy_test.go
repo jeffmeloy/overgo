@@ -116,9 +116,11 @@ func TestResponsesInputFileSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler := &Handler{
-		mediaFetcher: mediaFetcher,
-		responseFiles: responseFileMap{
-			"file_note": {Data: []byte("mapped"), Filename: "mapped.txt", MediaType: "text/plain"},
+		servingWorkspace: servingWorkspace{
+			mediaFetcher: mediaFetcher,
+			responseFiles: responseFileMap{
+				"file_note": {Data: []byte("mapped"), Filename: "mapped.txt", MediaType: "text/plain"},
+			},
 		},
 	}
 	inline := "data:text/plain;base64," + base64.StdEncoding.EncodeToString([]byte("inline"))
@@ -171,9 +173,9 @@ func TestResponsesImageFileIDProjectsPrompt(t *testing.T) {
 }
 
 func TestResponsesInputFileRejectsUnsafeContent(t *testing.T) {
-	handler := &Handler{responseFiles: responseFileMap{
+	handler := &Handler{servingWorkspace: servingWorkspace{responseFiles: responseFileMap{
 		"file_binary": {Data: []byte{0xff}, Filename: "bad.txt", MediaType: "text/plain"},
-	}}
+	}}}
 	raw := json.RawMessage(`[{"type":"input_file","file_id":"file_binary"}]`)
 	if _, err := handler.parseResponsesMessages(t.Context(), raw, ""); err == nil {
 		t.Fatal("invalid UTF-8 file accepted")

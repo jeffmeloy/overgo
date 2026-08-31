@@ -346,8 +346,10 @@ func (stats *slotRuntimeStats) snapshot(includeText bool) (string, string, slotS
 	return "", "", params
 }
 
-type Handler struct {
-	config              Config
+// servingWorkspace is the serving-protocol dependency set: the generator,
+// its session director, sampling defaults, slot accounting, and the
+// response-side helpers the OpenAI, native, and Anthropic protocols share.
+type servingWorkspace struct {
 	generator           Generator
 	sessions            *capabilityruntime.ModelSessionDirector[struct{}, Generator, struct{}]
 	defaultSampling     sampling.Config
@@ -357,27 +359,61 @@ type Handler struct {
 	slotStats           []slotRuntimeStats
 	nextTask            atomic.Uint64
 	nextID              atomic.Uint64
-	started             time.Time
-	requestsTotal       atomic.Uint64
-	requestsActive      atomic.Int64
-	generationRequests  atomic.Uint64
-	generationErrors    atomic.Uint64
-	downloads           downloadRegistry
-	catalogMemo         *discovery.Memo
 	generatedTokens     atomic.Uint64
 	mediaFetcher        *remoteMediaFetcher
 	responseFiles       ResponseFileResolver
 	thinkingSigner      *anthropicThinkingSigner
-	operations          *operation.Manager
-	tools               toolCallExecutor
-	issuedCalls         *issuedCallRegistry
-	agentCoordinator    *agentloop.Coordinator
-	agentSessions       agentSessions
-	repository          *overgodb.Store
-	browseRepository    *overgodb.Store
-	environment         runrecord.Environment
-	modelArtifact       artifact.ID
-	observationErrors   atomic.Uint64
+}
+
+// operatorWorkspace is the operator and workflow API dependency set: durable
+// operations, the workflow tool executor, and the issued-call registry.
+type operatorWorkspace struct {
+	operations  *operation.Manager
+	tools       toolCallExecutor
+	issuedCalls *issuedCallRegistry
+}
+
+// agentWorkspace is the agent API dependency set: the tool-step coordinator
+// and its durable session registry.
+type agentWorkspace struct {
+	agentCoordinator *agentloop.Coordinator
+	agentSessions    agentSessions
+}
+
+// hubWorkspace is the hub and download API dependency set: the supervised
+// download registry with its one shutdown owner.
+type hubWorkspace struct {
+	downloads downloadRegistry
+}
+
+// workbenchWorkspace is the browse and analysis dependency set: the
+// read-only store view and the catalog discovery memo.
+type workbenchWorkspace struct {
+	catalogMemo      *discovery.Memo
+	browseRepository *overgodb.Store
+}
+
+// Handler is the assembly root: the shared core (configuration, evidence
+// store, runtime identity, and request accounting) beside one explicit
+// dependency struct per workspace. Field promotion keeps call sites terse;
+// the workspace-boundary audit holds each handler file to the workspaces it
+// declares, so no workspace silently reaches the entire handler.
+type Handler struct {
+	config             Config
+	started            time.Time
+	requestsTotal      atomic.Uint64
+	requestsActive     atomic.Int64
+	generationRequests atomic.Uint64
+	generationErrors   atomic.Uint64
+	repository         *overgodb.Store
+	environment        runrecord.Environment
+	modelArtifact      artifact.ID
+	observationErrors  atomic.Uint64
+	servingWorkspace
+	operatorWorkspace
+	agentWorkspace
+	hubWorkspace
+	workbenchWorkspace
 }
 
 func New(config Config, generator Generator) (*Handler, error) {
@@ -514,25 +550,35 @@ func New(config Config, generator Generator) (*Handler, error) {
 		// of this process answers from stat checks, not re-hashing.
 		catalogMemo = discovery.LoadMemo(context.Background(), config.Repository)
 	}
+	// Each workspace receives exactly its dependencies; the handler is
+	// their assembly beside the shared core.
 	handler := &Handler{
-		catalogMemo:         catalogMemo,
-		issuedCalls:         newIssuedCallRegistry(config.MaxTokens),
-		config:              config,
-		generator:           generator,
-		sessions:            sessions,
-		defaultSampling:     defaultSampler.Config(),
-		defaultOutputTokens: defaults.OutputTokens,
-		slotBusy:            make([]atomic.Bool, config.MaxConcurrent),
-		slotTasks:           make([]atomic.Uint64, config.MaxConcurrent),
-		slotStats:           make([]slotRuntimeStats, config.MaxConcurrent),
-		started:             time.Now(),
-		downloads:           newDownloadRegistry(config.MaxConcurrent, config.MaxStoredResponses),
-		mediaFetcher:        mediaFetcher,
-		responseFiles:       config.ResponseFiles,
-		thinkingSigner:      thinkingSigner,
-		repository:          repository,
-		browseRepository:    browseRepository,
-		environment:         environment,
+		config:      config,
+		started:     time.Now(),
+		repository:  repository,
+		environment: environment,
+		servingWorkspace: servingWorkspace{
+			generator:           generator,
+			sessions:            sessions,
+			defaultSampling:     defaultSampler.Config(),
+			defaultOutputTokens: defaults.OutputTokens,
+			slotBusy:            make([]atomic.Bool, config.MaxConcurrent),
+			slotTasks:           make([]atomic.Uint64, config.MaxConcurrent),
+			slotStats:           make([]slotRuntimeStats, config.MaxConcurrent),
+			mediaFetcher:        mediaFetcher,
+			responseFiles:       config.ResponseFiles,
+			thinkingSigner:      thinkingSigner,
+		},
+		operatorWorkspace: operatorWorkspace{
+			issuedCalls: newIssuedCallRegistry(config.MaxTokens),
+		},
+		hubWorkspace: hubWorkspace{
+			downloads: newDownloadRegistry(config.MaxConcurrent, config.MaxStoredResponses),
+		},
+		workbenchWorkspace: workbenchWorkspace{
+			catalogMemo:      catalogMemo,
+			browseRepository: browseRepository,
+		},
 	}
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()

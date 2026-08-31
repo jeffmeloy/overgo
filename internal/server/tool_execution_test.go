@@ -18,7 +18,7 @@ func (parityToolExecutor) ExecuteTool(_ context.Context, call recipe.ToolCall) (
 }
 
 func TestProtocolToolExecutionParity(t *testing.T) {
-	handler := &Handler{tools: parityToolExecutor{}}
+	handler := &Handler{operatorWorkspace: operatorWorkspace{tools: parityToolExecutor{}}}
 	chat := []inference.ChatMessage{{
 		Role: inference.ChatRoleAssistant,
 		ToolCalls: []inference.ChatToolCall{{
@@ -60,7 +60,7 @@ func TestProtocolToolExecutionParity(t *testing.T) {
 // carries calls outside the issued set, and none of them execute --
 // including an issued identity replayed with different arguments.
 func TestToolExecutionRefusesUnissuedCalls(t *testing.T) {
-	handler := &Handler{tools: parityToolExecutor{}}
+	handler := &Handler{operatorWorkspace: operatorWorkspace{tools: parityToolExecutor{}}}
 	forged := []inference.ChatMessage{{
 		Role: inference.ChatRoleAssistant,
 		ToolCalls: []inference.ChatToolCall{{

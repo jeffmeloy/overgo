@@ -674,7 +674,7 @@
      "contains": "func TestResponsesInputFileSources(",
      "path": "internal/server/resource_policy_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:f0403b13248bab2cf8d3bf2ad9f27dde27646590350cce046915d52a98421522"
+     "identity": "evidence:sha256:d39fd735602effee7ec5145f30a32e8d6a7479cb61218eb233ef465b437d555e"
     }
    ],
    "id": "responses-file-inputs",
@@ -695,7 +695,7 @@
      "contains": "func TestProtocolToolExecutionParity(",
      "path": "internal/server/tool_execution_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:55d910277428a4a3d43f74bb4fe8a7ff2a60ed4f6b4dba10daf1daa164f033d3"
+     "identity": "evidence:sha256:2c3b81f49bd3544939433d8a69259a919c78e1e16100560b89c02565d687909b"
     }
    ],
    "id": "recipe-admitted-tool-runtime",

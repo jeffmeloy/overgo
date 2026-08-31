@@ -27,7 +27,7 @@ func ensurePool() {
 			workers = 1
 		}
 		poolTasks = make(chan poolTask, workers)
-		for i := 0; i < workers; i++ {
+		for range workers {
 			go func() {
 				for task := range poolTasks {
 					task.fn(task.start, task.end)

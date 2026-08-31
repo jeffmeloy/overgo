@@ -136,7 +136,7 @@ func BatchedAttentionF32(q, k, v []float32, batches, queryRows, keyRows, hidden,
 						score += float64(q[qIndex] * k[kIndex])
 					}
 					scores[key] = score * scale
-					maximum = math.Max(maximum, scores[key])
+					maximum = max(maximum, scores[key])
 				}
 				var total float64
 				for key := range scores {

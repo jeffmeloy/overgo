@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,7 +26,7 @@ func TestCommandRunsSharedModelBuilder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := scratchmodel.PublishDerivationProfileCatalog(context.Background(), store); err != nil {
+	if _, err := scratchmodel.PublishDerivationProfileCatalog(t.Context(), store); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

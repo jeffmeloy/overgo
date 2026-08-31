@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
@@ -267,7 +266,7 @@ func accuracyMetrics(accuracy float64, groups []AccuracyGroup) []runrecord.Metri
 
 func accuracyMetricContract(groups []string) []runrecord.Metric {
 	names := slices.Clone(groups)
-	sort.Strings(names)
+	slices.Sort(names)
 	unique := names[:0]
 	for _, name := range names {
 		if name != "" && (len(unique) == 0 || unique[len(unique)-1] != name) {

@@ -47,8 +47,8 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 	}
 	source := "package rogue\n\n" +
 		"import \"overgo/internal/modelrecipe\"\n\n" +
-		"func bypass() modelrecipe.RoutingDecision {\n" +
-		"\treturn modelrecipe.RoutingDecision{Derivation: \"rogue\"}\n" +
+		"func bypass() modelrecipe.RecipeRoutingDecision {\n" +
+		"\treturn modelrecipe.RecipeRoutingDecision{Derivation: \"rogue\"}\n" +
 		"}\n"
 	if err := os.WriteFile(filepath.Join(rogue, "rogue.go"), []byte(source), 0o644); err != nil {
 		t.Fatal(err)

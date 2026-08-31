@@ -13,8 +13,8 @@ func TestSelectedModelTensorsIncludesGenericNextN(t *testing.T) {
 	layerOutputNorm := info("blk.1.layer_output_norm.weight")
 	mtp := model.AppendedDraftWeights{
 		Layer: model.LayerWeights{
-			AttentionNorm: pointerTensorInfo(info("blk.1.attn_norm.weight")),
-			AttentionQKV:  pointerTensorInfo(info("blk.1.attn_qkv.weight")),
+			AttentionNorm: new(info("blk.1.attn_norm.weight")),
+			AttentionQKV:  new(info("blk.1.attn_qkv.weight")),
 		},
 		EHProjection:    info("blk.1.nextn.eh_proj.weight"),
 		EmbeddingNorm:   info("blk.1.nextn.enorm.weight"),

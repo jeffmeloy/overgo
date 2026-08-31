@@ -47,8 +47,13 @@ type StimulusFollowupAuthority struct {
 }
 
 // Current resolves the one admitted follow-up for a boundary.
-func (authority StimulusFollowupAuthority) Current(ctx context.Context, boundary artifact.ID) (StimulusFollowup, bool, error) {
-	return stimulusFollowupCodec.Resolve(ctx, authority.Repository, StimulusFollowupAliasRoot+boundary.String())
+func (authority StimulusFollowupAuthority) Current(
+	ctx context.Context,
+	boundary artifact.ID,
+) (StimulusFollowup, bool, error) {
+	return stimulusFollowupCodec.Resolve(
+		ctx, authority.Repository, StimulusFollowupAliasRoot+boundary.String(),
+	)
 }
 
 // Admit sorts and coalesces observed sources, then atomically admits at most one

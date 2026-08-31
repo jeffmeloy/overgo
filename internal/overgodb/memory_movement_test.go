@@ -2,7 +2,6 @@ package overgodb
 
 import (
 	"bytes"
-	"context"
 	"runtime"
 	"testing"
 
@@ -23,7 +22,7 @@ func TestMemoryMovementTraceReduction(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	contract := ProjectionContractVersion()
 	seed := artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "movement-seed"), Size: 1}
 	if _, err := store.Commit(ctx, artifact.Batch{

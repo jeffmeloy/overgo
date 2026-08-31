@@ -21,7 +21,7 @@ func BenchmarkVAEDecodeProductionSpatialProbe(b *testing.B) {
 	}
 	frames := 0
 	var wall time.Duration
-	for range b.N {
+	for b.Loop() {
 		frames = 0
 		start := time.Now()
 		if _, err := DecodeLatentVideo(checkpoint, plan, stats, z, latentFrames, latentH, latentW, func(index int, frame []float32, height, width int) error {

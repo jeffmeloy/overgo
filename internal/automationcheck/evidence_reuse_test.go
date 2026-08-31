@@ -34,22 +34,22 @@ func TestGateReusesUnchangedCheckEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	cache := NewEvidenceCache(environment)
-	if _, reused, err := cache.RunCached(context.Background(), planned[0], unchanged); err == nil || reused {
+	if _, reused, err := cache.RunCached(t.Context(), planned[0], unchanged); err == nil || reused {
 		t.Fatalf("failing attempt = (reused=%t, %v)", reused, err)
 	}
 	if len(cache.Entries) != 0 {
 		t.Fatal("a failed run entered the reuse cache")
 	}
 	failing = false
-	first, reused, err := cache.RunCached(context.Background(), planned[0], unchanged)
+	first, reused, err := cache.RunCached(t.Context(), planned[0], unchanged)
 	if err != nil || reused || runs != 2 {
 		t.Fatalf("first passing attempt = (%+v, %t, %v) runs=%d", first, reused, err, runs)
 	}
-	second, reused, err := cache.RunCached(context.Background(), planned[0], unchanged)
+	second, reused, err := cache.RunCached(t.Context(), planned[0], unchanged)
 	if err != nil || !reused || runs != 2 || second.ID != first.ID || !second.Reused {
 		t.Fatalf("unchanged retry = (%+v, %t, %v) runs=%d", second, reused, err, runs)
 	}
-	third, reused, err := cache.RunCached(context.Background(), planned[0], repaired)
+	third, reused, err := cache.RunCached(t.Context(), planned[0], repaired)
 	if err != nil || reused || runs != 3 || third.Reused {
 		t.Fatalf("changed-input retry = (%+v, %t, %v) runs=%d", third, reused, err, runs)
 	}

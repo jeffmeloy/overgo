@@ -1,14 +1,13 @@
 package overgodb
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -21,7 +20,7 @@ import (
 // (rebuild, compaction, backup) compare equal.
 func drillSurfaceDigest(t *testing.T, store *Store) string {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var out strings.Builder
 	for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
 		id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
@@ -71,7 +70,7 @@ func drillTreeHash(t *testing.T, root string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].path < entries[j].path })
+	slices.SortFunc(entries, func(left, right entry) int { return strings.Compare(left.path, right.path) })
 	hash := sha256.New()
 	for _, item := range entries {
 		fmt.Fprintf(hash, "%s/%x\n", item.path, item.sum)
@@ -96,7 +95,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	sourceRoot := filepath.Join(base, "source")
 	buildScaleCorpus(t, sourceRoot)
 	sourceHash := drillTreeHash(t, sourceRoot)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	source, err := OpenReadOnly(sourceRoot)
 	if err != nil {

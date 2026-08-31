@@ -21,11 +21,11 @@ func TestReusedOutcomeIsDistinctFromSkipped(t *testing.T) {
 		t.Fatal(err)
 	}
 	cache := NewEvidenceCache(environment)
-	first, reused, err := cache.RunCached(context.Background(), planned[0], input)
+	first, reused, err := cache.RunCached(t.Context(), planned[0], input)
 	if err != nil || reused || runs != 1 {
 		t.Fatalf("first = (%+v, %t, %v), runs=%d", first, reused, err, runs)
 	}
-	second, reused, err := cache.RunCached(context.Background(), planned[0], input)
+	second, reused, err := cache.RunCached(t.Context(), planned[0], input)
 	if err != nil || !reused || runs != 1 || second.ID != first.ID || !second.Reused || second.Inapplicable {
 		t.Fatalf("second = (%+v, %t, %v), runs=%d", second, reused, err, runs)
 	}
@@ -51,7 +51,7 @@ func TestCacheBoundedEviction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, reused, err := cache.RunCached(context.Background(), planned[0], input); err != nil || reused {
+		if _, reused, err := cache.RunCached(t.Context(), planned[0], input); err != nil || reused {
 			t.Fatalf("input %d = reused %t, %v", index, reused, err)
 		}
 		if len(cache.Entries) != 1 {

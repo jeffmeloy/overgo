@@ -40,7 +40,7 @@ func deriveSafetyWindow(arguments []string) error {
 		return err
 	}
 	var history []float64
-	for _, text := range strings.Split(*valuesFlag, ",") {
+	for text := range strings.SplitSeq(*valuesFlag, ",") {
 		value, err := strconv.ParseFloat(strings.TrimSpace(text), 64)
 		if err != nil {
 			return err

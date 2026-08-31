@@ -25,7 +25,7 @@ func referenceE4M3(b byte) (value float32, isNaN bool) {
 }
 
 func TestF8E4M3ToFloat32ExactForAllCodes(t *testing.T) {
-	for code := 0; code < 256; code++ {
+	for code := range 256 {
 		got := F8E4M3ToFloat32(byte(code))
 		want, isNaN := referenceE4M3(byte(code))
 		if isNaN {

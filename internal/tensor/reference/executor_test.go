@@ -54,7 +54,7 @@ func TestExecuteElementwiseNormSoftmax(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := results[output]
-	for row := 0; row < 2; row++ {
+	for row := range 2 {
 		var sum float32
 		for _, value := range got.Data[row*4 : row*4+4] {
 			sum += value

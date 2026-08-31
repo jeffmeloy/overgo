@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -22,7 +21,7 @@ type capabilitySelectorFixture struct {
 
 func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +68,7 @@ func newCapabilitySelectorFixture(t *testing.T) capabilitySelectorFixture {
 }
 
 func TestCapabilityEvidenceSelector(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fixture := newCapabilitySelectorFixture(t)
 	identities := make(map[artifact.ID]struct{})
 	sessions := []SessionSelection{SessionPin, SessionWarm}
@@ -106,7 +105,7 @@ func TestCapabilityEvidenceSelector(t *testing.T) {
 }
 
 func TestCapabilityExecutionAuthorityTracksAliasWithoutChangingExecution(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fixture := newCapabilitySelectorFixture(t)
 	const alternateAlias = "capability/generation/alternate"
 	if _, err := fixture.store.Commit(ctx, artifact.Batch{
@@ -147,7 +146,7 @@ func TestCapabilityExecutionAuthorityTracksAliasWithoutChangingExecution(t *test
 }
 
 func TestRemoteCapabilityAdmission(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fixture := newCapabilitySelectorFixture(t)
 	local := testutil.ArtifactID(t, artifact.KindEvidence, "selector-local-environment")
 	peer := testutil.ArtifactID(t, artifact.KindEvidence, "selector-peer-environment")

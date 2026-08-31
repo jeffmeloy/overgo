@@ -168,9 +168,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 				layerStart = offset[name]
 			}
 			end := offset[name] + len(m.Weights[name])
-			if end > layerEnd {
-				layerEnd = end
-			}
+			layerEnd = max(layerEnd, end)
 		}
 	}
 	if layerStart < 0 {
@@ -313,7 +311,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 	trajectory := make([]float64, 0, steps)
 
 	loopStarted := time.Now()
-	for step := 0; step < steps; step++ {
+	for step := range steps {
 		stepStarted := time.Now()
 		tokens := batches[step]
 		// Host oracle tail only; production frozen lexical gathers on device.

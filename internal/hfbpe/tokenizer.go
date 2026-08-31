@@ -112,7 +112,7 @@ func (t *Tokenizer) buildByteAlphabet() {
 	}
 	n := 0
 	cs := make([]rune, binaryschema.ByteValueCount)
-	for b := 0; b < binaryschema.ByteValueCount; b++ {
+	for b := range binaryschema.ByteValueCount {
 		if inSet[b] {
 			cs[b] = rune(b)
 		} else {
@@ -123,7 +123,7 @@ func (t *Tokenizer) buildByteAlphabet() {
 	for i := range t.u2bDense {
 		t.u2bDense[i] = -1
 	}
-	for b := 0; b < binaryschema.ByteValueCount; b++ {
+	for b := range binaryschema.ByteValueCount {
 		t.b2u[b] = cs[b]
 		t.u2bDense[cs[b]] = int16(b)
 	}
@@ -147,7 +147,7 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 		}
 		for _, piece := range gpt2Pretokenize(seg) {
 			var sb strings.Builder
-			for i := 0; i < len(piece); i++ {
+			for i := range len(piece) {
 				sb.WriteRune(t.b2u[piece[i]])
 			}
 			for _, tok := range t.bpe(sb.String()) {
@@ -172,7 +172,7 @@ func (t *Tokenizer) encodeSentencepiece(seg string) ([]int, error) {
 		if !t.byteFallback {
 			return nil, fmt.Errorf("token %q not in vocab (no byte fallback)", tok)
 		}
-		for i := 0; i < len(tok); i++ {
+		for i := range len(tok) {
 			bt := fmt.Sprintf("<0x%02X>", tok[i])
 			id, ok := t.vocab[bt]
 			if !ok {

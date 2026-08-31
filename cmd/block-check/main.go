@@ -135,9 +135,7 @@ func run() error {
 	for index, expected := range want[output].Data {
 		difference := math.Abs(float64(got[output].Data[index] - expected))
 		sum += difference
-		if difference > maximum {
-			maximum = difference
-		}
+		maximum = max(maximum, difference)
 	}
 	result := report{
 		Model:            spec.Name,

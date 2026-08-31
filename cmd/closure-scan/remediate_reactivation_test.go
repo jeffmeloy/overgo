@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -362,7 +361,7 @@ func appendUnrelatedClosureCommit(t *testing.T, storePath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, commitErr := store.Commit(context.Background(), artifact.Batch{
+	_, commitErr := store.Commit(t.Context(), artifact.Batch{
 		Key:       "fixture/unrelated-remediation-head",
 		Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(payload))}},
 	})

@@ -1,7 +1,6 @@
 package gitauthority
 
 import (
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +19,7 @@ func TestRequireCompleteHistoryRejectsReplacementRefs(t *testing.T) {
 	replacement := gitTestCommand(t, repository, "rev-parse", "HEAD")
 	gitTestCommand(t, repository, "replace", base, replacement)
 
-	err := RequireCompleteHistory(context.Background(), repository)
+	err := RequireCompleteHistory(t.Context(), repository)
 	if err == nil || !strings.Contains(err.Error(), "replacement refs") {
 		t.Fatalf("replacement authority error = %v", err)
 	}
@@ -31,7 +30,7 @@ func TestRequireCompleteHistoryRejectsCustomReplacementNamespace(t *testing.T) {
 	gitTestCommand(t, repository, "init", "-q")
 	t.Setenv("GIT_REPLACE_REF_BASE", "refs/overgo-audit/")
 
-	err := RequireCompleteHistory(context.Background(), repository)
+	err := RequireCompleteHistory(t.Context(), repository)
 	if err == nil || !strings.Contains(err.Error(), "custom replacement-ref namespace") {
 		t.Fatalf("custom replacement authority error = %v", err)
 	}
@@ -97,14 +96,14 @@ func TestRequireRepositoryRootUsesExplicitRepository(t *testing.T) {
 	gitTestCommand(t, foreign, "init", "-q")
 	t.Setenv("GIT_DIR", filepath.Join(foreign, ".git"))
 	t.Setenv("GIT_WORK_TREE", foreign)
-	if err := RequireRepositoryRoot(context.Background(), repository); err != nil {
+	if err := RequireRepositoryRoot(t.Context(), repository); err != nil {
 		t.Fatalf("explicit repository root was redirected by ambient Git state: %v", err)
 	}
 	subdirectory := filepath.Join(repository, "nested")
 	if err := os.Mkdir(subdirectory, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := RequireRepositoryRoot(context.Background(), subdirectory); err == nil ||
+	if err := RequireRepositoryRoot(t.Context(), subdirectory); err == nil ||
 		!strings.Contains(err.Error(), "exact repository root") {
 		t.Fatalf("repository subdirectory result = %v", err)
 	}

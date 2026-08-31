@@ -18,6 +18,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelmerge"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -51,6 +52,16 @@ const (
 	KindEvaluatorPromotion   Kind = "evaluator-promotion"
 	KindObjectiveComposition Kind = "objective-composition"
 	KindCandidateScheduling  Kind = "candidate-scheduling"
+	// KindCandidateProposal publishes one immutable, non-authorizing hypothesis.
+	KindCandidateProposal Kind = "candidate-proposal"
+	// KindCandidateAdmission compiles one immutable candidate and its sole eligibility decision.
+	KindCandidateAdmission Kind = "candidate-admission"
+	// KindCandidateCompilation compiles one admitted candidate through the
+	// explicit Go domain catalog without executing or publishing its outputs.
+	KindCandidateCompilation Kind = "candidate-compilation"
+	// KindDriverDecision compiles exact evidence into the sole immutable RSI
+	// driver decision. The result requests work but executes none of it.
+	KindDriverDecision Kind = "driver-decision"
 	// KindCompositionExecutionPlan compiles the active source-target-task
 	// composition authority into its sole executable plan.
 	KindCompositionExecutionPlan Kind = "composition-execution-plan"
@@ -77,8 +88,8 @@ type ProposalAction struct {
 // DecompositionAction: classify one model's tensor facts.
 type DecompositionAction struct {
 	Model    artifact.ID                `json:"model"`
-	Family   string                     `json:"family,omitempty"`
-	Modality string                     `json:"modality,omitempty"`
+	Family   string                     `json:"family,omitzero"`
+	Modality string                     `json:"modality,omitzero"`
 	Tensors  []modelartifact.TensorFact `json:"tensors"`
 }
 
@@ -93,13 +104,7 @@ type ImprovementAction struct {
 	PromotionSplit artifact.ID                     `json:"promotion_split"`
 	Evaluator      artifact.ID                     `json:"evaluator"`
 	Authority      artifact.ID                     `json:"authority"`
-	// Objective and GPUMinutes close a model-prototype admission: the
-	// objective recipe that can reject the hypothesis and the positive
-	// resource ceiling the trial may not exceed. Required exactly for
-	// model-prototype proposals.
-	Objective  artifact.ID                `json:"objective,omitzero"`
-	GPUMinutes uint64                     `json:"gpu_minutes,omitempty"`
-	Decision   *ImprovementDecisionAction `json:"decision,omitempty"`
+	Decision       *ImprovementDecisionAction      `json:"decision,omitempty"`
 }
 
 type ImprovementDecisionAction struct {
@@ -143,6 +148,31 @@ type CandidateSchedulingAction struct {
 	Budget     plan.SchedulerBudget      `json:"budget"`
 }
 
+// CandidateProposalAction carries hypothesis data only and grants no eligibility.
+type CandidateProposalAction struct {
+	Spec modelrecipe.CandidateSpec `json:"spec"`
+}
+
+// CandidateAdmissionAction names an already-persisted candidate. The admission
+// owner reloads its canonical bytes and lineage before considering authority.
+type CandidateAdmissionAction struct {
+	Candidate artifact.ID `json:"candidate"`
+	Authority artifact.ID `json:"authority"`
+}
+
+// CandidateCompilationAction names exact persisted candidate and admission
+// authorities. The compiler replays admission before deriving any trial facts.
+type CandidateCompilationAction struct {
+	Candidate artifact.ID `json:"candidate"`
+	Admission artifact.ID `json:"admission"`
+}
+
+// DriverDecisionAction carries exact evidence identities only. Evaluation
+// replays their typed owners before runrecord derives the driver decision.
+type DriverDecisionAction struct {
+	Request evaluation.EvidenceDriverRequest `json:"request"`
+}
+
 // CompositionExecutionPlanAction selects one active composition by its exact
 // source, target, and task scope; the recipe itself remains OvergoDB-authoritative.
 type CompositionExecutionPlanAction struct {
@@ -180,6 +210,10 @@ type Action struct {
 	Evaluator     *EvaluatorPromotionAction       `json:"evaluator,omitempty"`
 	Objective     *ObjectiveCompositionAction     `json:"objective,omitempty"`
 	Scheduling    *CandidateSchedulingAction      `json:"scheduling,omitempty"`
+	Candidate     *CandidateProposalAction        `json:"candidate,omitempty"`
+	Admission     *CandidateAdmissionAction       `json:"admission,omitempty"`
+	Compilation   *CandidateCompilationAction     `json:"compilation,omitempty"`
+	Driver        *DriverDecisionAction           `json:"driver,omitempty"`
 	Composition   *CompositionExecutionPlanAction `json:"composition,omitempty"`
 	Offline       *OfflineArtifactPlanAction      `json:"offline,omitempty"`
 }
@@ -201,7 +235,7 @@ func (a Action) validate() error {
 		return errors.New("controller action: unsupported version")
 	}
 	payloads := 0
-	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Composition != nil, a.Offline != nil} {
+	for _, present := range []bool{a.Chain != nil, a.Proposal != nil, a.Decomposition != nil, a.Compose != nil, a.Improvement != nil, a.Budget != nil, a.Evaluator != nil, a.Objective != nil, a.Scheduling != nil, a.Candidate != nil, a.Admission != nil, a.Compilation != nil, a.Driver != nil, a.Composition != nil, a.Offline != nil} {
 		if present {
 			payloads++
 		}
@@ -246,6 +280,24 @@ func (a Action) validate() error {
 		if a.Scheduling == nil {
 			return errors.New("controller action: candidate-scheduling requires typed evidence")
 		}
+	case KindCandidateProposal:
+		if a.Candidate == nil {
+			return errors.New("controller action: candidate-proposal requires one hypothesis")
+		}
+	case KindCandidateAdmission:
+		if a.Admission == nil || a.Admission.Candidate.Kind() != artifact.KindRecipe ||
+			a.Admission.Authority.Kind() != artifact.KindEvidence {
+			return errors.New("controller action: candidate-admission requires one persisted candidate and authority binding")
+		}
+	case KindCandidateCompilation:
+		if a.Compilation == nil || a.Compilation.Candidate.Kind() != artifact.KindRecipe ||
+			a.Compilation.Admission.Kind() != artifact.KindEvidence {
+			return errors.New("controller action: candidate-compilation requires persisted candidate and admission authorities")
+		}
+	case KindDriverDecision:
+		if a.Driver == nil {
+			return errors.New("controller action: driver-decision requires exact evidence identities")
+		}
 	case KindCompositionExecutionPlan:
 		if a.Composition == nil {
 			return errors.New("controller action: composition-execution-plan requires an active scope")
@@ -275,7 +327,36 @@ func CompileTransaction(ctx context.Context, reader artifact.Reader, action Acti
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	return artifact.NewDocumentBatch("controller-action/"+string(action.Kind)+"/"+identity.String(), contents, lineage, nil)
+	batch, err := artifact.NewDocumentBatch("controller-action/"+string(action.Kind)+"/"+identity.String(), contents, lineage, nil)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	if action.Kind == KindDriverDecision {
+		if err := bindDriverDecisionAuthority(&batch, contents, action.Driver.Request); err != nil {
+			return artifact.Batch{}, err
+		}
+	}
+	return batch, nil
+}
+
+// bindDriverDecisionAuthority makes the evidence snapshot and causal chain
+// part of the same atomic publication as the derived decision. No follow-up
+// work is executed by controlleraction; consumers can observe it only after
+// this batch commits against the requested head.
+func bindDriverDecisionAuthority(
+	batch *artifact.Batch,
+	contents []artifact.Content,
+	request evaluation.EvidenceDriverRequest,
+) error {
+	if batch == nil || len(contents) != 1 {
+		return errors.New("controller action: driver decision emitted multiple facts")
+	}
+	if err := runrecord.BindCausality(batch, contents[0].Descriptor.ID, &request.Causal); err != nil {
+		return err
+	}
+	expected := request.Head
+	batch.ExpectedHead = &expected
+	return nil
 }
 
 // ExecuteOfflineArtifact compiles the action through the same authorities as
@@ -387,6 +468,52 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		return []artifact.Content{content}, scheduler.Lineage(), nil
+	case KindCandidateProposal:
+		candidate, err := modelrecipe.NewCandidate(action.Candidate.Spec)
+		if err != nil {
+			return nil, nil, err
+		}
+		content, err := candidate.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{content}, candidate.Lineage(), nil
+	case KindCandidateAdmission:
+		candidate, err := modelrecipe.RequireCandidate(ctx, reader, action.Admission.Candidate)
+		if err != nil {
+			return nil, nil, err
+		}
+		admission, err := runrecord.AdmitCandidate(
+			ctx, reader, candidate, action.Admission.Authority,
+			append(modelrecipe.CandidateAdmissionAdapters(), composition.CandidateAdmissionAdapter())...,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		admissionContent, err := admission.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{admissionContent}, admission.Lineage(), nil
+	case KindCandidateCompilation:
+		compiled, err := modelrecipe.CompileAdmittedCandidate(
+			ctx, reader, action.Compilation.Candidate, action.Compilation.Admission,
+			composition.SameBaseCandidatePlugin{},
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		return compiled.Contents, compiled.Lineage, nil
+	case KindDriverDecision:
+		decision, err := evaluation.CompileEvidenceDriverDecision(ctx, reader, action.Driver.Request)
+		if err != nil {
+			return nil, nil, err
+		}
+		content, err := decision.Content()
+		if err != nil {
+			return nil, nil, err
+		}
+		return []artifact.Content{content}, decision.Lineage(), nil
 	case KindCompositionExecutionPlan:
 		plan, err := composition.CompileCompositionExecutionPlan(
 			ctx, reader, action.Composition.Source, action.Composition.Target, action.Composition.Task,
@@ -513,15 +640,7 @@ func compileImprovementTrial(
 	if err != nil {
 		return nil, nil, err
 	}
-	var admission runrecord.ImprovementAdmission
-	if action.Proposal.Kind == trainingprogram.ImprovementModelPrototype {
-		admission, err = runrecord.AdmitModelPrototype(
-			proposal, action.Authority, action.Evaluator, action.PromotionSplit,
-			action.Objective, action.GPUMinutes,
-		)
-	} else {
-		admission, err = runrecord.AdmitImprovement(proposal, action.Authority, action.Evaluator, action.PromotionSplit)
-	}
+	admission, err := runrecord.AdmitImprovement(proposal, action.Authority, action.Evaluator, action.PromotionSplit)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -568,12 +687,6 @@ func validImprovementDecisionFields(action ImprovementAction) bool {
 		return false
 	}
 	if (action.Proposal.Kind == trainingprogram.ImprovementDerivationProfile) != (action.Profile != nil) {
-		return false
-	}
-	// The prototype closure fields travel with exactly the prototype kind:
-	// present there, absent everywhere else.
-	prototype := action.Proposal.Kind == trainingprogram.ImprovementModelPrototype
-	if prototype != (action.Objective.Valid() && action.GPUMinutes != 0) {
 		return false
 	}
 	if action.Decision == nil {

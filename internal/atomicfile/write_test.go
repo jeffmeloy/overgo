@@ -330,8 +330,8 @@ func TestCompareAndSwapProcessDeathAtFilesystemBoundaries(t *testing.T) {
 				"OVERGO_ATOMICFILE_CRASH_SCRATCH="+scratch,
 			)
 			err := process.Run()
-			var exitError *exec.ExitError
-			if !errors.As(err, &exitError) || exitError.ExitCode() != crashBoundaryExitCode {
+			exitError, exitFailure := errors.AsType[*exec.ExitError](err)
+			if !exitFailure || exitError.ExitCode() != crashBoundaryExitCode {
 				t.Fatalf("crash helper error = %v, want exit %d", err, crashBoundaryExitCode)
 			}
 			got, err := os.ReadFile(path)

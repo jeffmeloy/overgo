@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/invocation"
 	"overgo/internal/runrecord"
 	"overgo/internal/textcheck"
 )
@@ -28,20 +29,15 @@ const (
 	ManualSchema = "overgo/agent-tool-manual/v1"
 )
 
-// Effect classifies what a tool invocation does to the world.
-type Effect string
+// Effect is the transport-neutral invocation class.
+type Effect = invocation.Class
 
 const (
 	// EffectInspection reads state and changes nothing.
-	EffectInspection Effect = "inspection"
+	EffectInspection = invocation.ClassInspection
 	// EffectMutation changes state and is gated behind inspection.
-	EffectMutation Effect = "mutation"
+	EffectMutation = invocation.ClassMutation
 )
-
-// Valid reports whether the effect is a declared class.
-func (effect Effect) Valid() bool {
-	return effect == EffectInspection || effect == EffectMutation
-}
 
 // FieldKind types one manual argument.
 type FieldKind string
@@ -72,44 +68,39 @@ func (kind FieldKind) Valid() bool {
 type Field struct {
 	Name        string    `json:"name"`
 	Kind        FieldKind `json:"kind"`
-	Required    bool      `json:"required,omitempty"`
-	Description string    `json:"description,omitempty"`
+	Required    bool      `json:"required,omitzero"`
+	Description string    `json:"description,omitzero"`
 }
 
-// EffectScope names the authority boundary containing an invocation target.
-type EffectScope string
+// EffectScope is the transport-neutral invocation target scope.
+type EffectScope = invocation.Scope
 
 const (
 	// EffectScopeWorkspace targets files inside the leased worktree.
-	EffectScopeWorkspace EffectScope = "workspace"
+	EffectScopeWorkspace = invocation.ScopeWorkspace
 	// EffectScopeRepository targets the common artifact repository.
-	EffectScopeRepository EffectScope = "repository"
+	EffectScopeRepository = invocation.ScopeRepository
 	// EffectScopeHost targets host state outside workspace and repository.
-	EffectScopeHost EffectScope = "host"
+	EffectScopeHost = invocation.ScopeHost
 	// EffectScopeExternal targets systems beyond the host boundary.
-	EffectScopeExternal EffectScope = "external"
+	EffectScopeExternal = invocation.ScopeExternal
 )
-
-func (scope EffectScope) valid() bool {
-	return scope == EffectScopeWorkspace || scope == EffectScopeRepository ||
-		scope == EffectScopeHost || scope == EffectScopeExternal
-}
 
 // EffectTargetBinding declares how a concrete target is resolved. Argument
 // names are explicit authority; no consumer guesses path semantics from names.
 type EffectTargetBinding struct {
 	Scope    EffectScope `json:"scope"`
-	Argument string      `json:"argument,omitempty"`
-	Value    string      `json:"value,omitempty"`
+	Argument string      `json:"argument,omitzero"`
+	Value    string      `json:"value,omitzero"`
 }
 
 // EffectCeiling is the manual's static upper bound on invocation effects.
 // Concrete targets are resolved only after strict argument validation.
 type EffectCeiling struct {
 	Targets      []EffectTargetBinding `json:"targets,omitempty"`
-	Destructive  bool                  `json:"destructive,omitempty"`
-	Privileged   bool                  `json:"privileged,omitempty"`
-	Irreversible bool                  `json:"irreversible,omitempty"`
+	Destructive  bool                  `json:"destructive,omitzero"`
+	Privileged   bool                  `json:"privileged,omitzero"`
+	Irreversible bool                  `json:"irreversible,omitzero"`
 }
 
 // TransportKind names a native invocation path.
@@ -138,15 +129,15 @@ func (kind TransportKind) Valid() bool {
 type Transport struct {
 	Kind TransportKind `json:"kind"`
 	// URL is the strict-JSON POST endpoint for the http transport.
-	URL string `json:"url,omitempty"`
+	URL string `json:"url,omitzero"`
 	// Program and Args are the fixed executable and leading argument
 	// words for the argv transport; the call payload rides on stdin.
-	Program string   `json:"program,omitempty"`
+	Program string   `json:"program,omitzero"`
 	Args    []string `json:"args,omitempty"`
 	// Target binds an MCP manual to one remote tool. Protocol identifies the
 	// adapter contract when the manual is capability-bound. Both are authority.
-	Target   string `json:"target,omitempty"`
-	Protocol string `json:"protocol,omitempty"`
+	Target   string `json:"target,omitzero"`
+	Protocol string `json:"protocol,omitzero"`
 }
 
 // Manual is one durable tool description: what the tool is, what it
@@ -283,7 +274,7 @@ func (manual *Manual) validate() error {
 		seen[field.Name] = true
 	}
 	for _, binding := range manual.Ceiling.Targets {
-		if !binding.Scope.valid() || (binding.Argument == "") == (binding.Value == "") {
+		if !binding.Scope.Valid() || (binding.Argument == "") == (binding.Value == "") {
 			return fmt.Errorf("agent tool: manual %q effect target must declare one source and a valid scope", manual.Name)
 		}
 		if binding.Argument != "" {

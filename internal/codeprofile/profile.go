@@ -10,6 +10,7 @@ import (
 	"go/scanner"
 	"go/token"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -26,7 +27,7 @@ type Function struct {
 	Name                 string `json:"name"`
 	Nodes                int    `json:"nodes"`
 	Branches             int    `json:"branches"`
-	AdvisoryClass        string `json:"advisory_class,omitempty"`
+	AdvisoryClass        string `json:"advisory_class,omitzero"`
 	packagePath          string
 	receiver             string
 	fingerprint          string
@@ -45,18 +46,18 @@ type Clone struct {
 	Fingerprint   string   `json:"fingerprint"`
 	Nodes         int      `json:"nodes"`
 	Functions     []string `json:"functions"`
-	AdvisoryClass string   `json:"advisory_class,omitempty"`
+	AdvisoryClass string   `json:"advisory_class,omitzero"`
 	// Delegate marks a group whose every member is a pure delegate --
 	// one statement forwarding to another call. Such members cannot be
 	// tightened further, so the group is listed but contributes nothing
 	// to the duplicate-excess ratchet.
-	Delegate bool `json:"delegate,omitempty"`
+	Delegate bool `json:"delegate,omitzero"`
 }
 
 // ImpactSelection records how structural ownership affected expensive checks.
 // Excluded/Owned is the exact exclusion rate; unresolved checks ran.
 type ImpactSelection struct {
-	Identity   string `json:"identity,omitempty"`
+	Identity   string `json:"identity,omitzero"`
 	Owned      int    `json:"owned"`
 	Triggered  int    `json:"triggered"`
 	Excluded   int    `json:"excluded"`
@@ -181,7 +182,7 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 			continue
 		}
 		class, fingerprint, _ := strings.Cut(key, "\x00")
-		sort.Strings(group.refs)
+		slices.Sort(group.refs)
 		profile.Clones = append(profile.Clones, Clone{
 			Fingerprint: hex.EncodeToString([]byte(fingerprint)), Nodes: group.nodes, Functions: group.refs,
 			AdvisoryClass: class, Delegate: group.delegates,

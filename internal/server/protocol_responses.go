@@ -48,9 +48,9 @@ type responsesRequest struct {
 }
 
 type responsesReasoningConfig struct {
-	Effort          string `json:"effort,omitempty"`
-	Summary         string `json:"summary,omitempty"`
-	GenerateSummary string `json:"generate_summary,omitempty"`
+	Effort          string `json:"effort,omitzero"`
+	Summary         string `json:"summary,omitzero"`
+	GenerateSummary string `json:"generate_summary,omitzero"`
 }
 
 type responseReasoningSummary struct {
@@ -66,13 +66,13 @@ type responseOutputText struct {
 }
 
 type responseOutputItem struct {
-	Arguments string                     `json:"arguments,omitempty"`
-	CallID    string                     `json:"call_id,omitempty"`
+	Arguments string                     `json:"arguments,omitzero"`
+	CallID    string                     `json:"call_id,omitzero"`
 	Content   []responseOutputText       `json:"content,omitempty"`
 	ID        string                     `json:"id"`
-	Name      string                     `json:"name,omitempty"`
+	Name      string                     `json:"name,omitzero"`
 	Role      inference.ChatRole         `json:"role,omitempty"`
-	Status    string                     `json:"status,omitempty"`
+	Status    string                     `json:"status,omitzero"`
 	Summary   []responseReasoningSummary `json:"summary,omitempty"`
 	Type      string                     `json:"type"`
 }
@@ -348,7 +348,7 @@ func (h *Handler) streamResponses(
 						"response.output_item.added",
 						responsesStreamEvent{
 							Type: "response.output_item.added", ResponseID: responseID,
-							OutputIndex: eventIndex(outputIndex),
+							OutputIndex: new(outputIndex),
 							Item: responseOutputItem{
 								Arguments: "",
 								CallID:    callID,
@@ -367,7 +367,7 @@ func (h *Handler) streamResponses(
 						"response.function_call_arguments.delta",
 						responsesStreamEvent{
 							Type: "response.function_call_arguments.delta", ResponseID: responseID,
-							ItemID: itemID, OutputIndex: eventIndex(outputIndex), Delta: delta.Arguments,
+							ItemID: itemID, OutputIndex: new(outputIndex), Delta: delta.Arguments,
 						},
 					); err != nil {
 						return err
@@ -387,32 +387,32 @@ func (h *Handler) streamResponses(
 		added := responseOutputItem{ID: itemID, Status: "in_progress", Type: "reasoning"}
 		if err := writeEvent("response.output_item.added", responsesStreamEvent{
 			Type: "response.output_item.added", ResponseID: responseID,
-			OutputIndex: eventIndex(firstEventIndex), Item: added,
+			OutputIndex: new(firstEventIndex), Item: added,
 		}); err != nil {
 			return err
 		}
 		if err := writeEvent("response.reasoning_summary_part.added", responsesStreamEvent{
 			Type: "response.reasoning_summary_part.added", ItemID: itemID,
-			OutputIndex: eventIndex(firstEventIndex), SummaryIndex: eventIndex(firstEventIndex),
+			OutputIndex: new(firstEventIndex), SummaryIndex: new(firstEventIndex),
 			Part: responseReasoningSummary{Type: "summary_text", Text: ""},
 		}); err != nil {
 			return err
 		}
 		if err := writeEvent("response.reasoning_summary_text.delta", responsesStreamEvent{
 			Type: "response.reasoning_summary_text.delta", ItemID: itemID,
-			OutputIndex: eventIndex(firstEventIndex), SummaryIndex: eventIndex(firstEventIndex), Delta: text,
+			OutputIndex: new(firstEventIndex), SummaryIndex: new(firstEventIndex), Delta: text,
 		}); err != nil {
 			return err
 		}
 		if err := writeEvent("response.reasoning_summary_text.done", responsesStreamEvent{
 			Type: "response.reasoning_summary_text.done", ItemID: itemID,
-			OutputIndex: eventIndex(firstEventIndex), SummaryIndex: eventIndex(firstEventIndex), Text: eventString(text),
+			OutputIndex: new(firstEventIndex), SummaryIndex: new(firstEventIndex), Text: new(text),
 		}); err != nil {
 			return err
 		}
 		if err := writeEvent("response.reasoning_summary_part.done", responsesStreamEvent{
 			Type: "response.reasoning_summary_part.done", ItemID: itemID,
-			OutputIndex: eventIndex(firstEventIndex), SummaryIndex: eventIndex(firstEventIndex), Part: part,
+			OutputIndex: new(firstEventIndex), SummaryIndex: new(firstEventIndex), Part: part,
 		}); err != nil {
 			return err
 		}
@@ -421,7 +421,7 @@ func (h *Handler) streamResponses(
 		}
 		if err := writeEvent("response.output_item.done", responsesStreamEvent{
 			Type: "response.output_item.done", ResponseID: responseID,
-			OutputIndex: eventIndex(firstEventIndex), Item: completed,
+			OutputIndex: new(firstEventIndex), Item: completed,
 		}); err != nil {
 			return err
 		}
@@ -497,7 +497,7 @@ func (h *Handler) streamResponses(
 			Type:    "message",
 		}
 		if err := writeEvent("response.output_text.done", responsesStreamEvent{
-			Type: "response.output_text.done", ItemID: messageID, Text: eventString(text),
+			Type: "response.output_text.done", ItemID: messageID, Text: new(text),
 		}); err != nil {
 			return
 		}
@@ -540,7 +540,7 @@ func (h *Handler) streamResponses(
 		if !streamed {
 			if err := writeEvent("response.output_item.added", responsesStreamEvent{
 				Type: "response.output_item.added", ResponseID: responseID,
-				OutputIndex: eventIndex(outputIndex), Item: added,
+				OutputIndex: new(outputIndex), Item: added,
 			}); err != nil {
 				return
 			}
@@ -548,7 +548,7 @@ func (h *Handler) streamResponses(
 				"response.function_call_arguments.delta",
 				responsesStreamEvent{
 					Type: "response.function_call_arguments.delta", ResponseID: responseID,
-					ItemID: item.ID, OutputIndex: eventIndex(outputIndex), Delta: item.Arguments,
+					ItemID: item.ID, OutputIndex: new(outputIndex), Delta: item.Arguments,
 				},
 			); err != nil {
 				return
@@ -558,14 +558,14 @@ func (h *Handler) streamResponses(
 			"response.function_call_arguments.done",
 			responsesStreamEvent{
 				Type: "response.function_call_arguments.done", ResponseID: responseID,
-				ItemID: item.ID, OutputIndex: eventIndex(outputIndex), Arguments: eventString(item.Arguments),
+				ItemID: item.ID, OutputIndex: new(outputIndex), Arguments: new(item.Arguments),
 			},
 		); err != nil {
 			return
 		}
 		if err := writeEvent("response.output_item.done", responsesStreamEvent{
 			Type: "response.output_item.done", ResponseID: responseID,
-			OutputIndex: eventIndex(outputIndex), Item: item,
+			OutputIndex: new(outputIndex), Item: item,
 		}); err != nil {
 			return
 		}

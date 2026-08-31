@@ -31,7 +31,7 @@ type TaskContext struct {
 	ItemTitle string `json:"item_title"`
 	StepID    string `json:"step_id"`
 	StepTitle string `json:"step_title"`
-	Verify    string `json:"verify,omitempty"`
+	Verify    string `json:"verify,omitzero"`
 }
 
 type DirtyPath = repoanalysis.DirtyPath
@@ -41,8 +41,8 @@ type DirtyPath = repoanalysis.DirtyPath
 type EvidenceDebt struct {
 	State    string `json:"state"`
 	Source   string `json:"source"`
-	Reason   string `json:"reason,omitempty"`
-	ResultID string `json:"result_id,omitempty"`
+	Reason   string `json:"reason,omitzero"`
+	ResultID string `json:"result_id,omitzero"`
 }
 
 // WorkflowContext is a Git-HEAD-derived implementation -> SQA -> priority
@@ -50,9 +50,9 @@ type EvidenceDebt struct {
 type WorkflowContext struct {
 	Phase       string `json:"phase"`
 	Source      string `json:"source"`
-	Reason      string `json:"reason,omitempty"`
-	CandidateID string `json:"candidate_id,omitempty"`
-	VerdictID   string `json:"verdict_id,omitempty"`
+	Reason      string `json:"reason,omitzero"`
+	CandidateID string `json:"candidate_id,omitzero"`
+	VerdictID   string `json:"verdict_id,omitzero"`
 }
 
 type ContextFacts struct {

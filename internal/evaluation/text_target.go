@@ -70,8 +70,8 @@ type TextTargetPlan struct {
 
 type TextVerifierResult struct {
 	Verifier artifact.ID `json:"verifier"`
-	Name     string      `json:"name,omitempty"`
-	Value    string      `json:"value,omitempty"`
+	Name     string      `json:"name,omitzero"`
+	Value    string      `json:"value,omitzero"`
 	Passed   bool        `json:"passed"`
 }
 
@@ -274,7 +274,7 @@ func canonicalizeTextTargetPlan(plan *TextTargetPlan) error {
 	for index := range plan.Cases {
 		target := &plan.Cases[index]
 		sort.Slice(target.Fields, func(i, j int) bool { return target.Fields[i].Name < target.Fields[j].Name })
-		sort.Strings(target.Rules)
+		slices.Sort(target.Rules)
 		if target.Record == "" || index > 0 && plan.Cases[index-1].Record == target.Record {
 			return errors.New("evaluation: invalid text target case")
 		}

@@ -5,6 +5,7 @@ package sensenovarecipe
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -221,9 +222,7 @@ func loadFullGenerationPrompt(t testing.TB, oracle fullGenerationOracle) string 
 			continue
 		}
 		seed := row.Seed
-		if seed == 0 {
-			seed = 42
-		}
+		seed = cmp.Or(seed, 42)
 		if row.Width != oracle.Request.Width || row.Height != oracle.Request.Height || seed != oracle.Request.Seed {
 			t.Fatalf("SenseNova prompt request=%dx%d seed=%d, want %dx%d seed=%d",
 				row.Width, row.Height, seed, oracle.Request.Width, oracle.Request.Height, oracle.Request.Seed)

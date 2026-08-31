@@ -21,7 +21,7 @@ const (
 type ComponentContract struct {
 	Name     string         `json:"name"`
 	Shape    []uint64       `json:"shape,omitempty"`
-	Storage  string         `json:"storage,omitempty"`
+	Storage  string         `json:"storage,omitzero"`
 	Contract organ.Contract `json:"contract"`
 }
 
@@ -32,8 +32,8 @@ type ComponentContract struct {
 type ComponentDecompositionDocument struct {
 	Version    uint16              `json:"version"`
 	Model      artifact.ID         `json:"model"`
-	Family     string              `json:"family,omitempty"`
-	Modality   string              `json:"modality,omitempty"`
+	Family     string              `json:"family,omitzero"`
+	Modality   string              `json:"modality,omitzero"`
 	Components []ComponentContract `json:"components"`
 	ID         artifact.ID         `json:"-"`
 }

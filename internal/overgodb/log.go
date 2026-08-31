@@ -9,7 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -103,7 +103,7 @@ func replaySealedSegments(root string, apply func(logRecord) error) (replayResul
 	if err != nil {
 		return replayResult{}, fmt.Errorf("overgodb: list segments: %w", err)
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	chain := replayResult{}
 	for _, path := range paths {
 		base := strings.TrimSuffix(filepath.Base(path), segmentExtension)

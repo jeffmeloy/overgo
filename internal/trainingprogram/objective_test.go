@@ -1,7 +1,6 @@
 package trainingprogram
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 
 func TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +65,7 @@ func TestObjectiveMatrixUsesOnlyStoredCorpusBoundObjectives(t *testing.T) {
 
 func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +131,7 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 
 func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)
@@ -281,7 +280,7 @@ func TestCompileObjectiveProgramDerivesOptimizerParameters(t *testing.T) {
 
 func TestObjectiveMatrixRefusesUnstoredEvidence(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)

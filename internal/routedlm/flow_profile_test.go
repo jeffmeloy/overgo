@@ -1,7 +1,6 @@
 package routedlm
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,7 +31,7 @@ func TestFlowProfileResolvesFromRecipe(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/flow-profile", Contents: []artifact.Content{content},
 	}); err != nil {

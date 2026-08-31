@@ -40,12 +40,12 @@ func TestOptimizerPolicyRequiresRecipeContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved, err := OptimizerPolicyFromRecipe(context.Background(), store, definition)
+	resolved, err := OptimizerPolicyFromRecipe(t.Context(), store, definition)
 	if err != nil || resolved.ID != policy.ID {
 		t.Fatalf("resolved = %+v, err = %v", resolved, err)
 	}
 	delete(store.contents, policy.ID)
-	if _, err := OptimizerPolicyFromRecipe(context.Background(), store, definition); err == nil {
+	if _, err := OptimizerPolicyFromRecipe(t.Context(), store, definition); err == nil {
 		t.Fatal("missing optimizer policy content accepted")
 	}
 }

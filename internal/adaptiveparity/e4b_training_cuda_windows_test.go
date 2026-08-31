@@ -3,7 +3,6 @@
 package adaptiveparity_test
 
 import (
-	"context"
 	"encoding/binary"
 	"math"
 	"os"
@@ -53,7 +52,7 @@ func TestGemmaE4BRealTraining(t *testing.T) {
 		}
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](ctx, projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)

@@ -42,7 +42,7 @@ func TestLiveEditReferenceParity(t *testing.T) {
 		noise := [][]float32{{10, 11}, {12}}
 		noiseCall := 0
 		var visits []EditStep
-		got, stats, err := RunEditSampler(context.Background(), EditSamplerRequest{
+		got, stats, err := RunEditSampler(t.Context(), EditSamplerRequest{
 			Plan: samplerPlan, InitialNoise: []float32{1, 2, 3}, Source: []float32{101, 102, 103, 201, 202, 203},
 			Sigmas: []float32{1, 0.25}, Arithmetic: EditFP32,
 			Denoise: func(_ context.Context, step EditStep, combined, flow []float32) error {

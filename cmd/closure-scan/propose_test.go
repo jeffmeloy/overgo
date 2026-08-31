@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,7 +68,7 @@ func TestTriageProposalCarriesExactCoordinates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	proposal, err := proposeTriageRows(context.Background(), snapshot, store, []string{"Recovered", "Fresh"})
+	proposal, err := proposeTriageRows(t.Context(), snapshot, store, []string{"Recovered", "Fresh"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +88,7 @@ func TestTriageProposalCarriesExactCoordinates(t *testing.T) {
 		t.Fatalf("fresh row = %+v, want exact coordinates with empty review text", fresh)
 	}
 
-	if _, err := proposeTriageRows(context.Background(), snapshot, store, []string{"Ghost"}); err == nil ||
+	if _, err := proposeTriageRows(t.Context(), snapshot, store, []string{"Ghost"}); err == nil ||
 		!strings.Contains(err.Error(), `candidate "Ghost" not found by scan`) ||
 		!strings.Contains(err.Error(), "Fresh") {
 		t.Fatalf("unknown candidate emitted a stale row: %v", err)

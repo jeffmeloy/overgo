@@ -8,7 +8,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/executionfailure"
-	"overgo/internal/processcontrol"
 )
 
 const (
@@ -39,21 +38,11 @@ const (
 // state inside a receipt.
 type ProcessTermination struct {
 	ExitCode       int32 `json:"exit_code"`
-	Interrupted    bool  `json:"interrupted,omitempty"`
-	TreeTerminated bool  `json:"tree_terminated,omitempty"`
-	StdoutBytes    int64 `json:"stdout_bytes,omitempty"`
-	StderrBytes    int64 `json:"stderr_bytes,omitempty"`
+	Interrupted    bool  `json:"interrupted,omitzero"`
+	TreeTerminated bool  `json:"tree_terminated,omitzero"`
+	StdoutBytes    int64 `json:"stdout_bytes,omitzero"`
+	StderrBytes    int64 `json:"stderr_bytes,omitzero"`
 	WallNS         int64 `json:"wall_ns"`
-}
-
-// NewProcessTermination adapts a supervisor receipt into receipt
-// evidence.
-func NewProcessTermination(receipt processcontrol.Receipt) ProcessTermination {
-	return ProcessTermination{
-		ExitCode: int32(receipt.ExitCode), Interrupted: receipt.Interrupted,
-		TreeTerminated: receipt.TreeTerminated, StdoutBytes: receipt.StdoutBytes,
-		StderrBytes: receipt.StderrBytes, WallNS: receipt.WallNS,
-	}
 }
 
 // TerminalAttemptReceipt is the one self-contained terminal record of
@@ -66,7 +55,7 @@ type TerminalAttemptReceipt struct {
 	Version    uint16      `json:"version"`
 	Operation  artifact.ID `json:"operation"`
 	Capability artifact.ID `json:"capability"`
-	Attempt    uint32      `json:"attempt,omitempty"`
+	Attempt    uint32      `json:"attempt,omitzero"`
 	Outcome    Outcome     `json:"outcome"`
 
 	FailureObservation   artifact.ID                   `json:"failure_observation,omitzero"`

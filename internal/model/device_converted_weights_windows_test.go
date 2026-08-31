@@ -26,7 +26,7 @@ func TestDeviceConvertedWeightsFeedExecutor(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := file.Tensors[tensor.FirstOffset]
-	source, err := LoadHostTensor(context.Background(), file, info)
+	source, err := LoadHostTensor(t.Context(), file, info)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestDeviceConvertedWeightsFeedExecutor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer weights.Close()
-	if err := weights.Load(context.Background(), file, file.Tensors); err != nil {
+	if err := weights.Load(t.Context(), file, file.Tensors); err != nil {
 		t.Fatal(err)
 	}
 	builder := tensor.NewBuilder()
@@ -67,7 +67,7 @@ func TestDeviceConvertedWeightsFeedExecutor(t *testing.T) {
 	if err := indexed.Inputs.Set(input, pointer); err != nil {
 		t.Fatal(err)
 	}
-	results, err := cuda.ExecuteCompiled(context.Background(), indexed.Graph, nil, indexed.Inputs)
+	results, err := cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), indexed.Graph, nil, indexed.Inputs)
 	if err != nil {
 		t.Fatal(err)
 	}

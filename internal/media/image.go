@@ -150,8 +150,8 @@ func ResizeBicubic(source image.Image, width, height int) *image.RGBA {
 	inputWidth, inputHeight := bounds.Dx(), bounds.Dy()
 	xMin, xCount, xWeights := antialiasWeights(inputWidth, width)
 	intermediate := make([][RGBChannels]uint8, inputHeight*width)
-	for y := 0; y < inputHeight; y++ {
-		for outX := 0; outX < width; outX++ {
+	for y := range inputHeight {
+		for outX := range width {
 			values := [RGBChannels]float64{}
 			for offset := 0; offset < xCount[outX]; offset++ {
 				r, g, b, _ := source.At(bounds.Min.X+xMin[outX]+offset, bounds.Min.Y+y).RGBA()
@@ -167,8 +167,8 @@ func ResizeBicubic(source image.Image, width, height int) *image.RGBA {
 	}
 	yMin, yCount, yWeights := antialiasWeights(inputHeight, height)
 	output := image.NewRGBA(image.Rect(0, 0, width, height))
-	for outY := 0; outY < height; outY++ {
-		for x := 0; x < width; x++ {
+	for outY := range height {
+		for x := range width {
 			values := [RGBChannels]float64{}
 			for offset := 0; offset < yCount[outY]; offset++ {
 				pixel := intermediate[(yMin[outY]+offset)*width+x]
@@ -196,7 +196,7 @@ func antialiasWeights(input, output int) ([]int, []int, [][]float64) {
 	minimum := make([]int, output)
 	count := make([]int, output)
 	weights := make([][]float64, output)
-	for index := 0; index < output; index++ {
+	for index := range output {
 		center := scale * (float64(index) + RasterSampleCenter)
 		low := max(0, int(center-support+RasterSampleCenter))
 		high := min(input, int(center+support+RasterSampleCenter))

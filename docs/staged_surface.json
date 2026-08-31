@@ -1,408 +1,429 @@
 {
-  "version": 1,
-  "doc": "Reviewed staged surface: exported symbols whose production consumer is deliberately deferred. Each entry names why the surface exists and the work expected to consume it; prune an entry when its trigger lands. Undeclared new unconsumed surface still blocks the gate.",
+  "version": 2,
+  "doc": "Reviewed staged surface: each exported symbol without a statically visible production consumer names either one exact canonical open plan step that retires it or a closed evidence-bound retained classification. Missing, blocked, historical, duplicate, and free-text future-work entries refuse. Undeclared new unconsumed surface still blocks the gate.",
   "staged": [
     {
       "package": "overgo/internal/agentloop",
       "name": "NewMutationCheckpointRuntime",
       "reason": "Agent-loop mutation checkpointing API delivered by the manifest lane with internals and tests complete.",
-      "consumer_trigger": "Agent delegation campaign wires checkpointed mutation runs into cmd/agent-loop."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/agentloop",
       "name": "NewDelegatedCoordinator",
       "reason": "Delegated multi-agent coordination API delivered by the manifest lane.",
-      "consumer_trigger": "Agent delegation campaign wires coordination into cmd/agent-loop."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/agenttool",
       "name": "CapabilityProxyManual",
       "reason": "Capability proxy manual surface for agent tool invocation.",
-      "consumer_trigger": "Agent delegation campaign exposes capability proxies through the tool transport."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/agenttool",
       "name": "RegisterCapabilityProxy",
       "reason": "Capability proxy registration for agent tool invocation.",
-      "consumer_trigger": "Agent delegation campaign exposes capability proxies through the tool transport."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/closurescan",
       "name": "AgentHarnessSurfaceRegressions",
-      "reason": "Harness surface regression audit delivered ahead of its gate phase.",
-      "consumer_trigger": "Gate grows a harness-audit check."
+      "reason": "Harness surface regression audit delivered ahead of the final common-code and policy-copy census.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "BindAgentTrajectoryPlan",
       "reason": "Agent trajectory evaluation binding delivered ahead of trajectory scoring.",
-      "consumer_trigger": "Agent trajectory evaluation campaign."
+      "retire_with": "merge-b22cef0339de/do"
+    },
+    {
+      "package": "overgo/internal/evaluation",
+      "name": "EvaluateCrossDomainCandidate",
+      "reason": "Shared immutable candidate evaluation remains test-proven until the integrated RSI campaign supplies its production observation streams and runtime consumer.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/loop",
       "name": "CompareStrategyExperiment",
-      "reason": "Strategy comparison experiment API for the continuity loop.",
-      "consumer_trigger": "cmd/loop adopts strategy experiments."
+      "reason": "Strategy comparison evidence becomes a recorded policy input during counterfactual driver replay.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/loop",
       "name": "NewStrategy",
-      "reason": "Strategy constructor for the continuity loop experiment API.",
-      "consumer_trigger": "cmd/loop adopts strategy experiments."
+      "reason": "Strategy construction becomes a candidate-policy input during counterfactual driver replay.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/operation",
       "name": "NewManagerWithRepository",
       "reason": "Operation manager bound to a store repository.",
-      "consumer_trigger": "Operation manager store adoption in the serving surface."
-    },
-    {
-      "package": "overgo/internal/plan",
-      "name": "NewWorkLease",
-      "reason": "Multi-lane work lease API for plan orchestration.",
-      "consumer_trigger": "Multi-lane plan coordination campaign."
-    },
-    {
-      "package": "overgo/internal/plan",
-      "name": "ResolveWorkspaceClaims",
-      "reason": "Workspace claim resolution for plan orchestration.",
-      "consumer_trigger": "Multi-lane plan coordination campaign."
-    },
-    {
-      "package": "overgo/internal/plan",
-      "name": "WorkLeaseAlias",
-      "reason": "Work lease alias naming for plan orchestration.",
-      "consumer_trigger": "Multi-lane plan coordination campaign."
-    },
-    {
-      "package": "overgo/internal/plan",
-      "name": "WorkspaceClaimOrder",
-      "reason": "Deterministic workspace claim ordering for plan orchestration.",
-      "consumer_trigger": "Multi-lane plan coordination campaign."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/plan",
       "name": "AdmitSteeringProposal",
       "reason": "Typed steering proposal admission into the plan.",
-      "consumer_trigger": "cmd/plan admits steering proposals from agents."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/recipe",
       "name": "NewAgentTaskContract",
       "reason": "Typed agent task contract records.",
-      "consumer_trigger": "Agent delegation campaign records task contracts."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/recipe",
       "name": "NewDelegatedAgentInvocation",
       "reason": "Typed delegated agent invocation records.",
-      "consumer_trigger": "Agent delegation campaign records invocations."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/recipe",
       "name": "NewSteeringProposal",
       "reason": "Typed steering proposal records.",
-      "consumer_trigger": "cmd/plan admits steering proposals from agents."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/repoanalysis",
       "name": "AuditAgentHarnessConsolidation",
-      "reason": "Agent harness consolidation audit delivered ahead of its gate phase.",
-      "consumer_trigger": "Gate grows a harness-audit check."
+      "reason": "Agent harness consolidation audit delivered ahead of the final common-code and policy-copy census.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewAgentObligation",
       "reason": "Typed agent obligation records.",
-      "consumer_trigger": "Agent obligation enforcement in the gate."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewAgentObligationResolution",
       "reason": "Typed agent obligation resolution records.",
-      "consumer_trigger": "Agent obligation enforcement in the gate."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ObserveAttemptDirection",
-      "reason": "Attempt direction observation records.",
-      "consumer_trigger": "Attempt-history steering in the loop."
+      "reason": "Attempt-direction pivots become typed saturation inputs during counterfactual driver replay.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "SummarizeAttemptHistory",
-      "reason": "Attempt history summarization for steering.",
-      "consumer_trigger": "Attempt-history steering in the loop."
+      "reason": "Attempt history supplies measured policy costs during counterfactual driver replay.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishAutomationPolicyTransition",
       "reason": "Automation policy lifecycle transition records.",
-      "consumer_trigger": "cmd/automation-policy records lifecycle transitions."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/workflowruntime",
       "name": "CompileDelegatedAgentInvocation",
       "reason": "Delegated agent invocation compilation in the workflow runtime.",
-      "consumer_trigger": "Agent delegation campaign executes delegated invocations."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/apimanifest",
       "name": "Compare",
       "reason": "API manifest diffing delivered ahead of its gate integration.",
-      "consumer_trigger": "The gate grows an API-manifest census phase."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/artifact",
       "name": "sameLocalLocation",
       "reason": "Location comparison helper landing with the location tightening; its production caller arrives with location dedup.",
-      "consumer_trigger": "Location dedup consumes local-location comparison."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/testutil",
       "name": "RequireWithin",
       "reason": "Shared max-abs-diff tolerance gate consolidating the per-package golden-test copies; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire only if the golden suites stop comparing float tensors."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/testutil",
       "name": "RequireElementsWithin",
       "reason": "Shared first-divergent-element tolerance gate consolidating hostmath and seriesforecast golden checks; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire only if the golden suites stop comparing float tensors."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/testutil",
       "name": "ModelArtifactDir",
       "reason": "Shared model-directory resolver for artifact-gated golden tests, consolidating the per-package copies; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire only if artifact-gated suites stop resolving model roots."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/testutil",
       "name": "GGUFScalar",
       "reason": "Shared hermetic GGUF fixture metadata builder consolidating the inference and trainingworkflow copies; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire only if hermetic GGUF fixtures stop being written."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/testutil",
       "name": "GGUFArray",
       "reason": "Shared hermetic GGUF fixture metadata builder consolidating the inference and trainingworkflow copies; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire only if hermetic GGUF fixtures stop being written."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/testutil",
       "name": "GGUFTensorF32",
       "reason": "Shared hermetic GGUF fixture tensor builder consolidating the inference and trainingworkflow copies; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire only if hermetic GGUF fixtures stop being written."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewEfficiencyTrace",
-      "reason": "Interaction-efficiency baseline document delivered by redundancy-interaction-baseline/interaction-traces with contract and measured storage baseline complete.",
-      "consumer_trigger": "interaction-efficiency rows instrument live surfaces and commit their traces through this constructor."
+      "reason": "Efficiency-trace construction remains test-proven until the measured efficiency gate publishes persisted comparison claims.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ParseEfficiencyTrace",
-      "reason": "Reader for the interaction-efficiency baseline document; staged with its constructor.",
-      "consumer_trigger": "interaction-efficiency projection-query-plans reads committed traces for comparison reports."
+      "reason": "Cold efficiency-trace parsing remains test-proven until the measured efficiency gate consumes persisted trace claims.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/artifact/repositorytest",
       "name": "CountingRepository",
       "reason": "Shared commit-counting wrapper proving one-batch semantic transitions across runrecord, workflowruntime, and modelrecipe; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire only if the one-commit-per-transition contract is retired."
-    },
-    {
-      "package": "overgo/internal/artifact",
-      "name": "ReadContents",
-      "reason": "Batched content reader consolidating per-item fan-out reads; consumed by evaluation resume and modelrecipe decision loading.",
-      "consumer_trigger": "Already consumed in production; entry documents the batch-reader family until interaction-efficiency projections widen it."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/artifact",
       "name": "ContentVisitor",
       "reason": "Optional batch-visit capability interface the batched reader detects.",
-      "consumer_trigger": "Implemented by overgodb.Store; retire if content visiting moves onto the Reader interface."
+      "retained": {
+        "classification": "production-interface",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/artifact",
       "name": "ContentPresence",
       "reason": "Optional presence-batch capability interface for mixed evidence lists.",
-      "consumer_trigger": "Implemented by overgodb.Store; retire if presence moves onto the Reader interface."
-    },
-    {
-      "package": "overgo/internal/overgodb",
-      "name": "subscribePublished",
-      "reason": "Head-publication observer seam delivered by storage-projections/atomic-publication with its atomicity contract complete; live subscribers arrive with head-bound deltas.",
-      "consumer_trigger": "interaction-efficiency/head-bound-deltas consumes the seam and retires this entry."
+      "retained": {
+        "classification": "production-interface",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishOperationalTransition",
       "reason": "The one conversion door from operational state to canonical records, proven across runrecord, workflowruntime, and capabilityruntime.",
-      "consumer_trigger": "execution-semantics and causal-execution rows route live attempt, lease, loss, recovery, and capability-change events through it."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewOperationalTransition",
       "reason": "Constructor for the conversion door; staged with it.",
-      "consumer_trigger": "execution-semantics rows consume it in production."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ParseOperationalTransition",
       "reason": "Reader for conversion records; staged with its constructor.",
-      "consumer_trigger": "causal-execution projections read committed transitions."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "OperationalTransition",
       "reason": "Typed conversion record; staged with its owner functions.",
-      "consumer_trigger": "execution-semantics rows consume it in production."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "CanonicalOutcomes",
       "reason": "Closed execution-outcome vocabulary delivered by execution-semantics/canonical-outcomes; live per-record adoption follows in the same item.",
-      "consumer_trigger": "failure-normalization and attempt-receipt rows consume the vocabulary in production records."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ValidOutcome",
       "reason": "Membership rule for the canonical vocabulary; staged with it.",
-      "consumer_trigger": "attempt-receipt validation consumes it."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "StepOutcomeCanonical",
       "reason": "Total mapping from gate step outcomes onto the canonical set.",
-      "consumer_trigger": "attempt-receipt binds gate steps through it."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "LaneOutcomeCanonical",
       "reason": "Total mapping from lane outcomes onto the canonical set.",
-      "consumer_trigger": "attempt-receipt binds lane results through it."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/testutil",
       "name": "ForbidVocabularyRedefinition",
       "reason": "Anti-fork scanner keeping canonical vocabularies from being restated per package; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire only with the vocabulary contract."
-    },
-    {
-      "package": "overgo/internal/runrecord",
-      "name": "OutcomeVocabulary",
-      "reason": "String view of the canonical outcomes for vocabulary guards; staged with the vocabulary.",
-      "consumer_trigger": "Vocabulary guards consume it wherever outcome forks must refuse."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NormalizeFailureObservation",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ParseFailureObservation",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishFailureNormalization",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishFailureObservation",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "RequireFailureNormalization",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ResolveFailureNormalization",
       "reason": "failure-record surface lands ahead of its retry-policy consumers",
-      "consumer_trigger": "execution-semantics/attempt-receipt and retry-session-policy consume failure records for retry decisions"
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/executionfailure",
       "name": "ValidDecision",
       "reason": "Membership guard for the decision vocabulary; staged with the vocabulary.",
-      "consumer_trigger": "execution-semantics/attempt-receipt validates receipt dispositions with it."
-    },
-    {
-      "package": "overgo/internal/runrecord",
-      "name": "NewProcessTermination",
-      "reason": "Adapter from supervisor receipts into receipt evidence.",
-      "consumer_trigger": "execution-semantics boundary migration wires supervised lanes into terminal receipts."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "RequireTerminalAttemptReceipt",
       "reason": "Typed read of one stored terminal receipt.",
-      "consumer_trigger": "causal-execution and evaluation read receipts for recovery and scoring."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ResolveTerminalAttemptReceipt",
       "reason": "Per-operation attempt-ordinal receipt lookup.",
-      "consumer_trigger": "causal-execution and evaluation read receipts for recovery and scoring."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "PublishLoopObligation",
       "reason": "Durable follow-up admission lands ahead of the production loop world wiring.",
-      "consumer_trigger": "causal-execution and interaction-efficiency admit obligations from recovery and coalesced coordination."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ReplayLoopObligations",
       "reason": "Store-backed replay lands ahead of the production ObligationWorld implementation.",
-      "consumer_trigger": "cmd/loop world implements ObligationWorld over the repository store."
+      "retire_with": "merge-b22cef0339de/do"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "RequireMoERouterObservationCoverage",
+      "reason": "Exact raw-chunk decode is retained for the isolated scaling, health, and router evaluator that consumes the bounded training stream.",
+      "retire_with": "merge-b22cef0339de/do"
+    },
+    {
+      "package": "overgo/internal/runrecord",
+      "name": "QueryMoERouterObservationCoverage",
+      "reason": "Indexed summary-first router queries remain test-proven until the isolated scaling, health, and router evaluator consumes the bounded training stream.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "NewCausalRoot",
       "reason": "Root minting lands ahead of the trigger registry and integration rows.",
-      "consumer_trigger": "causal-execution/trigger-registry and causal-integration mint roots at every enqueue path."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "TriggerContractFor",
       "reason": "Contract lookup lands ahead of enqueue-path admission wiring.",
-      "consumer_trigger": "causal-execution/causal-integration and webhook-ingress admit executions through contract lookup."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "ValidateTriggerRegistry",
       "reason": "Registry closure validation lands ahead of admission wiring.",
-      "consumer_trigger": "causal-execution/causal-integration validates the registry at admission construction."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "PublishImprovementFitness",
       "reason": "Exact multidimensional fitness publication lands with resource-coverage/fitness-integration and its read-side authority ratchets complete.",
-      "consumer_trigger": "deterministic-rollout/promotion-binding publishes the exact fitness proof required by each promotion decision."
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/runrecord",
       "name": "CompareResourceFitness",
-      "reason": "Exact persisted resource comparison lands with resource-coverage/fitness-integration ahead of live candidate evaluation.",
-      "consumer_trigger": "model-recipe-lifecycle/recipe-evaluation publishes resource comparisons for prototype-produced recipe candidates."
+      "reason": "Exact replay-verified resource comparison is retained for the bounded multi-strategy system campaign that produces its first production observation streams.",
+      "retire_with": "merge-b22cef0339de/do"
     },
     {
       "package": "overgo/internal/modelrecipetest",
       "name": "PublishModelDefinition",
       "reason": "Shared cross-package model-definition fixture replaces divergent descriptor-only test setup; test-support surface is test-consumed by design.",
-      "consumer_trigger": "Permanent test-support owner; retire when model-definition authority tests consume a shared production materialization fixture."
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
+      }
+    },
+    {
+      "package": "overgo/internal/clioptions",
+      "name": "PrivateFileMode",
+      "reason": "Owner-only file mode for secret-bearing local state, delivered ahead of route-credential storage.",
+      "retire_with": "merge-b22cef0339de/do"
+    },
+    {
+      "package": "overgo/internal/modelrecipe",
+      "name": "DeriveCandidateRecipes",
+      "reason": "Candidate recipe derivation over the cross-domain spine, delivered ahead of domain-plugin realization.",
+      "retire_with": "merge-b22cef0339de/do"
+    },
+    {
+      "package": "overgo/internal/testevidence",
+      "name": "RepeatAgreementForCommand",
+      "reason": "Repeat-agreement verdict for flaky-command detection, delivered ahead of the verification-depth lanes.",
+      "retire_with": "merge-b22cef0339de/do"
     }
   ]
 }

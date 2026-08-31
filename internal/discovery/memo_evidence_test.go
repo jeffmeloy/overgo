@@ -1,7 +1,6 @@
 package discovery
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +15,7 @@ import (
 // answers from stat checks without re-hashing, a changed file misses so
 // the claim stays exact, and an unchanged memo does not republish.
 func TestIdentityMemoPersistence(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

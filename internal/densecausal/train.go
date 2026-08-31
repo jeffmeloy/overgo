@@ -17,12 +17,32 @@ type TrainState = optimizer.State
 // TrainObserver: completed step; error cancels at the update boundary.
 type TrainObserver func(step int, loss float64, stepWall time.Duration) error
 
+// MoERouterObserver receives the exact route used by one layer and update.
+// It is observation-only: the delivered slices do not alias training state.
+type MoERouterObserver func(step int, observation MoERouterObservation) error
+
 // Train executes ordered token batches with optional resume and observation.
 func (m *Model) Train(batches [][]int, baseLR, mu float64, resume *TrainState, observe TrainObserver) ([]float64, TrainState, error) {
-	return m.train(batches, baseLR, mu, resume, observe)
+	return m.train(batches, baseLR, mu, resume, observe, nil)
 }
 
-func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State, observe TrainObserver) ([]float64, optimizer.State, error) {
+// TrainWithRouterObservations executes the host/reference trainer while
+// exposing the already-computed MoE routes. No routing policy or numeric path
+// changes when an observer is present.
+func (m *Model) TrainWithRouterObservations(
+	batches [][]int,
+	baseLR, mu float64,
+	resume *TrainState,
+	observe TrainObserver,
+	observeRouter MoERouterObserver,
+) ([]float64, TrainState, error) {
+	if observeRouter == nil {
+		return m.Train(batches, baseLR, mu, resume, observe)
+	}
+	return m.train(batches, baseLR, mu, resume, observe, observeRouter)
+}
+
+func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State, observe TrainObserver, observeRouter MoERouterObserver) ([]float64, optimizer.State, error) {
 	if err := validateTokenBatches(batches); err != nil {
 		return nil, optimizer.State{}, err
 	}
@@ -46,10 +66,14 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	}
 
 	trajectory := make([]float64, 0, len(batches))
+	firstStep := 0
+	if resume != nil {
+		firstStep = resume.Step
+	}
 	for step, tokens := range batches {
 		stepStarted := time.Now()
 		scatter(m, names, weights)
-		loss, grads, err := m.trainingLossAndGrads(tokens)
+		loss, grads, err := m.trainingLossAndGrads(tokens, firstStep+step, observeRouter)
 		if err != nil {
 			return nil, optimizer.State{}, err
 		}

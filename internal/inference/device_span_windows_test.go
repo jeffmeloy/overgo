@@ -3,7 +3,6 @@
 package inference
 
 import (
-	"context"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -38,7 +37,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	tokens := []tokenizer.TokenID{1, 4, 5, 6}
 
 	// Teacher-forced host oracle: consume each span token one step at a
@@ -47,7 +46,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer oracle.Close(context.Background())
+	defer oracle.Close(t.Context())
 	want := make([]tokenizer.TokenID, len(tokens))
 	var oracleTokens, oraclePosition uint32
 	for index, token := range tokens {
@@ -70,7 +69,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := span.Release(context.Background()); err != nil {
+		if err := span.Release(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -98,7 +97,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := prefix.Release(context.Background()); err != nil {
+		if err := prefix.Release(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -107,7 +106,7 @@ func TestDeviceDecodeSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := draft.Release(context.Background()); err != nil {
+		if err := draft.Release(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 	}()

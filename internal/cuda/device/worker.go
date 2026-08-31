@@ -33,7 +33,7 @@ type Worker struct {
 	requests chan request
 	stop     chan chan error
 	done     chan struct{}
-	once     sync.Once
+	close    func() error
 }
 
 // New: starts CUDA worker for device ordinal
@@ -43,6 +43,7 @@ func New(ordinal int) (*Worker, error) {
 		stop:     make(chan chan error),
 		done:     make(chan struct{}),
 	}
+	worker.close = sync.OnceValue(worker.stopAndWait)
 	initialized := make(chan error, 1)
 	go worker.run(ordinal, initialized)
 	if err := <-initialized; err != nil {
@@ -76,16 +77,17 @@ func (w *Worker) Do(ctx context.Context, function func(*State) error) error {
 
 // Close synchronizes and destroys worker's CUDA resources
 func (w *Worker) Close() error {
-	var closeErr error
-	w.once.Do(func() {
-		result := make(chan error, 1)
-		select {
-		case w.stop <- result:
-			closeErr = <-result
-		case <-w.done:
-		}
-	})
-	return closeErr
+	return w.close()
+}
+
+func (w *Worker) stopAndWait() error {
+	result := make(chan error, 1)
+	select {
+	case w.stop <- result:
+		return <-result
+	case <-w.done:
+		return nil
+	}
 }
 
 func (w *Worker) MemoryStats(ctx context.Context) (driver.MemoryStats, error) {

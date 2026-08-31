@@ -116,7 +116,7 @@ func TestResourceFitnessContract(t *testing.T) {
 			}
 			defer store.Close()
 			definition := planID(t, artifact.KindModelDefinition, "resource definition "+terminal.name)
-			if _, err := store.Commit(context.Background(), artifact.Batch{
+			if _, err := store.Commit(t.Context(), artifact.Batch{
 				Key: "fixture/resource-" + terminal.name,
 				Artifacts: []artifact.Descriptor{
 					{ID: model}, {ID: definition}, {ID: recipe},
@@ -140,11 +140,11 @@ func TestResourceFitnessContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, evaluateErr := terminalCampaign.Evaluate(context.Background(), suite)
+			result, evaluateErr := terminalCampaign.Evaluate(t.Context(), suite)
 			if evaluateErr == nil {
 				t.Fatal("terminal evaluation succeeded")
 			}
-			storedRun, err := runrecord.RequireRun(context.Background(), store, result.Run)
+			storedRun, err := runrecord.RequireRun(t.Context(), store, result.Run)
 			if err != nil || storedRun.Outcome != terminal.outcome {
 				t.Fatalf("terminal run = %+v, err %v", storedRun, err)
 			}
@@ -154,12 +154,12 @@ func TestResourceFitnessContract(t *testing.T) {
 				t.Fatalf("terminal resources = %+v", result.Resources)
 			}
 			summaryID, found, err := artifact.ResolveAlias(
-				context.Background(), store, runrecord.ObservationChunkAlias(result.Run),
+				t.Context(), store, runrecord.ObservationChunkAlias(result.Run),
 			)
 			if err != nil || !found {
 				t.Fatalf("terminal resource alias = (%s, %v, %v)", summaryID, found, err)
 			}
-			summary, err := runrecord.RequireObservationChunkSummary(context.Background(), store, summaryID)
+			summary, err := runrecord.RequireObservationChunkSummary(t.Context(), store, summaryID)
 			if err != nil || !reflect.DeepEqual(summary.Aggregate, result.Resources) || summary.Stats.Samples != 1 {
 				t.Fatalf("terminal resource summary = (%+v, %v)", summary, err)
 			}

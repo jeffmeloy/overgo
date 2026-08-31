@@ -20,14 +20,14 @@ func agentTestHandler(t *testing.T, register func(context.Context, *overgodb.Sto
 	}
 	t.Cleanup(func() { store.Close() })
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/serving-identity",
 		Artifacts: []artifact.Descriptor{{ID: generator.description.Identity.Recipe}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if register != nil {
-		register(context.Background(), store)
+		register(t.Context(), store)
 	}
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store,
@@ -56,6 +56,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 		write, err := agenttool.NewManual(agenttool.Manual{
 			Name: "store.commit", Description: "A mutation manual for the approval gate.",
 			Effect:    agenttool.EffectMutation,
+			Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 			Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
 		})
 		if err != nil {
@@ -101,7 +102,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	// the projection surfaces the coordinator's typed refusal.
 	refused := serveTestRequest(handler, http.MethodPost, "/agent/step",
 		`{"session":"s1","tool":"store.commit"}`)
-	if refused.Code != http.StatusUnprocessableEntity || !strings.Contains(refused.Body.String(), "approval") {
+	if refused.Code != http.StatusUnprocessableEntity || !strings.Contains(refused.Body.String(), "preflight") {
 		t.Fatalf("unapproved mutation status=%d body=%s", refused.Code, refused.Body.String())
 	}
 
@@ -162,7 +163,7 @@ func TestAgentWorkspaceRestoresSessionsAcrossRestart(t *testing.T) {
 	}
 	defer store.Close()
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/restart-identity",
 		Artifacts: []artifact.Descriptor{{ID: generator.description.Identity.Recipe}},
 	}); err != nil {
@@ -172,7 +173,7 @@ func TestAgentWorkspaceRestoresSessionsAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := agenttool.PublishManualCatalog(context.Background(), store, manuals); err != nil {
+	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatal(err)
 	}
 	first, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)

@@ -1,7 +1,6 @@
 package loop
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -20,7 +19,7 @@ func promotionVerification(
 	t *testing.T, store artifact.Repository, definitionID artifact.ID, key string,
 ) modelrecipe.Verification {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
 	})
@@ -74,11 +73,11 @@ func publishRolloutReading(
 	t *testing.T, store artifact.Repository, planID artifact.ID,
 ) evaluation.RolloutProjection {
 	t.Helper()
-	reading, err := evaluation.ProjectRolloutEvidence(context.Background(), store, planID)
+	reading, err := evaluation.ProjectRolloutEvidence(t.Context(), store, planID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := evaluation.PublishRolloutProjection(context.Background(), store, reading); err != nil {
+	if _, err := evaluation.PublishRolloutProjection(t.Context(), store, reading); err != nil {
 		t.Fatal(err)
 	}
 	return reading
@@ -93,7 +92,7 @@ func publishRolloutReading(
 // coverage, readings bound to another plan, and a baseline that is not in
 // service each refuse with the exact gap named.
 func TestPromotionRequiresRolloutEvidenceClosure(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

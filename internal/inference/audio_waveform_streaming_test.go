@@ -122,7 +122,7 @@ func fullBufferWaveform(
 	windows := make([]float32, frames*plan.FFTSize)
 	realPart := make([]float32, plan.Bins())
 	imaginaryPart := make([]float32, plan.Bins())
-	for frame := 0; frame < frames; frame++ {
+	for frame := range frames {
 		base := frame * plan.FrameWidth()
 		for bin := 0; bin < plan.Bins(); bin++ {
 			magnitude := float32(math.Exp(float64(features.Data[base+bin])))
@@ -147,7 +147,7 @@ func fullBufferWaveform(
 	outputSize := (frames-1)*plan.HopSize + plan.FFTSize
 	audio := make([]float32, outputSize)
 	envelope := make([]float32, outputSize)
-	for frame := 0; frame < frames; frame++ {
+	for frame := range frames {
 		start := frame*plan.HopSize - plan.PadSize
 		window := windows[frame*plan.FFTSize : (frame+1)*plan.FFTSize]
 		for sample, value := range window {

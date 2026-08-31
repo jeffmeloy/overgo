@@ -11,8 +11,7 @@ import (
 
 func TestGemma3nPredictCoefficientLayout(t *testing.T) {
 	value := func(shape tensor.Shape, data ...float32) *reference.Value {
-		result := reference.Value{Shape: shape, Data: data}
-		return &result
+		return new(reference.Value{Shape: shape, Data: data})
 	}
 	layer := model.HostLayer{
 		AltUpRouterNorm: value(tensor.MustShape(2), 1, 1),

@@ -1,7 +1,6 @@
 package loop
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -28,7 +27,7 @@ func publishReentryEvidence(t *testing.T, store artifact.Repository, name string
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
+	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 	return content.Descriptor.ID
@@ -42,7 +41,7 @@ func publishReentryEvidence(t *testing.T, store artifact.Repository, name string
 // the restored baseline, and an explicit recorded decider. Every gap
 // refuses by name, and the admitted record cites the whole closure.
 func TestQuarantineReentryRequiresNewEvidence(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 )
@@ -28,7 +29,7 @@ const (
 
 type NumericScorerSpec struct {
 	Kind     NumericScorer `json:"kind"`
-	Unit     string        `json:"unit,omitempty"`
+	Unit     string        `json:"unit,omitzero"`
 	Quantile *float64      `json:"quantile,omitempty"`
 }
 
@@ -40,7 +41,7 @@ type NumericAssumption struct {
 type NumericTargetCase struct {
 	Record      string              `json:"record"`
 	Values      []float64           `json:"values,omitempty"`
-	Label       string              `json:"label,omitempty"`
+	Label       string              `json:"label,omitzero"`
 	Assumptions []NumericAssumption `json:"assumptions,omitempty"`
 }
 
@@ -61,7 +62,7 @@ type NumericTargetPlan struct {
 type NumericTargetObservation struct {
 	Record string    `json:"record"`
 	Values []float64 `json:"values,omitempty"`
-	Label  string    `json:"label,omitempty"`
+	Label  string    `json:"label,omitzero"`
 }
 
 type NumericScore struct {
@@ -73,8 +74,8 @@ type NumericRecordResult struct {
 	Record        string              `json:"record"`
 	Expected      []float64           `json:"expected,omitempty"`
 	Actual        []float64           `json:"actual,omitempty"`
-	ExpectedLabel string              `json:"expected_label,omitempty"`
-	ActualLabel   string              `json:"actual_label,omitempty"`
+	ExpectedLabel string              `json:"expected_label,omitzero"`
+	ActualLabel   string              `json:"actual_label,omitzero"`
 	Assumptions   []NumericAssumption `json:"assumptions,omitempty"`
 	Scores        []NumericScore      `json:"scores"`
 }
@@ -195,7 +196,7 @@ func scoreNumericRecord(scorer NumericScorerSpec, target NumericTargetCase, obse
 			sum += math.Abs(residual)
 		} else {
 			q := *scorer.Quantile
-			sum += math.Max(q*residual, (q-1)*residual)
+			sum += max(q*residual, (q-1)*residual)
 		}
 	}
 	return sum / float64(len(target.Values)), nil
@@ -274,7 +275,7 @@ func canonicalizeNumericTargetReport(report *NumericTargetReport) error {
 	return nil
 }
 
-func finite(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
+func finite(value float64) bool { return checked.Finite64(value) }
 
 func cloneNumericCases(values []NumericTargetCase) []NumericTargetCase {
 	result := slices.Clone(values)

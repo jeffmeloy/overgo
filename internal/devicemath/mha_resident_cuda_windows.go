@@ -25,8 +25,8 @@ func headMajorLayout(x []float32, seq, nHeads, hd int, direction headMajorDirect
 		sourceHead, targetHead = targetHead, sourceHead
 	}
 	out := make([]float32, len(x))
-	for head := 0; head < nHeads; head++ {
-		for row := 0; row < seq; row++ {
+	for head := range nHeads {
+		for row := range seq {
 			source := row*sourceSeq + head*sourceHead
 			target := row*targetSeq + head*targetHead
 			copy(out[target:target+hd], x[source:source+hd])
@@ -132,7 +132,7 @@ func MultiHeadAttentionBackwardResident(worker *device.Worker, q, k, v, dOut []f
 		}
 
 		hs := seq * hd
-		for h := 0; h < nh; h++ {
+		for h := range nh {
 			kv := h / group
 			qh, dOuth, dqh := off(qP, h*hs), off(dOutP, h*hs), off(dqP, h*hs)
 			kh, vh, dkh, dvh := off(kP, kv*hs), off(vP, kv*hs), off(dkP, kv*hs), off(dvP, kv*hs)

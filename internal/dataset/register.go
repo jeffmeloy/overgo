@@ -1,11 +1,13 @@
 package dataset
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -140,9 +142,7 @@ func walkDirectoryInventory(root string) ([]InventoryFile, []string, uint64, err
 			modality = legacyUnknownFact
 		}
 		format := strings.TrimPrefix(extension, ".")
-		if format == "" {
-			format = legacyUnknownFact
-		}
+		format = cmp.Or(format, legacyUnknownFact)
 		digest, err := HashFile(path)
 		if err != nil {
 			return err
@@ -160,11 +160,11 @@ func walkDirectoryInventory(root string) ([]InventoryFile, []string, uint64, err
 		return nil, nil, 0, err
 	}
 	slices.SortFunc(files, func(left, right InventoryFile) int { return strings.Compare(left.Path, right.Path) })
-	names := make([]string, 0, len(formats))
-	for format := range formats {
-		names = append(names, format)
+	names := slices.Sorted(maps.Keys(formats))
+	switch {
+	case names == nil:
+		names = []string{}
 	}
-	slices.Sort(names)
 	return files, names, total, nil
 }
 
@@ -179,11 +179,11 @@ func modalitySet(files []InventoryFile) []string {
 	for _, file := range files {
 		present[file.Modality] = true
 	}
-	set := make([]string, 0, len(present))
-	for modality := range present {
-		set = append(set, modality)
+	set := slices.Sorted(maps.Keys(present))
+	switch {
+	case set == nil:
+		set = []string{}
 	}
-	slices.Sort(set)
 	return set
 }
 

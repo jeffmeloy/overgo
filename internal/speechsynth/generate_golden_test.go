@@ -44,7 +44,7 @@ func TestGenerationGolden(t *testing.T) {
 	}
 
 	worstLatent, worstEOS := 0.0, 0.0
-	for i := 0; i < nFrames; i++ {
+	for i := range nFrames {
 		fc := g7.FlowCalls[2+i]
 		want := make([]float64, len(fc.Out.Values))
 		for j := range want {

@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -27,13 +26,13 @@ func TestVisitAliasEventsReturnsExactBoundedDeltas(t *testing.T) {
 	}
 	first, second := content("first"), content("second")
 	alias := "fixture/active/policy"
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/alias-history/first", Contents: []artifact.Content{first},
 		Aliases: []artifact.AliasBinding{{Name: alias, Target: first.Descriptor.ID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	secondCommit, err := store.Commit(context.Background(), artifact.Batch{
+	secondCommit, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/alias-history/second", Contents: []artifact.Content{second},
 		Aliases: []artifact.AliasBinding{{
 			Name: alias, Target: second.Descriptor.ID, Previous: artifact.IDPointer(first.Descriptor.ID),
@@ -45,7 +44,7 @@ func TestVisitAliasEventsReturnsExactBoundedDeltas(t *testing.T) {
 	if err := store.sealActiveSegment(); err != nil {
 		t.Fatal(err)
 	}
-	retireCommit, err := store.Commit(context.Background(), artifact.Batch{
+	retireCommit, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/alias-history/retire",
 		Aliases: []artifact.AliasBinding{{
 			Name: alias, Target: second.Descriptor.ID, Previous: artifact.IDPointer(second.Descriptor.ID), Remove: true,
@@ -55,7 +54,7 @@ func TestVisitAliasEventsReturnsExactBoundedDeltas(t *testing.T) {
 		t.Fatal(err)
 	}
 	var events []AliasEvent
-	err = store.VisitAliasEvents(context.Background(), AliasEventRange{
+	err = store.VisitAliasEvents(t.Context(), AliasEventRange{
 		Prefix: alias, FromSequence: 2, ToSequence: 3,
 	}, func(event AliasEvent) error {
 		events = append(events, event)
@@ -75,7 +74,7 @@ func TestVisitAliasEventsReturnsExactBoundedDeltas(t *testing.T) {
 		t.Fatalf("retirement event = %+v", events[1])
 	}
 	var all []AliasEvent
-	if err := store.VisitAliasEvents(context.Background(), AliasEventRange{
+	if err := store.VisitAliasEvents(t.Context(), AliasEventRange{
 		Prefix: alias, ToSequence: 3,
 	}, func(event AliasEvent) error {
 		all = append(all, event)
@@ -83,12 +82,12 @@ func TestVisitAliasEventsReturnsExactBoundedDeltas(t *testing.T) {
 	}); err != nil || len(all) != 3 {
 		t.Fatalf("zero-start events = (%+v, %v)", all, err)
 	}
-	if err := store.VisitAliasEvents(context.Background(), AliasEventRange{
+	if err := store.VisitAliasEvents(t.Context(), AliasEventRange{
 		Prefix: alias, FromSequence: 1, ToSequence: 4,
 	}, func(AliasEvent) error { return nil }); err == nil {
 		t.Fatal("range beyond the observed head was accepted")
 	}
-	if err := store.VisitAliasEvents(context.Background(), AliasEventRange{
+	if err := store.VisitAliasEvents(t.Context(), AliasEventRange{
 		Prefix: alias,
 	}, func(AliasEvent) error { return nil }); err == nil {
 		t.Fatal("range without an observed head was accepted")

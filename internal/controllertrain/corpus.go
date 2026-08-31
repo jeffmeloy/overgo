@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"path"
 	"slices"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -268,7 +267,7 @@ func collectActions(parts ...[]Record) []Action {
 	for key := range byKey {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	result := make([]Action, len(keys))
 	for index, key := range keys {
 		result[index] = byKey[key]

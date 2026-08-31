@@ -117,7 +117,7 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 	expertOut := make([]float32, hidden)
 	ds := make([]float64, experts)
 	dz := make([]float64, experts)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		clear(dw)
 		clear(ds)
 		clear(dz)
@@ -174,22 +174,22 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 		// elementwise.
 		switch policy.Scoring {
 		case MoEScoringSigmoid:
-			for e := 0; e < experts; e++ {
+			for e := range experts {
 				se := float64(sRow[e])
 				dz[e] = ds[e] * se * (1 - se)
 			}
 		case MoEScoringSoftmax:
 			var dotSS float64
-			for e := 0; e < experts; e++ {
+			for e := range experts {
 				dotSS += ds[e] * float64(sRow[e])
 			}
-			for e := 0; e < experts; e++ {
+			for e := range experts {
 				dz[e] = float64(sRow[e]) * (ds[e] - dotSS)
 			}
 		}
 
 		// Router matmul backward: z[r,e] = <x[r], router[e]>.
-		for e := 0; e < experts; e++ {
+		for e := range experts {
 			if dz[e] == 0 {
 				continue
 			}
@@ -199,7 +199,7 @@ func moeBackward(x []float32, w moeWeights, rows, hidden int, policy MoERouterPo
 			if parameterGradients {
 				dRouterRow = grads.dRouter[e*hidden : (e+1)*hidden]
 			}
-			for i := 0; i < hidden; i++ {
+			for i := range hidden {
 				if parameterGradients {
 					dRouterRow[i] += dze * xRow[i]
 				}

@@ -99,7 +99,7 @@ func audioFeaturesToWaveform(
 				}
 			}
 		})
-		for offset := 0; offset < slab; offset++ {
+		for offset := range slab {
 			start := (slabStart+offset)*plan.HopSize - plan.PadSize
 			window := windows[offset*plan.FFTSize : (offset+1)*plan.FFTSize]
 			for sample, value := range window {

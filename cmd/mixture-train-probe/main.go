@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"sort"
+	"slices"
 	"time"
 
 	"overgo/internal/checked"
@@ -140,7 +140,7 @@ func run(modelDir, datasetPath string, steps, seq int, maxWall time.Duration) er
 			}
 		}
 		if len(missing) > 0 {
-			sort.Strings(missing)
+			slices.Sort(missing)
 			return fmt.Errorf("mixture-train-probe: gradients outside the compiled plan: %v", missing)
 		}
 		if err := stepper.Step(); err != nil {

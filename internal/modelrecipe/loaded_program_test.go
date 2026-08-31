@@ -2,7 +2,6 @@ package modelrecipe
 
 import (
 	"bytes"
-	"context"
 	"strings"
 	"testing"
 
@@ -22,7 +21,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 	t.Run("missing", func(t *testing.T) {
 		store := openProgramStore(t)
 		defer store.Close()
-		_, err := ResolveActiveGGUF(context.Background(), store, path)
+		_, err := ResolveActiveGGUF(t.Context(), store, path)
 		assertProgramError(t, err, "active inference recipe is absent")
 	})
 
@@ -31,10 +30,10 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 		defer store.Close()
 		inventory, resolved := publishProgramFacts(t, store, path)
 		definition := definitionRecipe(t, inventory, resolved)
-		if _, _, err := PublishCandidate(context.Background(), store, "fixture/inactive", definition); err != nil {
+		if _, _, err := PublishCandidate(t.Context(), store, "fixture/inactive", definition); err != nil {
 			t.Fatal(err)
 		}
-		_, err := ResolveActiveGGUF(context.Background(), store, path)
+		_, err := ResolveActiveGGUF(t.Context(), store, path)
 		assertProgramError(t, err, "active inference recipe is absent")
 	})
 
@@ -49,7 +48,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 			t.Fatal(err)
 		}
 		activateProgram(t, store, definition)
-		_, err = ResolveActiveGGUF(context.Background(), store, path)
+		_, err = ResolveActiveGGUF(t.Context(), store, path)
 		assertProgramError(t, err, "no model definition")
 	})
 
@@ -68,7 +67,7 @@ func TestResolveActiveGGUFRequiresExactActiveProgram(t *testing.T) {
 			t.Fatal(err)
 		}
 		activateProgram(t, store, definition)
-		_, err = ResolveActiveGGUF(context.Background(), store, path)
+		_, err = ResolveActiveGGUF(t.Context(), store, path)
 		assertProgramError(t, err, "differs from active model definition")
 	})
 }
@@ -82,7 +81,7 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 	definition := definitionRecipe(t, inventory, resolved)
 	activateProgram(t, store, definition)
 
-	loaded, err := ResolveActiveGGUF(context.Background(), store, path)
+	loaded, err := ResolveActiveGGUF(t.Context(), store, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +179,7 @@ func publishProgramFacts(
 		t.Fatal(err)
 	}
 	if _, err := PublishResolvedModelDefinition(
-		context.Background(), store, inventory, resolved,
+		t.Context(), store, inventory, resolved,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +204,7 @@ func definitionRecipe(
 
 func activateProgram(t *testing.T, store artifact.Repository, definition recipe.Definition) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, _, err := PublishCandidate(ctx, store, "fixture/program/candidate/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}

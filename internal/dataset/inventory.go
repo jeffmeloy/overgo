@@ -34,22 +34,22 @@ var inventoryCodec = artifact.JSONDocumentCodec(
 type InventoryFile struct {
 	Path         string `json:"path"`
 	OriginalName string `json:"original_name"`
-	Extension    string `json:"extension,omitempty"`
+	Extension    string `json:"extension,omitzero"`
 	Modality     string `json:"modality"`
 	Format       string `json:"format"`
 	Bytes        uint64 `json:"bytes"`
 	// ModifiedUnix is carried only by legacy-compiled inventories, whose
 	// identity predates content digests; content-identity registration
 	// leaves it zero so touching an unchanged file cannot re-identify it.
-	ModifiedUnix int64 `json:"modified_unix,omitempty"`
+	ModifiedUnix int64 `json:"modified_unix,omitzero"`
 	// Digest is the hex sha256 of the file's bytes. Directory
 	// registration records it so dataset identity follows content, not
 	// path and metadata: changed bytes re-identify even when size and
 	// modification time are unchanged. Legacy-compiled inventories omit
 	// it and keep their metadata-derived identity.
-	Digest     string `json:"digest,omitempty"`
-	Structured bool   `json:"structured,omitempty"`
-	Attributes string `json:"attributes,omitempty"`
+	Digest     string `json:"digest,omitzero"`
+	Structured bool   `json:"structured,omitzero"`
+	Attributes string `json:"attributes,omitzero"`
 }
 
 // Inventory defines immutable file-level dataset facts.

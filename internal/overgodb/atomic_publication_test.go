@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"os"
 	"testing"
 
@@ -9,14 +8,12 @@ import (
 )
 
 // TestProjectionPublicationIsAtomic holds publication to its contract:
-// an observer runs only after every projection applied, outside the
-// store lock, and always sees one head-consistent view -- the
-// committed artifact, its alias, and its lineage together at the
-// published head. A commit any projection refuses to accept becomes
+// a completed commit exposes one head-consistent view -- the committed
+// artifact, its alias, and its lineage together. A commit any projection refuses to accept becomes
 // durable nowhere: the journal, the head, and every facet stay at the
 // last complete view.
 func TestProjectionPublicationIsAtomic(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -33,26 +30,6 @@ func TestProjectionPublicationIsAtomic(t *testing.T) {
 		t.Fatal(err)
 	}
 	descriptor := artifact.Descriptor{ID: id, Size: uint64(len(payload)), MediaType: "text/plain"}
-	observed := 0
-	store.subscribePublished(func(head artifact.CommitID, sequence uint64) {
-		observed++
-		// Reentrant reads prove the lock is not held and the view is
-		// complete at the published head: artifact, alias, and lineage
-		// all answer together.
-		currentHead, currentSequence := store.Head()
-		if currentHead != head || currentSequence != sequence {
-			t.Errorf("observer head (%s, %d) differs from store (%s, %d)", head, sequence, currentHead, currentSequence)
-		}
-		if _, found, err := store.Artifact(ctx, id); err != nil || !found {
-			t.Errorf("published view lacks the committed artifact: found=%v err=%v", found, err)
-		}
-		if target, found, err := store.ResolveAlias(ctx, "atomic/alias"); err != nil || !found || target != id {
-			t.Errorf("published view lacks the committed alias: found=%v err=%v", found, err)
-		}
-		if parents, err := store.Parents(ctx, id); err != nil || len(parents) != 1 {
-			t.Errorf("published view lacks the committed lineage: %v %v", parents, err)
-		}
-	})
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:      "atomic/commit",
 		Contents: []artifact.Content{{Descriptor: descriptor, Data: payload}},
@@ -61,16 +38,23 @@ func TestProjectionPublicationIsAtomic(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if observed != 1 {
-		t.Fatalf("publication observer ran %d times, want 1", observed)
+	if _, found, err := store.Artifact(ctx, id); err != nil || !found {
+		t.Fatalf("published view lacks the committed artifact: found=%v err=%v", found, err)
+	}
+	if target, found, err := store.ResolveAlias(ctx, "atomic/alias"); err != nil || !found || target != id {
+		t.Fatalf("published view lacks the committed alias: found=%v err=%v", found, err)
+	}
+	if parents, err := store.Parents(ctx, id); err != nil || len(parents) != 1 {
+		t.Fatalf("published view lacks the committed lineage: %v %v", parents, err)
 	}
 
-	// An idempotent replay publishes nothing new: no observer call.
+	// An idempotent replay publishes nothing new.
+	_, sequenceBeforeReplay := store.Head()
 	if _, err := store.Commit(ctx, base); err != nil {
 		t.Fatal(err)
 	}
-	if observed != 1 {
-		t.Fatalf("replayed commit re-published: observer ran %d times", observed)
+	if _, sequence := store.Head(); sequence != sequenceBeforeReplay {
+		t.Fatalf("replayed commit advanced from %d to %d", sequenceBeforeReplay, sequence)
 	}
 
 	// A commit a projection refuses becomes durable nowhere: drive the

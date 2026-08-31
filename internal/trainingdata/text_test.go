@@ -1,7 +1,6 @@
 package trainingdata
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -23,7 +22,7 @@ func TestJSONTextPairProcessor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	example, err := processor(context.Background(), RawRecord{
+	example, err := processor(t.Context(), RawRecord{
 		ID: "gsm8k/0", Data: []byte(`{"question":"What is 48 + 24?","answer":"72"}`),
 	})
 	if err != nil {

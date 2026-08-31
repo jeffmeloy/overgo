@@ -15,7 +15,7 @@ import (
 // wins the gate — while a variant that lowered wakeups by silently retrying
 // refuses without an explicit tradeoff decision.
 func TestInteractionEfficiencyGate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coalescer := NewReconcileCoalescer()
 	signals := 6
 	runs := 0

@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -13,17 +12,17 @@ import (
 func TestDecisionRejectsArgumentSubstitution(t *testing.T) {
 	store, request, decision := humanDecisionFixture(t)
 	decision.Arguments[0] = "substituted"
-	if err := PublishHumanDecision(context.Background(), store, request, decision); err == nil {
+	if err := PublishHumanDecision(t.Context(), store, request, decision); err == nil {
 		t.Fatal("substituted decision was published")
 	}
 }
 
 func TestDecisionRejectsReplay(t *testing.T) {
 	store, request, decision := humanDecisionFixture(t)
-	if err := PublishHumanDecision(context.Background(), store, request, decision); err != nil {
+	if err := PublishHumanDecision(t.Context(), store, request, decision); err != nil {
 		t.Fatal(err)
 	}
-	if err := PublishHumanDecision(context.Background(), store, request, decision); err == nil {
+	if err := PublishHumanDecision(t.Context(), store, request, decision); err == nil {
 		t.Fatal("decision replay was published")
 	}
 }

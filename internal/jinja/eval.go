@@ -2,7 +2,9 @@ package jinja
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 )
 
@@ -50,12 +52,8 @@ func (e *Env) Render(src string, ctx map[string]any) (string, error) {
 		return "", err
 	}
 	root := newScope(nil)
-	for k, v := range e.globals {
-		root.vars[k] = v
-	}
-	for k, v := range ctx {
-		root.vars[k] = v
-	}
+	maps.Copy(root.vars, e.globals)
+	maps.Copy(root.vars, ctx)
 	r := &renderer{env: e, root: root}
 	var out strings.Builder
 	if err := r.execAll(body, root, &out); err != nil {
@@ -527,7 +525,7 @@ func (r *renderer) evalBin(n binNode, sc *scope) (any, error) {
 	case "+":
 		if isList(l) {
 			if isList(rt) {
-				return append(append([]any{}, l.([]any)...), rt.([]any)...), nil
+				return append(slices.Clone(l.([]any)), rt.([]any)...), nil
 			}
 			return nil, fmt.Errorf("jinja: cannot concatenate list to non-list")
 		}
@@ -736,19 +734,13 @@ func (r *renderer) evalSlice(n sliceNode, sc *scope) (any, error) {
 		if s < 0 {
 			s = 0
 		}
-		if s > srcLen {
-			s = srcLen
-		}
-		if ee < s {
-			ee = s
-		}
-		if ee > srcLen {
-			ee = srcLen
-		}
+		s = min(s, srcLen)
+		ee = max(ee, s)
+		ee = min(ee, srcLen)
 		if isStr {
 			return string(getStr[s:ee]), nil
 		}
-		return append([]any{}, obj.([]any)[s:ee]...), nil
+		return slices.Clone(obj.([]any)[s:ee]), nil
 	}
 	start, end = pythonSliceBounds(srcLen, start, end, step, startProvided, endProvided)
 	if isStr {
@@ -804,9 +796,7 @@ func pythonSliceBounds(length, start, stop, step int, startProvided, stopProvide
 			if start < 0 {
 				start = 0
 			}
-			if start > length {
-				start = length
-			}
+			start = min(start, length)
 		}
 		if !stopProvided {
 			stop = length
@@ -817,9 +807,7 @@ func pythonSliceBounds(length, start, stop, step int, startProvided, stopProvide
 			if stop < 0 {
 				stop = 0
 			}
-			if stop > length {
-				stop = length
-			}
+			stop = min(stop, length)
 		}
 		return start, stop
 	}

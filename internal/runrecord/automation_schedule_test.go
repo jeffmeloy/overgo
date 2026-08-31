@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,7 +21,7 @@ func TestAutomationScheduleClaim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "automation/schedule/plan", Contents: []artifact.Content{{
 			Descriptor: artifact.Descriptor{ID: plan, Size: uint64(len(data)), MediaType: "application/octet-stream"},
 			Data:       data,
@@ -38,11 +37,9 @@ func TestAutomationScheduleClaim(t *testing.T) {
 	var winners atomic.Uint32
 	var wait sync.WaitGroup
 	for range contenders {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			<-start
-			_, won, claimErr := authority.Claim(context.Background(), "daily-report", plan, due)
+			_, won, claimErr := authority.Claim(t.Context(), "daily-report", plan, due)
 			if claimErr != nil {
 				errorsSeen <- claimErr
 				return
@@ -50,7 +47,7 @@ func TestAutomationScheduleClaim(t *testing.T) {
 			if won {
 				winners.Add(1)
 			}
-		}()
+		})
 	}
 	close(start)
 	wait.Wait()
@@ -61,7 +58,7 @@ func TestAutomationScheduleClaim(t *testing.T) {
 	if winners.Load() != 1 {
 		t.Fatalf("schedule claim winners = %d", winners.Load())
 	}
-	claim, found, err := authority.Current(context.Background(), "daily-report")
+	claim, found, err := authority.Current(t.Context(), "daily-report")
 	if err != nil || !found || claim.Plan != plan || claim.DueUnixNano != due.UnixNano() {
 		t.Fatalf("durable schedule claim = (%+v, %v, %v)", claim, found, err)
 	}

@@ -428,7 +428,7 @@ func realizeCandidate(repository, specificationPath string) error {
 		return err
 	}
 	if realized.Adapter.BridgeAfter.Valid() {
-		if _, err := store.Commit(ctx, realized.Adapter.Batch); err != nil {
+		if _, err := artifact.CommitBatch(ctx, store, realized.Adapter.Batch); err != nil {
 			return err
 		}
 	}
@@ -436,7 +436,7 @@ func realizeCandidate(repository, specificationPath string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := store.Commit(ctx, compositeBatch); err != nil {
+	if _, err := artifact.CommitBatch(ctx, store, compositeBatch); err != nil {
 		return err
 	}
 	encoder := json.NewEncoder(os.Stdout)

@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -16,7 +15,7 @@ func TestRetireLegacyLeases(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// One live lease under the current contract.
 	leaseData, _ := json.Marshal(WorkLease{

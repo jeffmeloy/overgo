@@ -2,8 +2,8 @@ package runrecord
 
 import (
 	"errors"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -54,25 +54,25 @@ var interactionSurfaces = []InteractionSurface{
 // counts cannot be reproduced from its task's construction is not
 // admissible evidence for an efficiency comparison.
 type InteractionWork struct {
-	SemanticTransitions uint64 `json:"semantic_transitions,omitempty"`
-	Commits             uint64 `json:"commits,omitempty"`
-	ArtifactReads       uint64 `json:"artifact_reads,omitempty"`
-	BlobReads           uint64 `json:"blob_reads,omitempty"`
-	ScannedFacts        uint64 `json:"scanned_facts,omitempty"`
-	ReturnedFacts       uint64 `json:"returned_facts,omitempty"`
-	Bytes               uint64 `json:"bytes,omitempty"`
-	Wakeups             uint64 `json:"wakeups,omitempty"`
-	Failures            uint64 `json:"failures,omitempty"`
-	Retries             uint64 `json:"retries,omitempty"`
-	ModelTurns          uint64 `json:"model_turns,omitempty"`
-	ContextBytes        uint64 `json:"context_bytes,omitempty"`
-	RepeatedContextIDs  uint64 `json:"repeated_context_ids,omitempty"`
-	ToolCalls           uint64 `json:"tool_calls,omitempty"`
-	Waits               uint64 `json:"waits,omitempty"`
-	CopiedBytes         uint64 `json:"copied_bytes,omitempty"`
-	Allocations         uint64 `json:"allocations,omitempty"`
-	WallNS              uint64 `json:"wall_ns,omitempty"`
-	ResourcePeakBytes   uint64 `json:"resource_peak_bytes,omitempty"`
+	SemanticTransitions uint64 `json:"semantic_transitions,omitzero"`
+	Commits             uint64 `json:"commits,omitzero"`
+	ArtifactReads       uint64 `json:"artifact_reads,omitzero"`
+	BlobReads           uint64 `json:"blob_reads,omitzero"`
+	ScannedFacts        uint64 `json:"scanned_facts,omitzero"`
+	ReturnedFacts       uint64 `json:"returned_facts,omitzero"`
+	Bytes               uint64 `json:"bytes,omitzero"`
+	Wakeups             uint64 `json:"wakeups,omitzero"`
+	Failures            uint64 `json:"failures,omitzero"`
+	Retries             uint64 `json:"retries,omitzero"`
+	ModelTurns          uint64 `json:"model_turns,omitzero"`
+	ContextBytes        uint64 `json:"context_bytes,omitzero"`
+	RepeatedContextIDs  uint64 `json:"repeated_context_ids,omitzero"`
+	ToolCalls           uint64 `json:"tool_calls,omitzero"`
+	Waits               uint64 `json:"waits,omitzero"`
+	CopiedBytes         uint64 `json:"copied_bytes,omitzero"`
+	Allocations         uint64 `json:"allocations,omitzero"`
+	WallNS              uint64 `json:"wall_ns,omitzero"`
+	ResourcePeakBytes   uint64 `json:"resource_peak_bytes,omitzero"`
 }
 
 // counters names every comparison dimension with its exact observation.
@@ -105,12 +105,7 @@ func (work InteractionWork) counters() map[string]uint64 {
 // claim instead of flattering it.
 func EfficiencyCounterNames() []string {
 	counters := (InteractionWork{}).counters()
-	names := make([]string, 0, len(counters))
-	for name := range counters {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(counters))
 }
 
 // EfficiencyTradeoff is the explicit reviewed decision that accepts named
@@ -127,7 +122,7 @@ type EfficiencyComparison struct {
 	Win      bool     `json:"win"`
 	Improved []string `json:"improved,omitempty"`
 	Worsened []string `json:"worsened,omitempty"`
-	Tradeoff bool     `json:"tradeoff,omitempty"`
+	Tradeoff bool     `json:"tradeoff,omitzero"`
 }
 
 // CompareEfficiencyTraces judges one candidate trace against its baseline.

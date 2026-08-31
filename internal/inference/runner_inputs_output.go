@@ -125,7 +125,7 @@ func (r *Runner) addTokenTypeEmbedding(
 		validateStateValue(typeRow) != nil {
 		return reference.Value{}, errors.New("inference: token-type embedding shape is incompatible")
 	}
-	for token := 0; token < tokens; token++ {
+	for token := range tokens {
 		start := token * width
 		for index, value := range typeRow.Data {
 			activation.Data[start+index] += value

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -17,9 +16,23 @@ import (
 	"overgo/internal/closurescan"
 	"overgo/internal/overgodb"
 	"overgo/internal/repoanalysis"
+	"overgo/internal/testevidence"
 )
 
+const closureAuthorityTestEnv = "OVERGO_CLOSURE_AUTHORITY_TEST"
+
+func requireRepositoryClosureAuthority(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
+	if os.Getenv(closureAuthorityTestEnv) != "1" {
+		t.Skip("set " + closureAuthorityTestEnv + "=1 to verify the current worktree against shared closure authority")
+	}
+}
+
 func TestConfigurationClosureGates(t *testing.T) {
+	requireRepositoryClosureAuthority(t)
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -45,6 +58,7 @@ func TestConfigurationClosureGates(t *testing.T) {
 }
 
 func TestPermanentMagicGateRepositoryZeroDebt(t *testing.T) {
+	requireRepositoryClosureAuthority(t)
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -176,11 +190,11 @@ func TestCensusEvidenceRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := publishCensusEvidence(context.Background(), store, snapshot, report)
+	evidence, err := publishCensusEvidence(t.Context(), store, snapshot, report)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded, found, err := closurescan.ReadCensusEvidence(context.Background(), store, evidence.ID)
+	loaded, found, err := closurescan.ReadCensusEvidence(t.Context(), store, evidence.ID)
 	if err != nil || !found || loaded.ID != evidence.ID || loaded.Counts != report.Counts {
 		t.Fatalf("loaded = (%+v, %t, %v)", loaded, found, err)
 	}
@@ -192,7 +206,7 @@ func TestCensusEvidenceBindsCatalogAndSourceFingerprint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := publishCensusEvidence(context.Background(), store, snapshot, report)
+	evidence, err := publishCensusEvidence(t.Context(), store, snapshot, report)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +226,7 @@ func censusEvidenceFixture(t *testing.T) (*overgodb.Store, repoanalysis.SourceSn
 	if err != nil {
 		t.Fatal(err)
 	}
-	head, err := store.Commit(context.Background(), artifact.Batch{
+	head, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "catalog/seed", Artifacts: []artifact.Descriptor{{ID: seed}},
 	})
 	if err != nil {
@@ -309,7 +323,7 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 		t.Fatalf("binding owner = (%s, %v), want %s", binding.Owner, err, owner)
 	}
 	document, active, err := closureledger.ResolveActiveBinding(
-		context.Background(), store, binding, candidate.ValueJSON(),
+		t.Context(), store, binding, candidate.ValueJSON(),
 	)
 	if err != nil || !active || len(document.Bindings) != 1 || document.Bindings[0] != binding {
 		t.Fatalf("active document = (%+v, %t, %v)", document, active, err)
@@ -347,14 +361,14 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, active, err := closureledger.ResolveActiveBinding(context.Background(), store, binding, candidate.ValueJSON()); err != nil || !active {
+	if _, active, err := closureledger.ResolveActiveBinding(t.Context(), store, binding, candidate.ValueJSON()); err != nil || !active {
 		t.Fatalf("rebound document = (%t, %v)", active, err)
 	}
 	previousAlias, currentAlias := mustActiveAlias(t, previous), mustActiveAlias(t, binding)
 	if previousAlias != currentAlias {
 		t.Fatalf("structural alias moved: %s != %s", previousAlias, currentAlias)
 	}
-	if _, found, err := artifact.ResolveAlias(context.Background(), store, previousAlias); err != nil || !found {
+	if _, found, err := artifact.ResolveAlias(t.Context(), store, previousAlias); err != nil || !found {
 		t.Fatalf("stable binding resolves = (%t, %v)", found, err)
 	}
 	if err := store.Close(); err != nil {
@@ -402,7 +416,7 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, found, err := artifact.ResolveAlias(context.Background(), store, mustActiveAlias(t, binding)); err != nil || !found {
+	if _, found, err := artifact.ResolveAlias(t.Context(), store, mustActiveAlias(t, binding)); err != nil || !found {
 		t.Fatalf("preserved binding resolves = (%t, %v)", found, err)
 	}
 	if err := store.Close(); err != nil {
@@ -421,7 +435,7 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, found, err := artifact.ResolveAlias(context.Background(), store, mustActiveAlias(t, binding)); err != nil || found {
+	if _, found, err := artifact.ResolveAlias(t.Context(), store, mustActiveAlias(t, binding)); err != nil || found {
 		t.Fatalf("retired binding resolves = (%t, %v)", found, err)
 	}
 	if err := store.Close(); err != nil {
@@ -437,7 +451,7 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, found, err := artifact.ResolveAlias(context.Background(), store, mustActiveAlias(t, binding)); err != nil || found {
+	if _, found, err := artifact.ResolveAlias(t.Context(), store, mustActiveAlias(t, binding)); err != nil || found {
 		t.Fatalf("explicitly retired binding recovered = (%t, %v)", found, err)
 	}
 	if err := store.Close(); err != nil {
@@ -1191,6 +1205,49 @@ func TestClosurePublicationDeltaCopiesFixtureAndSkipsRepeat(t *testing.T) {
 	})
 	if err != nil || len(result.Artifacts) != 1 || result.Artifacts[0] != fixture {
 		t.Fatalf("imported fixture=(%+v, %v)", result.Artifacts, err)
+	}
+}
+
+func TestClosurePublicationDeduplicatesContentWithinBatch(t *testing.T) {
+	root := t.TempDir()
+	relative := "internal/sample/policy.go"
+	path := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("package sample\nconst RequestLimit = 7\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("candidates=%d err=%v", len(candidates), err)
+	}
+	candidate := candidates[0]
+	binding, err := candidate.Binding()
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := closureledger.New(
+		candidate.Name, candidate.ValueJSON(), closureledger.TierImplementation, closureledger.StatusClosed,
+		"Request admission bound.", []closureledger.SourceBinding{binding},
+		"Typed request policy.", "Request admission contract change.", binding.Owner,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := commitClosureDocuments(
+		root, filepath.Join(root, "store"), closurePublishOperation,
+		[]closureledger.Document{document, document}, nil, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if found, err := store.HasContent(t.Context(), document.ID); err != nil || !found {
+		t.Fatalf("deduplicated content=(%t, %v)", found, err)
 	}
 }
 

@@ -320,7 +320,7 @@ func (d qwen35LinearDims) reorderVRows(
 	region := data[regionStart : regionStart+regionBytes]
 	scratch := make([]byte, regionBytes)
 	for k := uint64(0); k < d.keyHeads; k++ {
-		for v := uint64(0); v < perK; v++ {
+		for v := range perK {
 			source := (k*perK + v) * blockBytes
 			destination := (v*d.keyHeads + k) * blockBytes
 			copy(scratch[destination:destination+blockBytes], region[source:source+blockBytes])
@@ -343,7 +343,7 @@ func (d qwen35LinearDims) reorderVColumns(data []byte, elementSize uint64) error
 	for offset := uint64(0); offset < uint64(len(data)); offset += rowBytes {
 		row := data[offset : offset+rowBytes]
 		for k := uint64(0); k < d.keyHeads; k++ {
-			for v := uint64(0); v < perK; v++ {
+			for v := range perK {
 				source := (k*perK + v) * headBytes
 				destination := (v*d.keyHeads + k) * headBytes
 				copy(scratch[destination:destination+headBytes], row[source:source+headBytes])

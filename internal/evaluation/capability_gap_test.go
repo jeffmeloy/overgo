@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -18,7 +17,7 @@ import (
 // its weakest domain, targets order deterministically, and an unadmitted
 // document refuses the whole derivation.
 func TestCapabilityGapTargetsFromEvalStore(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

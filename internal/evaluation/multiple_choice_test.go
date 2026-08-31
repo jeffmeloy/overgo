@@ -49,7 +49,7 @@ func TestMultipleChoiceScoringMatchesPinnedOracle(t *testing.T) {
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := EvaluateMultipleChoice(
-		context.Background(), store,
+		t.Context(), store,
 		fixedContinuationScorer{scores: []sequencescore.Score{
 			{LogProbability: -4, Tokens: 2}, {LogProbability: -3, Tokens: 1},
 		}},

@@ -49,7 +49,7 @@ func TestEncoderProgramMaskedCUDAMatchesReference(t *testing.T) {
 	}
 	defer exec.Close()
 	cudaRun := func(outputs []*tensor.Tensor, feeds map[*tensor.Tensor]reference.Value) (map[*tensor.Tensor]reference.Value, error) {
-		return exec.Execute(context.Background(), outputs, feeds)
+		return exec.Execute(context.WithoutCancel(t.Context()), outputs, feeds)
 	}
 	got, err := prog.RunHostFeed(cudaRun, weightAt, embed)
 	if err != nil {
@@ -60,7 +60,7 @@ func TestEncoderProgramMaskedCUDAMatchesReference(t *testing.T) {
 		if math.IsNaN(got.Data[i]) || math.IsInf(got.Data[i], 0) {
 			t.Fatalf("masked CUDA selected[%d] non-finite", i)
 		}
-		maxAbs = math.Max(maxAbs, math.Abs(want.Data[i]-got.Data[i]))
+		maxAbs = max(maxAbs, math.Abs(want.Data[i]-got.Data[i]))
 	}
 	t.Logf("masked encoder CUDA vs reference: max_abs=%.3e (%d values)", maxAbs, len(want.Data))
 	if maxAbs > 5e-3 {
@@ -124,7 +124,7 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompileEncoderProgramMasked: %v", err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	re := newResidentFixture(t, ctx, "test masked encoder", filepath.Join(dir, "text_encoder"), prog.weightInputs, prog.Selected...)
 	dev := residentEncode(t, ctx, re, prog, embed)
 	if dev.Seq != host.Seq || dev.LayerCount != host.LayerCount || dev.Hidden != host.Hidden {
@@ -141,13 +141,13 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 			for c := 0; c < host.Hidden; c++ {
 				hv, dv := host.Data[base+c], dev.Data[base+c]
 				abs := math.Abs(hv - dv)
-				maxAbs = math.Max(maxAbs, abs)
+				maxAbs = max(maxAbs, abs)
 				sumAbs += abs
 				sa += math.Abs(hv)
 			}
 		}
 		rel := sumAbs / (sa + 1e-9)
-		worst = math.Max(worst, rel)
+		worst = max(worst, rel)
 		t.Logf("tap %2d (after layer %2d): max_abs=%.3e mean|h-d|/mean|h|=%.3e", l, captureAfter(e)[l], maxAbs, rel)
 	}
 	t.Logf("MASKED device vs host selected-hidden: worst mean-relative=%.3e over %d rows (%d attended, %d pad), bf16 band",
@@ -165,7 +165,7 @@ func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
 	ml := residentEncode(t, ctx, mlRe, mlProg, embed)
 	diff := 0.0
 	for i := range ml.Data {
-		diff = math.Max(diff, math.Abs(ml.Data[i]-dev.Data[i]))
+		diff = max(diff, math.Abs(ml.Data[i]-dev.Data[i]))
 	}
 	if diff < 1e-3 {
 		t.Fatalf("masked and maskless device encoders agree (max_abs=%.3e); pad-key mask is inert on real weights", diff)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -77,7 +78,7 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 	if value.ChatProtocol {
 		runtime = chatShapedRuntime{runner}
 	}
-	campaign, err := evaluation.NewCampaign(store, runtime, identity, environment, value.CodeCommit)
+	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
 		_ = runner.Close()
 		return fail(err)
@@ -114,11 +115,7 @@ func (r chatShapedRuntime) ScoreContinuations(
 		if err == nil {
 			opening := make([]string, len(candidates))
 			for index, candidate := range candidates {
-				trimmed := strings.TrimPrefix(candidate, " ")
-				if trimmed == "" {
-					trimmed = candidate
-				}
-				opening[index] = trimmed
+				opening[index] = cmp.Or(strings.TrimPrefix(candidate, " "), candidate)
 			}
 			return r.Runner.ScoreContinuations(ctx, shaped, opening)
 		}

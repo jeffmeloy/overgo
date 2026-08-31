@@ -48,7 +48,7 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 	scorer := &sequenceFixtureScorer{scores: []sequencescore.Score{
 		{LogProbability: -4, Tokens: 4}, {LogProbability: -8, Tokens: 4},
 	}}
-	report, err := EvaluateSequenceScoring(context.Background(), store, scorer, compiled, plan)
+	report, err := EvaluateSequenceScoring(t.Context(), store, scorer, compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,13 +60,13 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 		scorer.prompts[0] != "" || scorer.continuations[0] != "ACGTACGT" {
 		t.Fatalf("observations = %+v prompts=%v", report.Observations, scorer.prompts)
 	}
-	if _, found, err := artifact.ReadContent(context.Background(), store, report.ID); err != nil || !found {
+	if _, found, err := artifact.ReadContent(t.Context(), store, report.ID); err != nil || !found {
 		t.Fatalf("published report = (%t, %v)", found, err)
 	}
 
 	// A positive log-likelihood is not a likelihood; the suite refuses.
 	broken := &sequenceFixtureScorer{scores: []sequencescore.Score{{LogProbability: 1, Tokens: 4}}}
-	if _, err := EvaluateSequenceScoring(context.Background(), store, broken, compiled, plan); err == nil {
+	if _, err := EvaluateSequenceScoring(t.Context(), store, broken, compiled, plan); err == nil {
 		t.Fatal("positive likelihood scored")
 	}
 }

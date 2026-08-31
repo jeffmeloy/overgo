@@ -21,14 +21,14 @@ func f64to32(v []float64) []float32 {
 
 func rmsNormForward(x, w []float32, rows, d int, eps float64) []float32 {
 	out := make([]float32, rows*d)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		var ss float64
-		for i := 0; i < d; i++ {
+		for i := range d {
 			v := float64(x[r*d+i])
 			ss += v * v
 		}
 		inv := 1.0 / math.Sqrt(ss/float64(d)+eps)
-		for i := 0; i < d; i++ {
+		for i := range d {
 			out[r*d+i] = float32(float64(x[r*d+i]) * inv * float64(w[i]))
 		}
 	}
@@ -137,7 +137,7 @@ func TestLayerBackwardGradCheck(t *testing.T) {
 		{"dWO", w.WO, grads.DWO},
 		{"dWGate", w.WGate, grads.DWGate}, {"dWUp", w.WUp, grads.DWUp}, {"dWDown", w.WDown, grads.DWDown},
 	} {
-		worst = math.Max(worst, gradCheck(ch.name, ch.param, ch.analytic))
+		worst = max(worst, gradCheck(ch.name, ch.param, ch.analytic))
 	}
 	const tolerance = 1e-2
 	if worst > tolerance {

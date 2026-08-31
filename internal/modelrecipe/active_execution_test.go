@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -18,7 +17,7 @@ import (
 // resource, and policy bindings. Before the fix every recipe-authorized
 // serve refused with "unsupported runtime task inference".
 func TestResolveActiveExecutionServesInference(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

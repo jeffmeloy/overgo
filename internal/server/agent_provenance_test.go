@@ -25,6 +25,7 @@ func TestAgentProvenance(t *testing.T) {
 		write, err := agenttool.NewManual(agenttool.Manual{
 			Name: "store.commit", Description: "A mutation manual for the provenance walk.",
 			Effect:    agenttool.EffectMutation,
+			Ceiling:   agenttool.EffectCeiling{Targets: []agenttool.EffectTargetBinding{{Scope: agenttool.EffectScopeRepository, Value: "overgodb"}}},
 			Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "git", Args: []string{"status"}},
 		})
 		if err != nil {

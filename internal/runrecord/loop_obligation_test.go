@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -20,7 +19,7 @@ func TestObligationCompletionReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	subject := testutil.ArtifactID(t, artifact.KindEvidence, "obligation-subject")
 	promised := testutil.ArtifactID(t, artifact.KindEvidence, "promised-evaluation")
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "obligation/fixture/subject", Artifacts: []artifact.Descriptor{{ID: subject}}}); err != nil {

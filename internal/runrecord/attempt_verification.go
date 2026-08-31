@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
@@ -402,16 +403,17 @@ func readGateLifecycleCandidate(
 }
 
 func sortedAttempts(byID map[artifact.ID]AttemptRecord) []AttemptRecord {
-	result := make([]AttemptRecord, 0, len(byID))
-	for _, attempt := range byID {
-		result = append(result, attempt)
-	}
-	sort.Slice(result, func(i, j int) bool { return artifact.CompareID(result[i].ID, result[j].ID) < 0 })
+	result := slices.Collect(maps.Values(byID))
+	slices.SortFunc(result, func(left, right AttemptRecord) int {
+		return artifact.CompareID(left.ID, right.ID)
+	})
 	return result
 }
 
 func canonicalLifecycles(values []GateLifecycle) []GateLifecycle {
-	sort.Slice(values, func(i, j int) bool { return artifact.CompareID(values[i].ID, values[j].ID) < 0 })
+	slices.SortFunc(values, func(left, right GateLifecycle) int {
+		return artifact.CompareID(left.ID, right.ID)
+	})
 	result := values[:0]
 	for _, value := range values {
 		if len(result) == 0 || result[len(result)-1].ID != value.ID {

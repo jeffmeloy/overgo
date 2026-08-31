@@ -16,10 +16,10 @@ import (
 func hostRopeHalf(x []float32, invFreq []float64, seq, nHeads, hd int) []float64 {
 	out := make([]float64, len(x))
 	half := hd / 2
-	for p := 0; p < seq; p++ {
-		for h := 0; h < nHeads; h++ {
+	for p := range seq {
+		for h := range nHeads {
 			base := p*nHeads*hd + h*hd
-			for i := 0; i < half; i++ {
+			for i := range half {
 				a := float64(p) * invFreq[i]
 				c, s := math.Cos(a), math.Sin(a)
 				x1, x2 := float64(x[base+i]), float64(x[base+i+half])

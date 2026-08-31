@@ -2,7 +2,7 @@ package artifact
 
 import "slices"
 
-func IDPointer(id ID) *ID { return &id }
+func IDPointer(id ID) *ID { return new(id) }
 
 // ClonePointer returns an independent copy of a pointed-to value; nil stays
 // nil. This is the single owner of the optional-field copy idiom.
@@ -10,8 +10,7 @@ func ClonePointer[T any](value *T) *T {
 	if value == nil {
 		return nil
 	}
-	cloned := *value
-	return &cloned
+	return new(*value)
 }
 
 func CloneID(id *ID) *ID { return ClonePointer(id) }

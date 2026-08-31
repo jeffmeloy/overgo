@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -35,7 +34,7 @@ func TestReviewAdmissionStore(t *testing.T) {
 	batch := mustGateValue(artifact.NewDocumentBatch("test/review-admission", contents, nil, nil))
 	root := t.TempDir()
 	store := mustGateValue(overgodb.Open(filepath.Join(root, "store")))
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

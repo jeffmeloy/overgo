@@ -45,7 +45,7 @@ func (impact Impact) ExclusionReason(check string) (string, bool) {
 // Resource identifies an execution class without inventing a capacity.
 type Resource struct {
 	Name      string `json:"name"`
-	Exclusive bool   `json:"exclusive,omitempty"`
+	Exclusive bool   `json:"exclusive,omitzero"`
 }
 
 // Ownership declares the exact package or symbol surface one check verifies.
@@ -61,9 +61,9 @@ type Ownership struct {
 type Descriptor struct {
 	Name         string          `json:"name"`
 	Phase        runrecord.Phase `json:"phase"`
-	Always       bool            `json:"always,omitempty"`
+	Always       bool            `json:"always,omitzero"`
 	Triggers     []Fact          `json:"triggers,omitempty"`
-	Inapplicable string          `json:"inapplicable,omitempty"`
+	Inapplicable string          `json:"inapplicable,omitzero"`
 	Dependencies []string        `json:"dependencies,omitempty"`
 	Resources    []Resource      `json:"resources,omitempty"`
 	Ownership    Ownership       `json:"ownership,omitempty"`
@@ -96,9 +96,9 @@ type Evidence struct {
 	Phase        runrecord.Phase       `json:"phase"`
 	Outcome      runrecord.LaneOutcome `json:"outcome"`
 	DurationNS   uint64                `json:"duration_ns"`
-	Inapplicable bool                  `json:"inapplicable,omitempty"`
-	Reused       bool                  `json:"reused,omitempty"`
-	Detail       string                `json:"detail,omitempty"`
+	Inapplicable bool                  `json:"inapplicable,omitzero"`
+	Reused       bool                  `json:"reused,omitzero"`
+	Detail       string                `json:"detail,omitzero"`
 }
 
 // Plan selects applicable checks and returns them in dependency order.
@@ -211,9 +211,9 @@ func Run(ctx context.Context, invocation Invocation) (Evidence, error) {
 		InvocationID artifact.ID           `json:"invocation_id"`
 		Authority    *ExecutionAuthority   `json:"authority,omitempty"`
 		Outcome      runrecord.LaneOutcome `json:"outcome"`
-		Inapplicable bool                  `json:"inapplicable,omitempty"`
-		Reused       bool                  `json:"reused,omitempty"`
-		Detail       string                `json:"detail,omitempty"`
+		Inapplicable bool                  `json:"inapplicable,omitzero"`
+		Reused       bool                  `json:"reused,omitzero"`
+		Detail       string                `json:"detail,omitzero"`
 	}{evidence.InvocationID, evidence.Authority, evidence.Outcome, evidence.Inapplicable, evidence.Reused, evidence.Detail})
 	if err != nil {
 		return Evidence{}, fmt.Errorf("automation check %q: identify evidence: %w", evidence.Name, err)

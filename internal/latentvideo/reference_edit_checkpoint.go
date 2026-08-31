@@ -2,7 +2,7 @@ package latentvideo
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -87,7 +87,7 @@ func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (Reference
 	for name := range lengths {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	bindings, err := pytorchzip.CompileBindings(normalized, names)
 	if err != nil {
 		return plan, fmt.Errorf("reference edit checkpoint: %w", err)

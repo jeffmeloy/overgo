@@ -43,7 +43,7 @@ func rolloutAssignmentPlan(t *testing.T, share uint32) runrecord.RolloutPlan {
 func TestRolloutAssignmentIsStable(t *testing.T) {
 	plan := rolloutAssignmentPlan(t, 5000)
 	units := make([]string, 0, 200)
-	for index := 0; index < 200; index++ {
+	for index := range 200 {
 		units = append(units, fmt.Sprintf("workload-%03d", index))
 	}
 	arms := make(map[string]artifact.ID, len(units))

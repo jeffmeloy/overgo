@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -43,14 +42,14 @@ func TestClearPromptCachesPreservesPreparedModel(t *testing.T) {
 		preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}},
 		runnerState:   runnerState{promptCaches: []*cachedPrompt{{Tokens: []tokenizer.TokenID{1}}}},
 	}
-	if err := runner.ClearPromptCaches(context.Background()); err != nil {
+	if err := runner.ClearPromptCaches(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if len(runner.promptCaches) != 0 || runner.Spec().Architecture != "llama" {
 		t.Fatalf("runner after clear = %+v", runner)
 	}
 	runner.closed = true
-	if err := runner.ClearPromptCaches(context.Background()); err == nil {
+	if err := runner.ClearPromptCaches(t.Context()); err == nil {
 		t.Fatal("closed runner accepted prompt-cache clear")
 	}
 }
@@ -89,7 +88,7 @@ func TestMultiplePromptCacheSelectionAndEviction(t *testing.T) {
 		Tokens: []tokenizer.TokenID{6, 7},
 		Cache:  &KVCache{},
 	}
-	if err := runner.storePromptCache(context.Background(), third); err != nil {
+	if err := runner.storePromptCache(t.Context(), third); err != nil {
 		t.Fatal(err)
 	}
 	if len(runner.promptCaches) != 2 ||

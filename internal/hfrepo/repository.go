@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
@@ -155,6 +155,6 @@ func companionFiles(directory string) ([]string, error) {
 			return nil, fmt.Errorf("model repository: inspect companion %s: %w", name, err)
 		}
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 	return files, nil
 }

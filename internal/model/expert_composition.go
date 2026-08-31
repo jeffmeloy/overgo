@@ -240,9 +240,7 @@ func (p ExpertCompositionPlan) Build(
 		}
 		chunkTopK := spec.ExpertUsedCount
 		chunkExperts := spec.ExpertCount / spec.ExpertsPerGroup
-		if chunkTopK > chunkExperts {
-			chunkTopK = chunkExperts
-		}
+		chunkTopK = min(chunkTopK, chunkExperts)
 		chunkPlan := layerPlan.Experts
 		chunkPlan.TopK = chunkTopK
 		chunkPlan.ExpertIndexDivisor = spec.ExpertsPerGroup

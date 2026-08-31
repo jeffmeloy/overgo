@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"overgo/internal/hfbpe"
@@ -430,8 +431,8 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		relayout := func(flat []float32, heads int) []float32 {
 			out := make([]float32, heads*promptLen*hd)
 			width := heads * hd
-			for token := 0; token < promptLen; token++ {
-				for head := 0; head < heads; head++ {
+			for token := range promptLen {
+				for head := range heads {
 					copy(out[(head*promptLen+token)*hd:(head*promptLen+token+tensor.SingletonExtent)*hd], flat[token*width+head*hd:token*width+(head+tensor.SingletonExtent)*hd])
 				}
 			}
@@ -470,7 +471,6 @@ func run(l *campaignContext, fromStage, toStage string) error {
 
 	// ---- MoT layers 1..31, each from the previous golden boundary -----
 	for layer := tensor.SingletonExtent; layer < cfg.NumHiddenLayers; layer++ {
-		layer := layer
 		gate("mot_layer"+strconv.Itoa(layer)+"_output", func() (string, error) {
 			prev, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_layer"+strconv.Itoa(layer-tensor.SingletonExtent)+"_output_golden.json")
 			if err != nil {
@@ -517,7 +517,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			return "", err
 		}
 		finalHidden := tg.TerminalTensors["final_hidden"]
-		logitIDs := append([]int{}, tg.LastLogits.ProbeIndex...)
+		logitIDs := slices.Clone(tg.LastLogits.ProbeIndex)
 		logitIDs = append(logitIDs, tg.LastLogits.TopIndex...)
 		gotHidden, gotLogits, err := routedlm.TerminalProbeValues(layer31, cfg, terminal, tensor.FirstOffset, finalHidden.ProbeIndex, logitIDs)
 		if err != nil {
@@ -608,7 +608,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			if err != nil {
 				return "", fmt.Errorf("decode step %d: %w", stepIndex, err)
 			}
-			logitIDs := append([]int{}, step.Logits.ProbeIndex...)
+			logitIDs := slices.Clone(step.Logits.ProbeIndex)
 			logitIDs = append(logitIDs, step.Logits.TopIndex...)
 			gotHidden, gotLogits, err := routedlm.TerminalProbeValues(row, cfg, terminal, tensor.FirstOffset, step.FinalHidden.ProbeIndex, logitIDs)
 			if err != nil {

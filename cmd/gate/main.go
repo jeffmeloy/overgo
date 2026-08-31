@@ -28,7 +28,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,6 +114,9 @@ type gateContext struct {
 	completionStore     *overgodb.Store
 	indexBefore         gateIndexSnapshot
 	mergeBefore         *gateMergeIntent
+	planProjection      plan.MergeProjection
+	mergeSourceStore    string
+	mergeAuthority      *plan.FirstParentTargetMergeAuthority
 	planHead            string
 	committedHead       string
 	commitInterrupted   bool
@@ -140,6 +142,8 @@ func run() error {
 	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships (required unless -merge)")
 	storePath := flag.String("store", gateStorePath, "canonical OvergoDB store directory")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with `git merge --no-ff --no-commit <branch>`)")
+	planProjectionFlag := flag.String("plan-projection", "", "with -merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
+	mergeSourceStoreFlag := flag.String("merge-source-store", "", "with a first-parent-target merge: canonical OvergoDB store of the registered source worktree")
 	planRef := flag.String("plan", "", "item/step this commit serves; MUST equal the current open step, including for -merge. Off-plan commits are refused.")
 	reconcile := flag.Bool("reconcile", false, "finalize the deterministic OvergoDB batch in tmp/gate_debt.json")
 	recordFailure := flag.Bool("record-failure", false, "recover an unbatchable post-commit record as a typed failed finalization")
@@ -164,6 +168,14 @@ func run() error {
 	if err := requireExclusiveGateMode(
 		*reconcile, *recordFailure, *recoverInterrupted, *admitReview != "", *watchdog, *inspectPlan, *merge,
 	); err != nil {
+		return err
+	}
+	planProjection, err := gatePlanProjection(*planProjectionFlag, *merge)
+	if err != nil {
+		return err
+	}
+	mergeSourceStore, err := gateMergeSourceStore(*mergeSourceStoreFlag, *merge, planProjection)
+	if err != nil {
 		return err
 	}
 	mutating := *reconcile || *recordFailure || *recoverInterrupted || *admitReview != "" || !*watchdog && !*inspectPlan
@@ -254,6 +266,7 @@ func run() error {
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 		completionAuthority: completionAuthority, planHead: planHead,
 		indexBefore: indexBefore, mergeBefore: mergeBefore,
+		planProjection: planProjection, mergeSourceStore: mergeSourceStore,
 	}
 	defer g.closeCompletionStore()
 	if *merge {
@@ -265,6 +278,29 @@ func run() error {
 		// the merged tree before the commit lands.
 		if _, err := command(repo, "git", "rev-parse", "--verify", "-q", "MERGE_HEAD"); err != nil {
 			return fmt.Errorf("-merge needs an in-progress merge (no MERGE_HEAD): run `git merge --no-ff --no-commit <branch>` first")
+		}
+		if g.mergeSourceStore != "" {
+			if g.mergeBefore == nil {
+				return errors.New("-merge-source-store requires captured merge metadata")
+			}
+			parents := g.mergeBefore.parents()
+			if len(parents) != 1 {
+				return errors.New("-merge-source-store requires exactly one captured merge parent")
+			}
+			registered, err := gitauthority.RequireRegisteredWorktreeStore(
+				context.Background(), repo, g.mergeSourceStore, parents[0],
+			)
+			if err != nil {
+				return fmt.Errorf("-merge-source-store: %w", err)
+			}
+			localStore, err := filepath.Abs(filepath.Join(repo, gateStorePath))
+			if err != nil {
+				return err
+			}
+			if strings.EqualFold(filepath.Clean(registered), filepath.Clean(localStore)) {
+				return errors.New("-merge-source-store must be owned by the distinct source worktree")
+			}
+			g.mergeSourceStore = registered
 		}
 		staged, err := gitLines(repo, "diff", "--cached", "--name-only")
 		if err != nil {
@@ -351,7 +387,11 @@ func run() error {
 	}
 	recordErr := g.record(outcome, failureCode)
 	recordErr = errors.Join(recordErr, g.closeCompletionStore())
-	if recordErr == nil {
+	// Intent removal mutates recovery authority and therefore must remain lazy;
+	// cmp.Or would evaluate the removal even when record publication failed.
+	switch {
+	case recordErr != nil:
+	default:
 		recordErr = removeGateCommitIntent(repo)
 	}
 	rolledBackRecord := false
@@ -438,6 +478,38 @@ func requireExclusiveGateMode(
 	return nil
 }
 
+func gatePlanProjection(value string, merge bool) (plan.MergeProjection, error) {
+	projection, err := plan.ParseMergeProjection(value)
+	if err != nil {
+		return plan.MergeProjectionSemanticUnion, fmt.Errorf("gate: -plan-projection: %w", err)
+	}
+	if projection == plan.MergeProjectionFirstParentTarget && !merge {
+		return plan.MergeProjectionSemanticUnion, errors.New("gate: -plan-projection requires -merge")
+	}
+	return projection, nil
+}
+
+func gateMergeSourceStore(value string, merge bool, projection plan.MergeProjection) (string, error) {
+	value = strings.TrimSpace(value)
+	if projection != plan.MergeProjectionFirstParentTarget {
+		if value != "" {
+			return "", errors.New("gate: -merge-source-store requires -merge with first-parent-target")
+		}
+		return "", nil
+	}
+	if !merge || value == "" {
+		return "", errors.New("gate: first-parent-target requires -merge-source-store")
+	}
+	resolved, err := filepath.Abs(filepath.Clean(value))
+	if err != nil {
+		return "", fmt.Errorf("gate: resolve -merge-source-store: %w", err)
+	}
+	if filepath.Base(resolved) != gitauthority.CanonicalOvergoDBDirectory {
+		return "", errors.New("gate: -merge-source-store must name a canonical overgodb-store directory")
+	}
+	return resolved, nil
+}
+
 func (g *gateContext) closeCompletionStore() error {
 	if g == nil || g.completionStore == nil {
 		return nil
@@ -505,21 +577,21 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	published := automationcheck.PublishedCheck(g.repo, command)
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
+		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2], published,
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
-		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitecture),
+		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
 		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 	dependencies := map[string][]string{
-		"scope": {"protection"}, "profile": {"scope"}, "fmt": {"profile"}, "style": {"fmt"},
+		"scope": {"protection"}, "architecture": {"scope"}, "profile": {"architecture"}, "fmt": {"profile"}, "style": {"fmt"},
 		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
-		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "architecture": {"magics"},
-		"acceptance": {"architecture"},
-		"vet":        {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
-		"device": {"test"}, "commit": {"device"},
+		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "modern-go": {"magics"}, "acceptance": {"modern-go"},
+		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
+		"device": {"test"}, "commit": {"test", "device"},
 	}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
@@ -677,11 +749,11 @@ type planDisposition struct {
 type gatePlanReport struct {
 	Kind              string                         `json:"kind"`
 	Schema            int                            `json:"schema"`
-	PlanID            string                         `json:"plan_id,omitempty"`
-	BaseManifest      string                         `json:"base_manifest,omitempty"`
-	CandidateManifest string                         `json:"candidate_manifest,omitempty"`
-	CandidateSource   string                         `json:"candidate_source,omitempty"`
-	CandidateTree     string                         `json:"candidate_tree,omitempty"`
+	PlanID            string                         `json:"plan_id,omitzero"`
+	BaseManifest      string                         `json:"base_manifest,omitzero"`
+	CandidateManifest string                         `json:"candidate_manifest,omitzero"`
+	CandidateSource   string                         `json:"candidate_source,omitzero"`
+	CandidateTree     string                         `json:"candidate_tree,omitzero"`
 	Selected          []planDisposition              `json:"selected"`
 	Excluded          []planDisposition              `json:"excluded"`
 	Unresolved        []planDisposition              `json:"unresolved"`
@@ -987,9 +1059,7 @@ func worktreeFileDigest(root, relative string) (string, bool, error) {
 
 func revisionFileDigest(root, revision, relative string) (string, bool, error) {
 	object := revision + ":" + filepath.ToSlash(relative)
-	probe := exec.Command("git", "--no-replace-objects", "cat-file", "-e", object)
-	probe.Dir = root
-	probe.Env = gitauthority.ReaderEnvironment()
+	probe := newGateGitReaderCommand(root, "cat-file", "-e", object)
 	if err := probe.Run(); err != nil {
 		if _, missing := err.(*exec.ExitError); missing {
 			return "", false, nil
@@ -997,9 +1067,7 @@ func revisionFileDigest(root, revision, relative string) (string, bool, error) {
 		return "", false, err
 	}
 	hasher := sha256.New()
-	show := exec.Command("git", "--no-replace-objects", "show", object)
-	show.Dir = root
-	show.Env = gitauthority.ReaderEnvironment()
+	show := newGateGitReaderCommand(root, "show", object)
 	show.Stdout = hasher
 	if err := show.Run(); err != nil {
 		return "", false, err
@@ -1152,6 +1220,41 @@ func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
 		g.source = &snapshot
 	}
 	return snapshot, err
+}
+
+// stepArchitectureRatchet audits the complete candidate source on every gate
+// run, including documentation-only changes. It is deliberately in-process:
+// the manifest already binds this check to the candidate tree, and a second
+// test process would only repeat source discovery while weakening ordering.
+func (g *gateContext) stepArchitectureRatchet() (bool, error) {
+	if _, err := g.stepArchitecture(); err != nil {
+		return false, err
+	}
+	staged, err := codeprofile.LoadStagedSurface(filepath.Join(g.repo, "docs", "staged_surface.json"))
+	if err != nil {
+		return false, err
+	}
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	report, err := repoanalysis.AuditProductionAuthorityBoundaries(snapshot)
+	if err != nil {
+		return false, err
+	}
+	if err := runrecord.ValidateTriggerRegistry(); err != nil {
+		return false, err
+	}
+	// The staged-surface declaration is gate authority even when no Go file
+	// changed: every deferred export must still resolve to an open canonical
+	// step or an evidence-bound retained classification.
+	report.Rules += len(staged.Staged) + 1
+	report.Sites += len(staged.Staged)
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"architecture ratchet: source=%s paths=%d rules=%d sites=%d findings=%d",
+		report.SourceIdentity, len(g.paths), report.Rules, report.Sites, len(report.Findings),
+	))
+	return false, report.Error()
 }
 
 func (g *gateContext) stepProfile() (bool, error) {
@@ -1355,7 +1458,7 @@ func consumerCandidates(declarations []codeprofile.ConsumerDeclaration) string {
 		}
 		candidates[index] = consumerCandidate(declaration, class)
 	}
-	sort.Strings(candidates)
+	slices.Sort(candidates)
 	return strings.Join(candidates, ",")
 }
 
@@ -1380,9 +1483,7 @@ func changedGoPathsAtRevision(repo, revision string, pending []string) ([]string
 func sourceAtRevision(repo string, candidate repoanalysis.SourceSnapshot, revision string, paths []string) (repoanalysis.SourceSnapshot, error) {
 	overlay := make(map[string][]byte, len(paths))
 	for _, path := range paths {
-		cmd := exec.Command("git", "--no-replace-objects", "show", revision+":"+path)
-		cmd.Dir = repo
-		cmd.Env = gitauthority.ReaderEnvironment()
+		cmd := newGateGitReaderCommand(repo, "show", revision+":"+path)
 		data, err := cmd.Output()
 		if err != nil {
 			if _, missing := err.(*exec.ExitError); missing {
@@ -1559,7 +1660,7 @@ func fingerprintPhaseInputs(root, phase string, paths []string) (artifact.ID, er
 			selected = append(selected, path)
 		}
 	}
-	sort.Strings(selected)
+	slices.Sort(selected)
 	hasher := sha256.New()
 	hasher.Write([]byte(phase + "\x00"))
 	for _, path := range selected {
@@ -1854,6 +1955,50 @@ func (g *gateContext) stepStyle() (bool, error) {
 		g.baseSource = &baseline
 	}
 	return false, repoanalysis.ValidateGoStyleDelta(snapshot, *g.baseSource)
+}
+
+func (g *gateContext) stepModernGoRatchet() (bool, error) {
+	baseline, err := repoanalysis.LoadModernGoBaseline(filepath.Join(g.repo, filepath.FromSlash(repoanalysis.ModernGoBaselineFile)))
+	if err != nil {
+		return false, err
+	}
+	snapshot, err := g.sourceSnapshot()
+	if err != nil {
+		return false, err
+	}
+	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	if err != nil {
+		return false, err
+	}
+	candidate, err := repoanalysis.ModernGoCensusSnapshot(snapshot, selection, baseline.TargetGo)
+	if err != nil {
+		return false, err
+	}
+	if err := repoanalysis.AdmitModernGoRatchet(baseline, candidate, time.Now().UTC()); err != nil {
+		return false, err
+	}
+	if _, err := command(g.repo, "git", "cat-file", "-e", "HEAD:"+repoanalysis.ModernGoBaselineFile); err == nil {
+		if g.baseSource == nil {
+			base, err := sourceAtHEAD(g.repo, snapshot)
+			if err != nil {
+				return false, err
+			}
+			g.baseSource = &base
+		}
+		previous, err := repoanalysis.ModernGoCensusSnapshot(*g.baseSource, selection, baseline.TargetGo)
+		if err != nil {
+			return false, err
+		}
+		if err := repoanalysis.AdmitModernGoDelta(baseline, previous, candidate, g.paths); err != nil {
+			return false, err
+		}
+	}
+	g.honesty = append(g.honesty, fmt.Sprintf(
+		"modern-Go ratchet: findings=%d candidates=%d inspected=%d typed=%d catalog=%s",
+		len(candidate.Findings), candidate.CandidateCount(), baseline.Coverage.InspectedFiles,
+		baseline.Coverage.TypedFiles, baseline.CatalogCommit,
+	))
+	return false, nil
 }
 
 func (g *gateContext) stepVet() (bool, error) {
@@ -2464,6 +2609,19 @@ func (g *gateContext) stepCommit() (bool, error) {
 	}
 	g.completionAuthority = completionAuthority
 	g.completionStore = completionStore
+	planAfter, err := advancedPlanBytes(planBefore, g.planRef)
+	if err != nil {
+		return false, err
+	}
+	childDocument, err := plan.Parse(planAfter)
+	if err != nil {
+		return false, err
+	}
+	mergeAuthority, err := g.deriveProjectedMergeAuthority(document, childDocument, completionStore)
+	if err != nil {
+		return false, fmt.Errorf("commit admission: derive projected merge authority: %w", err)
+	}
+	g.mergeAuthority = mergeAuthority
 	// Structured completion trailers make Git the completion record:
 	// the row leaves the plan in this same commit, and the trailers
 	// carry what completed and how it was verified. The gate record
@@ -2488,10 +2646,6 @@ func (g *gateContext) stepCommit() (bool, error) {
 		return false, err
 	}
 	indexBefore, mergeState := g.indexBefore, g.mergeBefore
-	planAfter, err := advancedPlanBytes(planBefore, g.planRef)
-	if err != nil {
-		return false, err
-	}
 	indexAfter, err := buildAcceptedCompletionIndex(g.repo, g.acceptedTree, planAfter)
 	if err != nil {
 		return false, err
@@ -2505,19 +2659,38 @@ func (g *gateContext) stepCommit() (bool, error) {
 		PreparationCommit: g.preparationCommit, Recipe: recipeID,
 		CandidateManifest: g.candidateManifest.ID,
 		Parent:            g.planHead, HeadReference: headReference, Merge: mergeState,
-		IndexTree: indexBefore.Tree, Tree: indexAfter.Tree,
+		PlanProjection: g.planProjection,
+		IndexTree:      indexBefore.Tree, Tree: indexAfter.Tree,
 		IndexBefore: indexBefore.Data, IndexAfter: indexAfter.Data, IndexRestore: indexRestore.Data,
 		IndexMode: uint32(indexBefore.Mode.Perm()),
 		PlanRef:   g.planRef, Paths: slices.Clone(g.paths),
 		Plan: planBefore, AdvancedPlan: planAfter, PlanMode: uint32(planInfo.Mode().Perm()),
 	}
+	if mergeAuthority != nil {
+		content, contentErr := mergeAuthority.Content()
+		if contentErr != nil {
+			return false, contentErr
+		}
+		intent.MergeAuthority = content.Data
+	}
 	completionMessage, err := os.ReadFile(messageFile)
 	if err != nil {
 		return false, err
 	}
-	childDocument, err := plan.Parse(planAfter)
-	if err != nil {
-		return false, err
+	messageItem, messageStep, found := strings.Cut(g.planRef, "/")
+	if !found {
+		return false, errors.New("commit admission: invalid completion reference")
+	}
+	mergeAuthorityID := artifact.ID{}
+	if mergeAuthority != nil {
+		mergeAuthorityID = mergeAuthority.ID
+	}
+	if err := plan.VerifyCompletionCommitMessageWithMergeAuthority(
+		string(completionMessage), document, messageItem, messageStep, recipeID,
+		g.candidateManifest.ID, g.preparation.ID, g.preparationCommit,
+		g.planProjection, mergeAuthorityID,
+	); err != nil {
+		return false, fmt.Errorf("commit admission: verify completion message: %w", err)
 	}
 	if err := verifyProspectiveGateCompletion(
 		g.repo, intent, document, childDocument, string(completionMessage), g.completionStore,
@@ -2778,7 +2951,7 @@ func requireSupportedGateIndex(repo string, environment []string) error {
 	if err != nil {
 		return err
 	}
-	for _, entry := range strings.Split(entries, "\x00") {
+	for entry := range strings.SplitSeq(entries, "\x00") {
 		if entry == "" {
 			continue
 		}
@@ -2849,7 +3022,7 @@ func indexTreeForBytes(repo string, data []byte) (string, error) {
 func sameNULTerminatedNames(left, right string) bool {
 	toSet := func(raw string) map[string]struct{} {
 		values := make(map[string]struct{})
-		for _, value := range strings.Split(raw, "\x00") {
+		for value := range strings.SplitSeq(raw, "\x00") {
 			if value != "" {
 				values[value] = struct{}{}
 			}
@@ -2925,7 +3098,7 @@ func buildGateIntentKeepaliveTree(repo string, intent gateCommitIntent) (string,
 		}
 		entries = append(entries, entry{name: "auto-merge", tree: autoMerge})
 	}
-	sort.Slice(entries, func(left, right int) bool { return entries[left].name < entries[right].name })
+	slices.SortFunc(entries, func(left, right entry) int { return strings.Compare(left.name, right.name) })
 	var input bytes.Buffer
 	for _, candidate := range entries {
 		fmt.Fprintf(&input, "040000 tree %s\t%s\x00", candidate.tree, candidate.name)
@@ -3309,9 +3482,13 @@ func (g *gateContext) completionMessageFile(document plan.Plan) (string, error) 
 	if g.manifestPlan == nil || g.candidateManifest == nil {
 		return "", errors.New("completion message: manifest authorities are absent")
 	}
-	augmented, err := plan.CompletionCommitMessage(
+	mergeAuthority := artifact.ID{}
+	if g.mergeAuthority != nil {
+		mergeAuthority = g.mergeAuthority.ID
+	}
+	augmented, err := plan.CompletionCommitMessageWithMergeAuthority(
 		message, document, itemID, stepID, g.manifestPlan.ID, g.candidateManifest.ID, g.preparation.ID,
-		g.preparationCommit,
+		g.preparationCommit, g.planProjection, mergeAuthority,
 	)
 	if err != nil {
 		return "", err
@@ -3328,6 +3505,85 @@ func (g *gateContext) completionMessageFile(document plan.Plan) (string, error) 
 		return "", err
 	}
 	return file.Name(), nil
+}
+
+func (g *gateContext) deriveProjectedMergeAuthority(
+	preAdvance, child plan.Plan,
+	targetStore *overgodb.Store,
+) (*plan.FirstParentTargetMergeAuthority, error) {
+	if g.planProjection != plan.MergeProjectionFirstParentTarget {
+		return nil, nil
+	}
+	if targetStore == nil || g.mergeBefore == nil || g.mergeSourceStore == "" {
+		return nil, errors.New("first-parent-target merge requires target and source store authority")
+	}
+	parents := g.mergeBefore.parents()
+	if len(parents) != 1 || !validGitObjectID(parents[0]) || parents[0] == g.planHead {
+		return nil, errors.New("first-parent-target merge requires one distinct incoming parent")
+	}
+	incomingRevision := parents[0]
+	loadPlan := func(label, revision string) (plan.Plan, error) {
+		data, err := gitCompletionFile(g.repo, revision, plan.Path)
+		if err != nil {
+			return plan.Plan{}, err
+		}
+		document, err := plan.ParseHistorical(data)
+		if err != nil {
+			return plan.Plan{}, fmt.Errorf("parse %s plan %.12s: %w", label, revision, err)
+		}
+		return document, nil
+	}
+	local, err := loadPlan("local parent", g.planHead)
+	if err != nil {
+		return nil, err
+	}
+	incoming, err := loadPlan("incoming parent", incomingRevision)
+	if err != nil {
+		return nil, err
+	}
+	baseOutput, err := gitAuthorityOutput(g.repo, "merge-base", "--all", g.planHead, incomingRevision)
+	if err != nil {
+		return nil, err
+	}
+	bases := strings.Fields(string(baseOutput))
+	if len(bases) != 1 {
+		return nil, fmt.Errorf("first-parent-target merge requires one merge base, found %d", len(bases))
+	}
+	mergeBase, err := loadPlan("merge-base", bases[0])
+	if err != nil {
+		return nil, err
+	}
+	sourceStore, err := overgodb.OpenReadOnly(g.mergeSourceStore)
+	if err != nil {
+		return nil, fmt.Errorf("open projected merge source store: %w", err)
+	}
+	defer sourceStore.Close()
+	localAuthority, err := plan.ResolveCompletionAuthority(
+		context.Background(), g.repo, g.planHead, local, targetStore,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("resolve local projected-merge authority: %w", err)
+	}
+	incomingAuthority, err := plan.ResolveCompletionAuthority(
+		context.Background(), g.repo, incomingRevision, incoming, sourceStore,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("resolve incoming projected-merge authority: %w", err)
+	}
+	item, step, found := strings.Cut(g.planRef, "/")
+	if !found {
+		return nil, errors.New("first-parent-target merge has an invalid completion reference")
+	}
+	receipt, err := plan.NewFirstParentTargetMergeAuthority(
+		context.Background(), g.repo, g.planHead, incomingRevision, bases[0],
+		local, incoming, mergeBase, preAdvance, child, item, step,
+		g.preparation.ID, g.preparationCommit, localAuthority, incomingAuthority,
+		targetStore, sourceStore,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &receipt, nil
 }
 
 func publishPlanTransition(
@@ -3835,11 +4091,10 @@ func (g *gateContext) startHeartbeat() (func(), error) {
 	stop, done := make(chan struct{}), make(chan struct{})
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
+		ticker := time.Tick(5 * time.Second)
 		for {
 			select {
-			case <-ticker.C:
+			case <-ticker:
 				_ = g.writeHeartbeat(runrecord.HeartbeatRunning)
 			case <-stop:
 				return
@@ -3861,29 +4116,31 @@ type gateDebtEnvelope struct {
 // make rollback bounded and deterministic instead of leaving a pruned row with
 // no successful authority or overwriting staged-only caller state.
 type gateCommitIntent struct {
-	Version           uint16            `json:"version"`
-	Preparation       artifact.ID       `json:"preparation"`
-	PreparationCommit artifact.CommitID `json:"preparation_commit"`
-	Recipe            artifact.ID       `json:"recipe"`
-	CandidateManifest artifact.ID       `json:"candidate_manifest"`
-	Parent            string            `json:"parent"`
-	HeadReference     string            `json:"head_reference"`
-	Merge             *gateMergeIntent  `json:"merge,omitempty"`
-	Commit            string            `json:"commit,omitempty"`
-	IndexTree         string            `json:"index_tree"`
-	Tree              string            `json:"tree"`
-	KeepaliveRef      string            `json:"keepalive_ref"`
-	KeepaliveTree     string            `json:"keepalive_tree"`
-	KeepaliveCommit   string            `json:"keepalive_commit"`
-	IndexBefore       []byte            `json:"index_before"`
-	IndexAfter        []byte            `json:"index_after"`
-	IndexRestore      []byte            `json:"index_restore"`
-	IndexMode         uint32            `json:"index_mode"`
-	PlanRef           string            `json:"plan_ref"`
-	Paths             []string          `json:"paths"`
-	Plan              []byte            `json:"plan"`
-	AdvancedPlan      []byte            `json:"advanced_plan"`
-	PlanMode          uint32            `json:"plan_mode"`
+	Version           uint16               `json:"version"`
+	Preparation       artifact.ID          `json:"preparation"`
+	PreparationCommit artifact.CommitID    `json:"preparation_commit"`
+	Recipe            artifact.ID          `json:"recipe"`
+	CandidateManifest artifact.ID          `json:"candidate_manifest"`
+	Parent            string               `json:"parent"`
+	HeadReference     string               `json:"head_reference"`
+	Merge             *gateMergeIntent     `json:"merge,omitempty"`
+	PlanProjection    plan.MergeProjection `json:"plan_projection,omitzero"`
+	MergeAuthority    []byte               `json:"merge_authority,omitempty"`
+	Commit            string               `json:"commit,omitzero"`
+	IndexTree         string               `json:"index_tree"`
+	Tree              string               `json:"tree"`
+	KeepaliveRef      string               `json:"keepalive_ref"`
+	KeepaliveTree     string               `json:"keepalive_tree"`
+	KeepaliveCommit   string               `json:"keepalive_commit"`
+	IndexBefore       []byte               `json:"index_before"`
+	IndexAfter        []byte               `json:"index_after"`
+	IndexRestore      []byte               `json:"index_restore"`
+	IndexMode         uint32               `json:"index_mode"`
+	PlanRef           string               `json:"plan_ref"`
+	Paths             []string             `json:"paths"`
+	Plan              []byte               `json:"plan"`
+	AdvancedPlan      []byte               `json:"advanced_plan"`
+	PlanMode          uint32               `json:"plan_mode"`
 }
 
 var gatePlanRecoveryBeforeSwapHook func(string)
@@ -3897,10 +4154,23 @@ type gateMergeIntent struct {
 	Message           []byte `json:"message"`
 	MessageFileMode   uint32 `json:"message_file_mode"`
 	AutoMerge         []byte `json:"auto_merge,omitempty"`
-	AutoMergeFileMode uint32 `json:"auto_merge_file_mode,omitempty"`
+	AutoMergeFileMode uint32 `json:"auto_merge_file_mode,omitzero"`
 }
 
 func (intent gateCommitIntent) validate() error {
+	projection, projectionErr := plan.ParseMergeProjection(string(intent.PlanProjection))
+	if projectionErr != nil || projection != intent.PlanProjection ||
+		projection == plan.MergeProjectionFirstParentTarget && intent.Merge == nil {
+		return errors.New("gate: invalid interrupted commit plan projection")
+	}
+	if projection == plan.MergeProjectionFirstParentTarget {
+		receipt, err := plan.ParseFirstParentTargetMergeAuthority(intent.MergeAuthority)
+		if err != nil || receipt.ID.Kind() != artifact.KindEvidence {
+			return errors.New("gate: invalid interrupted projected-merge authority")
+		}
+	} else if len(intent.MergeAuthority) != 0 {
+		return errors.New("gate: semantic-union intent carries projected-merge authority")
+	}
 	if intent.Version != artifact.InitialDocumentVersion ||
 		intent.Preparation.Kind() != artifact.KindEvidence || !intent.PreparationCommit.Valid() ||
 		intent.Recipe.Kind() != artifact.KindRecipe ||
@@ -4014,9 +4284,8 @@ func validGitObjectID(value string) bool {
 
 func currentHeadReference(repo string) (string, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("git", "--no-replace-objects", "symbolic-ref", "--quiet", "HEAD")
-	cmd.Dir, cmd.Stdout, cmd.Stderr = repo, &stdout, &stderr
-	cmd.Env = gitauthority.ReaderEnvironment()
+	cmd := newGateGitReaderCommand(repo, "symbolic-ref", "--quiet", "HEAD")
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
 	if err == nil {
 		reference := strings.TrimSpace(stdout.String())
@@ -4025,8 +4294,8 @@ func currentHeadReference(repo string) (string, error) {
 		}
 		return reference, nil
 	}
-	var exitError *exec.ExitError
-	if !errors.As(err, &exitError) || exitError.ExitCode() != 1 {
+	exitError, exitFailure := errors.AsType[*exec.ExitError](err)
+	if !exitFailure || exitError.ExitCode() != 1 {
 		return "", fmt.Errorf("gate: resolve current HEAD reference: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	if _, verifyErr := gitAuthorityOutput(repo, "rev-parse", "--verify", "HEAD"); verifyErr != nil {
@@ -4249,15 +4518,13 @@ func requireSupportedMergeRR(repo string) error {
 
 func requireFilesGateRefFormat(repo string) error {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(
-		"git", "--no-replace-objects", "config", "--local", "--get", "extensions.refStorage",
-	)
-	cmd.Dir, cmd.Env, cmd.Stdout, cmd.Stderr = repo, gitauthority.ReaderEnvironment(), &stdout, &stderr
+	cmd := newGateGitReaderCommand(repo, "config", "--local", "--get", "extensions.refStorage")
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
 	format := strings.TrimSpace(stdout.String())
 	if err != nil {
-		var exitError *exec.ExitError
-		if !errors.As(err, &exitError) || exitError.ExitCode() != 1 || format != "" {
+		exitError, exitFailure := errors.AsType[*exec.ExitError](err)
+		if !exitFailure || exitError.ExitCode() != 1 || format != "" {
 			return fmt.Errorf(
 				"gate: resolve Git reference format: %w: %s", err, strings.TrimSpace(stderr.String()),
 			)
@@ -4413,29 +4680,31 @@ type gateGitLockMarker struct {
 }
 
 type gateGitLockIntentAuthority struct {
-	Version           uint16           `json:"version"`
-	Preparation       string           `json:"preparation"`
-	PreparationCommit string           `json:"preparation_commit"`
-	Recipe            string           `json:"recipe"`
-	CandidateManifest string           `json:"candidate_manifest"`
-	Parent            string           `json:"parent"`
-	HeadReference     string           `json:"head_reference"`
-	Merge             *gateMergeIntent `json:"merge,omitempty"`
-	Commit            string           `json:"commit,omitempty"`
-	IndexTree         string           `json:"index_tree"`
-	Tree              string           `json:"tree"`
-	KeepaliveRef      string           `json:"keepalive_ref"`
-	KeepaliveTree     string           `json:"keepalive_tree"`
-	KeepaliveCommit   string           `json:"keepalive_commit"`
-	IndexBefore       []byte           `json:"index_before"`
-	IndexAfter        []byte           `json:"index_after"`
-	IndexRestore      []byte           `json:"index_restore"`
-	IndexMode         uint32           `json:"index_mode"`
-	PlanRef           string           `json:"plan_ref"`
-	Paths             []string         `json:"paths"`
-	Plan              []byte           `json:"plan"`
-	AdvancedPlan      []byte           `json:"advanced_plan"`
-	PlanMode          uint32           `json:"plan_mode"`
+	Version           uint16               `json:"version"`
+	Preparation       string               `json:"preparation"`
+	PreparationCommit string               `json:"preparation_commit"`
+	Recipe            string               `json:"recipe"`
+	CandidateManifest string               `json:"candidate_manifest"`
+	Parent            string               `json:"parent"`
+	HeadReference     string               `json:"head_reference"`
+	Merge             *gateMergeIntent     `json:"merge,omitempty"`
+	PlanProjection    plan.MergeProjection `json:"plan_projection,omitzero"`
+	MergeAuthority    []byte               `json:"merge_authority,omitempty"`
+	Commit            string               `json:"commit,omitzero"`
+	IndexTree         string               `json:"index_tree"`
+	Tree              string               `json:"tree"`
+	KeepaliveRef      string               `json:"keepalive_ref"`
+	KeepaliveTree     string               `json:"keepalive_tree"`
+	KeepaliveCommit   string               `json:"keepalive_commit"`
+	IndexBefore       []byte               `json:"index_before"`
+	IndexAfter        []byte               `json:"index_after"`
+	IndexRestore      []byte               `json:"index_restore"`
+	IndexMode         uint32               `json:"index_mode"`
+	PlanRef           string               `json:"plan_ref"`
+	Paths             []string             `json:"paths"`
+	Plan              []byte               `json:"plan"`
+	AdvancedPlan      []byte               `json:"advanced_plan"`
+	PlanMode          uint32               `json:"plan_mode"`
 }
 
 func gateGitManualLockPaths(
@@ -4490,8 +4759,10 @@ func gateGitLockMarkerBytes(repo, indexPath string, intent gateCommitIntent) ([]
 		Version: intent.Version, Preparation: intent.Preparation.String(),
 		PreparationCommit: intent.PreparationCommit.String(), Recipe: intent.Recipe.String(),
 		CandidateManifest: intent.CandidateManifest.String(), Parent: intent.Parent,
-		HeadReference: intent.HeadReference, Merge: intent.Merge, Commit: intent.Commit,
-		IndexTree: intent.IndexTree, Tree: intent.Tree, KeepaliveRef: intent.KeepaliveRef,
+		HeadReference: intent.HeadReference, Merge: intent.Merge, PlanProjection: intent.PlanProjection,
+		MergeAuthority: intent.MergeAuthority,
+		Commit:         intent.Commit,
+		IndexTree:      intent.IndexTree, Tree: intent.Tree, KeepaliveRef: intent.KeepaliveRef,
 		KeepaliveTree: intent.KeepaliveTree, KeepaliveCommit: intent.KeepaliveCommit,
 		IndexBefore: intent.IndexBefore, IndexAfter: intent.IndexAfter, IndexRestore: intent.IndexRestore,
 		IndexMode: intent.IndexMode, PlanRef: intent.PlanRef, Paths: intent.Paths,
@@ -4878,11 +5149,7 @@ func clearCommittedMergeState(repo string, intent gateCommitIntent) error {
 
 func gateIntentKeepaliveRefValue(repo, reference string) (string, bool, error) {
 	var stdout, stderr bytes.Buffer
-	process := exec.Command(
-		"git", "--no-replace-objects", "rev-parse", "--verify", "--quiet", reference,
-	)
-	process.Dir = repo
-	process.Env = gitauthority.ReaderEnvironment()
+	process := newGateGitReaderCommand(repo, "rev-parse", "--verify", "--quiet", reference)
 	process.Stdout, process.Stderr = &stdout, &stderr
 	err := process.Run()
 	if err == nil {
@@ -4892,8 +5159,7 @@ func gateIntentKeepaliveRefValue(repo, reference string) (string, bool, error) {
 		}
 		return object, true, nil
 	}
-	var exitError *exec.ExitError
-	if errors.As(err, &exitError) && exitError.ExitCode() == 1 && stdout.Len() == 0 {
+	if exitError, exitFailure := errors.AsType[*exec.ExitError](err); exitFailure && exitError.ExitCode() == 1 && stdout.Len() == 0 {
 		return "", false, nil
 	}
 	return "", false, fmt.Errorf(
@@ -4915,7 +5181,7 @@ func requireGateIntentKeepaliveObjects(repo string, intent gateCommitIntent) err
 	if err != nil {
 		return fmt.Errorf("gate: inspect interrupted commit keepalive objects: %w", err)
 	}
-	for _, line := range strings.Split(string(output), "\n") {
+	for line := range strings.SplitSeq(string(output), "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "?") {
 			return errors.New("gate: interrupted commit keepalive object closure is incomplete")
 		}
@@ -5259,7 +5525,7 @@ func recoverInterruptedCommit(repo, storePath string) (recovered artifact.ID, er
 		batch.Contents = append(batch.Contents, finalizedContent)
 		batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
 		appendGateFinalizationAlias(&batch, preparation.ID, finalized.ID)
-		if _, err := store.Commit(ctx, batch); err != nil {
+		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 			return artifact.ID{}, err
 		}
 	}
@@ -5412,9 +5678,17 @@ func validateInterruptedCommitAuthority(repo string, intent gateCommitIntent, st
 	if !found {
 		return errors.New("gate: interrupted commit has an invalid completion reference")
 	}
-	if err := plan.VerifyCompletionCommitMessage(
+	mergeAuthority, err := projectedMergeAuthorityFromIntent(intent)
+	if err != nil {
+		return err
+	}
+	mergeAuthorityID := artifact.ID{}
+	if mergeAuthority != nil {
+		mergeAuthorityID = mergeAuthority.ID
+	}
+	if err := plan.VerifyCompletionCommitMessageWithMergeAuthority(
 		message, preAdvance, item, step, intent.Recipe, intent.CandidateManifest,
-		intent.Preparation, intent.PreparationCommit,
+		intent.Preparation, intent.PreparationCommit, intent.PlanProjection, mergeAuthorityID,
 	); err != nil {
 		return fmt.Errorf("gate: interrupted commit has the wrong completion authority: %w", err)
 	}
@@ -5650,9 +5924,7 @@ func requireExactRecoveredGitStateExceptHead(repo string, intent gateCommitInten
 
 func gitAuthorityOutput(repo string, arguments ...string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("git", append([]string{"--no-replace-objects"}, arguments...)...)
-	cmd.Dir = repo
-	cmd.Env = gitauthority.ReaderEnvironment()
+	cmd := newGateGitReaderCommand(repo, arguments...)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("gate: git %s: %w: %s", strings.Join(arguments, " "), err, strings.TrimSpace(stderr.String()))
@@ -5670,6 +5942,22 @@ func gitAuthorityWriterOutput(repo string, arguments ...string) ([]byte, error) 
 	return stdout.Bytes(), nil
 }
 
+func projectedMergeAuthorityFromIntent(
+	intent gateCommitIntent,
+) (*plan.FirstParentTargetMergeAuthority, error) {
+	if intent.PlanProjection != plan.MergeProjectionFirstParentTarget {
+		if len(intent.MergeAuthority) != 0 {
+			return nil, errors.New("gate: semantic-union intent carries projected merge authority")
+		}
+		return nil, nil
+	}
+	receipt, err := plan.ParseFirstParentTargetMergeAuthority(intent.MergeAuthority)
+	if err != nil {
+		return nil, fmt.Errorf("gate: parse projected merge authority: %w", err)
+	}
+	return &receipt, nil
+}
+
 func verifyProspectiveGateCompletion(
 	repo string,
 	intent gateCommitIntent,
@@ -5677,6 +5965,10 @@ func verifyProspectiveGateCompletion(
 	message string,
 	store *overgodb.Store,
 ) error {
+	mergeAuthority, err := projectedMergeAuthorityFromIntent(intent)
+	if err != nil {
+		return err
+	}
 	parentIDs := []string{intent.Parent}
 	mergeParent := ""
 	if intent.Merge != nil {
@@ -5725,6 +6017,39 @@ func verifyProspectiveGateCompletion(
 		if store == nil {
 			return errors.New("gate: completion merge requires the locked authority store")
 		}
+		if intent.PlanProjection == plan.MergeProjectionFirstParentTarget {
+			if mergeAuthority == nil {
+				return errors.New("gate: first-parent-target completion lacks projected merge authority")
+			}
+			item, step, found := strings.Cut(intent.PlanRef, "/")
+			if !found {
+				return errors.New("gate: projected completion has an invalid plan reference")
+			}
+			if err := plan.VerifyFirstParentTargetMergeAuthorityTransition(
+				intent.Parent, mergeParent, bases[0], parents[0], parents[1], base,
+				preAdvance, child, item, step, intent.Preparation, intent.PreparationCommit,
+				*mergeAuthority,
+			); err != nil {
+				return fmt.Errorf("gate: audit projected merge receipt: %w", err)
+			}
+			localAuthority, err := plan.ResolveCompletionAuthority(
+				context.Background(), repo, intent.Parent, parents[0], store,
+			)
+			if err != nil {
+				return fmt.Errorf("gate: audit local completion merge parent %.12s: %w", intent.Parent, err)
+			}
+			if !localAuthority.ProtectsRevision() {
+				return fmt.Errorf("gate: local completion merge parent %.12s is outside the protected epoch", intent.Parent)
+			}
+			if err := plan.VerifyFirstParentTargetLocalAuthority(
+				repo, intent.Parent, parents[0], preAdvance, child, localAuthority,
+			); err != nil {
+				return fmt.Errorf("gate: audit first-parent target authority: %w", err)
+			}
+			return plan.VerifyProspectiveCompletionTransitionWithProjection(
+				parents, mergeBase, preAdvance, child, message, intent.PlanProjection,
+			)
+		}
 		parentAuthorities := make([]plan.CompletionAuthority, len(parentIDs))
 		for index, parentID := range parentIDs {
 			authority, err := plan.ResolveCompletionAuthority(
@@ -5750,15 +6075,18 @@ func verifyProspectiveGateCompletion(
 		if !baseAuthority.ProtectsRevision() {
 			return errors.New("gate: completion merge parents do not share a protected epoch; rebase the merge source")
 		}
-		if err := plan.VerifyProspectiveMergeAuthority(
+		if err := plan.VerifyProspectiveMergeAuthorityWithProjection(
 			repo, parentIDs[0], parentIDs[1],
 			parents[0], parents[1], preAdvance,
 			parentAuthorities[0], parentAuthorities[1],
+			intent.PlanProjection,
 		); err != nil {
 			return fmt.Errorf("gate: audit prospective completion merge: %w", err)
 		}
 	}
-	return plan.VerifyProspectiveCompletionTransition(parents, mergeBase, preAdvance, child, message)
+	return plan.VerifyProspectiveCompletionTransitionWithProjection(
+		parents, mergeBase, preAdvance, child, message, intent.PlanProjection,
+	)
 }
 
 func requireRecoverablePlan(repo string, intent gateCommitIntent, head string) ([]byte, error) {
@@ -6705,7 +7033,7 @@ func bindRecoveredGateFinalization(
 		previous := current
 		binding.Previous = &previous
 	}
-	_, err := store.Commit(ctx, artifact.Batch{
+	_, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key:     "gate/recovered-alias/" + preparation.ID.String(),
 		Aliases: []artifact.AliasBinding{binding},
 	})
@@ -6868,6 +7196,29 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
 	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
 	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
+	if outcome == runrecord.OutcomeSucceeded {
+		switch g.planProjection {
+		case plan.MergeProjectionFirstParentTarget:
+			if g.mergeAuthority == nil {
+				return errors.New("gate: successful first-parent-target merge lacks authority receipt")
+			}
+			receiptContent, err := g.mergeAuthority.Content()
+			if err != nil {
+				return err
+			}
+			batch.Contents = append(batch.Contents, receiptContent)
+			batch.Lineage = append(batch.Lineage, g.mergeAuthority.Lineage()...)
+			batch.Lineage = append(batch.Lineage, artifact.Lineage{
+				Child: record.Result.ID, Parent: g.mergeAuthority.ID, Relation: artifact.RelationDependsOn,
+			})
+		case plan.MergeProjectionSemanticUnion:
+			if g.mergeAuthority != nil {
+				return errors.New("gate: semantic-union completion carries projected merge authority")
+			}
+		default:
+			return errors.New("gate: successful completion has invalid plan projection")
+		}
+	}
 	appendGateFinalizationAlias(&batch, g.preparation.ID, finalized.ID)
 	for _, manifest := range []*codemanifest.Manifest{g.baseManifest, g.candidateManifest} {
 		if manifest == nil {
@@ -7205,6 +7556,13 @@ func newGateGitWriterCommand(dir string, environment []string, args ...string) *
 	cmd := exec.Command("git", gitauthority.WriterArguments(args...)...)
 	cmd.Dir = dir
 	cmd.Env = gateGitEnvironment(gitauthority.RepositoryEnvironment(), environment)
+	return cmd
+}
+
+func newGateGitReaderCommand(dir string, args ...string) *exec.Cmd {
+	cmd := exec.Command("git", append([]string{"--no-replace-objects"}, args...)...)
+	cmd.Dir = dir
+	cmd.Env = gitauthority.ReaderEnvironment()
 	return cmd
 }
 

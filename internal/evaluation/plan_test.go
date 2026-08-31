@@ -79,14 +79,14 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 	}
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
-	if err := publishAuthorities(context.Background(), store, exact, plan); err != nil {
+	if err := publishAuthorities(t.Context(), store, exact, plan); err != nil {
 		t.Fatal(err)
 	}
-	stored, err := loadEvidencePlan(context.Background(), store, plan.Identity())
+	stored, err := loadEvidencePlan(t.Context(), store, plan.Identity())
 	if err != nil || stored.Identity() != plan.Identity() {
 		t.Fatalf("stored plan = (%s, %v)", stored.Identity(), err)
 	}
-	parents, err := store.Parents(context.Background(), plan.Identity())
+	parents, err := store.Parents(t.Context(), plan.Identity())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -99,7 +99,7 @@ func TestLayerNormInto(t *testing.T) {
 	bias := []float32{0.1, -0.2, 0.3, 0}
 	out := make([]float32, len(x))
 	LayerNormInto(out, x, weight, bias, 2, d, eps)
-	for r := 0; r < 2; r++ {
+	for r := range 2 {
 		row := x[r*d : (r+1)*d]
 		var mean float64
 		for _, v := range row {
@@ -113,7 +113,7 @@ func TestLayerNormInto(t *testing.T) {
 		}
 		variance /= d
 		inv := 1 / math.Sqrt(variance+eps)
-		for j := 0; j < d; j++ {
+		for j := range d {
 			want := (float64(row[j])-mean)*inv*float64(weight[j]) + float64(bias[j])
 			if diff := math.Abs(float64(out[r*d+j]) - want); diff > 1e-7 {
 				t.Fatalf("ln[%d][%d] = %g, want %g", r, j, out[r*d+j], want)
@@ -163,16 +163,16 @@ func TestGELUErf(t *testing.T) {
 // bruteBidirectional: direct per-query softmax over an explicit key subset.
 func bruteBidirectional(q, k, v []float32, querySeq, keySeq, heads, headDim int, allowed func(int) bool) []float32 {
 	out := make([]float32, querySeq*heads*headDim)
-	for h := 0; h < heads; h++ {
-		for qi := 0; qi < querySeq; qi++ {
+	for h := range heads {
+		for qi := range querySeq {
 			var keys []int
 			var scores []float64
-			for ki := 0; ki < keySeq; ki++ {
+			for ki := range keySeq {
 				if !allowed(ki) {
 					continue
 				}
 				var dot float64
-				for d := 0; d < headDim; d++ {
+				for d := range headDim {
 					dot += float64(q[(qi*heads+h)*headDim+d]) * float64(k[(ki*heads+h)*headDim+d])
 				}
 				keys = append(keys, ki)
@@ -180,7 +180,7 @@ func bruteBidirectional(q, k, v []float32, querySeq, keySeq, heads, headDim int,
 			}
 			mx := math.Inf(-1)
 			for _, s := range scores {
-				mx = math.Max(mx, s)
+				mx = max(mx, s)
 			}
 			var sum float64
 			for i, s := range scores {
@@ -189,7 +189,7 @@ func bruteBidirectional(q, k, v []float32, querySeq, keySeq, heads, headDim int,
 			}
 			for i, ki := range keys {
 				w := scores[i] / sum
-				for d := 0; d < headDim; d++ {
+				for d := range headDim {
 					out[(qi*heads+h)*headDim+d] += float32(w * float64(v[(ki*heads+h)*headDim+d]))
 				}
 			}
@@ -250,7 +250,7 @@ func TestCausalAttentionStepMatchesFull(t *testing.T) {
 	CausalAttention(full, q, k, v, seq, heads, kvHeads, headDim)
 
 	step := make([]float32, heads*headDim)
-	for pos := 0; pos < seq; pos++ {
+	for pos := range seq {
 		cached := (pos + 1) * kvHeads * headDim
 		CausalAttentionStep(step, q[pos*heads*headDim:(pos+1)*heads*headDim], k[:cached], v[:cached], pos+1, heads, kvHeads, headDim)
 		for i, value := range step {

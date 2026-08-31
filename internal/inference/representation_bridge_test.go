@@ -118,13 +118,13 @@ func TestProductionEmbeddingInjection(t *testing.T) {
 		weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
 	}
 	runtime, err := OpenProductionComposition(
-		context.Background(), store, sourceModel, targetModel, authority.Recipe.Task, resources,
+		t.Context(), store, sourceModel, targetModel, authority.Recipe.Task, resources,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	result, err := runtime.Forward(
-		context.Background(),
+		t.Context(),
 		[]tokenizer.TokenID{1, 2}, []tokenizer.TokenID{3, 4},
 	)
 	if err != nil {
@@ -145,7 +145,7 @@ func TestProductionEmbeddingInjection(t *testing.T) {
 	wrongTarget.model = sourceModel
 	resources.target = &wrongTarget
 	if _, err := OpenProductionComposition(
-		context.Background(), store, sourceModel, targetModel, authority.Recipe.Task, resources,
+		t.Context(), store, sourceModel, targetModel, authority.Recipe.Task, resources,
 	); err == nil {
 		t.Fatal("mismatched target model accepted")
 	}
@@ -155,13 +155,13 @@ func TestNoDirectCompositionConstructors(t *testing.T) {
 	store, authority := productionCompositionFixture(t, false)
 	resources := &bridgeRuntimeResourcesFixture{}
 	if _, err := OpenProductionComposition(
-		context.Background(), store,
+		t.Context(), store,
 		authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 		resources,
 	); err == nil || resources.calls != 0 {
 		t.Fatalf("inactive composition reached runtime resources: calls=%d err=%v", resources.calls, err)
 	}
-	if _, err := (&ProductionComposition{}).Forward(context.Background(), nil, nil); err == nil {
+	if _, err := (&ProductionComposition{}).Forward(t.Context(), nil, nil); err == nil {
 		t.Fatal("zero-value production composition executed")
 	}
 }
@@ -182,10 +182,10 @@ func TestTransformedRepresentationCacheIdentity(t *testing.T) {
 	if err != nil || changed == identity {
 		t.Fatalf("changed cache identity = %s, original %s: %v", changed, identity, err)
 	}
-	if _, err := runtime.Forward(context.Background(), sourceTokens, targetTokens); err != nil {
+	if _, err := runtime.Forward(t.Context(), sourceTokens, targetTokens); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.Forward(context.Background(), sourceTokens, targetTokens); err != nil {
+	if _, err := runtime.Forward(t.Context(), sourceTokens, targetTokens); err != nil {
 		t.Fatal(err)
 	}
 	if source.calls != tensor.SingletonExtent {
@@ -197,7 +197,7 @@ func TestTransformedRepresentationCacheSourceScope(t *testing.T) {
 	runtime, source := transformedRepresentationCacheFixture(t)
 	sourceTokens := []tokenizer.TokenID{1, 2}
 	for _, targetTokens := range [][]tokenizer.TokenID{{3, 4}, {5, 6}} {
-		if _, err := runtime.Forward(context.Background(), sourceTokens, targetTokens); err != nil {
+		if _, err := runtime.Forward(t.Context(), sourceTokens, targetTokens); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -211,7 +211,7 @@ func TestTransformedRepresentationCacheBoundedOwnership(t *testing.T) {
 	targetTokens := []tokenizer.TokenID{3, 4}
 	sequences := [][]tokenizer.TokenID{{1, 2}, {2, 1}, {1, 2}}
 	for _, sourceTokens := range sequences {
-		if _, err := runtime.Forward(context.Background(), sourceTokens, targetTokens); err != nil {
+		if _, err := runtime.Forward(t.Context(), sourceTokens, targetTokens); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -234,7 +234,7 @@ func transformedRepresentationCacheFixture(t *testing.T) (*ProductionComposition
 	first := reference.ZeroValue(tensor.MustShape(2, 3))
 	bias := inferenceBridgeValue(t, tensor.MustShape(3), []float32{10, 20, 30})
 	runtime, err := OpenProductionComposition(
-		context.Background(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
+		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
 		authority.Recipe.Task, &bridgeRuntimeResourcesFixture{
 			source: source, target: target,
 			weights: RepresentationBridgeWeights{First: &first, FirstBias: &bias},
@@ -253,7 +253,7 @@ func productionCompositionFixture(t *testing.T, activate bool) (*overgodb.Store,
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	ctx := context.Background()
+	ctx := t.Context()
 	sourceModel := testutil.ArtifactID(t, artifact.KindModel, "bridge-source-model")
 	targetModel := testutil.ArtifactID(t, artifact.KindModel, "bridge-target-model")
 	layer := uint32(0)

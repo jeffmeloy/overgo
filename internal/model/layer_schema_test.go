@@ -2,7 +2,6 @@ package model
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"overgo/internal/cuda/driver"
@@ -116,7 +115,7 @@ func TestUnifiedLayerBindingSchema(t *testing.T) {
 		AttentionQNorm: &info, FeedForwardRouterBias: &info,
 		SSMQueryConv: &info, TimeMixW1: &info, ShortConvKernel: &info,
 	}
-	host, err := LoadHostLayer(context.Background(), file, layer)
+	host, err := LoadHostLayer(t.Context(), file, layer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +185,7 @@ func TestLoadHostLayerGraphFields(t *testing.T) {
 		SSMQueryConv: &info, TimeMixW1: &info, ShortConvKernel: &info,
 	}
 	host := HostLayer{}
-	if err := loadHostLayerGraphFields(context.Background(), file, &layer, &host); err != nil {
+	if err := loadHostLayerGraphFields(t.Context(), file, &layer, &host); err != nil {
 		t.Fatal(err)
 	}
 	if host.AttentionQ == nil || host.AttentionQ.Shape.Rank == 0 || len(host.AttentionQ.Data) != 4 {

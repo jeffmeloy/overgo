@@ -1,7 +1,6 @@
 package loop
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -45,7 +44,7 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 
 	// Model and recipe materialization on one shared store for the rest of
 	// the plane.
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +112,7 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	}
 	assigned := map[string]artifact.ID{}
 	candidates := 0
-	for index := 0; index < 64; index++ {
+	for index := range 64 {
 		unit := fmt.Sprintf("workload-%03d", index)
 		arm, assignErr := plan.Assign(unit)
 		if assignErr != nil {
@@ -195,7 +194,7 @@ func buildPlanAfterQuarantine(
 	t *testing.T, store *overgodb.Store, baseline, candidate artifact.ID,
 ) artifact.ID {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	authority := func(name string) artifact.ID {
 		id := testutil.ArtifactID(t, artifact.KindEvidence, name)
 		testutil.PublishArtifact(t, store, id)

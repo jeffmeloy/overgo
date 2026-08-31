@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -59,8 +60,8 @@ type CatalogCoverageEntry struct {
 	Alias     string             `json:"alias"`
 	Status    CatalogEntryStatus `json:"status"`
 	Available bool               `json:"available"`
-	Location  string             `json:"location,omitempty"`
-	Detail    string             `json:"detail,omitempty"`
+	Location  string             `json:"location,omitzero"`
+	Detail    string             `json:"detail,omitzero"`
 }
 
 // CatalogPublication reports one atomic dataset catalog publication.
@@ -170,11 +171,13 @@ func CompileLegacyCatalog(legacyStore, contentRoot string) (CompiledCatalog, err
 }
 
 func sortedDirectoryEntries(entries map[string]os.DirEntry) []os.DirEntry {
-	result := make([]os.DirEntry, 0, len(entries))
-	for _, entry := range entries {
-		result = append(result, entry)
+	result := slices.SortedFunc(maps.Values(entries), func(left, right os.DirEntry) int {
+		return strings.Compare(left.Name(), right.Name())
+	})
+	switch {
+	case result == nil:
+		result = []os.DirEntry{}
 	}
-	slices.SortFunc(result, func(left, right os.DirEntry) int { return strings.Compare(left.Name(), right.Name()) })
 	return result
 }
 
@@ -393,11 +396,11 @@ func compileLegacyFiles(files []legacyDatasetFile) ([]InventoryFile, []string, i
 			ModifiedUnix: file.ModifiedUnix, Structured: file.Structured, Attributes: file.Attributes,
 		}
 	}
-	formats := make([]string, 0, len(formatSet))
-	for format := range formatSet {
-		formats = append(formats, format)
+	formats := slices.Sorted(maps.Keys(formatSet))
+	switch {
+	case formats == nil:
+		formats = []string{}
 	}
-	slices.Sort(formats)
 	return result, formats, bytes, nil
 }
 

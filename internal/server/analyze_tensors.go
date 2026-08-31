@@ -43,7 +43,7 @@ func (policy AnalysisPolicy) tensorMeasurementPolicy() modelartifact.Measurement
 // Model labels the owning model when the entry comes from the cross-model
 // store catalog.
 type analyzeTensor struct {
-	Model   string   `json:"model,omitempty"`
+	Model   string   `json:"model,omitzero"`
 	Storage string   `json:"storage"`
 	Shape   []uint64 `json:"shape"`
 	modelartifact.TensorMeasurement

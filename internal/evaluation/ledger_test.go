@@ -24,7 +24,7 @@ func (g *countingExactGenerator) Generate(
 }
 
 func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	exact, plan := ledgerFixture(t, "environment")
 
 	t.Run("resume", func(t *testing.T) {

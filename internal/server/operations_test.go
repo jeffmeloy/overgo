@@ -19,7 +19,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "server-operation-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "server-operation-run")
 	release := make(chan struct{})
-	id, err := handler.operations.Submit(context.Background(), operation.Request{
+	id, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
 		select {
@@ -55,7 +55,7 @@ func TestOperationRuntimeLifecycle(t *testing.T) {
 	if cancelResponse.Code != http.StatusAccepted {
 		t.Fatalf("cancel code = %d, body=%s", cancelResponse.Code, cancelResponse.Body.String())
 	}
-	status, err = handler.operations.Wait(context.Background(), id)
+	status, err = handler.operations.Wait(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}

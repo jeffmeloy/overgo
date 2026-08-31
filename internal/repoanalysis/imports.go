@@ -7,7 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"path"
-	"sort"
+	"slices"
 	"strconv"
 )
 
@@ -48,7 +48,7 @@ func PackageNames(snapshot SourceSnapshot, selection BuildSelection) (map[string
 			paths = append(paths, importPath)
 		}
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	for start := 0; start < len(paths); start += importNameBatch {
 		end := min(start+importNameBatch, len(paths))
 		command := exec.Command("go", append([]string{"list", "-e", "-json"}, paths[start:end]...)...)

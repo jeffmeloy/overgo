@@ -354,7 +354,7 @@ func runFullPipeline(
 	tokenID := firstToken
 	generated := []int{tokenID}
 	decodeStart := time.Now()
-	for step := 0; step < genBudget; step++ {
+	for step := range genBudget {
 		tokenPos := pc.promptLen + step
 		embedding, err := routedlm.EmbeddingRows(pc.src, cfg, binding, []int{tokenID})
 		if err != nil {

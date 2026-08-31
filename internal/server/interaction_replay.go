@@ -21,7 +21,7 @@ type interactionReplayResponse struct {
 // of an opaque identity.
 type interactionMediaRef struct {
 	ID        artifact.ID `json:"id"`
-	MediaType string      `json:"media_type,omitempty"`
+	MediaType string      `json:"media_type,omitzero"`
 }
 
 func (h *Handler) interactionReplay(response http.ResponseWriter, request *http.Request) {

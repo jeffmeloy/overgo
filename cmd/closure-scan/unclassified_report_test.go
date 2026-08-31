@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"os"
@@ -113,7 +112,7 @@ const Conflict = 13
 			Name: alias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true,
 		}
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:     "fixture/manual-retirement",
 		Aliases: []artifact.AliasBinding{retire("Conflict", conflictLatest)},
 	}); err != nil {
@@ -130,7 +129,7 @@ const Conflict = 13
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := buildUnclassifiedReport(context.Background(), snapshot, store)
+	report, err := buildUnclassifiedReport(t.Context(), snapshot, store)
 	closeErr := store.Close()
 	if err != nil || closeErr != nil {
 		t.Fatalf("report = (%v, close=%v)", err, closeErr)
@@ -279,7 +278,7 @@ func localIID([]float64) bool { return true }
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/manual-retirement",
 		Aliases: []artifact.AliasBinding{{
 			Name: literalAlias, Target: priorLiteral.ID, Previous: artifact.IDPointer(priorLiteral.ID), Remove: true,
@@ -295,7 +294,7 @@ func localIID([]float64) bool { return true }
 		t.Fatal(err)
 	}
 	headBefore, sequenceBefore := store.Head()
-	report, reportErr := buildUnclassifiedPolicyReport(context.Background(), snapshot, store)
+	report, reportErr := buildUnclassifiedPolicyReport(t.Context(), snapshot, store)
 	headAfter, sequenceAfter := store.Head()
 	closeErr := store.Close()
 	if reportErr != nil || closeErr != nil {

@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -62,6 +63,11 @@ func ParseAdmissionBinding(content []byte) (AdmissionBinding, error) {
 	return admissionBindingCodec.Parse(content)
 }
 
+// RequireAdmissionBinding loads one exact independent authority binding.
+func RequireAdmissionBinding(ctx context.Context, reader artifact.Reader, id artifact.ID) (AdmissionBinding, error) {
+	return admissionBindingCodec.Require(ctx, reader, id)
+}
+
 func (b AdmissionBinding) Content() (artifact.Content, error) {
 	return admissionBindingCodec.Content(b)
 }
@@ -76,7 +82,7 @@ func canonicalizeAdmissionBinding(value *AdmissionBinding) error {
 			return errors.New("run record: authority domain requires a name and an evidence identity")
 		}
 	}
-	for i := 0; i < len(domains); i++ {
+	for i := range domains {
 		for j := i + 1; j < len(domains); j++ {
 			if domains[i].Name == domains[j].Name {
 				return fmt.Errorf("run record: authority domains %q are not independent", domains[i].Name)

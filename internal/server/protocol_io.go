@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+var errRequestTimeoutCause = errors.New("server: request timeout elapsed")
+
 func beginSSE(response http.ResponseWriter) (http.Flusher, bool) {
 	flusher, ok := response.(http.Flusher)
 	if !ok {
@@ -100,17 +102,16 @@ func (stream *synchronizedSSE) startHeartbeat(ctx context.Context, interval time
 	}
 	stop := make(chan struct{})
 	stopped := make(chan struct{})
+	stopHeartbeat := sync.OnceFunc(func() { close(stop) })
+	stopAfterContext := context.AfterFunc(ctx, stopHeartbeat)
 	go func() {
 		defer close(stopped)
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
+		ticker := time.Tick(interval)
 		for {
 			select {
-			case <-ctx.Done():
-				return
 			case <-stop:
 				return
-			case <-ticker.C:
+			case <-ticker:
 				if stream.ping() != nil {
 					return
 				}
@@ -118,13 +119,14 @@ func (stream *synchronizedSSE) startHeartbeat(ctx context.Context, interval time
 		}
 	}()
 	return func() {
-		close(stop)
+		stopAfterContext()
+		stopHeartbeat()
 		<-stopped
 	}
 }
 
 func writeGenerationError(response http.ResponseWriter, err error) {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, errRequestTimeoutCause) {
 		writeError(response, http.StatusRequestTimeout, "request_cancelled", err.Error())
 		return
 	}

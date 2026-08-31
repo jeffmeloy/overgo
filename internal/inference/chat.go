@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"overgo/internal/strictjson"
@@ -38,10 +38,10 @@ type ChatMessage struct {
 	Role             ChatRole        `json:"role"`
 	Content          string          `json:"content"`
 	Media            []ChatMediaPart `json:"-"`
-	ReasoningContent string          `json:"reasoning_content,omitempty"`
-	Name             string          `json:"name,omitempty"`
-	ToolCallID       string          `json:"tool_call_id,omitempty"`
-	ToolResultError  bool            `json:"is_error,omitempty"`
+	ReasoningContent string          `json:"reasoning_content,omitzero"`
+	Name             string          `json:"name,omitzero"`
+	ToolCallID       string          `json:"tool_call_id,omitzero"`
+	ToolResultError  bool            `json:"is_error,omitzero"`
 	ToolCalls        []ChatToolCall  `json:"tool_calls,omitempty"`
 }
 
@@ -66,7 +66,7 @@ type ChatToolType string
 const ChatToolTypeFunction ChatToolType = "function"
 
 type ChatToolCall struct {
-	ID       string           `json:"id,omitempty"`
+	ID       string           `json:"id,omitzero"`
 	Type     ChatToolType     `json:"type"`
 	Function ChatToolFunction `json:"function"`
 }
@@ -83,7 +83,7 @@ type ChatTool struct {
 
 type ChatToolDefinition struct {
 	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
+	Description string         `json:"description,omitzero"`
 	Parameters  map[string]any `json:"parameters"`
 }
 
@@ -106,10 +106,10 @@ func (m ChatMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Role             ChatRole       `json:"role"`
 		Content          any            `json:"content"`
-		ReasoningContent string         `json:"reasoning_content,omitempty"`
-		Name             string         `json:"name,omitempty"`
-		ToolCallID       string         `json:"tool_call_id,omitempty"`
-		ToolResultError  bool           `json:"is_error,omitempty"`
+		ReasoningContent string         `json:"reasoning_content,omitzero"`
+		Name             string         `json:"name,omitzero"`
+		ToolCallID       string         `json:"tool_call_id,omitzero"`
+		ToolResultError  bool           `json:"is_error,omitzero"`
 		ToolCalls        []ChatToolCall `json:"tool_calls,omitempty"`
 	}{
 		Role:             m.Role,
@@ -170,7 +170,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						Type     string `json:"type"`
 						ImageURL struct {
 							URL    string `json:"url"`
-							Detail string `json:"detail,omitempty"`
+							Detail string `json:"detail,omitzero"`
 						} `json:"image_url"`
 					}
 					if err := strictjson.DecodeBytes(raw, &part); err != nil {
@@ -214,7 +214,7 @@ func (m *ChatMessage) UnmarshalJSON(data []byte) error {
 						InputVideo struct {
 							Data string  `json:"data"`
 							URL  string  `json:"url"`
-							FPS  float64 `json:"fps,omitempty"`
+							FPS  float64 `json:"fps,omitzero"`
 						} `json:"input_video"`
 					}
 					if err := strictjson.DecodeBytes(raw, &part); err != nil {
@@ -526,7 +526,7 @@ func writeChatTemplateJSON(output *strings.Builder, value any) {
 		for key := range typed {
 			keys = append(keys, key)
 		}
-		sort.Strings(keys)
+		slices.Sort(keys)
 		output.WriteByte('{')
 		for index, key := range keys {
 			if index != 0 {

@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/strictjson"
 )
 
@@ -247,7 +249,7 @@ func positiveFinite(value float64) bool {
 }
 
 func finite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
+	return checked.Finite64(value)
 }
 
 func cloneScratchOracle(oracle ScratchOracle) ScratchOracle {
@@ -269,12 +271,5 @@ func cloneScratchOracle(oracle ScratchOracle) ScratchOracle {
 }
 
 func cloneMap[K comparable, V any](source map[K]V) map[K]V {
-	if source == nil {
-		return nil
-	}
-	result := make(map[K]V, len(source))
-	for key, value := range source {
-		result[key] = value
-	}
-	return result
+	return maps.Clone(source)
 }

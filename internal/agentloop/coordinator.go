@@ -19,6 +19,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/inference"
+	"overgo/internal/invocation"
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -37,13 +38,15 @@ type Identity struct {
 // session serializes its own steps -- two concurrent proposals on one
 // session would race the inspection gate and fork the chain.
 type Session struct {
-	mu          sync.Mutex
-	ID          string
-	Interaction artifact.ID
-	Inspected   bool
-	Steps       int
-	Contract    *ContractState
-	Checkpoints *MutationCheckpointRuntime
+	mu               sync.Mutex
+	ID               string
+	Interaction      artifact.ID
+	Inspection       artifact.ID
+	InspectionEffect artifact.ID
+	Ceiling          artifact.ID
+	Steps            int
+	Contract         *ContractState
+	Checkpoints      *MutationCheckpointRuntime
 	// held is the last admitted stimulus boundary this session still holds;
 	// nil for a stateless or resumed session, which rebuilds the bounded
 	// full context instead of receiving a cursor delta.
@@ -92,9 +95,8 @@ func (c *Coordinator) Propose(
 	session *Session,
 	name string,
 	arguments json.RawMessage,
-	approved bool,
 ) (json.RawMessage, error) {
-	return c.propose(ctx, session, name, arguments, approved, nil)
+	return c.propose(ctx, session, name, arguments, nil)
 }
 
 // ProposeWithManuals admits a step only when the active agent binds the exact manual.
@@ -103,13 +105,12 @@ func (c *Coordinator) ProposeWithManuals(
 	session *Session,
 	name string,
 	arguments json.RawMessage,
-	approved bool,
 	manuals []artifact.ID,
 ) (json.RawMessage, error) {
 	if len(manuals) == 0 {
 		return nil, errors.New("agent loop: active agent has no tool authority")
 	}
-	return c.propose(ctx, session, name, arguments, approved, manuals)
+	return c.propose(ctx, session, name, arguments, manuals)
 }
 
 func (c *Coordinator) propose(
@@ -117,7 +118,6 @@ func (c *Coordinator) propose(
 	session *Session,
 	name string,
 	arguments json.RawMessage,
-	approved bool,
 	manuals []artifact.ID,
 ) (json.RawMessage, error) {
 	if ctx == nil || session == nil || session.ID == "" {
@@ -141,15 +141,9 @@ func (c *Coordinator) propose(
 	if err := agenttool.CheckArgvAuthority(ctx, c.store, manual); err != nil {
 		return nil, err
 	}
-	if manual.Effect == agenttool.EffectMutation {
-		if !session.Inspected {
-			return nil, fmt.Errorf(
-				"agent loop: mutation %q refused before any completed inspection", name)
-		}
-		if !approved {
-			return nil, fmt.Errorf(
-				"agent loop: mutation %q requires an exact approval", name)
-		}
+	arguments, err = agenttool.CanonicalArguments(manual, arguments)
+	if err != nil {
+		return nil, err
 	}
 	plannedEffect, err := agenttool.DeriveInvocationEffect(manual, arguments, nil)
 	if err != nil {
@@ -159,14 +153,15 @@ func (c *Coordinator) propose(
 		return nil, err
 	}
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
+	var stimulus runrecord.AttemptStimulusBoundary
+	var decision runrecord.HumanDecision
 	if manual.Effect == agenttool.EffectMutation {
-		if err := c.verifyMutationDecision(ctx, callID, manual, arguments); err != nil {
-			return nil, err
-		}
+		stimulus, decision, err = c.requireMutationDecision(ctx, session, callID, manual, plannedEffect)
+	} else {
+		stimulus, err = c.admitAttemptStimulus(ctx, session, callID, manual, arguments, plannedEffect)
 	}
-	stimulus, err := c.admitAttemptStimulus(ctx, session, callID, manual, arguments)
 	if err != nil {
-		return nil, fmt.Errorf("agent loop: attempt stimulus was not admitted: %w", err)
+		return nil, fmt.Errorf("agent loop: attempt preflight was not admitted: %w", err)
 	}
 	if session.handoff, err = incrementalSessionContext(session, stimulus); err != nil {
 		return nil, fmt.Errorf("agent loop: attempt context handoff was not proven: %w", err)
@@ -180,15 +175,23 @@ func (c *Coordinator) propose(
 	// verifies the COMMITTED decision bound to this exact step, manual
 	// identity, and argument bytes.
 	var receiptOperation artifact.ID
+	var receiptBinding *invocation.ReceiptBinding
 	var checkpoint runrecord.AgentMutationCheckpoint
 	if manual.Effect == agenttool.EffectMutation {
-		if receiptOperation, err = c.admitMutationReceipt(ctx, callID, manual, stimulus); err != nil {
+		binding := invocation.ReceiptBinding{
+			Boundary: invocation.BoundaryAgent, Kind: invocation.MutationTool, Action: manual.Name,
+			Subject: manual.ID, Arguments: stimulus.Arguments, Effect: stimulus.Effect,
+			Preflight: stimulus.ID, Inspection: stimulus.Inspection, Ceiling: stimulus.Ceiling,
+			Authority: decision.ID, CausalContext: stimulus.CausalContext, Head: stimulus.Selection.Head,
+		}
+		receiptBinding = &binding
+		if receiptOperation, err = c.admitMutationReceipt(ctx, callID, manual, stimulus, binding); err != nil {
 			return nil, fmt.Errorf("agent loop: mutation %q refused without a durable receipt: %w", name, err)
 		}
 		if session.Checkpoints != nil {
 			checkpoint, err = session.Checkpoints.BeginCheckpoint(ctx, receiptOperation, plannedEffect, uint64(session.Steps))
 			if err != nil {
-				_, _ = c.closeMutationReceipt(ctx, receiptOperation, nil, err)
+				_, _ = c.closeMutationReceipt(ctx, receiptOperation, binding, nil, err)
 				return nil, err
 			}
 		}
@@ -205,7 +208,7 @@ func (c *Coordinator) propose(
 	}
 	var receipt artifact.ID
 	if receiptOperation.Valid() {
-		receipt, err = c.closeMutationReceipt(ctx, receiptOperation, result, invokeErr)
+		receipt, err = c.closeMutationReceipt(ctx, receiptOperation, *receiptBinding, result, invokeErr)
 		if err != nil {
 			return nil, errors.Join(invokeErr, fmt.Errorf("agent loop: mutation receipt did not close: %w", err))
 		}
@@ -213,12 +216,17 @@ func (c *Coordinator) propose(
 	if invokeErr != nil {
 		return nil, invokeErr
 	}
-	if err := c.recordStep(ctx, session, manual, arguments, result, receipt, checkpoint.ID, stimulus.ID); err != nil {
+	interaction, err := c.recordStep(ctx, session, manual, arguments, result, receipt, checkpoint.ID, stimulus.ID)
+	if err != nil {
 		return nil, fmt.Errorf("agent loop: step executed but did not persist: %w", err)
 	}
 	session.Steps++
 	if manual.Effect == agenttool.EffectInspection {
-		session.Inspected = true
+		session.Inspection, session.InspectionEffect = interaction, plannedEffect.ID
+	} else {
+		// A mutation changes the inspected state. Even an identical next action
+		// needs a fresh, relevant inspection and a new bound preflight.
+		session.Inspection, session.InspectionEffect = artifact.ID{}, artifact.ID{}
 	}
 	return result, nil
 }
@@ -242,9 +250,6 @@ func (c *Coordinator) RestoreSession(ctx context.Context, id string) (*Session, 
 			break
 		}
 		session.Steps, session.Interaction = step, interaction.ID
-		if session.Inspected {
-			continue
-		}
 		transcript, err := runrecord.RequireInteractionTranscript(ctx, c.store, interaction.Message)
 		if err != nil {
 			return nil, err
@@ -262,8 +267,16 @@ func (c *Coordinator) RestoreSession(ctx context.Context, id string) (*Session, 
 				} else {
 					manual, err = agenttool.ResolveRegisteredManual(ctx, c.store, call.Name)
 				}
-				if err == nil && manual.Effect == agenttool.EffectInspection {
-					session.Inspected = true
+				if err == nil {
+					if manual.Effect == agenttool.EffectMutation {
+						session.Inspection, session.InspectionEffect = artifact.ID{}, artifact.ID{}
+						continue
+					}
+					effect, effectErr := agenttool.DeriveInvocationEffect(manual, json.RawMessage(call.Arguments), nil)
+					if effectErr != nil {
+						return nil, effectErr
+					}
+					session.Inspection, session.InspectionEffect = interaction.ID, effect.ID
 				}
 			}
 		}
@@ -295,10 +308,33 @@ func (c *Coordinator) ApproveMutation(
 	if manual.Effect != agenttool.EffectMutation {
 		return artifact.ID{}, fmt.Errorf("agent loop: %q is not a mutation; inspections need no approval", name)
 	}
-	operation, err := MutationReceiptOperation(fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1))
+	arguments, err = agenttool.CanonicalArguments(manual, arguments)
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	plannedEffect, err := agenttool.DeriveInvocationEffect(manual, arguments, nil)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if err := session.Contract.Admit(plannedEffect); err != nil {
+		return artifact.ID{}, err
+	}
+	if !session.Inspection.Valid() || !session.InspectionEffect.Valid() {
+		return artifact.ID{}, fmt.Errorf("agent loop: mutation %q refused before an action-bound inspection", name)
+	}
+	inspectionEffect, err := invocation.RequireEffect(ctx, c.store, session.InspectionEffect)
+	if err != nil {
+		return artifact.ID{}, fmt.Errorf("agent loop: inspection effect is not durable: %w", err)
+	}
+	if !invocation.InspectionCovers(inspectionEffect, plannedEffect) {
+		return artifact.ID{}, fmt.Errorf("agent loop: inspection is not relevant to mutation %q", name)
+	}
+	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
+	stimulus, err := c.admitAttemptStimulus(ctx, session, callID, manual, arguments, plannedEffect)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	operation := stimulus.Operation
 	var prior artifact.ID
 	if existing, found, err := runrecord.ResolveHumanDecision(ctx, c.store, operation); err != nil {
 		return artifact.ID{}, err
@@ -307,7 +343,7 @@ func (c *Coordinator) ApproveMutation(
 	}
 	request, err := operatoraction.NewApprovalRequest(operation, c.identity.Recipe, operatoraction.Action{
 		Code: manual.Name, Summary: "agent mutation " + manual.Name,
-		Argv: decisionArguments(manual, arguments),
+		Argv: decisionArguments(manual, stimulus),
 	}, prior)
 	if err != nil {
 		return artifact.ID{}, err
@@ -322,40 +358,56 @@ func (c *Coordinator) ApproveMutation(
 	return decision.ID, nil
 }
 
-// decisionArguments is the exact fact set a mutation decision binds:
-// the immutable manual identity and the raw argument bytes.
-func decisionArguments(manual agenttool.Manual, arguments json.RawMessage) []string {
-	return []string{manual.ID.String(), string(arguments)}
+// decisionArguments is the exact fact set a mutation decision binds: the
+// immutable subject, canonical arguments, resolved effect, and preflight.
+func decisionArguments(manual agenttool.Manual, stimulus runrecord.AttemptStimulusBoundary) []string {
+	return invocation.ApprovalArguments(manual.ID, stimulus.Arguments, stimulus.Effect, stimulus.ID)
 }
 
-// verifyMutationDecision requires the committed grant for this exact
-// step: same operation, same manual identity, same argument bytes. A
-// missing decision, a decline, or a decision recorded for different
-// arguments refuses the mutation.
-func (c *Coordinator) verifyMutationDecision(
+// requireMutationDecision requires one action-bound preflight and the committed
+// grant for its exact subject, canonical arguments, effect, and inspection.
+func (c *Coordinator) requireMutationDecision(
 	ctx context.Context,
+	session *Session,
 	callID string,
 	manual agenttool.Manual,
-	arguments json.RawMessage,
-) error {
+	plannedEffect agenttool.InvocationEffect,
+) (runrecord.AttemptStimulusBoundary, runrecord.HumanDecision, error) {
 	operation, err := MutationReceiptOperation(callID)
 	if err != nil {
-		return err
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, err
+	}
+	stimulus, found, err := runrecord.ResolveAttemptStimulus(ctx, c.store, operation, uint32(artifact.InitialDocumentVersion))
+	if err != nil {
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, err
+	}
+	if !found {
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, fmt.Errorf("agent loop: mutation %q has no action-bound preflight", manual.Name)
+	}
+	if stimulus.Manual != manual.ID || stimulus.Arguments != plannedEffect.Arguments || stimulus.Effect != plannedEffect.ID ||
+		stimulus.Class != invocation.ClassMutation || stimulus.Inspection != session.Inspection ||
+		stimulus.InspectionEffect != session.InspectionEffect || stimulus.CausalContext != session.Interaction ||
+		stimulus.Ceiling != c.sessionCeiling(session) {
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, fmt.Errorf("agent loop: mutation %q preflight binds different action facts", manual.Name)
+	}
+	inspectionEffect, err := invocation.RequireEffect(ctx, c.store, stimulus.InspectionEffect)
+	if err != nil || !invocation.InspectionCovers(inspectionEffect, plannedEffect) {
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, fmt.Errorf("agent loop: mutation %q preflight inspection is not relevant", manual.Name)
 	}
 	decision, found, err := runrecord.ResolveHumanDecision(ctx, c.store, operation)
 	if err != nil {
-		return err
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, err
 	}
 	if !found {
-		return fmt.Errorf("agent loop: mutation %q has no committed approval decision", manual.Name)
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, fmt.Errorf("agent loop: mutation %q has no committed approval decision", manual.Name)
 	}
 	if decision.Answer != operatoraction.AnswerGrant {
-		return fmt.Errorf("agent loop: mutation %q approval decision is %q", manual.Name, decision.Answer)
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, fmt.Errorf("agent loop: mutation %q approval decision is %q", manual.Name, decision.Answer)
 	}
-	if decision.Tool != manual.Name || !slices.Equal(decision.Arguments, decisionArguments(manual, arguments)) {
-		return fmt.Errorf("agent loop: committed decision binds a different tool or arguments for %q", manual.Name)
+	if decision.Tool != manual.Name || !slices.Equal(decision.Arguments, decisionArguments(manual, stimulus)) {
+		return runrecord.AttemptStimulusBoundary{}, runrecord.HumanDecision{}, fmt.Errorf("agent loop: committed decision binds a different tool or arguments for %q", manual.Name)
 	}
-	return nil
+	return stimulus, decision, nil
 }
 
 // DecisionPreview reports what the mutation gate would see for the
@@ -396,10 +448,24 @@ func (c *Coordinator) PreviewMutationDecision(
 	if err != nil {
 		return DecisionPreview{}, err
 	}
+	arguments, err = agenttool.CanonicalArguments(manual, arguments)
+	if err != nil {
+		return DecisionPreview{}, err
+	}
+	effect, err := agenttool.DeriveInvocationEffect(manual, arguments, nil)
+	if err != nil {
+		return DecisionPreview{}, err
+	}
 	preview := DecisionPreview{
 		CallID: callID, Operation: operation, Manual: manual.ID,
 		Tool: manual.Name, Effect: manual.Effect,
-		Arguments: decisionArguments(manual, arguments),
+	}
+	stimulus, preflightFound, err := runrecord.ResolveAttemptStimulus(ctx, c.store, operation, uint32(artifact.InitialDocumentVersion))
+	if err != nil {
+		return DecisionPreview{}, err
+	}
+	if preflightFound && stimulus.Manual == manual.ID && stimulus.Arguments == effect.Arguments && stimulus.Effect == effect.ID {
+		preview.Arguments = decisionArguments(manual, stimulus)
 	}
 	decision, found, err := runrecord.ResolveHumanDecision(ctx, c.store, operation)
 	if err != nil {
@@ -407,7 +473,7 @@ func (c *Coordinator) PreviewMutationDecision(
 	}
 	if found {
 		preview.Decision = &decision
-		preview.Binds = decision.Answer == operatoraction.AnswerGrant &&
+		preview.Binds = preflightFound && decision.Answer == operatoraction.AnswerGrant &&
 			decision.Tool == manual.Name && slices.Equal(decision.Arguments, preview.Arguments)
 	}
 	return preview, nil
@@ -421,16 +487,22 @@ func MutationReceiptOperation(callID string) (artifact.ID, error) {
 }
 
 // admitAttemptStimulus freezes the exact pre-execution head and request bytes.
-// Raw bytes are also the conservative token ceiling when this tool boundary has
-// no model tokenizer; callers can never undercount context by that substitution.
+// Canonical bytes are also the conservative token ceiling when this tool
+// boundary has no model tokenizer; callers can never undercount context by that
+// substitution.
 func (c *Coordinator) admitAttemptStimulus(
 	ctx context.Context,
 	session *Session,
 	callID string,
 	manual agenttool.Manual,
 	arguments json.RawMessage,
+	effect agenttool.InvocationEffect,
 ) (runrecord.AttemptStimulusBoundary, error) {
 	operation, err := MutationReceiptOperation(callID)
+	if err != nil {
+		return runrecord.AttemptStimulusBoundary{}, err
+	}
+	effectContent, err := effect.Content()
 	if err != nil {
 		return runrecord.AttemptStimulusBoundary{}, err
 	}
@@ -440,22 +512,42 @@ func (c *Coordinator) admitAttemptStimulus(
 	}
 	size := content.Descriptor.Size
 	head, _ := c.store.Head()
-	contents := []artifact.Content{content}
+	argumentContents := []artifact.Content{content}
+	contents := slices.Concat(argumentContents, []artifact.Content{effectContent})
+	documents := uint64(len(argumentContents))
+	depth := uint32(len(argumentContents))
 	sources := []dataset.InteractionSelectionSource{{
 		Source: content.Descriptor.ID, CausalRoot: operation, Tokens: size, Bytes: size,
-		Documents: uint64(len(contents)), Depth: uint32(len(contents)),
+		Documents: documents, Depth: depth,
 	}}
 	selection, err := dataset.SelectInteractions(dataset.InteractionSelectionBounds{
-		MaxTokens: size, MaxBytes: size, MaxDocuments: uint64(len(contents)),
+		MaxTokens: size, MaxBytes: size, MaxDocuments: documents,
 		MaxDepth: uint32(len(sources)), MaxResults: uint64(len(sources)),
 	}, head, sources, nil)
 	if err != nil {
 		return runrecord.AttemptStimulusBoundary{}, err
 	}
+	var inspection, inspectionEffect artifact.ID
+	if effect.Class == invocation.ClassMutation {
+		inspection, inspectionEffect = session.Inspection, session.InspectionEffect
+	}
 	return runrecord.PublishAttemptStimulus(ctx, c.store, runrecord.AttemptStimulusBoundary{
 		Operation: operation, Attempt: uint32(artifact.InitialDocumentVersion),
-		Manual: manual.ID, Prior: session.Interaction, Selection: selection,
+		Manual: manual.ID, Class: effect.Class, Arguments: effect.Arguments, Effect: effect.ID,
+		Inspection: inspection, InspectionEffect: inspectionEffect,
+		Ceiling: c.sessionCeiling(session), CausalContext: session.Interaction,
+		Prior: session.Interaction, Selection: selection,
 	}, contents)
+}
+
+func (c *Coordinator) sessionCeiling(session *Session) artifact.ID {
+	if session != nil && session.Ceiling.Kind() == artifact.KindRecipe {
+		return session.Ceiling
+	}
+	if session != nil && session.Contract != nil {
+		return session.Contract.Authority()
+	}
+	return c.identity.Recipe
 }
 
 // admitMutationReceipt persists the admitted and running receipts for
@@ -466,6 +558,7 @@ func (c *Coordinator) admitMutationReceipt(
 	callID string,
 	manual agenttool.Manual,
 	stimulus runrecord.AttemptStimulusBoundary,
+	binding invocation.ReceiptBinding,
 ) (artifact.ID, error) {
 	operation, err := MutationReceiptOperation(callID)
 	if err != nil {
@@ -474,7 +567,8 @@ func (c *Coordinator) admitMutationReceipt(
 	argumentsID := stimulus.Selection.Sources[0].Source
 	base := runrecord.StageReceipt{
 		Recipe: c.identity.Recipe, Node: c.identity.Node, Operation: operation,
-		Attempt: 1, State: runrecord.StageAdmitted,
+		Attempt: uint32(artifact.InitialDocumentVersion), State: runrecord.StageAdmitted,
+		Invocation: &binding,
 		Inputs: []runrecord.StageBinding{
 			{Port: "tool", Artifacts: []artifact.ID{manual.ID}},
 			{Port: "arguments", Artifacts: []artifact.ID{argumentsID}},
@@ -498,11 +592,14 @@ func (c *Coordinator) admitMutationReceipt(
 func (c *Coordinator) closeMutationReceipt(
 	ctx context.Context,
 	operation artifact.ID,
+	binding invocation.ReceiptBinding,
 	result json.RawMessage,
 	invokeErr error,
 ) (artifact.ID, error) {
 	base := runrecord.StageReceipt{
-		Recipe: c.identity.Recipe, Node: c.identity.Node, Operation: operation, Attempt: 1,
+		Recipe: c.identity.Recipe, Node: c.identity.Node, Operation: operation,
+		Attempt:    uint32(artifact.InitialDocumentVersion),
+		Invocation: &binding,
 	}
 	var descriptors []artifact.Descriptor
 	if invokeErr != nil {
@@ -534,7 +631,7 @@ func (c *Coordinator) recordStep(
 	receipt artifact.ID,
 	checkpoint artifact.ID,
 	stimulus artifact.ID,
-) error {
+) (artifact.ID, error) {
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
 	published, err := runrecord.PublishInteraction(ctx, c.store, runrecord.Interaction{
 		Response: callID,
@@ -553,8 +650,8 @@ func (c *Coordinator) recordStep(
 		{Role: string(inference.ChatRoleTool), ToolCallID: callID, Content: string(result)},
 	})
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	session.Interaction = published.ID
-	return nil
+	return published.ID, nil
 }

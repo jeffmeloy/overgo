@@ -2,7 +2,7 @@ package speechsynth
 
 import (
 	"math"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 )
@@ -64,7 +64,7 @@ func TestSynthWall(t *testing.T) {
 	}
 	report := func(name string, walls []float64) {
 		sorted := append([]float64(nil), walls...)
-		sort.Float64s(sorted)
+		slices.Sort(sorted)
 		t.Logf("%s: median %.4fs over %d runs (min %.4f max %.4f)",
 			name, sorted[len(sorted)/2], synthWallRuns, sorted[0], sorted[len(sorted)-1])
 	}

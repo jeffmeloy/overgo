@@ -16,17 +16,17 @@ func conv2dSame3x3Backward(x, weight, dOut []float32, b, cin, cout, h, w int) (d
 	dxf := make([]float64, b*cin*plane)
 	dWf := make([]float64, cout*cin*convTaps)
 	dBf := make([]float64, cout)
-	for bi := 0; bi < b; bi++ {
-		for co := 0; co < cout; co++ {
+	for bi := range b {
+		for co := range cout {
 			gb := (bi*cout + co) * plane
 			for _, g := range dOut[gb : gb+plane] {
 				dBf[co] += float64(g)
 			}
-			for ci := 0; ci < cin; ci++ {
+			for ci := range cin {
 				xb := (bi*cin + ci) * plane
 				wc := (co*cin + ci) * convTaps
-				for i := 0; i < h; i++ {
-					for j := 0; j < w; j++ {
+				for i := range h {
+					for j := range w {
 						g := float64(dOut[gb+i*w+j])
 						if g == 0 {
 							continue
@@ -58,12 +58,12 @@ func conv2dSame3x3Backward(x, weight, dOut []float32, b, cin, cout, h, w int) (d
 func upsampleNearest2xBackward(dOut []float32, b, c, h, w int) []float32 {
 	oh, ow := upsample*h, upsample*w
 	dx := make([]float32, b*c*h*w)
-	for bi := 0; bi < b; bi++ {
-		for ci := 0; ci < c; ci++ {
+	for bi := range b {
+		for ci := range c {
 			ob := (bi*c + ci) * oh * ow
 			ib := (bi*c + ci) * h * w
-			for i := 0; i < oh; i++ {
-				for j := 0; j < ow; j++ {
+			for i := range oh {
+				for j := range ow {
 					dx[ib+(i/upsample)*w+(j/upsample)] += dOut[ob+i*ow+j]
 				}
 			}
@@ -110,16 +110,16 @@ func kuramotoVelocityBackwardAccumulate(dTheta []float32, dThetaStride, dThetaOf
 	dKf := make([]float64, n*n)
 	sinT, cosT := make([]float64, n), make([]float64, n)
 	ws, wc := make([]float64, n), make([]float64, n)
-	for bi := 0; bi < b; bi++ {
+	for bi := range b {
 		th := theta[bi*thetaStride+thetaOffset:][:n]
 		dv := dVel[bi*dVelStride+dVelOffset:][:n]
-		for j := 0; j < n; j++ {
+		for j := range n {
 			sinT[j], cosT[j] = math.Sincos(float64(th[j]))
 		}
 		clear(ws)
 		clear(wc)
-		for i := 0; i < n; i++ {
-			for j := 0; j < n; j++ {
+		for i := range n {
+			for j := range n {
 				if zeroDiagonal && i == j {
 					continue
 				}
@@ -128,17 +128,17 @@ func kuramotoVelocityBackwardAccumulate(dTheta []float32, dThetaStride, dThetaOf
 				wc[i] += k * cosT[j]
 			}
 		}
-		for i := 0; i < n; i++ {
+		for i := range n {
 			dOmegaF[i] += float64(dv[i])
-			for j := 0; j < n; j++ {
+			for j := range n {
 				if !zeroDiagonal || i != j {
 					dKf[i*n+j] += float64(dv[i]) * (sinT[j]*cosT[i] - cosT[j]*sinT[i])
 				}
 			}
 		}
-		for k := 0; k < n; k++ {
+		for k := range n {
 			d := float64(dv[k]) * (-sinT[k]*ws[k] - cosT[k]*wc[k])
-			for i := 0; i < n; i++ {
+			for i := range n {
 				if zeroDiagonal && i == k {
 					continue
 				}
@@ -148,10 +148,10 @@ func kuramotoVelocityBackwardAccumulate(dTheta []float32, dThetaStride, dThetaOf
 			dTheta[bi*dThetaStride+dThetaOffset+k] = float32(d)
 		}
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		dOmega[i] += float32(dOmegaF[i])
 	}
-	for i := 0; i < n*n; i++ {
+	for i := range n * n {
 		dK[i] += float32(float64(float32(dKf[i])) * scale)
 	}
 }
@@ -164,22 +164,22 @@ func conditionalKuramotoBackwardAccumulate(dState, dOmega, dK, dOmegaCond, dKCon
 	kuramotoVelocityBackwardAccumulate(dState, tot, 0, dOmega, dK, state, tot, 0, kMat, dOut, tot, 0, b, n, kScale, true)
 	kuramotoVelocityBackwardAccumulate(dState, tot, n, dOmegaCond, dKCond, state, tot, n, kCondMat, dOut, tot, n, b, nCond, kCondScale, true)
 	sinC, cosC := make([]float64, nCond), make([]float64, nCond)
-	for bi := 0; bi < b; bi++ {
-		for m := 0; m < nCond; m++ {
+	for bi := range b {
+		for m := range nCond {
 			sinC[m], cosC[m] = math.Sincos(float64(state[bi*tot+n+m]))
 		}
-		for i := 0; i < n; i++ {
+		for i := range n {
 			sm, cm := math.Sincos(float64(state[bi*tot+i]))
 			var ds, dc float64
 			base := bi*n*nCond + i*nCond
-			for m := 0; m < nCond; m++ {
+			for m := range nCond {
 				de := float64(drive[base+m]) * kDriveScale
 				ds += de * sinC[m]
 				dc += de * cosC[m]
 			}
 			dmv := float64(dOut[bi*tot+i])
 			dState[bi*tot+i] = float32(float64(dState[bi*tot+i]) + dmv*(-sm*ds-cm*dc))
-			for m := 0; m < nCond; m++ {
+			for m := range nCond {
 				de := float64(drive[base+m]) * kDriveScale
 				dState[bi*tot+n+m] = float32(float64(dState[bi*tot+n+m]) + dmv*de*(cm*cosC[m]+sm*sinC[m]))
 				dDrive[base+m] += float32(dmv * (cm*sinC[m] - sm*cosC[m]) * kDriveScale)
@@ -191,7 +191,7 @@ func conditionalKuramotoBackwardAccumulate(dState, dOmega, dK, dOmegaCond, dKCon
 // readoutTransformBackwardInto: phase readout VJP.
 func readoutTransformBackwardInto(dPhases []float32, dStride, dOffset int, dFeat, phases []float32, b, n, phaseStride, phaseOffset int, relativization, encoding string) {
 	dp := make([]float64, n)
-	for bi := 0; bi < b; bi++ {
+	for bi := range b {
 		row := phases[bi*phaseStride+phaseOffset:][:n]
 		var mean float64
 		if relativization == "mean_relative" {
@@ -227,7 +227,7 @@ func readoutTransformBackwardInto(dPhases []float32, dStride, dOffset int, dFeat
 			for _, value := range dp {
 				sum += value
 			}
-			for j := 0; j < n; j++ {
+			for j := range n {
 				v := dp[j]
 				if j == 0 {
 					v -= sum
@@ -239,11 +239,11 @@ func readoutTransformBackwardInto(dPhases []float32, dStride, dOffset int, dFeat
 			for _, value := range dp {
 				sum += value
 			}
-			for j := 0; j < n; j++ {
+			for j := range n {
 				out[j] = float32(dp[j] - sum/float64(n))
 			}
 		default:
-			for j := 0; j < n; j++ {
+			for j := range n {
 				out[j] = float32(dp[j])
 			}
 		}

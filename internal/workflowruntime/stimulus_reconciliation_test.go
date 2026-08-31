@@ -1,31 +1,42 @@
 package workflowruntime
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/invocation"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
 func TestLateStimulusReconciliation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	manual := testutil.ArtifactID(t, artifact.KindEvidence, "followup-manual")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "followup/authority", Artifacts: []artifact.Descriptor{{ID: manual}}}); err != nil {
+	manual := testutil.ArtifactID(t, artifact.KindRecipe, "followup-manual")
+	ceiling := testutil.ArtifactID(t, artifact.KindRecipe, "followup-ceiling")
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "followup/authority", Artifacts: []artifact.Descriptor{{ID: manual}, {ID: ceiling}}}); err != nil {
 		t.Fatal(err)
 	}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "followup-operation")
 	arguments, err := runrecord.AttemptArgumentContent([]byte(`{"initial":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	effect, err := invocation.NewEffect(invocation.Effect{
+		Manual: manual, Arguments: arguments.Descriptor.ID, Class: invocation.ClassInspection, Known: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	effectContent, err := effect.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,8 +52,9 @@ func TestLateStimulusReconciliation(t *testing.T) {
 		t.Fatal(err)
 	}
 	boundary, err := runrecord.PublishAttemptStimulus(ctx, store, runrecord.AttemptStimulusBoundary{
-		Operation: operation, Attempt: 1, Manual: manual, Selection: selection,
-	}, []artifact.Content{arguments})
+		Operation: operation, Attempt: 1, Manual: manual, Class: invocation.ClassInspection,
+		Arguments: arguments.Descriptor.ID, Effect: effect.ID, Ceiling: ceiling, Selection: selection,
+	}, []artifact.Content{arguments, effectContent})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,9 +70,7 @@ func TestLateStimulusReconciliation(t *testing.T) {
 	results := make(chan runrecord.StimulusFollowup, 8)
 	errors := make(chan error, 8)
 	for range cap(results) {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			admission, admitted, reconcileErr := ReconcileLateStimuli(ctx, store, boundary.ID, []artifact.ID{late[1], late[0], late[1]})
 			if reconcileErr != nil {
 				errors <- reconcileErr
@@ -70,7 +80,7 @@ func TestLateStimulusReconciliation(t *testing.T) {
 				won.Add(1)
 			}
 			results <- admission
-		}()
+		})
 	}
 	wait.Wait()
 	close(results)

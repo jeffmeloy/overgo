@@ -1,7 +1,6 @@
 package discovery
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +20,7 @@ import (
 // broken activation must not blind the catalog to every healthy model. The
 // stale entry is reported, never served.
 func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +105,7 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 // ActiveRecord accepts.
 func publishVerifiedActivation(t *testing.T, store *overgodb.Store, modelID artifact.ID, suffix string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "discovery-profile-"+suffix)
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "discovery-definition-"+suffix)
 	if _, err := store.Commit(ctx, artifact.Batch{
@@ -145,7 +144,7 @@ func publishVerifiedActivation(t *testing.T, store *overgodb.Store, modelID arti
 }
 
 func TestServableSkipsReplacedArtifactActivation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -182,7 +181,7 @@ func TestServableSkipsReplacedArtifactActivation(t *testing.T) {
 
 func publishLegacyActivation(t *testing.T, store artifact.Repository, modelID artifact.ID, suffix string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "discovery-profile-"+suffix)
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "discovery-definition-"+suffix)
 	intent := testutil.ArtifactID(t, artifact.KindEvidence, "discovery-legacy-intent-"+suffix)

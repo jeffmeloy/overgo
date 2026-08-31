@@ -1,7 +1,6 @@
 package loop
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -19,7 +18,7 @@ func promotionFailedVerification(
 	t *testing.T, store artifact.Repository, definitionID artifact.ID, key string,
 ) modelrecipe.Verification {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test",
 	})
@@ -58,7 +57,7 @@ func publishBreakerTransition(
 	t *testing.T, store artifact.Repository, prior uint64,
 ) artifact.ID {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	historyEvidence := testutil.ArtifactID(t, artifact.KindEvidence, "rollback-history")
 	windowEvidence := testutil.ArtifactID(t, artifact.KindEvidence, "rollback-window-derivation")
 	testutil.PublishArtifact(t, store, historyEvidence)
@@ -93,7 +92,7 @@ func publishBreakerTransition(
 // the regression evidence to the retired recipe and the restored
 // predecessor — publishing only after the rollback holds.
 func TestAtomicCandidateRollback(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

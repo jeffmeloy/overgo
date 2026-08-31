@@ -83,11 +83,11 @@ func TestExecutorBF16AttentionMatchesRoundedReference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := cuda.ExecuteCompiled(context.Background(), compiled, feeds, nil)
+			got, err := cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), compiled, feeds, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			replay, err := cuda.ExecuteCompiled(context.Background(), compiled, feeds, nil)
+			replay, err := cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), compiled, feeds, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -158,7 +158,7 @@ func TestExecutorTiledAttentionMatchesReference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := cuda.Execute(context.Background(), outputs, feeds)
+			got, err := cuda.Execute(context.WithoutCancel(t.Context()), outputs, feeds)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -210,7 +210,7 @@ func TestExecutorBLASAttentionKeyBiasMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	cuda := newFixtureExecutor(t)
-	got, err := cuda.ExecuteCompiled(context.Background(), compiled, feeds, nil)
+	got, err := cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), compiled, feeds, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

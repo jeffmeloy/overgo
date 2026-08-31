@@ -39,7 +39,7 @@ func TestEvaluateCommandIsolatesModelsAndReportsTaskFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	var launched []int
-	err = runParent(context.Background(), compiled, func(_ context.Context, index int) error {
+	err = runParent(t.Context(), compiled, func(_ context.Context, index int) error {
 		launched = append(launched, index)
 		if index == 1 {
 			return errors.New("worker failed")
@@ -52,7 +52,7 @@ func TestEvaluateCommandIsolatesModelsAndReportsTaskFailure(t *testing.T) {
 
 	var tasks []string
 	openCount, closeCount := 0, 0
-	err = executeModel(context.Background(), compiled, compiled.Models[0], func(
+	err = executeModel(t.Context(), compiled, compiled.Models[0], func(
 		context.Context, manifest, modelRequest,
 	) (evaluationSession, error) {
 		openCount++

@@ -179,7 +179,7 @@ func sampleGGUFTensorValues(file *gguf.File, tensor gguf.TensorInfo, maxSamples 
 	samples := make([]float64, 0, capacity)
 	storage := make([]byte, traits.TypeSize)
 	values := make([]float32, traits.BlockSize)
-	for sample := uint64(0); sample < blockSamples; sample++ {
+	for sample := range blockSamples {
 		block := evenlySpacedIndex(sample, blockSamples, blocks)
 		if err := file.ReadTensorRange(tensor, block*traits.TypeSize, storage); err != nil {
 			return nil, 0, 0, err
@@ -229,7 +229,7 @@ func MeasureSafetensors(
 		readValues := func(count uint64) ([]float64, error) {
 			storage := make([]byte, width)
 			values := make([]float64, count)
-			for sample := uint64(0); sample < count; sample++ {
+			for sample := range count {
 				element := evenlySpacedIndex(sample, count, elements)
 				if _, err := tensor.ReadAt(storage, int64(element*width)); err != nil {
 					return nil, err

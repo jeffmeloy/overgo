@@ -3,7 +3,6 @@
 package controllertrain_test
 
 import (
-	"context"
 	"fmt"
 	"os/exec"
 	"sort"
@@ -190,7 +189,7 @@ func publishControllerEvidence(
 	charges []runrecord.BudgetCharge,
 ) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

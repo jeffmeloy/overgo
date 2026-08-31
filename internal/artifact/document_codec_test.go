@@ -35,6 +35,20 @@ func (missingAliasTargetReader) OpenContent(context.Context, ID) (Descriptor, io
 	return Descriptor{}, nil, false, nil
 }
 
+type codecLineageReader struct {
+	documentReader
+	parents []Lineage
+	known   map[ID]bool
+}
+
+func (reader codecLineageReader) Artifact(_ context.Context, id ID) (Descriptor, bool, error) {
+	return Descriptor{ID: id}, reader.known[id], nil
+}
+
+func (reader codecLineageReader) Parents(context.Context, ID) ([]Lineage, error) {
+	return slices.Clone(reader.parents), nil
+}
+
 func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	const expectedEncodesPerOperation = 1
 	contract := DocumentContract{
@@ -84,16 +98,16 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 	if encodeCalls != expectedEncodesPerOperation {
 		t.Fatalf("parse encoded %d times", encodeCalls)
 	}
-	loaded, ok, err := codec.Read(context.Background(), documentReader{content: content}, document.ID)
+	loaded, ok, err := codec.Read(t.Context(), documentReader{content: content}, document.ID)
 	if err != nil || !ok || loaded.ID != document.ID || !slices.Equal(loaded.Names, document.Names) {
 		t.Fatalf("read document = %+v/%v/%v", loaded, ok, err)
 	}
-	required, err := codec.Require(context.Background(), documentReader{content: content}, document.ID)
+	required, err := codec.Require(t.Context(), documentReader{content: content}, document.ID)
 	if err != nil || required.ID != document.ID {
 		t.Fatalf("required document = %+v/%v", required, err)
 	}
 	verified, err := codec.RequireVerified(
-		context.Background(), documentReader{content: content}, document.ID,
+		t.Context(), documentReader{content: content}, document.ID,
 		func(_ context.Context, _ Reader, value codecFixture) error {
 			if value.ID != document.ID {
 				return errors.New("unexpected verified document")
@@ -105,7 +119,7 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 		t.Fatalf("verified document = %+v/%v", verified, err)
 	}
 	verified, err = codec.RequireVerified(
-		context.Background(), documentReader{content: content}, document.ID,
+		t.Context(), documentReader{content: content}, document.ID,
 		func(_ context.Context, _ Reader, value codecFixture) error {
 			value.Names[0] = "mutated"
 			return nil
@@ -115,28 +129,51 @@ func TestDocumentCodecReadOwnsCanonicalLifecycle(t *testing.T) {
 		t.Fatalf("verifier mutated returned document = %+v/%v", verified, err)
 	}
 	verified, err = codec.RequireVerified(
-		context.Background(), documentReader{content: content}, document.ID,
+		t.Context(), documentReader{content: content}, document.ID,
 		func(context.Context, Reader, codecFixture) error { return errors.New("rejected") },
 	)
 	if err == nil || verified.ID.Valid() || verified.Names != nil {
 		t.Fatalf("rejected verified document = %+v/%v", verified, err)
 	}
-	if _, err := codec.RequireVerified(context.Background(), documentReader{content: content}, document.ID, nil); err == nil {
+	if _, err := codec.RequireVerified(t.Context(), documentReader{content: content}, document.ID, nil); err == nil {
 		t.Fatal("nil document verifier accepted")
 	}
-	if _, err := codec.Require(context.Background(), absentDocumentReader{}, document.ID); err == nil {
+	parent, err := IdentifyBytes(KindEvidence, []byte("codec lineage parent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lineage := DependencyLineage(document.ID, parent)
+	lineageReader := codecLineageReader{
+		documentReader: documentReader{content: content}, parents: lineage, known: map[ID]bool{parent: true},
+	}
+	lineageValue, err := codec.RequireExactLineage(t.Context(), lineageReader, document.ID, func(codecFixture) []Lineage {
+		return lineage
+	})
+	if err != nil || lineageValue.ID != document.ID {
+		t.Fatalf("lineage document = %+v/%v", lineageValue, err)
+	}
+	lineageReader.known[parent] = false
+	if _, err := codec.RequireExactLineage(t.Context(), lineageReader, document.ID, func(codecFixture) []Lineage {
+		return lineage
+	}); err == nil {
+		t.Fatal("dangling lineage parent accepted")
+	}
+	if _, err := codec.RequireExactLineage(t.Context(), lineageReader, document.ID, nil); err == nil {
+		t.Fatal("nil lineage derivation accepted")
+	}
+	if _, err := codec.Require(t.Context(), absentDocumentReader{}, document.ID); err == nil {
 		t.Fatal("absent required document accepted")
 	}
-	resolved, found, err := codec.Resolve(context.Background(), codecAliasReader{
+	resolved, found, err := codec.Resolve(t.Context(), codecAliasReader{
 		documentReader: documentReader{content: content}, alias: document.ID,
 	}, "current")
 	if err != nil || !found || resolved.ID != document.ID {
 		t.Fatalf("resolved document = %+v/%v/%v", resolved, found, err)
 	}
-	if _, found, err := codec.Resolve(context.Background(), codecAliasReader{}, "missing"); err != nil || found {
+	if _, found, err := codec.Resolve(t.Context(), codecAliasReader{}, "missing"); err != nil || found {
 		t.Fatalf("absent alias = %v/%v", found, err)
 	}
-	if _, found, err := codec.Resolve(context.Background(), missingAliasTargetReader{codecAliasReader{alias: document.ID}}, "broken"); err == nil || !found {
+	if _, found, err := codec.Resolve(t.Context(), missingAliasTargetReader{codecAliasReader{alias: document.ID}}, "broken"); err == nil || !found {
 		t.Fatalf("missing target = %v/%v", found, err)
 	}
 	mutated := document

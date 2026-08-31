@@ -250,11 +250,6 @@ func canonicalObjectiveIDs(source []artifact.ID, kind artifact.Kind, required bo
 	return result, nil
 }
 
-// SupportedObjectiveKind reports whether the compiled runtime registers this
-// objective, so a trial compiler can refuse an unsupported objective before
-// any compute is spent.
-func SupportedObjectiveKind(kind ObjectiveKind) bool { return validObjectiveKind(kind) }
-
 func validObjectiveKind(kind ObjectiveKind) bool {
 	return slices.Contains(objectiveKinds, kind)
 }

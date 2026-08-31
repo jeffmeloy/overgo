@@ -47,7 +47,7 @@ func TestCompileExactOwnsStableSuite(t *testing.T) {
 		t.Fatalf("identity differs: %s != %s", first.Identity(), second.Identity())
 	}
 	suite.Cases[0].Text = "changed"
-	result, err := evaluateExactCase(context.Background(), exactGenerator{pieces: []string{"o", "k"}}, first.suite.Cases[0])
+	result, err := evaluateExactCase(t.Context(), exactGenerator{pieces: []string{"o", "k"}}, first.suite.Cases[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,10 +73,10 @@ func TestExactReportsGenerationFailureAndMismatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := evaluateExactCase(context.Background(), exactGenerator{err: errors.New("generate")}, plan.suite.Cases[0]); err == nil {
+	if _, err := evaluateExactCase(t.Context(), exactGenerator{err: errors.New("generate")}, plan.suite.Cases[0]); err == nil {
 		t.Fatal("generation failure accepted")
 	}
-	if _, err := evaluateExactCase(context.Background(), exactGenerator{pieces: []string{"n", "o"}}, plan.suite.Cases[0]); err == nil {
+	if _, err := evaluateExactCase(t.Context(), exactGenerator{pieces: []string{"n", "o"}}, plan.suite.Cases[0]); err == nil {
 		t.Fatal("mismatch accepted")
 	}
 }

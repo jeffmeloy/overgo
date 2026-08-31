@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sort"
@@ -74,6 +75,16 @@ func (v AgentObligation) Content() (artifact.Content, error) { return agentOblig
 // Content returns the canonical committed bytes of the resolution.
 func (v AgentObligationResolution) Content() (artifact.Content, error) {
 	return agentObligationResolutionCodec.Content(v)
+}
+
+// RequireAgentObligation loads one exact typed obligation.
+func RequireAgentObligation(ctx context.Context, reader artifact.Reader, id artifact.ID) (AgentObligation, error) {
+	return agentObligationCodec.RequireExactLineage(ctx, reader, id, AgentObligation.Lineage)
+}
+
+// RequireAgentObligationResolution loads one exact typed resolution.
+func RequireAgentObligationResolution(ctx context.Context, reader artifact.Reader, id artifact.ID) (AgentObligationResolution, error) {
+	return agentObligationResolutionCodec.RequireExactLineage(ctx, reader, id, AgentObligationResolution.Lineage)
 }
 
 // Lineage links the obligation to its task and sources.

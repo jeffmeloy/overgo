@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -21,7 +20,7 @@ func TestHeadBoundDeltaReconciliation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	contract := ProjectionContractVersion()
 
 	first := artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "first"), Size: 1}

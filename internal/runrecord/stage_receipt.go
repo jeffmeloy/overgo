@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/invocation"
 	"overgo/internal/recipe"
 )
 
@@ -13,7 +14,7 @@ const (
 	// StageReceiptMediaType identifies stage receipt documents.
 	StageReceiptMediaType = "application/vnd.overgo.stage-receipt+json"
 	// StageReceiptSchema identifies the stage receipt contract.
-	StageReceiptSchema = "overgo/stage-receipt/v1"
+	StageReceiptSchema = "overgo/stage-receipt/v2"
 	// StageReceiptAliasRoot scopes current workflow stage receipts.
 	StageReceiptAliasRoot = "stage-receipt/"
 )
@@ -42,17 +43,18 @@ type StageBinding struct {
 
 // StageReceipt records one immutable node transition.
 type StageReceipt struct {
-	Version   uint16         `json:"version"`
-	Recipe    artifact.ID    `json:"recipe"`
-	Node      recipe.NodeID  `json:"node"`
-	Operation artifact.ID    `json:"operation"`
-	Attempt   uint32         `json:"attempt"`
-	State     StageState     `json:"state"`
-	Inputs    []StageBinding `json:"inputs,omitempty"`
-	Outputs   []StageBinding `json:"outputs,omitempty"`
-	Previous  artifact.ID    `json:"previous,omitzero"`
-	Failure   string         `json:"failure,omitempty"`
-	ID        artifact.ID    `json:"-"`
+	Version    uint16                     `json:"version"`
+	Recipe     artifact.ID                `json:"recipe"`
+	Node       recipe.NodeID              `json:"node"`
+	Operation  artifact.ID                `json:"operation"`
+	Attempt    uint32                     `json:"attempt"`
+	State      StageState                 `json:"state"`
+	Inputs     []StageBinding             `json:"inputs,omitempty"`
+	Outputs    []StageBinding             `json:"outputs,omitempty"`
+	Invocation *invocation.ReceiptBinding `json:"invocation,omitempty"`
+	Previous   artifact.ID                `json:"previous,omitzero"`
+	Failure    string                     `json:"failure,omitzero"`
+	ID         artifact.ID                `json:"-"`
 }
 
 var stageReceiptCodec = artifact.JSONDocumentCodec(
@@ -94,23 +96,48 @@ func PublishStageReceipt(
 	if ctx == nil || repository == nil {
 		return StageReceipt{}, errors.New("run record: stage receipt repository is absent")
 	}
-	previous, found, err := ResolveStageReceipt(ctx, repository, value.Operation, value.Node)
+	prepared, batch, err := PrepareStageReceipt(ctx, repository, value, contents, descriptors)
 	if err != nil {
 		return StageReceipt{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
+		return StageReceipt{}, err
+	}
+	return prepared, nil
+}
+
+// PrepareStageReceipt validates and contributes one stage transition without
+// committing it. A lifecycle owner can add its own typed document and CAS to
+// the returned batch so the terminal receipt and durable mutation are atomic.
+// PublishStageReceipt is the ordinary immediate-commit consumer.
+func PrepareStageReceipt(
+	ctx context.Context,
+	reader artifact.Reader,
+	value StageReceipt,
+	contents []artifact.Content,
+	descriptors []artifact.Descriptor,
+) (StageReceipt, artifact.Batch, error) {
+	if ctx == nil || reader == nil {
+		return StageReceipt{}, artifact.Batch{}, errors.New("run record: stage receipt reader is absent")
+	}
+	value.Previous = artifact.ID{}
+	previous, found, err := ResolveStageReceipt(ctx, reader, value.Operation, value.Node)
+	if err != nil {
+		return StageReceipt{}, artifact.Batch{}, err
 	}
 	if found {
 		value.Previous = previous.ID
 		if !stageTransition(previous, value) {
-			return StageReceipt{}, errors.New("run record: invalid stage transition")
+			return StageReceipt{}, artifact.Batch{}, errors.New("run record: invalid stage transition")
 		}
 	}
 	value, err = NewStageReceipt(value)
 	if err != nil {
-		return StageReceipt{}, err
+		return StageReceipt{}, artifact.Batch{}, err
 	}
 	receiptContent, err := stageReceiptCodec.Content(value)
 	if err != nil {
-		return StageReceipt{}, err
+		return StageReceipt{}, artifact.Batch{}, err
 	}
 	contents = append(slices.Clone(contents), receiptContent)
 	parents := []artifact.ID{value.Recipe, value.Operation, value.Previous}
@@ -118,6 +145,9 @@ func PublishStageReceipt(
 		for _, binding := range bindings {
 			parents = append(parents, binding.Artifacts...)
 		}
+	}
+	if value.Invocation != nil {
+		parents = append(parents, value.Invocation.Parents()...)
 	}
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
 	alias := artifact.AliasBinding{Name: stageReceiptAlias(value.Operation, value.Node), Target: value.ID}
@@ -130,13 +160,10 @@ func PublishStageReceipt(
 		[]artifact.AliasBinding{alias},
 	)
 	if err != nil {
-		return StageReceipt{}, err
+		return StageReceipt{}, artifact.Batch{}, err
 	}
 	batch.Artifacts = append(batch.Artifacts, descriptors...)
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
-		return StageReceipt{}, err
-	}
-	return value, nil
+	return value, batch, nil
 }
 
 func canonicalizeStageReceipt(value *StageReceipt) error {
@@ -156,6 +183,11 @@ func canonicalizeStageReceipt(value *StageReceipt) error {
 			}
 		}
 	}
+	if value.Invocation != nil {
+		if err := value.Invocation.Validate(); err != nil {
+			return errors.Join(errors.New("run record: invalid invocation receipt binding"), err)
+		}
+	}
 	return nil
 }
 
@@ -165,7 +197,8 @@ func (state StageState) valid() bool {
 }
 
 func stageTransition(previous, next StageReceipt) bool {
-	if previous.Recipe != next.Recipe || previous.Node != next.Node || previous.Operation != next.Operation {
+	if previous.Recipe != next.Recipe || previous.Node != next.Node || previous.Operation != next.Operation ||
+		!sameInvocationBinding(previous.Invocation, next.Invocation) {
 		return false
 	}
 	if next.Attempt == previous.Attempt {
@@ -188,7 +221,18 @@ func stageTransition(previous, next StageReceipt) bool {
 func cloneStageReceipt(value StageReceipt) StageReceipt {
 	value.Inputs = cloneStageBindings(value.Inputs)
 	value.Outputs = cloneStageBindings(value.Outputs)
+	if value.Invocation != nil {
+		binding := *value.Invocation
+		value.Invocation = &binding
+	}
 	return value
+}
+
+func sameInvocationBinding(left, right *invocation.ReceiptBinding) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func cloneStageBindings(values []StageBinding) []StageBinding {

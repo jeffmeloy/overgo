@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -27,7 +26,7 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 	editRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "video-edit-recipe")
 	generateRun := testutil.ArtifactID(t, artifact.KindRun, "video-generate-run")
 	editRun := testutil.ArtifactID(t, artifact.KindRun, "video-edit-run")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "native/video/outputs",
 		Artifacts: []artifact.Descriptor{
 			{ID: generateRecipe}, {ID: editRecipe}, {ID: generateRun}, {ID: editRun},

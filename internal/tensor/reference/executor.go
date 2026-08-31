@@ -248,7 +248,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 				output[i] = attributes.AlphaP*value*value + attributes.Beta*value
 				continue
 			}
-			minimum := float32(math.Min(float64(value), float64(attributes.Epsilon)))
+			minimum := float32(min(float64(value), float64(attributes.Epsilon)))
 			output[i] = (float32(math.Expm1(float64(minimum)))-value)*attributes.AlphaN +
 				attributes.Beta*value
 		}
@@ -267,7 +267,7 @@ func executeNode(node *tensor.Tensor, inputs []Value) (Value, error) {
 	case tensor.OpSoftplus:
 		return mapValues(node.Shape, inputs[0], func(value float32) float32 {
 			absolute := math.Abs(float64(value))
-			return float32(math.Max(float64(value), 0) + math.Log1p(math.Exp(-absolute)))
+			return float32(max(float64(value), 0) + math.Log1p(math.Exp(-absolute)))
 		}), nil
 	case tensor.OpTanh:
 		return mapValues(node.Shape, inputs[0], func(value float32) float32 {

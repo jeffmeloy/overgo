@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -28,7 +27,7 @@ func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	generator := rand.New(rand.NewSource(11))
 	for index, name := range []string{"catalog-model-alpha", "catalog-model-beta"} {
 		modelID := testutil.ArtifactID(t, artifact.KindModel, name)

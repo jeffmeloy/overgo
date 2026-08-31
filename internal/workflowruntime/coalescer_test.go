@@ -13,7 +13,7 @@ import (
 // next one, a concurrent caller never doubles inflight work, and a failed
 // reconciliation keeps its signals pending instead of dropping them.
 func TestCoordinationCoalescesWithoutLostWork(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coalescer := NewReconcileCoalescer()
 	if coalesced := coalescer.Signal("boundary"); coalesced {
 		t.Fatal("first signal reported an existing pending reconciliation")
@@ -38,15 +38,13 @@ func TestCoordinationCoalescesWithoutLostWork(t *testing.T) {
 	coalescer.Signal("boundary")
 	entered, release := make(chan struct{}), make(chan struct{})
 	var group sync.WaitGroup
-	group.Add(1)
-	go func() {
-		defer group.Done()
+	group.Go(func() {
 		_, _ = coalescer.Reconcile(ctx, "boundary", func(context.Context) error {
 			close(entered)
 			<-release
 			return nil
 		})
-	}()
+	})
 	<-entered
 	if coalesced := coalescer.Signal("boundary"); !coalesced {
 		t.Fatal("signal during a run did not coalesce")

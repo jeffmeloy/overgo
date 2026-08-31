@@ -109,7 +109,7 @@ func Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.Bu
 			manifest.References = append(manifest.References, Reference{From: from, To: to, Kind: referenceKind(to.Kind)})
 		}
 	}
-	return codec.New(manifest)
+	return identifyManifest(manifest)
 }
 
 type fingerprints struct {

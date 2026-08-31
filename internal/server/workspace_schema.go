@@ -27,10 +27,10 @@ type workspaceFieldSchema struct {
 	Name         string                       `json:"name"`
 	Label        string                       `json:"label"`
 	Type         string                       `json:"type"`
-	Required     bool                         `json:"required,omitempty"`
-	IdentityKind string                       `json:"identity_kind,omitempty"`
-	Unit         string                       `json:"unit,omitempty"`
-	Pattern      string                       `json:"pattern,omitempty"`
+	Required     bool                         `json:"required,omitzero"`
+	IdentityKind string                       `json:"identity_kind,omitzero"`
+	Unit         string                       `json:"unit,omitzero"`
+	Pattern      string                       `json:"pattern,omitzero"`
 	Minimum      *int64                       `json:"minimum,omitempty"`
 	Maximum      *int64                       `json:"maximum,omitempty"`
 	MinimumItems *int                         `json:"minimum_items,omitempty"`

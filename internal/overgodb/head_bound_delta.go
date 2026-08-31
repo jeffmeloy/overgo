@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"sort"
+	"slices"
 
 	"overgo/internal/artifact"
 )
@@ -28,7 +28,7 @@ type HeadBoundDelta struct {
 	RemovedAliases    []string              `json:"removed_aliases,omitempty"`
 	Lineage           []artifact.Lineage    `json:"lineage,omitempty"`
 	Commits           []CommitView          `json:"commits,omitempty"`
-	Truncated         bool                  `json:"truncated,omitempty"`
+	Truncated         bool                  `json:"truncated,omitzero"`
 }
 
 // ProjectionContractVersion digests the closed projection table — every
@@ -132,7 +132,7 @@ func (s *Store) DeltasSince(
 		delta.Commits = append(delta.Commits, commit.Commit)
 		delta.Head, delta.Sequence = commit.Commit.ID, commit.Commit.Sequence
 	}
-	sort.Strings(aliasOrder)
+	slices.Sort(aliasOrder)
 	for _, name := range aliasOrder {
 		binding := finalAliases[name]
 		if binding.Remove {

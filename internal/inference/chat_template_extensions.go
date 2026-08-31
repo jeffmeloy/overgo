@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strings"
@@ -66,9 +67,7 @@ func formatChatTemplateTime(value time.Time, format string) (string, error) {
 			rendered = value.Format("05")
 		case 'u':
 			weekday := int(value.Weekday())
-			if weekday == 0 {
-				weekday = 7
-			}
+			weekday = cmp.Or(weekday, 7)
 			rendered = fmt.Sprint(weekday)
 		case 'w':
 			rendered = fmt.Sprint(int(value.Weekday()))

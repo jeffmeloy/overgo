@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -170,9 +171,7 @@ func DeriveCapabilityGapTargets(
 			weakest[reading.key.recipe] = domain
 		}
 	}
-	for _, target := range weakest {
-		targets = append(targets, target)
-	}
+	targets = append(targets, slices.Collect(maps.Values(weakest))...)
 	slices.SortFunc(targets, func(a, b CapabilityGapTarget) int {
 		if by := strings.Compare(string(a.Kind), string(b.Kind)); by != 0 {
 			return by

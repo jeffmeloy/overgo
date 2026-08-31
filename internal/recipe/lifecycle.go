@@ -50,8 +50,10 @@ var lifecycleCodec = artifact.DocumentCodec[LifecycleEvent]{
 type Status string
 
 const (
-	StatusCandidate  Status = "candidate"
-	StatusValidated  Status = "validated"
+	StatusCandidate Status = "candidate"
+	StatusValidated Status = "validated"
+	// StatusVerified marks an evaluated recipe that is still non-serving.
+	StatusVerified   Status = "verified"
 	StatusActive     Status = "active"
 	StatusRefused    Status = "refused"
 	StatusSuperseded Status = "superseded"
@@ -63,7 +65,7 @@ type LifecycleEvent struct {
 	Recipe        artifact.ID   `json:"recipe"`
 	Model         artifact.ID   `json:"model"`
 	Task          Task          `json:"task"`
-	From          Status        `json:"from,omitempty"`
+	From          Status        `json:"from,omitzero"`
 	To            Status        `json:"to"`
 	PreviousEvent *artifact.ID  `json:"previous_event,omitempty"`
 	Supersedes    *artifact.ID  `json:"supersedes,omitempty"`
@@ -75,7 +77,7 @@ type lifecycleBody struct {
 	Recipe        artifact.ID   `json:"recipe"`
 	Model         artifact.ID   `json:"model"`
 	Task          Task          `json:"task"`
-	From          Status        `json:"from,omitempty"`
+	From          Status        `json:"from,omitzero"`
 	To            Status        `json:"to"`
 	PreviousEvent *artifact.ID  `json:"previous_event,omitempty"`
 	Supersedes    *artifact.ID  `json:"supersedes,omitempty"`
@@ -172,7 +174,13 @@ func validTransition(from, to Status) bool {
 	case StatusCandidate:
 		return to == StatusValidated || to == StatusRefused
 	case StatusValidated:
-		return to == StatusActive || to == StatusRefused
+		// Validated-to-active remains readable for existing production
+		// activators while the supervised RSI path stops at verified.
+		return to == StatusVerified || to == StatusActive || to == StatusRefused
+	case StatusVerified:
+		// Production activation from the new supervised state remains closed
+		// until rollout evidence and the same receipted lifecycle authorize it.
+		return to == StatusRefused
 	case StatusActive:
 		return to == StatusActive || to == StatusSuperseded
 	case StatusSuperseded:

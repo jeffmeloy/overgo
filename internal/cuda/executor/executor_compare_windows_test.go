@@ -321,7 +321,7 @@ func checkResidentBinaryGraph(
 	pointer := copyFixtureDeviceBytes(t, worker, storage)
 	cuda := newFixtureExecutorWithWorker(t, worker)
 	got, err := cuda.executeWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{right: rightValue},
 		map[*tensor.Tensor]driver.DevicePtr{left: pointer},
@@ -433,7 +433,7 @@ func checkCUDAGraph(
 		t.Fatal(err)
 	}
 	cuda := newFixtureExecutor(t)
-	got, err := cuda.ExecuteProgram(context.Background(), program, feeds)
+	got, err := cuda.ExecuteProgram(context.WithoutCancel(t.Context()), program, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}

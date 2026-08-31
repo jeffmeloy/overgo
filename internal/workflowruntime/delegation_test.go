@@ -1,7 +1,6 @@
 package workflowruntime
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/agenttool"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestDelegatedAgentInvocation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

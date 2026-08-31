@@ -3,6 +3,7 @@ package composition
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -171,10 +172,7 @@ func (index *ExactComponentIndex) Search(query CatalogComponent, limit int) ([]E
 			overlaps[ordinal]++
 		}
 	}
-	ordinals := make([]int, 0, len(overlaps))
-	for ordinal := range overlaps {
-		ordinals = append(ordinals, ordinal)
-	}
+	ordinals := slices.Collect(maps.Keys(overlaps))
 	slices.SortFunc(ordinals, func(a, b int) int {
 		if overlaps[a] != overlaps[b] {
 			return overlaps[b] - overlaps[a]

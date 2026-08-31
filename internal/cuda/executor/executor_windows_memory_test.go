@@ -27,15 +27,15 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	rightValue, _ := reference.NewValue(shape, []float32{10, 20, 30, 40})
 	cuda := newFixtureExecutor(t)
 	feeds := map[*tensor.Tensor]reference.Value{left: leftValue, right: rightValue}
-	if _, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds); err != nil {
+	if _, err := cuda.Execute(context.WithoutCancel(t.Context()), []*tensor.Tensor{output}, feeds); err != nil {
 		t.Fatal(err)
 	}
-	before, err := cuda.worker.MemoryStats(context.Background())
+	before, err := cuda.worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	retained, err := cuda.executeRetainedWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{output},
 		feeds,
 		nil,
@@ -43,7 +43,7 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	during, err := cuda.worker.MemoryStats(context.Background())
+	during, err := cuda.worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,12 +54,12 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 			deviceAllocationAlignment,
 		)
 	}
-	got, err := retained.CopyToHost(context.Background(), output)
+	got, err := retained.CopyToHost(t.Context(), output)
 	if err != nil {
 		t.Fatal(err)
 	}
 	compare(t, got.Data, []float32{11, 22, 33, 44}, accuracyExact)
-	canceled, cancel := context.WithCancel(context.Background())
+	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := retained.Release(canceled); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled release error = %v", err)
@@ -67,13 +67,13 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if _, ok := retained.Value(output); !ok {
 		t.Fatal("canceled release discarded retained output")
 	}
-	if err := retained.Release(context.Background()); err != nil {
+	if err := retained.Release(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if err := retained.Release(context.Background()); err != nil {
+	if err := retained.Release(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	after, err := cuda.worker.MemoryStats(context.Background())
+	after, err := cuda.worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 		t.Fatal("released output remains accessible")
 	}
 	reused, err := cuda.executeRetainedWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{output},
 		feeds,
 		nil,
@@ -92,14 +92,14 @@ func TestExecutorRetainedOutputLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reusedStats, err := cuda.worker.MemoryStats(context.Background())
+	reusedStats, err := cuda.worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if reusedStats.Allocations != after.Allocations || reusedStats.CurrentBytes != after.CurrentBytes {
 		t.Fatalf("retained pool did not reuse allocation: before=%+v after=%+v", after, reusedStats)
 	}
-	if err := reused.Release(context.Background()); err != nil {
+	if err := reused.Release(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -115,25 +115,25 @@ func TestExecutorRetainedOnceBypassesGraphCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	cuda := newFixtureExecutor(t)
-	before, err := cuda.worker.ExecutionStats(context.Background())
+	before, err := cuda.worker.ExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	retained, err := cuda.ExecuteRetainedCompiledOnce(context.Background(), compiled,
+	retained, err := cuda.ExecuteRetainedCompiledOnce(t.Context(), compiled,
 		map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: []float32{1, 2, 3, 4}}},
 		nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := retained.CopyToHost(context.Background(), output)
+	got, err := retained.CopyToHost(t.Context(), output)
 	if err != nil {
 		t.Fatal(err)
 	}
 	compare(t, got.Data, []float32{2, 4, 6, 8}, accuracyExact)
-	if err := retained.Release(context.Background()); err != nil {
+	if err := retained.Release(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	after, err := cuda.worker.ExecutionStats(context.Background())
+	after, err := cuda.worker.ExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 	second := builder.FlatSlice(producer, secondOffset, secondLength)
 	cuda := newFixtureExecutor(t)
 	retained, err := cuda.executeRetainedWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{first, second},
 		map[*tensor.Tensor]reference.Value{
 			input: {Shape: shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}},
@@ -169,7 +169,7 @@ func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixtureCleanup(t, "release retained fixture slices", func() error {
-		return retained.Release(context.Background())
+		return retained.Release(context.WithoutCancel(t.Context()))
 	})
 	firstValue, firstOK := retained.Value(first)
 	secondValue, secondOK := retained.Value(second)
@@ -179,11 +179,11 @@ func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 	if !firstOK || !secondOK || uint64(secondValue.Pointer-firstValue.Pointer) != wantPointerDelta {
 		t.Fatalf("retained slice pointers = %+v/%+v", firstValue, secondValue)
 	}
-	firstHost, err := retained.CopyToHost(context.Background(), first)
+	firstHost, err := retained.CopyToHost(t.Context(), first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondHost, err := retained.CopyToHost(context.Background(), second)
+	secondHost, err := retained.CopyToHost(t.Context(), second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,13 +196,13 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 	cuda := newFixtureExecutor(t)
 	capacityShape := tensor.MustShape(8)
 	buffer, err := cuda.AllocateDeviceBuffer(
-		context.Background(), fixtureShapeBytes(t, capacityShape, dtype.F32),
+		context.WithoutCancel(t.Context()), fixtureShapeBytes(t, capacityShape, dtype.F32),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fixtureCleanup(t, "release append fixture buffer", func() error {
-		return buffer.Release(context.Background())
+		return buffer.Release(context.WithoutCancel(t.Context()))
 	})
 
 	initialBuilder := tensor.NewBuilder()
@@ -222,7 +222,7 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	initial, err := cuda.ExecuteRetainedCompiled(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		initialGraph,
 		map[*tensor.Tensor]reference.Value{
 			initialInput: {Shape: initialShape, Data: []float32{1, 2, 3}},
@@ -232,7 +232,7 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := initial.Release(context.Background()); err != nil {
+	if err := initial.Release(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -258,7 +258,7 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained, err := cuda.ExecuteRetainedCompiled(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		appendGraph,
 		map[*tensor.Tensor]reference.Value{
 			added: {Shape: newShape, Data: []float32{4, 5}},
@@ -269,9 +269,9 @@ func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixtureCleanup(t, "release appended fixture output", func() error {
-		return retained.Release(context.Background())
+		return retained.Release(context.WithoutCancel(t.Context()))
 	})
-	got, err := retained.CopyToHost(context.Background(), joined)
+	got, err := retained.CopyToHost(t.Context(), joined)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,13 +283,13 @@ func TestExecutorRejectsUndeclaredRetainedTargetAlias(t *testing.T) {
 	cuda := newFixtureExecutor(t)
 	shape := tensor.MustShape(4)
 	buffer, err := cuda.AllocateDeviceBuffer(
-		context.Background(), fixtureShapeBytes(t, shape, dtype.F32),
+		context.WithoutCancel(t.Context()), fixtureShapeBytes(t, shape, dtype.F32),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fixtureCleanup(t, "release alias fixture buffer", func() error {
-		return buffer.Release(context.Background())
+		return buffer.Release(context.WithoutCancel(t.Context()))
 	})
 	value, err := buffer.Value(shape)
 	if err != nil {
@@ -310,7 +310,7 @@ func TestExecutorRejectsUndeclaredRetainedTargetAlias(t *testing.T) {
 	if err := inputs.Set(input, value.Pointer); err != nil {
 		t.Fatal(err)
 	}
-	_, err = cuda.ExecuteRetainedCompiled(context.Background(), compiled, nil, inputs, targets, nil)
+	_, err = cuda.ExecuteRetainedCompiled(context.WithoutCancel(t.Context()), compiled, nil, inputs, targets, nil)
 	if err == nil || !strings.Contains(err.Error(), "overlaps input") {
 		t.Fatalf("undeclared target alias error = %v", err)
 	}
@@ -321,15 +321,15 @@ func TestReleaseDeviceBuffersIsAtomicAndRetryable(t *testing.T) {
 	cuda := newFixtureExecutor(t)
 	shape := tensor.MustShape(4)
 	bufferBytes := fixtureShapeBytes(t, shape, dtype.F32)
-	first, err := cuda.AllocateDeviceBuffer(context.Background(), bufferBytes)
+	first, err := cuda.AllocateDeviceBuffer(context.WithoutCancel(t.Context()), bufferBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := cuda.AllocateDeviceBuffer(context.Background(), bufferBytes)
+	second, err := cuda.AllocateDeviceBuffer(context.WithoutCancel(t.Context()), bufferBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := ReleaseDeviceBuffers(ctx, first, second); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled release error = %v", err)
@@ -340,7 +340,7 @@ func TestReleaseDeviceBuffersIsAtomicAndRetryable(t *testing.T) {
 	if _, err := second.Value(shape); err != nil {
 		t.Fatalf("second buffer mutated by canceled release: %v", err)
 	}
-	if err := ReleaseDeviceBuffers(context.Background(), first, second); err != nil {
+	if err := ReleaseDeviceBuffers(t.Context(), first, second); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := first.Value(shape); err == nil {
@@ -360,7 +360,7 @@ func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
 	inputValue, _ := reference.NewValue(shape, []float32{1, 2, 3, 4})
 	cuda := newFixtureExecutor(t)
 	retained, err := cuda.executeRetainedWithDeviceFeeds(
-		context.Background(),
+		context.WithoutCancel(t.Context()),
 		[]*tensor.Tensor{output},
 		map[*tensor.Tensor]reference.Value{input: inputValue},
 		nil,
@@ -369,7 +369,7 @@ func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixtureCleanup(t, "release copied fixture source", func() error {
-		return retained.Release(context.Background())
+		return retained.Release(context.WithoutCancel(t.Context()))
 	})
 	source, ok := retained.Value(output)
 	if !ok {
@@ -378,7 +378,7 @@ func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
 	segmentShape := tensor.MustShape(2)
 	segmentBytes := fixtureShapeBytes(t, segmentShape, dtype.F32)
 	copiedOwner, copied, err := cuda.CopyDeviceValues(
-		context.Background(),
+		t.Context(),
 		[]DeviceCopy{{
 			Shape: shape,
 			Segments: []DeviceCopySegment{
@@ -391,10 +391,10 @@ func TestExecutorCopyDeviceValuesConcatenatesSegments(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixtureCleanup(t, "release copied fixture owner", func() error {
-		return copiedOwner.Release(context.Background())
+		return copiedOwner.Release(context.WithoutCancel(t.Context()))
 	})
 	data := make([]float32, 4)
-	err = cuda.worker.Do(context.Background(), func(state *device.State) error {
+	err = cuda.worker.Do(t.Context(), func(state *device.State) error {
 		return state.Driver.MemcpyDtoH(driver.Bytes(data), copied[0].Pointer)
 	})
 	if err != nil {

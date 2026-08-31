@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -29,7 +28,7 @@ func TestMultimodalOutputProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer handler.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	description, described := handler.interactionDescription()
 	if !described {
 		t.Fatal("serving fixture lacks an interaction description")

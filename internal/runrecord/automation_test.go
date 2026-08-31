@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -24,7 +23,7 @@ func TestAutomationActivation(t *testing.T) {
 		content := artifact.Content{Descriptor: artifact.Descriptor{
 			ID: identified, Size: uint64(len(data)), MediaType: "application/octet-stream",
 		}, Data: data}
-		if _, commitErr := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+		if _, commitErr := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 			Key: "automation/test-authority/" + identified.String(), Contents: []artifact.Content{content},
 		}); commitErr != nil {
 			t.Fatal(commitErr)
@@ -40,7 +39,7 @@ func TestAutomationActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	authority := id(artifact.KindEvidence, "active-automation-authority")
-	ctx := context.Background()
+	ctx := t.Context()
 	automations := AutomationAuthority{Repository: store}
 	firstActive, err := automations.Activate(ctx, "automation/activate/first", definition, authority)
 	if err != nil {

@@ -127,7 +127,7 @@ func (p RopePlan) HostApplyBF16Rows(rows []float32, positions []RowPosition, hea
 		return fmt.Errorf("routed lm rope host bf16: rows=%d want %d", len(rows), len(positions)*heads*headDim)
 	}
 	for t, pos := range positions {
-		for h := 0; h < heads; h++ {
+		for h := range heads {
 			base := (t*heads + h) * headDim
 			p.applyRotary(rows[base:base+headDim], pos)
 		}
@@ -146,14 +146,14 @@ func (p RopePlan) HostApplyF32Rows(rows []float32, positions []RowPosition, head
 		invFreq[i] = hostmath.RopeInvFreq(section.Theta, section.Width)
 	}
 	for t, pos := range positions {
-		for h := 0; h < heads; h++ {
+		for h := range heads {
 			base := (t*heads + h) * headDim
 			offset := 0
 			for si, section := range p.Sections {
 				span := rows[base+offset : base+offset+section.Width]
 				half := section.Width / 2
 				axisPos := pos.axis(section.Axis)
-				for i := 0; i < half; i++ {
+				for i := range half {
 					ang := float64(axisPos) * invFreq[si][i]
 					c := float32(math.Cos(ang))
 					s := float32(math.Sin(ang))

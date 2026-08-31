@@ -60,6 +60,21 @@ type Model struct {
 	layers  []layer
 }
 
+// MoERouterLayers returns the artifact-derived routed layer indices. The
+// returned slice does not alias model state.
+func (m *Model) MoERouterLayers() []int {
+	if m == nil {
+		return nil
+	}
+	layers := make([]int, 0, len(m.layers))
+	for index, layer := range m.layers {
+		if layer.moe != nil {
+			layers = append(layers, index)
+		}
+	}
+	return layers
+}
+
 type tensorBinding struct {
 	name   string
 	values []float32
@@ -337,8 +352,8 @@ func attnBiasName(name string) bool {
 	if !ok {
 		return false
 	}
-	if dot := strings.IndexByte(rest, '.'); dot >= 0 {
-		rest = rest[dot+1:]
+	if _, after, ok := strings.Cut(rest, "."); ok {
+		rest = after
 	}
 	return rest == "self_attn.q_proj.bias" || rest == "self_attn.k_proj.bias" || rest == "self_attn.v_proj.bias"
 }

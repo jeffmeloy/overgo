@@ -45,6 +45,19 @@ func ReadContent(ctx context.Context, reader Reader, id ID) (Content, bool, erro
 	return content, err == nil, err
 }
 
+// RequireTypedContent returns one immutable content body only when its
+// descriptor declares the media and schema needed for typed replay.
+func RequireTypedContent(ctx context.Context, reader Reader, id ID) (Content, error) {
+	content, found, err := ReadContent(ctx, reader, id)
+	if err != nil {
+		return Content{}, err
+	}
+	if !found || content.Descriptor.MediaType == "" || content.Descriptor.Schema == "" {
+		return Content{}, fmt.Errorf("artifact: typed content is absent: %s", id)
+	}
+	return content, nil
+}
+
 // ContentVisitor is implemented by repositories that stream many
 // contents under one storage acquisition; ReadContents rides it when
 // present and falls back to per-id reads otherwise.

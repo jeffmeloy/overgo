@@ -4,7 +4,6 @@ package device
 
 import (
 	"bytes"
-	"context"
 	cudatest "overgo/internal/cuda/testutil"
 	"testing"
 )
@@ -21,7 +20,7 @@ func TestWorkerMemoryRoundTrip(t *testing.T) {
 	source := []byte("overgo CUDA memory round trip")
 	destination := make([]byte, len(source))
 	var duringBytes uint64
-	err = worker.Do(context.Background(), func(state *State) error {
+	err = worker.Do(t.Context(), func(state *State) error {
 		pointer, allocErr := state.Driver.MemAlloc(uint64(len(source)))
 		if allocErr != nil {
 			return allocErr
@@ -54,7 +53,7 @@ func TestWorkerMemoryRoundTrip(t *testing.T) {
 	if !bytes.Equal(destination, source) {
 		t.Fatalf("round trip = %q, want %q", destination, source)
 	}
-	stats, err := worker.MemoryStats(context.Background())
+	stats, err := worker.MemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +63,7 @@ func TestWorkerMemoryRoundTrip(t *testing.T) {
 		stats.Allocations != 0 {
 		t.Fatalf("memory stats during=%d after=%+v", duringBytes, stats)
 	}
-	execution, err := worker.ExecutionStats(context.Background())
+	execution, err := worker.ExecutionStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

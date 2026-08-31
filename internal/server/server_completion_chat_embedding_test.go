@@ -24,7 +24,6 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
-
 	"overgo/internal/sampling"
 
 	"overgo/internal/tokenizer"
@@ -311,7 +310,7 @@ func TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame(t *testing.T) {
 		flushed:          make(chan struct{}),
 	}
 	stream := newSynchronizedSSE(response, response)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	stop := stream.startHeartbeat(ctx, time.Millisecond)
 	select {
 	case <-response.flushed:
@@ -325,6 +324,30 @@ func TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame(t *testing.T) {
 	}
 	if !response.ResponseRecorder.Flushed {
 		t.Fatal("heartbeat did not flush")
+	}
+}
+
+func TestContextAfterFuncDoesNotLeak(t *testing.T) {
+	response := &signalingRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		flushed:          make(chan struct{}),
+	}
+	stream := newSynchronizedSSE(response, response)
+	ctx, cancel := context.WithCancelCause(t.Context())
+	stop := stream.startHeartbeat(ctx, time.Hour)
+	cancel(errors.New("request completed"))
+	done := make(chan struct{})
+	go func() {
+		stop()
+		stop()
+		close(done)
+	}()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		t.Fatal("heartbeat cleanup did not complete")
 	}
 }
 
@@ -1848,7 +1871,7 @@ func TestChatImageHistoryPreservesTurnPositionAndReplay(t *testing.T) {
 		"<chat><user>See ",
 		" now</user><assistant>seen</assistant><user>recall</user><assistant>",
 	}
-	for run := 0; run < 2; run++ {
+	for run := range 2 {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body)))
 		if response.Code != http.StatusOK {

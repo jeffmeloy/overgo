@@ -1,9 +1,11 @@
 package runrecord
 
 import (
+	"cmp"
 	"context"
 	"errors"
-	"sort"
+	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
@@ -18,7 +20,7 @@ type OperatorTimelineEvent struct {
 	Sequence uint64        `json:"sequence"`
 	Kind     string        `json:"kind"`
 	Artifact artifact.ID   `json:"artifact"`
-	Detail   string        `json:"detail,omitempty"`
+	Detail   string        `json:"detail,omitzero"`
 	Cites    []artifact.ID `json:"cites,omitempty"`
 }
 
@@ -86,7 +88,9 @@ func DeriveOperatorTimeline(
 			return nil, err
 		}
 	}
-	sort.SliceStable(events, func(left, right int) bool { return events[left].Sequence < events[right].Sequence })
+	slices.SortStableFunc(events, func(left, right OperatorTimelineEvent) int {
+		return cmp.Compare(left.Sequence, right.Sequence)
+	})
 	if len(events) > limit {
 		events = events[:limit]
 	}
@@ -125,8 +129,8 @@ func PendingOperatorDecisions(
 	if err != nil {
 		return nil, err
 	}
-	sort.SliceStable(pending, func(left, right int) bool {
-		return pending[left].Operation.String() < pending[right].Operation.String()
+	slices.SortStableFunc(pending, func(left, right PendingOperatorDecision) int {
+		return strings.Compare(left.Operation.String(), right.Operation.String())
 	})
 	return pending, nil
 }

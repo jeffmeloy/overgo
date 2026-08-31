@@ -135,9 +135,7 @@ func fdCheck(t *testing.T, loss func() float64, params []fdParam) {
 			p.arr[i] = o
 			fd := (lp - lm) / (2 * step)
 			ad := math.Abs(fd - float64(p.grad[i]))
-			if ad > maxd {
-				maxd = ad
-			}
+			maxd = max(maxd, ad)
 			if den := math.Abs(fd) + math.Abs(float64(p.grad[i])) + 1e-6; ad/den > maxrel {
 				maxrel = ad / den
 			}

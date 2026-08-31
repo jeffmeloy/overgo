@@ -19,10 +19,10 @@ type PeerReplicaPolicy struct {
 	MaximumReplicas       uint64 `json:"maximum_replicas"`
 	TargetConcurrency     uint64 `json:"target_concurrency"`
 	ConcurrencyPerReplica uint64 `json:"concurrency_per_replica"`
-	MaximumMeasuredNS     uint64 `json:"maximum_measured_ns,omitempty"`
-	MaximumDeviceBytes    uint64 `json:"maximum_device_bytes,omitempty"`
-	AllowLocal            bool   `json:"allow_local,omitempty"`
-	AllowPeers            bool   `json:"allow_peers,omitempty"`
+	MaximumMeasuredNS     uint64 `json:"maximum_measured_ns,omitzero"`
+	MaximumDeviceBytes    uint64 `json:"maximum_device_bytes,omitzero"`
+	AllowLocal            bool   `json:"allow_local,omitzero"`
+	AllowPeers            bool   `json:"allow_peers,omitzero"`
 }
 
 // PeerPlacementCandidate names one enrolled peer and exact compatibility evidence.
@@ -53,7 +53,7 @@ type PeerReplicaPlacement struct {
 	Index         int                        `json:"index"`
 	Peer          artifact.ID                `json:"peer,omitzero"`
 	Environment   artifact.ID                `json:"environment"`
-	Endpoint      string                     `json:"endpoint,omitempty"`
+	Endpoint      string                     `json:"endpoint,omitzero"`
 	Compatibility artifact.ID                `json:"compatibility,omitzero"`
 	Publication   artifact.ID                `json:"publication,omitzero"`
 	Heartbeat     artifact.ID                `json:"heartbeat,omitzero"`

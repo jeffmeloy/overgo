@@ -97,11 +97,7 @@ func (r ResolvedModelDefinition) Batch(
 	batch.Contents = append(batch.Contents, profileContents...)
 	batch.Contents = append(batch.Contents, definitionContent)
 	batch.Lineage = append(batch.Lineage, profileLineage...)
-	batch.Lineage = append(batch.Lineage,
-		artifact.Lineage{Child: checked.Document.ID, Parent: checked.Document.Model, Relation: artifact.RelationDerivedFrom},
-		artifact.Lineage{Child: checked.Document.ID, Parent: checked.Profile.ID, Relation: artifact.RelationDependsOn},
-		artifact.Lineage{Child: checked.Document.ID, Parent: checked.Tensors.ID, Relation: artifact.RelationDependsOn},
-	)
+	batch.Lineage = append(batch.Lineage, checked.Document.Lineage()...)
 	if err := batch.Validate(); err != nil {
 		return artifact.Batch{}, err
 	}
@@ -155,11 +151,17 @@ func (d ModelDefinitionDocument) Content() (artifact.Content, error) {
 }
 
 func (d ModelDefinitionDocument) Batch(key string) (artifact.Batch, error) {
-	return modelDefinitionCodec.Batch(key, d, []artifact.Lineage{
+	return modelDefinitionCodec.Batch(key, d, d.Lineage(), nil)
+}
+
+// Lineage binds a model definition to its exact manifest, profile, and tensor
+// inventory authorities.
+func (d ModelDefinitionDocument) Lineage() []artifact.Lineage {
+	return []artifact.Lineage{
 		{Child: d.ID, Parent: d.Model, Relation: artifact.RelationDerivedFrom},
 		{Child: d.ID, Parent: d.Profile, Relation: artifact.RelationDependsOn},
 		{Child: d.ID, Parent: d.TensorInventory, Relation: artifact.RelationDependsOn},
-	}, nil)
+	}
 }
 
 func (d ModelDefinitionDocument) Resolve(

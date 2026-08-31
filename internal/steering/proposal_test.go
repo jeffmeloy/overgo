@@ -1,7 +1,6 @@
 package steering
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -19,7 +18,7 @@ func recordedHistory(t *testing.T, store *overgodb.Store, label string) artifact
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "fixture/history/" + content.Descriptor.ID.String(),
 		Artifacts: []artifact.Descriptor{content.Descriptor},
 		Contents:  []artifact.Content{content},
@@ -52,7 +51,7 @@ func TestProposalAdmissionConvertsToPlanRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	history := recordedHistory(t, store, "attempt-aggregate")
 
 	admitted, row, err := Admit(ctx, store, fixtureProposal(history))
@@ -86,7 +85,7 @@ func TestProposalAdmissionRefusesUngroundedRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	recorded := recordedHistory(t, store, "real")
 	phantom := artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: artifact.JSONMediaType, Schema: "overgo/test-history/v1",

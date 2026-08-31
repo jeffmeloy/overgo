@@ -36,9 +36,10 @@ func admitProposal(root, specPath string, output io.Writer) error {
 		defer store.Close()
 		probe := document
 		probe.Items = append([]plan.Item{{
-			ID: proposal.Slug, Status: plan.StatusOpen,
+			ID: proposal.Slug, Title: proposal.Goal, Status: plan.StatusOpen,
 			Steps: []plan.Step{{
-				ID: "do", Status: plan.StatusOpen, Verify: proposal.FalsifiableCheck,
+				ID: "do", Title: proposal.Goal, Status: plan.StatusOpen,
+				Verify: proposal.FalsifiableCheck,
 			}},
 		}}, document.Items...)
 		if _, err := plan.ResolveCompletionAuthority(context.Background(), root, "HEAD", probe, store); err != nil {

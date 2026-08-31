@@ -52,7 +52,7 @@ type LiveObservation struct {
 type CircuitBreakerTransition struct {
 	Metric              string      `json:"metric"`
 	Level               string      `json:"level"`
-	Cause               string      `json:"cause,omitempty"`
+	Cause               string      `json:"cause,omitzero"`
 	Window              artifact.ID `json:"window"`
 	Comparable          uint64      `json:"comparable"`
 	Excluded            uint64      `json:"excluded"`

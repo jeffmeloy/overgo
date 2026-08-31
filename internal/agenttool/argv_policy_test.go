@@ -1,7 +1,6 @@
 package agenttool
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/overgodb"
@@ -13,7 +12,7 @@ import (
 // policy that later drops the program refuses the already-published
 // manual at invocation admission.
 func TestArgvPolicyGatesPublicationAndInvocation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

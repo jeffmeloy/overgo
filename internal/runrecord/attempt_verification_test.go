@@ -127,7 +127,7 @@ func commitAttemptGateChain(
 }
 
 func TestVerifyAttemptGateRequiresCanonicalLifecycle(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestVerifyAttemptGateRejectsIncompleteLifecycle(t *testing.T) {
 		{name: "missing finalization", includeRun: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			store, err := overgodb.Open(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
@@ -192,7 +192,7 @@ func TestVerifyAttemptGateRejectsIncompleteLifecycle(t *testing.T) {
 
 func TestVerifyAttemptGateRejectsFailedFinalizationAndMissingCommit(t *testing.T) {
 	t.Run("failed finalization", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store, err := overgodb.Open(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
@@ -214,7 +214,7 @@ func TestVerifyAttemptGateRejectsFailedFinalizationAndMissingCommit(t *testing.T
 	})
 
 	t.Run("mismatched preparation facts", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store, err := overgodb.Open(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
@@ -241,7 +241,7 @@ func TestVerifyAttemptGateRejectsFailedFinalizationAndMissingCommit(t *testing.T
 	})
 
 	t.Run("missing commit step", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		store, err := overgodb.Open(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
@@ -258,7 +258,7 @@ func TestVerifyAttemptGateRejectsFailedFinalizationAndMissingCommit(t *testing.T
 }
 
 func TestVerifyAttemptGateRejectsSplitIntroduction(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -275,7 +275,7 @@ func TestVerifyAttemptGateRejectsSplitIntroduction(t *testing.T) {
 }
 
 func TestVerifyAttemptGateRejectsPreparationPublishedWithFinalBatch(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -326,7 +326,7 @@ func TestVerifyAttemptGateRejectsPreparationPublishedWithFinalBatch(t *testing.T
 }
 
 func TestVerifyAttemptGateRejectsEnvironmentPublishedAfterPreparation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -413,7 +413,7 @@ func TestVerifyAttemptGateRejectsAmbiguousBoundRun(t *testing.T) {
 		{name: "contradictory typed run", codeCommit: strings.Repeat("b", 40)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			store, err := overgodb.Open(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
@@ -438,7 +438,7 @@ func TestVerifyAttemptGateRejectsAmbiguousBoundRun(t *testing.T) {
 }
 
 func TestVerifyAttemptGateRejectsConflictingPreparationFinalization(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

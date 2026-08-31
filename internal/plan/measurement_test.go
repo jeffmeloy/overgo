@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ func TestLeaseOutcomeMetrics(t *testing.T) {
 		TargetHead: "0123456789abcdef0123456789abcdef01234567", ConflictsWith: []string{},
 		Resources: Resources{CPUThreads: 8, HostRAMGiB: 16, VRAMGiB: 8}, ExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano),
 	})
-	lease, err := RecordWorkLease(context.Background(), store, leaseData)
+	lease, err := RecordWorkLease(t.Context(), store, leaseData)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,11 +29,11 @@ func TestLeaseOutcomeMetrics(t *testing.T) {
 		PredictedWallNS: 100, ActualWallNS: 120, PredictedInterferenceNS: 10, ActualInterferenceNS: 20,
 		Collision: true, RecoveryNS: 5,
 	})
-	outcome, err := RecordLeaseOutcome(context.Background(), store, outcomeData)
+	outcome, err := RecordLeaseOutcome(t.Context(), store, outcomeData)
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, ok, err := ReadLeaseOutcome(context.Background(), store, outcome.ID)
+	parsed, ok, err := ReadLeaseOutcome(t.Context(), store, outcome.ID)
 	if err != nil || !ok || parsed.ActualWallNS != 120 || parsed.RecoveryNS != 5 {
 		t.Fatalf("lease outcome = (%+v, %v, %v)", parsed, ok, err)
 	}

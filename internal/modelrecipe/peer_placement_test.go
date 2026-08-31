@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"os"
@@ -35,11 +34,11 @@ type peerPlacementFixture struct {
 func TestCompilePeerPlacementPlan(t *testing.T) {
 	fixture := newPeerPlacementFixture(t, true)
 	request := fixture.request()
-	first, err := CompilePeerPlacementPlan(context.Background(), fixture.store, request)
+	first, err := CompilePeerPlacementPlan(t.Context(), fixture.store, request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := CompilePeerPlacementPlan(context.Background(), fixture.store, request)
+	second, err := CompilePeerPlacementPlan(t.Context(), fixture.store, request)
 	if err != nil || second.Identity != first.Identity || len(first.Replicas) != 2 ||
 		first.Replicas[0].Peer != fixture.peer || first.Replicas[1].Peer.Valid() ||
 		len(first.Components) != 1 || first.Components[0].Placement != recipe.PlacementHost || first.Components[0].Residency != "" {
@@ -55,13 +54,13 @@ func TestPeerPlacementRefusalReasons(t *testing.T) {
 	request.Policy.MaximumReplicas = 1
 	request.Policy.TargetConcurrency = 1
 	request.Policy.MaximumMeasuredNS = 1
-	if _, err := CompilePeerPlacementPlan(context.Background(), fixture.store, request); err == nil ||
+	if _, err := CompilePeerPlacementPlan(t.Context(), fixture.store, request); err == nil ||
 		!strings.Contains(err.Error(), "resources") || !strings.Contains(err.Error(), "latency") {
 		t.Fatalf("resource refusal=%v", err)
 	}
 	request.Policy.MaximumMeasuredNS = 0
 	request.Peers[0].Compatibility = testutil.ArtifactID(t, artifact.KindEvidence, "wrong-compatibility")
-	if _, err := CompilePeerPlacementPlan(context.Background(), fixture.store, request); err == nil ||
+	if _, err := CompilePeerPlacementPlan(t.Context(), fixture.store, request); err == nil ||
 		!strings.Contains(err.Error(), "compatibility") {
 		t.Fatalf("compatibility refusal=%v", err)
 	}
@@ -74,18 +73,18 @@ func TestPeerPlacementArtifactLocality(t *testing.T) {
 	request.Policy.MinimumReplicas = 1
 	request.Policy.MaximumReplicas = 1
 	request.Policy.TargetConcurrency = 1
-	if _, err := CompilePeerPlacementPlan(context.Background(), fixture.store, request); err == nil ||
+	if _, err := CompilePeerPlacementPlan(t.Context(), fixture.store, request); err == nil ||
 		!strings.Contains(err.Error(), "artifact-locality") {
 		t.Fatalf("missing locality refusal=%v", err)
 	}
-	if _, err := fixture.store.Commit(context.Background(), artifact.Batch{
+	if _, err := fixture.store.Commit(t.Context(), artifact.Batch{
 		Key: "placement/remote-locality", Locations: []artifact.LocationEvent{{
 			Location: fixture.remoteLocation, Action: artifact.LocationAdd,
 		}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := CompilePeerPlacementPlan(context.Background(), fixture.store, request)
+	plan, err := CompilePeerPlacementPlan(t.Context(), fixture.store, request)
 	if err != nil || len(plan.Replicas) != 1 || plan.Replicas[0].Peer != fixture.peer || len(plan.Replicas[0].Locality) != 1 {
 		t.Fatalf("remote locality plan=(%+v, %v)", plan, err)
 	}
@@ -96,12 +95,12 @@ func TestPeerReplicaPolicyDerivation(t *testing.T) {
 	request := fixture.request()
 	request.Policy.TargetConcurrency = 3
 	request.Policy.ConcurrencyPerReplica = 2
-	plan, err := CompilePeerPlacementPlan(context.Background(), fixture.store, request)
+	plan, err := CompilePeerPlacementPlan(t.Context(), fixture.store, request)
 	if err != nil || len(plan.Replicas) != 2 {
 		t.Fatalf("derived replicas=(%d, %v)", len(plan.Replicas), err)
 	}
 	request.Policy.MaximumReplicas = 1
-	if _, err := CompilePeerPlacementPlan(context.Background(), fixture.store, request); err == nil ||
+	if _, err := CompilePeerPlacementPlan(t.Context(), fixture.store, request); err == nil ||
 		!strings.Contains(err.Error(), "exceeds replica policy") {
 		t.Fatalf("underprovisioned service policy accepted: %v", err)
 	}
@@ -109,7 +108,7 @@ func TestPeerReplicaPolicyDerivation(t *testing.T) {
 
 func newPeerPlacementFixture(t *testing.T, publishRemoteLocation bool) peerPlacementFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	fixture := newCapabilitySelectorFixture(t)
 	localEnvironment := testutil.ArtifactID(t, artifact.KindEvidence, "placement-local-environment")
 	peerEnvironment := testutil.ArtifactID(t, artifact.KindEvidence, "placement-peer-environment")

@@ -26,6 +26,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -74,6 +75,7 @@ func main() {
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
+	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	contain := flag.String("contain", "", "record typed lane containment: -contain <reason-code> -lane <lane> <detail>")
 	lane := flag.String("lane", "", "lane affected by -contain")
@@ -83,7 +85,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -96,6 +98,7 @@ type cli struct {
 	pruneDone                                                                        bool
 	title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane   string
 	prepareMerge                                                                     string
+	planProjection                                                                   string
 	grantExploration, chargeExploration, recordExperiment                            string
 	localitySchedule                                                                 string
 	leaseReport                                                                      bool
@@ -124,7 +127,13 @@ func run(c cli, args []string) error {
 	}
 	switch {
 	case c.prepareMerge != "":
-		return prepareMerge(".", c.prepareMerge, os.Stdout)
+		projection, err := plan.ParseMergeProjection(c.planProjection)
+		if err != nil {
+			return fmt.Errorf("-plan-projection: %w", err)
+		}
+		return prepareMergeWithProjection(".", c.prepareMerge, projection, os.Stdout)
+	case c.planProjection != "":
+		return errors.New("-plan-projection requires -prepare-merge")
 	case c.recordLease != "":
 		return recordWorkLease(".", c.recordLease, os.Stdout)
 	case c.recordLeaseOutcome != "":
@@ -313,9 +322,7 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	if err != nil {
 		return plan.ContextFacts{}, err
 	}
-	if branch == "" {
-		branch = "detached"
-	}
+	branch = cmp.Or(branch, "detached")
 	worktree, err := text("rev-parse", "--show-toplevel")
 	if err != nil {
 		return plan.ContextFacts{}, err

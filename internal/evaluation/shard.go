@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"sort"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/textcheck"
@@ -289,11 +291,13 @@ func mergeShardReports(reports []shardReport) (campaignReport, error) {
 			metricByName[metric.Name] = state
 		}
 	}
-	metrics := make([]metricState, 0, len(metricByName))
-	for _, metric := range metricByName {
-		metrics = append(metrics, metric)
+	metrics := slices.SortedFunc(maps.Values(metricByName), func(left, right metricState) int {
+		return strings.Compare(left.Name, right.Name)
+	})
+	switch {
+	case metrics == nil:
+		metrics = []metricState{}
 	}
-	sort.Slice(metrics, func(i, j int) bool { return metrics[i].Name < metrics[j].Name })
 	report := campaignReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan, Shards: shards, Metrics: metrics, Cases: cases,
 	}

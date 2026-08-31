@@ -38,9 +38,9 @@ const (
 // CapabilityTransport is the complete runnable transport authority.
 type CapabilityTransport struct {
 	Kind     CapabilityTransportKind `json:"kind"`
-	Endpoint string                  `json:"endpoint,omitempty"`
+	Endpoint string                  `json:"endpoint,omitzero"`
 	Protocol string                  `json:"protocol"`
-	Target   string                  `json:"target,omitempty"`
+	Target   string                  `json:"target,omitzero"`
 	Args     []string                `json:"args,omitempty"`
 }
 
@@ -48,7 +48,7 @@ type CapabilityTransport struct {
 type CapabilityPlatform struct {
 	OS          string `json:"os"`
 	Arch        string `json:"arch"`
-	Accelerator string `json:"accelerator,omitempty"`
+	Accelerator string `json:"accelerator,omitzero"`
 }
 
 // CapabilityResourceEnvelope bounds one activation's resource use.
@@ -58,7 +58,7 @@ type CapabilityResourceEnvelope struct {
 	MaxConcurrent  uint32 `json:"max_concurrent"`
 	CPUThreads     uint32 `json:"cpu_threads"`
 	HostBytes      uint64 `json:"host_bytes"`
-	DeviceBytes    uint64 `json:"device_bytes,omitempty"`
+	DeviceBytes    uint64 `json:"device_bytes,omitzero"`
 }
 
 // CapabilityIdentity binds a runnable implementation to every fact that can

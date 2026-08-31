@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -21,7 +20,7 @@ import (
 // an identity-rung candidate assembles with no adapter and no training,
 // and activations that no longer admit the enumerated rung refuse.
 func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -50,14 +50,14 @@ type openAPIDocument struct {
 	Security          json.RawMessage            `json:"security,omitempty"`
 	Tags              json.RawMessage            `json:"tags,omitempty"`
 	ExternalDocs      json.RawMessage            `json:"externalDocs,omitempty"`
-	JSONSchemaDialect string                     `json:"jsonSchemaDialect,omitempty"`
+	JSONSchemaDialect string                     `json:"jsonSchemaDialect,omitzero"`
 	Webhooks          json.RawMessage            `json:"webhooks,omitempty"`
 }
 
 type openAPIPathItem struct {
-	Ref         string            `json:"$ref,omitempty"`
-	Summary     string            `json:"summary,omitempty"`
-	Description string            `json:"description,omitempty"`
+	Ref         string            `json:"$ref,omitzero"`
+	Summary     string            `json:"summary,omitzero"`
+	Description string            `json:"description,omitzero"`
 	Get         *openAPIOperation `json:"get,omitempty"`
 	Put         *openAPIOperation `json:"put,omitempty"`
 	Post        *openAPIOperation `json:"post,omitempty"`
@@ -72,24 +72,24 @@ type openAPIPathItem struct {
 
 type openAPIOperation struct {
 	Tags         json.RawMessage     `json:"tags,omitempty"`
-	Summary      string              `json:"summary,omitempty"`
-	Description  string              `json:"description,omitempty"`
+	Summary      string              `json:"summary,omitzero"`
+	Description  string              `json:"description,omitzero"`
 	ExternalDocs json.RawMessage     `json:"externalDocs,omitempty"`
 	OperationID  string              `json:"operationId"`
 	Parameters   json.RawMessage     `json:"parameters,omitempty"`
 	RequestBody  *openAPIRequestBody `json:"requestBody,omitempty"`
 	Responses    json.RawMessage     `json:"responses"`
 	Callbacks    json.RawMessage     `json:"callbacks,omitempty"`
-	Deprecated   bool                `json:"deprecated,omitempty"`
+	Deprecated   bool                `json:"deprecated,omitzero"`
 	Security     json.RawMessage     `json:"security,omitempty"`
 	Servers      json.RawMessage     `json:"servers,omitempty"`
 	Effect       Effect              `json:"x-overgo-effect"`
 }
 
 type openAPIRequestBody struct {
-	Description string                      `json:"description,omitempty"`
+	Description string                      `json:"description,omitzero"`
 	Content     map[string]openAPIMediaType `json:"content"`
-	Required    bool                        `json:"required,omitempty"`
+	Required    bool                        `json:"required,omitzero"`
 }
 
 type openAPIMediaType struct {
@@ -100,20 +100,20 @@ type openAPIMediaType struct {
 }
 
 type openAPISchema struct {
-	Ref                  string                   `json:"$ref,omitempty"`
+	Ref                  string                   `json:"$ref,omitzero"`
 	Type                 string                   `json:"type"`
-	Description          string                   `json:"description,omitempty"`
-	Format               string                   `json:"format,omitempty"`
+	Description          string                   `json:"description,omitzero"`
+	Format               string                   `json:"format,omitzero"`
 	Properties           map[string]openAPISchema `json:"properties,omitempty"`
 	Required             []string                 `json:"required,omitempty"`
 	AdditionalProperties json.RawMessage          `json:"additionalProperties,omitempty"`
 	Enum                 json.RawMessage          `json:"enum,omitempty"`
 	Default              json.RawMessage          `json:"default,omitempty"`
 	Example              json.RawMessage          `json:"example,omitempty"`
-	Nullable             bool                     `json:"nullable,omitempty"`
-	ReadOnly             bool                     `json:"readOnly,omitempty"`
-	WriteOnly            bool                     `json:"writeOnly,omitempty"`
-	Deprecated           bool                     `json:"deprecated,omitempty"`
+	Nullable             bool                     `json:"nullable,omitzero"`
+	ReadOnly             bool                     `json:"readOnly,omitzero"`
+	WriteOnly            bool                     `json:"writeOnly,omitzero"`
+	Deprecated           bool                     `json:"deprecated,omitzero"`
 }
 
 // CompileOpenAPI reads one bounded strict OpenAPI JSON document and compiles

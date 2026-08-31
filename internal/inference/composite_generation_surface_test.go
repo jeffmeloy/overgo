@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -14,19 +13,19 @@ import (
 func TestCompositeGenerationSurfaceParity(t *testing.T) {
 	store, authority := productionCompositionFixture(t, true)
 	runtime, err := OpenProductionComposition(
-		context.Background(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
+		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel,
 		authority.Recipe.Task, compositionRuntimeResourcesFixture(t, authority),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	publishCompositeGenerationPromotion(t, store, runtime.plan)
-	direct, err := runtime.PromotedGeneration(context.Background(), store)
+	direct, err := runtime.PromotedGeneration(t.Context(), store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	surface, err := ResolveCompositeGenerationSurface(
-		context.Background(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
+		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 	)
 	if err != nil || surface != direct || surface.Recipe != authority.Recipe.ID || surface.Plan != runtime.plan.ID {
 		t.Fatalf("surface=%+v direct=%+v err=%v", surface, direct, err)
@@ -36,7 +35,7 @@ func TestCompositeGenerationSurfaceParity(t *testing.T) {
 func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
 	store, authority := productionCompositionFixture(t, true)
 	if _, err := ResolveCompositeGenerationSurface(
-		context.Background(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
+		t.Context(), store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 	); err == nil {
 		t.Fatal("active but generation-unpromoted composition reached a serving surface")
 	}
@@ -117,7 +116,7 @@ func publishCompositeGenerationPromotion(
 			continue
 		}
 		seen[edge.Parent] = true
-		_, found, findErr := store.Artifact(context.Background(), edge.Parent)
+		_, found, findErr := store.Artifact(t.Context(), edge.Parent)
 		if findErr != nil {
 			t.Fatal(findErr)
 		}
@@ -125,7 +124,7 @@ func publishCompositeGenerationPromotion(
 			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: edge.Parent, Size: 1})
 		}
 	}
-	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
+	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
 }

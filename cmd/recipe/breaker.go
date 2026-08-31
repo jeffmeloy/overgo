@@ -40,7 +40,7 @@ func judgeBreaker(arguments []string) error {
 		return err
 	}
 	var observations []loop.LiveObservation
-	for _, text := range strings.Split(*valuesFlag, ",") {
+	for text := range strings.SplitSeq(*valuesFlag, ",") {
 		text = strings.TrimSpace(text)
 		if text == "skip" {
 			observations = append(observations, loop.LiveObservation{})

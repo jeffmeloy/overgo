@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -343,7 +342,7 @@ func newClosureAliasRestoreFixture(t *testing.T, corruption closureAliasRestoreC
 	if corruption == restoreSourceAliasesEmpty {
 		sourceAliases = nil
 	}
-	sourceHead, err := store.Commit(context.Background(), artifact.Batch{
+	sourceHead, err := store.Commit(t.Context(), artifact.Batch{
 		Key:      "fixture/alias-restore/source",
 		Contents: []artifact.Content{one, two, nonClosure},
 		Aliases:  sourceAliases,
@@ -371,7 +370,7 @@ func newClosureAliasRestoreFixture(t *testing.T, corruption closureAliasRestoreC
 			{Name: aliases[1], Target: two.Descriptor.ID},
 		}
 	}
-	currentHead, err := store.Commit(context.Background(), artifact.Batch{
+	currentHead, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/alias-restore/current", Aliases: currentAliases,
 	})
 	if err != nil {

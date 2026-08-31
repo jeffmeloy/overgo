@@ -1144,9 +1144,9 @@ var q8InputMulMatKernels = map[dtype.Type]kernelFunctionID{
 
 // q8InputFastPathType reports storage types whose single-vector decode
 // routes through the q8-input integer kernels.
-func q8InputFastPathType(storage dtype.Type) bool {
-	_, fast := q8InputMulMatKernels[storage]
-	return fast
+func q8InputFastPathType(storage dtype.Type) (ok bool) {
+	_, ok = q8InputMulMatKernels[storage]
+	return ok
 }
 
 // quantMulMatLaunchCount sizes the thread grid for the warp-cooperative

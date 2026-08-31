@@ -15,7 +15,7 @@ import (
 )
 
 func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := NewForProgram(store, program)
@@ -55,7 +55,7 @@ func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 }
 
 func TestRuntimePublishesFailedRun(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	runtime, err := NewForProgram(store, program)
@@ -82,7 +82,7 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerGenerationAdapters(t, runtime, false)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	result, err := runtime.ExecuteProgram(ctx, "runtime/cancelled", runtimeExecutionID(t, program, "runtime/cancelled"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
@@ -90,13 +90,13 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || result.Run.Outcome != runrecord.OutcomeCancelled {
 		t.Fatalf("cancelled result = (%+v, %v)", result, err)
 	}
-	if _, ok, loadErr := artifact.ReadContent(context.Background(), store, result.Run.ID); loadErr != nil || !ok {
+	if _, ok, loadErr := artifact.ReadContent(t.Context(), store, result.Run.ID); loadErr != nil || !ok {
 		t.Fatalf("cancelled run was not published: %v", loadErr)
 	}
 }
 
 func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	operation := runtimeExecutionID(t, program, "runtime/restart")
@@ -144,7 +144,7 @@ func TestWorkflowRestartSkipsCompletedStages(t *testing.T) {
 }
 
 func TestWorkflowRecoveryRejectsRecipeDrift(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, program := runtimeFixture(t)
 	defer store.Close()
 	operation := runtimeExecutionID(t, program, "runtime/drift")
@@ -206,7 +206,7 @@ func TestExecuteProgramPreservesOrchestrationBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/training", runtimeExecutionID(t, program, "runtime/training"), nil, program, nil); err == nil {
+	if _, err := runtime.ExecuteProgram(context.WithoutCancel(t.Context()), "runtime/training", runtimeExecutionID(t, program, "runtime/training"), nil, program, nil); err == nil {
 		t.Fatal("orchestration-only program executed")
 	}
 }
@@ -226,7 +226,7 @@ func TestExecuteProgramRejectsAnotherCatalogAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runtime.ExecuteProgram(context.Background(), "runtime/foreign", runtimeExecutionID(t, program, "runtime/foreign"), nil, program, nil); err == nil {
+	if _, err := runtime.ExecuteProgram(context.WithoutCancel(t.Context()), "runtime/foreign", runtimeExecutionID(t, program, "runtime/foreign"), nil, program, nil); err == nil {
 		t.Fatal("program compiled by another catalog accepted")
 	}
 }
@@ -276,7 +276,7 @@ func runtimeFixture(t *testing.T) (*overgodb.Store, recipe.Program) {
 	}
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "model")
 	tokenizerID := testutil.ArtifactID(t, artifact.KindTokenizer, "tokenizer")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "runtime/dependencies",
 		Artifacts: []artifact.Descriptor{{ID: modelID}, {ID: tokenizerID}},
 	}); err != nil {

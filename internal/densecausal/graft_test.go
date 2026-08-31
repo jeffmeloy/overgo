@@ -113,7 +113,7 @@ func TestGraftBridgeGradientsMatchFiniteDifference(t *testing.T) {
 	for _, check := range checks {
 		numeric := probe(check.matrix, check.index)
 		analytic := float64(check.gradient[check.index])
-		if diff := math.Abs(numeric - analytic); diff > 1e-2*math.Max(1, math.Abs(numeric)) {
+		if diff := math.Abs(numeric - analytic); diff > 1e-2*max(1, math.Abs(numeric)) {
 			t.Errorf("%s[%d]: |%g - %g| = %g exceeds tolerance", check.name, check.index, numeric, analytic, diff)
 		}
 	}

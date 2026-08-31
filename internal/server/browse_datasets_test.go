@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -88,7 +87,7 @@ func publishDatasetFixture(t *testing.T, store *overgodb.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = dataset.PublishCatalog(context.Background(), store, dataset.CompiledCatalog{
+	_, err = dataset.PublishCatalog(t.Context(), store, dataset.CompiledCatalog{
 		Catalog: catalog, Datasets: []dataset.Document{version}, Inventories: []dataset.Inventory{inventory},
 		Locations: []artifact.Location{location},
 	})

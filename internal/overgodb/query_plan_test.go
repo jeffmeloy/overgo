@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -21,7 +20,7 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	wide := make([]artifact.Descriptor, 0, 8)
 	for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
 		wide = append(wide, artifact.Descriptor{
@@ -82,7 +81,8 @@ func TestProjectionQueryPlanEfficiency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if seeded.Plan.Index != "seed" || seeded.Plan.Returned != 1 {
+	if seeded.Plan.Index != "seed" || seeded.Plan.Inspected != 1 || seeded.Plan.Matched != 1 ||
+		seeded.Plan.Returned != 1 || seeded.Plan.Loaded != 1 {
 		t.Fatalf("seed plan = %+v", seeded.Plan)
 	}
 

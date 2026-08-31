@@ -1,7 +1,6 @@
 package workflowruntime
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -38,13 +37,13 @@ func TestSemanticTransitionUsesOneCommit(t *testing.T) {
 	counting := &repositorytest.CountingRepository{Repository: store}
 	runtime := &Runtime{store: counting}
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "authority-operation")
-	if err := runtime.publishExecutionAuthority(context.Background(), definition, operation); err != nil {
+	if err := runtime.publishExecutionAuthority(t.Context(), definition, operation); err != nil {
 		t.Fatal(err)
 	}
 	if counting.Commits != 1 {
 		t.Fatalf("authority publication used %d commits, want 1", counting.Commits)
 	}
-	if err := runtime.publishExecutionAuthority(context.Background(), definition, operation); err != nil {
+	if err := runtime.publishExecutionAuthority(t.Context(), definition, operation); err != nil {
 		t.Fatalf("authority republication must replay idempotently: %v", err)
 	}
 	if counting.Commits != 2 {

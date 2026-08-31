@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -17,7 +16,7 @@ import (
 func TestDeterministicRSIControlPlane(t *testing.T) {
 	base := t.TempDir()
 	sourceRoot := filepath.Join(base, "source")
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := Open(sourceRoot)
 	if err != nil {
 		t.Fatal(err)

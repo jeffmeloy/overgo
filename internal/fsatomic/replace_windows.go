@@ -3,6 +3,7 @@
 package fsatomic
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,7 @@ func callMoveFileEx(oldPath, newPath *uint16, flags uint32) error {
 	if result != 0 {
 		return nil
 	}
-	if callErr == syscall.Errno(0) {
+	if errors.Is(callErr, syscall.Errno(0)) {
 		return syscall.EINVAL
 	}
 	return callErr

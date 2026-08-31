@@ -86,7 +86,7 @@ func writeMultiTensorFixture(t *testing.T) string {
 	scaled := make([]float32, n) // same shape, 10x magnitude
 	sparse := make([]float32, n) // mostly zero
 	skewed := make([]float32, n) // heavy right tail
-	for i := 0; i < n; i++ {
+	for i := range n {
 		sym[i] = float32(i - 256)
 		scaled[i] = float32(i-256) * 10
 		skewed[i] = 1

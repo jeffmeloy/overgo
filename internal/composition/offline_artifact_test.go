@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 )
 
 func TestOfflineCompositionArtifactCompatibility(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +155,7 @@ func publishOfflineModel(
 		}
 		batch.Lineage = filtered
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	return document.ID

@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"overgo/internal/overgodb"
@@ -33,7 +33,7 @@ func proposeTriageRows(
 		index[candidate.Current.Name] = candidate
 		current = append(current, candidate.Current.Name)
 	}
-	sort.Strings(current)
+	slices.Sort(current)
 	proposal := triageFile{Rows: make([]triageRow, 0, len(names))}
 	for _, name := range names {
 		candidate, found := index[name]

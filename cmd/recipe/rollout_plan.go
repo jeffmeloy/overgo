@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -58,7 +59,7 @@ func declareRolloutPlan(arguments []string) error {
 	if err != nil || decoded.ID != plan.ID {
 		return errors.Join(errors.New("recipe: rollout plan content does not reproduce its identity"), err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
 		return err
 	}
 	fmt.Printf("declared rollout plan %s\n  baseline  %s\n  candidate %s\n  cohort    %d/%d over %q\n",

@@ -2,7 +2,7 @@ package optimizer
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 )
 
 // TensorGeometry: named tensor matrix geometry.
@@ -31,7 +31,7 @@ func NewTensorPack(tensors map[string][]float32, geometry TensorGeometry) (*Tens
 		names = append(names, name)
 		total += len(values)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	pack := &TensorPack{
 		weights:   make([]float32, total),

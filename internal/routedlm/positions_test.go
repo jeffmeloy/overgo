@@ -93,7 +93,7 @@ func TestSegmentWindowsMatchSegmentRange(t *testing.T) {
 	mask := []int{1, 1, 0, 0, 1, 1, 1}
 	segments := VisualSegments(mask)
 	windows := SegmentWindows(segments, len(mask))
-	for row := 0; row < len(mask); row++ {
+	for row := range len(mask) {
 		start, end := segmentRange(segments, row, len(mask))
 		if windows[row] != [2]int{start, end} {
 			t.Fatalf("row %d window %v, want [%d,%d)", row, windows[row], start, end)

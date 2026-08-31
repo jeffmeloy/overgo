@@ -71,9 +71,7 @@ func TestEncoderProgramMatchesHostReference(t *testing.T) {
 			t.Fatalf("selected[%d] non-finite: %v", i, g)
 		}
 		abs := math.Abs(host.Data[i] - g)
-		if abs > maxAbs {
-			maxAbs = abs
-		}
+		maxAbs = max(maxAbs, abs)
 		if rel := abs / (math.Abs(host.Data[i]) + 1e-6); rel > maxRel {
 			maxRel = rel
 		}

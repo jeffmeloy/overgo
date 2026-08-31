@@ -2,7 +2,6 @@ package overgodb_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"sync"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -46,9 +45,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 	}, len(records))
 	var wait sync.WaitGroup
 	for index := range records {
-		wait.Add(1)
-		go func(index int) {
-			defer wait.Done()
+		wait.Go(func() {
 			batch, batchErr := artifact.NewDocumentBatch(
 				"webhook/cas/contender/"+records[index].Descriptor.ID.String(),
 				[]artifact.Content{payload, records[index]},
@@ -63,7 +60,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 				index int
 				err   error
 			}{index: index, err: batchErr}
-		}(index)
+		})
 	}
 	close(start)
 	wait.Wait()
@@ -123,7 +120,7 @@ func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
 
 func assertBlobBytes(t *testing.T, reader artifact.Reader, id artifact.ID, want []byte) {
 	t.Helper()
-	_, stream, found, err := reader.OpenContent(context.Background(), id)
+	_, stream, found, err := reader.OpenContent(t.Context(), id)
 	if err != nil || !found {
 		t.Fatalf("blob = (%v, %v)", found, err)
 	}

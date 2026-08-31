@@ -1,7 +1,6 @@
 package automationcheck
 
 import (
-	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -34,7 +33,7 @@ func TestPlanEvidenceLineage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := Run(context.Background(), bound)
+	evidence, err := Run(t.Context(), bound)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -97,7 +97,7 @@ func patchStatsBackward(dSeries, series, masks []float32, patchLen int, mu, sigm
 	counts := make([]float64, len(mu))
 	var n float64
 	for i := range mu {
-		for j := 0; j < patchLen; j++ {
+		for j := range patchLen {
 			if masks[i*patchLen+j] == 0 {
 				n++
 			}
@@ -136,7 +136,7 @@ func (m *Model) patchEmbedBackward(series, masks []float32, mu, sigma []float64,
 		if denom < revinTolerance {
 			denom = 1
 		}
-		for j := 0; j < p; j++ {
+		for j := range p {
 			normed := (float64(series[i*p+j]) - mu[i]) / denom
 			if masks[i*p+j] != 0 {
 				normed = 0
@@ -149,14 +149,14 @@ func (m *Model) patchEmbedBackward(series, masks []float32, mu, sigma []float64,
 			return nil, err
 		}
 		dNormed := dInput[:p]
-		for j := 0; j < p; j++ {
+		for j := range p {
 			if masks[i*p+j] != 0 {
 				dNormed[j] = 0
 			}
 		}
 		patchX := series[i*p : (i+1)*p]
 		dx, dm, ds := revinBackward(dNormed, patchX, mu[i], sigma[i])
-		for j := 0; j < p; j++ {
+		for j := range p {
 			dSeries[i*p+j] += dx[j]
 		}
 		dMu[i] += dm
@@ -187,8 +187,8 @@ func (m *Model) attnSubForward(l layer, x []float32, invFreq []float64, seq int)
 	hostmath.Linear(tr.v, x, l.v, seq, d, width)
 	tr.qRoped = append([]float32(nil), tr.qPost...)
 	tr.kRoped = append([]float32(nil), tr.kPost...)
-	for p := 0; p < seq; p++ {
-		for h := 0; h < heads; h++ {
+	for p := range seq {
+		for h := range heads {
 			hostmath.ApplyRotaryHalf(tr.qRoped[(p*heads+h)*hd:(p*heads+h+1)*hd], invFreq, p)
 			hostmath.ApplyRotaryHalf(tr.kRoped[(p*heads+h)*hd:(p*heads+h+1)*hd], invFreq, p)
 		}
@@ -199,7 +199,7 @@ func (m *Model) attnSubForward(l layer, x []float32, invFreq []float64, seq int)
 	hostmath.RMSNormInto(tr.kFinal, tr.kRoped, l.keyLN, seq*heads, hd, m.Dims.RMSEps)
 	scale := compiledQueryScale(l.perDimScale, hd)
 	tr.qFinal = append([]float32(nil), tr.qNormed...)
-	for row := 0; row < seq*heads; row++ {
+	for row := range seq * heads {
 		qRow := tr.qFinal[row*hd : (row+1)*hd]
 		for dim := range qRow {
 			qRow[dim] *= scale[dim]
@@ -234,8 +234,8 @@ func (m *Model) attnSubBackward(index int, l layer, x, dOut []float32, invFreq [
 	factor := math.Log2E / math.Sqrt(float64(hd))
 	gradPds := hostmath.GradientSlot(g, attn+".per_dim_scale.per_dim_scale", hd)
 	scale := compiledQueryScale(l.perDimScale, hd)
-	for row := 0; row < seq*heads; row++ {
-		for dim := 0; dim < hd; dim++ {
+	for row := range seq * heads {
+		for dim := range hd {
 			i := row*hd + dim
 			e := math.Exp(float64(l.perDimScale[dim]))
 			gradPds[dim] += float32(float64(dq[i]) * float64(tr.qNormed[i]) * factor * e / (1 + e))
@@ -249,8 +249,8 @@ func (m *Model) attnSubBackward(index int, l layer, x, dOut []float32, invFreq [
 	dkNorm := make([]float32, seq*width)
 	hostmath.RMSNormBackward(dqNorm, hostmath.GradientSlot(g, attn+".query_ln.scale", hd), tr.qRoped, l.queryLN, dq, seq*heads, hd, eps, false)
 	hostmath.RMSNormBackward(dkNorm, hostmath.GradientSlot(g, attn+".key_ln.scale", hd), tr.kRoped, l.keyLN, dk, seq*heads, hd, eps, false)
-	for p := 0; p < seq; p++ {
-		for h := 0; h < heads; h++ {
+	for p := range seq {
+		for h := range heads {
 			hostmath.RotaryHalfBackward(dqNorm[(p*heads+h)*hd:(p*heads+h+1)*hd], invFreq, p)
 			hostmath.RotaryHalfBackward(dkNorm[(p*heads+h)*hd:(p*heads+h+1)*hd], invFreq, p)
 		}

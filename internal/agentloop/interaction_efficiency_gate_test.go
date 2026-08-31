@@ -1,7 +1,6 @@
 package agentloop
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -16,11 +15,11 @@ import (
 // everything, both handoffs carry the same admitted stimulus, and the
 // measured claim wins the gate without shifting work to another counter.
 func TestInteractionEfficiencyGate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, _ := coordinatorFixture(t)
 	arguments := json.RawMessage(`{"step":1}`)
 	continuous := &Session{ID: "efficiency-continuous"}
-	if _, err := coordinator.Propose(ctx, continuous, "probe.read", arguments, false); err != nil {
+	if _, err := coordinator.Propose(ctx, continuous, "probe.read", arguments); err != nil {
 		t.Fatal(err)
 	}
 	baselineBytes := uint64(0)
@@ -30,7 +29,7 @@ func TestInteractionEfficiencyGate(t *testing.T) {
 	if baselineBytes == 0 {
 		t.Fatalf("stateless handoff transferred nothing: %+v", continuous.handoff)
 	}
-	if _, err := coordinator.Propose(ctx, continuous, "probe.read", arguments, false); err != nil {
+	if _, err := coordinator.Propose(ctx, continuous, "probe.read", arguments); err != nil {
 		t.Fatal(err)
 	}
 	candidateBytes := uint64(0)

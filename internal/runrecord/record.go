@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -209,7 +210,7 @@ type PhaseMetric struct {
 type Metric struct {
 	Name      string    `json:"name"`
 	Value     float64   `json:"value"`
-	Unit      string    `json:"unit,omitempty"`
+	Unit      string    `json:"unit,omitzero"`
 	Direction Direction `json:"direction"`
 }
 
@@ -228,10 +229,10 @@ type runBody struct {
 	Outcome     Outcome       `json:"outcome"`
 	Inputs      []artifact.ID `json:"inputs,omitempty"`
 	Outputs     []artifact.ID `json:"outputs,omitempty"`
-	Failure     string        `json:"failure,omitempty"`
-	CodeCommit  string        `json:"code_commit,omitempty"`
+	Failure     string        `json:"failure,omitzero"`
+	CodeCommit  string        `json:"code_commit,omitzero"`
 	Environment *artifact.ID  `json:"environment,omitempty"`
-	MeasuredNS  uint64        `json:"measured_ns,omitempty"`
+	MeasuredNS  uint64        `json:"measured_ns,omitzero"`
 	Phases      []PhaseMetric `json:"phases,omitempty"`
 }
 
@@ -278,6 +279,57 @@ func ParseRun(content []byte) (Run, error) {
 
 func RequireRun(ctx context.Context, reader artifact.Reader, id artifact.ID) (Run, error) {
 	return runCodec.Require(ctx, reader, id)
+}
+
+// RequireExactRun loads a run with exactly the dependency parents and
+// produced-by outputs derived from its immutable record. Other children may
+// legitimately depend on the run and do not alter its execution authority.
+func RequireExactRun(ctx context.Context, reader artifact.Reader, id artifact.ID) (Run, error) {
+	run, err := runCodec.Require(ctx, reader, id)
+	if err != nil {
+		return Run{}, err
+	}
+	expectedParents := slices.DeleteFunc(run.Lineage(), func(edge artifact.Lineage) bool {
+		return edge.Child != run.ID || edge.Relation != artifact.RelationDependsOn
+	})
+	parents, err := reader.Parents(ctx, run.ID)
+	if err != nil {
+		return Run{}, err
+	}
+	if !sameRunLineage(parents, expectedParents) {
+		return Run{}, errors.New("run record: stored run dependency lineage differs")
+	}
+	children, err := reader.Children(ctx, run.ID)
+	if err != nil {
+		return Run{}, err
+	}
+	produced := slices.DeleteFunc(children, func(edge artifact.Lineage) bool {
+		return edge.Parent != run.ID || edge.Relation != artifact.RelationProducedBy
+	})
+	expectedProduced := slices.DeleteFunc(run.Lineage(), func(edge artifact.Lineage) bool {
+		return edge.Parent != run.ID || edge.Relation != artifact.RelationProducedBy
+	})
+	if !sameRunLineage(produced, expectedProduced) {
+		return Run{}, errors.New("run record: stored run output lineage differs")
+	}
+	return run, nil
+}
+
+func sameRunLineage(left, right []artifact.Lineage) bool {
+	left = slices.Clone(left)
+	right = slices.Clone(right)
+	compare := func(left, right artifact.Lineage) int {
+		if order := artifact.CompareID(left.Child, right.Child); order != 0 {
+			return order
+		}
+		if order := artifact.CompareID(left.Parent, right.Parent); order != 0 {
+			return order
+		}
+		return cmp.Compare(left.Relation, right.Relation)
+	}
+	slices.SortFunc(left, compare)
+	slices.SortFunc(right, compare)
+	return slices.Equal(left, right)
 }
 
 func (r Run) ValidateIdentity() error {

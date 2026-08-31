@@ -53,7 +53,7 @@ type WorkspaceClaim struct {
 // WorkspaceClaims declares exact path access. WholeWorktree is the
 // conservative representation for an absent or unresolvable scope.
 type WorkspaceClaims struct {
-	WholeWorktree bool     `json:"whole_worktree,omitempty"`
+	WholeWorktree bool     `json:"whole_worktree,omitzero"`
 	Read          []string `json:"read,omitempty"`
 	Write         []string `json:"write,omitempty"`
 }
@@ -73,8 +73,8 @@ type WorkLease struct {
 	// Optional experiment retry state.
 	Experiment      artifact.ID `json:"experiment,omitzero"`
 	Checkpoint      artifact.ID `json:"checkpoint,omitzero"`
-	Retry           uint32      `json:"retry,omitempty"`
-	PredictedWallNS uint64      `json:"predicted_wall_ns,omitempty"`
+	Retry           uint32      `json:"retry,omitzero"`
+	PredictedWallNS uint64      `json:"predicted_wall_ns,omitzero"`
 	ID              artifact.ID `json:"-"`
 }
 
@@ -174,7 +174,7 @@ func canonicalizeWorkLease(value *WorkLease) error {
 	if value.ConflictsWith == nil {
 		return errors.New("plan: work lease conflicts must not be nil")
 	}
-	sort.Strings(value.ConflictsWith)
+	slices.Sort(value.ConflictsWith)
 	value.ConflictsWith = slices.Compact(value.ConflictsWith)
 	for _, item := range value.ConflictsWith {
 		if !validAutomationText(item) {

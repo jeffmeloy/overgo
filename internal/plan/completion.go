@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -36,7 +37,21 @@ const (
 	completionPreparationCommitTrailer = "Overgo-Gate-Preparation-Commit"
 	completionSnapshotTrailer          = "Overgo-Plan-Item-Snapshot"
 	completionItemIndexTrailer         = "Overgo-Plan-Item-Index"
-	maximumCompletionParents           = 2
+	completionMergeProjectionTrailer   = "Overgo-Plan-Merge-Projection"
+	completionMergeAuthorityTrailer    = "Overgo-Plan-Merge-Authority"
+)
+
+const (
+	completionLocalParentIndex = iota
+	completionIncomingParentIndex
+	completionParentCount
+)
+
+const (
+	gitBatchObjectIdentityField = iota
+	gitBatchObjectTypeField
+	gitBatchObjectSizeField
+	gitBatchObjectFieldCount
 )
 
 var completionTrailerKeys = [...]string{
@@ -49,6 +64,8 @@ var completionTrailerKeys = [...]string{
 	completionPreparationCommitTrailer,
 	completionSnapshotTrailer,
 	completionItemIndexTrailer,
+	completionMergeProjectionTrailer,
+	completionMergeAuthorityTrailer,
 }
 
 var legacyCompletionTrailerKeys = [...]string{
@@ -70,6 +87,34 @@ func CompletionCommitMessage(
 	manifest, codeManifest, preparation artifact.ID,
 	preparationCommit artifact.CommitID,
 ) ([]byte, error) {
+	return CompletionCommitMessageWithMergeAuthority(
+		operatorMessage, preAdvance, item, step, manifest, codeManifest, preparation,
+		preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
+	)
+}
+
+// CompletionCommitMessageWithMergeAuthority binds the one typed projected
+// merge receipt required by FirstParentTarget. Semantic union carries no
+// receipt; target projection without a receipt is refused rather than inferred.
+func CompletionCommitMessageWithMergeAuthority(
+	operatorMessage []byte,
+	preAdvance Plan,
+	item, step string,
+	manifest, codeManifest, preparation artifact.ID,
+	preparationCommit artifact.CommitID,
+	projection MergeProjection,
+	mergeAuthority artifact.ID,
+) ([]byte, error) {
+	if err := projection.validate(); err != nil {
+		return nil, err
+	}
+	if projection == MergeProjectionFirstParentTarget {
+		if mergeAuthority.Kind() != artifact.KindEvidence {
+			return nil, errors.New("plan: first-parent-target projection requires merge authority")
+		}
+	} else if mergeAuthority.Valid() {
+		return nil, errors.New("plan: semantic-union completion must not carry merge authority")
+	}
 	if err := Validate(preAdvance); err != nil {
 		return nil, fmt.Errorf("plan: invalid pre-advance completion plan: %w", err)
 	}
@@ -90,7 +135,7 @@ func CompletionCommitMessage(
 	if strings.ContainsRune(message, '\x00') {
 		return nil, errors.New("plan: completion message contains NUL")
 	}
-	for _, line := range strings.Split(message, "\n") {
+	for line := range strings.SplitSeq(message, "\n") {
 		key, _, found := strings.Cut(line, ":")
 		if !found {
 			continue
@@ -109,8 +154,12 @@ func CompletionCommitMessage(
 		completionPreparationTrailer + ": " + preparation.String() + "\n" +
 		completionPreparationCommitTrailer + ": " + preparationCommit.String() + "\n" +
 		completionSnapshotTrailer + ": " + snapshotText + "\n" +
-		completionItemIndexTrailer + ": " + strconv.Itoa(itemIndex) + "\n" +
-		completionVerifyTrailer + ": " + completedStep.Verify + "\n"
+		completionItemIndexTrailer + ": " + strconv.Itoa(itemIndex) + "\n"
+	if projection == MergeProjectionFirstParentTarget {
+		message += completionMergeProjectionTrailer + ": " + string(projection) + "\n" +
+			completionMergeAuthorityTrailer + ": " + mergeAuthority.String() + "\n"
+	}
+	message += completionVerifyTrailer + ": " + completedStep.Verify + "\n"
 	return []byte(message), nil
 }
 
@@ -147,6 +196,8 @@ type CompletionAuthority struct {
 	planDigest          [sha256.Size]byte
 	repository          string
 	revision            string
+	storeHead           artifact.CommitID
+	storeSequence       uint64
 	completedReferences map[string]completionEvidence
 	retiredItems        map[string]completionEvidence
 }
@@ -163,9 +214,12 @@ func (authority CompletionAuthority) ProtectsRevision() bool {
 type completionEvidence struct {
 	commit       string
 	verify       string
+	contract     [sha256.Size]byte
 	manifest     artifact.ID
 	codeManifest artifact.ID
 	attempt      artifact.ID
+	result       artifact.ID
+	finalization artifact.ID
 	retiredItem  bool
 }
 
@@ -201,9 +255,13 @@ func (authority CompletionAuthority) resolvesAt(document Plan, repository, revis
 }
 
 func completionPlanDigest(document Plan) ([sha256.Size]byte, error) {
-	encoded, err := json.Marshal(document)
+	return completionJSONDigest(document, "authority plan")
+}
+
+func completionJSONDigest(value any, label string) ([sha256.Size]byte, error) {
+	encoded, err := json.Marshal(value)
 	if err != nil {
-		return [sha256.Size]byte{}, fmt.Errorf("plan: encode completion authority plan: %w", err)
+		return [sha256.Size]byte{}, fmt.Errorf("plan: encode completion %s: %w", label, err)
 	}
 	return sha256.Sum256(encoded), nil
 }
@@ -218,19 +276,32 @@ type completionTrailers struct {
 	itemIndex              int
 	snapshotPresent        bool
 	declaresPreparedFormat bool
+	mergeProjection        MergeProjection
+	mergeAuthority         artifact.ID
 }
 
-// VerifyCompletionCommitMessage proves that a commit message carries the
-// canonical completion tuple and exact pre-advance item snapshot supplied by
-// the caller. Recovery uses this before treating an interrupted Git commit as
-// the gate's intended commit.
-func VerifyCompletionCommitMessage(
+// VerifyCompletionCommitMessageWithMergeAuthority verifies the exact
+// completion tuple, projection, and content-addressed merge receipt expected
+// by write-ahead recovery.
+func VerifyCompletionCommitMessageWithMergeAuthority(
 	message string,
 	preAdvance Plan,
 	item, step string,
 	manifest, codeManifest, preparation artifact.ID,
 	preparationCommit artifact.CommitID,
+	projection MergeProjection,
+	mergeAuthority artifact.ID,
 ) error {
+	if err := projection.validate(); err != nil {
+		return err
+	}
+	if projection == MergeProjectionFirstParentTarget {
+		if mergeAuthority.Kind() != artifact.KindEvidence {
+			return errors.New("plan: first-parent-target projection requires merge authority")
+		}
+	} else if mergeAuthority.Valid() {
+		return errors.New("plan: semantic-union completion must not carry merge authority")
+	}
 	if err := Validate(preAdvance); err != nil {
 		return fmt.Errorf("plan: invalid pre-advance completion plan: %w", err)
 	}
@@ -243,7 +314,8 @@ func VerifyCompletionCommitMessage(
 	}
 	if trailers.item != item || trailers.step != step || trailers.manifest != manifest ||
 		trailers.codeManifest != codeManifest || trailers.preparation != preparation ||
-		trailers.preparationCommit != preparationCommit {
+		trailers.preparationCommit != preparationCommit || trailers.mergeProjection != projection ||
+		trailers.mergeAuthority != mergeAuthority {
 		return errors.New("plan: completion commit message differs from the expected authority tuple")
 	}
 	return verifyCompletionSnapshot(preAdvance, trailers)
@@ -260,13 +332,30 @@ func VerifyProspectiveCompletionTransition(
 	preAdvance, child Plan,
 	message string,
 ) error {
+	return VerifyProspectiveCompletionTransitionWithProjection(
+		parents, mergeBase, preAdvance, child, message, MergeProjectionSemanticUnion,
+	)
+}
+
+// VerifyProspectiveCompletionTransitionWithProjection applies the selected,
+// explicitly message-bound merge projection before the commit is published.
+func VerifyProspectiveCompletionTransitionWithProjection(
+	parents []Plan,
+	mergeBase *Plan,
+	preAdvance, child Plan,
+	message string,
+	projection MergeProjection,
+) error {
+	if err := projection.validate(); err != nil {
+		return err
+	}
 	if err := Validate(preAdvance); err != nil {
 		return fmt.Errorf("plan: invalid prospective pre-advance plan: %w", err)
 	}
 	if err := Validate(child); err != nil {
 		return fmt.Errorf("plan: invalid prospective child plan: %w", err)
 	}
-	baseline, err := prospectiveCompletionBaseline(parents, mergeBase)
+	baseline, err := prospectiveCompletionBaseline(parents, mergeBase, projection)
 	if err != nil {
 		return err
 	}
@@ -276,6 +365,9 @@ func VerifyProspectiveCompletionTransition(
 	}
 	if !completion || !trailers.snapshotPresent {
 		return errors.New("plan: prospective completion lacks canonical prepared trailers")
+	}
+	if trailers.mergeProjection != projection {
+		return errors.New("plan: prospective completion merge projection differs from its canonical message")
 	}
 	return verifyPreparedCompletionTransition(baseline, preAdvance, child, trailers)
 }
@@ -290,6 +382,39 @@ func VerifyProspectiveMergeAuthority(
 	local, incoming, merged Plan,
 	localAuthority, incomingAuthority CompletionAuthority,
 ) error {
+	return VerifyProspectiveMergeAuthorityWithProjection(
+		repository, localRevision, incomingRevision, local, incoming, merged,
+		localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
+	)
+}
+
+// VerifyProspectiveMergeAuthorityWithProjection proves both parents and their
+// shared protection epoch while applying the selected target-plan ownership
+// rule. FirstParentTarget preserves only the first parent's plan identities
+// and completion authority; all incoming plan authority stays owned by the
+// incoming lane. SemanticUnion retains the strict authority union.
+func VerifyProspectiveMergeAuthorityWithProjection(
+	repository, localRevision, incomingRevision string,
+	local, incoming, merged Plan,
+	localAuthority, incomingAuthority CompletionAuthority,
+	projection MergeProjection,
+) error {
+	return verifyProspectiveMergeAuthority(
+		repository, localRevision, incomingRevision, local, incoming, merged,
+		localAuthority, incomingAuthority, projection, true,
+	)
+}
+
+func verifyProspectiveMergeAuthority(
+	repository, localRevision, incomingRevision string,
+	local, incoming, merged Plan,
+	localAuthority, incomingAuthority CompletionAuthority,
+	projection MergeProjection,
+	requireCommonProtection bool,
+) error {
+	if err := projection.validate(); err != nil {
+		return err
+	}
 	if err := Validate(merged); err != nil {
 		return fmt.Errorf("plan: invalid prospective merge plan: %w", err)
 	}
@@ -309,35 +434,48 @@ func VerifyProspectiveMergeAuthority(
 			break
 		}
 	}
-	if !commonProtection {
+	if requireCommonProtection && !commonProtection {
 		return errors.New("plan: prospective merge parents do not share a protected completion epoch")
 	}
-	if !preservesPlanIdentities(local, merged) || !preservesPlanIdentities(incoming, merged) {
+	if !preservesPlanIdentities(local, merged) ||
+		projection == MergeProjectionSemanticUnion && !preservesPlanIdentities(incoming, merged) {
 		return errors.New("plan: prospective merge deleted a parent item or step")
 	}
 
-	completed := make(map[string]completionEvidence, len(localAuthority.completedReferences)+len(incomingAuthority.completedReferences))
-	for reference, evidence := range localAuthority.completedReferences {
-		completed[reference] = evidence
-	}
-	for reference, evidence := range incomingAuthority.completedReferences {
-		if previous, found := completed[reference]; found && previous != evidence {
-			return fmt.Errorf("plan: prospective merge has ambiguous completion authority for %s", reference)
+	completed := make(map[string]completionEvidence, len(localAuthority.completedReferences))
+	maps.Copy(completed, localAuthority.completedReferences)
+	retired := make(map[string]completionEvidence, len(localAuthority.retiredItems))
+	maps.Copy(retired, localAuthority.retiredItems)
+	if projection == MergeProjectionSemanticUnion {
+		for reference, evidence := range incomingAuthority.completedReferences {
+			if previous, found := completed[reference]; found {
+				if previous == evidence {
+					continue
+				}
+				return fmt.Errorf("plan: prospective merge has ambiguous completion authority for %s", reference)
+			}
+			completed[reference] = evidence
 		}
-		completed[reference] = evidence
-	}
-	retired := make(map[string]completionEvidence, len(localAuthority.retiredItems)+len(incomingAuthority.retiredItems))
-	for item, evidence := range localAuthority.retiredItems {
-		retired[item] = evidence
-	}
-	for item, evidence := range incomingAuthority.retiredItems {
-		if previous, found := retired[item]; found && previous != evidence {
-			return fmt.Errorf("plan: prospective merge has ambiguous retirement authority for %s", item)
+		for item, evidence := range incomingAuthority.retiredItems {
+			if previous, found := retired[item]; found {
+				if previous == evidence {
+					continue
+				}
+				return fmt.Errorf("plan: prospective merge has ambiguous retirement authority for %s", item)
+			}
+			retired[item] = evidence
 		}
-		retired[item] = evidence
 	}
 
-	wanted, present, presentItems := completionNeeds(merged)
+	return verifyCompletionAuthorityConstraints(merged, completed, retired)
+}
+
+func verifyCompletionAuthorityConstraints(
+	document Plan,
+	completed map[string]completionEvidence,
+	retired map[string]completionEvidence,
+) error {
+	wanted, present, presentItems := completionNeeds(document)
 	for item := range presentItems {
 		if evidence, reused := retired[item]; reused {
 			return fmt.Errorf("plan: prospective merge reuses retired item %s from %.12s", item, evidence.commit)
@@ -358,24 +496,38 @@ func VerifyProspectiveMergeAuthority(
 	return nil
 }
 
-func prospectiveCompletionBaseline(parents []Plan, mergeBase *Plan) (Plan, error) {
+func prospectiveCompletionBaseline(parents []Plan, mergeBase *Plan, projection MergeProjection) (Plan, error) {
+	if err := projection.validate(); err != nil {
+		return Plan{}, err
+	}
 	parentCount := len(parents)
-	if parentCount == 0 || parentCount > maximumCompletionParents {
+	if parentCount == completionLocalParentIndex || parentCount > completionParentCount {
 		return Plan{}, fmt.Errorf("plan: prospective completion requires one or two parents, found %d", parentCount)
 	}
-	if parentCount < maximumCompletionParents {
+	if parentCount < completionParentCount {
+		if projection == MergeProjectionFirstParentTarget {
+			return Plan{}, errors.New("plan: first-parent-target projection requires a two-parent merge")
+		}
 		if mergeBase != nil {
 			return Plan{}, errors.New("plan: one-parent completion must not supply a merge base")
 		}
-		if err := validatePlanGraph(parents[0]); err != nil {
+		if err := validatePlanGraph(parents[completionLocalParentIndex]); err != nil {
 			return Plan{}, fmt.Errorf("plan: invalid completion parent: %w", err)
 		}
-		return parents[0], nil
+		return parents[completionLocalParentIndex], nil
 	}
 	if mergeBase == nil {
 		return Plan{}, errors.New("plan: two-parent completion requires one merge base")
 	}
-	baseline, err := MergeDocuments(*mergeBase, parents[0], parents[1])
+	if projection == MergeProjectionFirstParentTarget {
+		if err := validatePlanGraph(parents[completionLocalParentIndex]); err != nil {
+			return Plan{}, fmt.Errorf("plan: invalid first-parent target plan: %w", err)
+		}
+		return parents[completionLocalParentIndex], nil
+	}
+	baseline, err := MergeDocuments(
+		*mergeBase, parents[completionLocalParentIndex], parents[completionIncomingParentIndex],
+	)
 	if err != nil {
 		return Plan{}, fmt.Errorf(
 			"plan: prospective completion merge source must be rebased onto the current protected plan: %w", err,
@@ -467,11 +619,14 @@ func ResolveCompletionAuthority(
 	if err != nil {
 		return CompletionAuthority{}, err
 	}
+	storeHead, storeSequence := store.Head()
 	authority := CompletionAuthority{
 		resolved:            true,
 		planDigest:          digest,
 		repository:          repository,
 		revision:            revision,
+		storeHead:           storeHead,
+		storeSequence:       storeSequence,
 		completedReferences: make(map[string]completionEvidence),
 		retiredItems:        make(map[string]completionEvidence),
 	}
@@ -497,19 +652,15 @@ func ResolveCompletionAuthority(
 	}
 	authority.protectionSeeds = protectionSeeds[revision]
 	for _, commit := range protected {
-		if len(commit.parents) < maximumCompletionParents {
+		parents := completionAuthorityParents(commit)
+		if len(parents) < completionParentCount {
 			continue
 		}
-		commonSeeds := make(map[string]bool, len(protectionSeeds[commit.parents[0]]))
-		for seed := range protectionSeeds[commit.parents[0]] {
-			commonSeeds[seed] = true
-		}
-		for _, parent := range commit.parents[1:] {
-			for seed := range commonSeeds {
-				if !protectionSeeds[parent][seed] {
-					delete(commonSeeds, seed)
-				}
-			}
+		commonSeeds := maps.Clone(protectionSeeds[parents[completionLocalParentIndex]])
+		for _, parent := range parents[1:] {
+			maps.DeleteFunc(commonSeeds, func(seed string, _ bool) bool {
+				return !protectionSeeds[parent][seed]
+			})
 		}
 		if len(commonSeeds) == 0 {
 			return CompletionAuthority{}, fmt.Errorf(
@@ -571,6 +722,33 @@ func ResolveCompletionAuthority(
 			return CompletionAuthority{}, fmt.Errorf("plan: completion %s at %.12s: %w", reference, candidate.commit.hash, err)
 		}
 		validatedCompletions[candidate.commit.hash] = true
+		if candidate.trailers.mergeProjection == MergeProjectionFirstParentTarget {
+			// A projected receipt is an authority boundary, not a promise that a
+			// matching completion will appear somewhere later in the descendant
+			// graph. Resolve exactly parent[0]; the graph cut in
+			// gitCompletionMessages ensures this recursive proof never follows the
+			// source parent whose store may no longer exist.
+			localBoundary, boundaryErr := ResolveCompletionAuthority(
+				ctx, repository, candidate.commit.parents[completionLocalParentIndex],
+				transition.local, store,
+			)
+			if boundaryErr != nil {
+				return CompletionAuthority{}, fmt.Errorf(
+					"plan: resolve projected merge local boundary %.12s: %w",
+					candidate.commit.parents[completionLocalParentIndex], boundaryErr,
+				)
+			}
+			_, receiptErr := requireHistoricalFirstParentTargetMergeAuthority(
+				ctx, repository, store, candidate.commit, candidate.trailers, transition, evidence,
+				localBoundary,
+			)
+			if receiptErr != nil {
+				return CompletionAuthority{}, fmt.Errorf(
+					"plan: projected merge completion %s at %.12s: %w",
+					reference, candidate.commit.hash, receiptErr,
+				)
+			}
+		}
 		// Prepared-format completions activate the permanent identity ratchet.
 		// Register them even when the current plan neither retains nor depends
 		// on the row, so an add/complete cycle cannot hide duplicate identity
@@ -607,6 +785,9 @@ func ResolveCompletionAuthority(
 			)
 		}
 	}
+	if err := validateProjectedRetirementAuthority("resolved", authority); err != nil {
+		return CompletionAuthority{}, err
+	}
 	if authority.ProtectsRevision() {
 		transition, found := transitions[revision]
 		if !found {
@@ -641,6 +822,9 @@ func ResolveCompletionAuthority(
 				"plan: pruned dependency %s lacks gated ancestor completion evidence", reference,
 			)
 		}
+	}
+	if currentHead, currentSequence := store.Head(); currentHead != storeHead || currentSequence != storeSequence {
+		return CompletionAuthority{}, errors.New("plan: completion authority store moved during resolution")
 	}
 	return authority, nil
 }
@@ -692,8 +876,9 @@ func completionNeeds(document Plan) (map[string]bool, map[string]bool, map[strin
 }
 
 type gitCompletionMessage struct {
-	hash, message string
-	parents       []string
+	hash, message    string
+	parents          []string
+	authorityParents []string
 }
 
 type completionCandidate struct {
@@ -710,8 +895,12 @@ type completionMessageParse struct {
 }
 
 type completionTransition struct {
-	baseline Plan
-	child    Plan
+	baseline          Plan
+	child             Plan
+	local             Plan
+	incoming          Plan
+	mergeBase         Plan
+	mergeBaseRevision string
 }
 
 // protectedCompletionCommits starts the no-raw-removal ratchet at each
@@ -730,7 +919,7 @@ func protectedCompletionCommits(
 		commitIndex[commit.hash] = commit
 	}
 	for _, commit := range commits {
-		for _, parent := range commit.parents {
+		for _, parent := range completionAuthorityParents(commit) {
 			if _, reachable := commitIndex[parent]; reachable {
 				children[parent] = append(children[parent], commit.hash)
 				indegree[commit.hash]++
@@ -748,7 +937,7 @@ func protectedCompletionCommits(
 		hash := queue[0]
 		queue = queue[1:]
 		seeds := make(map[string]bool)
-		for _, parent := range commitIndex[hash].parents {
+		for _, parent := range completionAuthorityParents(commitIndex[hash]) {
 			for seed := range protectionSeeds[parent] {
 				seeds[seed] = true
 			}
@@ -802,8 +991,8 @@ func gitCompletionMessages(ctx context.Context, repository, revision string) ([]
 		return nil, err
 	}
 	reader := bufio.NewReader(bytes.NewReader(objects))
-	commits := make([]gitCompletionMessage, 0, len(hashes))
-	commitIndex := make(map[string]bool, len(hashes))
+	all := make([]gitCompletionMessage, 0, len(hashes))
+	commitIndex := make(map[string]gitCompletionMessage, len(hashes))
 	for _, hash := range hashes {
 		data, err := readGitCompletionObject(reader, hash, "commit")
 		if err != nil {
@@ -813,14 +1002,46 @@ func gitCompletionMessages(ctx context.Context, repository, revision string) ([]
 		if err != nil {
 			return nil, err
 		}
-		commits = append(commits, gitCompletionMessage{hash: hash, parents: parents, message: message})
-		commitIndex[hash] = true
+		commit := gitCompletionMessage{hash: hash, parents: parents, message: message}
+		all = append(all, commit)
+		commitIndex[hash] = commit
+	}
+	reachable := make(map[string]bool, len(all))
+	queue := []string{revision}
+	for len(queue) != 0 {
+		hash := queue[0]
+		queue = queue[1:]
+		if reachable[hash] {
+			continue
+		}
+		commit, found := commitIndex[hash]
+		if !found {
+			return nil, fmt.Errorf("plan: projected Git completion commit %.12s is absent", hash)
+		}
+		reachable[hash] = true
+		parents := commit.parents
+		trailers, completion, parseErr := parseCompletionTrailers(commit.message)
+		if parseErr == nil && completion && trailers.mergeProjection == MergeProjectionFirstParentTarget &&
+			trailers.mergeAuthority.Kind() == artifact.KindEvidence && len(parents) == completionParentCount {
+			parents = parents[:completionParentCount-1]
+		}
+		commit.authorityParents = slices.Clone(parents)
+		commitIndex[hash] = commit
+		queue = append(queue, parents...)
+	}
+	commits := make([]gitCompletionMessage, 0, len(reachable))
+	for _, commit := range all {
+		if !reachable[commit.hash] {
+			continue
+		}
+		commit = commitIndex[commit.hash]
+		commits = append(commits, commit)
 	}
 	for _, commit := range commits {
-		for _, parent := range commit.parents {
-			if !commitIndex[parent] {
+		for _, parent := range completionAuthorityParents(commit) {
+			if _, found := commitIndex[parent]; !found || !reachable[parent] {
 				return nil, fmt.Errorf(
-					"plan: raw Git completion parent %.12s of %.12s is absent from history",
+					"plan: projected Git completion parent %.12s of %.12s is absent from history",
 					parent, commit.hash,
 				)
 			}
@@ -829,8 +1050,15 @@ func gitCompletionMessages(ctx context.Context, repository, revision string) ([]
 	return commits, nil
 }
 
+func completionAuthorityParents(commit gitCompletionMessage) []string {
+	if commit.authorityParents != nil {
+		return commit.authorityParents
+	}
+	return commit.parents
+}
+
 func parseRawCompletionCommit(hash string, object []byte) ([]string, string, error) {
-	if bytes.IndexByte(object, 0) >= 0 {
+	if bytes.IndexByte(object, '\x00') >= 0 {
 		return nil, "", fmt.Errorf("plan: raw Git completion commit %.12s contains NUL", hash)
 	}
 	header, message, found := bytes.Cut(object, []byte("\n\n"))
@@ -838,7 +1066,7 @@ func parseRawCompletionCommit(hash string, object []byte) ([]string, string, err
 		return nil, "", fmt.Errorf("plan: raw Git completion commit %.12s lacks its message separator", hash)
 	}
 	var parents []string
-	for _, line := range bytes.Split(header, []byte{'\n'}) {
+	for line := range bytes.SplitSeq(header, []byte{'\n'}) {
 		if !bytes.HasPrefix(line, []byte("parent ")) {
 			continue
 		}
@@ -863,7 +1091,7 @@ func parseCompletionTrailers(message string) (completionTrailers, bool, error) {
 	known := map[string][]string{}
 	hasCompletion := false
 	noncanonical := ""
-	for _, line := range strings.Split(block, "\n") {
+	for line := range strings.SplitSeq(block, "\n") {
 		key, value, found := strings.Cut(line, ":")
 		if !found {
 			continue
@@ -889,7 +1117,8 @@ func parseCompletionTrailers(message string) (completionTrailers, bool, error) {
 	}
 	trailers := completionTrailers{declaresPreparedFormat: len(known[completionPreparationTrailer]) != 0 ||
 		len(known[completionPreparationCommitTrailer]) != 0 || len(known[completionSnapshotTrailer]) != 0 ||
-		len(known[completionItemIndexTrailer]) != 0}
+		len(known[completionItemIndexTrailer]) != 0 || len(known[completionMergeProjectionTrailer]) != 0 ||
+		len(known[completionMergeAuthorityTrailer]) != 0}
 	if values := known[completionItemTrailer]; len(values) != 0 {
 		trailers.item = values[0]
 	}
@@ -908,6 +1137,37 @@ func parseCompletionTrailers(message string) (completionTrailers, bool, error) {
 		return trailers, true, fmt.Errorf(
 			"trailer %s must occur at most once", completionPreparationTrailer,
 		)
+	}
+	projectionValues := known[completionMergeProjectionTrailer]
+	if len(projectionValues) > 1 {
+		return trailers, true, fmt.Errorf(
+			"trailer %s must occur at most once", completionMergeProjectionTrailer,
+		)
+	}
+	if len(projectionValues) == 1 {
+		projection, err := ParseMergeProjection(projectionValues[0])
+		if err != nil || projection != MergeProjectionFirstParentTarget {
+			return trailers, true, fmt.Errorf("trailer %s has an invalid value", completionMergeProjectionTrailer)
+		}
+		trailers.mergeProjection = projection
+	}
+	authorityValues := known[completionMergeAuthorityTrailer]
+	if len(authorityValues) > 1 {
+		return trailers, true, fmt.Errorf(
+			"trailer %s must occur at most once", completionMergeAuthorityTrailer,
+		)
+	}
+	if len(authorityValues) == 1 {
+		trailers.mergeAuthority, _ = artifact.ParseID(authorityValues[0])
+		if trailers.mergeAuthority.Kind() != artifact.KindEvidence {
+			return trailers, true, fmt.Errorf("trailer %s has an invalid value", completionMergeAuthorityTrailer)
+		}
+	}
+	if trailers.mergeProjection == MergeProjectionFirstParentTarget && !trailers.mergeAuthority.Valid() {
+		return trailers, true, errors.New("first-parent-target completion lacks merge authority trailer")
+	}
+	if trailers.mergeProjection != MergeProjectionFirstParentTarget && trailers.mergeAuthority.Valid() {
+		return trailers, true, errors.New("merge authority trailer requires first-parent-target projection")
 	}
 	trailers.item = known[completionItemTrailer][0]
 	trailers.step = known[completionStepTrailer][0]
@@ -950,7 +1210,8 @@ func parseCompletionTrailers(message string) (completionTrailers, bool, error) {
 		if err := decodeCompletionSnapshot(&trailers, snapshotValues[0], indexValues[0]); err != nil {
 			return trailers, true, err
 		}
-	} else if len(preparationCommitValues) != 0 || len(snapshotValues) != 0 || len(indexValues) != 0 {
+	} else if len(preparationCommitValues) != 0 || len(snapshotValues) != 0 || len(indexValues) != 0 ||
+		len(projectionValues) != 0 || len(authorityValues) != 0 {
 		return trailers, true, errors.New("prepared completion trailers require gate preparation authority")
 	}
 	return trailers, true, nil
@@ -1012,6 +1273,7 @@ func requireCompletionEvidence(
 ) (completionEvidence, error) {
 	var err error
 	var expected Plan
+	contractSnapshot := trailers.snapshot
 	if trailers.snapshotPresent {
 		preAdvance, reconstructionErr := reconstructCompletionPrePlan(child, trailers)
 		if reconstructionErr != nil {
@@ -1021,7 +1283,11 @@ func requireCompletionEvidence(
 			return completionEvidence{}, err
 		}
 	} else {
-		parentStep, retained := exactPlanStep(baseline, trailers.item, trailers.step)
+		parentItem, retained := exactPlanItem(baseline, trailers.item)
+		if !retained {
+			return completionEvidence{}, errors.New("parent plan lacks the exact completion row")
+		}
+		parentStep, retained := exactPlanStep(Plan{Items: []Item{parentItem}}, trailers.item, trailers.step)
 		if !retained {
 			return completionEvidence{}, errors.New("parent plan lacks the exact completion row")
 		}
@@ -1040,6 +1306,11 @@ func requireCompletionEvidence(
 		} else if !equal {
 			return completionEvidence{}, errors.New("completion commit is not the exact plan transition")
 		}
+		contractSnapshot = parentItem
+	}
+	contract, err := completionContractDigest(contractSnapshot)
+	if err != nil {
+		return completionEvidence{}, err
 	}
 
 	var attempts []runrecord.AttemptRecord
@@ -1093,10 +1364,20 @@ func requireCompletionEvidence(
 		}
 	}
 	return completionEvidence{
-		commit: commit, verify: trailers.verify, manifest: trailers.manifest,
-		codeManifest: trailers.codeManifest, attempt: attempt.ID,
-		retiredItem: !planHasItem(child, trailers.item),
+		commit: commit, verify: trailers.verify, contract: contract, manifest: trailers.manifest,
+		codeManifest: trailers.codeManifest, attempt: attempt.ID, result: attempt.Result,
+		finalization: verification.Finalization.ID,
+		retiredItem:  !planHasItem(child, trailers.item),
 	}, nil
+}
+
+// completionContractDigest binds the exact canonical item snapshot that was
+// open when a row completed. The item snapshot includes item and step titles,
+// rationale, dependencies, capabilities, outcomes, and sibling row state; two
+// independently gated completions are compatible only when this full contract
+// is identical.
+func completionContractDigest(snapshot Item) ([sha256.Size]byte, error) {
+	return completionJSONDigest(snapshot, "contract snapshot")
 }
 
 func requireCompletionManifestBinding(
@@ -1225,15 +1506,16 @@ func completionTransitionPlans(
 			appendRevision(parent)
 		}
 		parentCount := len(commit.parents)
-		if parentCount == 0 || parentCount > maximumCompletionParents {
+		if parentCount == completionLocalParentIndex || parentCount > completionParentCount {
 			return nil, fmt.Errorf(
 				"completion commit %.12s requires one or two parents, found %d",
 				commit.hash, parentCount,
 			)
 		}
-		if parentCount == maximumCompletionParents {
+		if parentCount == completionParentCount {
 			output, err := gitCompletionCommand(
-				ctx, repository, "merge-base", "--all", commit.parents[0], commit.parents[1],
+				ctx, repository, "merge-base", "--all",
+				commit.parents[completionLocalParentIndex], commit.parents[completionIncomingParentIndex],
 			)
 			if err != nil {
 				return nil, fmt.Errorf("derive completion merge base: %w", err)
@@ -1254,20 +1536,44 @@ func completionTransitionPlans(
 	for _, commit := range commits {
 		child := plans[commit.hash]
 		var baseline Plan
-		if len(commit.parents) < maximumCompletionParents {
-			baseline = plans[commit.parents[0]]
+		trailers, hasCompletion, err := parseCompletionTrailers(commit.message)
+		if err != nil {
+			return nil, fmt.Errorf("derive completion transition %.12s: %w", commit.hash, err)
+		}
+		projection := MergeProjectionSemanticUnion
+		if hasCompletion {
+			projection = trailers.mergeProjection
+		}
+		if len(commit.parents) < completionParentCount {
+			if projection == MergeProjectionFirstParentTarget {
+				return nil, fmt.Errorf(
+					"completion commit %.12s uses first-parent-target without two parents", commit.hash,
+				)
+			}
+			baseline = plans[commit.parents[completionLocalParentIndex]]
+		} else if projection == MergeProjectionFirstParentTarget {
+			baseline = plans[commit.parents[completionLocalParentIndex]]
 		} else {
 			merged, err := MergeDocuments(
 				plans[mergeBases[commit.hash]],
-				plans[commit.parents[0]],
-				plans[commit.parents[1]],
+				plans[commit.parents[completionLocalParentIndex]],
+				plans[commit.parents[completionIncomingParentIndex]],
 			)
 			if err != nil {
 				return nil, fmt.Errorf("derive completion merge plan: %w", err)
 			}
 			baseline = merged
 		}
-		transitions[commit.hash] = completionTransition{baseline: baseline, child: child}
+		transition := completionTransition{
+			baseline: baseline, child: child,
+			local: plans[commit.parents[completionLocalParentIndex]],
+		}
+		if len(commit.parents) == completionParentCount {
+			transition.incoming = plans[commit.parents[completionIncomingParentIndex]]
+			transition.mergeBase = plans[mergeBases[commit.hash]]
+			transition.mergeBaseRevision = mergeBases[commit.hash]
+		}
+		transitions[commit.hash] = transition
 	}
 	return transitions, nil
 }
@@ -1309,10 +1615,11 @@ func readGitCompletionObject(reader *bufio.Reader, requested, objectType string)
 		return nil, fmt.Errorf("plan: read Git %s header for %.12s: %w", objectType, requested, err)
 	}
 	fields := strings.Fields(header)
-	if len(fields) != 3 || fields[1] != objectType {
+	if len(fields) != gitBatchObjectFieldCount ||
+		!validCommit(fields[gitBatchObjectIdentityField]) || fields[gitBatchObjectTypeField] != objectType {
 		return nil, fmt.Errorf("plan: Git %s for %.12s is absent or invalid", objectType, requested)
 	}
-	size, err := strconv.Atoi(fields[2])
+	size, err := strconv.Atoi(fields[gitBatchObjectSizeField])
 	if err != nil || size < 0 {
 		return nil, fmt.Errorf("plan: Git %s for %.12s has invalid size", objectType, requested)
 	}
@@ -1387,6 +1694,15 @@ func exactPlanStep(document Plan, itemID, stepID string) (Step, bool) {
 		return Step{}, false
 	}
 	return Step{}, false
+}
+
+func exactPlanItem(document Plan, itemID string) (Item, bool) {
+	for _, item := range document.Items {
+		if item.ID == itemID {
+			return item, true
+		}
+	}
+	return Item{}, false
 }
 
 func planHasItem(document Plan, itemID string) bool {

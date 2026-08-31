@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"sort"
+	"slices"
 	"time"
 
 	"overgo/internal/clioptions"
@@ -499,10 +499,10 @@ func summarizeRuns(runs []runMetrics) summaryMetrics {
 		decode[index] = run.DecodeTokensPerSecond
 		endToEnd[index] = run.EndToEndTokensPerSecond
 	}
-	sort.Float64s(ttft)
-	sort.Float64s(total)
-	sort.Float64s(decode)
-	sort.Float64s(endToEnd)
+	slices.Sort(ttft)
+	slices.Sort(total)
+	slices.Sort(decode)
+	slices.Sort(endToEnd)
 	return summaryMetrics{
 		TTFTMillisecondsP50:        median(ttft),
 		TTFTMillisecondsMinimum:    ttft[0],

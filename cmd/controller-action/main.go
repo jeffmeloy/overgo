@@ -6,6 +6,7 @@
 //
 //	go run ./cmd/controller-action -action <action.json> -record <overgodb>
 //	go run ./cmd/controller-action -action <action.json> -record <overgodb> -source <model-id>=<directory> -output <directory>
+//	go run ./cmd/controller-action -materialize-decision <decision-id> -record <overgodb> -output <directory>
 package main
 
 import (
@@ -15,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -24,6 +26,8 @@ import (
 	"overgo/internal/overgodb"
 )
 
+var materializeCandidateTrial = controlleraction.MaterializeCandidateTrial
+
 func main() {
 	clioptions.MainNamed("controller-action", func() error { return run(os.Args[1:], os.Stdout) })
 }
@@ -32,23 +36,37 @@ func run(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("controller-action", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	actionPath := flags.String("action", "", "path to the typed action document (JSON)")
+	materializeDecision := flags.String("materialize-decision", "", "persisted realize-decision evidence identity")
 	recordStore := flags.String("record", "", "OvergoDB root: commit the compiled artifacts")
-	outputPath := flags.String("output", "", "offline artifact output directory")
+	outputPath := flags.String("output", "", "offline artifact output or candidate materialization root")
 	var sources streamingSourceFlags
 	flags.Var(&sources, "source", "offline source as MODEL_ID=SAFETENSORS_DIRECTORY; repeat for every input")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *actionPath == "" || *recordStore == "" || (*outputPath == "") != (len(sources) == 0) {
-		return errors.New("usage: controller-action -action <action.json> -record <overgodb> [-source MODEL_ID=DIRECTORY ... -output DIRECTORY]")
+	materializing := *materializeDecision != ""
+	invalidMaterialization := materializing && (*actionPath != "" || *outputPath == "" || len(sources) != 0)
+	invalidAction := !materializing && (*actionPath == "" || (*outputPath == "") != (len(sources) == 0))
+	if flags.NArg() != 0 || *recordStore == "" || invalidMaterialization || invalidAction {
+		return errors.New("usage: controller-action -action <action.json> -record <overgodb> [-source MODEL_ID=DIRECTORY ... -output DIRECTORY] | -materialize-decision <decision-id> -record <overgodb> -output <directory>")
 	}
-	data, err := os.ReadFile(*actionPath)
-	if err != nil {
-		return err
-	}
-	action, err := controlleraction.ParseAction(data)
-	if err != nil {
-		return err
+	var action controlleraction.Action
+	var decision artifact.ID
+	var err error
+	if materializing {
+		decision, err = artifact.ParseID(*materializeDecision)
+		if err != nil || decision.Kind() != artifact.KindEvidence {
+			return errors.Join(errors.New("materialize-decision must be an evidence identity"), err)
+		}
+	} else {
+		data, readErr := os.ReadFile(*actionPath)
+		if readErr != nil {
+			return readErr
+		}
+		action, err = controlleraction.ParseAction(data)
+		if err != nil {
+			return err
+		}
 	}
 	store, err := overgodb.Open(*recordStore)
 	if err != nil {
@@ -56,6 +74,29 @@ func run(args []string, output io.Writer) error {
 	}
 	defer func() { _ = store.Close() }()
 	ctx := context.Background()
+	if materializing {
+		result, err := materializeCandidateTrial(ctx, store, decision, *outputPath)
+		if err != nil {
+			return err
+		}
+		realizations := make([]artifact.ID, 0, len(result.Directories))
+		for realization := range result.Directories {
+			realizations = append(realizations, realization)
+		}
+		slices.SortFunc(realizations, artifact.CompareID)
+		if result.Recovered {
+			fmt.Fprintf(output, "candidate materialization: %s recovered arms=%d\n",
+				result.Materialization.ID, len(realizations))
+		} else {
+			fmt.Fprintf(output, "candidate materialization: %s commit=%s arms=%d\n",
+				result.Materialization.ID, result.Commit, len(realizations))
+		}
+		for _, realization := range realizations {
+			fmt.Fprintf(output, "materialized arm: %s directory=%s\n", realization, result.Directories[realization])
+		}
+		fmt.Fprintln(output, "honesty: persisted realize decision executed through direct Go owners; sources were store-derived; no activation alias moved")
+		return nil
+	}
 	batch, err := controlleraction.CompileTransaction(ctx, store, action)
 	if err != nil {
 		return err

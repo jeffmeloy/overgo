@@ -1,7 +1,6 @@
 package trainingworkflow
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -27,14 +26,14 @@ func TestObserverRepeatsEnvironmentCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "test/observer-idempotency/authority",
 		Artifacts: []artifact.Descriptor{{ID: model}, {ID: recipeID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for session := 0; session < 2; session++ {
+	for session := range 2 {
 		observer, err := NewObserver(store, true)
 		if err != nil {
 			t.Fatal(err)

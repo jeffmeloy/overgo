@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 )
 
@@ -70,10 +70,13 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 		if chatProtocol {
 			arguments = append(arguments, "-chat-protocol")
 		}
-		command := exec.CommandContext(ctx, executable, arguments...)
-		command.Stdout, command.Stderr = os.Stdout, os.Stderr
-		if err := command.Run(); err != nil {
-			failures = append(failures, fmt.Errorf("model %q: %w", model, err))
+		receipt, runErr := processcontrol.Run(ctx, processcontrol.Command{
+			Path: executable, Args: arguments, Stdout: os.Stdout, Stderr: os.Stderr,
+		})
+		if runErr != nil {
+			failures = append(failures, fmt.Errorf("model %q: %w", model, runErr))
+		} else if receipt.ExitCode != 0 {
+			failures = append(failures, fmt.Errorf("model %q: exit status %d", model, receipt.ExitCode))
 		}
 	}
 	return errors.Join(failures...)

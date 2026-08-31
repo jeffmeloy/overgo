@@ -33,7 +33,7 @@ func TestSiLUGateForwardMatchesHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	var maxA, maxH float64
-	for i := 0; i < n; i++ {
+	for i := range n {
 		wantA := hostSiLU(float64(gate[i]))
 		wantH := wantA * float64(up[i])
 		if d := math.Abs(float64(a[i]) - wantA); d > maxA {

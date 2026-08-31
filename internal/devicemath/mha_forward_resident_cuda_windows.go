@@ -58,7 +58,7 @@ func MultiHeadAttentionForwardResident(worker *device.Worker, q, k, v []float32,
 			return base + driver.DevicePtr(uint64(elems)*f32Bytes)
 		}
 		hs := seq * hd
-		for h := 0; h < nh; h++ {
+		for h := range nh {
 			kv := h / group
 			qh := off(qP, h*hs)
 			kh, vh := off(kP, kv*hs), off(vP, kv*hs)

@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"math"
 	"testing"
 
@@ -17,8 +16,8 @@ func TestSelectedModelTensorsIncludesQwen35MTP(t *testing.T) {
 	info := func(name string) gguf.TensorInfo { return gguf.TensorInfo{Name: name} }
 	mtp := &model.SingleDraftWeights{
 		Layer: model.LayerWeights{
-			AttentionNorm: pointerTensorInfo(info("blk.1.attn_norm.weight")),
-			AttentionQ:    pointerTensorInfo(info("blk.1.attn_q.weight")),
+			AttentionNorm: new(info("blk.1.attn_norm.weight")),
+			AttentionQ:    new(info("blk.1.attn_q.weight")),
 		},
 		EHProjection:  info("blk.1.nextn.eh_proj.weight"),
 		EmbeddingNorm: info("blk.1.nextn.enorm.weight"),
@@ -46,21 +45,17 @@ func TestSelectedModelTensorsIncludesQwen35MTP(t *testing.T) {
 
 func TestSelectedModelTensorsIncludesStep35MTP(t *testing.T) {
 	info := func(name string) gguf.TensorInfo { return gguf.TensorInfo{Name: name} }
-	pointer := func(name string) *gguf.TensorInfo {
-		item := info(name)
-		return &item
-	}
 	mtp := model.AppendedDraftWeights{
 		Layer: model.LayerWeights{
-			AttentionNorm: pointerTensorInfo(info("blk.1.attn_norm.weight")),
-			AttentionQ:    pointerTensorInfo(info("blk.1.attn_q.weight")),
+			AttentionNorm: new(info("blk.1.attn_norm.weight")),
+			AttentionQ:    new(info("blk.1.attn_q.weight")),
 		},
 		EHProjection:   info("blk.1.nextn.eh_proj.weight"),
 		EmbeddingNorm:  info("blk.1.nextn.enorm.weight"),
 		HiddenNorm:     info("blk.1.nextn.hnorm.weight"),
-		TokenEmbedding: pointer("blk.1.nextn.embed_tokens.weight"),
-		OutputNorm:     pointer("blk.1.nextn.shared_head_norm.weight"),
-		Output:         pointer("blk.1.nextn.shared_head_head.weight"),
+		TokenEmbedding: new(info("blk.1.nextn.embed_tokens.weight")),
+		OutputNorm:     new(info("blk.1.nextn.shared_head_norm.weight")),
+		Output:         new(info("blk.1.nextn.shared_head_head.weight")),
 	}
 	weights := model.Weights{
 		TokenEmbedding:          info("token_embd.weight"),
@@ -145,7 +140,7 @@ func TestQwen35MTPOnlyRequiresCompatibleTarget(t *testing.T) {
 	if err := draft.validateCache(cache); err != nil {
 		t.Fatalf("MTP-only runner rejected compatible target hybrid cache: %v", err)
 	}
-	if _, _, err := draft.forwardCachedLocked(context.Background(), []tokenizer.TokenID{0}, nil); err == nil {
+	if _, _, err := draft.forwardCachedLocked(t.Context(), []tokenizer.TokenID{0}, nil); err == nil {
 		t.Fatal("ordinary forward accepted Qwen3.5 MTP-only model")
 	}
 	target.vocab = &tokenizer.Vocab{Tokens: []tokenizer.Token{{Text: "a"}, {Text: "c"}}}

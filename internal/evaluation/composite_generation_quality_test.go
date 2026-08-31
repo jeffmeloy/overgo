@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -16,7 +15,7 @@ import (
 func TestCompositeGenerationHeldoutQuality(t *testing.T) {
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
 	authority := CompositeGenerationQualityAuthority{}
-	quality, err := authority.Evaluate(context.Background(), store, evidenceID, policy)
+	quality, err := authority.Evaluate(t.Context(), store, evidenceID, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +42,7 @@ func TestCompositeGenerationRepeatedSeeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := authority.Evaluate(context.Background(), store, evidenceID, policy); err == nil {
+	if _, err := authority.Evaluate(t.Context(), store, evidenceID, policy); err == nil {
 		t.Fatal("insufficient repeated seeds admitted")
 	}
 	_, _, policy = compositeGenerationQualityFixture(t)
@@ -52,7 +51,7 @@ func TestCompositeGenerationRepeatedSeeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := authority.Evaluate(context.Background(), store, evidenceID, policy); err == nil {
+	if _, err := authority.Evaluate(t.Context(), store, evidenceID, policy); err == nil {
 		t.Fatal("unstable repeated seeds admitted")
 	}
 }
@@ -65,7 +64,7 @@ func TestCompositeGenerationSourceEffect(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := (CompositeGenerationQualityAuthority{}).Evaluate(
-		context.Background(), store, evidenceID, policy,
+		t.Context(), store, evidenceID, policy,
 	); err == nil {
 		t.Fatal("composition without attributable source effect admitted")
 	}
@@ -79,7 +78,7 @@ func TestCompositeGenerationRefusal(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := (CompositeGenerationQualityAuthority{}).Evaluate(
-		context.Background(), store, evidenceID, policy,
+		t.Context(), store, evidenceID, policy,
 	); err == nil {
 		t.Fatal("missing held-out metric admitted")
 	}
@@ -90,7 +89,7 @@ func TestCompositeGenerationRefusal(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := (CompositeGenerationQualityAuthority{}).Evaluate(
-		context.Background(), store, evidenceID, policy,
+		t.Context(), store, evidenceID, policy,
 	); err == nil {
 		t.Fatal("degenerate generation admitted")
 	}
@@ -105,7 +104,7 @@ func compositeGenerationQualityFixture(
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	ctx := context.Background()
+	ctx := t.Context()
 	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }
 	source := artifact.Descriptor{ID: id(artifact.KindModel, "quality source model"), Size: 11}
 	target := artifact.Descriptor{ID: id(artifact.KindModel, "quality target model"), Size: 13}

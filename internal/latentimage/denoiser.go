@@ -92,7 +92,7 @@ func DenoiserTensorShapes(t TransformerSpec) map[string][]int {
 	// text-fusion blocks operate at TextHidden with TextHeads/TextKVHeads.
 	th := t.TextHidden
 	addFusionBlocks := func(kind string, n int) {
-		for i := 0; i < n; i++ {
+		for i := range n {
 			p := fmt.Sprintf("text_fusion.%s.%d.", kind, i)
 			addAttnFF(shapes, p, th, t.TextHeads*t.HeadDim, t.TextKVHeads*t.HeadDim, t.HeadDim, t.TextIntermediate, false)
 		}
@@ -206,8 +206,8 @@ func (d *Denoiser) ropeTable(textSeq, gh, gw int) (cos, sin []float64) {
 // scale and (optionally) applies RoPE. arr is [seq, heads*headDim] token-major.
 func (d *Denoiser) headRMSAndRope(arr []float64, normW []float32, seq, heads, headDim int, cos, sin []float64) {
 	hostmath.ZeroCenteredRMSNormF64InPlace(arr, normW, seq*heads, headDim, d.Eps)
-	for r := 0; r < seq; r++ {
-		for hh := 0; hh < heads; hh++ {
+	for r := range seq {
+		for hh := range heads {
 			base := (r*heads + hh) * headDim
 			vec := arr[base : base+headDim]
 			if cos != nil {
@@ -274,7 +274,7 @@ func (d *Denoiser) textConditioning(encoderHidden []float64, textSeq int) ([]flo
 	}
 	// layerwise: for each token, a length-L sequence of TextHidden vectors.
 	hs := append([]float64(nil), encoderHidden...) // [textSeq*L, th] viewed as textSeq sequences of len L
-	for tok := 0; tok < textSeq; tok++ {
+	for tok := range textSeq {
 		seqSlice := hs[tok*L*th : (tok+1)*L*th]
 		for b := 0; b < d.T.LayerwiseTextBlocks; b++ {
 			p := fmt.Sprintf("text_fusion.layerwise_blocks.%d.", b)
@@ -284,10 +284,10 @@ func (d *Denoiser) textConditioning(encoderHidden []float64, textSeq int) ([]flo
 	// projector: collapse the layer axis with Linear(L->1) weight [1,L].
 	proj := d.w("text_fusion.projector.weight") // len L
 	fused := make([]float64, textSeq*th)
-	for tok := 0; tok < textSeq; tok++ {
-		for c := 0; c < th; c++ {
+	for tok := range textSeq {
+		for c := range th {
 			var acc float64
-			for l := 0; l < L; l++ {
+			for l := range L {
 				acc += float64(proj[l]) * hs[(tok*L+l)*th+c]
 			}
 			fused[tok*th+c] = acc
@@ -375,33 +375,33 @@ func (d *Denoiser) Forward(latentPatches, encoderHidden []float64, sigma float64
 		prefix := fmt.Sprintf("transformer_blocks.%d.", layer)
 		table := d.w(prefix + "scale_shift_table") // [6,h]
 		mod := make([]float64, 6*h)
-		for i := 0; i < 6*h; i++ {
+		for i := range 6 * h {
 			mod[i] = tembMod[i] + float64(table[i])
 		}
 		preScale, preShift, preGate := mod[0:h], mod[h:2*h], mod[2*h:3*h]
 		postScale, postShift, postGate := mod[3*h:4*h], mod[4*h:5*h], mod[5*h:6*h]
 
 		n1 := rmsNormZeroCentered(hidden, d.w(prefix+"norm1.weight"), seq, h, d.Eps)
-		for r := 0; r < seq; r++ {
-			for c := 0; c < h; c++ {
+		for r := range seq {
+			for c := range h {
 				n1[r*h+c] = (1.0+preScale[c])*n1[r*h+c] + preShift[c]
 			}
 		}
 		attn := d.attention(prefix+"attn.", n1, seq, h, d.T.Heads, d.T.KVHeads, d.T.HeadDim, cos, sin)
-		for r := 0; r < seq; r++ {
-			for c := 0; c < h; c++ {
+		for r := range seq {
+			for c := range h {
 				hidden[r*h+c] += preGate[c] * attn[r*h+c]
 			}
 		}
 		n2 := rmsNormZeroCentered(hidden, d.w(prefix+"norm2.weight"), seq, h, d.Eps)
-		for r := 0; r < seq; r++ {
-			for c := 0; c < h; c++ {
+		for r := range seq {
+			for c := range h {
 				n2[r*h+c] = (1.0+postScale[c])*n2[r*h+c] + postShift[c]
 			}
 		}
 		ff := d.swiGLU(prefix+"ff.", n2, seq, h, d.T.Intermediate)
-		for r := 0; r < seq; r++ {
-			for c := 0; c < h; c++ {
+		for r := range seq {
+			for c := range h {
 				hidden[r*h+c] += postGate[c] * ff[r*h+c]
 			}
 		}
@@ -412,13 +412,13 @@ func (d *Denoiser) Forward(latentPatches, encoderHidden []float64, sigma float64
 	table := d.w("final_layer.scale_shift_table") // [2,h]
 	scale := make([]float64, h)
 	shift := make([]float64, h)
-	for c := 0; c < h; c++ {
+	for c := range h {
 		scale[c] = temb[c] + float64(table[c])
 		shift[c] = temb[c] + float64(table[h+c])
 	}
 	fn := rmsNormZeroCentered(imgHidden, d.w("final_layer.norm.weight"), imgSeq, h, d.Eps)
-	for r := 0; r < imgSeq; r++ {
-		for c := 0; c < h; c++ {
+	for r := range imgSeq {
+		for c := range h {
 			fn[r*h+c] = (1.0+scale[c])*fn[r*h+c] + shift[c]
 		}
 	}

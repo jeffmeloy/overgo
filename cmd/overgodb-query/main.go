@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -506,7 +505,7 @@ func writeExperiments(output io.Writer, repository string, limit int) error {
 		ids = append(ids, text)
 		byText[text] = id
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	now := time.Now()
 	for _, text := range ids {
 		status, err := runrecord.ReconcileExperiment(chains[byText[text]], now)
@@ -545,7 +544,7 @@ func writeComponents(output io.Writer, repository string, limit int) error {
 		for role := range roles {
 			names = append(names, role)
 		}
-		sort.Strings(names)
+		slices.Sort(names)
 		summary := make([]string, 0, len(names))
 		for _, role := range names {
 			summary = append(summary, fmt.Sprintf("%s=%d", role, roles[role]))

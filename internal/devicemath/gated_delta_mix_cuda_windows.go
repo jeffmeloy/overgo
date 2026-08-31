@@ -68,8 +68,8 @@ func gatedDeltaMixForwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW,
 		return c, err
 	}
 	c.gate = make([]float32, T*hv)
-	for t := 0; t < T; t++ {
-		for h := 0; h < hv; h++ {
+	for t := range T {
+		for h := range hv {
 			sp := mixSoftplus(float64(c.alpha[t*hv+h]) + float64(w.TimeStep[h]))
 			c.gate[t*hv+h] = float32(sp * float64(w.A[h]))
 		}
@@ -168,8 +168,8 @@ func gatedDeltaMixBackwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW
 	dAlpha := make([]float32, T*hv)
 	g.DTimeStep = make([]float32, hv)
 	g.DA = make([]float32, hv)
-	for t := 0; t < T; t++ {
-		for h := 0; h < hv; h++ {
+	for t := range T {
+		for h := range hv {
 			pre := float64(alpha[t*hv+h]) + float64(w.TimeStep[h])
 			sp := mixSoftplus(pre)
 			dgate := float64(dGate[t*hv+h])

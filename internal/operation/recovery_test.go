@@ -26,14 +26,14 @@ func TestRecoverableOperationStatus(t *testing.T) {
 				Subject: recipeID, Reason: "required artifact is unavailable", Evidence: []artifact.ID{runID},
 				Actions: []operatoraction.Action{{Code: "retry", Summary: "Retry the exact recipe", Argv: []string{"overgo", workflow.name, "--recipe", recipeID.String()}}},
 			}
-			id, err := manager.Submit(context.Background(), Request{Task: workflow.task, Recipe: recipeID},
+			id, err := manager.Submit(t.Context(), Request{Task: workflow.task, Recipe: recipeID},
 				func(context.Context, Reporter) (Completion, error) {
 					return Completion{Run: runID}, operatoraction.Recoverable(errors.New("artifact unavailable"), block)
 				})
 			if err != nil {
 				t.Fatal(err)
 			}
-			status, err := manager.Wait(context.Background(), id)
+			status, err := manager.Wait(t.Context(), id)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -53,7 +53,7 @@ func TestRecoverableOperationStatus(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "subject-bound recovery")
 	other := testutil.ArtifactID(t, artifact.KindRecipe, "different recovery subject")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "mismatched recovery run")
-	id, err := manager.Submit(context.Background(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
+	id, err := manager.Submit(t.Context(), Request{Task: recipe.TaskTraining, Recipe: recipeID},
 		func(context.Context, Reporter) (Completion, error) {
 			return Completion{Run: runID}, operatoraction.Recoverable(errors.New("wrong subject"), operatoraction.Block{
 				Subject: other, Reason: "wrong recipe is unavailable", Evidence: []artifact.ID{runID},
@@ -63,7 +63,7 @@ func TestRecoverableOperationStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := manager.Wait(context.Background(), id)
+	status, err := manager.Wait(t.Context(), id)
 	if err != nil {
 		t.Fatal(err)
 	}

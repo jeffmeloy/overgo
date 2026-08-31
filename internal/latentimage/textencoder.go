@@ -135,8 +135,8 @@ func ropeTableLlama(seq, headDim int, theta float64) (cos, sin []float64) {
 	half := headDim / 2
 	cos = make([]float64, seq*headDim)
 	sin = make([]float64, seq*headDim)
-	for p := 0; p < seq; p++ {
-		for i := 0; i < half; i++ {
+	for p := range seq {
+		for i := range half {
 			freq := math.Pow(theta, -float64(2*i)/float64(headDim))
 			angle := float64(p) * freq
 			c, s := math.Cos(angle), math.Sin(angle)

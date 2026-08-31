@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 
@@ -57,7 +58,7 @@ type contentCheckpointEntry struct {
 	Offset   int64       `json:"offset"`
 	Size     int64       `json:"size"`
 	Sequence uint64      `json:"sequence"`
-	Blob     bool        `json:"blob,omitempty"`
+	Blob     bool        `json:"blob,omitzero"`
 }
 
 func (f *contentFacet) checkpoint() ([]byte, error) {
@@ -90,11 +91,7 @@ func (f *contentFacet) restore(data []byte) error {
 
 func (f *lineageFacet) checkpoint() ([]byte, error) {
 	edges := make([]artifact.Lineage, 0, f.edges)
-	children := make([]artifact.ID, 0, len(f.parents))
-	for child := range f.parents {
-		children = append(children, child)
-	}
-	slices.SortFunc(children, artifact.CompareID)
+	children := slices.SortedFunc(maps.Keys(f.parents), artifact.CompareID)
 	for _, child := range children {
 		for _, key := range f.parents[child] {
 			edges = append(edges, artifact.Lineage{Child: key.child, Parent: key.parent, Relation: key.relation})
@@ -117,11 +114,7 @@ func (f *lineageFacet) restore(data []byte) error {
 
 func (f *locationFacet) checkpoint() ([]byte, error) {
 	locations := make([]artifact.Location, 0, len(f.byArtifact))
-	ids := make([]artifact.ID, 0, len(f.byArtifact))
-	for id := range f.byArtifact {
-		ids = append(ids, id)
-	}
-	slices.SortFunc(ids, artifact.CompareID)
+	ids := slices.SortedFunc(maps.Keys(f.byArtifact), artifact.CompareID)
 	for _, id := range ids {
 		locations = append(locations, f.byArtifact[id]...)
 	}
@@ -141,11 +134,7 @@ func (f *locationFacet) restore(data []byte) error {
 }
 
 func (f *aliasFacet) checkpoint() ([]byte, error) {
-	names := make([]string, 0, len(f.bindings))
-	for name := range f.bindings {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(f.bindings))
 	entries := make([]snapshotAlias, 0, len(names))
 	for _, name := range names {
 		entries = append(entries, snapshotAlias{Name: name, Target: f.bindings[name]})
@@ -170,7 +159,7 @@ type commitCheckpointEntry struct {
 	ID          artifact.CommitID `json:"id"`
 	Payload     string            `json:"payload"`
 	Sequence    uint64            `json:"sequence"`
-	Segment     uint64            `json:"segment,omitempty"`
+	Segment     uint64            `json:"segment,omitzero"`
 	Offset      int64             `json:"offset"`
 	PayloadSize uint32            `json:"payload_size"`
 }

@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -11,12 +10,12 @@ import (
 	"overgo/internal/testutil"
 )
 
-func recordRoutingDecision(
+func recordRecipeRoutingDecision(
 	t *testing.T, store artifact.Repository, name string,
 	threshold float64, candidates []RoutingCandidate,
-) RoutingDecision {
+) RecipeRoutingDecision {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	thresholdEvidence := testutil.ArtifactID(t, artifact.KindEvidence, name+"-threshold")
 	testutil.PublishArtifact(t, store, thresholdEvidence)
 	for _, candidate := range candidates {
@@ -26,7 +25,7 @@ func recordRoutingDecision(
 			testutil.PublishArtifact(t, store, id)
 		}
 	}
-	decision, err := DeriveRoutingDecision(RoutingSignal{
+	decision, err := DeriveRecipeRoutingDecision(RoutingSignal{
 		Task: recipe.TaskInference, Capability: "replay-capability",
 		QualityThreshold: threshold, ThresholdEvidence: thresholdEvidence,
 	}, candidates)
@@ -51,7 +50,7 @@ func recordRoutingDecision(
 // names an unrecorded decision, or cites an unregistered policy refuses
 // instead of shrinking the measurement.
 func TestRoutingCounterfactualReplay(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -65,8 +64,8 @@ func TestRoutingCounterfactualReplay(t *testing.T) {
 		Quality:       0.9,
 		ResourceBytes: 4096,
 	}
-	first := recordRoutingDecision(t, store, "first", 0.6, []RoutingCandidate{cheap, costly})
-	second := recordRoutingDecision(t, store, "second", 0.6, []RoutingCandidate{
+	first := recordRecipeRoutingDecision(t, store, "first", 0.6, []RoutingCandidate{cheap, costly})
+	second := recordRecipeRoutingDecision(t, store, "second", 0.6, []RoutingCandidate{
 		routingCandidateFixture(t, "second-only", 2048),
 	})
 	corpus := []artifact.ID{first.ID, second.ID}

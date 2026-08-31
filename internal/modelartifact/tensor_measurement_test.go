@@ -18,7 +18,7 @@ import (
 func TestMeasureGGUFUsesBoundedDeterministicSamples(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "measurement.gguf")
 	values := make([]byte, 512*4)
-	for index := 0; index < 512; index++ {
+	for index := range 512 {
 		binary.LittleEndian.PutUint32(values[index*4:], math.Float32bits(float32(index-256)))
 	}
 	file, err := os.Create(path)
@@ -76,7 +76,7 @@ func TestMeasureSafetensorsUsesElementReads(t *testing.T) {
 	data := make([]byte, 8, 8+len(header)+2048)
 	binary.LittleEndian.PutUint64(data, uint64(len(header)))
 	data = append(data, header...)
-	for index := 0; index < 512; index++ {
+	for index := range 512 {
 		var scalar [4]byte
 		binary.LittleEndian.PutUint32(scalar[:], math.Float32bits(float32(index)))
 		data = append(data, scalar[:]...)
@@ -121,7 +121,7 @@ func TestTensorMeasurementEnforcesReadBudget(t *testing.T) {
 func TestEvenlySpacedIndexAvoidsIntermediateOverflow(t *testing.T) {
 	const sampleCount = uint64(4096)
 	previous := uint64(0)
-	for sample := uint64(0); sample < sampleCount; sample++ {
+	for sample := range sampleCount {
 		index := evenlySpacedIndex(sample, sampleCount, math.MaxUint64)
 		if sample > 0 && index <= previous {
 			t.Fatalf("sample %d index %d follows %d", sample, index, previous)

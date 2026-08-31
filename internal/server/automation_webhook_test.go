@@ -62,7 +62,7 @@ func TestWebhookAutomationDispatchAndRecovery(t *testing.T) {
 	if accepted.Delivery.Disposition != runrecord.WebhookDeliveryAccepted || accepted.Execution == nil {
 		t.Fatalf("accepted webhook = %+v", accepted)
 	}
-	completed, err := fixture.handler.operations.Wait(context.Background(), accepted.Execution.Operation)
+	completed, err := fixture.handler.operations.Wait(t.Context(), accepted.Execution.Operation)
 	if err != nil || completed.State != operation.StateCompleted || adapterCalls.Load() != 1 {
 		t.Fatalf("accepted operation = (%+v, %v), adapter calls=%d", completed, err, adapterCalls.Load())
 	}
@@ -91,7 +91,7 @@ func TestWebhookAutomationDispatchAndRecovery(t *testing.T) {
 		recovered.Execution.Operation != accepted.Execution.Operation || recovered.Delivery.Plan != accepted.Delivery.Plan {
 		t.Fatalf("restarted duplicate = %+v, accepted = %+v", recovered, accepted)
 	}
-	recoveredStatus, err := restarted.operations.Wait(context.Background(), recovered.Execution.Operation)
+	recoveredStatus, err := restarted.operations.Wait(t.Context(), recovered.Execution.Operation)
 	if err != nil || recoveredStatus.State != operation.StateCompleted || adapterCalls.Load() != 1 {
 		t.Fatalf("recovered operation = (%+v, %v), adapter calls=%d", recoveredStatus, err, adapterCalls.Load())
 	}
@@ -211,14 +211,14 @@ func assertWebhookSecretAbsent(t *testing.T, store *overgodb.Store, secret []byt
 			t.Fatal("webhook response exposed signing key material")
 		}
 	}
-	result, err := store.Query(context.Background(), overgodb.Query{
+	result, err := store.Query(t.Context(), overgodb.Query{
 		MaxResults: 512, Projection: overgodb.ProjectArtifacts,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, descriptor := range result.Artifacts {
-		content, found, readErr := artifact.ReadContent(context.Background(), store, descriptor.ID)
+		content, found, readErr := artifact.ReadContent(t.Context(), store, descriptor.ID)
 		if readErr != nil {
 			t.Fatal(readErr)
 		}

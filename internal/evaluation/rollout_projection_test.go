@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -13,7 +12,7 @@ import (
 
 func projectionRolloutPlan(t *testing.T, store artifact.Repository) runrecord.RolloutPlan {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	template := runrecord.RolloutPlan{
 		Baseline:       planID(t, artifact.KindRecipe, "projection-baseline"),
 		Candidate:      planID(t, artifact.KindRecipe, "projection-candidate"),
@@ -55,7 +54,7 @@ func projectionRolloutPlan(t *testing.T, store artifact.Repository) runrecord.Ro
 func commitRolloutObservation(t *testing.T, store artifact.Repository, plan artifact.ID, name string) artifact.ID {
 	t.Helper()
 	observation := planID(t, artifact.KindEvidence, name)
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "rollout/projection-fixture/" + name,
 		Artifacts: []artifact.Descriptor{{ID: observation}},
 		Lineage:   []artifact.Lineage{{Child: observation, Parent: plan, Relation: artifact.RelationDependsOn}},
@@ -72,7 +71,7 @@ func commitRolloutObservation(t *testing.T, store artifact.Repository, plan arti
 // evidence, prior projection reports never feed later readings, a tampered
 // digest refuses on parse, and promotion never consumes a mutable row.
 func TestRolloutProjectionEvidenceReproduces(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

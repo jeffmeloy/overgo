@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -34,7 +33,7 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	publishPlanFixtureAuthorities(t, store, mc1Plan)
-	mc1Report, err := EvaluateMultipleChoice(context.Background(), store, fixedContinuationScorer{
+	mc1Report, err := EvaluateMultipleChoice(t.Context(), store, fixedContinuationScorer{
 		scores: []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}},
 	}, mc1, mc1Plan)
 	if err != nil || mc1Report.Accuracy != 1 {
@@ -62,7 +61,7 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	publishPlanFixtureAuthorities(t, store, mc2Plan)
-	mc2Report, err := EvaluateProbabilityMass(context.Background(), store, fixedContinuationScorer{
+	mc2Report, err := EvaluateProbabilityMass(t.Context(), store, fixedContinuationScorer{
 		scores: []sequencescore.Score{{LogProbability: 0, Tokens: 1}, {LogProbability: 0, Tokens: 1}, {LogProbability: 0, Tokens: 1}},
 	}, mc2, mc2Plan)
 	if err != nil || mc2Report.Mean != 2.0/3.0 {
@@ -88,7 +87,7 @@ func TestTruthfulQAPinnedOracleParity(t *testing.T) {
 	}
 	publishPlanFixtureAuthorities(t, store, generatedPlan)
 	generatedReport, err := EvaluateGeneratedAnswer(
-		context.Background(), store, exactGenerator{pieces: []string{generated}}, compiledGenerated, generatedPlan,
+		t.Context(), store, exactGenerator{pieces: []string{generated}}, compiledGenerated, generatedPlan,
 	)
 	closeErr := store.Close()
 	if err != nil || closeErr != nil || generatedReport.Observations[0].Raw != generated ||

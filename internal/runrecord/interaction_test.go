@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -42,22 +41,22 @@ func TestInteractionLineage(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "interaction-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-model")
 	parentID := testutil.ArtifactID(t, artifact.KindEvidence, "parent-interaction")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "interaction/parents", Artifacts: []artifact.Descriptor{{ID: recipeID}, {ID: parentID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	published, err := PublishInteraction(context.Background(), store, Interaction{
+	published, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_lineage", Recipe: recipeID, Model: modelID, Node: interactionTestNode, Parent: parentID,
 	}, []InteractionMessage{{Role: "assistant", Content: "answer"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	parents, err := store.Parents(context.Background(), published.ID)
+	parents, err := store.Parents(t.Context(), published.ID)
 	if err != nil || len(parents) != 3 {
 		t.Fatalf("interaction parents = (%v, %v)", parents, err)
 	}
-	resolved, found, err := ResolveInteraction(context.Background(), store, published.Response)
+	resolved, found, err := ResolveInteraction(t.Context(), store, published.Response)
 	if err != nil || !found || resolved.ID != published.ID {
 		t.Fatalf("resolved interaction = (%s, %v, %v)", resolved.ID, found, err)
 	}
@@ -98,30 +97,30 @@ func TestCurrentTurnProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "interaction/projection/recipe", Artifacts: []artifact.Descriptor{{ID: definition.ID}},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	rootMessages := []InteractionMessage{{Role: "user", Content: "root"}, {Role: "assistant", Content: "first"}}
-	root, err := PublishInteraction(context.Background(), store, Interaction{
+	root, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_root", Recipe: definition.ID, Model: modelID, Node: interactionTestNode,
 	}, rootMessages)
 	if err != nil {
 		t.Fatal(err)
 	}
 	turnMessages := []InteractionMessage{{Role: "user", Content: "child"}, {Role: "assistant", Content: "second"}}
-	child, err := PublishInteraction(context.Background(), store, Interaction{
+	child, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_child", Recipe: definition.ID, Model: modelID, Node: interactionTestNode, Parent: root.ID,
 	}, turnMessages)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored, err := RequireInteractionTranscript(context.Background(), store, child.Message)
+	stored, err := RequireInteractionTranscript(t.Context(), store, child.Message)
 	if err != nil || len(stored.Messages) != len(turnMessages) {
 		t.Fatalf("stored current turn = (%+v, %v)", stored.Messages, err)
 	}
-	visible, err := VisibleInteractionMessages(context.Background(), store, scope, child)
+	visible, err := VisibleInteractionMessages(t.Context(), store, scope, child)
 	if err != nil || len(visible) != len(rootMessages)+len(turnMessages) || visible[0].Content != rootMessages[0].Content {
 		t.Fatalf("visible history = (%+v, %v)", visible, err)
 	}

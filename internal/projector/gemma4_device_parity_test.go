@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"image/png"
 	"math"
 	"os"
@@ -45,7 +44,7 @@ func TestGemma4RealDeviceHostParity(t *testing.T) {
 	}
 	defer cuda.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	want, err := cpu.EncodeImage(ctx, input)
 	if err != nil {
 		t.Fatal(err)
@@ -84,9 +83,7 @@ func TestGemma4RealDeviceHostParity(t *testing.T) {
 		if math.Float32bits(g) != math.Float32bits(w) {
 			mismatches++
 			abs := math.Abs(float64(g - w))
-			if abs > maxAbs {
-				maxAbs = abs
-			}
+			maxAbs = max(maxAbs, abs)
 			if abs > goldenBand {
 				overGolden++
 			}
@@ -105,7 +102,7 @@ func TestGemma4RealDeviceHostParity(t *testing.T) {
 	}
 	const iters = 30
 	start := time.Now()
-	for i := 0; i < iters; i++ {
+	for range iters {
 		if _, err := cuda.EncodeImage(ctx, input); err != nil {
 			t.Fatal(err)
 		}

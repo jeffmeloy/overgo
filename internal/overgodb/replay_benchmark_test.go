@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -20,7 +19,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 	for sequence := range benchmarkReplayCommits {
 		payload := []byte(fmt.Sprintf("benchmark-artifact-%d", sequence))
 		id := testutil.ArtifactBytesID(b, artifact.KindRun, payload)
-		_, err = store.Commit(context.Background(), artifact.Batch{
+		_, err = store.Commit(b.Context(), artifact.Batch{
 			Key: fmt.Sprintf("benchmark/%d", sequence),
 			Artifacts: []artifact.Descriptor{{
 				ID: id, Size: uint64(len(payload)), MediaType: "application/octet-stream",
@@ -30,7 +29,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	if _, err := store.Snapshot(context.Background()); err != nil {
+	if _, err := store.Snapshot(b.Context()); err != nil {
 		b.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -38,7 +37,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		opened, openErr := OpenReadOnly(root)
 		if openErr != nil {
 			b.Fatal(openErr)
@@ -50,7 +49,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 }
 
 func BenchmarkCompaction(b *testing.B) {
-	ctx := context.Background()
+	ctx := b.Context()
 	source, err := Open(b.TempDir())
 	if err != nil {
 		b.Fatal(err)
@@ -82,7 +81,7 @@ func BenchmarkCompaction(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		if _, err := Compact(ctx, source, b.TempDir()); err != nil {
 			b.Fatal(err)
 		}

@@ -35,9 +35,10 @@ func NewDelegatedCoordinator(store artifact.Repository, executor *agenttool.Exec
 
 // Propose forwards one tool proposal through the coordinator restricted to the
 // delegated manual grant.
-func (delegated *DelegatedCoordinator) Propose(ctx context.Context, session *Session, name string, arguments json.RawMessage, operatorApproved bool) (json.RawMessage, error) {
+func (delegated *DelegatedCoordinator) Propose(ctx context.Context, session *Session, name string, arguments json.RawMessage) (json.RawMessage, error) {
 	if delegated == nil {
 		return nil, errors.New("agent loop: delegated coordinator is absent")
 	}
-	return delegated.coordinator.ProposeWithManuals(ctx, session, name, arguments, operatorApproved, delegated.manuals)
+	session.Ceiling = delegated.coordinator.identity.Recipe
+	return delegated.coordinator.ProposeWithManuals(ctx, session, name, arguments, delegated.manuals)
 }

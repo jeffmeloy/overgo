@@ -52,12 +52,12 @@ type CompositionDriverStages struct {
 type CompositionDriverAttempt struct {
 	Target    string      `json:"target"`
 	Donor     artifact.ID `json:"donor,omitzero"`
-	Component string      `json:"component,omitempty"`
+	Component string      `json:"component,omitzero"`
 	Composite artifact.ID `json:"composite,omitzero"`
 	Promotion artifact.ID `json:"promotion,omitzero"`
 	Fit       bool        `json:"fit"`
 	Promoted  bool        `json:"promoted"`
-	Refusal   string      `json:"refusal,omitempty"`
+	Refusal   string      `json:"refusal,omitzero"`
 }
 
 // CompositionDriverReport aggregates one closed run.
@@ -85,9 +85,7 @@ func DeriveDriverBounds(history []bool) (budget, saturation uint64) {
 	for _, promoted := range history {
 		if promoted {
 			promotions++
-			if streak > longestRecovered {
-				longestRecovered = streak
-			}
+			longestRecovered = max(longestRecovered, streak)
 			streak = 0
 			continue
 		}

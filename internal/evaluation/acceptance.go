@@ -16,7 +16,7 @@ const (
 
 type MetricContract struct {
 	Name      string              `json:"name"`
-	Unit      string              `json:"unit,omitempty"`
+	Unit      string              `json:"unit,omitzero"`
 	Direction runrecord.Direction `json:"direction"`
 }
 

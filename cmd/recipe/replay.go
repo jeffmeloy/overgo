@@ -30,7 +30,7 @@ func replayRouting(arguments []string) error {
 		return errors.New("usage: recipe replay -policy <derivation> -decisions <decision-id,...> [-repo <store>]")
 	}
 	var decisions []artifact.ID
-	for _, text := range strings.Split(*decisionsFlag, ",") {
+	for text := range strings.SplitSeq(*decisionsFlag, ",") {
 		id, err := artifact.ParseID(strings.TrimSpace(text))
 		if err != nil {
 			return err

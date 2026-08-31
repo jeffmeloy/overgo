@@ -6,10 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"strings"
 
+	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
@@ -141,5 +141,5 @@ func parseCLI(arguments []string) (cliConfig, error) {
 }
 
 func finite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
+	return checked.Finite64(value)
 }

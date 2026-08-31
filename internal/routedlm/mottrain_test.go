@@ -155,7 +155,7 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 			for i := range direction {
 				got += float64(analytic[section.s.start+i]) * direction[i] / norm
 			}
-			scale := math.Max(math.Max(math.Abs(numeric), math.Abs(got)), 1e-3)
+			scale := max(max(math.Abs(numeric), math.Abs(got)), 1e-3)
 			if math.Abs(numeric-got)/scale > 2e-2 {
 				t.Fatalf("layer %d %s: analytic directional %g, finite-difference %g", layer, section.name, got, numeric)
 			}
@@ -172,7 +172,7 @@ func TestModalityTransformerStepDescends(t *testing.T) {
 		t.Fatal(err)
 	}
 	var last MoTTrainStepResult
-	for step := 0; step < 5; step++ {
+	for step := range 5 {
 		last, err = trainer.Step(hidden, mask, targets)
 		if err != nil {
 			t.Fatal(err)

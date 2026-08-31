@@ -2,7 +2,6 @@ package adaptiveparity
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -145,7 +144,7 @@ func testGemma4InputParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	runner, err := projector.OpenAs[*projector.Gemma4Runner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
+	runner, err := projector.OpenAs[*projector.Gemma4Runner](t.Context(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Gemma4 projector or CUDA absent; parity NOT verified: %v", err)
 	}
@@ -156,13 +155,13 @@ func testGemma4InputParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	language, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
+	language, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer language.Close()
 	imagePrompt, err := mustProjectorSession(t, runner).BuildImagePrompt(
-		context.Background(), language, imageSource, "", "What color dominates this image? One word.", false,
+		t.Context(), language, imageSource, "", "What color dominates this image? One word.", false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +175,7 @@ func testGemma4InputParity(t *testing.T) {
 	}
 	wave := readFloat32Evidence(t, wavePath, "Gemma4 audio wave")
 	audioPrompt, err := mustProjectorSession(t, runner).BuildAudioPrompt(
-		context.Background(), language, wave, "", "What note do you hear? One word.",
+		t.Context(), language, wave, "", "What note do you hear? One word.",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -189,7 +188,7 @@ func testGemma4InputParity(t *testing.T) {
 		t.Fatalf("Gemma4 audio first token = %d, outside oracle top IDs", audioToken)
 	}
 	imageAudio, err := mustProjectorSession(t, runner).BuildMediaHistoryPrompt(
-		context.Background(), language,
+		t.Context(), language,
 		[]projector.MediaInput{projector.NewImageMediaInput(imageSource), projector.NewAudioMediaInput(wave)},
 		[]string{"Image: ", " Audio: ", " Compare them."},
 	)
@@ -197,7 +196,7 @@ func testGemma4InputParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	audioImage, err := mustProjectorSession(t, runner).BuildMediaHistoryPrompt(
-		context.Background(), language,
+		t.Context(), language,
 		[]projector.MediaInput{projector.NewAudioMediaInput(wave), projector.NewImageMediaInput(imageSource)},
 		[]string{"Audio: ", " Image: ", " Compare them."},
 	)
@@ -226,13 +225,13 @@ func testGemma4InputParity(t *testing.T) {
 	audioImageToken := generatePromptFirstToken(t, language, audioImage)
 	second := flipHorizontal(imageSource)
 	forward, err := mustProjectorSession(t, runner).BuildVideoPrompt(
-		context.Background(), language, []image.Image{imageSource, second}, "", "Describe the motion.", 2, false,
+		t.Context(), language, []image.Image{imageSource, second}, "", "Describe the motion.", 2, false,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	reverse, err := mustProjectorSession(t, runner).BuildVideoPrompt(
-		context.Background(), language, []image.Image{second, imageSource}, "", "Describe the motion.", 2, false,
+		t.Context(), language, []image.Image{second, imageSource}, "", "Describe the motion.", 2, false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +268,7 @@ func generatePromptFirstToken(t *testing.T, runner *inference.Runner, prompt pro
 	if err != nil {
 		t.Fatal(err)
 	}
-	generated, _, err := runner.Generate(context.Background(), "", inference.GenerateOptions{
+	generated, _, err := runner.Generate(t.Context(), "", inference.GenerateOptions{
 		MaxNewTokens: 1, Sampler: greedy, PromptTokenIDs: ids, ProjectedInputs: &projected,
 	})
 	if err != nil {
@@ -309,11 +308,11 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	_, _, processor, err := projector.InspectProjection(context.Background(), projectorPath)
+	_, _, processor, err := projector.InspectProjection(t.Context(), projectorPath)
 	if err != nil || processor == nil {
 		t.Fatalf("UNAVAILABLE: processor profile absent; parity NOT verified: %v", err)
 	}
-	vision, err := projector.OpenAs[*projector.Qwen3VLRunner](context.Background(), projectorPath, projector.OpenOptions{
+	vision, err := projector.OpenAs[*projector.Qwen3VLRunner](t.Context(), projectorPath, projector.OpenOptions{
 		CUDA: true, MediaPreprocess: processor,
 	})
 	if err != nil {
@@ -326,7 +325,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	language, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
+	language, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,7 +337,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	assertQwen35Grid(t, "image", processedImage, imageGolden.Grid)
 	assertQwen35Probe(t, "image pixels", processedImage.PixelValues, imageGolden.Pixels, 0.15, 0)
 	imagePrompt, err := mustProjectorSession(t, vision).BuildImagePrompt(
-		context.Background(), language, imageSource, "", "What color dominates this image? One word.", true,
+		t.Context(), language, imageSource, "", "What color dominates this image? One word.", true,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -354,7 +353,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 	assertQwen35Grid(t, "video", processedVideo, videoGolden.Grid)
 	assertQwen35Probe(t, "video pixels", processedVideo.PixelValues, videoGolden.Pixels, 0.15, 0)
 	videoPrompt, err := mustProjectorSession(t, vision).BuildVideoPrompt(
-		context.Background(), language, frames, "", videoGolden.Question, 24, true,
+		t.Context(), language, frames, "", videoGolden.Question, 24, true,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -440,7 +439,7 @@ func assertQwen35FirstToken(t *testing.T, runner *inference.Runner, prompt proje
 	if err != nil {
 		t.Fatal(err)
 	}
-	generated, _, err := runner.Generate(context.Background(), "", inference.GenerateOptions{
+	generated, _, err := runner.Generate(t.Context(), "", inference.GenerateOptions{
 		MaxNewTokens: 1, Sampler: greedy, PromptTokenIDs: ids, ProjectedInputs: &projected,
 	})
 	if err != nil {
@@ -499,7 +498,7 @@ func testGemmaE4BImageLanguageParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	projectorRunner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
+	projectorRunner, err := projector.OpenAs[*projector.Gemma4TowerRunner](t.Context(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
@@ -508,7 +507,7 @@ func testGemmaE4BImageLanguageParity(t *testing.T) {
 		_ = projectorRunner.Close()
 		t.Fatal(err)
 	}
-	projected, err := projectorRunner.EncodeVisionPatches(context.Background(), input.PixelValues, input.Positions)
+	projected, err := projectorRunner.EncodeVisionPatches(t.Context(), input.PixelValues, input.Positions)
 	projectorCloseErr := projectorRunner.Close()
 	if err != nil || projectorCloseErr != nil {
 		t.Fatal(errors.Join(err, projectorCloseErr))
@@ -534,7 +533,7 @@ func testGemmaE4BImageLanguageParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	languageRunner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
+	languageRunner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +543,7 @@ func testGemmaE4BImageLanguageParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	var evaluation inference.PromptEvaluation
-	ids, _, err := languageRunner.Generate(context.Background(), "", inference.GenerateOptions{
+	ids, _, err := languageRunner.Generate(t.Context(), "", inference.GenerateOptions{
 		MaxNewTokens:   1,
 		Sampler:        greedy,
 		PromptTokenIDs: promptIDs,
@@ -594,7 +593,7 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	}
 	features := readFloat32Evidence(t, featurePath, "E4B audio features")
 	wave := readFloat32Evidence(t, wavePath, "E4B audio wave")
-	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](t.Context(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
@@ -605,7 +604,7 @@ func testGemmaE4BAudioParity(t *testing.T) {
 	}
 	start := time.Now()
 	output, trace, err := runner.EncodeAudioTrace(
-		context.Background(), wave, runner.Spec().Audio.SampleRate, profile,
+		t.Context(), wave, runner.Spec().Audio.SampleRate, profile,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -706,7 +705,7 @@ func testGemmaE4BImageParity(t *testing.T) {
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](t.Context(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: E4B projector absent or CUDA unavailable; parity NOT verified: %v", err)
 	}
@@ -720,7 +719,7 @@ func testGemmaE4BImageParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := time.Now()
-	output, trace, err := runner.EncodeVisionPatchesTrace(context.Background(), input.PixelValues, input.Positions)
+	output, trace, err := runner.EncodeVisionPatchesTrace(t.Context(), input.PixelValues, input.Positions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -736,7 +735,7 @@ func testGemmaE4BImageParity(t *testing.T) {
 	}
 	worstName, worstRelative := "", 0.0
 	stageNames := []string{"patch_embed"}
-	for layer := 0; layer < 16; layer++ {
+	for layer := range 16 {
 		stageNames = append(stageNames, fmt.Sprintf("enc%d", layer))
 	}
 	stageNames = append(stageNames, "pooler")
@@ -805,7 +804,7 @@ func testGemmaE4BResizeParity(t *testing.T) {
 	if closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](t.Context(), projectorPath, projector.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -875,16 +874,16 @@ func testGemmaE4BVideoOrder(t *testing.T) {
 		t.Fatal(closeErr)
 	}
 	second := flipHorizontal(first)
-	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](context.Background(), projectorPath, projector.OpenOptions{CUDA: true})
+	runner, err := projector.OpenAs[*projector.Gemma4TowerRunner](t.Context(), projectorPath, projector.OpenOptions{CUDA: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	forward, err := runner.EncodeVisionFrames(context.Background(), []image.Image{first, second})
+	forward, err := runner.EncodeVisionFrames(t.Context(), []image.Image{first, second})
 	if err != nil {
 		t.Fatal(err)
 	}
-	reverse, err := runner.EncodeVisionFrames(context.Background(), []image.Image{second, first})
+	reverse, err := runner.EncodeVisionFrames(t.Context(), []image.Image{second, first})
 	if err != nil {
 		t.Fatal(err)
 	}

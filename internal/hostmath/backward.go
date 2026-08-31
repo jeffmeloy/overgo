@@ -10,7 +10,7 @@ import "math"
 // nil weight is the unit-scale variant.
 func RMSNormBackward(dx, dscale, x, weight, dy []float32, rows, d int, eps float64, addDX bool) {
 	affine := len(weight) != 0
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		xr := x[r*d : (r+1)*d]
 		dyr := dy[r*d : (r+1)*d]
 		dxr := dx[r*d : (r+1)*d]
@@ -20,7 +20,7 @@ func RMSNormBackward(dx, dscale, x, weight, dy []float32, rows, d int, eps float
 		}
 		inv := 1.0 / math.Sqrt(ss/float64(d)+eps)
 		var dotGX float64
-		for i := 0; i < d; i++ {
+		for i := range d {
 			gi := float64(dyr[i])
 			if affine {
 				gi *= float64(weight[i])
@@ -31,7 +31,7 @@ func RMSNormBackward(dx, dscale, x, weight, dy []float32, rows, d int, eps float
 			}
 		}
 		coef := inv * inv * inv / float64(d) * dotGX
-		for i := 0; i < d; i++ {
+		for i := range d {
 			gi := float64(dyr[i])
 			if affine {
 				gi *= float64(weight[i])
@@ -52,7 +52,7 @@ func RMSNormBackward(dx, dscale, x, weight, dy []float32, rows, d int, eps float
 // no-affine variant (dW/dB must then be nil). f64 stats, matching forward.
 func LayerNormBackward(dx, dW, dB, x, weight, dy []float32, rows, d int, eps float64, addDX bool) {
 	affine := len(weight) != 0
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		xr := x[r*d : (r+1)*d]
 		dyr := dy[r*d : (r+1)*d]
 		dxr := dx[r*d : (r+1)*d]
@@ -69,7 +69,7 @@ func LayerNormBackward(dx, dW, dB, x, weight, dy []float32, rows, d int, eps flo
 		inv := 1.0 / math.Sqrt(variance/float64(d)+eps)
 
 		var meanG, meanGXHat float64
-		for i := 0; i < d; i++ {
+		for i := range d {
 			xhat := (float64(xr[i]) - mean) * inv
 			g := float64(dyr[i])
 			if affine {
@@ -86,7 +86,7 @@ func LayerNormBackward(dx, dW, dB, x, weight, dy []float32, rows, d int, eps flo
 		}
 		meanG /= float64(d)
 		meanGXHat /= float64(d)
-		for i := 0; i < d; i++ {
+		for i := range d {
 			xhat := (float64(xr[i]) - mean) * inv
 			g := float64(dyr[i])
 			if affine {
@@ -117,7 +117,7 @@ func GELUErfBackward(dst, x, dy []float32) {
 // angle, in place on one head row's gradient.
 func RotaryHalfBackward(dx []float32, invFreq []float64, pos int) {
 	h := len(dx) / 2
-	for i := 0; i < h; i++ {
+	for i := range h {
 		a := float64(pos) * invFreq[i]
 		c, s := math.Cos(a), math.Sin(a)
 		d1, d2 := float64(dx[i]), float64(dx[i+h])
@@ -130,7 +130,7 @@ func RotaryHalfBackward(dx []float32, invFreq []float64, pos int) {
 // the negated angle, in place on one head row's gradient.
 func RotaryInterleavedBackward(dx []float32, invFreq []float64, pos int) {
 	h := len(dx) / 2
-	for i := 0; i < h; i++ {
+	for i := range h {
 		a := float64(pos) * invFreq[i]
 		c, s := math.Cos(a), math.Sin(a)
 		d1, d2 := float64(dx[2*i]), float64(dx[2*i+1])
@@ -165,7 +165,7 @@ func SiLUGateBackward(dGate, dUp, gate, up, dy []float32) {
 func SoftmaxCrossEntropy(dLogits, logits []float32, targets []int, rows, classes int) float64 {
 	var loss float64
 	invRows := 1.0 / float64(rows)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := logits[r*classes : (r+1)*classes]
 		mx := float64(row[0])
 		for _, v := range row[1:] {
@@ -181,7 +181,7 @@ func SoftmaxCrossEntropy(dLogits, logits []float32, targets []int, rows, classes
 		target := targets[r]
 		loss += (logSum - float64(row[target])) * invRows
 		dRow := dLogits[r*classes : (r+1)*classes]
-		for c := 0; c < classes; c++ {
+		for c := range classes {
 			p := math.Exp(float64(row[c]) - logSum)
 			if c == target {
 				p -= 1
@@ -196,7 +196,7 @@ func SoftmaxCrossEntropy(dLogits, logits []float32, targets []int, rows, classes
 // dx (set, or += when addDX), and accumulates dW += dy^T⊗x and dB += dy
 // when non-nil.
 func LinearBackward(dx, dW, dB, x, w, dy []float32, rows, inDim, outDim int, addDX bool) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		xRow := x[r*inDim : (r+1)*inDim]
 		dyRow := dy[r*outDim : (r+1)*outDim]
 		var dxRow []float32
@@ -206,7 +206,7 @@ func LinearBackward(dx, dW, dB, x, w, dy []float32, rows, inDim, outDim int, add
 				clear(dxRow)
 			}
 		}
-		for o := 0; o < outDim; o++ {
+		for o := range outDim {
 			g := dyRow[o]
 			if dB != nil {
 				dB[o] += g
@@ -216,13 +216,13 @@ func LinearBackward(dx, dW, dB, x, w, dy []float32, rows, inDim, outDim int, add
 			}
 			if dW != nil {
 				dWRow := dW[o*inDim : (o+1)*inDim]
-				for c := 0; c < inDim; c++ {
+				for c := range inDim {
 					dWRow[c] += g * xRow[c]
 				}
 			}
 			if dxRow != nil {
 				wRow := w[o*inDim : (o+1)*inDim]
-				for c := 0; c < inDim; c++ {
+				for c := range inDim {
 					dxRow[c] += g * wRow[c]
 				}
 			}
@@ -242,49 +242,47 @@ func CausalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kv
 	probs := make([]float64, seq)
 	dP := make([]float64, seq)
 	group := heads / kvHeads
-	for h := 0; h < heads; h++ {
+	for h := range heads {
 		kv := h / group
-		for qi := 0; qi < seq; qi++ {
+		for qi := range seq {
 			nk := qi + 1
 			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			dout := dOut[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			dqRow := dq[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			mx := math.Inf(-1)
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				kRow := k[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
 				var dot float64
-				for x := 0; x < headDim; x++ {
+				for x := range headDim {
 					dot += float64(qRow[x]) * float64(kRow[x])
 				}
 				probs[m] = dot
-				if dot > mx {
-					mx = dot
-				}
+				mx = max(mx, dot)
 			}
 			var sum float64
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				probs[m] = math.Exp(probs[m] - mx)
 				sum += probs[m]
 			}
 			inv := 1.0 / sum
 			var dot float64
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				probs[m] *= inv
 				vRow := v[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
 				dvRow := dv[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
 				var dpm float64
-				for x := 0; x < headDim; x++ {
+				for x := range headDim {
 					dpm += float64(dout[x]) * float64(vRow[x])
 					dvRow[x] += float32(probs[m]) * dout[x]
 				}
 				dP[m] = dpm
 				dot += probs[m] * dpm
 			}
-			for m := 0; m < nk; m++ {
+			for m := range nk {
 				g := probs[m] * (dP[m] - dot)
 				kRow := k[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
 				dkRow := dk[(m*kvHeads+kv)*headDim : (m*kvHeads+kv+1)*headDim]
-				for x := 0; x < headDim; x++ {
+				for x := range headDim {
 					dqRow[x] += float32(g * float64(kRow[x]))
 					dkRow[x] += float32(g * float64(qRow[x]))
 				}
@@ -345,12 +343,12 @@ func maskedBidirectionalAttentionBackwardHeads(
 	group := heads / kvHeads
 	for h := hStart; h < hEnd; h++ {
 		kv := h / group
-		for qi := 0; qi < querySeq; qi++ {
+		for qi := range querySeq {
 			qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			dout := dOut[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			dqRow := dq[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 			mx := math.Inf(-1)
-			for ki := 0; ki < keySeq; ki++ {
+			for ki := range keySeq {
 				if keyMask != nil && !keyMask[ki] {
 					probs[ki] = math.Inf(-1)
 					continue
@@ -408,13 +406,13 @@ func LinearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
 	ParallelRangeF64(outDim, rows*inDim, func(oLo, oHi int) {
 		for o := oLo; o < oHi; o++ {
 			dWRow := dW[o*inDim : (o+1)*inDim]
-			for r := 0; r < rows; r++ {
+			for r := range rows {
 				g := dy[r*outDim+o]
 				if g == 0 {
 					continue
 				}
 				xRow := x[r*inDim : (r+1)*inDim]
-				for c := 0; c < inDim; c++ {
+				for c := range inDim {
 					dWRow[c] += g * xRow[c]
 				}
 			}
@@ -436,7 +434,7 @@ func LinearBackwardInput(dx, dy, w []float32, rows, inDim, outDim int) {
 					continue
 				}
 				wRow := w[o*inDim : (o+1)*inDim]
-				for c := 0; c < inDim; c++ {
+				for c := range inDim {
 					dxRow[c] += g * wRow[c]
 				}
 			}

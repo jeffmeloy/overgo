@@ -1,7 +1,7 @@
 package seq2seq
 
 import (
-	"sort"
+	"slices"
 	"testing"
 	"time"
 )
@@ -30,7 +30,7 @@ func TestDecodeWall(t *testing.T) {
 			}
 			walls[run] = time.Since(start).Seconds()
 		}
-		sort.Float64s(walls)
+		slices.Sort(walls)
 		t.Logf("%s: median %.4fs over %d runs (min %.4f max %.4f)",
 			name, walls[len(walls)/2], decodeWallRuns, walls[0], walls[len(walls)-1])
 	}

@@ -744,9 +744,7 @@ func improvementCoverageDenominators(stream runrecord.ObservationStream) (uint32
 		result := observationMetricSamples(counts, metrics[0])
 		for _, metric := range metrics[1:] {
 			count := observationMetricSamples(counts, metric)
-			if count < result {
-				result = count
-			}
+			result = min(result, count)
 		}
 		return result
 	}

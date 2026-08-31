@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 
 	"overgo/internal/strictjson"
 )
@@ -156,6 +157,43 @@ func (c DocumentCodec[T]) RequireVerified(
 	}
 	if err := verify(ctx, reader, c.clone(value)); err != nil {
 		return zero, err
+	}
+	return value, nil
+}
+
+// RequireExactLineage loads one canonical document, verifies that its stored
+// dependency edges equal the owner-derived closure, and requires every parent
+// to remain resolvable. Added, omitted, duplicated, or dangling authority is
+// rejected before the document is returned.
+func (c DocumentCodec[T]) RequireExactLineage(
+	ctx context.Context,
+	reader Reader,
+	id ID,
+	lineage func(T) []Lineage,
+) (T, error) {
+	var zero T
+	if lineage == nil {
+		return zero, errors.New("artifact: nil document lineage")
+	}
+	value, err := c.Require(ctx, reader, id)
+	if err != nil {
+		return zero, err
+	}
+	expected := lineage(c.clone(value))
+	stored, err := reader.Parents(ctx, id)
+	if err != nil {
+		return zero, err
+	}
+	if len(stored) != len(expected) {
+		return zero, fmt.Errorf("%s: stored lineage differs", c.Name)
+	}
+	for _, edge := range expected {
+		if edge.Child != id || edge.Relation != RelationDependsOn || !slices.Contains(stored, edge) {
+			return zero, fmt.Errorf("%s: stored lineage differs", c.Name)
+		}
+		if _, found, requireErr := reader.Artifact(ctx, edge.Parent); requireErr != nil || !found {
+			return zero, errors.Join(fmt.Errorf("%s: lineage parent is absent", c.Name), requireErr)
+		}
 	}
 	return value, nil
 }

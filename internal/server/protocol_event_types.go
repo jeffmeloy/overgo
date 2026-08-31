@@ -8,11 +8,11 @@ type responsesStreamEvent struct {
 	Arguments    *string `json:"arguments,omitempty"`
 	Delta        any     `json:"delta,omitempty"`
 	Item         any     `json:"item,omitempty"`
-	ItemID       string  `json:"item_id,omitempty"`
+	ItemID       string  `json:"item_id,omitzero"`
 	OutputIndex  *int    `json:"output_index,omitempty"`
 	Part         any     `json:"part,omitempty"`
 	Response     any     `json:"response,omitempty"`
-	ResponseID   string  `json:"response_id,omitempty"`
+	ResponseID   string  `json:"response_id,omitzero"`
 	SummaryIndex *int    `json:"summary_index,omitempty"`
 	Text         *string `json:"text,omitempty"`
 	Type         string  `json:"type"`
@@ -58,9 +58,9 @@ type anthropicMessageStart struct {
 }
 
 type anthropicContentBlockStart struct {
-	ID        string          `json:"id,omitempty"`
+	ID        string          `json:"id,omitzero"`
 	Input     *map[string]any `json:"input,omitempty"`
-	Name      string          `json:"name,omitempty"`
+	Name      string          `json:"name,omitzero"`
 	Signature *string         `json:"signature,omitempty"`
 	Text      *string         `json:"text,omitempty"`
 	Thinking  *string         `json:"thinking,omitempty"`
@@ -82,17 +82,4 @@ type anthropicMessageDelta struct {
 
 type anthropicOutputUsage struct {
 	OutputTokens int `json:"output_tokens"`
-}
-
-func eventIndex(index int) *int {
-	return &index
-}
-
-func eventString(value string) *string {
-	return &value
-}
-
-func emptyEventObject() *map[string]any {
-	value := map[string]any{}
-	return &value
 }

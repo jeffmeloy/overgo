@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"image"
@@ -131,7 +130,7 @@ func TestResponsesInputFileSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	messages, err := handler.parseResponsesMessages(context.Background(), raw, "")
+	messages, err := handler.parseResponsesMessages(t.Context(), raw, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +175,7 @@ func TestResponsesInputFileRejectsUnsafeContent(t *testing.T) {
 		"file_binary": {Data: []byte{0xff}, Filename: "bad.txt", MediaType: "text/plain"},
 	}}
 	raw := json.RawMessage(`[{"type":"input_file","file_id":"file_binary"}]`)
-	if _, err := handler.parseResponsesMessages(context.Background(), raw, ""); err == nil {
+	if _, err := handler.parseResponsesMessages(t.Context(), raw, ""); err == nil {
 		t.Fatal("invalid UTF-8 file accepted")
 	}
 }

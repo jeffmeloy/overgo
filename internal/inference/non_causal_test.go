@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -12,7 +11,7 @@ import (
 func TestNonCausalRunnerRejectsCacheEntryPoint(t *testing.T) {
 	runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "bert"}, AttentionSpec: model.AttentionSpec{NonCausalAttention: true}}}}
 	runner = attachFixtureProgram(runner)
-	_, _, err := runner.ForwardCached(context.Background(), nil, nil)
+	_, _, err := runner.ForwardCached(t.Context(), nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "do not support KV caching") {
 		t.Fatalf("ForwardCached error = %v", err)
 	}
@@ -23,7 +22,7 @@ func TestEncoderRunnersRejectVocabularyLogits(t *testing.T) {
 		t.Run(architecture, func(t *testing.T) {
 			runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}}}}
 			runner = attachFixtureProgram(runner)
-			_, err := runner.projectAllLogits(context.Background(), reference.Value{})
+			_, err := runner.projectAllLogits(t.Context(), reference.Value{})
 			if err == nil || !strings.Contains(err.Error(), "hidden states") {
 				t.Fatalf("encoder logits error = %v", err)
 			}
@@ -36,7 +35,7 @@ func TestLFM2RunnerUsesCompiledNonCausalForward(t *testing.T) {
 		t.Run(architecture, func(t *testing.T) {
 			runner := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}}}}
 			runner = attachFixtureProgram(runner)
-			_, err := runner.Forward(context.Background(), nil)
+			_, err := runner.Forward(t.Context(), nil)
 			if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
 				t.Fatalf("Forward error = %v", err)
 			}

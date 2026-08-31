@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -42,7 +41,7 @@ func buildScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, []t
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	latencies := make([]time.Duration, 0, scaleCorpusCommits)
 	var contentBytes uint64
 	var previous artifact.ID
@@ -146,7 +145,7 @@ func TestStoreScaleContract(t *testing.T) {
 		t.Fatalf("replayed head %s seq %d, built %s seq %d", head, sequence, headA, scaleCorpusCommits)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
 		content := scaleContent(ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindRun, content)

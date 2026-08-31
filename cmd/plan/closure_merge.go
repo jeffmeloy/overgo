@@ -14,6 +14,7 @@ import (
 
 type closureEvidenceSnapshot struct {
 	store    string
+	source   string
 	head     artifact.CommitID
 	sequence uint64
 	cleanup  func()
@@ -46,7 +47,9 @@ func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, 
 		cleanup()
 		return closureEvidenceSnapshot{}, fmt.Errorf("prepare-merge: snapshot closure evidence: %w", errors.Join(backupErr, closeErr))
 	}
-	return closureEvidenceSnapshot{store: destination, head: head, sequence: sequence, cleanup: cleanup}, nil
+	return closureEvidenceSnapshot{
+		store: destination, source: source, head: head, sequence: sequence, cleanup: cleanup,
+	}, nil
 }
 
 func sourceOvergoDB(root, snapshot string) (string, error) {
@@ -71,7 +74,7 @@ func sourceOvergoDBFromPorcelain(raw []byte, snapshot string) (string, error) {
 		match = candidate
 		return nil
 	}
-	for _, encoded := range bytes.Split(raw, []byte("\x00")) {
+	for encoded := range bytes.SplitSeq(raw, []byte("\x00")) {
 		field := string(encoded)
 		if field == "" {
 			if err := flush(); err != nil {

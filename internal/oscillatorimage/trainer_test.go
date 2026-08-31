@@ -24,7 +24,7 @@ func TestTrainerDecreasesBootstrapLossTiny(t *testing.T) {
 	defer trainer.Close()
 	before := trainer.Loss(7)
 	var first, last TrainStepResult
-	for step := 0; step < 8; step++ {
+	for step := range 8 {
 		result, err := trainer.Step()
 		if err != nil {
 			t.Fatal(err)
@@ -114,7 +114,7 @@ func TestRealArtifactBootstrapTraining(t *testing.T) {
 	defer trainer.Close()
 	before := trainer.Loss(202)
 	start := time.Now()
-	for step := 0; step < steps; step++ {
+	for step := range steps {
 		result, err := trainer.Step()
 		if err != nil {
 			t.Fatal(err)

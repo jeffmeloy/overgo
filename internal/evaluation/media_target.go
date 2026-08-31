@@ -39,7 +39,7 @@ type MediaScorerSpec struct {
 	Name      string              `json:"name"`
 	Kind      MediaScorer         `json:"kind"`
 	Verifier  artifact.ID         `json:"verifier"`
-	Unit      string              `json:"unit,omitempty"`
+	Unit      string              `json:"unit,omitzero"`
 	Direction runrecord.Direction `json:"direction"`
 }
 
@@ -68,7 +68,7 @@ type MediaTargetPlan struct {
 type MediaOracleResult struct {
 	Kind   MediaOracle `json:"kind"`
 	Passed bool        `json:"passed"`
-	Detail string      `json:"detail,omitempty"`
+	Detail string      `json:"detail,omitzero"`
 }
 
 type MediaVerifierResult struct {
@@ -212,7 +212,7 @@ func canonicalizeMediaTargetPlan(plan *MediaTargetPlan) error {
 	if output != recipecontract.ModalityAudio && output != recipecontract.ModalityImage && output != recipecontract.ModalityVideo {
 		return errors.New("evaluation: unsupported media target modality")
 	}
-	sort.Slice(plan.Oracles, func(i, j int) bool { return plan.Oracles[i] < plan.Oracles[j] })
+	slices.Sort(plan.Oracles)
 	for index, oracle := range plan.Oracles {
 		if !validMediaOracle(oracle) || index > 0 && plan.Oracles[index-1] == oracle {
 			return errors.New("evaluation: invalid or duplicate media oracle")

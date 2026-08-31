@@ -1,13 +1,14 @@
 package trainingprogram
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -37,40 +38,58 @@ type DatasetState struct {
 	Position uint64      `json:"position"`
 }
 
+// RouterControllerState is the exact next-step selection state for one routed layer and dataset stratum.
+type RouterControllerState struct {
+	Policy   artifact.ID `json:"policy"`
+	Stratum  artifact.ID `json:"stratum"`
+	Layer    int         `json:"layer"`
+	NextBias []float32   `json:"next_bias"`
+}
+
+// RouterControllerAuthority describes the policy and geometry allowed to resume stored router state.
+type RouterControllerAuthority struct {
+	Policy  artifact.ID
+	Stratum artifact.ID
+	Layer   int
+	Experts int
+}
+
 type CheckpointSpec struct {
-	RunPlan        artifact.ID
-	Program        artifact.ID
-	Model          artifact.ID
-	Dataset        artifact.ID
-	Split          artifact.ID
-	Stream         DatasetState
-	Optimizer      optimizer.State
-	ParameterCount int
-	RNG            []RNGState
-	Processors     []artifact.ID
-	Projectors     []artifact.ID
-	Codecs         []artifact.ID
-	Lineage        []LineageParent
-	Accumulation   int
+	RunPlan           artifact.ID
+	Program           artifact.ID
+	Model             artifact.ID
+	Dataset           artifact.ID
+	Split             artifact.ID
+	Stream            DatasetState
+	Optimizer         optimizer.State
+	ParameterCount    int
+	RNG               []RNGState
+	Processors        []artifact.ID
+	Projectors        []artifact.ID
+	Codecs            []artifact.ID
+	Lineage           []LineageParent
+	RouterControllers []RouterControllerState
+	Accumulation      int
 }
 
 type Checkpoint struct {
-	id             artifact.ID
-	RunPlan        artifact.ID     `json:"run_plan"`
-	Program        artifact.ID     `json:"program"`
-	Model          artifact.ID     `json:"model"`
-	Weights        artifact.ID     `json:"weights"`
-	Dataset        artifact.ID     `json:"dataset"`
-	Split          artifact.ID     `json:"split"`
-	Stream         DatasetState    `json:"stream"`
-	Optimizer      optimizer.State `json:"optimizer"`
-	ParameterCount int             `json:"parameter_count"`
-	RNG            []RNGState      `json:"rng"`
-	Processors     []artifact.ID   `json:"processors"`
-	Projectors     []artifact.ID   `json:"projectors,omitempty"`
-	Codecs         []artifact.ID   `json:"codecs,omitempty"`
-	Lineage        []LineageParent `json:"lineage"`
-	Accumulation   int             `json:"accumulation"`
+	id                artifact.ID
+	RunPlan           artifact.ID             `json:"run_plan"`
+	Program           artifact.ID             `json:"program"`
+	Model             artifact.ID             `json:"model"`
+	Weights           artifact.ID             `json:"weights"`
+	Dataset           artifact.ID             `json:"dataset"`
+	Split             artifact.ID             `json:"split"`
+	Stream            DatasetState            `json:"stream"`
+	Optimizer         optimizer.State         `json:"optimizer"`
+	ParameterCount    int                     `json:"parameter_count"`
+	RNG               []RNGState              `json:"rng"`
+	Processors        []artifact.ID           `json:"processors"`
+	Projectors        []artifact.ID           `json:"projectors,omitempty"`
+	Codecs            []artifact.ID           `json:"codecs,omitempty"`
+	Lineage           []LineageParent         `json:"lineage"`
+	RouterControllers []RouterControllerState `json:"router_controllers,omitempty"`
+	Accumulation      int                     `json:"accumulation"`
 }
 
 type checkpointDocument struct {
@@ -89,6 +108,7 @@ func (c Checkpoint) ValidateIdentity() error {
 	copy.Projectors = slices.Clone(c.Projectors)
 	copy.Codecs = slices.Clone(c.Codecs)
 	copy.Lineage = slices.Clone(c.Lineage)
+	copy.RouterControllers = cloneRouterControllerStates(c.RouterControllers)
 	if err := canonicalizeCheckpoint(&copy); err != nil {
 		return err
 	}
@@ -104,8 +124,20 @@ func (c Checkpoint) ValidateIdentity() error {
 
 func (c Checkpoint) ArtifactLineage() []artifact.Lineage {
 	result := make([]artifact.Lineage, len(c.Lineage))
+	seen := make(map[artifact.Lineage]struct{}, len(c.Lineage)+len(c.RouterControllers)*2)
 	for index, parent := range c.Lineage {
 		result[index] = artifact.Lineage{Child: c.id, Parent: parent.Artifact, Relation: parent.Relation}
+		seen[result[index]] = struct{}{}
+	}
+	for _, controller := range c.RouterControllers {
+		for _, parent := range []artifact.ID{controller.Policy, controller.Stratum} {
+			edge := artifact.Lineage{Child: c.id, Parent: parent, Relation: artifact.RelationDependsOn}
+			if _, found := seen[edge]; found {
+				continue
+			}
+			seen[edge] = struct{}{}
+			result = append(result, edge)
+		}
 	}
 	return result
 }
@@ -117,7 +149,7 @@ func NewCheckpoint(spec CheckpointSpec, weights artifact.ID) (Checkpoint, error)
 		Optimizer: spec.Optimizer, ParameterCount: spec.ParameterCount,
 		RNG: slices.Clone(spec.RNG), Processors: slices.Clone(spec.Processors),
 		Projectors: slices.Clone(spec.Projectors), Codecs: slices.Clone(spec.Codecs),
-		Lineage: slices.Clone(spec.Lineage), Accumulation: spec.Accumulation,
+		Lineage: slices.Clone(spec.Lineage), RouterControllers: cloneRouterControllerStates(spec.RouterControllers), Accumulation: spec.Accumulation,
 	}
 	if err := canonicalizeCheckpoint(&checkpoint); err != nil {
 		return Checkpoint{}, err
@@ -155,7 +187,7 @@ func ParseCheckpoint(data []byte) (Checkpoint, error) {
 		Dataset: document.Dataset, Split: document.Split, Stream: document.Stream,
 		Optimizer: document.Optimizer, ParameterCount: document.ParameterCount,
 		RNG: document.RNG, Processors: document.Processors, Projectors: document.Projectors,
-		Codecs: document.Codecs, Lineage: document.Lineage, Accumulation: document.Accumulation,
+		Codecs: document.Codecs, Lineage: document.Lineage, RouterControllers: document.RouterControllers, Accumulation: document.Accumulation,
 	}, document.Weights)
 }
 
@@ -242,14 +274,19 @@ func LoadCheckpoint(directory string) (Checkpoint, error) {
 }
 
 type ResumeAuthority struct {
-	Model         artifact.ID
-	Stream        DatasetState
-	OptimizerPlan string
+	Model             artifact.ID
+	Stream            DatasetState
+	OptimizerPlan     string
+	RouterControllers []RouterControllerAuthority
 }
 
 func ValidateResume(plan TrainingRunPlan, checkpoint Checkpoint, authority ResumeAuthority) error {
 	if err := checkpoint.ValidateIdentity(); err != nil {
 		return err
+	}
+	checkpointControllers := make([]RouterControllerAuthority, len(checkpoint.RouterControllers))
+	for index, state := range checkpoint.RouterControllers {
+		checkpointControllers[index] = routerControllerAuthority(state)
 	}
 	if plan.InitialMode() != InitialResume || plan.checkpoint != checkpoint.ID() ||
 		plan.Program().ID() != checkpoint.Program || plan.Program().OptimizerIdentity() != checkpoint.Optimizer.PlanIdentity ||
@@ -257,7 +294,8 @@ func ValidateResume(plan TrainingRunPlan, checkpoint Checkpoint, authority Resum
 		authority.OptimizerPlan != checkpoint.Optimizer.PlanIdentity ||
 		plan.Dataset() != checkpoint.Dataset || plan.Split() != checkpoint.Split ||
 		!slices.Equal(plan.Processors(), checkpoint.Processors) ||
-		!slices.Equal(plan.Projectors(), checkpoint.Projectors) || !slices.Equal(plan.Codecs(), checkpoint.Codecs) {
+		!slices.Equal(plan.Projectors(), checkpoint.Projectors) || !slices.Equal(plan.Codecs(), checkpoint.Codecs) ||
+		!slices.Equal(canonicalRouterControllerAuthorities(authority.RouterControllers), checkpointControllers) {
 		return errors.New("training checkpoint: resume authority differs")
 	}
 	return nil
@@ -291,11 +329,11 @@ func canonicalizeCheckpoint(checkpoint *Checkpoint) error {
 	if len(checkpoint.Processors) == 0 || len(checkpoint.Lineage) == 0 {
 		return errors.New("training checkpoint: processor or lineage authority absent")
 	}
-	sort.Slice(checkpoint.Lineage, func(i, j int) bool {
-		if checkpoint.Lineage[i].Artifact != checkpoint.Lineage[j].Artifact {
-			return checkpoint.Lineage[i].Artifact.String() < checkpoint.Lineage[j].Artifact.String()
+	slices.SortFunc(checkpoint.Lineage, func(left, right LineageParent) int {
+		if order := cmp.Compare(left.Artifact.String(), right.Artifact.String()); order != 0 {
+			return order
 		}
-		return checkpoint.Lineage[i].Relation < checkpoint.Lineage[j].Relation
+		return cmp.Compare(left.Relation, right.Relation)
 	})
 	for index, parent := range checkpoint.Lineage {
 		if !parent.Artifact.Valid() || parent.Relation == artifact.RelationInvalid ||
@@ -303,11 +341,62 @@ func canonicalizeCheckpoint(checkpoint *Checkpoint) error {
 			return errors.New("training checkpoint: invalid lineage")
 		}
 	}
+	if err := canonicalRouterControllerStates(&checkpoint.RouterControllers); err != nil {
+		return err
+	}
 	return nil
 }
 
+func cloneRouterControllerStates(states []RouterControllerState) []RouterControllerState {
+	copy := slices.Clone(states)
+	for index := range copy {
+		copy[index].NextBias = slices.Clone(copy[index].NextBias)
+	}
+	return copy
+}
+
+func canonicalRouterControllerStates(states *[]RouterControllerState) error {
+	slices.SortFunc(*states, func(left, right RouterControllerState) int {
+		return compareRouterControllerAuthority(routerControllerAuthority(left), routerControllerAuthority(right))
+	})
+	for index, state := range *states {
+		if state.Policy.Kind() != artifact.KindRecipe || state.Stratum.Kind() != artifact.KindDatasetShard ||
+			state.Layer < 0 || len(state.NextBias) == 0 ||
+			index > 0 && (*states)[index-1].Policy == state.Policy &&
+				(*states)[index-1].Stratum == state.Stratum && (*states)[index-1].Layer == state.Layer {
+			return errors.New("training checkpoint: invalid router controller state")
+		}
+		for _, bias := range state.NextBias {
+			if math.IsNaN(float64(bias)) || math.IsInf(float64(bias), 0) {
+				return errors.New("training checkpoint: non-finite router controller state")
+			}
+		}
+	}
+	return nil
+}
+
+func routerControllerAuthority(state RouterControllerState) RouterControllerAuthority {
+	return RouterControllerAuthority{Policy: state.Policy, Stratum: state.Stratum, Layer: state.Layer, Experts: len(state.NextBias)}
+}
+
+func canonicalRouterControllerAuthorities(authorities []RouterControllerAuthority) []RouterControllerAuthority {
+	result := slices.Clone(authorities)
+	slices.SortFunc(result, compareRouterControllerAuthority)
+	return result
+}
+
+func compareRouterControllerAuthority(left, right RouterControllerAuthority) int {
+	if left.Policy != right.Policy {
+		return artifact.CompareID(left.Policy, right.Policy)
+	}
+	if left.Stratum != right.Stratum {
+		return artifact.CompareID(left.Stratum, right.Stratum)
+	}
+	return cmp.Compare(left.Layer, right.Layer)
+}
+
 func canonicalRNG(states *[]RNGState) error {
-	sort.Slice(*states, func(i, j int) bool { return (*states)[i].Name < (*states)[j].Name })
+	slices.SortFunc(*states, func(left, right RNGState) int { return cmp.Compare(left.Name, right.Name) })
 	required := map[string]bool{"augmentation": false, "data": false}
 	for index, state := range *states {
 		if strings.TrimSpace(state.Name) == "" || strings.ContainsAny(state.Name, "\x00\r\n") ||
@@ -325,7 +414,7 @@ func canonicalRNG(states *[]RNGState) error {
 }
 
 func canonicalCheckpointIDs(label string, ids *[]artifact.ID, kind artifact.Kind) error {
-	sort.Slice(*ids, func(i, j int) bool { return (*ids)[i].String() < (*ids)[j].String() })
+	slices.SortFunc(*ids, func(left, right artifact.ID) int { return cmp.Compare(left.String(), right.String()) })
 	for index, id := range *ids {
 		if id.Kind() != kind || index > 0 && id == (*ids)[index-1] {
 			return fmt.Errorf("training checkpoint: invalid %s identities", label)

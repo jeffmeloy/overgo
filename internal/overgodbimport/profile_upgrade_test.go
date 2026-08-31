@@ -145,9 +145,7 @@ func TestProfileUpgradeBackfillsFieldsAddedAfterPublication(t *testing.T) {
 	// predating the current profile shape.
 	name := policy["Name"]
 	stages := policy["DenseStages"]
-	for key := range policy {
-		delete(policy, key)
-	}
+	clear(policy)
 	policy["Name"] = name
 	policy["DenseStages"] = stages
 	sparse, err := json.Marshal(body)

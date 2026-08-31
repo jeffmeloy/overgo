@@ -65,7 +65,7 @@ func TestRoPEMatchesTorch(t *testing.T) {
 	cos := make([]float32, fx.T*fx.HD)
 	sin := make([]float32, fx.T*fx.HD)
 	for p := 0; p < fx.T; p++ {
-		for i := 0; i < half; i++ {
+		for i := range half {
 			c, s := fx.Cos[p*half+i], fx.Sin[p*half+i]
 			cos[p*fx.HD+i], cos[p*fx.HD+i+half] = c, c
 			sin[p*fx.HD+i], sin[p*fx.HD+i+half] = -s, -s

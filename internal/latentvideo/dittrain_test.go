@@ -159,7 +159,7 @@ func TestDiTTrainerGradientMatchesFiniteDifference(t *testing.T) {
 		for i := range direction {
 			got += float64(analytic[s.start+i]) * direction[i] / norm
 		}
-		scale := math.Max(math.Max(math.Abs(numeric), math.Abs(got)), 1e-3)
+		scale := max(max(math.Abs(numeric), math.Abs(got)), 1e-3)
 		if math.Abs(numeric-got)/scale > 2e-2 {
 			t.Fatalf("%s: analytic directional %g, finite-difference %g", spec.name, got, numeric)
 		}
@@ -175,7 +175,7 @@ func TestDiTTrainerStepDescends(t *testing.T) {
 		t.Fatal(err)
 	}
 	var last DiTTrainStepResult
-	for step := 0; step < 5; step++ {
+	for step := range 5 {
 		last, err = trainer.Step(batch)
 		if err != nil {
 			t.Fatal(err)

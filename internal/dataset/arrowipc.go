@@ -251,7 +251,7 @@ func decodeArrowBatch(
 		}
 		columns[index] = values
 	}
-	for row := int64(0); row < rows; row++ {
+	for row := range rows {
 		record := make(map[string]json.RawMessage, len(fields))
 		for index, field := range fields {
 			record[field.name] = columns[index][row]
@@ -290,7 +290,7 @@ func decodeArrowColumn(cursor *arrowCursor, field arrowField) ([]json.RawMessage
 			return nil, err
 		}
 		width := int64(field.intBits / 8)
-		for row := int64(0); row < length; row++ {
+		for row := range length {
 			if !valid(row) {
 				values[row] = json.RawMessage("null")
 				continue
@@ -317,7 +317,7 @@ func decodeArrowColumn(cursor *arrowCursor, field arrowField) ([]json.RawMessage
 		if err != nil {
 			return nil, err
 		}
-		for row := int64(0); row < length; row++ {
+		for row := range length {
 			if !valid(row) {
 				values[row] = json.RawMessage("null")
 				continue
@@ -345,7 +345,7 @@ func decodeArrowColumn(cursor *arrowCursor, field arrowField) ([]json.RawMessage
 		if err != nil {
 			return nil, err
 		}
-		for row := int64(0); row < length; row++ {
+		for row := range length {
 			switch {
 			case !valid(row):
 				values[row] = json.RawMessage("null")
@@ -369,7 +369,7 @@ func decodeArrowColumn(cursor *arrowCursor, field arrowField) ([]json.RawMessage
 		if int64(len(offsets)) < 4*(length+1) {
 			return nil, errors.New("utf8 offsets underflow")
 		}
-		for row := int64(0); row < length; row++ {
+		for row := range length {
 			if !valid(row) {
 				values[row] = json.RawMessage("null")
 				continue
@@ -397,7 +397,7 @@ func decodeArrowColumn(cursor *arrowCursor, field arrowField) ([]json.RawMessage
 		if err != nil {
 			return nil, err
 		}
-		for row := int64(0); row < length; row++ {
+		for row := range length {
 			if !valid(row) {
 				values[row] = json.RawMessage("null")
 				continue
@@ -428,7 +428,7 @@ func decodeArrowColumn(cursor *arrowCursor, field arrowField) ([]json.RawMessage
 			}
 			columns[index] = childValues
 		}
-		for row := int64(0); row < length; row++ {
+		for row := range length {
 			if !valid(row) {
 				values[row] = json.RawMessage("null")
 				continue

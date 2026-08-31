@@ -49,18 +49,18 @@ type ServingHardwareSample struct {
 
 // ServingUsage defines payload-free request accounting.
 type ServingUsage struct {
-	InputTokens  uint64 `json:"input_tokens,omitempty"`
-	OutputTokens uint64 `json:"output_tokens,omitempty"`
-	InputBytes   uint64 `json:"input_bytes,omitempty"`
-	OutputBytes  uint64 `json:"output_bytes,omitempty"`
+	InputTokens  uint64 `json:"input_tokens,omitzero"`
+	OutputTokens uint64 `json:"output_tokens,omitzero"`
+	InputBytes   uint64 `json:"input_bytes,omitzero"`
+	OutputBytes  uint64 `json:"output_bytes,omitzero"`
 }
 
 // ServingResources defines observed memory and transfer facts.
 type ServingResources struct {
-	PeakHostBytes     uint64 `json:"peak_host_bytes,omitempty"`
-	PeakDeviceBytes   uint64 `json:"peak_device_bytes,omitempty"`
-	HostToDeviceBytes uint64 `json:"host_to_device_bytes,omitempty"`
-	DeviceToHostBytes uint64 `json:"device_to_host_bytes,omitempty"`
+	PeakHostBytes     uint64 `json:"peak_host_bytes,omitzero"`
+	PeakDeviceBytes   uint64 `json:"peak_device_bytes,omitzero"`
+	HostToDeviceBytes uint64 `json:"host_to_device_bytes,omitzero"`
+	DeviceToHostBytes uint64 `json:"device_to_host_bytes,omitzero"`
 }
 
 // ServingAttemptKind classifies a validated attempt transition.
@@ -87,17 +87,17 @@ type ServingObservation struct {
 	Run           artifact.ID             `json:"run,omitzero"`
 	Previous      artifact.ID             `json:"previous,omitzero"`
 	Compatibility artifact.ID             `json:"compatibility,omitzero"`
-	Attempt       uint32                  `json:"attempt,omitempty"`
+	Attempt       uint32                  `json:"attempt,omitzero"`
 	Task          recipe.Task             `json:"task"`
 	Outcome       Outcome                 `json:"outcome"`
 	StartedUnixNS int64                   `json:"started_unix_ns"`
 	MeasuredNS    uint64                  `json:"measured_ns"`
-	SessionReused bool                    `json:"session_reused,omitempty"`
+	SessionReused bool                    `json:"session_reused,omitzero"`
 	Usage         ServingUsage            `json:"usage"`
 	Resources     ServingResources        `json:"resources"`
 	Phases        []PhaseMetric           `json:"phases,omitempty"`
 	Hardware      []ServingHardwareSample `json:"hardware,omitempty"`
-	Failure       string                  `json:"failure,omitempty"`
+	Failure       string                  `json:"failure,omitzero"`
 	// Causal explains why the serving execution occurred.
 	Causal *CausalContext `json:"causal,omitempty"`
 	ID     artifact.ID    `json:"-"`

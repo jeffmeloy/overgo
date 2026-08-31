@@ -1,7 +1,6 @@
 package agentloop
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -16,10 +15,10 @@ import (
 // repeated flaps never re-admit, and after the flurry no boundary is left
 // silently pending — every admitted wakeup was processed or is visible.
 func TestCoordinationCoalescesWithoutLostWork(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, store := coordinatorFixture(t)
 	session := &Session{ID: "coalesce-session"}
-	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{"step":1}`), false); err != nil {
+	if _, err := coordinator.Propose(ctx, session, "probe.read", json.RawMessage(`{"step":1}`)); err != nil {
 		t.Fatal(err)
 	}
 	interaction, found, err := runrecord.ResolveInteraction(ctx, store, "coalesce-session-step-1")

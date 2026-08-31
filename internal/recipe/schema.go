@@ -140,6 +140,37 @@ const (
 	DependencyEvaluation        DependencyRole = "training-evaluation"
 	DependencyEvaluator         DependencyRole = "evaluator"
 	DependencyPromotion         DependencyRole = "training-promotion"
+	// DependencyCandidateTrial binds a derived graph to the admitted,
+	// closed-world candidate compilation it executes or evaluates.
+	DependencyCandidateTrial DependencyRole = "candidate-trial"
+	// DependencyCandidateEvaluation binds the pre-execution evaluation plan.
+	DependencyCandidateEvaluation DependencyRole = "candidate-evaluation"
+	// DependencyCandidateComponent binds one compiled domain component plan.
+	DependencyCandidateComponent DependencyRole = "candidate-component"
+	// DependencyCandidateAblation binds one declared drop-delta arm.
+	DependencyCandidateAblation DependencyRole = "candidate-ablation"
+	// DependencyCandidateMaterialization binds the exact realized arm closure.
+	DependencyCandidateMaterialization DependencyRole = "candidate-materialization"
+	// DependencyCodeAuthority binds the compiled code revision used to realize a candidate.
+	DependencyCodeAuthority DependencyRole = "code-authority"
+	// DependencyEnvironmentAuthority binds the realization environment observation.
+	DependencyEnvironmentAuthority DependencyRole = "environment-authority"
+	// DependencyFalsifier binds the typed evaluation intent selected before execution.
+	DependencyFalsifier DependencyRole = "falsifier"
+	// DependencyExecutionRecipe binds evaluation to an exact derived execution graph.
+	DependencyExecutionRecipe DependencyRole = "execution-recipe"
+	// DependencyBudget binds a split-scoped resource grant.
+	DependencyBudget DependencyRole = "budget"
+	// DependencyDatasetShard binds an exact held-out or development split.
+	DependencyDatasetShard DependencyRole = "dataset-shard"
+	// DependencyTensorInventory binds the exact realized tensor inventory.
+	DependencyTensorInventory DependencyRole = "tensor-inventory"
+	// DependencyOutput binds the immutable output produced by a realized arm.
+	DependencyOutput DependencyRole = "output"
+	// DependencyRun binds the supervised realization run.
+	DependencyRun DependencyRole = "run"
+	// DependencyObservation binds the realization's typed observation contract.
+	DependencyObservation DependencyRole = "observation"
 	// DependencyCapabilityBundle binds typed instruction and resource data.
 	DependencyCapabilityBundle DependencyRole = "capability-bundle"
 	// DependencyToolManual binds a compiled workflow to one exact callable manual.
@@ -148,7 +179,7 @@ const (
 
 type Dependency struct {
 	Role     DependencyRole `json:"role"`
-	Slot     uint32         `json:"slot,omitempty"`
+	Slot     uint32         `json:"slot,omitzero"`
 	Artifact artifact.ID    `json:"artifact"`
 }
 
@@ -162,7 +193,7 @@ type Port struct {
 type ArtifactRequirement struct {
 	Name     PortName      `json:"name"`
 	Kind     artifact.Kind `json:"kind"`
-	Preserve bool          `json:"preserve,omitempty"`
+	Preserve bool          `json:"preserve,omitzero"`
 }
 
 type Module struct {
@@ -172,8 +203,8 @@ type Module struct {
 	Inputs         []Port                `json:"inputs,omitempty"`
 	Outputs        []Port                `json:"outputs,omitempty"`
 	Postconditions []ArtifactRequirement `json:"postconditions,omitempty"`
-	StageNode      NodeID                `json:"stage_node,omitempty"`
-	Next           ModuleID              `json:"next,omitempty"`
+	StageNode      NodeID                `json:"stage_node,omitzero"`
+	Next           ModuleID              `json:"next,omitzero"`
 }
 
 // SessionPolicy defines decode cache/graph lifetime.
@@ -217,14 +248,14 @@ type Node struct {
 	ID        NodeID          `json:"id"`
 	Module    ModuleID        `json:"module"`
 	Placement Placement       `json:"placement"`
-	Session   SessionPolicy   `json:"session,omitempty"`
-	Residency ResidencyPolicy `json:"residency,omitempty"`
+	Session   SessionPolicy   `json:"session,omitzero"`
+	Residency ResidencyPolicy `json:"residency,omitzero"`
 	// ModelSlot selects which model dependency the node executes against,
 	// keyed by Dependency{Role: DependencyModel, Slot: ModelSlot}. Slot 0 is
 	// the definition's primary model; a multi-model chain binds later nodes
 	// to higher slots so composition stays typed port wiring, never latent
 	// bridging.
-	ModelSlot uint32 `json:"model_slot,omitempty"`
+	ModelSlot uint32 `json:"model_slot,omitzero"`
 }
 
 type Endpoint struct {
@@ -268,10 +299,15 @@ func validateDependency(dependency Dependency) error {
 		want = artifact.KindModel
 	case DependencyProfile, DependencyProcessorProfile, DependencyFlowProfile, DependencyDerivationProfile,
 		DependencyCapabilityBundle, DependencyObjective, DependencyPrecision, DependencyPlacement,
-		DependencyMemory, DependencyOptimizer, DependencyCheckpointPolicy, DependencyEvaluation, DependencyPromotion:
+		DependencyMemory, DependencyOptimizer, DependencyCheckpointPolicy, DependencyEvaluation, DependencyPromotion,
+		DependencyCandidateTrial, DependencyCandidateEvaluation, DependencyCandidateComponent,
+		DependencyCandidateAblation:
 		want = artifact.KindProfile
-	case DependencyEvaluator:
+	case DependencyEvaluator, DependencyCandidateMaterialization, DependencyCodeAuthority,
+		DependencyEnvironmentAuthority, DependencyBudget, DependencyObservation:
 		want = artifact.KindEvidence
+	case DependencyFalsifier, DependencyExecutionRecipe:
+		want = artifact.KindRecipe
 	case DependencyTokenizer:
 		want = artifact.KindTokenizer
 	case DependencyProjector:
@@ -280,10 +316,18 @@ func validateDependency(dependency Dependency) error {
 		want = artifact.KindAdapter
 	case DependencyDataset:
 		want = artifact.KindDataset
+	case DependencyDatasetShard:
+		want = artifact.KindDatasetShard
 	case DependencyCheckpoint:
 		want = artifact.KindCheckpoint
 	case DependencyDefinition:
 		want = artifact.KindModelDefinition
+	case DependencyTensorInventory:
+		want = artifact.KindTensorInventory
+	case DependencyOutput:
+		want = artifact.KindOutput
+	case DependencyRun:
+		want = artifact.KindRun
 	case DependencyToolManual:
 		want = artifact.KindRecipe
 	default:

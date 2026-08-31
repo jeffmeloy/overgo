@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -419,10 +418,10 @@ func TestRecipeContentPersistsWithoutStorageCoupling(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	content, ok, err := artifact.ReadContent(context.Background(), store, definition.ID)
+	content, ok, err := artifact.ReadContent(t.Context(), store, definition.ID)
 	if err != nil || !ok {
 		t.Fatalf("content = (%v, %v)", ok, err)
 	}

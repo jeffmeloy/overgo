@@ -1,7 +1,6 @@
 package modelrecipe
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -15,7 +14,7 @@ import (
 // definition, lifecycle event, lineage, and status alias together --
 // lands as exactly one atomic batch.
 func TestSemanticTransitionUsesOneCommit(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

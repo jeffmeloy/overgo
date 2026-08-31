@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"encoding/json"
 	"math"
 	"strings"
@@ -21,7 +20,7 @@ import (
 // count derives from the history size alone and shrinks as evidence
 // grows, and the published derivation cites its history evidence.
 func TestLiveSafetyWindowDerivation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	historyEvidence := planID(t, artifact.KindEvidence, "safety-window-history")
 
 	small := []float64{0.52, 0.58, 0.55, 0.50, 0.60, 0.54, 0.53, 0.57, 0.51, 0.56}
@@ -35,7 +34,7 @@ func TestLiveSafetyWindowDerivation(t *testing.T) {
 	}
 
 	large := make([]float64, 0, 99)
-	for index := 0; index < 97; index++ {
+	for index := range 97 {
 		large = append(large, 0.5+float64(index%10)/100)
 	}
 	large = append(large, 0.05, 0.95)

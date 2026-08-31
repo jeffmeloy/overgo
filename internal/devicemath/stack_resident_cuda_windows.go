@@ -4,6 +4,7 @@ package devicemath
 
 import (
 	"fmt"
+	"slices"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -24,7 +25,7 @@ type LayerBackwardResult struct {
 var stackFnNames = func() []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, name := range append(append([]string{}, layerForwardFnNames...), layerBackwardFnNames...) {
+	for _, name := range append(slices.Clone(layerForwardFnNames), layerBackwardFnNames...) {
 		if !seen[name] {
 			seen[name] = true
 			out = append(out, name)
@@ -99,7 +100,7 @@ func StackForwardBackwardResident(
 		// Weights upload once, grad buffers allocate in-session; both feed runStack.
 		wp := make([]layerWeightPtrs, nL)
 		gp := make([]layerGradPtrs, nL)
-		for i := 0; i < nL; i++ {
+		for i := range nL {
 			if wp[i], err = uploadLayerWeights(s.cudaScope, layers[i]); err != nil {
 				return err
 			}
@@ -115,7 +116,7 @@ func StackForwardBackwardResident(
 			return err
 		}
 		downloads := make([]cudaDownload, 0, nL*9+1)
-		for i := 0; i < nL; i++ {
+		for i := range nL {
 			downloads = append(downloads,
 				cudaDownload{grads[i].DWInLN, gp[i].dInLN}, cudaDownload{grads[i].DWPostLN, gp[i].dPostLN},
 				cudaDownload{grads[i].DWQ, gp[i].dQ}, cudaDownload{grads[i].DWK, gp[i].dK}, cudaDownload{grads[i].DWV, gp[i].dV},

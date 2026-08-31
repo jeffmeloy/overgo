@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"slices"
+
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -125,12 +127,7 @@ func (c *CompiledGraph) hasFusion(node *tensor.Tensor, kinds ...compiledFusionKi
 	if fusion == nil {
 		return false
 	}
-	for _, kind := range kinds {
-		if fusion.kind == kind {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(kinds, fusion.kind)
 }
 
 var graphRewriteCatalog = [...]graphRewrite{

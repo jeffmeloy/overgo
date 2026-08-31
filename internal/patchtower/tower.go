@@ -158,7 +158,7 @@ func LoadMergerWeights(src *safetensors.Source, spec Spec) (MergerWeights, error
 
 // addBiasBF16: x = bf16(x + bias[col]) per element (runtime_bias_bf16).
 func addBiasBF16(x, bias []float32, rows, cols int) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := x[r*cols : (r+1)*cols]
 		for c, v := range row {
 			row[c] = dtype.RoundBF16(v + bias[c])
@@ -188,7 +188,7 @@ func patchEmbedOne(pixelValues []float32, srcPatch, channel int, spec Spec, w Pa
 	wBase := channel * media.RGBChannels * patchArea
 	acc := float64(w.Bias[channel])
 	for c := 0; c < media.RGBChannels; c++ {
-		for p := 0; p < patchArea; p++ {
+		for p := range patchArea {
 			x := dtype.RoundBF16(pixelValues[pvBase+c*patchArea+p])
 			acc += float64(x) * float64(w.Weight[wBase+c*patchArea+p])
 		}
@@ -278,17 +278,15 @@ func fullAttention(out, q, k, v []float32, rows, heads, hd int) {
 			qi, h := job/heads, job%heads
 			qRow := q[(qi*heads+h)*hd : (qi*heads+h+1)*hd]
 			maxScore := float32(math.Inf(-1))
-			for ki := 0; ki < rows; ki++ {
+			for ki := range rows {
 				kRow := k[(ki*heads+h)*hd : (ki*heads+h+1)*hd]
 				var dot float64
-				for d := 0; d < hd; d++ {
+				for d := range hd {
 					dot += float64(qRow[d]) * float64(kRow[d])
 				}
 				score := float32(dot) * scale
 				scores[ki] = score
-				if score > maxScore {
-					maxScore = score
-				}
+				maxScore = max(maxScore, score)
 			}
 			var sum float64
 			for ki, score := range scores {
@@ -298,16 +296,14 @@ func fullAttention(out, q, k, v []float32, rows, heads, hd int) {
 			}
 			inv := float32(1.0 / sum)
 			outRow := out[(qi*heads+h)*hd : (qi*heads+h+1)*hd]
-			for d := range outRow {
-				outRow[d] = 0
-			}
-			for ki := 0; ki < rows; ki++ {
+			clear(outRow)
+			for ki := range rows {
 				prob := dtype.RoundBF16(scores[ki] * inv)
 				if prob == 0 {
 					continue
 				}
 				vRow := v[(ki*heads+h)*hd : (ki*heads+h+1)*hd]
-				for d := 0; d < hd; d++ {
+				for d := range hd {
 					outRow[d] += prob * vRow[d]
 				}
 			}
@@ -343,7 +339,7 @@ func BlockForwardStages(pre []float32, rows int, spec Spec, w BlockWeights) (Blo
 	q := make([]float32, rows*h)
 	k := make([]float32, rows*h)
 	v := make([]float32, rows*h)
-	for token := 0; token < rows; token++ {
+	for token := range rows {
 		src := token * 3 * h
 		dst := token * h
 		copy(q[dst:dst+h], qkv[src:src+h])
@@ -364,7 +360,7 @@ func BlockForwardStages(pre []float32, rows int, spec Spec, w BlockWeights) (Blo
 	dtype.RoundBF16Slice(normed)
 	fc1 := make([]float32, rows*inter)
 	hostmath.LinearF64(fc1, normed, w.FC1Weight, nil, rows, h, inter)
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		row := fc1[r*inter : (r+1)*inter]
 		for c, x := range row {
 			value := float64(x + w.FC1Bias[c])
@@ -444,7 +440,7 @@ func MergerRowInto(dst, blockLast []float32, outRow, gridH, gridW int, spec Spec
 	group := spec.MergeSize * spec.MergeSize
 	for c := 0; c < spec.OutHidden; c++ {
 		var acc float32
-		for pos := 0; pos < group; pos++ {
+		for pos := range group {
 			acc += projected[pos*spec.OutHidden+c]
 		}
 		pooled[c] = dtype.RoundBF16(acc / float32(group))
@@ -453,7 +449,7 @@ func MergerRowInto(dst, blockLast []float32, outRow, gridH, gridW int, spec Spec
 	scores := scratch.scores
 	fused := scratch.fused
 	hidden := scratch.hidden
-	for pos := 0; pos < group; pos++ {
+	for pos := range group {
 		copy(fused[:spec.OutHidden], projected[pos*spec.OutHidden:(pos+1)*spec.OutHidden])
 		copy(fused[spec.OutHidden:], pooled)
 		hostmath.LinearF64(hidden, fused, merger.Pool0Weight, merger.Pool0Bias, 1, 2*spec.OutHidden, spec.OutHidden)
@@ -469,7 +465,7 @@ func MergerRowInto(dst, blockLast []float32, outRow, gridH, gridW int, spec Spec
 	weighted := scratch.weighted
 	score := scratch.score
 	for c := 0; c < spec.OutHidden; c++ {
-		for pos := 0; pos < group; pos++ {
+		for pos := range group {
 			score[pos] = scores[pos*spec.OutHidden+c]
 		}
 		hostmath.SoftmaxInPlace(score)

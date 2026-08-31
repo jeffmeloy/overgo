@@ -3,7 +3,6 @@
 package inference
 
 import (
-	"context"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -36,7 +35,7 @@ func TestNextNMTPDeviceSpeculationLossless(t *testing.T) {
 	if !runner.deviceSpeculationReady(options) {
 		t.Fatal("hybrid fixture does not admit NextN device speculation")
 	}
-	speculated, speculatedText, err := runner.Generate(context.Background(), "", options)
+	speculated, speculatedText, err := runner.Generate(t.Context(), "", options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +46,7 @@ func TestNextNMTPDeviceSpeculationLossless(t *testing.T) {
 	if runner.deviceSpeculationReady(plainOptions) {
 		t.Fatal("plain generation unexpectedly admits speculation")
 	}
-	plain, plainText, err := runner.Generate(context.Background(), "", plainOptions)
+	plain, plainText, err := runner.Generate(t.Context(), "", plainOptions)
 	if err != nil {
 		t.Fatal(err)
 	}

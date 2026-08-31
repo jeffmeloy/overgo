@@ -65,7 +65,7 @@ func initializePlanBindingRepo(t *testing.T, repository string) {
 	runGitFixture(t, repository, "config", "user.name", "Binding Test")
 	runGitFixture(t, repository, "add", "--", plan.Path)
 	runGitFixture(t, repository, "commit", "-q", "-m", "baseline")
-	store, err := overgodb.Open(filepath.Join(repository, "overgodb-store"))
+	store, err := overgodb.Open(filepath.Join(repository, gateStorePath))
 	if err != nil {
 		t.Fatal(err)
 	}

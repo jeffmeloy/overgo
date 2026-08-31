@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -198,7 +199,7 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 	source.state.aliases.each(func(name string, _ artifact.ID) {
 		names = append(names, name)
 	})
-	sort.Strings(names)
+	slices.Sort(names)
 	bindings := make([]artifact.AliasBinding, 0, len(names))
 	for _, name := range names {
 		target, _ := source.state.aliases.resolve(name)

@@ -3,7 +3,6 @@
 package inference
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -138,11 +137,11 @@ func TestRecurrentCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
 	release := func(cache *deviceKVCache) {
-		if err := cache.Release(context.Background()); err != nil {
+		if err := cache.Release(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 	}

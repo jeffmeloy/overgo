@@ -46,12 +46,12 @@ func mergerMemberColumns(imageRows, gridH, gridW int, spec Spec) ([]uint32, erro
 	outSpatial := outH * outW
 	group := merge * merge
 	cols := make([]uint32, group*imageRows)
-	for outRow := 0; outRow < imageRows; outRow++ {
+	for outRow := range imageRows {
 		t := outRow / outSpatial
 		spatial := outRow % outSpatial
 		oh, ow := spatial/outW, spatial%outW
-		for dy := 0; dy < merge; dy++ {
-			for dx := 0; dx < merge; dx++ {
+		for dy := range merge {
+			for dx := range merge {
 				pos := dy*merge + dx
 				src := t*gridH*gridW + (oh*merge+dy)*gridW + (ow*merge + dx)
 				cols[pos*imageRows+outRow] = uint32(src)

@@ -19,13 +19,14 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -101,9 +102,7 @@ func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
 		return loop.Strategy{}, errors.New("config requires an exact strategy_id profile")
 	}
 	repository := loaded.Repository
-	if repository == "" {
-		repository = "overgodb-store"
-	}
+	repository = cmp.Or(repository, "overgodb-store")
 	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return loop.Strategy{}, fmt.Errorf("open strategy repository: %w", err)
@@ -235,7 +234,7 @@ func (w *execWorld) AdmitNext() (string, bool, error) {
 	if len(names) == 0 {
 		return "", false, nil
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	spec := filepath.Join(w.config.Proposals, names[0])
 	out, err := runTool("go", "run", "./cmd/plan", "-admit-proposal", spec)
 	if err != nil {

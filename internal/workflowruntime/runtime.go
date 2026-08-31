@@ -380,20 +380,21 @@ func (r *Runtime) executeReadySet(
 		}
 	}
 	if active != 0 {
-		runContext, cancel := context.WithCancel(ctx)
+		runContext, cancel := context.WithCancelCause(ctx)
+		defer cancel(nil)
 		results := make(chan stageResult, active)
 		for index := range stages {
 			if stages[index].recovered {
 				continue
 			}
-			go func(index int) {
+			go func() {
 				stage := stages[index]
 				// Admission before execution: a bounded slot, then the
 				// module's entry lock, then the adapter.
 				select {
 				case r.slots <- struct{}{}:
 				case <-runContext.Done():
-					results <- stageResult{index: index, err: runContext.Err()}
+					results <- stageResult{index: index, err: context.Cause(runContext)}
 					return
 				}
 				defer func() { <-r.slots }()
@@ -403,17 +404,16 @@ func (r *Runtime) executeReadySet(
 				started := time.Now()
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
 				results <- stageResult{index: index, outputs: outputs, wallNS: uint64(time.Since(started).Nanoseconds()), err: err}
-			}(index)
+			}()
 		}
 		for range active {
 			result := <-results
 			stages[result.index].outputs, stages[result.index].err = result.outputs, result.err
 			stages[result.index].wallNS = result.wallNS
 			if result.err != nil {
-				cancel()
+				cancel(result.err)
 			}
 		}
-		cancel()
 	}
 	var executeErr error
 	for index := range stages {

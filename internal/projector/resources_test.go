@@ -41,7 +41,7 @@ func TestOpenProjectorResourceClosesFileOnBuildFailure(t *testing.T) {
 	}
 	want := errors.New("build failed")
 	var captured *gguf.File
-	result, err := openProjectorResource(context.Background(), path, func(file *gguf.File) (*gguf.File, error) {
+	result, err := openProjectorResource(t.Context(), path, func(file *gguf.File) (*gguf.File, error) {
 		captured = file
 		return nil, want
 	})
@@ -58,7 +58,7 @@ func TestOpenProjectorResourceClosesFileOnBuildFailure(t *testing.T) {
 }
 
 func TestOpenProjectorResourceRejectsCanceledContextBeforeOpen(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	called := false
 	_, err := openProjectorResource(ctx, "missing.gguf", func(*gguf.File) (struct{}, error) {

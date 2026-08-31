@@ -2,7 +2,6 @@ package trainingworkflow
 
 import (
 	"bytes"
-	"context"
 	"math"
 	"os"
 	"path/filepath"
@@ -97,7 +96,7 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	recipeID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
 	if err != nil {
 		t.Fatal(err)

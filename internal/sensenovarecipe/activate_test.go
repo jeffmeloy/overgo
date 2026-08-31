@@ -25,7 +25,7 @@ const activationReason = "SenseNova compiled text request, retained prefix/body,
 // lifecycle, then resolved back through the SAME predicate the sibling VQA
 // capability uses (Resolve => ActiveRecord + CompileCapability).
 func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	if modelDir == "" {
 		t.Skip("OVERGO_SENSENOVA_MODEL is not set")
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 
 	facts, err := Derive(modelDir)
 	if err != nil {

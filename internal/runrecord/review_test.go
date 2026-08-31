@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 
@@ -190,18 +189,18 @@ func TestReviewPriority(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
-	priority, err := DeriveReviewPriority(context.Background(), store, reviewCommitB, []ReviewCandidate{candidate}, nil)
+	priority, err := DeriveReviewPriority(t.Context(), store, reviewCommitB, []ReviewCandidate{candidate}, nil)
 	if err != nil || priority.Phase != ReviewPhaseSQA || priority.Candidate != candidate.ID {
 		t.Fatalf("candidate phase = (%+v, %v)", priority, err)
 	}
-	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitB, []ReviewCandidate{candidate}, []ReviewVerdict{verdict})
+	priority, err = DeriveReviewPriority(t.Context(), store, reviewCommitB, []ReviewCandidate{candidate}, []ReviewVerdict{verdict})
 	if err != nil || priority.Phase != ReviewPhasePriority || priority.Candidate != candidate.ID || priority.Verdict != verdict.ID {
 		t.Fatalf("admitted phase = (%+v, %v)", priority, err)
 	}
-	priority, err = DeriveReviewPriority(context.Background(), store, reviewCommitA, []ReviewCandidate{candidate}, []ReviewVerdict{verdict})
+	priority, err = DeriveReviewPriority(t.Context(), store, reviewCommitA, []ReviewCandidate{candidate}, []ReviewVerdict{verdict})
 	if err != nil || priority.Phase != ReviewPhaseImplementation {
 		t.Fatalf("unreviewed head phase = (%+v, %v)", priority, err)
 	}

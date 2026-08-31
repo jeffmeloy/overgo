@@ -17,7 +17,7 @@ func TestServingEnvironmentCommitIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	for session := 0; session < 2; session++ {
+	for session := range 2 {
 		if _, _, err := openServingRepository(Config{Repository: store}); err != nil {
 			t.Fatalf("serving session %d environment: %v", session, err)
 		}

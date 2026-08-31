@@ -53,8 +53,8 @@ type Measurement struct {
 	Role      MeasurementRole `json:"role"`
 	Runtime   string          `json:"runtime"`
 	Protocol  string          `json:"protocol"`
-	WallNanos uint64          `json:"wall_nanos,omitempty"`
-	PeakBytes uint64          `json:"peak_bytes,omitempty"`
+	WallNanos uint64          `json:"wall_nanos,omitzero"`
+	PeakBytes uint64          `json:"peak_bytes,omitzero"`
 	Evidence  artifact.ID     `json:"evidence"`
 }
 
@@ -81,7 +81,7 @@ type Capability struct {
 	EntryPoint   string         `json:"entry_point"`
 	Signature    Signature      `json:"signature"`
 	State        PromotionState `json:"state"`
-	Refusal      string         `json:"refusal,omitempty"`
+	Refusal      string         `json:"refusal,omitzero"`
 	Artifacts    []Reference    `json:"artifacts"`
 	Corpora      []Reference    `json:"corpora"`
 	Goldens      []Reference    `json:"goldens"`

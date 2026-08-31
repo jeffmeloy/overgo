@@ -23,7 +23,7 @@ type output struct {
 	Rows       int       `json:"rows"`
 	Parameters int       `json:"parameters"`
 	Losses     []float64 `json:"losses"`
-	Weights    string    `json:"weights,omitempty"`
+	Weights    string    `json:"weights,omitzero"`
 }
 
 func main() { clioptions.MainNamed("adapter-train-probe", run) }

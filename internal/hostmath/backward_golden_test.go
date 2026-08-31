@@ -103,7 +103,7 @@ func TestCausalAttentionBackwardForwardConsistency(t *testing.T) {
 	q := make([]float32, n)
 	k := make([]float32, n)
 	v := make([]float32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		q[i] = float32(math.Sin(float64(i) * 0.7))
 		k[i] = float32(math.Cos(float64(i) * 0.3))
 		v[i] = float32(math.Sin(float64(i)*0.5 + 1))

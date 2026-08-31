@@ -33,7 +33,7 @@ func TestProjectionSessionPlanBindsProjector(t *testing.T) {
 	}
 	const projectorBytes = 931
 	plan, err := CompileComponentSessionPlanWithExtents(
-		context.Background(), program,
+		t.Context(), program,
 		func(_ context.Context, id artifact.ID) (uint64, error) {
 			if id == projectorID {
 				return projectorBytes, nil

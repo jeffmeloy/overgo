@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -95,7 +96,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 		t.Fatalf("progressed turn with only parked parallel-lane dirt = %q, want allow", got)
 	}
 
-	current := append(append([]dirtyFact{}, parked...), dirtyFact{Path: "cmd/loophook/main.go", WorktreeStatus: "M", WorkIdentity: "third"})
+	current := append(slices.Clone(parked), dirtyFact{Path: "cmd/loophook/main.go", WorktreeStatus: "M", WorkIdentity: "third"})
 	created := turnCreatedDirt(parked, current)
 	if len(created) != 1 || created[0].Path != "cmd/loophook/main.go" {
 		t.Fatalf("turn-created dirt = %v, want the new path only", created)
@@ -109,7 +110,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 		t.Fatalf("missing snapshot must fail safe toward blocking, got %v", created)
 	}
 
-	changed := append([]dirtyFact{}, parked...)
+	changed := slices.Clone(parked)
 	changed[0].WorkIdentity = "changed-this-turn"
 	if created := turnCreatedDirt(parked, changed); len(created) != 1 || created[0].Path != parked[0].Path {
 		t.Fatalf("modified parked path was not turn-created dirt: %v", created)

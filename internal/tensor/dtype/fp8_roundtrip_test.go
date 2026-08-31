@@ -9,7 +9,7 @@ import (
 // encode(decode(b)) == b for all 256 patterns except the NaN pair (whose
 // payload collapses to the canonical NaN pattern) and negative zero.
 func TestF8E4M3EncodeIsExactInverseOnEveryValue(t *testing.T) {
-	for b := 0; b < 256; b++ {
+	for b := range 256 {
 		value := F8E4M3ToFloat32(byte(b))
 		encoded := Float32ToF8E4M3(value)
 		if math.IsNaN(float64(value)) {

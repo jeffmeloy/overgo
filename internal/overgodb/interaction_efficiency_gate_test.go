@@ -1,7 +1,6 @@
 package overgodb_test
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -21,7 +20,7 @@ func TestInteractionEfficiencyGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	descriptors := make([]artifact.Descriptor, 0, 9)
 	for _, name := range []string{"a", "b", "c", "d", "e", "f", "g"} {
 		descriptors = append(descriptors, artifact.Descriptor{

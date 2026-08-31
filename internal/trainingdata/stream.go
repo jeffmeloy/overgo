@@ -238,9 +238,9 @@ type PreviewValue struct {
 	Modality   recipecontract.Modality `json:"modality"`
 	Encoding   string                  `json:"encoding"`
 	Shape      []int                   `json:"shape,omitempty"`
-	SampleRate int                     `json:"sample_rate,omitempty"`
+	SampleRate int                     `json:"sample_rate,omitzero"`
 	Bytes      int                     `json:"bytes"`
-	Text       string                  `json:"text,omitempty"`
+	Text       string                  `json:"text,omitzero"`
 }
 
 type PreviewExample struct {
@@ -299,9 +299,7 @@ func (batcher *Batcher) decode(ctx context.Context, references []recordRef) ([]E
 	var first error
 	var errorOnce sync.Once
 	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for index := range jobs {
 				if ctx.Err() != nil {
 					continue
@@ -321,7 +319,7 @@ func (batcher *Batcher) decode(ctx context.Context, references []recordRef) ([]E
 					})
 				}
 			}
-		}()
+		})
 	}
 send:
 	for index := range references {

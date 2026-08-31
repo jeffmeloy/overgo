@@ -1,7 +1,6 @@
 package adaptiveparity
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -102,7 +101,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	vision, err := projector.OpenAs[*projector.DeepSeekOCRRunner](context.Background(), projectorPath, projector.OpenOptions{
+	vision, err := projector.OpenAs[*projector.DeepSeekOCRRunner](t.Context(), projectorPath, projector.OpenOptions{
 		CUDA: true, DisableDynamicTiles: true,
 	})
 
@@ -116,7 +115,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	language, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{})
+	language, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +125,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 	}
 	projectStarted := time.Now()
 	prompt, err := mustProjectorSession(t, vision).BuildImagePrompt(
-		context.Background(), language, source, "", "document parsing.", false,
+		t.Context(), language, source, "", "document parsing.", false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +159,7 @@ func TestUnlimitedOCRProductionParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	generateStarted := time.Now()
-	generated, _, err := language.Generate(context.Background(), "", inference.GenerateOptions{
+	generated, _, err := language.Generate(t.Context(), "", inference.GenerateOptions{
 		MaxNewTokens: len(golden.GeneratedTokenIDs), Sampler: greedy, DeviceGreedy: true,
 		PromptTokenIDs: ids, ProjectedInputs: &projected,
 	})

@@ -35,9 +35,9 @@ func TestExecutorFP8MulMatMatchesReference(t *testing.T) {
 	weightBytes := make([]byte, rows*inner)
 	scales := make([]float32, rows)
 	dequantized := make([]float32, rows*inner)
-	for row := 0; row < rows; row++ {
+	for row := range rows {
 		scales[row] = 0.125 * float32(1+row%7) // positive, varied per output row
-		for column := 0; column < inner; column++ {
+		for column := range inner {
 			b := fp8PatternByte(row*inner + column)
 			weightBytes[row*inner+column] = b
 			dequantized[row*inner+column] = dtype.F8E4M3ToFloat32(b) * scales[row]
@@ -46,7 +46,7 @@ func TestExecutorFP8MulMatMatchesReference(t *testing.T) {
 	// Combined resident buffer: all e4m3 bytes, then the per-row F32 scales.
 	storage := make([]byte, rows*inner+rows*4)
 	copy(storage, weightBytes)
-	for row := 0; row < rows; row++ {
+	for row := range rows {
 		binary.LittleEndian.PutUint32(storage[rows*inner+row*4:], math.Float32bits(scales[row]))
 	}
 

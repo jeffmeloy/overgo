@@ -39,7 +39,7 @@ func TestMADNormGraphDeviceMatchesReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	cuda := newFixtureExecutor(t)
-	got, err := cuda.Execute(context.Background(), []*tensor.Tensor{output}, feeds)
+	got, err := cuda.Execute(context.WithoutCancel(t.Context()), []*tensor.Tensor{output}, feeds)
 	if err != nil {
 		t.Fatal(err)
 	}

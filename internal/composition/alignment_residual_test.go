@@ -29,7 +29,7 @@ func applyLinearMap(source [][]float64, adapter [][]float64, noise func(row, col
 	target := make([][]float64, len(source))
 	for row := range source {
 		target[row] = make([]float64, width)
-		for column := 0; column < width; column++ {
+		for column := range width {
 			total := 0.0
 			for k := range source[row] {
 				total += source[row][k] * adapter[k][column]

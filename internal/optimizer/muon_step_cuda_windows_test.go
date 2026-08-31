@@ -70,7 +70,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 			}
 
 			var maxW, maxM float64
-			for i := 0; i < n; i++ {
+			for i := range n {
 				if d := math.Abs(float64(devW[i]) - float64(hostW[i])); d > maxW {
 					maxW = d
 				}
@@ -207,7 +207,7 @@ func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 	}
 
 	var maxW, maxM float64
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if d := math.Abs(float64(devW[i]) - float64(hostW[i])); d > maxW {
 			maxW = d
 		}

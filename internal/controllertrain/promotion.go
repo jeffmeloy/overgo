@@ -45,8 +45,8 @@ type SeedEvidence struct {
 
 type ResourceCost struct {
 	WallNS          uint64 `json:"wall_ns"`
-	PeakDeviceBytes uint64 `json:"peak_device_bytes,omitempty"`
-	PeakHostBytes   uint64 `json:"peak_host_bytes,omitempty"`
+	PeakDeviceBytes uint64 `json:"peak_device_bytes,omitzero"`
+	PeakHostBytes   uint64 `json:"peak_host_bytes,omitzero"`
 }
 
 // Challenger: same-suite result or explicit eligibility refusal.
@@ -56,7 +56,7 @@ type Challenger struct {
 	Model      artifact.ID   `json:"model"`
 	Evaluation *artifact.ID  `json:"evaluation,omitempty"`
 	Eligible   bool          `json:"eligible"`
-	Refusal    string        `json:"refusal,omitempty"`
+	Refusal    string        `json:"refusal,omitzero"`
 	Metrics    *SuiteMetrics `json:"metrics,omitempty"`
 	Evaluator  artifact.ID   `json:"evaluator,omitzero"`
 	Split      artifact.ID   `json:"split,omitzero"`

@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -11,7 +10,7 @@ import (
 )
 
 func TestCapabilityIdentityContract(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

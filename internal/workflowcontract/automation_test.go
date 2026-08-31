@@ -1,7 +1,6 @@
 package workflowcontract
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -22,11 +21,11 @@ func TestCompileAutomationExecutionPlan(t *testing.T) {
 	fixture := prepareAutomationFixture(t, false)
 	defer fixture.store.Close()
 
-	first, err := fixture.compiler.Compile(context.Background(), fixture.definition.Name)
+	first, err := fixture.compiler.Compile(t.Context(), fixture.definition.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := fixture.compiler.Compile(context.Background(), fixture.definition.Name)
+	second, err := fixture.compiler.Compile(t.Context(), fixture.definition.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,17 +42,17 @@ func TestCompileAutomationExecutionPlan(t *testing.T) {
 func TestAutomationExecutionPlanRefuses(t *testing.T) {
 	fixture := prepareAutomationFixture(t, true)
 	defer fixture.store.Close()
-	if _, err := fixture.compiler.Compile(context.Background(), fixture.definition.Name); err == nil {
+	if _, err := fixture.compiler.Compile(t.Context(), fixture.definition.Name); err == nil {
 		t.Fatal("automation with recipe dependency mismatch compiled")
 	}
-	if _, err := fixture.compiler.Compile(context.Background(), "absent"); err == nil {
+	if _, err := fixture.compiler.Compile(t.Context(), "absent"); err == nil {
 		t.Fatal("automation without active authority compiled")
 	}
 }
 
 func prepareAutomationFixture(t *testing.T, mismatch bool) automationFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +141,7 @@ func commitAutomationBlob(t *testing.T, store artifact.Repository, kind artifact
 	content := artifact.Content{Descriptor: artifact.Descriptor{
 		ID: id, Size: uint64(len(data)), MediaType: "application/octet-stream",
 	}, Data: data}
-	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
 		Key: "automation/blob/" + label, Contents: []artifact.Content{content},
 	}); err != nil {
 		t.Fatal(err)

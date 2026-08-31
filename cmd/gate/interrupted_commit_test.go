@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -63,7 +62,7 @@ func TestRecoverInterruptedCommitRestoresParentAndFinalizesCancellation(t *testi
 	store := openRecoveryStore(t, fixture)
 	defer store.Close()
 	finalization, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, fixture.preparation.ID,
+		t.Context(), store, fixture.preparation.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +74,7 @@ func TestRecoverInterruptedCommitRestoresParentAndFinalizesCancellation(t *testi
 		finalization.CodeCommit != fixture.commit || finalization.Result == nil {
 		t.Fatalf("cancelled finalization = %+v", finalization)
 	}
-	gate, err := runrecord.RequireGateResult(context.Background(), store, *finalization.Result)
+	gate, err := runrecord.RequireGateResult(t.Context(), store, *finalization.Result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +104,7 @@ func TestRecoverInterruptedStateCrashRetryBoundaries(t *testing.T) {
 			}
 			store := openRecoveryStore(t, fixture)
 			_, finalized, err := runrecord.GateFinalizationForPreparation(
-				context.Background(), store, fixture.preparation.ID,
+				t.Context(), store, fixture.preparation.ID,
 			)
 			if closeErr := store.Close(); err != nil || closeErr != nil {
 				t.Fatal(errors.Join(err, closeErr))
@@ -166,8 +165,8 @@ func crashInterruptedRecoveryProcess(t *testing.T, repo, storePath, step string)
 		gateRecoveryCrashStepEnvironment+"="+step,
 	)
 	output, err := process.CombinedOutput()
-	var exitError *exec.ExitError
-	if !errors.As(err, &exitError) || exitError.ExitCode() != gateRecoveryCrashExitCode {
+	exitError, exitFailure := errors.AsType[*exec.ExitError](err)
+	if !exitFailure || exitError.ExitCode() != gateRecoveryCrashExitCode {
 		t.Fatalf("%s crash helper = %v, output:\n%s", step, err, output)
 	}
 }
@@ -252,7 +251,7 @@ func TestGateGitLockRecoveryReclaimsEveryExactMarkerPrefix(t *testing.T) {
 	}
 	locks, marker := gateGitLockAuthorityForTest(t, fixture.repo, intent)
 	for count := 1; count <= len(locks); count++ {
-		for index := 0; index < count; index++ {
+		for index := range count {
 			if err := publishGateGitLockMarker(locks[index], marker); err != nil {
 				t.Fatalf("publish prefix %d lock %s: %v", count, locks[index].name, err)
 			}
@@ -383,18 +382,18 @@ func TestRecoverInterruptedCommitClearsStaleIntentAfterSuccessfulAttempt(t *test
 
 	store := openRecoveryStore(t, fixture)
 	defer store.Close()
-	attempts, err := runrecord.AttemptsForPreparation(context.Background(), store, fixture.preparation.ID)
+	attempts, err := runrecord.AttemptsForPreparation(t.Context(), store, fixture.preparation.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(attempts) != 1 || attempts[0].ID != attempt.ID {
 		t.Fatalf("attempts = %+v, want only %s", attempts, attempt.ID)
 	}
-	if _, err := runrecord.VerifyAttemptGate(context.Background(), store, attempts[0]); err != nil {
+	if _, err := runrecord.VerifyAttemptGate(t.Context(), store, attempts[0]); err != nil {
 		t.Fatalf("successful interrupted attempt is incomplete: %v", err)
 	}
 	finalization, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, fixture.preparation.ID,
+		t.Context(), store, fixture.preparation.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -422,7 +421,7 @@ func TestRecoverInterruptedCommitRollsBackIncompleteSuccessfulFinalization(t *te
 	assertNoCommitIntent(t, fixture.repo)
 	store := openRecoveryStore(t, fixture)
 	finalization, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, fixture.preparation.ID,
+		t.Context(), store, fixture.preparation.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -538,7 +537,7 @@ func TestReconcileGateDebtAcceptsExactSuccessfulChain(t *testing.T) {
 	}
 	store := openRecoveryStore(t, fixture)
 	defer store.Close()
-	if _, err := runrecord.VerifyAttemptGate(context.Background(), store, attempt); err != nil {
+	if _, err := runrecord.VerifyAttemptGate(t.Context(), store, attempt); err != nil {
 		t.Fatalf("reconciled attempt chain: %v", err)
 	}
 }
@@ -922,7 +921,8 @@ func TestRecoverInterruptedMergeRestoresExactPendingMerge(t *testing.T) {
 		Version: artifact.InitialDocumentVersion, Preparation: preparation.ID,
 		PreparationCommit: preparationCommit, Recipe: recipe,
 		CandidateManifest: candidate, Parent: parent,
-		HeadReference: mustCurrentHeadReference(t, repo), Merge: merge,
+		PlanProjection: plan.MergeProjectionSemanticUnion,
+		HeadReference:  mustCurrentHeadReference(t, repo), Merge: merge,
 		IndexTree: mergeIndexTree,
 		PlanRef:   "ratchet/merge", Paths: []string{"merged.go", retiredPath, plan.Path},
 		Plan: planBefore, AdvancedPlan: planAfter, PlanMode: 0o644,
@@ -961,6 +961,9 @@ func TestRecoverInterruptedMergeRestoresExactPendingMerge(t *testing.T) {
 	}
 	if err := readJSON(repo, gateCommitIntentFile, &intent); err != nil {
 		t.Fatal(err)
+	}
+	if intent.PlanProjection != plan.MergeProjectionSemanticUnion {
+		t.Fatalf("recovered merge projection = %q", intent.PlanProjection)
 	}
 	recreated := []byte("recreated after the merge commit\n")
 	if err := os.WriteFile(filepath.Join(repo, retiredPath), recreated, 0o644); err != nil {
@@ -1019,7 +1022,7 @@ func TestRecoverInterruptedMergeRestoresExactPendingMerge(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	finalization, found, err := runrecord.GateFinalizationForPreparation(context.Background(), store, preparation.ID)
+	finalization, found, err := runrecord.GateFinalizationForPreparation(t.Context(), store, preparation.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1378,13 +1381,13 @@ func TestPostCommitTrailerMutationIsRefusedAndRecovered(t *testing.T) {
 	assertNoCommitIntent(t, fixture.repo)
 	store := openRecoveryStore(t, fixture)
 	defer store.Close()
-	if attempts, err := runrecord.AttemptsForPreparation(context.Background(), store, fixture.preparation.ID); err != nil {
+	if attempts, err := runrecord.AttemptsForPreparation(t.Context(), store, fixture.preparation.ID); err != nil {
 		t.Fatal(err)
 	} else if len(attempts) != 0 {
 		t.Fatalf("mutated completion published successful attempts: %+v", attempts)
 	}
 	finalization, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, fixture.preparation.ID,
+		t.Context(), store, fixture.preparation.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1445,7 +1448,7 @@ func TestInterruptedCompletionRequiresPreparationReceipt(t *testing.T) {
 	intent.PreparationCommit[0]++
 	store := openRecoveryStore(t, fixture)
 	defer store.Close()
-	recorded, err := interruptedCompletionRecorded(context.Background(), store, intent)
+	recorded, err := interruptedCompletionRecorded(t.Context(), store, intent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1726,7 +1729,7 @@ func publishInterruptedPreparationWithKey(
 		t.Fatal(err)
 	}
 	defer store.Close()
-	binding, err := gatePreparationAlias(context.Background(), store, preparation.ID)
+	binding, err := gatePreparationAlias(t.Context(), store, preparation.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1738,11 +1741,11 @@ func publishInterruptedPreparationWithKey(
 	if err != nil {
 		t.Fatal(err)
 	}
-	commit, err := store.Commit(context.Background(), batch)
+	commit, err := store.Commit(t.Context(), batch)
 	if err != nil {
 		t.Fatal(err)
 	}
-	introduction, found, err := store.ArtifactIntroduction(context.Background(), preparation.ID)
+	introduction, found, err := store.ArtifactIntroduction(t.Context(), preparation.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1761,7 +1764,7 @@ func publishSuccessfulInterruptedAttempt(
 	attempt, batch := successfulInterruptedAttemptBatch(t, fixture, includeAttempt, "fixture/interrupted/success")
 	store := openRecoveryStore(t, fixture)
 	defer store.Close()
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	return attempt

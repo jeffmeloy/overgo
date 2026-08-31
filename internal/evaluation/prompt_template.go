@@ -23,8 +23,8 @@ type PromptTemplate struct {
 	Version       uint16      `json:"version"`
 	Model         artifact.ID `json:"model"`
 	Source        string      `json:"source"`
-	ScoringPrefix string      `json:"scoring_prefix,omitempty"`
-	ChatTemplate  string      `json:"chat_template,omitempty"`
+	ScoringPrefix string      `json:"scoring_prefix,omitzero"`
+	ChatTemplate  string      `json:"chat_template,omitzero"`
 }
 
 var promptTemplateCodec = artifact.JSONDocumentCodec(

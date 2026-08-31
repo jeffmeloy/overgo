@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -60,7 +61,7 @@ type QueryCursor struct {
 	Head          artifact.CommitID `json:"head"`
 	Contract      [sha256.Size]byte `json:"contract"`
 	After         artifact.ID       `json:"after"`
-	AfterSequence uint64            `json:"after_sequence,omitempty"`
+	AfterSequence uint64            `json:"after_sequence,omitzero"`
 }
 
 // EncodeQueryCursor encodes a URL-safe continuation.
@@ -157,7 +158,7 @@ type QueryResult struct {
 	Aliases   []AliasView           `json:"aliases,omitempty"`
 	Lineage   []artifact.Lineage    `json:"lineage,omitempty"`
 	Commits   []CommitView          `json:"commits,omitempty"`
-	Truncated bool                  `json:"truncated,omitempty"`
+	Truncated bool                  `json:"truncated,omitzero"`
 	Next      *QueryCursor          `json:"next,omitempty"`
 	Plan      QueryPlanReport       `json:"plan"`
 }
@@ -219,12 +220,12 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if query.Cursor != nil && (query.Cursor.Head != s.head || query.Cursor.Contract != contract) {
 		return QueryResult{}, errors.New("overgodb: query cursor is stale or belongs to another query")
 	}
-	planIndex, inspected := "seed", 0
+	planIndex := "seed"
 	if query.Artifact == nil && query.Alias == "" {
 		if query.FromSequence != 0 || query.ToSequence != 0 {
 			planIndex = "sequence"
 		} else {
-			planIndex, inspected = s.state.queryIndexPlan(query)
+			planIndex, _ = s.state.queryIndexPlan(query)
 		}
 	}
 	if query.RequireIndex && planIndex == "catalog" {
@@ -233,7 +234,7 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 		)
 	}
 	result := QueryResult{Head: s.head, Sequence: s.sequence}
-	selected, ids, edges, matched, truncated, err := s.state.querySelection(query)
+	selected, ids, edges, inspected, matched, truncated, err := s.state.querySelection(query)
 	if err != nil {
 		return QueryResult{}, err
 	}
@@ -269,9 +270,6 @@ func (s *Store) Query(ctx context.Context, query Query) (QueryResult, error) {
 	if truncated && len(ids) > 0 && query.Artifact == nil && query.Alias == "" &&
 		query.FromSequence == 0 && query.ToSequence == 0 {
 		result.Next = &QueryCursor{Head: s.head, Contract: contract, After: ids[len(ids)-1]}
-	}
-	if planIndex == "seed" || planIndex == "sequence" {
-		inspected = matched
 	}
 	result.Plan = QueryPlanReport{
 		Index: planIndex, Inspected: inspected, Matched: matched, Returned: len(ids),
@@ -354,15 +352,15 @@ func queryContractDigest(query Query) ([sha256.Size]byte, error) {
 	return sha256.Sum256(payload), nil
 }
 
-func (s catalogState) querySelection(query Query) (map[artifact.ID]struct{}, []artifact.ID, []artifact.Lineage, int, bool, error) {
+func (s catalogState) querySelection(query Query) (map[artifact.ID]struct{}, []artifact.ID, []artifact.Lineage, int, int, bool, error) {
 	seed, seeded, err := s.querySeed(query)
 	if err != nil {
-		return nil, nil, nil, 0, false, err
+		return nil, nil, nil, 0, 0, false, err
 	}
 	selected := make(map[artifact.ID]struct{})
 	if !seeded {
 		if query.FromSequence != 0 || query.ToSequence != 0 {
-			return selected, nil, nil, 0, false, nil
+			return selected, nil, nil, 0, 0, false, nil
 		}
 		candidateCount := s.descriptorCandidateCount(query)
 		bounded := query.Cursor != nil || query.MaxResults < candidateCount
@@ -404,10 +402,10 @@ func (s catalogState) querySelection(query Query) (map[artifact.ID]struct{}, []a
 		if query.Projection.includes(projectLineage) {
 			edges = s.lineageWithin(selected, query.Relation)
 		}
-		return selected, ids, edges, matched, truncated, nil
+		return selected, ids, edges, candidateCount, matched, truncated, nil
 	}
 	if query.Kind != artifact.KindInvalid && seed.Kind() != query.Kind {
-		return selected, nil, nil, 0, false, nil
+		return selected, nil, nil, len(selected), 0, false, nil
 	}
 	type queuedID struct {
 		id    artifact.ID
@@ -440,19 +438,18 @@ func (s catalogState) querySelection(query Query) (map[artifact.ID]struct{}, []a
 			queue = append(queue, queuedID{id: next, depth: current.depth + 1})
 		}
 	}
+	inspected := len(selected)
 	if query.MediaType != "" || query.Schema != "" {
-		for id := range selected {
-			if !s.matchesDescriptor(query, id) {
-				delete(selected, id)
-			}
-		}
+		maps.DeleteFunc(selected, func(id artifact.ID, _ struct{}) bool {
+			return !s.matchesDescriptor(query, id)
+		})
 	}
-	ids := make([]artifact.ID, 0, len(selected))
-	for id := range selected {
-		ids = append(ids, id)
+	ids := slices.SortedFunc(maps.Keys(selected), artifact.CompareID)
+	switch {
+	case ids == nil:
+		ids = []artifact.ID{}
 	}
-	slices.SortFunc(ids, artifact.CompareID)
-	return selected, ids, edges, len(selected), truncated, nil
+	return selected, ids, edges, inspected, len(selected), truncated, nil
 }
 
 func validDescriptorFilter(value string) bool {
@@ -634,16 +631,7 @@ func sortedQueryLineage(edges []artifact.Lineage, limit int, truncated *bool) []
 }
 
 func compactLineage(edges []artifact.Lineage) []artifact.Lineage {
-	if len(edges) < 2 {
-		return edges
-	}
-	result := edges[:1]
-	for _, edge := range edges[1:] {
-		if edge != result[len(result)-1] {
-			result = append(result, edge)
-		}
-	}
-	return result
+	return slices.Compact(edges)
 }
 
 func (s catalogState) queryCommits(query Query, truncated *bool) []CommitView {

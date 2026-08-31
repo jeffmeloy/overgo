@@ -52,7 +52,7 @@ type ActivationCoverageResult struct {
 	Case     artifact.ID `json:"case"`
 	Profile  artifact.ID `json:"profile"`
 	Evidence artifact.ID `json:"evidence,omitzero"`
-	Gap      string      `json:"gap,omitempty"`
+	Gap      string      `json:"gap,omitzero"`
 }
 
 // ActivationMatrixCell is one case-profile coverage fact.
@@ -60,7 +60,7 @@ type ActivationMatrixCell struct {
 	Case     artifact.ID `json:"case"`
 	Profile  artifact.ID `json:"profile"`
 	Evidence artifact.ID `json:"evidence,omitzero"`
-	Gap      string      `json:"gap,omitempty"`
+	Gap      string      `json:"gap,omitzero"`
 }
 
 // ActivationMatrix records the full applicable cross-product and honest totals.

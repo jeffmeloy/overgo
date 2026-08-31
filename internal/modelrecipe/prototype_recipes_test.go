@@ -1,6 +1,7 @@
 package modelrecipe
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,7 +12,27 @@ import (
 	"overgo/internal/testutil"
 )
 
-func derivationResolvedDefinition(t *testing.T) ResolvedModelDefinition {
+func derivePrototypeRecipeFixture(
+	resolved ResolvedModelDefinition,
+	placement recipe.Placement,
+	session DecodeSessionPolicy,
+	residency recipe.ResidencyPolicy,
+	tasks []recipe.Task,
+) (map[recipe.Task]recipe.Definition, error) {
+	derived, err := deriveResolvedExecutionRecipes(resolved, CandidateRecipePolicy{
+		Placement: placement, Session: session, Residency: residency, Tasks: slices.Clone(tasks),
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[recipe.Task]recipe.Definition, len(derived))
+	for _, candidate := range derived {
+		result[candidate.Task] = candidate.Definition
+	}
+	return result, nil
+}
+
+func derivationResolvedDefinition(t *testing.T, name string) ResolvedModelDefinition {
 	t.Helper()
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
 	profile.LayerTopology = model.LayerTopologyCausalPostQKNormSkip
@@ -20,7 +41,7 @@ func derivationResolvedDefinition(t *testing.T) ResolvedModelDefinition {
 		t.Fatal(err)
 	}
 	tensors, err := modelartifact.NewTensorInventoryDocument(
-		testutil.ArtifactID(t, artifact.KindModel, "derivation-model"), modelartifact.TensorFormatGGUF,
+		testutil.ArtifactID(t, artifact.KindModel, name), modelartifact.TensorFormatGGUF,
 		[]modelartifact.TensorFact{{
 			Name: "token_embd.weight", Shape: []uint64{definitionTensorWidth, definitionTensorWidth},
 			Storage: "f32", Bytes: definitionTensorBytes,
@@ -38,15 +59,12 @@ func derivationResolvedDefinition(t *testing.T) ResolvedModelDefinition {
 	}
 }
 
-// TestPrototypeRecipeDerivation pins the candidate derivation contract: the
-// inference candidate binds the resolved definition's exact model, profile,
-// and definition identities as dependencies of a closed module graph, every
-// additional task derives through the registered capability catalog, and an
-// unregistered task, a duplicate task, or an unresolved definition refuses
-// instead of selecting a fallback topology.
+// TestPrototypeRecipeDerivation pins the compatibility entry to the common
+// resolved-model owner: exact model facts become a closed compiled graph and
+// unsupported, duplicate, or unresolved requests fail without a fallback.
 func TestPrototypeRecipeDerivation(t *testing.T) {
-	resolved := derivationResolvedDefinition(t)
-	candidates, err := DerivePrototypeRecipes(
+	resolved := derivationResolvedDefinition(t, "prototype-derivation-model")
+	candidates, err := derivePrototypeRecipeFixture(
 		resolved, recipe.PlacementHybrid, recipe.SessionCapacity, recipe.ResidencyHybridNative,
 		[]recipe.Task{recipe.TaskForecast},
 	)
@@ -61,8 +79,12 @@ func TestPrototypeRecipeDerivation(t *testing.T) {
 	for _, dependency := range inference.Dependencies {
 		bound[dependency.Artifact] = true
 	}
-	if !bound[resolved.Document.Model] || !bound[resolved.Profile.ID] || !bound[resolved.Document.ID] {
-		t.Fatalf("inference candidate lost its definition bindings: %+v", inference.Dependencies)
+	for _, id := range []artifact.ID{
+		resolved.Document.Model, resolved.Profile.ID, resolved.Document.ID, resolved.Tensors.ID,
+	} {
+		if !bound[id] {
+			t.Fatalf("inference candidate lost dependency %s: %+v", id, inference.Dependencies)
+		}
 	}
 	if len(inference.Nodes) == 0 || !inference.ID.Valid() {
 		t.Fatalf("inference candidate is not a closed module graph: %+v", inference)
@@ -74,19 +96,19 @@ func TestPrototypeRecipeDerivation(t *testing.T) {
 		}
 	}
 
-	if _, err := DerivePrototypeRecipes(
+	if _, err := derivePrototypeRecipeFixture(
 		resolved, recipe.PlacementHybrid, recipe.SessionCapacity, recipe.ResidencyHybridNative,
 		[]recipe.Task{recipe.Task("weight-surgery")},
 	); err == nil || !strings.Contains(err.Error(), "unsupported capability task") {
 		t.Fatalf("unregistered task derived a fallback topology: %v", err)
 	}
-	if _, err := DerivePrototypeRecipes(
+	if _, err := derivePrototypeRecipeFixture(
 		resolved, recipe.PlacementHybrid, recipe.SessionCapacity, recipe.ResidencyHybridNative,
 		[]recipe.Task{recipe.TaskForecast, recipe.TaskForecast},
 	); err == nil || !strings.Contains(err.Error(), "duplicate candidate task") {
 		t.Fatalf("duplicate task derived twice: %v", err)
 	}
-	if _, err := DerivePrototypeRecipes(
+	if _, err := derivePrototypeRecipeFixture(
 		ResolvedModelDefinition{}, recipe.PlacementHybrid, recipe.SessionCapacity,
 		recipe.ResidencyHybridNative, nil,
 	); err == nil || !strings.Contains(err.Error(), "resolved model definition") {

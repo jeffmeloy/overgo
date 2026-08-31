@@ -28,13 +28,13 @@ func routeDecision(arguments []string) error {
 	if hasInput == hasParse || flags.NArg() != 0 {
 		return errors.New("usage: recipe route -input <routing.json> | -parse <decision.json>")
 	}
-	var decision modelrecipe.RoutingDecision
+	var decision modelrecipe.RecipeRoutingDecision
 	if hasParse {
 		content, err := os.ReadFile(*parse)
 		if err != nil {
 			return err
 		}
-		decision, err = modelrecipe.ParseRoutingDecision(content)
+		decision, err = modelrecipe.ParseRecipeRoutingDecision(content)
 		if err != nil {
 			return err
 		}
@@ -46,7 +46,7 @@ func routeDecision(arguments []string) error {
 		if err := jsonfile.DecodeStrict(*input, &routing); err != nil {
 			return err
 		}
-		derived, err := modelrecipe.DeriveRoutingDecision(routing.Signal, routing.Candidates)
+		derived, err := modelrecipe.DeriveRecipeRoutingDecision(routing.Signal, routing.Candidates)
 		if err != nil {
 			return err
 		}

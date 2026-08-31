@@ -107,7 +107,7 @@ func ReplayRoutingDecisions(
 		if !found {
 			return RoutingCounterfactual{}, fmt.Errorf("model recipe: recorded decision %s is absent", id)
 		}
-		recorded, err := ParseRoutingDecision(content.Data)
+		recorded, err := ParseRecipeRoutingDecision(content.Data)
 		if err != nil {
 			return RoutingCounterfactual{}, err
 		}

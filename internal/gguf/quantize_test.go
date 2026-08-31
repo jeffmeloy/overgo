@@ -219,7 +219,7 @@ func TestQuantizeToMapsExpertImportanceAndWritesProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	expanded := make([]float32, len(values))
-	for row := 0; row < 4; row++ {
+	for row := range 4 {
 		expert := row / 2
 		copy(expanded[row*256:(row+1)*256], importance[expert*256:(expert+1)*256])
 	}

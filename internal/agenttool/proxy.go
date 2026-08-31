@@ -43,9 +43,9 @@ func RegisterCapabilityProxy(executor *Executor, reader artifact.Reader, admit E
 	return executor.registerBuiltin(CapabilityProxyName, func(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 		var request struct {
 			Action    string          `json:"action"`
-			Query     string          `json:"query,omitempty"`
-			Limit     int             `json:"limit,omitempty"`
-			Manual    string          `json:"manual,omitempty"`
+			Query     string          `json:"query,omitzero"`
+			Limit     int             `json:"limit,omitzero"`
+			Manual    string          `json:"manual,omitzero"`
 			Arguments json.RawMessage `json:"arguments,omitempty"`
 		}
 		if err := strictjson.DecodeBytes(raw, &request); err != nil {
@@ -78,6 +78,12 @@ func RegisterCapabilityProxy(executor *Executor, reader artifact.Reader, admit E
 			}
 			if manual.Name == CapabilityProxyName {
 				return nil, errors.New("agent tool: capability proxy cannot call itself")
+			}
+			// The active catalog proves which manual may run, but argv policy
+			// remains live authority. Recheck it at dispatch so a catalog
+			// published before a policy tightening cannot retain execution.
+			if err := CheckArgvAuthority(ctx, reader, manual); err != nil {
+				return nil, err
 			}
 			planned, err := DeriveInvocationEffect(manual, request.Arguments, nil)
 			if err != nil {

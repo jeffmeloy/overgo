@@ -29,7 +29,7 @@ func TestExecuteVQABindsDescriptorInputsAndOutput(t *testing.T) {
 	}
 	image := []byte("image")
 	answer, _, err := executeVQA(
-		context.Background(), store, modelID, program,
+		t.Context(), store, modelID, program,
 		"vqa/runtime", image, "where?",
 		func(gotImage []byte, question string) (string, error) {
 			if string(gotImage) != string(image) || question != "where?" {

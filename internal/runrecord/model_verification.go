@@ -57,11 +57,11 @@ type CapabilityClaim struct {
 	Tier            VerificationTier `json:"tier"`
 	Commit          string           `json:"commit"`
 	Dataset         artifact.ID      `json:"dataset,omitzero"`
-	SpanSteps       uint64           `json:"span_steps,omitempty"`
-	SpanTokens      uint64           `json:"span_tokens,omitempty"`
-	ContextTokens   uint64           `json:"context_tokens,omitempty"`
-	WallNS          uint64           `json:"wall_ns,omitempty"`
-	PeakDeviceBytes uint64           `json:"peak_device_bytes,omitempty"`
+	SpanSteps       uint64           `json:"span_steps,omitzero"`
+	SpanTokens      uint64           `json:"span_tokens,omitzero"`
+	ContextTokens   uint64           `json:"context_tokens,omitzero"`
+	WallNS          uint64           `json:"wall_ns,omitzero"`
+	PeakDeviceBytes uint64           `json:"peak_device_bytes,omitzero"`
 	Evidence        []artifact.ID    `json:"evidence"`
 }
 

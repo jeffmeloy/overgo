@@ -1,7 +1,6 @@
 package capabilityruntime
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -21,7 +20,7 @@ func TestHeadBoundDeltaReconciliation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	first := artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "view-first"), Size: 1}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "view/base", Artifacts: []artifact.Descriptor{first},

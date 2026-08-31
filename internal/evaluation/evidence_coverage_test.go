@@ -22,7 +22,7 @@ const coverageObservedUnixNS = int64(1_700_000_000_000_000_000)
 // rather than cause value, recovery differs from retry, and exact pairing
 // requires both declared endpoints to be complete.
 func TestEvidenceCoverageProjection(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {

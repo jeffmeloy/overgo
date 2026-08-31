@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"maps"
 	"math"
 	"slices"
 	"sort"
@@ -51,7 +52,7 @@ type Advisory struct {
 	Recipe            artifact.ID   `json:"recipe"`
 	Environment       artifact.ID   `json:"environment"`
 	Metric            string        `json:"metric"`
-	Unit              string        `json:"unit,omitempty"`
+	Unit              string        `json:"unit,omitzero"`
 	Direction         Direction     `json:"direction"`
 	WindowStart       uint64        `json:"window_start"`
 	WindowEnd         uint64        `json:"window_end"`
@@ -213,11 +214,10 @@ func phaseDeltas(baseline []Observation, latest Observation) []PhaseDelta {
 			values[metric.Phase] = append(values[metric.Phase], metric.DurationNS)
 			seen[metric.Phase] = struct{}{}
 		}
-		for phase := range values {
-			if _, ok := seen[phase]; !ok {
-				delete(values, phase)
-			}
-		}
+		maps.DeleteFunc(values, func(phase Phase, _ []uint64) bool {
+			_, ok := seen[phase]
+			return !ok
+		})
 	}
 	var deltas []PhaseDelta
 	for _, metric := range latest.Run.Phases {
@@ -235,7 +235,7 @@ func phaseDeltas(baseline []Observation, latest Observation) []PhaseDelta {
 }
 
 func medianFloat(values []float64) float64 {
-	sort.Float64s(values)
+	slices.Sort(values)
 	middle := len(values) / 2
 	if len(values)%2 != 0 {
 		return values[middle]

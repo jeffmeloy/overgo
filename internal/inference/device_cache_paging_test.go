@@ -178,7 +178,7 @@ func BenchmarkRebuildDeviceCachePages(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		if err := rebuildDeviceCachePages(cache, recipe.SessionCapacity); err != nil {
 			b.Fatal(err)
 		}

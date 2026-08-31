@@ -18,7 +18,7 @@ import (
 // anything still runs; a context deadline terminates the tree and
 // surfaces as an error with the receipt intact.
 func TestSupervisorProcessTreeContract(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var out bytes.Buffer
 	echo := shellCommand(t, "echo supervised")
@@ -85,6 +85,27 @@ func TestSupervisorProcessTreeContract(t *testing.T) {
 	}
 	if receipt.WallNS == 0 {
 		t.Fatalf("deadline receipt lacks wall evidence: %+v", receipt)
+	}
+}
+
+// TestIsolatedModelProcess exposes the process-tree contract under the exact
+// capability verifier identity used by the upgrade plan.
+func TestIsolatedModelProcess(t *testing.T) {
+	TestSupervisorProcessTreeContract(t)
+}
+
+func TestWrappedErrorClassification(t *testing.T) {
+	command := shellCommand(t, "exit 7")
+	supervised, err := Start(t.Context(), command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, err := supervised.Wait(t.Context())
+	if err != nil {
+		t.Fatalf("nonzero process was treated as supervisor failure: %v", err)
+	}
+	if receipt.ExitCode != 7 || receipt.TreeTerminated {
+		t.Fatalf("nonzero receipt = %+v", receipt)
 	}
 }
 

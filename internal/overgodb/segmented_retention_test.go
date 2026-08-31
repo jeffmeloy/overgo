@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -18,7 +17,7 @@ import (
 // and checkpoint files that no longer form a valid set -- without
 // deleting anything in place.
 func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {

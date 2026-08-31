@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -23,7 +22,7 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	operationID := testutil.ArtifactID(t, artifact.KindEvidence, "decision-operation")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "decision-recipe")
 	request, err := operatoraction.NewApprovalRequest(operationID, recipeID, operatoraction.Action{

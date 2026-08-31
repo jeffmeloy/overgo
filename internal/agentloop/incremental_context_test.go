@@ -1,7 +1,6 @@
 package agentloop
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 )
@@ -13,11 +12,11 @@ import (
 // stateless session (no held boundary) deterministically rebuilds the full
 // context instead of trusting a cursor it cannot prove.
 func TestIncrementalContextPreservesEvidence(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	coordinator, _ := coordinatorFixture(t)
 	session := &Session{ID: "incremental-session"}
 	arguments := json.RawMessage(`{"step":1}`)
-	if _, err := coordinator.Propose(ctx, session, "probe.read", arguments, false); err != nil {
+	if _, err := coordinator.Propose(ctx, session, "probe.read", arguments); err != nil {
 		t.Fatal(err)
 	}
 	if !session.handoff.full || len(session.handoff.fresh) != 1 || len(session.handoff.reused) != 0 {
@@ -26,7 +25,7 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	firstBoundary := session.handoff.boundary
 	firstSource := session.handoff.fresh[0].Source
 
-	if _, err := coordinator.Propose(ctx, session, "probe.read", arguments, false); err != nil {
+	if _, err := coordinator.Propose(ctx, session, "probe.read", arguments); err != nil {
 		t.Fatal(err)
 	}
 	if session.handoff.full || session.handoff.boundary == firstBoundary {
@@ -37,7 +36,7 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	}
 
 	resumed := &Session{ID: "resumed-session"}
-	if _, err := coordinator.Propose(ctx, resumed, "probe.read", arguments, false); err != nil {
+	if _, err := coordinator.Propose(ctx, resumed, "probe.read", arguments); err != nil {
 		t.Fatal(err)
 	}
 	if !resumed.handoff.full || len(resumed.handoff.fresh) != 1 {
@@ -45,10 +44,10 @@ func TestIncrementalContextPreservesEvidence(t *testing.T) {
 	}
 
 	varied := &Session{ID: "varied-session"}
-	if _, err := coordinator.Propose(ctx, varied, "probe.read", arguments, false); err != nil {
+	if _, err := coordinator.Propose(ctx, varied, "probe.read", arguments); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := coordinator.Propose(ctx, varied, "probe.read", json.RawMessage(`{"step":2}`), false); err != nil {
+	if _, err := coordinator.Propose(ctx, varied, "probe.read", json.RawMessage(`{"step":2}`)); err != nil {
 		t.Fatal(err)
 	}
 	if varied.handoff.full || len(varied.handoff.fresh) != 1 || len(varied.handoff.reused) != 0 {

@@ -3,7 +3,6 @@ package runrecord
 import (
 	"errors"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/textcheck"
@@ -38,8 +37,8 @@ type AttemptDirection struct {
 	Last        artifact.ID           `json:"last"`
 	Count       uint64                `json:"count"`
 	LastOutcome Outcome               `json:"last_outcome"`
-	Pivot       bool                  `json:"pivot,omitempty"`
-	PivotReason string                `json:"pivot_reason,omitempty"`
+	Pivot       bool                  `json:"pivot,omitzero"`
+	PivotReason string                `json:"pivot_reason,omitzero"`
 }
 
 var attemptDirectionCodec = artifact.JSONDocumentCodec(
@@ -112,8 +111,8 @@ func canonicalizeDirectionInput(input *AttemptDirectionInput) {
 	if input == nil {
 		return
 	}
-	sort.Strings(input.Symbols)
+	slices.Sort(input.Symbols)
 	input.Symbols = slices.Compact(input.Symbols)
-	sort.Strings(input.Checks)
+	slices.Sort(input.Checks)
 	input.Checks = slices.Compact(input.Checks)
 }

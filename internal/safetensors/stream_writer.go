@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -290,7 +291,7 @@ func (writer *streamWriter) writeResume() error {
 	for name := range writer.completed {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	data, err := json.Marshal(streamResume{Plan: writer.planID, Completed: names})
 	if err != nil {
 		return err
@@ -437,9 +438,7 @@ func cloneStreamPlan(plan streamPlan) streamPlan {
 		}
 	}
 	plan.Metadata = make(map[string]string, len(metadata))
-	for key, value := range metadata {
-		plan.Metadata[key] = value
-	}
+	maps.Copy(plan.Metadata, metadata)
 	return plan
 }
 

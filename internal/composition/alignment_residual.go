@@ -43,7 +43,7 @@ func AlignSeamAdapter(source, target [][]float64) ([][]float64, float64, error) 
 			"composition: %d paired samples cannot determine a %d-wide linear map", samples, sourceWidth,
 		)
 	}
-	for row := 0; row < samples; row++ {
+	for row := range samples {
 		if len(source[row]) != sourceWidth || len(target[row]) != targetWidth {
 			return nil, 0, errors.New("composition: seam activations have inconsistent widths")
 		}
@@ -66,12 +66,12 @@ func AlignSeamAdapter(source, target [][]float64) ([][]float64, float64, error) 
 		moment[i] = make([]float64, targetWidth)
 	}
 	targetEnergy := 0.0
-	for row := 0; row < samples; row++ {
-		for i := 0; i < sourceWidth; i++ {
+	for row := range samples {
+		for i := range sourceWidth {
 			for j := i; j < sourceWidth; j++ {
 				gram[i][j] += source[row][i] * source[row][j]
 			}
-			for j := 0; j < targetWidth; j++ {
+			for j := range targetWidth {
 				moment[i][j] += source[row][i] * target[row][j]
 			}
 		}
@@ -82,8 +82,8 @@ func AlignSeamAdapter(source, target [][]float64) ([][]float64, float64, error) 
 	if targetEnergy == 0 {
 		return nil, 0, errors.New("composition: target seam activations carry no energy")
 	}
-	for i := 0; i < sourceWidth; i++ {
-		for j := 0; j < i; j++ {
+	for i := range sourceWidth {
+		for j := range i {
 			gram[i][j] = gram[j][i]
 		}
 	}
@@ -93,8 +93,8 @@ func AlignSeamAdapter(source, target [][]float64) ([][]float64, float64, error) 
 	}
 	// ||T - SW||² = ||T||² - tr(Wᵀ SᵀT) when W solves the normal equations.
 	explained := 0.0
-	for i := 0; i < sourceWidth; i++ {
-		for j := 0; j < targetWidth; j++ {
+	for i := range sourceWidth {
+		for j := range targetWidth {
 			explained += adapter[i][j] * moment[i][j]
 		}
 	}
@@ -124,7 +124,7 @@ func solveLinearSystems(gram, moment [][]float64) ([][]float64, error) {
 	// is numerically zero: the activations do not span the source space.
 	epsilon := math.Nextafter(1, 2) - 1
 	pivotFloor := scale * epsilon * float64(n)
-	for column := 0; column < n; column++ {
+	for column := range n {
 		pivot := column
 		for row := column + 1; row < n; row++ {
 			if math.Abs(augmented[row][column]) > math.Abs(augmented[pivot][column]) {
@@ -136,7 +136,7 @@ func solveLinearSystems(gram, moment [][]float64) ([][]float64, error) {
 		}
 		augmented[column], augmented[pivot] = augmented[pivot], augmented[column]
 		lead := augmented[column][column]
-		for row := 0; row < n; row++ {
+		for row := range n {
 			if row == column {
 				continue
 			}
@@ -152,7 +152,7 @@ func solveLinearSystems(gram, moment [][]float64) ([][]float64, error) {
 	solution := make([][]float64, n)
 	for i := range solution {
 		solution[i] = make([]float64, width)
-		for j := 0; j < width; j++ {
+		for j := range width {
 			solution[i][j] = augmented[i][n+j] / augmented[i][i]
 		}
 	}
@@ -191,7 +191,7 @@ func AlignmentResidualBiasAudit(residuals, parities []float64) (AlignmentBiasAud
 		}
 	}
 	audit := AlignmentBiasAudit{}
-	for i := 0; i < len(residuals); i++ {
+	for i := range len(residuals) {
 		for j := i + 1; j < len(residuals); j++ {
 			if residuals[i] == residuals[j] || parities[i] == parities[j] {
 				audit.Ties++

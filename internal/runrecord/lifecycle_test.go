@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -42,7 +41,7 @@ func TestGateLifecycleAndDebt(t *testing.T) {
 }
 
 func TestGateLifecycleStoreScanAndDebt(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

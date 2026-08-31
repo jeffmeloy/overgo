@@ -5,9 +5,11 @@ package codemanifest
 import (
 	"cmp"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -45,7 +47,7 @@ type BuildContext struct {
 	GOOS   string   `json:"goos"`
 	GOARCH string   `json:"goarch"`
 	Tags   []string `json:"tags,omitempty"`
-	Cgo    bool     `json:"cgo,omitempty"`
+	Cgo    bool     `json:"cgo,omitzero"`
 }
 
 // File records one parsed source file and the contexts that select it.
@@ -54,9 +56,9 @@ type File struct {
 	ContentID        string   `json:"content_id"`
 	Package          string   `json:"package"`
 	SelectedContexts []string `json:"selected_contexts,omitempty"`
-	BuildExpression  string   `json:"build_expression,omitempty"`
-	Generated        bool     `json:"generated,omitempty"`
-	Test             bool     `json:"test,omitempty"`
+	BuildExpression  string   `json:"build_expression,omitzero"`
+	Generated        bool     `json:"generated,omitzero"`
+	Test             bool     `json:"test,omitzero"`
 }
 
 // SymbolKind distinguishes structural declaration classes without embedding
@@ -82,7 +84,7 @@ const (
 type SymbolID struct {
 	Package  string     `json:"package"`
 	Context  string     `json:"context"`
-	Receiver string     `json:"receiver,omitempty"`
+	Receiver string     `json:"receiver,omitzero"`
 	Name     string     `json:"name"`
 	Kind     SymbolKind `json:"kind"`
 }
@@ -92,8 +94,8 @@ type Symbol struct {
 	ID              SymbolID `json:"id"`
 	File            string   `json:"file"`
 	SignatureSHA256 string   `json:"signature_sha256"`
-	BodySHA256      string   `json:"body_sha256,omitempty"`
-	Exported        bool     `json:"exported,omitempty"`
+	BodySHA256      string   `json:"body_sha256,omitzero"`
+	Exported        bool     `json:"exported,omitzero"`
 }
 
 // ReferenceKind identifies the syntactic relationship represented by an edge.
@@ -157,8 +159,8 @@ const (
 // Its presence is affirmative evidence to broaden, never narrow, selection.
 type Uncertainty struct {
 	Kind    UncertaintyKind `json:"kind"`
-	Path    string          `json:"path,omitempty"`
-	Context string          `json:"context,omitempty"`
+	Path    string          `json:"path,omitzero"`
+	Context string          `json:"context,omitzero"`
 	Symbol  *SymbolID       `json:"symbol,omitempty"`
 	Reason  string          `json:"reason"`
 }
@@ -192,7 +194,14 @@ func Parse(data []byte) (Manifest, error) {
 
 // Validate verifies canonical ordering and content identity.
 func (m Manifest) Validate() error {
-	return codec.ValidateIdentity(m)
+	identified, err := identifyManifest(m)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(m, identified) {
+		return errors.New("code manifest: document is not canonical or has an invalid identity")
+	}
+	return nil
 }
 
 // ExclusionAuthority succeeds only for a valid canonical manifest whose
@@ -211,6 +220,23 @@ func (m Manifest) ExclusionAuthority() error {
 // Content returns the canonical stored representation.
 func (m Manifest) Content() (artifact.Content, error) {
 	return codec.Content(m)
+}
+
+// identifyManifest keeps the rebuildable analysis graph out of the durable
+// document-size policy. Large repositories can exceed one artifact document,
+// but PublishDigest stores only a bounded summary; identity remains the exact
+// SHA-256 of the same canonical JSON bytes used by the legacy full document.
+func identifyManifest(value Manifest) (Manifest, error) {
+	value.ID = artifact.ID{}
+	if err := canonicalize(&value); err != nil {
+		return Manifest{}, err
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return Manifest{}, err
+	}
+	value.ID, err = artifact.IdentifyBytes(artifact.KindProfile, data)
+	return value, err
 }
 
 func clone(value Manifest) Manifest {

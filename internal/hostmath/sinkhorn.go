@@ -46,7 +46,7 @@ func SinkhornFromLogitsInPlace(m []float32, count, n, iters int) {
 	stride := n * n
 	rowSum := make([]float64, n)
 	colSum := make([]float64, n)
-	for b := 0; b < count; b++ {
+	for b := range count {
 		mat := m[b*stride : (b+1)*stride]
 
 		// exp with a per-matrix max subtraction; see the numerical note above.
@@ -60,36 +60,36 @@ func SinkhornFromLogitsInPlace(m []float32, count, n, iters int) {
 			mat[i] = float32(math.Exp(float64(v) - maxLogit))
 		}
 
-		for it := 0; it < iters; it++ {
-			for i := 0; i < n; i++ {
+		for range iters {
+			for i := range n {
 				rowSum[i] = 0
 			}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				base := i * n
-				for j := 0; j < n; j++ {
+				for j := range n {
 					rowSum[i] += float64(mat[base+j])
 				}
 			}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				inv := 1.0 / (rowSum[i] + SinkhornEpsilon)
 				base := i * n
-				for j := 0; j < n; j++ {
+				for j := range n {
 					mat[base+j] = float32(float64(mat[base+j]) * inv)
 				}
 			}
 
-			for j := 0; j < n; j++ {
+			for j := range n {
 				colSum[j] = 0
 			}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				base := i * n
-				for j := 0; j < n; j++ {
+				for j := range n {
 					colSum[j] += float64(mat[base+j])
 				}
 			}
-			for j := 0; j < n; j++ {
+			for j := range n {
 				inv := 1.0 / (colSum[j] + SinkhornEpsilon)
-				for i := 0; i < n; i++ {
+				for i := range n {
 					mat[i*n+j] = float32(float64(mat[i*n+j]) * inv)
 				}
 			}
@@ -126,7 +126,7 @@ func SinkhornFromLogitsBackward(logits, dOut []float32, count, n, iters int) []f
 	rowSums := make([]float64, n)
 	colSums := make([]float64, n)
 
-	for b := 0; b < count; b++ {
+	for b := range count {
 		lg := logits[b*stride : (b+1)*stride]
 		maxLogit := float64(lg[0])
 		argmax := 0
@@ -142,30 +142,30 @@ func SinkhornFromLogitsBackward(logits, dOut []float32, count, n, iters int) []f
 		copy(expM, m)
 
 		tape = tape[:0]
-		for it := 0; it < iters; it++ {
+		for range iters {
 			snap := make([]float64, stride)
 			copy(snap, m)
 			tape = append(tape, snap)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				s := 0.0
-				for j := 0; j < n; j++ {
+				for j := range n {
 					s += m[i*n+j]
 				}
 				rowSums[i] = s + SinkhornEpsilon
-				for j := 0; j < n; j++ {
+				for j := range n {
 					m[i*n+j] /= rowSums[i]
 				}
 			}
 			snap2 := make([]float64, stride)
 			copy(snap2, m)
 			tape = append(tape, snap2)
-			for j := 0; j < n; j++ {
+			for j := range n {
 				s := 0.0
-				for i := 0; i < n; i++ {
+				for i := range n {
 					s += m[i*n+j]
 				}
 				colSums[j] = s + SinkhornEpsilon
-				for i := 0; i < n; i++ {
+				for i := range n {
 					m[i*n+j] /= colSums[j]
 				}
 			}
@@ -180,34 +180,34 @@ func SinkhornFromLogitsBackward(logits, dOut []float32, count, n, iters int) []f
 			// Undo the column normalisation.
 			pre := tape[2*it+1]
 			copy(cur, pre)
-			for j := 0; j < n; j++ {
+			for j := range n {
 				s := 0.0
-				for i := 0; i < n; i++ {
+				for i := range n {
 					s += cur[i*n+j]
 				}
 				den := s + SinkhornEpsilon
 				coupled := 0.0
-				for i := 0; i < n; i++ {
+				for i := range n {
 					coupled += g[i*n+j] * (cur[i*n+j] / den)
 				}
-				for i := 0; i < n; i++ {
+				for i := range n {
 					g[i*n+j] = (g[i*n+j] - coupled) / den
 				}
 			}
 			// Undo the row normalisation.
 			pre = tape[2*it]
 			copy(cur, pre)
-			for i := 0; i < n; i++ {
+			for i := range n {
 				s := 0.0
-				for j := 0; j < n; j++ {
+				for j := range n {
 					s += cur[i*n+j]
 				}
 				den := s + SinkhornEpsilon
 				coupled := 0.0
-				for j := 0; j < n; j++ {
+				for j := range n {
 					coupled += g[i*n+j] * (cur[i*n+j] / den)
 				}
-				for j := 0; j < n; j++ {
+				for j := range n {
 					g[i*n+j] = (g[i*n+j] - coupled) / den
 				}
 			}
@@ -215,11 +215,11 @@ func SinkhornFromLogitsBackward(logits, dOut []float32, count, n, iters int) []f
 
 		// Through exp and the max-subtraction.
 		shift := 0.0
-		for i := 0; i < stride; i++ {
+		for i := range stride {
 			shift += g[i] * expM[i]
 		}
 		out := dLogits[b*stride : (b+1)*stride]
-		for i := 0; i < stride; i++ {
+		for i := range stride {
 			v := g[i] * expM[i]
 			if i == argmax {
 				v -= shift

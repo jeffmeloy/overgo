@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -79,9 +80,7 @@ func run() error {
 
 func toolchain() (nvcc, compiler string, err error) {
 	cudaRoot := strings.TrimSpace(os.Getenv("CUDA_PATH"))
-	if cudaRoot == "" {
-		cudaRoot = `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9`
-	}
+	cudaRoot = cmp.Or(cudaRoot, `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9`)
 	nvcc = filepath.Join(cudaRoot, "bin", "nvcc.exe")
 	if _, statErr := os.Stat(nvcc); statErr != nil {
 		return "", "", fmt.Errorf("nvcc not found at %s (set CUDA_PATH)", nvcc)

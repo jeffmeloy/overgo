@@ -35,7 +35,7 @@ const (
 type ResourceFitnessLane struct {
 	Name                string            `json:"name"`
 	RequiredMetrics     []ResourceMetric  `json:"required_metrics,omitempty"`
-	RequireInteractions bool              `json:"require_interactions,omitempty"`
+	RequireInteractions bool              `json:"require_interactions,omitzero"`
 	Baseline            ObservationStream `json:"baseline"`
 	Candidate           ObservationStream `json:"candidate"`
 	StrictMetrics       []ResourceMeasure `json:"strict_metrics,omitempty"`
@@ -226,7 +226,7 @@ func canonicalizeResourceFitnessLane(lane *ResourceFitnessLane) error {
 		return errors.New("run record: invalid resource fitness lane")
 	}
 	lane.RequiredMetrics = slices.Clone(lane.RequiredMetrics)
-	sort.Slice(lane.RequiredMetrics, func(i, j int) bool { return lane.RequiredMetrics[i] < lane.RequiredMetrics[j] })
+	slices.Sort(lane.RequiredMetrics)
 	for index, metric := range lane.RequiredMetrics {
 		if !metric.Valid() || index > 0 && lane.RequiredMetrics[index-1] == metric {
 			return fmt.Errorf("run record: invalid required resource metric in lane %q", lane.Name)

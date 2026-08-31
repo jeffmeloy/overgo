@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -72,7 +71,7 @@ func TestGateDebtAutomationContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	debt, _ := authoritativeContextEvidence(store, "0123456789abcdef0123456789abcdef01234567")
@@ -119,7 +118,7 @@ func TestReviewPriority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	_, workflow := authoritativeContextEvidence(store, target)

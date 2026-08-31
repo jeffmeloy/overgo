@@ -15,6 +15,7 @@ package routedlm
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 
 	"overgo/internal/hostmath"
@@ -312,7 +313,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 		packRows(pack, a.normRows, rows, d)
 		outs := [3]int{qOut, kvOut, kvOut}
 		dsts := [3][]float32{a.qProj, a.kProj, a.vProj}
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			projected := make([]float32, len(rows)*outs[i])
 			if frozenW[i].Data != nil {
 				hostmath.LinearBF16(projected, pack, frozenW[i].Data, len(rows), d, outs[i])
@@ -327,7 +328,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 	// Rope (unrounded) + per-head QK-norm (frozen scales).
 	a.qRoped = append([]float32(nil), a.qProj...)
 	a.kRoped = append([]float32(nil), a.kProj...)
-	for token := 0; token < tokens; token++ {
+	for token := range tokens {
 		pos := RowPosition{Branch: branchIndex(mask[token]), Time: token}
 		for head := 0; head < cfg.NumAttentionHeads; head++ {
 			t.rope.applyRotaryF32(a.qRoped[token*qOut+head*hd:token*qOut+(head+1)*hd], pos, false)
@@ -338,7 +339,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 	}
 	a.qHeads = make([]float32, len(a.qRoped))
 	a.kHeads = make([]float32, len(a.kRoped))
-	for token := 0; token < tokens; token++ {
+	for token := range tokens {
 		branch := branchIndex(mask[token])
 		for head := 0; head < cfg.NumAttentionHeads; head++ {
 			offset := token*qOut + head*hd
@@ -365,7 +366,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 				for keyPos := start; keyPos < end; keyPos++ {
 					k := a.kHeads[keyPos*kvOut+kvHead*hd : keyPos*kvOut+(kvHead+1)*hd]
 					var dot float64
-					for i := 0; i < hd; i++ {
+					for i := range hd {
 						dot += float64(q[i]) * float64(k[i])
 					}
 					window[keyPos-start] = float32(dot * scale)
@@ -374,7 +375,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 				out := a.context[tokenPos*qOut+head*hd : tokenPos*qOut+(head+1)*hd]
 				for keyPos, prob := range window {
 					v := a.vProj[(start+keyPos)*kvOut+kvHead*hd : (start+keyPos)*kvOut+(kvHead+1)*hd]
-					for i := 0; i < hd; i++ {
+					for i := range hd {
 						out[i] += prob * v[i]
 					}
 				}
@@ -398,7 +399,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			residualRow := a.residual[token*d : (token+1)*d]
 			inputRow := a.input[token*d : (token+1)*d]
 			projectedRow := projected[i*d : (i+1)*d]
-			for c := 0; c < d; c++ {
+			for c := range d {
 				residualRow[c] = inputRow[c] + projectedRow[c]
 			}
 			hostmath.RMSNormInto(a.postNorm[token*d:(token+1)*d], residualRow, postWeight, 1, d, cfg.RMSNormEps)
@@ -430,7 +431,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			outRow := a.output[token*d : (token+1)*d]
 			residualRow := a.residual[token*d : (token+1)*d]
 			downRow := downValues[i*d : (i+1)*d]
-			for c := 0; c < d; c++ {
+			for c := range d {
 				outRow[c] = residualRow[c] + downRow[c]
 			}
 		}
@@ -555,7 +556,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 				for keyPos := start; keyPos < end; keyPos++ {
 					k := a.kHeads[keyPos*kvOut+kvHead*hd : keyPos*kvOut+(kvHead+1)*hd]
 					var dot float64
-					for i := 0; i < hd; i++ {
+					for i := range hd {
 						dot += float64(q[i]) * float64(k[i])
 					}
 					window[keyPos-start] = float32(dot * scale)
@@ -570,7 +571,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 					dv := localDV[keyPos*kvOut+kvHead*hd : keyPos*kvOut+(kvHead+1)*hd]
 					prob := window[keyPos-start]
 					var dot float64
-					for i := 0; i < hd; i++ {
+					for i := range hd {
 						dv[i] += prob * dCtx[i]
 						dot += float64(dCtx[i]) * float64(v[i])
 					}
@@ -587,7 +588,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 					}
 					k := a.kHeads[keyPos*kvOut+kvHead*hd : keyPos*kvOut+(kvHead+1)*hd]
 					dk := localDK[keyPos*kvOut+kvHead*hd : keyPos*kvOut+(kvHead+1)*hd]
-					for i := 0; i < hd; i++ {
+					for i := range hd {
 						dq[i] += float32(dScore * float64(k[i]))
 						dk[i] += float32(dScore * float64(q[i]))
 					}
@@ -607,7 +608,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 	// QK-norm backward (frozen scales) + inverse rope back to the projections.
 	dQProj := make([]float32, tokens*qOut)
 	dKProj := make([]float32, tokens*kvOut)
-	for token := 0; token < tokens; token++ {
+	for token := range tokens {
 		branch := branchIndex(mask[token])
 		pos := RowPosition{Branch: branch, Time: token}
 		for head := 0; head < cfg.NumAttentionHeads; head++ {
@@ -701,12 +702,7 @@ func (t *ModalityTransformerTrainer) terminalLoss(output []float32, tokens int, 
 	var loss float64
 	for i, target := range targets {
 		row := logits[i*vocab : (i+1)*vocab]
-		maxLogit := row[0]
-		for _, v := range row {
-			if v > maxLogit {
-				maxLogit = v
-			}
-		}
+		maxLogit := slices.Max(row)
 		var sum float64
 		for _, v := range row {
 			sum += math.Exp(float64(v - maxLogit))
@@ -728,7 +724,7 @@ func (t *ModalityTransformerTrainer) terminalLoss(output []float32, tokens int, 
 	dFinalHidden := make([]float32, tokens*d)
 	for i, target := range targets {
 		row := dFinalHidden[target.Position*d : (target.Position+1)*d]
-		for c := 0; c < d; c++ {
+		for c := range d {
 			row[c] += dFinalRows[i*d+c]
 		}
 	}
@@ -745,7 +741,7 @@ func (p RopePlan) applyRotaryF32(row []float32, pos RowPosition, invert bool) {
 		span := row[offset : offset+section.Width]
 		half := section.Width / 2
 		position := float64(pos.axis(section.Axis))
-		for j := 0; j < half; j++ {
+		for j := range half {
 			angle := position * p.invFreq[i][j]
 			c, s := math.Cos(angle), math.Sin(angle)
 			if invert {

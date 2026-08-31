@@ -1,7 +1,6 @@
 package bridgetrain
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -21,7 +20,7 @@ type datasetTrainingFixture struct {
 func TestDatasetBridgeTraining(t *testing.T) {
 	fixture := newDatasetTrainingFixture(t)
 	before := slices.Clone(fixture.request.Weights)
-	result, err := (Trainer{}).Step(context.Background(), fixture.request)
+	result, err := (Trainer{}).Step(t.Context(), fixture.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,26 +30,26 @@ func TestDatasetBridgeTraining(t *testing.T) {
 		fixture.target.Calls != fixture.source.Calls {
 		t.Fatalf("dataset training result=%+v weights=%v calls=%d/%d", result, fixture.request.Weights, fixture.source.Calls, fixture.target.Calls)
 	}
-	if _, err := fixture.store.Commit(context.Background(), result.Batch); err != nil {
+	if _, err := fixture.store.Commit(t.Context(), result.Batch); err != nil {
 		t.Fatal(err)
 	}
-	if _, found, err := artifact.ReadContent(context.Background(), fixture.store, result.Checkpoint); err != nil || !found {
+	if _, found, err := artifact.ReadContent(t.Context(), fixture.store, result.Checkpoint); err != nil || !found {
 		t.Fatalf("checkpoint content found=%t err=%v", found, err)
 	}
 }
 
 func TestBridgeCheckpointResume(t *testing.T) {
 	fixture := newDatasetTrainingFixture(t)
-	first, err := (Trainer{}).Step(context.Background(), fixture.request)
+	first, err := (Trainer{}).Step(t.Context(), fixture.request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.store.Commit(context.Background(), first.Batch); err != nil {
+	if _, err := fixture.store.Commit(t.Context(), first.Batch); err != nil {
 		t.Fatal(err)
 	}
 	fixture.request.Resume = first.Checkpoint
 	fixture.request.Epochs = 1
-	second, err := (Trainer{}).Step(context.Background(), fixture.request)
+	second, err := (Trainer{}).Step(t.Context(), fixture.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +61,7 @@ func TestBridgeCheckpointResume(t *testing.T) {
 
 func TestBridgeTrainingFreezesModels(t *testing.T) {
 	fixture := newDatasetTrainingFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	sourceBefore, _, err := fixture.store.Artifact(ctx, fixture.request.Source)
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +84,7 @@ func TestBridgeTrainingFreezesModels(t *testing.T) {
 
 func newDatasetTrainingFixture(t *testing.T) datasetTrainingFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

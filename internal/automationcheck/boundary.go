@@ -3,7 +3,7 @@ package automationcheck
 import (
 	"errors"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -158,8 +158,8 @@ func localPackagePath(importPath string) string {
 		if strings.HasPrefix(path, root) {
 			return path
 		}
-		if index := strings.Index(path, "/"+root); index >= 0 {
-			return strings.TrimPrefix(path[index:], "/")
+		if _, after, ok := strings.Cut(path, "/"+root); ok {
+			return root + after
 		}
 	}
 	return ""
@@ -170,6 +170,6 @@ func sortedKeys(values map[string]bool) []string {
 	for key := range values {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }

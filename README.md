@@ -1,6 +1,6 @@
 # Overgo
 
-Overgo is an operating recursive self-improvement (RSI) system platform for 
+Overgo is an operating recursive self-improvement (RSI) system platform for
 model-driven software agents.
 
 It has two permanent uses:
@@ -34,26 +34,24 @@ deterministic control plane to admit, evaluate, activate, reject, or recover
 work.
 
 Overgo was built by the loop it describes. Every commit in its history was
-selected as the next step by `cmd/plan` and validated and committed by
-`cmd/gate`. Each commit message records, in structured fields, the plan step
-it closed, the code and recipe manifests it observed, and the verification
-command that passed (`Overgo-Plan-Item`, `Overgo-Code-Manifest`,
-`Overgo-Verify`), so the repository is the loop's output, not a description
-of a loop that has yet to run.
+dispatched by `cmd/plan`, gated by `cmd/gate`, and carries the trailers that
+record it -- the plan step it closed, the code and recipe manifests it
+observed, and the falsifiable check that passed (`Overgo-Plan-Item`,
+`Overgo-Code-Manifest`, `Overgo-Verify`) -- so the repository is the loop's
+output, not a description of a loop that has yet to run.
 
 What that demonstrates is bounded, and the boundary is the point. Supervised,
 system-level RSI is not a future goal here: it is how this repository exists --
 an external model proposes and executes work, the deterministic control plane
-admits, validates, and records it, and an operator steers goals and
-priorities. The recursive loop is implemented end to end: measurement,
-controlled experiments, evidence-conditioned policy promotion, typed steering
-proposals, and a driver that consumes them under mechanical stop conditions.
-What remains open is narrower and specific -- unattended operation at scale,
-improvement of the proposing model's own cognition, and measured
-effectiveness against competing strategies (see What remains before fully
-autonomous RSI).
+admits, gates, and records it, and an operator steers goals and priorities. The
+recursive loop is implemented end to end: measurement, controlled experiments,
+evidence-gated policy promotion, typed steering proposals, and a driver that
+consumes them under mechanical stop conditions. What remains open is narrower
+and specific -- unattended operation at scale, improvement of the proposing
+model's own cognition, and measured effectiveness against competing strategies
+(see What remains before fully autonomous RSI).
 
-![Overgo system architecture](docs/assets/overgo-platform-architecture-scientific.png)
+![Overgo technical architecture](docs/assets/overgo-platform-technical-architecture.png)
 
 [Structured figure definition](docs/assets/overgo_graphic.json)
 
@@ -99,6 +97,212 @@ Overgo already combines the following components in one codebase:
 | RSI steering | Typed falsifiable proposals through deterministic admission, consumed by the driver under budget, saturation, and operator-stop conditions; shared with human-directed work |
 | Tool calling | UTCP-style manuals in the store: each tool declares its effect class, typed arguments, and native transport; unregistered tools are not callable |
 | Interfaces | Command line, HTTP APIs, scheduled jobs, and an external operator workbench over shared backend state; the whole public surface is enumerated in the generated [API manifest](docs/API_MANIFEST.md) |
+
+## Capabilities
+
+The following sections describe the implemented mechanisms. They do not imply
+that every mechanism is available for every model. A capability becomes
+servable only when the store contains an active recipe for the exact model,
+task, runtime policy, and required components. Compatibility records identify
+the artifacts and environments for which verification evidence exists.
+
+### Serving and generation
+
+- Text completion, chat completion, infill, embedding, reranking,
+  tokenization, detokenization, perplexity measurement, and sequence scoring.
+- OpenAI-compatible HTTP surfaces for Completions, Chat Completions,
+  Responses, Embeddings, image generation, video generation and editing, and
+  speech generation.
+- An Anthropic Messages-compatible surface with token counting, system
+  messages, image input, tool use, streaming events, and bounded local
+  reasoning output.
+- Buffered and streaming generation, stop sequences, grammar-constrained
+  sampling, JSON Schema grammar compilation, log probabilities, prompt-state
+  reuse, context shifting, and supported speculative decoding paths.
+- Runtime LoRA scale control, multimodal prompt projection, concurrent request
+  admission, continuous multi-request scheduling, model properties, device
+  statistics, and live model replacement through the model-swap proxy.
+- Recipe-selected image, video, video-editing, speech, time-series, tabular,
+  encoder, decoder, recurrent, hybrid, mixture-of-experts, and diffusion
+  execution paths.
+
+Authentication and method requirements are defined per route. The generated
+[API manifest](docs/API_MANIFEST.md#routes) is the authoritative route list.
+
+### Model and artifact lifecycle
+
+- GGUF inspection, hashing, splitting, merging, conversion, quantization, and
+  importance-matrix processing.
+- Safetensors inspection, bounded repository loading, conversion, and
+  checkpoint publication.
+- Hugging Face model and dataset search, verified download, repository intake,
+  and conversion into registered local artifacts.
+- Model characterization, tensor inventory, vocabulary inspection, hidden
+  state and attention analysis, model construction, and active-recipe
+  inspection.
+- Scratch-model and corpus-derived model construction, including compiled
+  construction plans, model-builder workflows, and registered output
+  artifacts.
+- LoRA extraction, model grafting, component alignment, interface-adapter
+  training, model composition, candidate evaluation, activation, rollback,
+  and supersession.
+- CUDA device inspection, kernel compilation, generated host bindings, kernel
+  ABI manifests, embedded PTX validation, and source-to-binary identity checks.
+- Architecture profiles that compile tensor namespaces, operator sequences,
+  numerical policies, cache behavior, execution modes, and runtime limits into
+  a model program. A checkpoint that fits existing compiled behavior requires
+  a prototype and recipe; a new numerical mechanism requires a corresponding
+  generic operator or policy implementation and new verification evidence.
+
+### Training and adaptation
+
+- Native token-prediction training, direct preference optimization (DPO), and
+  group relative policy optimization (GRPO).
+- Host-reference and supported CUDA-resident forward, backward, loss, and
+  optimizer execution.
+- Compiled Muon optimizer plans with host and CUDA implementations, parameter
+  grouping, portable optimizer state, and exact resume validation.
+- Dataset streaming, deterministic batch selection, bounded sequence plans,
+  frozen lexical or component surfaces, and adapter-only training with donor
+  models held immutable.
+- Exact checkpoints that bind model identity, recipe, objective, optimizer,
+  random-number state, data-stream position, and parent lineage.
+- Supervised training sessions with resource bounds, phase measurements,
+  pre-training and post-training evaluation brackets, health classification,
+  MoE router observations, evidence-derived routing targets and controllers,
+  and operator intervention records.
+- Dedicated probes and workflows for dense causal, mixture-of-experts,
+  hybrid, image, video, modality-transformer, time-series, and tabular
+  training paths.
+
+The supported training combinations and their evidence are listed in
+[Training compatibility](docs/TRAINING_COMPATIBILITY.md).
+
+### Evaluation, routing, and live safety
+
+- Store-derived suites for exact answers, multiple choice, grouped choice,
+  generated answers, structured generation, instruction rules, probability
+  mass, sequence likelihood, preference targets, numeric targets, retrieval,
+  and media outputs.
+- Native evaluators and prompt construction for MMLU, MMLU-Pro, TruthfulQA,
+  IFEval, BBH, MuSR, and other registered benchmark families.
+- Per-model prompt templates, evaluation-domain declarations, group-safe data
+  splits, resource measurements, failure records, comparison reports, and
+  campaign history.
+- Capability-gap derivation, grounded retrieval replay, candidate attribution,
+  evidence coverage checks, route selection, and counterfactual replay of
+  alternative routing rules.
+- Media-quality, offline-artifact, and composite-generation evaluation with
+  production probes, candidate attribution, and ablation-bound promotion
+  evidence.
+- Deterministic rollout cohorts, reproducible evidence projections,
+  distribution-free live-safety windows, circuit-breaker escalation,
+  quarantine, atomic rollback, and evidence-bound quarantine reentry.
+- Multidimensional improvement decisions that prohibit promotion when any
+  required fitness dimension regresses, even if an aggregate score improves.
+
+### Data and retrieval
+
+- Typed dataset registration, inventory, aliases, content identities,
+  provenance, availability checks, and deterministic train, validation, and
+  test splits.
+- Bounded readers for the supported Hugging Face Arrow IPC and Parquet
+  subsets, plus benchmark-specific normalization and import paths.
+- Text, image, audio, preference, rollout, interaction, capability-episode,
+  and domain-specific training records.
+- Incremental selection, streaming transformations, resumable materialization,
+  benchmark catalog construction, and repository-backed dataset preview.
+- Text, image, audio, preference, grouped-rollout, and multimodal training
+  materializers that publish exact source and stream-position evidence.
+- Agent retrieval with persisted indexes, embedding and reranking providers,
+  retrieval receipts, held-out retrieval judgments, and quality evaluation.
+
+### Agents, tools, workflows, and automation
+
+- Immutable agent definitions that bind a prompt, model recipe, exact tool
+  manuals, datasets, capability bundles, automations, and policies.
+- UTCP-style tool manuals with typed arguments, effect classification,
+  built-in or native HTTP streaming transports, executable policy, and exact
+  registered identities.
+- Inspection-before-mutation admission, action-bound approvals, durable
+  pre-execution receipts, mutation checkpoints, bounded sessions, restart
+  recovery, and interaction replay.
+- Typed workflow graphs with compiled dependencies, bounded parallel ready
+  sets, stage adapters, run receipts, cancellation, failure publication, and
+  deterministic recovery of completed stages.
+- Closed-world tool workflows that bind registered manuals, authorization
+  evidence, typed inputs, execution receipts, and retained results to one
+  compiled workflow authority.
+- Scheduled automation, authenticated webhook intake, input binding, delivery
+  tools, execution history, and recovery after interruption.
+- Coalesced wake signals, late-stimulus reconciliation, incremental context
+  handoff, and persistent obligations that reconstruct required follow-up work
+  after interruption or restart.
+- Remote peers, capability publication, placement decisions, delegated agent
+  execution, remote stage adapters, capacity observations, and peer lifecycle
+  reconciliation.
+- Operator-visible operation queues, dependency graphs, timelines, decisions,
+  cancellation, waiting, and recovery actions.
+
+### Storage, provenance, and recovery
+
+OvergoDB is the canonical transaction authority for artifacts and operational
+evidence. It provides:
+
+- kind-qualified SHA-256 content identities, immutable blobs, typed document
+  contracts, manifests, lineage, causality, locations, and compare-and-set
+  aliases;
+- atomic batches, idempotent batch keys, store-head preconditions, a
+  hash-chained journal, checksummed frames, writer locking, and torn-tail
+  recovery;
+- bounded projections and queries, query cursors, alias history, read-only
+  refresh, per-projection checkpoints, snapshots, segmented journals, and
+  deterministic replay;
+- verified backup, import, compaction, retention, rebuild, repair, parity
+  checking, and migration drills; and
+- operational records for runs, evaluations, approvals, receipts, policies,
+  rollouts, findings, advisories, and compatibility evidence.
+
+The `overgodb-query`, `overgodb-backup`, `overgodb-import`,
+`overgodb-compact`, `overgodb-rebuild`, `overgodb-repair`, and `store-check`
+commands expose the principal administrative operations.
+
+### Development, verification, and release
+
+- A canonical dependency-aware plan, bounded work leases, explicit workspace
+  claims, and deterministic dispatch through `cmd/plan` and `cmd/loop`.
+- A commit gate that binds changes to the current plan step, derives test scope
+  from source and manifest impact, executes the required checks, constructs the
+  accepted Git commit, and publishes the result to OvergoDB.
+- Structural source analysis, ownership checks, clone and closure censuses,
+  modernization censuses, staged-surface records, architecture ratchets,
+  generated API records, and compatibility evidence checks.
+- Closure scanning, unclassified-surface reporting, deterministic remediation,
+  reactivation checks, and restoration of displaced alias authority.
+- Separate hermetic, race, browser, CUDA device, installed-model smoke, and
+  performance lanes. An unavailable required environment is reported as
+  unavailable and is not treated as successful evidence.
+- Reproducible Windows release archives, version checks, kernel ABI and source
+  verification, generated bindings, a CycloneDX software bill of materials,
+  and content hashes for release artifacts.
+
+## Capability status and evidence
+
+Overgo distinguishes implementation from evidence and activation:
+
+| State | Meaning |
+| --- | --- |
+| Compiled mechanism | The source contains the generic operator, format, workflow, or policy implementation. This alone is not a claim about a particular model artifact. |
+| Candidate recipe | A content-addressed recipe binds an exact model and its dependencies to compiled behavior, but it is not available for serving. |
+| Validated or verified recipe | The recipe passed its required structural or execution checks and remains non-serving unless separately activated. |
+| Active recipe | A versioned activation makes the exact recipe available for its declared task and retains its predecessor for rollback where applicable. |
+| Verified evidence tier | A candidate execution produced the required typed artifact. |
+| Parity evidence tier | Output matched the declared reference implementation under the recorded comparison. |
+| Production evidence tier | Production-shaped workloads and the recorded environment support the claim. |
+
+Absence of a model, dataset, device, or required reference is reported as
+unavailable rather than successful. The compatibility reports bind each claim
+to an exact artifact, recipe, source revision, environment, and verifier.
 
 ## Operator workbench
 
@@ -313,15 +517,10 @@ store-recorded:
 
 ## What remains before autonomous RSI
 
-- Run the closed loop unattended at scale: accumulate cross-strategy attempt
-  history and experiment evidence from live campaigns rather than bounded
-  verification runs.
-- Exercise model-authored proposals: admission validates grounding and
-  falsifiability, but the quality of what models propose is itself a measured
-  question the attempt records will answer.
-- Bound retrieval construction and search as well as request execution.
-- Finish race, restart, browser, device, and release verification across the
-  integrated agent and automation paths.
+The sole live backlog and dependency queue is [docs/plan.json](docs/plan.json).
+Imported branch plans, design records, staged-surface inventory, and historical
+Git snapshots are evidence only; distinct requirements from them are mapped
+into that canonical plan instead of maintained as parallel checklists.
 
 Human steering remains a supported operating mode throughout: human and model
 steering submit goals through the same bounded interface, and deterministic

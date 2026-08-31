@@ -130,7 +130,7 @@ func sourceCodecMaxAbs(left, right []float32) float64 {
 	}
 	maximum := float64(0)
 	for index := range left {
-		maximum = math.Max(maximum, math.Abs(float64(left[index])-float64(right[index])))
+		maximum = max(maximum, math.Abs(float64(left[index])-float64(right[index])))
 	}
 	return maximum
 }

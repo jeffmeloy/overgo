@@ -2,7 +2,6 @@ package overgodb
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -86,7 +85,7 @@ func writeLegacyInlineStore(t *testing.T, root string, commits int) []artifact.I
 // inline content while artifact, content, alias, and lineage semantics
 // match the source exactly.
 func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	const commits = 24
 	ids := writeLegacyInlineStore(t, root, commits)

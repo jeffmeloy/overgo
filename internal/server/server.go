@@ -11,7 +11,6 @@ import (
 	"math"
 	"net/http"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -637,7 +636,7 @@ func (h *Handler) releaseSession(lease *requestSession) {
 
 func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if h.config.RequestTimeout > 0 {
-		ctx, cancel := context.WithTimeout(request.Context(), h.config.RequestTimeout)
+		ctx, cancel := context.WithTimeoutCause(request.Context(), h.config.RequestTimeout, errRequestTimeoutCause)
 		defer cancel()
 		request = request.WithContext(ctx)
 	}
@@ -899,7 +898,7 @@ func (h *Handler) parseLogitBias(raw json.RawMessage) ([]sampling.LogitBias, err
 	for key := range object {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	result := make([]sampling.LogitBias, 0, len(keys))
 	for _, key := range keys {
 		var encodedKey []byte

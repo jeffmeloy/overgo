@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 
 	"overgo/internal/cuda/driver"
@@ -846,7 +847,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 			return nil, programErr
 		}
 		session := &deviceDecodeSession{
-			execution: execution, graphs: append([]deviceBatchGraph(nil), graphs...), program: program,
+			execution: execution, graphs: slices.Clone(graphs), program: program,
 			hostFeeds: hostFeeds,
 			rebuilds:  rebuilds, replays: replays,
 		}

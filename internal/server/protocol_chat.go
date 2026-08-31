@@ -361,13 +361,7 @@ func (h *Handler) normalizeChatPrompt(
 // consume — preserve_thinking and reasoning_effort. Unknown keys refuse.
 func chatTemplateKwargs(kwargs map[string]any) (bool, map[string]any, error) {
 	enabled := true
-	var extras map[string]any
-	extra := func(key string, value any) {
-		if extras == nil {
-			extras = map[string]any{}
-		}
-		extras[key] = value
-	}
+	extras := make(map[string]any, len(kwargs))
 	for key, value := range kwargs {
 		switch key {
 		case "enable_thinking":
@@ -380,13 +374,13 @@ func chatTemplateKwargs(kwargs map[string]any) (bool, map[string]any, error) {
 			if !ok {
 				return false, nil, errors.New("chat_template_kwargs.preserve_thinking must be a boolean")
 			}
-			extra(key, preserved)
+			extras[key] = preserved
 		case "reasoning_effort":
 			effort, ok := value.(string)
 			if !ok || effort != "xhigh" && effort != "high" && effort != "medium" && effort != "low" {
 				return false, nil, errors.New("chat_template_kwargs.reasoning_effort must be xhigh, high, medium, or low")
 			}
-			extra(key, effort)
+			extras[key] = effort
 		default:
 			return false, nil, fmt.Errorf(
 				"unsupported chat_template_kwargs key %q",
@@ -739,21 +733,21 @@ type chatStreamChoice struct {
 
 type chatStreamDelta struct {
 	Role             inference.ChatRole   `json:"role,omitempty"`
-	Content          string               `json:"content,omitempty"`
-	ReasoningContent string               `json:"reasoning_content,omitempty"`
+	Content          string               `json:"content,omitzero"`
+	ReasoningContent string               `json:"reasoning_content,omitzero"`
 	ToolCalls        []chatStreamToolCall `json:"tool_calls,omitempty"`
 }
 
 type chatStreamToolCall struct {
 	Index    int                    `json:"index"`
-	ID       string                 `json:"id,omitempty"`
+	ID       string                 `json:"id,omitzero"`
 	Type     inference.ChatToolType `json:"type,omitempty"`
 	Function chatStreamToolFunction `json:"function"`
 }
 
 type chatStreamToolFunction struct {
-	Name      string `json:"name,omitempty"`
-	Arguments string `json:"arguments,omitempty"`
+	Name      string `json:"name,omitzero"`
+	Arguments string `json:"arguments,omitzero"`
 }
 
 type chatStreamResponse struct {

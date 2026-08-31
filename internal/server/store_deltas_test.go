@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -24,7 +23,7 @@ func TestHeadBoundDeltaReconciliation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	first := artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "delta-first"), Size: 1}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "delta/base", Artifacts: []artifact.Descriptor{first},

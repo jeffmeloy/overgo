@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -44,7 +43,7 @@ func TestMMLUProPinnedOracleParity(t *testing.T) {
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	scorer := fixedContinuationScorer{scores: []sequencescore.Score{{LogProbability: -1, Tokens: 1}, {LogProbability: -2, Tokens: 1}}}
-	report, err := EvaluateMMLUPro(context.Background(), store, scorer, compiled, plan)
+	report, err := EvaluateMMLUPro(t.Context(), store, scorer, compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}

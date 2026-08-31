@@ -25,9 +25,9 @@ func TestGenerateWall(t *testing.T) {
 	// granularity, so each sample times a 30-generate batch.
 	const repeats, batch = 5, 30
 	walls := make([]time.Duration, 0, repeats)
-	for r := 0; r < repeats; r++ {
+	for r := range repeats {
 		start := time.Now()
-		for i := 0; i < batch; i++ {
+		for i := range batch {
 			if _, err := generatePlanar(m, Request{Class: i % m.Cfg.NClasses, Seed: int64(42 + r)}); err != nil {
 				t.Fatal(err)
 			}

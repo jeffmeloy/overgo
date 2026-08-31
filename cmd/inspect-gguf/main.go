@@ -13,10 +13,10 @@ import (
 type metadataReport struct {
 	Key         string `json:"key"`
 	Type        string `json:"type"`
-	ElementType string `json:"elementType,omitempty"`
-	Count       int    `json:"count,omitempty"`
+	ElementType string `json:"elementType,omitzero"`
+	Count       int    `json:"count,omitzero"`
 	Value       any    `json:"value,omitempty"`
-	Truncated   bool   `json:"truncated,omitempty"`
+	Truncated   bool   `json:"truncated,omitzero"`
 }
 
 type tensorReport struct {

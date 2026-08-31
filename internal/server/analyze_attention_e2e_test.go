@@ -2,7 +2,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -37,7 +36,7 @@ func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := inference.OpenWithProgram(context.Background(), &loaded, inference.OpenOptions{DeviceOrdinal: 0})
+	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +53,7 @@ func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	defer httpServer.Close()
 
 	body, _ := json.Marshal(map[string]any{"prompt": "The quick brown fox jumps", "layer": 6})
-	request, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, httpServer.URL+"/analyze/attention", bytes.NewReader(body))
+	request, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, httpServer.URL+"/analyze/attention", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {

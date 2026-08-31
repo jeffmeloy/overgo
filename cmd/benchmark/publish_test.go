@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,7 +16,7 @@ import (
 // model's identity, and the committed record parses back with the
 // claim intact.
 func TestBenchmarkClaimCommits(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	result := benchmarkResult{
 		ModelName: "fixture-model", DevicePeakBytes: 512,
 		Runs: []runMetrics{

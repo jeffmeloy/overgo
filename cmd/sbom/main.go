@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -86,9 +88,7 @@ func generate(root string) ([]byte, error) {
 			continue
 		}
 		version := item.Version
-		if version == "" {
-			version = "unknown"
-		}
+		version = cmp.Or(version, "unknown")
 		purl := "pkg:golang/" + item.Path + "@" + version
 		license := moduleLicense(item.Path)
 		components = append(components, component("library", item.Path, version, license, purl))
@@ -124,7 +124,7 @@ func generate(root string) ([]byte, error) {
 	sort.Slice(components, func(i, j int) bool {
 		return fmt.Sprint(components[i]["bom-ref"]) < fmt.Sprint(components[j]["bom-ref"])
 	})
-	sort.Strings(dependsOn)
+	slices.Sort(dependsOn)
 	document := map[string]any{
 		"bomFormat":    "CycloneDX",
 		"specVersion":  "1.6",
@@ -180,7 +180,7 @@ func usedKernelFiles(root string) ([]string, error) {
 	for path := range paths {
 		result = append(result, path)
 	}
-	sort.Strings(result)
+	slices.Sort(result)
 	return result, nil
 }
 

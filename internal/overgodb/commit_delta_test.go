@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -99,7 +98,7 @@ func TestCommitDeltaAtDoesNotReadUnrelatedCoordinates(t *testing.T) {
 	var coordinate commitCoordinate
 	for ordinal := range unrelatedCommitPopulation {
 		unrelated := commitDeltaContent(t, fmt.Sprintf("unrelated before reviewed commit %d", ordinal))
-		if _, err := store.Commit(context.Background(), artifact.Batch{
+		if _, err := store.Commit(t.Context(), artifact.Batch{
 			Key:      fmt.Sprintf("fixture/commit-delta/unrelated-before/%d", ordinal),
 			Contents: []artifact.Content{unrelated},
 		}); err != nil {
@@ -110,7 +109,7 @@ func TestCommitDeltaAtDoesNotReadUnrelatedCoordinates(t *testing.T) {
 		}
 	}
 	reviewed := commitDeltaContent(t, "bounded reviewed commit")
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/commit-delta/bounded", Contents: []artifact.Content{reviewed},
 	}); err != nil {
 		t.Fatal(err)

@@ -224,7 +224,7 @@ func TestRopeTableOriginAndImage(t *testing.T) {
 	const gh, gw, textSeq = 2, 2, 1
 	cos, sin := d.ropeTable(textSeq, gh, gw)
 	hd := spec.HeadDim
-	for i := 0; i < hd; i++ {
+	for i := range hd {
 		if cos[i] != 1 || sin[i] != 0 {
 			t.Fatalf("text token rope not identity at ch %d: cos=%g sin=%g", i, cos[i], sin[i])
 		}
@@ -232,7 +232,7 @@ func TestRopeTableOriginAndImage(t *testing.T) {
 	// image token index 3 -> grid (h=1,w=1): the h and w axes must rotate.
 	tok := textSeq + 3
 	var moved bool
-	for i := 0; i < hd; i++ {
+	for i := range hd {
 		if math.Abs(sin[tok*hd+i]) > 1e-9 {
 			moved = true
 		}

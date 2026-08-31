@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -17,7 +16,7 @@ import (
 // exhausted budget refuses instead of degrading silently, and the live
 // safety window derives only from sufficient admitted history.
 func TestDeterministicRSIControlPlane(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

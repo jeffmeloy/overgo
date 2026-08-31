@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -50,7 +49,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := EvaluateGeneratedAnswer(
-		context.Background(), store, exactGenerator{pieces: []string{" OK "}}, compiled, plan,
+		t.Context(), store, exactGenerator{pieces: []string{" OK "}}, compiled, plan,
 	)
 	if err != nil {
 		t.Fatal(err)

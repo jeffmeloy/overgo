@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -85,7 +86,7 @@ func dnaCorpusSubsets(root string) ([]dnaSubset, error) {
 		if len(files) == 0 {
 			return nil
 		}
-		sort.Strings(files)
+		slices.Sort(files)
 		subsets = append(subsets, dnaSubset{
 			name: strings.ReplaceAll(relative, "/", "-"),
 			file: filepath.Join(directory, files[0]),

@@ -1,7 +1,9 @@
 package main
 
 import (
-	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/codemanifest"
+	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
@@ -25,11 +28,7 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(repository, "docs"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	document := plan.Plan{Campaign: "gate", Doctrine: "fixture", Items: []plan.Item{{
-		ID: "item", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "step", Status: plan.StatusOpen, Verify: "go test ./...",
-		}},
-	}}}
+	document := completionAuthorityPlan()
 	if err := plan.Save(filepath.Join(repository, filepath.FromSlash(plan.Path)), document); err != nil {
 		t.Fatal(err)
 	}
@@ -37,17 +36,64 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 	if err := os.WriteFile(messagePath, []byte("subject\n\nOvergo-Plan-Item: reused\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	manifest := testutil.ArtifactID(t, artifact.KindRecipe, "completion-plan")
+	codeManifest := testutil.ArtifactID(t, artifact.KindProfile, "completion-code")
+	preparation := testutil.ArtifactID(t, artifact.KindEvidence, "completion-preparation")
+	preparationCommit := artifact.CommitID{1}
 	gate := gateContext{
 		repo: repository, planRef: "item/step", messageFile: messagePath,
 		manifestPlan: &automationcheck.ManifestPlan{
-			ID: testutil.ArtifactID(t, artifact.KindRecipe, "completion-plan"),
+			ID: manifest,
 		},
 		candidateManifest: &codemanifest.Manifest{
-			ID: testutil.ArtifactID(t, artifact.KindProfile, "completion-code"),
+			ID: codeManifest,
 		},
+		preparation: runrecord.GateLifecycle{
+			ID: preparation,
+		},
+		preparationCommit: preparationCommit,
 	}
 	if _, err := gate.completionMessageFile(document); err == nil {
 		t.Fatal("operator-supplied completion identity was accepted")
+	} else if !strings.Contains(err.Error(), "reserved trailer Overgo-Plan-Item") {
+		t.Fatalf("completion identity refused for the wrong reason: %v", err)
+	}
+	if err := os.WriteFile(messagePath, []byte("subject\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mutated := document
+	mutated.Items = append([]plan.Item(nil), document.Items...)
+	mutated.Items[0].Steps = append([]plan.Step(nil), document.Items[0].Steps...)
+	mutated.Items[0].Steps[0].Verify = "go test ./changed"
+	if err := plan.Save(filepath.Join(repository, filepath.FromSlash(plan.Path)), mutated); err != nil {
+		t.Fatal(err)
+	}
+	completionPath, err := gate.completionMessageFile(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(completionPath)
+	completion, err := os.ReadFile(completionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := plan.CompletionCommitMessage(
+		[]byte("subject\n"), document, "item", "step", manifest, codeManifest, preparation, preparationCommit,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(completion) != string(expected) {
+		t.Fatal("gate completion message differs from the canonical pre-advance message")
+	}
+	mutatedExpected, err := plan.CompletionCommitMessage(
+		[]byte("subject\n"), mutated, "item", "step", manifest, codeManifest, preparation, preparationCommit,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(completion) == string(mutatedExpected) {
+		t.Fatal("mutable on-disk plan replaced the pre-advance completion authority")
 	}
 }
 
@@ -56,11 +102,7 @@ func TestAcceptanceEvidenceRejectsPlanMutationBeforeCommit(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(repository, "docs"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	document := plan.Plan{Campaign: "gate", Doctrine: "fixture", Items: []plan.Item{{
-		ID: "item", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "step", Status: plan.StatusOpen, Verify: "go test ./...",
-		}},
-	}}}
+	document := completionAuthorityPlan()
 	if err := plan.Save(filepath.Join(repository, filepath.FromSlash(plan.Path)), document); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +116,7 @@ func TestAcceptanceEvidenceRejectsPlanMutationBeforeCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	authority, err := plan.ResolveCompletionAuthority(context.Background(), repository, "HEAD", document, store)
+	authority, err := plan.ResolveCompletionAuthority(t.Context(), repository, "HEAD", document, store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,6 +153,215 @@ func TestMutatingGateModeCannotHideBehindReadOnlyMode(t *testing.T) {
 	}
 	if err := requireExclusiveGateMode(false, false, false, false, false, true, false); err != nil {
 		t.Fatalf("single read-only mode rejected: %v", err)
+	}
+}
+
+func TestGatePlanProjectionIsExplicitAndMergeOnly(t *testing.T) {
+	if projection, err := gatePlanProjection("", false); err != nil ||
+		projection != plan.MergeProjectionSemanticUnion {
+		t.Fatalf("default projection = %q, %v", projection, err)
+	}
+	if _, err := gatePlanProjection("first-parent-target", false); err == nil ||
+		!strings.Contains(err.Error(), "requires -merge") {
+		t.Fatalf("non-merge target projection error = %v", err)
+	}
+	if projection, err := gatePlanProjection("first-parent-target", true); err != nil ||
+		projection != plan.MergeProjectionFirstParentTarget {
+		t.Fatalf("merge target projection = %q, %v", projection, err)
+	}
+	for _, invalid := range []string{"semantic-union", " first-parent-target", "incoming-plan"} {
+		if _, err := gatePlanProjection(invalid, true); err == nil {
+			t.Fatalf("invalid projection %q accepted", invalid)
+		}
+	}
+}
+
+func TestGateMergeSourceStoreIsFirstParentTargetOnly(t *testing.T) {
+	store := filepath.Join(t.TempDir(), gitauthority.CanonicalOvergoDBDirectory)
+	resolved, err := gateMergeSourceStore(store, true, plan.MergeProjectionFirstParentTarget)
+	if err != nil || !filepath.IsAbs(resolved) || filepath.Base(resolved) != gitauthority.CanonicalOvergoDBDirectory {
+		t.Fatalf("target merge source store = (%q, %v)", resolved, err)
+	}
+	if _, err := gateMergeSourceStore("", true, plan.MergeProjectionFirstParentTarget); err == nil {
+		t.Fatal("target projection accepted no source authority store")
+	}
+	for _, projection := range []plan.MergeProjection{
+		plan.MergeProjectionSemanticUnion,
+	} {
+		if _, err := gateMergeSourceStore(store, true, projection); err == nil {
+			t.Fatalf("projection %q accepted a foreign source store", projection)
+		}
+	}
+	if _, err := gateMergeSourceStore(store, false, plan.MergeProjectionFirstParentTarget); err == nil {
+		t.Fatal("non-merge accepted a source authority store")
+	}
+}
+
+func TestGateCompletionMessageBindsFirstParentTarget(t *testing.T) {
+	repository := t.TempDir()
+	document := completionAuthorityPlan()
+	messagePath := filepath.Join(repository, "message.txt")
+	if err := os.WriteFile(messagePath, []byte("target merge\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest := testutil.ArtifactID(t, artifact.KindRecipe, "target-gate-plan")
+	codeManifest := testutil.ArtifactID(t, artifact.KindProfile, "target-gate-code")
+	preparation := testutil.ArtifactID(t, artifact.KindEvidence, "target-gate-preparation")
+	preparationCommit := artifact.CommitID{1}
+	mergeAuthority := testutil.ArtifactID(t, artifact.KindEvidence, "target-gate-merge-authority")
+	gate := gateContext{
+		repo: repository, planRef: "item/step", messageFile: messagePath,
+		manifestPlan:      &automationcheck.ManifestPlan{ID: manifest},
+		candidateManifest: &codemanifest.Manifest{ID: codeManifest},
+		preparation:       runrecord.GateLifecycle{ID: preparation},
+		preparationCommit: preparationCommit,
+		planProjection:    plan.MergeProjectionFirstParentTarget,
+		mergeAuthority:    &plan.FirstParentTargetMergeAuthority{ID: mergeAuthority},
+	}
+	completionPath, err := gate.completionMessageFile(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(completionPath)
+	message, err := os.ReadFile(completionPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.VerifyCompletionCommitMessageWithMergeAuthority(
+		string(message), document, "item", "step", manifest, codeManifest,
+		preparation, preparationCommit, plan.MergeProjectionFirstParentTarget, mergeAuthority,
+	); err != nil {
+		t.Fatalf("target projection was not bound to the completion message: %v", err)
+	}
+	if err := plan.VerifyCompletionCommitMessageWithMergeAuthority(
+		string(message), document, "item", "step", manifest, codeManifest,
+		preparation, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
+	); err == nil {
+		t.Fatal("target projection completion replayed as default semantic union")
+	}
+}
+
+func TestProspectiveGateCompletionRejectsAuditedSourceDependency(t *testing.T) {
+	fixture := newInterruptedCommitFixture(t)
+	publishSuccessfulInterruptedAttempt(t, fixture, true)
+	if err := removeGateCommitIntent(fixture.repo); err != nil {
+		t.Fatal(err)
+	}
+	local, err := plan.Parse(fixture.planAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary := recoveryGit(t, fixture.repo, "rev-parse", "--abbrev-ref", "HEAD")
+	localRevision := recoveryGit(t, fixture.repo, "rev-parse", "HEAD")
+	runGitFixture(t, fixture.repo, "checkout", "-q", "-b", "source-audit")
+	incoming := local
+	incoming.Items = append(append([]plan.Item(nil), local.Items...), plan.Item{
+		ID: "source-only", Status: plan.StatusOpen,
+		Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/gate"}},
+	})
+	if err := plan.Save(filepath.Join(fixture.repo, filepath.FromSlash(plan.Path)), incoming); err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, fixture.repo, "add", "--", plan.Path)
+	runGitFixture(t, fixture.repo, "commit", "-q", "-m", "add source-only completion")
+	incomingRevision := completeGateRowForMergeAuthority(t, fixture, incoming, "source-only", "do")
+	incoming, err = plan.Advance(incoming, "source-only", "do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, fixture.repo, "checkout", "-q", primary)
+
+	targetStore, err := overgodb.Open(filepath.Join(fixture.repo, fixture.storePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer targetStore.Close()
+	sourcePath := filepath.Join(t.TempDir(), "source-store")
+	if _, _, err := targetStore.Backup(sourcePath); err != nil {
+		t.Fatal(err)
+	}
+	sourceStore, err := overgodb.Open(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sourceStore.Close()
+	localAuthority, err := plan.ResolveCompletionAuthority(
+		t.Context(), fixture.repo, localRevision, local, targetStore,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	incomingAuthority, err := plan.ResolveCompletionAuthority(
+		t.Context(), fixture.repo, incomingRevision, incoming, sourceStore,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mergeRow := plan.Item{
+		ID: "merge-boundary", Status: plan.StatusOpen,
+		Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/gate"}},
+	}
+	preAdvance := local
+	preAdvance.Items = append(append([]plan.Item(nil), local.Items...), mergeRow)
+	child, err := plan.Advance(preAdvance, "merge-boundary", "do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, err := plan.NewFirstParentTargetMergeAuthority(
+		t.Context(), fixture.repo, localRevision, incomingRevision, localRevision,
+		local, incoming, local, preAdvance, child, "merge-boundary", "do",
+		fixture.preparation.ID, fixture.preparationCommit,
+		localAuthority, incomingAuthority, targetStore, sourceStore,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	malicious := preAdvance
+	malicious.Items = append([]plan.Item(nil), preAdvance.Items...)
+	mergeIndex := len(malicious.Items) - 1
+	malicious.Items[mergeIndex].Steps = append([]plan.Step(nil), malicious.Items[mergeIndex].Steps...)
+	malicious.Items[mergeIndex].Steps[0].DependsOn = []string{"source-only/do"}
+	maliciousChild, err := plan.Advance(malicious, "merge-boundary", "do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedPlan, err := json.Marshal(malicious)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(encodedPlan)
+	receipt.PreAdvancePlanDigest = hex.EncodeToString(digest[:])
+	receipt.ID = artifact.ID{}
+	encodedReceipt, err := json.Marshal(receipt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, err = plan.ParseFirstParentTargetMergeAuthority(encodedReceipt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiptContent, err := receipt.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	message, err := plan.CompletionCommitMessageWithMergeAuthority(
+		[]byte("complete audited merge boundary"), malicious, "merge-boundary", "do",
+		fixture.recipe, fixture.candidate, fixture.preparation.ID, fixture.preparationCommit,
+		plan.MergeProjectionFirstParentTarget, receipt.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	intent := gateCommitIntent{
+		Parent: localRevision, Merge: &gateMergeIntent{Head: []byte(incomingRevision + "\n")},
+		PlanProjection: plan.MergeProjectionFirstParentTarget, MergeAuthority: receiptContent.Data,
+		PlanRef: "merge-boundary/do", Preparation: fixture.preparation.ID,
+		PreparationCommit: fixture.preparationCommit,
+	}
+	if err := verifyProspectiveGateCompletion(
+		fixture.repo, intent, malicious, maliciousChild, string(message), targetStore,
+	); err == nil || !strings.Contains(err.Error(), "pruned dependency source-only/do") {
+		t.Fatalf("gate recovery admitted audited source dependency: %v", err)
 	}
 }
 
@@ -433,8 +684,16 @@ func completeGateRowForMergeAuthority(
 	)
 	store := openRecoveryStore(t, completion)
 	defer store.Close()
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	return commit
+}
+
+func completionAuthorityPlan() plan.Plan {
+	return plan.Plan{Campaign: "gate", Doctrine: "fixture", Items: []plan.Item{{
+		ID: "item", Status: plan.StatusOpen, Steps: []plan.Step{{
+			ID: "step", Status: plan.StatusOpen, Verify: "go test ./...",
+		}},
+	}}}
 }

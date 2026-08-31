@@ -27,7 +27,7 @@ type SynthesisRequest struct {
 	Voice string `json:"voice"`
 	// Temperature scales the flow noise variance (std = sqrt(temp));
 	// zero defers to the artifact's declared default.
-	Temperature float64 `json:"temperature,omitempty"`
+	Temperature float64 `json:"temperature,omitzero"`
 }
 
 type Audio struct {

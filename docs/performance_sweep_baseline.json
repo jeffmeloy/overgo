@@ -1,0 +1,50 @@
+{
+  "schema": "overgo/performance-sweep-baseline/v1",
+  "source_commit": "1e17479da2bc5b6fa4ac76e133df512712cb08a2",
+  "fixture": "fixtures/sweep_sft_prompts.json",
+  "regression_scale": 10000,
+  "maximum_wall_increase": 5000,
+  "maximum_peak_device_increase": 500,
+  "models": [
+    {
+      "name": "carbon-500m-f16",
+      "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f16-ropefix.gguf",
+      "prompt_tokens": 2625,
+      "generated_tokens": 64,
+      "wall_ns": 3874640400,
+      "peak_device_bytes": 1965131776
+    },
+    {
+      "name": "minicpm5-1b-f16",
+      "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/MiniCPM5-1B-f16.gguf",
+      "prompt_tokens": 2501,
+      "generated_tokens": 35,
+      "wall_ns": 5129639800,
+      "peak_device_bytes": 2714267904
+    },
+    {
+      "name": "qwen25-05b-f16",
+      "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen2.5-0.5B-f16.gguf",
+      "prompt_tokens": 2625,
+      "generated_tokens": 64,
+      "wall_ns": 2995414500,
+      "peak_device_bytes": 1399821056
+    },
+    {
+      "name": "qwen35-4b-f16",
+      "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf",
+      "prompt_tokens": 2697,
+      "generated_tokens": 14,
+      "wall_ns": 4953808500,
+      "peak_device_bytes": 15700271616
+    },
+    {
+      "name": "qwen35-9b-q8",
+      "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/../../models/Qwen3.5-9B-Q8_0.gguf",
+      "prompt_tokens": 2697,
+      "generated_tokens": 64,
+      "wall_ns": 12687315700,
+      "peak_device_bytes": 16495886336
+    }
+  ]
+}

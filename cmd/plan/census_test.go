@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +28,7 @@ func TestPublishedCensusBaseline(t *testing.T) {
 	}
 	payload := []byte("seed")
 	seedID, _ := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-	head, err := store.Commit(context.Background(), artifact.Batch{Key: "seed", Artifacts: []artifact.Descriptor{{
+	head, err := store.Commit(t.Context(), artifact.Batch{Key: "seed", Artifacts: []artifact.Descriptor{{
 		ID: seedID, Size: uint64(len(payload)), MediaType: "application/octet-stream",
 	}}})
 	if err != nil {
@@ -46,7 +45,7 @@ func TestPublishedCensusBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

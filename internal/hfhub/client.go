@@ -79,11 +79,11 @@ func (kind RepoKind) valid() bool { return kind == KindModel || kind == KindData
 // Listing is one discovery result.
 type Listing struct {
 	ID        string   `json:"id"`
-	Author    string   `json:"author,omitempty"`
-	Downloads int64    `json:"downloads,omitempty"`
-	Likes     int64    `json:"likes,omitempty"`
-	Gated     bool     `json:"gated,omitempty"`
-	Private   bool     `json:"private,omitempty"`
+	Author    string   `json:"author,omitzero"`
+	Downloads int64    `json:"downloads,omitzero"`
+	Likes     int64    `json:"likes,omitzero"`
+	Gated     bool     `json:"gated,omitzero"`
+	Private   bool     `json:"private,omitzero"`
 	Tags      []string `json:"tags,omitempty"`
 }
 
@@ -121,24 +121,24 @@ func (c *Client) Search(ctx context.Context, query SearchQuery) ([]Listing, erro
 // RepoFile is one downloadable file in a repository revision.
 type RepoFile struct {
 	Path   string `json:"rfilename"`
-	Size   int64  `json:"size,omitempty"`
+	Size   int64  `json:"size,omitzero"`
 	SHA256 string `json:"-"`
 }
 
 type siblingLFS struct {
-	SHA256 string `json:"sha256,omitempty"`
-	Size   int64  `json:"size,omitempty"`
+	SHA256 string `json:"sha256,omitzero"`
+	Size   int64  `json:"size,omitzero"`
 }
 
 type sibling struct {
 	Path string      `json:"rfilename"`
-	Size int64       `json:"size,omitempty"`
+	Size int64       `json:"size,omitzero"`
 	LFS  *siblingLFS `json:"lfs,omitempty"`
 }
 
 type repoInfo struct {
 	ID       string    `json:"id"`
-	SHA      string    `json:"sha,omitempty"`
+	SHA      string    `json:"sha,omitzero"`
 	Siblings []sibling `json:"siblings,omitempty"`
 }
 

@@ -53,7 +53,7 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 	referenceFeeds := make(map[*tensor.Tensor]reference.Value)
 	var allocations []driver.DevicePtr
 	defer func() {
-		_ = worker.Do(context.Background(), func(state *device.State) error {
+		_ = worker.Do(t.Context(), func(state *device.State) error {
 			for _, pointer := range allocations {
 				_ = state.Driver.MemFree(pointer)
 			}
@@ -82,7 +82,7 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 		}
 		referenceNode := referenceNodes[nodeIndex]
 		referenceFeeds[referenceNode] = reference.Value{Shape: referenceNode.Shape, Data: values}
-		err := worker.Do(context.Background(), func(state *device.State) error {
+		err := worker.Do(t.Context(), func(state *device.State) error {
 			pointer, err := state.Driver.MemAlloc(uint64(len(raw)))
 			if err != nil {
 				return err
@@ -100,7 +100,7 @@ func TestSenseNovaGenerationLayerGraph(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	result, err := cuda.ExecuteCompiled(context.Background(), indexed.Graph, nil, indexed.Inputs)
+	result, err := cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), indexed.Graph, nil, indexed.Inputs)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -40,7 +40,7 @@ func selectServing(arguments []string) error {
 		return err
 	}
 	var candidates []artifact.ID
-	for _, text := range strings.Split(*candidatesFlag, ",") {
+	for text := range strings.SplitSeq(*candidatesFlag, ",") {
 		id, err := artifact.ParseID(strings.TrimSpace(text))
 		if err != nil {
 			return err

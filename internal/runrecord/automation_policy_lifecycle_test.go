@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"context"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
@@ -9,7 +8,7 @@ import (
 )
 
 func TestAutomationPolicyLifecycle(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -30,7 +30,7 @@ func TestDecisionAPI(t *testing.T) {
 	runID := testutil.ArtifactID(t, artifact.KindRun, "decision api run")
 	action := operatoraction.Action{Code: "resume", Summary: "Resume exact work", Argv: []string{"overgo", "resume"}}
 	attempts := 0
-	operationID, err := handler.operations.Submit(context.Background(), operation.Request{
+	operationID, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskTraining, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		attempts++
@@ -45,7 +45,7 @@ func TestDecisionAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := handler.operations.Wait(context.Background(), operationID); err != nil {
+	if _, err := handler.operations.Wait(t.Context(), operationID); err != nil {
 		t.Fatal(err)
 	}
 	body, err := json.Marshal(operationDecisionRequest{
@@ -58,7 +58,7 @@ func TestDecisionAPI(t *testing.T) {
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("decision status=%d body=%s", response.Code, response.Body.String())
 	}
-	status, err := handler.operations.Wait(context.Background(), operationID)
+	status, err := handler.operations.Wait(t.Context(), operationID)
 	if err != nil || status.State != operation.StateCompleted || attempts != 2 {
 		t.Fatalf("decision recovery = (%+v, %v), attempts=%d", status, err, attempts)
 	}

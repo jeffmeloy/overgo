@@ -1,7 +1,6 @@
 package capabilityruntime
 
 import (
-	"context"
 	"sync"
 	"testing"
 
@@ -21,7 +20,7 @@ func TestCoordinationCoalescesWithoutLostWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	seed := artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, "probe-seed"), Size: 1}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "probe/seed", Artifacts: []artifact.Descriptor{seed},
@@ -37,9 +36,7 @@ func TestCoordinationCoalescesWithoutLostWork(t *testing.T) {
 	var group sync.WaitGroup
 	rederivations := make(chan struct{}, 16)
 	for range 8 {
-		group.Add(1)
-		go func() {
-			defer group.Done()
+		group.Go(func() {
 			changed, resync, _, err := view.Reconcile(ctx, store)
 			if err != nil {
 				t.Error(err)
@@ -48,7 +45,7 @@ func TestCoordinationCoalescesWithoutLostWork(t *testing.T) {
 			if changed || resync {
 				rederivations <- struct{}{}
 			}
-		}()
+		})
 	}
 	group.Wait()
 	close(rederivations)

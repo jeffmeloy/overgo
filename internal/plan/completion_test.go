@@ -87,7 +87,7 @@ func newCompletionFixture(t *testing.T, parent Plan, item, step string) *complet
 	if err != nil {
 		t.Fatal(err)
 	}
-	preparationCommit, err := store.Commit(context.Background(), artifact.Batch{
+	preparationCommit, err := store.Commit(t.Context(), artifact.Batch{
 		Key:      "completion/prepared/" + preparation.ID.String(),
 		Contents: []artifact.Content{environmentContent, preparationContent},
 		Lineage:  preparation.Lineage(),
@@ -235,10 +235,11 @@ func publishCompletionAttempt(
 	verify, acceptanceVerify string,
 	manifest, codeManifest artifact.ID,
 	preparation runrecord.GateLifecycle,
+	mergeAuthorities ...FirstParentTargetMergeAuthority,
 ) runrecord.AttemptRecord {
 	return publishCompletionAttemptWithManifestAnalysis(
 		t, store, commit, item, step, verify, acceptanceVerify,
-		manifest, codeManifest, preparation, true,
+		manifest, codeManifest, preparation, true, mergeAuthorities...,
 	)
 }
 
@@ -250,9 +251,10 @@ func publishCompletionAttemptWithManifestAnalysis(
 	manifest, codeManifest artifact.ID,
 	preparation runrecord.GateLifecycle,
 	atomicAnalysis bool,
+	mergeAuthorities ...FirstParentTargetMergeAuthority,
 ) runrecord.AttemptRecord {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	environment := preparation.Environment
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "completion/dependencies/" + commit,
@@ -311,6 +313,21 @@ func publishCompletionAttemptWithManifestAnalysis(
 	batch.Contents = append(batch.Contents, finalizationContent, attemptContent)
 	batch.Lineage = append(batch.Lineage, finalization.Lineage()...)
 	batch.Lineage = append(batch.Lineage, attempt.Lineage()...)
+	if len(mergeAuthorities) > 1 {
+		t.Fatal("completion fixture accepts at most one projected merge authority")
+	}
+	if len(mergeAuthorities) == 1 {
+		authority := mergeAuthorities[0]
+		content, err := authority.Content()
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch.Contents = append(batch.Contents, content)
+		batch.Lineage = append(batch.Lineage, authority.Lineage()...)
+		batch.Lineage = append(batch.Lineage, artifact.Lineage{
+			Child: gate.Result.ID, Parent: authority.ID, Relation: artifact.RelationDependsOn,
+		})
+	}
 	var delayedAnalysis *artifact.Batch
 	manifestPlan := completionManifestPlan(t, codeManifest, preparation.TreeKey)
 	if manifestPlan.ID == manifest {
@@ -541,7 +558,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 	})
 	t.Run("foreign valid preparation introduction commit", func(t *testing.T) {
 		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		foreign, err := fixture.store.Commit(context.Background(), artifact.Batch{
+		foreign, err := fixture.store.Commit(t.Context(), artifact.Batch{
 			Key: "completion/foreign-preparation-commit",
 			Artifacts: []artifact.Descriptor{{
 				ID: testutil.ArtifactID(t, artifact.KindEvidence, "foreign-preparation-commit"),
@@ -662,7 +679,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		source.commit(source.canonicalMessage(), true)
 		other := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 		if _, err := ResolveCompletionAuthority(
-			context.Background(), other.repository, "HEAD", source.child, source.store,
+			t.Context(), other.repository, "HEAD", source.child, source.store,
 		); err == nil || !strings.Contains(err.Error(), "lacks gated ancestor") {
 			t.Fatalf("cross-repository completion evidence error = %v", err)
 		}
@@ -714,24 +731,27 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 				trailers.preparation, trailers.preparationCommit, completion, err,
 			)
 		}
-		if err := VerifyCompletionCommitMessage(
+		if err := VerifyCompletionCommitMessageWithMergeAuthority(
 			string(message), fixture.preAdvance, fixture.item, fixture.step,
 			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit,
+			MergeProjectionSemanticUnion, artifact.ID{},
 		); err != nil {
 			t.Fatalf("canonical completion tuple refused: %v", err)
 		}
 		foreignCommit := fixture.preparationCommit
 		foreignCommit[0] ^= 1
-		if err := VerifyCompletionCommitMessage(
+		if err := VerifyCompletionCommitMessageWithMergeAuthority(
 			string(message), fixture.preAdvance, fixture.item, fixture.step,
 			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, foreignCommit,
+			MergeProjectionSemanticUnion, artifact.ID{},
 		); err == nil || !strings.Contains(err.Error(), "authority tuple") {
 			t.Fatalf("foreign expected preparation commit error = %v", err)
 		}
 		badIndex := replaceCompletionTrailer(message, completionItemIndexTrailer, "1")
-		if err := VerifyCompletionCommitMessage(
+		if err := VerifyCompletionCommitMessageWithMergeAuthority(
 			string(badIndex), fixture.preAdvance, fixture.item, fixture.step,
 			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit,
+			MergeProjectionSemanticUnion, artifact.ID{},
 		); err == nil {
 			t.Fatal("mismatched completion item index accepted")
 		}
@@ -749,9 +769,10 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := VerifyCompletionCommitMessage(
+		if err := VerifyCompletionCommitMessageWithMergeAuthority(
 			string(alteredMessage), fixture.preAdvance, fixture.item, fixture.step,
 			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit,
+			MergeProjectionSemanticUnion, artifact.ID{},
 		); err == nil || !strings.Contains(err.Error(), "snapshot differs") {
 			t.Fatalf("mismatched completion item snapshot error = %v", err)
 		}
@@ -918,7 +939,7 @@ func TestCompletionAuthorityRequiresExplicitCanonicalRepository(t *testing.T) {
 	t.Run("subdirectory", func(t *testing.T) {
 		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 		_, err := ResolveCompletionAuthority(
-			context.Background(), filepath.Join(fixture.repository, "docs"), "HEAD", fixture.parent, fixture.store,
+			t.Context(), filepath.Join(fixture.repository, "docs"), "HEAD", fixture.parent, fixture.store,
 		)
 		if err == nil || !strings.Contains(err.Error(), "exact repository root") {
 			t.Fatalf("non-root completion repository error = %v", err)
@@ -939,7 +960,7 @@ func TestGitCompletionMessagesRejectRawCommitNUL(t *testing.T) {
 		"hash-object", "-t", "commit", "-w", "--stdin", "--literally",
 	)))
 
-	_, err := gitCompletionMessages(context.Background(), fixture.repository, hash)
+	_, err := gitCompletionMessages(t.Context(), fixture.repository, hash)
 	if err == nil || !strings.Contains(err.Error(), "contains NUL") {
 		t.Fatalf("raw commit NUL error = %v", err)
 	}
@@ -1487,7 +1508,7 @@ func TestCompletionAuthorityRejectsAmbiguousMergeBase(t *testing.T) {
 	fixture.completionHash = commitFixtureTree(
 		t, fixture.repository, fixture.canonicalMessage(), childTree, leftMerge, rightMerge,
 	)
-	_, err := completionTransitionPlans(context.Background(), fixture.repository, []gitCompletionMessage{{
+	_, err := completionTransitionPlans(t.Context(), fixture.repository, []gitCompletionMessage{{
 		hash: fixture.completionHash, parents: []string{leftMerge, rightMerge},
 	}})
 	if err == nil || !strings.Contains(err.Error(), "exactly one merge base, found 2") {

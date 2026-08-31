@@ -1,7 +1,6 @@
 package trainingworkflow
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,7 +31,7 @@ func TestBootstrapRecordsModelLocation(t *testing.T) {
 	}
 	defer store.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +68,7 @@ func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	}
 	defer store.Close()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	definitionID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
 	if err != nil {
 		t.Fatal(err)

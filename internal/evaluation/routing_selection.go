@@ -29,45 +29,45 @@ func SelectServingRecipe(
 	metric string,
 	baseline artifact.ID,
 	candidates []artifact.ID,
-) (modelrecipe.RoutingDecision, error) {
+) (modelrecipe.RecipeRoutingDecision, error) {
 	if metric == "" || len(candidates) == 0 {
-		return modelrecipe.RoutingDecision{}, errors.New("evaluation: selection requires a metric and candidate evidence")
+		return modelrecipe.RecipeRoutingDecision{}, errors.New("evaluation: selection requires a metric and candidate evidence")
 	}
 	base, err := RequireEvaluationEvidence(ctx, store, baseline)
 	if err != nil {
-		return modelrecipe.RoutingDecision{}, err
+		return modelrecipe.RecipeRoutingDecision{}, err
 	}
 	threshold, direction, measured := admittedMetric(base.Metrics, metric)
 	if !measured {
-		return modelrecipe.RoutingDecision{}, fmt.Errorf("evaluation: baseline evidence does not measure %q", metric)
+		return modelrecipe.RecipeRoutingDecision{}, fmt.Errorf("evaluation: baseline evidence does not measure %q", metric)
 	}
 	routingCandidates := make([]modelrecipe.RoutingCandidate, 0, len(candidates))
 	for _, id := range candidates {
 		evidence, err := RequireEvaluationEvidence(ctx, store, id)
 		if err != nil {
-			return modelrecipe.RoutingDecision{}, err
+			return modelrecipe.RecipeRoutingDecision{}, err
 		}
 		if evidence.Split != base.Split {
-			return modelrecipe.RoutingDecision{}, fmt.Errorf(
+			return modelrecipe.RecipeRoutingDecision{}, fmt.Errorf(
 				"evaluation: candidate evidence %s was measured on another split; the comparison would confound data", id,
 			)
 		}
 		value, candidateDirection, judged := admittedMetric(evidence.Metrics, metric)
 		if !judged || candidateDirection != direction {
-			return modelrecipe.RoutingDecision{}, fmt.Errorf(
+			return modelrecipe.RecipeRoutingDecision{}, fmt.Errorf(
 				"evaluation: candidate evidence %s does not measure %q in the baseline direction", id, metric,
 			)
 		}
 		definition, err := recipe.RequireDefinition(ctx, store, evidence.Recipe)
 		if err != nil {
-			return modelrecipe.RoutingDecision{}, err
+			return modelrecipe.RecipeRoutingDecision{}, err
 		}
 		descriptor, found, err := store.Artifact(ctx, definition.Model)
 		if err != nil {
-			return modelrecipe.RoutingDecision{}, err
+			return modelrecipe.RecipeRoutingDecision{}, err
 		}
 		if !found || descriptor.Size == 0 {
-			return modelrecipe.RoutingDecision{}, fmt.Errorf(
+			return modelrecipe.RecipeRoutingDecision{}, fmt.Errorf(
 				"evaluation: model %s has no published resource evidence", definition.Model,
 			)
 		}
@@ -82,16 +82,16 @@ func SelectServingRecipe(
 		Task: task, Capability: metric,
 		QualityThreshold: signedQuality(threshold, direction), ThresholdEvidence: baseline,
 	}
-	decision, err := modelrecipe.DeriveRoutingDecision(signal, routingCandidates)
+	decision, err := modelrecipe.DeriveRecipeRoutingDecision(signal, routingCandidates)
 	if err != nil {
-		return modelrecipe.RoutingDecision{}, err
+		return modelrecipe.RecipeRoutingDecision{}, err
 	}
 	batch, err := decision.Batch("routing/decision/" + decision.ID.String())
 	if err != nil {
-		return modelrecipe.RoutingDecision{}, err
+		return modelrecipe.RecipeRoutingDecision{}, err
 	}
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
-		return modelrecipe.RoutingDecision{}, err
+		return modelrecipe.RecipeRoutingDecision{}, err
 	}
 	return decision, nil
 }

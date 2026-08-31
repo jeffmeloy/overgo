@@ -8,7 +8,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/executionfailure"
 	"overgo/internal/overgodb"
-	"overgo/internal/processcontrol"
 	"overgo/internal/testutil"
 )
 
@@ -23,7 +22,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	operation := testutil.ArtifactID(t, artifact.KindEvidence, "terminal-operation")
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-capability-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "terminal-capability-schema")
@@ -51,9 +50,9 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	disposition := executionfailure.Decide(executionfailure.Situation{
 		Cause: normalization.Cause, Attempts: 1, MaxAttempts: 3,
 	})
-	process := NewProcessTermination(processcontrol.Receipt{
+	process := ProcessTermination{
 		ExitCode: 1, TreeTerminated: true, StdoutBytes: 11, StderrBytes: 42, WallNS: 5_000_000,
-	})
+	}
 
 	first, err := PublishTerminalAttemptReceipt(ctx, store, TerminalAttemptReceipt{
 		Operation: operation, Capability: capability.ID, Outcome: OutcomeFailed,
@@ -163,7 +162,7 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-reference-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "terminal-reference-schema")
@@ -402,7 +401,7 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	implementation := testutil.ArtifactID(t, artifact.KindFile, "terminal-recovery-implementation")
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "terminal-recovery-schema")

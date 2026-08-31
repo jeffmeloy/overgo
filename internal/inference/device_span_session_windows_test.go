@@ -3,7 +3,6 @@
 package inference
 
 import (
-	"context"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -23,7 +22,7 @@ func TestSpanDecodeSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Teacher-forced host oracle over the full token history.
 	tokens := []tokenizer.TokenID{1, 4, 5, 6}
@@ -31,7 +30,7 @@ func TestSpanDecodeSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer oracle.Close(context.Background())
+	defer oracle.Close(t.Context())
 	want := make([]tokenizer.TokenID, len(tokens))
 	for index, token := range tokens {
 		out, stepErr := oracle.Step(ctx, []SequenceBatchInput{{
@@ -46,7 +45,7 @@ func TestSpanDecodeSession(t *testing.T) {
 	runner.mu.Lock()
 	defer runner.mu.Unlock()
 	release := func(cache *deviceKVCache) {
-		if err := cache.Release(context.Background()); err != nil {
+		if err := cache.Release(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 	}

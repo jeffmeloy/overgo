@@ -26,6 +26,15 @@ const streamingSingleShardName = "model.safetensors"
 type StreamingSource struct {
 	Model     artifact.ID
 	Directory string
+	Shards    []StreamingShard
+}
+
+// StreamingShard binds one repository-relative shard name to its exact stored
+// byte identity. Sources without bindings retain the generic low-level API;
+// authority-bearing callers provide the complete set.
+type StreamingShard struct {
+	Name     string
+	Artifact artifact.ID
 }
 
 // StreamingResult reports the derived execution envelope of a published
@@ -64,6 +73,9 @@ func ExecuteStreaming(
 	opened, err := openStreamingSources(plan, sources)
 	if err != nil {
 		return StreamingResult{}, err
+	}
+	if err := validateOpenedStreamingShards(plan, sources, opened); err != nil {
+		return StreamingResult{}, errors.Join(err, closeStreamingSources(opened))
 	}
 	result, executeErr := executeOpenedStreaming(ctx, plan, opened, destination)
 	return result, errors.Join(executeErr, closeStreamingSources(opened))
@@ -158,6 +170,45 @@ func openStreamingSources(
 		opened[index] = source
 	}
 	return opened, nil
+}
+
+func validateOpenedStreamingShards(
+	plan composition.OfflineTensorExecutionPlan,
+	provided []StreamingSource,
+	opened []*safetensors.Source,
+) error {
+	byModel := make(map[artifact.ID][]StreamingShard, len(provided))
+	for _, source := range provided {
+		bindings := slices.Clone(source.Shards)
+		slices.SortFunc(bindings, func(left, right StreamingShard) int {
+			return strings.Compare(left.Name, right.Name)
+		})
+		byModel[source.Model] = bindings
+	}
+	for index, input := range plan.Inputs {
+		expected := byModel[input.Model]
+		if len(expected) == 0 {
+			continue
+		}
+		actual, err := opened[index].ShardDigests()
+		if err != nil {
+			return err
+		}
+		if len(actual) != len(expected) {
+			return fmt.Errorf("model merge: source %d shard closure differs", index)
+		}
+		for shardIndex, digest := range actual {
+			binding := expected[shardIndex]
+			id, err := artifact.NewID(artifact.KindTensorSet, digest.Digest)
+			if err != nil || binding.Name != digest.Name || binding.Artifact != id {
+				return errors.Join(fmt.Errorf("model merge: source %d shard %q bytes differ", index, digest.Name), err)
+			}
+			if shardIndex > 0 && binding.Name == expected[shardIndex-1].Name {
+				return fmt.Errorf("model merge: source %d shard binding is duplicated", index)
+			}
+		}
+	}
+	return nil
 }
 
 func compileStreamingOutput(

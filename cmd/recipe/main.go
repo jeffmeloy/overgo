@@ -36,15 +36,6 @@ func run() error {
 		return errors.New("usage: recipe <verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
 	}
 	verb := os.Args[1]
-	if verb == "declare-prototype" {
-		return declarePrototype(os.Args[2:])
-	}
-	if verb == "compile-trial" {
-		return compilePrototypeTrial(os.Args[2:])
-	}
-	if verb == "materialize-trial" {
-		return materializeTrial(os.Args[2:])
-	}
 	if verb == "validate-candidate" {
 		return validateCandidate(os.Args[2:])
 	}

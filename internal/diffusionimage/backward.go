@@ -67,19 +67,19 @@ func conv2dValidStrideBackward(grads Grads, name string, x, weight, dOut []float
 	dxf := make([]float64, b*cin*h*w)
 	dWf := make([]float64, cout*cin*kernelElems)
 	dBf := make([]float64, cout)
-	for bi := 0; bi < b; bi++ {
-		for co := 0; co < cout; co++ {
+	for bi := range b {
+		for co := range cout {
 			wco := co * cin * kernelElems
-			for oy := 0; oy < oh; oy++ {
-				for ox := 0; ox < ow; ox++ {
+			for oy := range oh {
+				for ox := range ow {
 					g := float64(dOut[(bi*cout+co)*oh*ow+oy*ow+ox])
 					dBf[co] += g
-					for ci := 0; ci < cin; ci++ {
+					for ci := range cin {
 						xb := (bi*cin + ci) * h * w
 						wc := wco + ci*kernelElems
 						iy, ix := oy*stride, ox*stride
-						for ky := 0; ky < kernel; ky++ {
-							for kx := 0; kx < kernel; kx++ {
+						for ky := range kernel {
+							for kx := range kernel {
 								xi := xb + (iy+ky)*w + ix + kx
 								wi := wc + ky*kernel + kx
 								dWf[wi] += g * float64(x[xi])
@@ -105,19 +105,19 @@ func convTranspose2dStrideBackward(grads Grads, name string, x, weight, dOut []f
 	dxf := make([]float64, b*cin*h*w)
 	dWf := make([]float64, cin*cout*kernelElems)
 	dBf := make([]float64, cout)
-	for bi := 0; bi < b; bi++ {
-		for ci := 0; ci < cin; ci++ {
-			for iy := 0; iy < h; iy++ {
-				for ix := 0; ix < w; ix++ {
+	for bi := range b {
+		for ci := range cin {
+			for iy := range h {
+				for ix := range w {
 					xi := (bi*cin+ci)*h*w + iy*w + ix
 					xv := float64(x[xi])
 					wci := ci * cout * kernelElems
-					for co := 0; co < cout; co++ {
+					for co := range cout {
 						wc := wci + co*kernelElems
 						ob := (bi*cout + co) * oh * ow
 						oy, ox := iy*stride, ix*stride
-						for ky := 0; ky < kernel; ky++ {
-							for kx := 0; kx < kernel; kx++ {
+						for ky := range kernel {
+							for kx := range kernel {
 								g := float64(dOut[ob+(oy+ky)*ow+ox+kx])
 								wi := wc + ky*kernel + kx
 								dWf[wi] += xv * g
@@ -129,8 +129,8 @@ func convTranspose2dStrideBackward(grads Grads, name string, x, weight, dOut []f
 			}
 		}
 	}
-	for bi := 0; bi < b; bi++ {
-		for co := 0; co < cout; co++ {
+	for bi := range b {
+		for co := range cout {
 			for _, v := range dOut[(bi*cout+co)*oh*ow : (bi*cout+co+1)*oh*ow] {
 				dBf[co] += float64(v)
 			}
@@ -149,8 +149,8 @@ func conv2dSame3x3Backward(grads Grads, name string, x, weight, dOut []float32, 
 	dxf := make([]float64, b*cin*plane)
 	dWf := make([]float64, cout*cin*kernelElems)
 	dBf := make([]float64, cout)
-	for bi := 0; bi < b; bi++ {
-		for co := 0; co < cout; co++ {
+	for bi := range b {
+		for co := range cout {
 			gb := (bi*cout + co) * plane
 			var biasSum float64
 			for _, g := range dOut[gb : gb+plane] {
@@ -161,9 +161,9 @@ func conv2dSame3x3Backward(grads Grads, name string, x, weight, dOut []float32, 
 	}
 	hostmath.ParallelRangeF64(cin, 2*b*cout*plane*kernelElems, func(ciLo, ciHi int) {
 		for ci := ciLo; ci < ciHi; ci++ {
-			for bi := 0; bi < b; bi++ {
+			for bi := range b {
 				xb := (bi*cin + ci) * plane
-				for co := 0; co < cout; co++ {
+				for co := range cout {
 					gb := (bi*cout + co) * plane
 					wc := co*cin*kernelElems + ci*kernelElems
 					for di := -conv3x3Radius; di <= conv3x3Radius; di++ {
@@ -213,12 +213,12 @@ func conv2dSame3x3Backward(grads Grads, name string, x, weight, dOut []float32, 
 func avgPool2xBackward(dOut []float32, b, c, h, w int) []float32 {
 	oh, ow := h/2, w/2
 	dx := make([]float32, b*c*h*w)
-	for bi := 0; bi < b; bi++ {
-		for ci := 0; ci < c; ci++ {
+	for bi := range b {
+		for ci := range c {
 			inBase := (bi*c + ci) * h * w
 			outBase := (bi*c + ci) * oh * ow
-			for i := 0; i < oh; i++ {
-				for j := 0; j < ow; j++ {
+			for i := range oh {
+				for j := range ow {
 					g := dOut[outBase+i*ow+j] * 0.25
 					p := inBase + 2*i*w + 2*j
 					dx[p] += g
@@ -235,12 +235,12 @@ func avgPool2xBackward(dOut []float32, b, c, h, w int) []float32 {
 func upsampleNearest2xBackward(dOut []float32, b, c, h, w int) []float32 {
 	oh, ow := 2*h, 2*w
 	dx := make([]float32, b*c*h*w)
-	for bi := 0; bi < b; bi++ {
-		for ci := 0; ci < c; ci++ {
+	for bi := range b {
+		for ci := range c {
 			ob := (bi*c + ci) * oh * ow
 			ib := (bi*c + ci) * h * w
-			for i := 0; i < oh; i++ {
-				for j := 0; j < ow; j++ {
+			for i := range oh {
+				for j := range ow {
 					dx[ib+(i/2)*w+(j/2)] += dOut[ob+i*ow+j]
 				}
 			}
@@ -258,12 +258,12 @@ func groupNormBackward(dx, dWeight, dBias, x, weight, dOut []float32, n, c, h, w
 	groupElems := float64(groupCount)
 	xhat := make([]float64, groupCount)
 	gradNorm := make([]float64, groupCount)
-	for ni := 0; ni < n; ni++ {
-		for g := 0; g < groups; g++ {
+	for ni := range n {
+		for g := range groups {
 			var sum, sumsq float64
 			for ci := g * channelsPerGroup; ci < (g+1)*channelsPerGroup; ci++ {
 				base := (ni*c + ci) * hw
-				for i := 0; i < hw; i++ {
+				for i := range hw {
 					v := float64(x[base+i])
 					sum += v
 					sumsq += v * v
@@ -276,7 +276,7 @@ func groupNormBackward(dx, dWeight, dBias, x, weight, dOut []float32, n, c, h, w
 			for ci := g * channelsPerGroup; ci < (g+1)*channelsPerGroup; ci++ {
 				base := (ni*c + ci) * hw
 				wc := float64(weight[ci])
-				for i := 0; i < hw; i++ {
+				for i := range hw {
 					xh := (float64(x[base+i]) - mean) * inv
 					gy := float64(dOut[base+i])
 					gn := gy * wc
@@ -295,7 +295,7 @@ func groupNormBackward(dx, dWeight, dBias, x, weight, dOut []float32, n, c, h, w
 			pos = 0
 			for ci := g * channelsPerGroup; ci < (g+1)*channelsPerGroup; ci++ {
 				base := (ni*c + ci) * hw
-				for i := 0; i < hw; i++ {
+				for i := range hw {
 					dx[base+i] = float32((groupElems*gradNorm[pos] - gradSum - xhat[pos]*gradXHatSum) * inv / groupElems)
 					pos++
 				}
@@ -309,13 +309,13 @@ func xatgluBackward(dProjected, projected, dOut []float32, alpha float64, rows, 
 	stride := 2 * outDim
 	alphaScale := 1 + 2*alpha
 	var dAlpha float64
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		gatePath := projected[r*stride : r*stride+outDim]
 		valuePath := projected[r*stride+outDim : r*stride+stride]
 		dGate := dProjected[r*stride : r*stride+outDim]
 		dValue := dProjected[r*stride+outDim : r*stride+stride]
 		gradOut := dOut[r*outDim : r*outDim+outDim]
-		for j := 0; j < outDim; j++ {
+		for j := range outDim {
 			g := float64(gatePath[j])
 			gate := (math.Atan(g) + xatgluHalfPi) * xatgluInvPi
 			dy := float64(gradOut[j])
@@ -332,18 +332,18 @@ func cpFactorContractBackward(dA, dB, aFactor, bFactor, dOut []float32, tokens, 
 	clear(dA)
 	clear(dB)
 	invRank := 1 / float64(rank)
-	for t := 0; t < tokens; t++ {
+	for t := range tokens {
 		aBase := t * heads * rank
 		bBase := t * rank * headDim
-		for h := 0; h < heads; h++ {
+		for h := range heads {
 			aRow := aFactor[aBase+h*rank : aBase+(h+1)*rank]
 			dARow := dA[aBase+h*rank : aBase+(h+1)*rank]
 			gradOut := dOut[(t*heads+h)*headDim : (t*heads+h+1)*headDim]
-			for r := 0; r < rank; r++ {
+			for r := range rank {
 				bRow := bFactor[bBase+r*headDim : bBase+(r+1)*headDim]
 				dBRow := dB[bBase+r*headDim : bBase+(r+1)*headDim]
 				var sumA float64
-				for d := 0; d < headDim; d++ {
+				for d := range headDim {
 					grad := float64(gradOut[d]) * invRank
 					sumA += grad * float64(bRow[d])
 					dBRow[d] += float32(grad * float64(aRow[r]))
@@ -357,12 +357,12 @@ func cpFactorContractBackward(dA, dB, aFactor, bFactor, dOut []float32, tokens, 
 // applyRopeBackward: VJP of applyRope — same tables, transposed rotation.
 func applyRopeBackward(dx, cos, sin []float32, seq, nHeads, headDim int) {
 	half := headDim / 2
-	for p := 0; p < seq; p++ {
+	for p := range seq {
 		cp := cos[p*headDim : (p+1)*headDim]
 		sp := sin[p*headDim : (p+1)*headDim]
-		for h := 0; h < nHeads; h++ {
+		for h := range nHeads {
 			vec := dx[(p*nHeads+h)*headDim : (p*nHeads+h+1)*headDim]
-			for i := 0; i < half; i++ {
+			for i := range half {
 				j := i + half
 				a, b := vec[i], vec[j]
 				vec[i] = a*cp[i] + b*sp[i]
@@ -382,15 +382,15 @@ func bidirectionalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, he
 		probs := make([]float64, seq)
 		dP := make([]float64, seq)
 		for h := hLo; h < hHi; h++ {
-			for qi := 0; qi < seq; qi++ {
+			for qi := range seq {
 				qRow := q[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 				dout := dOut[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 				dqRow := dq[(qi*heads+h)*headDim : (qi*heads+h+1)*headDim]
 				mx := math.Inf(-1)
-				for m := 0; m < seq; m++ {
+				for m := range seq {
 					kRow := k[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
 					var dot float64
-					for x := 0; x < headDim; x++ {
+					for x := range headDim {
 						dot += float64(qRow[x]) * float64(kRow[x])
 					}
 					probs[m] = dot * scale
@@ -399,32 +399,32 @@ func bidirectionalAttentionBackward(dq, dk, dv, q, k, v, dOut []float32, seq, he
 					}
 				}
 				var sum float64
-				for m := 0; m < seq; m++ {
+				for m := range seq {
 					probs[m] = math.Exp(probs[m] - mx)
 					sum += probs[m]
 				}
 				inv := 1.0 / sum
 				var pdotdP float64
-				for m := 0; m < seq; m++ {
+				for m := range seq {
 					probs[m] *= inv
 					vRow := v[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
 					dvRow := dv[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
 					var dpm float64
-					for x := 0; x < headDim; x++ {
+					for x := range headDim {
 						dpm += float64(dout[x]) * float64(vRow[x])
 						dvRow[x] += float32(probs[m] * float64(dout[x]))
 					}
 					dP[m] = dpm
 					pdotdP += probs[m] * dpm
 				}
-				for m := 0; m < seq; m++ {
+				for m := range seq {
 					g := probs[m] * (dP[m] - pdotdP) * scale
 					if g == 0 {
 						continue
 					}
 					kRow := k[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
 					dkRow := dk[(m*heads+h)*headDim : (m*heads+h+1)*headDim]
-					for x := 0; x < headDim; x++ {
+					for x := range headDim {
 						dqRow[x] += float32(g * float64(kRow[x]))
 						dkRow[x] += float32(g * float64(qRow[x]))
 					}

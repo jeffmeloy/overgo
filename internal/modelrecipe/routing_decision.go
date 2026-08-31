@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	// RoutingDecisionMediaType identifies routing decision documents.
-	RoutingDecisionMediaType = "application/vnd.overgo.routing-decision+json"
-	// RoutingDecisionSchema identifies the routing decision contract.
-	RoutingDecisionSchema = "overgo/routing-decision/v1"
+	// RecipeRoutingDecisionMediaType identifies recipe-routing decision documents.
+	RecipeRoutingDecisionMediaType = "application/vnd.overgo.recipe-routing-decision+json"
+	// RecipeRoutingDecisionSchema identifies the recipe-routing decision contract.
+	RecipeRoutingDecisionSchema = "overgo/recipe-routing-decision/v1"
 	// RoutingDerivationCheapestEligible is the live registered derivation
 	// rule: among candidates whose published evidence meets the signal's
 	// admitted threshold, the cheapest by measured resource is selected.
@@ -52,13 +52,13 @@ type RoutingCandidate struct {
 	ResourceBytes uint64        `json:"resource_bytes"`
 }
 
-// RoutingDecision is the canonical routing fact: which verified recipe
+// RecipeRoutingDecision is the canonical recipe-routing fact: which verified recipe
 // serves a task signal, derived from the named candidates' published
 // evidence by exactly one registered derivation rule. The record binds the
 // signal, every candidate considered, the evidence each was judged on, and
 // the derived selection, so the decision is replayable and auditable like
 // any other promotion.
-type RoutingDecision struct {
+type RecipeRoutingDecision struct {
 	Version    uint16             `json:"version"`
 	Signal     RoutingSignal      `json:"signal"`
 	Candidates []RoutingCandidate `json:"candidates"`
@@ -67,12 +67,12 @@ type RoutingDecision struct {
 	ID         artifact.ID        `json:"-"`
 }
 
-var routingDecisionCodec = artifact.JSONDocumentCodec(
-	"routing decision", artifact.KindEvidence, RoutingDecisionMediaType, RoutingDecisionSchema,
-	canonicalizeRoutingDecision,
-	func(value RoutingDecision) artifact.ID { return value.ID },
-	func(value *RoutingDecision, id artifact.ID) { value.ID = id },
-	func(value RoutingDecision) RoutingDecision {
+var recipeRoutingDecisionCodec = artifact.JSONDocumentCodec(
+	"recipe routing decision", artifact.KindEvidence, RecipeRoutingDecisionMediaType, RecipeRoutingDecisionSchema,
+	canonicalizeRecipeRoutingDecision,
+	func(value RecipeRoutingDecision) artifact.ID { return value.ID },
+	func(value *RecipeRoutingDecision, id artifact.ID) { value.ID = id },
+	func(value RecipeRoutingDecision) RecipeRoutingDecision {
 		value.Candidates = slices.Clone(value.Candidates)
 		for index, candidate := range value.Candidates {
 			value.Candidates[index].Evidence = slices.Clone(candidate.Evidence)
@@ -81,7 +81,7 @@ var routingDecisionCodec = artifact.JSONDocumentCodec(
 	},
 )
 
-func canonicalizeRoutingDecision(value *RoutingDecision) error {
+func canonicalizeRecipeRoutingDecision(value *RecipeRoutingDecision) error {
 	if value.Version != artifact.InitialDocumentVersion {
 		return errors.New("model recipe: invalid routing decision version")
 	}
@@ -174,40 +174,40 @@ func selectByDerivation(
 	return selected, nil
 }
 
-// DeriveRoutingDecision applies the one registered derivation rule to a
+// DeriveRecipeRoutingDecision applies the one registered derivation rule to a
 // task signal and its judged candidates: among candidates whose measured
 // quality meets the signal's evidence-derived threshold, the cheapest by
 // measured resource is selected, with ties broken by recipe identity so the
 // derivation is deterministic. No candidate meeting the threshold is a
 // refusal, not a fallback.
-func DeriveRoutingDecision(
+func DeriveRecipeRoutingDecision(
 	signal RoutingSignal, candidates []RoutingCandidate,
-) (RoutingDecision, error) {
+) (RecipeRoutingDecision, error) {
 	selected, err := selectByDerivation(RoutingDerivationCheapestEligible, signal, candidates)
 	if err != nil {
-		return RoutingDecision{}, err
+		return RecipeRoutingDecision{}, err
 	}
-	return NewRoutingDecision(RoutingDecision{
+	return NewRecipeRoutingDecision(RecipeRoutingDecision{
 		Signal: signal, Candidates: candidates, Selected: selected.Recipe,
 		Derivation: RoutingDerivationCheapestEligible,
 	})
 }
 
-// NewRoutingDecision canonicalizes and identifies one immutable routing
+// NewRecipeRoutingDecision canonicalizes and identifies one immutable recipe-routing
 // decision record.
-func NewRoutingDecision(value RoutingDecision) (RoutingDecision, error) {
-	return routingDecisionCodec.NewInitial(value)
+func NewRecipeRoutingDecision(value RecipeRoutingDecision) (RecipeRoutingDecision, error) {
+	return recipeRoutingDecisionCodec.NewInitial(value)
 }
 
-// ParseRoutingDecision decodes one canonical routing decision document and
+// ParseRecipeRoutingDecision decodes one canonical recipe-routing decision document and
 // proves its content identity.
-func ParseRoutingDecision(content []byte) (RoutingDecision, error) {
-	return routingDecisionCodec.Parse(content)
+func ParseRecipeRoutingDecision(content []byte) (RecipeRoutingDecision, error) {
+	return recipeRoutingDecisionCodec.Parse(content)
 }
 
 // Lineage binds the decision to its threshold evidence, every candidate's
 // identities and judged evidence, and the selected recipe.
-func (value RoutingDecision) Lineage() []artifact.Lineage {
+func (value RecipeRoutingDecision) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Signal.ThresholdEvidence}
 	for _, candidate := range value.Candidates {
 		parents = append(parents, candidate.Recipe, candidate.Model)
@@ -217,6 +217,6 @@ func (value RoutingDecision) Lineage() []artifact.Lineage {
 }
 
 // Batch wraps the decision as one committable store batch.
-func (value RoutingDecision) Batch(key string) (artifact.Batch, error) {
-	return routingDecisionCodec.Batch(key, value, value.Lineage(), nil)
+func (value RecipeRoutingDecision) Batch(key string) (artifact.Batch, error) {
+	return recipeRoutingDecisionCodec.Batch(key, value, value.Lineage(), nil)
 }

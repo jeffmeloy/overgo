@@ -3,6 +3,7 @@ package composition
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"strings"
@@ -61,11 +62,7 @@ func ScoreCompositeSelection(scores []CompositeScore) ([]CompositeFitnessVerdict
 			return nil, fmt.Errorf("composition: composite %s was scored on no dimensions", score.Composite)
 		}
 		verdict := CompositeFitnessVerdict{Composite: score.Composite, Evaluation: score.Evaluation}
-		names := make([]string, 0, len(score.Dimensions))
-		for name := range score.Dimensions {
-			names = append(names, name)
-		}
-		slices.Sort(names)
+		names := slices.Sorted(maps.Keys(score.Dimensions))
 		for _, name := range names {
 			dimension := score.Dimensions[name]
 			if math.IsNaN(dimension.Baseline) || math.IsInf(dimension.Baseline, 0) ||

@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -10,7 +9,7 @@ import (
 
 func TestCompositionPromotionActivation(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	policy, err := LoadRepresentationBridgePromotionPolicy(ctx, store, authority.Recipe.PromotionPolicy)
 	if err != nil || policy != authority.PromotionPolicy || authority.Promotion.PolicyID != policy.ID {
 		t.Fatalf("recipe promotion policy = %+v, %v", policy, err)
@@ -32,7 +31,7 @@ func TestCompositionPromotionActivation(t *testing.T) {
 
 func TestUnpromotedBridgeRefused(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	candidate := authority.Recipe
 	candidate.Promotion = testutil.ArtifactID(t, artifact.KindEvidence, "missing bridge promotion")
 	candidate, err := NewCompositionRecipe(candidate)

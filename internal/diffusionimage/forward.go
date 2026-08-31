@@ -19,18 +19,18 @@ func conv2dValidStride(x, weight, bias []float32, b, cin, cout, h, w, kernel, st
 		for owner := lo; owner < hi; owner++ {
 			bi, co := owner/cout, owner%cout
 			wco := co * cin * kernelElems
-			for oy := 0; oy < oh; oy++ {
-				for ox := 0; ox < ow; ox++ {
+			for oy := range oh {
+				for ox := range ow {
 					var acc float64
 					if bias != nil {
 						acc = float64(bias[co])
 					}
-					for ci := 0; ci < cin; ci++ {
+					for ci := range cin {
 						xb := (bi*cin + ci) * h * w
 						wc := wco + ci*kernelElems
 						iy, ix := oy*stride, ox*stride
-						for ky := 0; ky < kernel; ky++ {
-							for kx := 0; kx < kernel; kx++ {
+						for ky := range kernel {
+							for kx := range kernel {
 								acc += float64(x[xb+(iy+ky)*w+ix+kx]) * float64(weight[wc+ky*kernel+kx])
 							}
 						}
@@ -55,14 +55,14 @@ func convTranspose2dStride(x, weight, bias []float32, b, cin, cout, h, w, kernel
 		for owner := lo; owner < hi; owner++ {
 			bi, co := owner/cout, owner%cout
 			ob := (bi*cout + co) * oh * ow
-			for ci := 0; ci < cin; ci++ {
+			for ci := range cin {
 				wc := (ci*cout + co) * kernelElems
-				for iy := 0; iy < h; iy++ {
-					for ix := 0; ix < w; ix++ {
+				for iy := range h {
+					for ix := range w {
 						xv := float64(x[(bi*cin+ci)*h*w+iy*w+ix])
 						oy, ox := iy*stride, ix*stride
-						for ky := 0; ky < kernel; ky++ {
-							for kx := 0; kx < kernel; kx++ {
+						for ky := range kernel {
+							for kx := range kernel {
 								out[ob+(oy+ky)*ow+ox+kx] += float32(xv * float64(weight[wc+ky*kernel+kx]))
 							}
 						}
@@ -100,7 +100,7 @@ func conv2dSame3x3(x, weight, bias []float32, b, cin, cout, h, w int) []float32 
 				acc[i] = fill
 			}
 			wco := co * cin * kernelElems
-			for ci := 0; ci < cin; ci++ {
+			for ci := range cin {
 				xb := (bi*cin + ci) * plane
 				wc := wco + ci*kernelElems
 				for di := -conv3x3Radius; di <= conv3x3Radius; di++ {
@@ -144,12 +144,12 @@ func conv2dSame3x3(x, weight, bias []float32, b, cin, cout, h, w int) []float32 
 func avgPool2x(x []float32, b, c, h, w int) []float32 {
 	oh, ow := h/2, w/2
 	out := make([]float32, b*c*oh*ow)
-	for bi := 0; bi < b; bi++ {
-		for ci := 0; ci < c; ci++ {
+	for bi := range b {
+		for ci := range c {
 			inBase := (bi*c + ci) * h * w
 			outBase := (bi*c + ci) * oh * ow
-			for i := 0; i < oh; i++ {
-				for j := 0; j < ow; j++ {
+			for i := range oh {
+				for j := range ow {
 					p := inBase + 2*i*w + 2*j
 					out[outBase+i*ow+j] = (x[p] + x[p+1] + x[p+w] + x[p+w+1]) * 0.25
 				}
@@ -163,12 +163,12 @@ func avgPool2x(x []float32, b, c, h, w int) []float32 {
 func upsampleNearest2x(x []float32, b, c, h, w int) []float32 {
 	oh, ow := 2*h, 2*w
 	out := make([]float32, b*c*oh*ow)
-	for bi := 0; bi < b; bi++ {
-		for ci := 0; ci < c; ci++ {
+	for bi := range b {
+		for ci := range c {
 			ib := (bi*c + ci) * h * w
 			ob := (bi*c + ci) * oh * ow
-			for i := 0; i < oh; i++ {
-				for j := 0; j < ow; j++ {
+			for i := range oh {
+				for j := range ow {
 					out[ob+i*ow+j] = x[ib+(i/2)*w+(j/2)]
 				}
 			}
@@ -182,12 +182,12 @@ func groupNormInto(out, x, weight, bias []float32, n, c, h, w, groups int, eps f
 	channelsPerGroup := c / groups
 	hw := h * w
 	groupElems := float64(channelsPerGroup * hw)
-	for ni := 0; ni < n; ni++ {
-		for g := 0; g < groups; g++ {
+	for ni := range n {
+		for g := range groups {
 			var sum, sumsq float64
 			for ci := g * channelsPerGroup; ci < (g+1)*channelsPerGroup; ci++ {
 				base := (ni*c + ci) * hw
-				for i := 0; i < hw; i++ {
+				for i := range hw {
 					v := float64(x[base+i])
 					sum += v
 					sumsq += v * v
@@ -198,7 +198,7 @@ func groupNormInto(out, x, weight, bias []float32, n, c, h, w, groups int, eps f
 			for ci := g * channelsPerGroup; ci < (g+1)*channelsPerGroup; ci++ {
 				wc, bc := float64(weight[ci]), float64(bias[ci])
 				base := (ni*c + ci) * hw
-				for i := 0; i < hw; i++ {
+				for i := range hw {
 					out[base+i] = float32((float64(x[base+i])-mean)*inv*wc + bc)
 				}
 			}
@@ -215,11 +215,11 @@ const (
 // dst = (gate*(1+2a)-a) * value over [gate|value] projected rows.
 func xatgluGateInto(dst, projected []float32, alpha float64, rows, outDim int) {
 	stride := 2 * outDim
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		gatePath := projected[r*stride : r*stride+outDim]
 		valuePath := projected[r*stride+outDim : r*stride+stride]
 		out := dst[r*outDim : r*outDim+outDim]
-		for j := 0; j < outDim; j++ {
+		for j := range outDim {
 			gate := (math.Atan(float64(gatePath[j])) + xatgluHalfPi) * xatgluInvPi
 			out[j] = float32((gate*(1+2*alpha) - alpha) * float64(valuePath[j]))
 		}
@@ -229,15 +229,15 @@ func xatgluGateInto(dst, projected []float32, alpha float64, rows, outDim int) {
 // cpFactorContractInto: per-token rank contraction q = (A x B)/rank.
 func cpFactorContractInto(dst, aFactor, bFactor []float32, tokens, heads, rank, headDim int) {
 	invRank := 1 / float64(rank)
-	for t := 0; t < tokens; t++ {
+	for t := range tokens {
 		aBase := t * heads * rank
 		bBase := t * rank * headDim
-		for h := 0; h < heads; h++ {
+		for h := range heads {
 			aRow := aFactor[aBase+h*rank : aBase+(h+1)*rank]
 			out := dst[(t*heads+h)*headDim : (t*heads+h+1)*headDim]
-			for d := 0; d < headDim; d++ {
+			for d := range headDim {
 				var sum float64
-				for r := 0; r < rank; r++ {
+				for r := range rank {
 					sum += float64(aRow[r]) * float64(bFactor[bBase+r*headDim+d])
 				}
 				out[d] = float32(sum * invRank)
@@ -253,9 +253,9 @@ func buildRopeTables(seq, headDim int, theta float64) (cos, sin []float32) {
 	half := headDim / 2
 	cos = make([]float32, seq*headDim)
 	sin = make([]float32, seq*headDim)
-	for i := 0; i < half; i++ {
+	for i := range half {
 		inv := 1 / math.Pow(theta, float64(2*i)/float64(headDim))
-		for p := 0; p < seq; p++ {
+		for p := range seq {
 			c, s := float32(math.Cos(float64(p)*inv)), float32(-math.Sin(float64(p)*inv))
 			base := p * headDim
 			cos[base+i], cos[base+half+i] = c, c
@@ -268,12 +268,12 @@ func buildRopeTables(seq, headDim int, theta float64) (cos, sin []float32) {
 // applyRope: rotate-half in place over [seq, heads, headDim].
 func applyRope(x, cos, sin []float32, seq, nHeads, headDim int) {
 	half := headDim / 2
-	for p := 0; p < seq; p++ {
+	for p := range seq {
 		cp := cos[p*headDim : (p+1)*headDim]
 		sp := sin[p*headDim : (p+1)*headDim]
-		for h := 0; h < nHeads; h++ {
+		for h := range nHeads {
 			vec := x[(p*nHeads+h)*headDim : (p*nHeads+h+1)*headDim]
-			for i := 0; i < half; i++ {
+			for i := range half {
 				j := i + half
 				a, b := vec[i], vec[j]
 				vec[i] = a*cp[i] - b*sp[i]
@@ -326,9 +326,9 @@ func tokensToImageNCHW(tokens []float32, b, c, h, w int) []float32 {
 	seq := h * w
 	out := make([]float32, len(tokens))
 	pos := 0
-	for tkn := 0; tkn < seq; tkn++ {
-		for ch := 0; ch < c; ch++ {
-			for bi := 0; bi < b; bi++ {
+	for tkn := range seq {
+		for ch := range c {
+			for bi := range b {
 				out[pos] = tokens[(bi*seq+tkn)*c+ch]
 				pos++
 			}
@@ -341,9 +341,9 @@ func imageNCHWToTokens(image []float32, b, c, h, w int) []float32 {
 	seq := h * w
 	out := make([]float32, len(image))
 	pos := 0
-	for tkn := 0; tkn < seq; tkn++ {
-		for ch := 0; ch < c; ch++ {
-			for bi := 0; bi < b; bi++ {
+	for tkn := range seq {
+		for ch := range c {
+			for bi := range b {
 				out[(bi*seq+tkn)*c+ch] = image[pos]
 				pos++
 			}
@@ -533,7 +533,7 @@ func (m *Model) Sample(b, imgH, imgW, steps int, seed int64) ([]float32, error) 
 		x[i] = float32(rng.NormFloat64())
 	}
 	dt := float32(1) / float32(steps)
-	for s := 0; s < steps; s++ {
+	for range steps {
 		v, err := m.Forward(x, b, imgH, imgW)
 		if err != nil {
 			return nil, err

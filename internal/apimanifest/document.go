@@ -26,7 +26,7 @@ type BuildContext struct {
 	GOOS   string   `json:"goos"`
 	GOARCH string   `json:"goarch"`
 	Tags   []string `json:"tags,omitempty"`
-	Cgo    bool     `json:"cgo,omitempty"`
+	Cgo    bool     `json:"cgo,omitzero"`
 }
 
 // ContractRef names one document contract by kind, media type, and schema.
@@ -40,8 +40,8 @@ type ContractRef struct {
 type Parameter struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
-	Required bool   `json:"required,omitempty"`
-	Default  string `json:"default,omitempty"`
+	Required bool   `json:"required,omitzero"`
+	Default  string `json:"default,omitzero"`
 }
 
 // Binary describes one shipped executable: its package, build contexts,
@@ -63,11 +63,11 @@ type Route struct {
 	Path           string        `json:"path"`
 	Method         string        `json:"method"`
 	Authentication string        `json:"authentication"`
-	RequestBound   uint64        `json:"request_bound,omitempty"`
+	RequestBound   uint64        `json:"request_bound,omitzero"`
 	Request        *ContractRef  `json:"request,omitempty"`
 	Responses      []ContractRef `json:"responses,omitempty"`
 	Stream         *ContractRef  `json:"stream,omitempty"`
-	Capability     string        `json:"capability,omitempty"`
+	Capability     string        `json:"capability,omitzero"`
 }
 
 // Document declares one owned document contract and the source that defines it.

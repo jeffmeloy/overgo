@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -96,11 +97,7 @@ func DeriveStoreSuites(
 		"math":   assembleMATHSuite,
 		"ifeval": assembleIFEvalSuite,
 	}
-	names := make([]string, 0, len(families))
-	for name := range families {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(families))
 	suites := make([]CompiledSuite, 0, len(names))
 	skipped := map[string]int{}
 	for _, name := range names {
@@ -247,7 +244,7 @@ func assembleChoiceGroups(family, schema string, cases []storeCase) (any, int, e
 		}
 	}
 	for group := range targetsByGroup {
-		sort.Strings(targetsByGroup[group])
+		slices.Sort(targetsByGroup[group])
 		for index, target := range targetsByGroup[group] {
 			seen[group][target] = index
 		}

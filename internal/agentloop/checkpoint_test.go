@@ -1,7 +1,6 @@
 package agentloop
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -16,7 +15,7 @@ import (
 )
 
 func TestAgentMutationCheckpointLifecycle(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	target := filepath.Join(root, "state.txt")
 	if err := os.WriteFile(target, []byte("before"), 0o640); err != nil {

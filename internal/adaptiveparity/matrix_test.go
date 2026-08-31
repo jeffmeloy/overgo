@@ -1,7 +1,6 @@
 package adaptiveparity
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,7 +64,7 @@ func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 		if len(capability.Artifacts) != 1 || len(capability.Corpora) != 1 || len(capability.Goldens) != 1 {
 			t.Fatalf("row %q evidence cardinality is not singular", capability.ID)
 		}
-		artifactPath, err := artifact.AvailablePath(context.Background(), store, capability.Artifacts[0].Identity, artifact.LocationFile)
+		artifactPath, err := artifact.AvailablePath(t.Context(), store, capability.Artifacts[0].Identity, artifact.LocationFile)
 		if err != nil {
 			t.Fatal(err)
 		}

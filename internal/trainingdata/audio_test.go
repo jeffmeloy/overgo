@@ -1,7 +1,6 @@
 package trainingdata
 
 import (
-	"context"
 	"slices"
 	"testing"
 
@@ -11,7 +10,7 @@ import (
 func TestAudioProcessorDecodesTypedWAV(t *testing.T) {
 	t.Parallel()
 	want := []float32{0.5, -0.5}
-	example, err := AudioProcessor(RoleInput)(context.Background(), RawRecord{
+	example, err := AudioProcessor(RoleInput)(t.Context(), RawRecord{
 		ID: "audio", Group: "audio", Data: testutil.MonoPCM16WAV(16000, []int16{16384, -16384}),
 	})
 	if err != nil || len(example.Values) != 1 {

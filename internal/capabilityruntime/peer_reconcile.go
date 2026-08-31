@@ -325,7 +325,7 @@ func peerReplicaTarget(replica modelrecipe.PeerReplicaPlacement) (artifact.ID, e
 	return artifact.JSONID(artifact.KindProfile, struct {
 		Peer        artifact.ID         `json:"peer,omitzero"`
 		Environment artifact.ID         `json:"environment"`
-		Endpoint    string              `json:"endpoint,omitempty"`
+		Endpoint    string              `json:"endpoint,omitzero"`
 		Locality    []artifact.Location `json:"locality"`
 	}{replica.Peer, replica.Environment, replica.Endpoint, replica.Locality})
 }

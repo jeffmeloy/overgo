@@ -1,6 +1,7 @@
 package runrecord
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -92,6 +93,11 @@ func ParseBudget(data []byte) (Budget, error) {
 	return budgetCodec.Parse(data)
 }
 
+// RequireBudget loads one exact immutable budget grant.
+func RequireBudget(ctx context.Context, reader artifact.Reader, id artifact.ID) (Budget, error) {
+	return budgetCodec.Require(ctx, reader, id)
+}
+
 func ParseBudgetCharge(data []byte) (BudgetCharge, error) {
 	return budgetChargeCodec.Parse(data)
 }
@@ -106,6 +112,12 @@ func NewBudgetCharge(budget artifact.ID, amount uint64, consumer artifact.ID, pu
 	return budgetChargeCodec.NewInitial(BudgetCharge{
 		Budget: budget, Amount: amount, Consumer: consumer, Purpose: purpose,
 	})
+}
+
+// RequireBudgetCharge loads one exact immutable charge and its authority
+// lineage.
+func RequireBudgetCharge(ctx context.Context, reader artifact.Reader, id artifact.ID) (BudgetCharge, error) {
+	return budgetChargeCodec.RequireExactLineage(ctx, reader, id, BudgetCharge.Lineage)
 }
 
 func (value Budget) Content() (artifact.Content, error) { return budgetCodec.Content(value) }

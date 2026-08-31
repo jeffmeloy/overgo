@@ -25,13 +25,13 @@ func CausalConv1d(x []float32, cIn, T int, w, bias []float32, cOut, k, stride in
 // serial kernel the dispatch calibration times.
 func causalConv1dChannels(out, x, w, bias []float32, cIn, T, outT, k, stride, leftPad, coLo, coHi int) {
 	for co := coLo; co < coHi; co++ {
-		for ot := 0; ot < outT; ot++ {
+		for ot := range outT {
 			start := ot*stride - leftPad
 			var acc float64
-			for ci := 0; ci < cIn; ci++ {
+			for ci := range cIn {
 				xRow := x[ci*T:]
 				wRow := w[(co*cIn+ci)*k:]
-				for j := 0; j < k; j++ {
+				for j := range k {
 					ti := start + j
 					if ti < 0 || ti >= T {
 						continue // zero padding
@@ -66,17 +66,17 @@ func ConvTranspose1dTrim(x []float32, cIn, T int, w, bias []float32, cOut, k, st
 			clear(acc)
 			g := co / cOutPerG
 			cog := co % cOutPerG
-			for cig := 0; cig < cInPerG; cig++ {
+			for cig := range cInPerG {
 				ci := g*cInPerG + cig
 				xRow := x[ci*T:]
 				wRow := w[(ci*cOutPerG+cog)*k:]
-				for t := 0; t < T; t++ {
+				for t := range T {
 					xv := float64(xRow[t])
 					if xv == 0 {
 						continue
 					}
 					base := t * stride
-					for j := 0; j < k; j++ {
+					for j := range k {
 						acc[base+j] += xv * float64(wRow[j])
 					}
 				}
@@ -85,7 +85,7 @@ func ConvTranspose1dTrim(x []float32, cIn, T int, w, bias []float32, cOut, k, st
 			if bias != nil {
 				b = float64(bias[co])
 			}
-			for t := 0; t < outT; t++ {
+			for t := range outT {
 				out[co*outT+t] = float32(acc[t] + b)
 			}
 		}

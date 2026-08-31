@@ -38,14 +38,14 @@ func TestAttentionWeightsHostMath(t *testing.T) {
 
 	const eps = 1e-4
 	// Causality: query token 0 attends only to key 0 (weight 1), key 1 is zero.
-	for head := 0; head < 2; head++ {
+	for head := range 2 {
 		if math.Abs(weights[head][0][0]-1) > eps || weights[head][0][1] != 0 {
 			t.Fatalf("head %d row0 = %v, want [1 0] (causal)", head, weights[head][0])
 		}
 	}
 	// Every row is a distribution: sums to 1.
-	for head := 0; head < 2; head++ {
-		for row := 0; row < 2; row++ {
+	for head := range 2 {
+		for row := range 2 {
 			sum := weights[head][row][0] + weights[head][row][1]
 			if math.Abs(sum-1) > eps {
 				t.Fatalf("head %d row %d sum = %v, want 1", head, row, sum)

@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -28,6 +29,11 @@ func TestReleaseDocumentsExist(t *testing.T) {
 
 func TestReleaseVersionAndArchiveLayout(t *testing.T) {
 	root := t.TempDir()
+	git := exec.Command("git", "init", "--quiet")
+	git.Dir = root
+	if output, err := git.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, output)
+	}
 	if err := os.Mkdir(filepath.Join(root, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +66,22 @@ func TestReleaseVersionAndArchiveLayout(t *testing.T) {
 	}
 	if outside != "stray.exe" {
 		t.Fatalf("outside executable = %q", outside)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".tools/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, ".tools"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".tools", "compiler.exe"), []byte("toolchain"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, "stray.exe")); err != nil {
+		t.Fatal(err)
+	}
+	outside, err = executableOutsideBin(root)
+	if err != nil || outside != "" {
+		t.Fatalf("ignored toolchain executable = (%q, %v)", outside, err)
 	}
 }
 

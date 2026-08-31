@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	source, err := Open(filepath.Join(root, "source"))
 	if err != nil {

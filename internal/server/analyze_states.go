@@ -179,7 +179,7 @@ func reshapeSingleLayer(value reference.Value, tokens int) ([][]float32, int, er
 		return nil, 0, errors.New("capture data does not match shape")
 	}
 	vectors := make([][]float32, tokens)
-	for token := 0; token < tokens; token++ {
+	for token := range tokens {
 		vectors[token] = value.Data[token*width : (token+1)*width]
 	}
 	return vectors, width, nil

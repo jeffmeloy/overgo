@@ -19,7 +19,7 @@ import (
 type PeerCapacityProjection struct {
 	Environment  artifact.ID   `json:"environment"`
 	Tasks        []recipe.Task `json:"tasks,omitempty"`
-	LeaseExpires int64         `json:"lease_expires_unix_ns,omitempty"`
+	LeaseExpires int64         `json:"lease_expires_unix_ns,omitzero"`
 	Available    bool          `json:"available"`
 }
 
@@ -35,7 +35,7 @@ type PeerInventoryEntry struct {
 	HeartbeatID   artifact.ID                            `json:"heartbeat_id,omitzero"`
 	Heartbeat     *runrecord.PeerHeartbeat               `json:"heartbeat,omitempty"`
 	Capacity      PeerCapacityProjection                 `json:"capacity"`
-	Refusal       string                                 `json:"refusal,omitempty"`
+	Refusal       string                                 `json:"refusal,omitzero"`
 }
 
 // PeerInventoryProjection is an explicitly bounded peer control-plane view.
@@ -49,7 +49,7 @@ type PeerEvidenceLog struct {
 	Attempt artifact.ID                  `json:"attempt"`
 	Phase   runrecord.PeerReplicaPhase   `json:"phase"`
 	Outcome runrecord.PeerReplicaOutcome `json:"outcome"`
-	Failure string                       `json:"failure,omitempty"`
+	Failure string                       `json:"failure,omitzero"`
 }
 
 // PeerEvidenceProjection joins operation, attempt, artifact, and log facts.

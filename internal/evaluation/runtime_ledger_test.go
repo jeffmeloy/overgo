@@ -37,8 +37,8 @@ func (*observedRuntime) ScoreContinuations(
 	return nil, nil
 }
 
-func TestRecipeEvaluationRuntimeAndLedger(t *testing.T) {
-	ctx := context.Background()
+func TestIsolatedModelPerformanceEvidence(t *testing.T) {
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestRecipeEvaluationRuntimeAndLedger(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime := &observedRuntime{}
-	campaign, err := NewCampaign(store, runtime, identity, environment, runtimeLedgerCommit)
+	campaign, err := NewIsolatedCampaign(store, runtime, identity, environment, runtimeLedgerCommit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,6 +80,18 @@ func TestRecipeEvaluationRuntimeAndLedger(t *testing.T) {
 	result, err := campaign.Evaluate(ctx, suite)
 	if err != nil {
 		t.Fatal(err)
+	}
+	evidence, err := RequireEvaluationEvidence(ctx, store, result.Evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wall, wallObserved := result.Resources.Measure(runrecord.ResourceWallNS)
+	_, gpuObserved := result.Resources.Measure(runrecord.ResourceGPUNS)
+	if evidence.Resources == nil || evidence.ResourceObservation.Kind() != artifact.KindEvidence ||
+		!wallObserved || wall == 0 || gpuObserved ||
+		result.Resources.Scope.Model != identity.Model || result.Resources.Scope.Hardware != environment.ID ||
+		result.Resources.Scope.Workload != suite.Plan().Identity() || result.Resources.Scope.Attempt != result.Run {
+		t.Fatalf("isolated resource evidence = %+v; bundle = %+v", result.Resources, evidence)
 	}
 	history, err := campaign.History(ctx, []CompiledSuite{suite}, 1)
 	if err != nil {

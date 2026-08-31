@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,12 +21,12 @@ func TestGateAdvisoryFindingPublication(t *testing.T) {
 	defer store.Close()
 	batch := artifact.Batch{Key: "gate/fixture"}
 	honesty := []string{"magic backlog: 2 inherited uncatalogued constants"}
-	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, []string{"internal/p"}, honesty); err != nil {
+	if err := appendGateAdvisoryFinding(t.Context(), store, &batch, []string{"internal/p"}, honesty); err != nil {
 		t.Fatal(err)
 	}
-	mustGateValue(store.Commit(context.Background(), batch))
+	mustGateValue(store.Commit(t.Context(), batch))
 	next := artifact.Batch{Key: "gate/fixture/repeat"}
-	if err := appendGateAdvisoryFinding(context.Background(), store, &next, []string{"internal/p"}, honesty); err != nil ||
+	if err := appendGateAdvisoryFinding(t.Context(), store, &next, []string{"internal/p"}, honesty); err != nil ||
 		len(next.Aliases) != 1 || next.Aliases[0].Previous == nil || *next.Aliases[0].Previous != batch.Aliases[0].Target {
 		t.Fatalf("deduplicated finding = %+v, %v", next.Aliases, err)
 	}
@@ -89,7 +89,7 @@ func TestMergeGateRunsAuthorityPreflightBeforeBroadTests(t *testing.T) {
 	for index, step := range steps {
 		positions[step.Descriptor.Name] = index
 	}
-	for _, authority := range []string{"fmt", "style", "manifest", "sbom", "claims", "docs", "magics"} {
+	for _, authority := range []string{"architecture", "fmt", "style", "manifest", "sbom", "claims", "docs", "magics"} {
 		for _, expensive := range []string{"acceptance", "vet", "build", "test", "device"} {
 			if positions[authority] >= positions[expensive] {
 				t.Fatalf("authority step %s at %d follows %s at %d", authority, positions[authority], expensive, positions[expensive])
@@ -109,12 +109,16 @@ func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
 			t.Errorf("%s lacks modular applicability: %+v", name, byName[name])
 		}
 	}
+	architecture := byName["architecture"]
+	if !architecture.Always || architecture.Ownership.Fact != "" || len(architecture.Triggers) != 0 {
+		t.Fatalf("architecture ratchet must be always-required and ownership-free: %+v", architecture)
+	}
 	resources := byName["device"].Resources
 	if len(resources) != 1 || resources[0].Name != "device" || !resources[0].Exclusive {
 		t.Fatalf("device resources = %+v", resources)
 	}
 	commitDependencies := byName["commit"].Dependencies
-	if len(commitDependencies) != 1 || commitDependencies[0] != "device" {
+	if !slices.Equal(commitDependencies, []string{"test", "device"}) {
 		t.Fatalf("commit dependencies = %v", commitDependencies)
 	}
 }

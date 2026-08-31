@@ -16,6 +16,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -72,9 +73,9 @@ func run() error {
 	for alias := range known {
 		recovered = append(recovered, alias)
 	}
-	sort.Strings(fresh)
-	sort.Strings(drifted)
-	sort.Strings(recovered)
+	slices.Sort(fresh)
+	slices.Sort(drifted)
+	slices.Sort(recovered)
 	for _, line := range fresh {
 		fmt.Printf("NEW BREAKAGE %s\n", line)
 	}

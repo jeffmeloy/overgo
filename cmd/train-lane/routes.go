@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -141,11 +142,7 @@ func resolveRoute(catalog routeCatalog, input, storePath, t2vDir string, dense [
 		}
 		argv[index] = substituted
 	}
-	names := make([]string, 0, len(declaration.Env))
-	for name := range declaration.Env {
-		names = append(names, name)
-	}
-	sort.Strings(names)
+	names := slices.Sorted(maps.Keys(declaration.Env))
 	env := make([]string, 0, len(names))
 	for _, name := range names {
 		env = append(env, name+"="+declaration.Env[name])

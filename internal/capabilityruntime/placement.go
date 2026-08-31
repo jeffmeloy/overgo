@@ -13,9 +13,9 @@ import (
 // ExactCapabilityPlacement binds one verified model selection to the exact
 // runnable implementation that may execute it.
 type ExactCapabilityPlacement struct {
-	Capability runrecord.CapabilityIdentity
-	Selection  modelrecipe.CapabilityEvidenceSelection
-	ID         artifact.ID
+	Capability runrecord.CapabilityIdentity            `json:"capability"`
+	Selection  modelrecipe.CapabilityEvidenceSelection `json:"selection"`
+	ID         artifact.ID                             `json:"id"`
 }
 
 // ResolveExactCapabilityPlacement loads and validates one capability-bound

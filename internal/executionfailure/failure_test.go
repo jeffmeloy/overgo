@@ -6,7 +6,7 @@ import "testing"
 // evidence maps deterministically onto every canonical cause, the
 // classification names the classifier version, and unrecognized
 // evidence falls through to process-failure or unknown.
-func TestFailureNormalizationCorpus(t *testing.T) {
+func TestFailureNormalizationContract(t *testing.T) {
 	corpus := []struct {
 		name     string
 		evidence Evidence

@@ -465,7 +465,7 @@ func proportionalRopeTensor(config modelConfig) gguf.TensorData {
 	pairs := config.Text.GlobalHeadDim / 2
 	rotated := uint32(float32(config.Text.GlobalHeadDim)*full.PartialRotary) / 2
 	encoded := make([]byte, pairs*4)
-	for index := uint32(0); index < pairs; index++ {
+	for index := range pairs {
 		factor := float32(1)
 		if index >= rotated {
 			factor = 1e30

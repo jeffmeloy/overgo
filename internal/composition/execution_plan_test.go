@@ -1,7 +1,6 @@
 package composition
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -14,7 +13,7 @@ import (
 
 func TestCompositionResidencyPlan(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	compile := func() (CompositionExecutionPlan, error) {
 		return CompileCompositionExecutionPlan(
 			ctx, store,
@@ -90,7 +89,7 @@ func TestCompositionResidencyPlan(t *testing.T) {
 
 func TestTransformedRepresentationCacheIdentity(t *testing.T) {
 	store, authority := compositionAuthorityFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/cache-activate", nil)
 	if err != nil {
 		t.Fatal(err)

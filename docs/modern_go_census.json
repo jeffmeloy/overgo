@@ -1,0 +1,579 @@
+{
+  "schema": "overgo-modern-go-census/v1",
+  "doc": "Source-bound Go 1.26 guideline closure. Exact sites and owned exception oracles remain in the ratchet authority.",
+  "target_go": "1.26",
+  "build_context": "windows/amd64",
+  "source_identity": "09b60efc3b6cbe2a2f508aa1b9ecc277ce68ef1f36b0dbe1a0cdd3b3fdc12248",
+  "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
+  "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
+  "exceptions_sha256": "78a7b609c8cfb0196ad5d7f9fc974bbd84270820a92009c60bacc5f04dc37081",
+  "applicable": 48,
+  "measured": 48,
+  "candidates": 509,
+  "adopted": 7727,
+  "exception_groups": 450,
+  "excepted_candidates": 509,
+  "unresolved": 0,
+  "resolutions": [
+    {
+      "id": "new_expression",
+      "since": "1.26",
+      "risk": "wire",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 176,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "errors_as_type",
+      "since": "1.26",
+      "risk": "behavioral",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 0,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "sync_waitgroup_go",
+      "since": "1.25",
+      "risk": "concurrency",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 13,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "testing_t_context",
+      "since": "1.24",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 2013,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "json_omitzero",
+      "since": "1.24",
+      "risk": "wire",
+      "measured": true,
+      "candidates": 2,
+      "adopted": 692,
+      "excepted": 2,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "testing_b_loop",
+      "since": "1.24",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 8,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "strings_split_seq",
+      "since": "1.24",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 13,
+      "adopted": 20,
+      "excepted": 13,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "maps_keys_values_iter",
+      "since": "1.23",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 56,
+      "adopted": 50,
+      "excepted": 56,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "slices_collect",
+      "since": "1.23",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 10,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_sorted",
+      "since": "1.23",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 33,
+      "adopted": 39,
+      "excepted": 33,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "time_tick_gc",
+      "since": "1.23",
+      "risk": "behavioral",
+      "measured": true,
+      "candidates": 1,
+      "adopted": 8,
+      "excepted": 1,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "range_over_int",
+      "since": "1.22",
+      "risk": "numerical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 0,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "loopvar_capture",
+      "since": "1.22",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 0,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "cmp_or",
+      "since": "1.22",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 110,
+      "adopted": 63,
+      "excepted": 110,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "reflect_type_for",
+      "since": "1.22",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 0,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "http_servemux_patterns",
+      "since": "1.22",
+      "risk": "wire",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 17,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "min_max",
+      "since": "1.21",
+      "risk": "numerical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 758,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "clear",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 114,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_contains",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 416,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_index",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 9,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_index_func",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 17,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_sort_func",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 239,
+      "adopted": 256,
+      "excepted": 239,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "slices_sort",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 219,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_max_min",
+      "since": "1.21",
+      "risk": "numerical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 7,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_reverse",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 30,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_compact",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 129,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_clip",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 3,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "slices_clone",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 1359,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "maps_clone",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 13,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "maps_copy",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 16,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "maps_delete_func",
+      "since": "1.21",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 4,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "sync_once_func",
+      "since": "1.21",
+      "risk": "concurrency",
+      "measured": true,
+      "candidates": 2,
+      "adopted": 2,
+      "excepted": 2,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "sync_once_value",
+      "since": "1.21",
+      "risk": "concurrency",
+      "measured": true,
+      "candidates": 11,
+      "adopted": 4,
+      "excepted": 11,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "context_after_func",
+      "since": "1.21",
+      "risk": "concurrency",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 1,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "context_timeout_deadline_cause",
+      "since": "1.21",
+      "risk": "concurrency",
+      "measured": true,
+      "candidates": 11,
+      "adopted": 2,
+      "excepted": 11,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "strings_clone",
+      "since": "1.20",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 2,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "bytes_clone",
+      "since": "1.20",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 28,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "strings_cut_prefix_suffix",
+      "since": "1.20",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 22,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "errors_join",
+      "since": "1.20",
+      "risk": "behavioral",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 632,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "context_cancel_cause",
+      "since": "1.20",
+      "risk": "concurrency",
+      "measured": true,
+      "candidates": 31,
+      "adopted": 7,
+      "excepted": 31,
+      "unresolved": 0,
+      "disposition": "exact-expiring-exceptions"
+    },
+    {
+      "id": "fmt_appendf",
+      "since": "1.19",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 0,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "atomic_types",
+      "since": "1.19",
+      "risk": "concurrency",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 0,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "any",
+      "since": "1.18",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 8,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "bytes_cut",
+      "since": "1.18",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 2,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "strings_cut",
+      "since": "1.18",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 73,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "errors_is",
+      "since": "1.13",
+      "risk": "behavioral",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 265,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "time_until",
+      "since": "1.8",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 0,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    },
+    {
+      "id": "time_since",
+      "since": "1.0",
+      "risk": "mechanical",
+      "measured": true,
+      "candidates": 0,
+      "adopted": 220,
+      "excepted": 0,
+      "unresolved": 0,
+      "disposition": "applied-or-not-present"
+    }
+  ],
+  "excluded": [
+    {
+      "id": "generic_methods",
+      "since": "1.27",
+      "reason": "requires Go 1.27; repository target is Go 1.26"
+    },
+    {
+      "id": "json_v2",
+      "since": "1.27",
+      "reason": "requires Go 1.27; repository target is Go 1.26"
+    },
+    {
+      "id": "promoted_field_literals",
+      "since": "1.27",
+      "reason": "requires Go 1.27; repository target is Go 1.26"
+    },
+    {
+      "id": "strings_bytes_cut_last",
+      "since": "1.27",
+      "reason": "requires Go 1.27; repository target is Go 1.26"
+    },
+    {
+      "id": "stdlib_uuid",
+      "since": "1.27",
+      "reason": "requires Go 1.27; repository target is Go 1.26"
+    },
+    {
+      "id": "url_clone",
+      "since": "1.27",
+      "reason": "requires Go 1.27; repository target is Go 1.26"
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 package projector
 
 import (
-	"context"
 	"image"
 	"image/color"
 	"slices"
@@ -34,7 +33,7 @@ func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	output, err := runner.EncodeImage(context.Background(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
+	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +46,7 @@ func TestMiMoVLRunnerTinyFixture(t *testing.T) {
 }
 
 func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
-	projector, err := OpenAs[Projector](context.Background(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
+	projector, err := OpenAs[Projector](t.Context(), writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +64,7 @@ func TestMiMoVLPromptContract(t *testing.T) {
 	defer runner.Close()
 	tok := &mimoVLPromptTokenizer{}
 	prompt, err := testSession(t, runner).BuildImagePrompt(
-		context.Background(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
+		t.Context(), tok, image.NewRGBA(image.Rect(0, 0, 4, 4)), "before", "after", false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -107,16 +106,16 @@ func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 	}
 	defer cuda.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := 0; y < 4; y++ {
-		for x := 0; x < 4; x++ {
+	for y := range 4 {
+		for x := range 4 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 51), G: uint8(y * 47), B: uint8((x + y) * 29), A: fixtureOpaqueAlpha})
 		}
 	}
-	want, err := cpu.EncodeImage(context.Background(), input)
+	want, err := cpu.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := cuda.EncodeImage(context.Background(), input)
+	got, err := cuda.EncodeImage(t.Context(), input)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,15 +18,24 @@ type Grads map[string][]float32
 // mean CE (positions 0..n-2 predict tokens 1..n-1), the full logits, and
 // every parameter gradient.
 func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
-	return m.lossAndGrads(tokens, true)
+	return m.lossAndGrads(tokens, true, nil)
 }
 
-func (m *Model) trainingLossAndGrads(tokens []int) (float64, Grads, error) {
-	loss, _, gradients, err := m.lossAndGrads(tokens, false)
+func (m *Model) trainingLossAndGrads(tokens []int, step int, observeRouter MoERouterObserver) (float64, Grads, error) {
+	var observation *routerObservationContext
+	if observeRouter != nil {
+		observation = &routerObservationContext{step: step, observer: observeRouter}
+	}
+	loss, _, gradients, err := m.lossAndGrads(tokens, false, observation)
 	return loss, gradients, err
 }
 
-func (m *Model) lossAndGrads(tokens []int, retainLogits bool) (float64, []float32, Grads, error) {
+type routerObservationContext struct {
+	step     int
+	observer MoERouterObserver
+}
+
+func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *routerObservationContext) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
@@ -44,7 +53,7 @@ func (m *Model) lossAndGrads(tokens []int, retainLogits bool) (float64, []float3
 	return m.lossAndGradsFromStates(tokens, states, retainLogits, Grads{}, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
-		return m.layerBackward(index, input, outputGradient, invFreq, sequence, gradients)
+		return m.layerBackwardObserved(index, input, outputGradient, invFreq, sequence, gradients, observation)
 	})
 }
 
@@ -131,6 +140,17 @@ func scatterEmbeddingGradient(embedding, gradient []float32, tokens []int, hidde
 // layerBackward: VJP of layerForward. x is the layer input residual stream
 // (retained); dOut arrives at the layer output; dx returns at the input.
 func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, seq int, g Grads) ([]float32, error) {
+	return m.layerBackwardObserved(index, x, dOut, invFreq, seq, g, nil)
+}
+
+func (m *Model) layerBackwardObserved(
+	index int,
+	x, dOut []float32,
+	invFreq []float64,
+	seq int,
+	g Grads,
+	observationContext *routerObservationContext,
+) ([]float32, error) {
 	d := m.Dims
 	l := m.layers[index]
 	width := d.Heads * d.HeadDim
@@ -153,9 +173,18 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 	dh2 := append([]float32(nil), dOut...)
 	dHn := make([]float32, seq*d.Hidden)
 	if l.moe != nil {
-		_, route, err := moeForward(hn, *l.moe, seq, d.Hidden, d.MoE)
+		_, route, scores, err := moeForward(hn, *l.moe, seq, d.Hidden, d.MoE)
 		if err != nil {
 			return nil, err
+		}
+		if observationContext != nil {
+			observation, err := newMoERouterObservation(index, route, scores, seq, len(l.moe.experts), d.MoE.TopK)
+			if err != nil {
+				return nil, err
+			}
+			if err := observationContext.observer(observationContext.step, observation); err != nil {
+				return nil, err
+			}
 		}
 		dMix, mixGrads, err := moeBackward(hn, *l.moe, seq, d.Hidden, d.MoE, route, dOut, g != nil)
 		if err != nil {
@@ -195,7 +224,7 @@ func (m *Model) layerBackward(index int, x, dOut []float32, invFreq []float64, s
 	for i := range dq {
 		dq[i] *= scale
 	}
-	for p := 0; p < seq; p++ {
+	for p := range seq {
 		for h := 0; h < d.Heads; h++ {
 			hostmath.RotaryHalfBackward(dq[(p*d.Heads+h)*d.HeadDim:(p*d.Heads+h+1)*d.HeadDim], invFreq, p)
 		}

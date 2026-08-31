@@ -51,14 +51,14 @@ func TestRMSNormForwardMatchesHost(t *testing.T) {
 // rmsNormLossF64 returns L = sum(dy ⊙ y) for affine RMSNorm in float64.
 func rmsNormLossF64(x, weight, dy []float32, rows, d int, eps float64) float64 {
 	var loss float64
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		var ss float64
-		for i := 0; i < d; i++ {
+		for i := range d {
 			v := float64(x[r*d+i])
 			ss += v * v
 		}
 		inv := 1.0 / math.Sqrt(ss/float64(d)+eps)
-		for i := 0; i < d; i++ {
+		for i := range d {
 			y := float64(x[r*d+i]) * inv * float64(weight[i])
 			loss += float64(dy[r*d+i]) * y
 		}
@@ -107,7 +107,7 @@ func TestRMSNormBackwardGradCheck(t *testing.T) {
 	}
 	const tolerance = 2e-3
 	worst := gradCheck("dx", x, dx)
-	worst = math.Max(worst, gradCheck("dscale", weight, dscale))
+	worst = max(worst, gradCheck("dscale", weight, dscale))
 	if worst > tolerance {
 		t.Fatalf("worst grad-check %.3e > %.1e", worst, tolerance)
 	}

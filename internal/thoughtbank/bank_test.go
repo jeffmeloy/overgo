@@ -93,7 +93,7 @@ func bankBracket(t *testing.T, swiGLU bool) {
 			dn := loss()
 			p.buf[p.idx] = orig
 			num := (up - dn) / (2 * hstep)
-			den := math.Max(1e-2, math.Abs(float64(p.want)))
+			den := max(1e-2, math.Abs(float64(p.want)))
 			if rel := math.Abs(num-float64(p.want)) / den; rel > worst {
 				worst, worstName = rel, p.name
 			}
@@ -147,9 +147,9 @@ func TestFastWeightBankReadBackwardClampActive(t *testing.T) {
 		}
 		for tt := 0; tt < rows && !clampSeen; tt++ {
 			row := y0[tt*d : (tt+1)*d]
-			for k := 0; k < r; k++ {
+			for k := range r {
 				var gg, v float64
-				for j := 0; j < d; j++ {
+				for j := range d {
 					gg += a[k*d+j] * float64(row[j])
 					v += a[r*d+k*d+j] * float64(row[j])
 				}
@@ -203,7 +203,7 @@ func TestFastWeightBankReadBackwardClampActive(t *testing.T) {
 			dn := loss()
 			p.buf[p.idx] = orig
 			num := (up - dn) / (2 * hstep)
-			den := math.Max(1e-2, math.Abs(float64(p.want)))
+			den := max(1e-2, math.Abs(float64(p.want)))
 			if rel := math.Abs(num-float64(p.want)) / den; rel > worst {
 				worst = rel
 			}
@@ -259,7 +259,7 @@ func TestFastWeightSlotsComposeInOrder(t *testing.T) {
 		t.Fatalf("forward: %v", err)
 	}
 	rev := make([]float32, len(bank))
-	for s := 0; s < slots; s++ {
+	for s := range slots {
 		copy(rev[s*w.MemDim:(s+1)*w.MemDim], bank[(slots-1-s)*w.MemDim:(slots-s)*w.MemDim])
 	}
 	back, err := FastWeightBankRead(h, rev, rows, slots, w)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -41,7 +40,7 @@ func TestGateDebtReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), prepareBatch); err != nil {
+	if _, err := store.Commit(t.Context(), prepareBatch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -107,7 +106,7 @@ func TestGateDebtReconciliationRefusesLaterUnaliasedFinalization(t *testing.T) {
 	}
 	defer store.Close()
 	finalization, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, preparation.ID,
+		t.Context(), store, preparation.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +162,7 @@ func TestPreparedLifecycleLocatorBlocksAndRecovers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	finalization, found, err := runrecord.GateFinalizationForPreparation(context.Background(), store, g.preparation.ID)
+	finalization, found, err := runrecord.GateFinalizationForPreparation(t.Context(), store, g.preparation.ID)
 	if err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -172,7 +171,7 @@ func TestPreparedLifecycleLocatorBlocksAndRecovers(t *testing.T) {
 		store.Close()
 		t.Fatalf("prepared lifecycle finalization = (%+v, %t)", finalization, found)
 	}
-	gate, err := runrecord.RequireGateResult(context.Background(), store, *finalization.Result)
+	gate, err := runrecord.RequireGateResult(t.Context(), store, *finalization.Result)
 	if err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -228,7 +227,7 @@ func TestUncommittedLifecycleLocatorIsRemoved(t *testing.T) {
 
 func TestUncommittedLifecycleLocatorIsRemovedAfterPriorFinalization(t *testing.T) {
 	repo, storePath := newLifecycleRepo(t), "store"
-	ctx := context.Background()
+	ctx := t.Context()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "test", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "none", Runtime: "go-test",
 	})
@@ -321,7 +320,7 @@ func TestUncommittedLifecycleLocatorIsRemovedAfterPriorFinalization(t *testing.T
 }
 
 func TestFinalizedLifecycleAliasDoesNotHideUnaliasedPreparation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, environment := newCompleteLifecycleAliasFixture(t)
 	later, err := runrecord.NewGatePreparation(
 		"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -376,7 +375,7 @@ func TestRecordFailureClosesUniqueStalePreparationBehindFinalizedAuthority(t *te
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	current, found, err := artifact.ResolveAlias(ctx, store, runrecord.GateLifecycleCurrentAlias)
 	if err != nil {
 		t.Fatal(err)
@@ -419,7 +418,7 @@ func TestRecordFailureWithFinalizedAliasRefusesPostCensusUnaliasedPreparation(t 
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	current, found, err := artifact.ResolveAlias(ctx, store, runrecord.GateLifecycleCurrentAlias)
 	if err != nil {
 		t.Fatal(err)
@@ -468,7 +467,7 @@ func TestRecordFailureWithPreparedAliasAndNoHeartbeatRefusesPostCensusPreparatio
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	current, found, err := artifact.ResolveAlias(ctx, store, runrecord.GateLifecycleCurrentAlias)
 	if err != nil {
 		t.Fatal(err)
@@ -496,7 +495,7 @@ func TestRecordFailureRefusesAmbiguousStalePreparationsBehindFinalizedAuthority(
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, preparation := range fixture.stale {
 		if _, found, err := runrecord.GateFinalizationForPreparation(ctx, store, preparation.ID); err != nil {
 			t.Fatal(err)
@@ -554,7 +553,7 @@ func TestRecordFailureClosesSelectedStalePreparation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, stale := range fixture.stale {
 		finalization, found, err := runrecord.GateFinalizationForPreparation(ctx, store, stale.ID)
 		if err != nil {
@@ -588,7 +587,7 @@ func TestRecordFailureValidatesNewerFinalizedAuthorityBeforeClosingStaleDebt(t *
 	}
 	defer store.Close()
 	if _, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, fixture.stale[0].ID,
+		t.Context(), store, fixture.stale[0].ID,
 	); err != nil {
 		t.Fatal(err)
 	} else if found {
@@ -628,7 +627,7 @@ func TestRecordFailureBootstrapsLegacyAliasToNewestTerminalAuthority(t *testing.
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	current, found, err := artifact.ResolveAlias(ctx, store, runrecord.GateLifecycleCurrentAlias)
 	if err != nil {
 		t.Fatal(err)
@@ -685,7 +684,7 @@ func TestRecordFailureRetryRepairsHeartbeatAfterLegacyStoreCommit(t *testing.T) 
 	}
 	headBefore, sequenceBefore := store.Head()
 	current, found, err := artifact.ResolveAlias(
-		context.Background(), store, runrecord.GateLifecycleCurrentAlias,
+		t.Context(), store, runrecord.GateLifecycleCurrentAlias,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -709,7 +708,7 @@ func TestRecordFailureRetryRepairsHeartbeatAfterLegacyStoreCommit(t *testing.T) 
 		t.Fatalf("heartbeat-only retry moved store head from (%s, %d) to (%s, %d)", headBefore, sequenceBefore, head, sequence)
 	}
 	if current, found, err := artifact.ResolveAlias(
-		context.Background(), store, runrecord.GateLifecycleCurrentAlias,
+		t.Context(), store, runrecord.GateLifecycleCurrentAlias,
 	); err != nil {
 		store.Close()
 		t.Fatal(err)
@@ -749,7 +748,7 @@ func TestRecordFailureBootstrapsLegacyAliasWhenHeartbeatIsAbsent(t *testing.T) {
 	}
 	defer store.Close()
 	current, found, err := artifact.ResolveAlias(
-		context.Background(), store, runrecord.GateLifecycleCurrentAlias,
+		t.Context(), store, runrecord.GateLifecycleCurrentAlias,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -794,7 +793,7 @@ func TestRecordFailurePrefersCanonicalLegacyDebtToUncommittedRunningLocator(t *t
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	current, found, err := artifact.ResolveAlias(ctx, store, runrecord.GateLifecycleCurrentAlias)
 	if err != nil {
 		t.Fatal(err)
@@ -859,7 +858,7 @@ func TestRecordFailureRemovesUncommittedRunningLocatorWhenLegacyDebtIsZero(t *te
 		t.Fatalf("zero-debt locator cleanup moved store head from (%s, %d) to (%s, %d)", headBefore, sequenceBefore, head, sequence)
 	}
 	if current, found, err := artifact.ResolveAlias(
-		context.Background(), store, runrecord.GateLifecycleCurrentAlias,
+		t.Context(), store, runrecord.GateLifecycleCurrentAlias,
 	); err != nil {
 		t.Fatal(err)
 	} else if found {
@@ -888,7 +887,7 @@ func TestRecordFailureBootstrapsLegacyAliasToCancellationWithoutPriorTerminal(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), environmentBatch); err != nil {
+	if _, err := store.Commit(t.Context(), environmentBatch); err != nil {
 		t.Fatal(err)
 	}
 	preparation := publishLegacyGatePreparation(
@@ -914,7 +913,7 @@ func TestRecordFailureBootstrapsLegacyAliasToCancellationWithoutPriorTerminal(t 
 	}
 	defer store.Close()
 	finalization, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, preparation.ID,
+		t.Context(), store, preparation.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -923,7 +922,7 @@ func TestRecordFailureBootstrapsLegacyAliasToCancellationWithoutPriorTerminal(t 
 		t.Fatalf("legacy cancellation finalization = (%+v, %t)", finalization, found)
 	}
 	current, found, err := artifact.ResolveAlias(
-		context.Background(), store, runrecord.GateLifecycleCurrentAlias,
+		t.Context(), store, runrecord.GateLifecycleCurrentAlias,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -987,7 +986,7 @@ func TestRecordFailureRefusesMalformedLegacyFinalizationHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: result})
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -1015,11 +1014,11 @@ func TestRecordFailureLegacyBootstrapUsesDocumentOrderForCoIntroducedFinalizatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstIntroduction, found, err := store.ArtifactIntroduction(context.Background(), first.ID)
+	firstIntroduction, found, err := store.ArtifactIntroduction(t.Context(), first.ID)
 	if err != nil || !found {
 		t.Fatalf("first co-introduced finalization = (%+v, %t, %v)", firstIntroduction, found, err)
 	}
-	secondIntroduction, found, err := store.ArtifactIntroduction(context.Background(), second.ID)
+	secondIntroduction, found, err := store.ArtifactIntroduction(t.Context(), second.ID)
 	if err != nil || !found {
 		t.Fatalf("second co-introduced finalization = (%+v, %t, %v)", secondIntroduction, found, err)
 	}
@@ -1039,7 +1038,7 @@ func TestRecordFailureLegacyBootstrapUsesDocumentOrderForCoIntroducedFinalizatio
 	}
 	defer store.Close()
 	current, found, err := artifact.ResolveAlias(
-		context.Background(), store, runrecord.GateLifecycleCurrentAlias,
+		t.Context(), store, runrecord.GateLifecycleCurrentAlias,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1084,7 +1083,7 @@ func TestRecordFailureLegacyBootstrapRefusesAliasRace(t *testing.T) {
 	previousHook := gateRecordFailureBeforeStoreCommitHook
 	t.Cleanup(func() { gateRecordFailureBeforeStoreCommitHook = previousHook })
 	gateRecordFailureBeforeStoreCommitHook = func(store *overgodb.Store) {
-		_, err := store.Commit(context.Background(), artifact.Batch{
+		_, err := store.Commit(t.Context(), artifact.Batch{
 			Key: "test/legacy-lifecycle/alias-race",
 			Aliases: []artifact.AliasBinding{{
 				Name: runrecord.GateLifecycleCurrentAlias, Target: fixture.newestFinalization.ID,
@@ -1103,7 +1102,7 @@ func TestRecordFailureLegacyBootstrapRefusesAliasRace(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	current, found, err := artifact.ResolveAlias(context.Background(), store, runrecord.GateLifecycleCurrentAlias)
+	current, found, err := artifact.ResolveAlias(t.Context(), store, runrecord.GateLifecycleCurrentAlias)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1111,7 +1110,7 @@ func TestRecordFailureLegacyBootstrapRefusesAliasRace(t *testing.T) {
 		t.Fatalf("racing alias authority = (%s, %t), want %s", current, found, fixture.newestFinalization.ID)
 	}
 	if _, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, fixture.outstanding[0].ID,
+		t.Context(), store, fixture.outstanding[0].ID,
 	); err != nil {
 		t.Fatal(err)
 	} else if found {
@@ -1137,13 +1136,13 @@ func TestSoleCurrentPreparationRejectsExistingUnaliasedFinalization(t *testing.T
 	}
 	defer store.Close()
 	if err := requireSoleCurrentGatePreparation(
-		context.Background(), store, preparation, preparationCommit,
+		t.Context(), store, preparation, preparationCommit,
 	); err != nil {
 		t.Fatalf("fresh preparation authority = %v", err)
 	}
 	publishUnaliasedGateFinalization(t, store, preparation, environment, "existing-finalization")
 	if err := requireSoleCurrentGatePreparation(
-		context.Background(), store, preparation, preparationCommit,
+		t.Context(), store, preparation, preparationCommit,
 	); err == nil || !strings.Contains(err.Error(), "already has a finalization") {
 		t.Fatalf("pre-finalized preparation admitted = %v", err)
 	}
@@ -1187,7 +1186,7 @@ func TestFinalRecordRefusesSecondFinalization(t *testing.T) {
 	}
 	defer store.Close()
 	_, found, err := runrecord.GateFinalizationForPreparation(
-		context.Background(), store, preparation.ID,
+		t.Context(), store, preparation.ID,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1230,7 +1229,7 @@ func TestRecordFailureBindsExistingUnaliasedFinalization(t *testing.T) {
 	}
 	defer store.Close()
 	current, found, err := artifact.ResolveAlias(
-		context.Background(), store, runrecord.GateLifecycleCurrentAlias,
+		t.Context(), store, runrecord.GateLifecycleCurrentAlias,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1241,7 +1240,7 @@ func TestRecordFailureBindsExistingUnaliasedFinalization(t *testing.T) {
 }
 
 func TestFinalizedLifecycleAliasDoesNotHideForgedUnaliasedFinalization(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, environment := newCompleteLifecycleAliasFixture(t)
 	preparation, err := runrecord.NewGatePreparation(
 		"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
@@ -1356,7 +1355,7 @@ func newStaleLifecycleRecoveryFixture(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), prepareBatch); err != nil {
+	if _, err := store.Commit(t.Context(), prepareBatch); err != nil {
 		t.Fatal(err)
 	}
 	currentPreparation, err := runrecord.NewGatePreparation(
@@ -1376,7 +1375,7 @@ func newStaleLifecycleRecoveryFixture(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), currentBatch); err != nil {
+	if _, err := store.Commit(t.Context(), currentBatch); err != nil {
 		t.Fatal(err)
 	}
 	if typedCurrent {
@@ -1414,7 +1413,7 @@ func newStaleLifecycleRecoveryFixture(
 		finalBatch.Aliases = append(finalBatch.Aliases, artifact.AliasBinding{
 			Name: runrecord.GateLifecycleCurrentAlias, Target: fixture.currentFinalization.ID,
 		})
-		if _, err := store.Commit(context.Background(), finalBatch); err != nil {
+		if _, err := store.Commit(t.Context(), finalBatch); err != nil {
 			t.Fatal(err)
 		}
 	} else {
@@ -1443,7 +1442,7 @@ func newStaleLifecycleRecoveryFixture(
 			t.Fatal(err)
 		}
 		finalBatch.Artifacts = append(finalBatch.Artifacts, artifact.Descriptor{ID: result})
-		if _, err := store.Commit(context.Background(), finalBatch); err != nil {
+		if _, err := store.Commit(t.Context(), finalBatch); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1506,7 +1505,7 @@ func newLegacyLifecycleRecoveryFixture(t *testing.T, outstandingCount int) legac
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), environmentBatch); err != nil {
+	if _, err := store.Commit(t.Context(), environmentBatch); err != nil {
 		t.Fatal(err)
 	}
 	for index, treeKey := range []string{
@@ -1577,7 +1576,7 @@ func newCoIntroducedLegacyRecoveryFixture(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), environmentBatch); err != nil {
+	if _, err := store.Commit(t.Context(), environmentBatch); err != nil {
 		t.Fatal(err)
 	}
 	fixture.outstanding = []runrecord.GateLifecycle{publishLegacyGatePreparation(
@@ -1607,7 +1606,7 @@ func newCoIntroducedLegacyRecoveryFixture(
 	combined.Causality = append(combined.Causality, secondBatch.Causality...)
 	combined.Aliases = append(combined.Aliases, secondBatch.Aliases...)
 	combined.Locations = append(combined.Locations, secondBatch.Locations...)
-	if _, err := store.Commit(context.Background(), combined); err != nil {
+	if _, err := store.Commit(t.Context(), combined); err != nil {
 		t.Fatal(err)
 	}
 	fixture.heartbeatPreparation = firstPreparation
@@ -1659,7 +1658,7 @@ func publishLegacyGatePreparation(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	return preparation
@@ -1672,7 +1671,7 @@ func requireLegacyRecoveryUnchanged(t *testing.T, fixture legacyLifecycleRecover
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	if current, found, err := artifact.ResolveAlias(ctx, store, runrecord.GateLifecycleCurrentAlias); err != nil {
 		t.Fatal(err)
 	} else if found {
@@ -1707,7 +1706,7 @@ func publishUnaliasedGateFinalization(
 ) runrecord.GateLifecycle {
 	t.Helper()
 	batch, finalization := unaliasedGateFinalizationBatch(t, preparation, environment, key)
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.Commit(t.Context(), batch); err != nil {
 		t.Fatal(err)
 	}
 	return finalization
@@ -1810,7 +1809,7 @@ func lifecycleDebtBatch(
 
 func newCompleteLifecycleAliasFixture(t *testing.T) (*overgodb.Store, runrecord.Environment) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "test", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "none", Runtime: "go-test",
 	})
@@ -1900,7 +1899,7 @@ func newCompleteLifecycleAliasFixture(t *testing.T) (*overgodb.Store, runrecord.
 
 func TestTerminalLifecycleAliasRequiresTypedGateResult(t *testing.T) {
 	repo, storePath := newLifecycleRepo(t), "store"
-	ctx := context.Background()
+	ctx := t.Context()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "test", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "none", Runtime: "go-test",
 	})
@@ -1961,7 +1960,7 @@ func TestTerminalLifecycleAliasRequiresTypedGateResult(t *testing.T) {
 }
 
 func TestTerminalLifecycleRejectsGateResultPublishedLater(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fixture := newTemporalLifecycleFixture(t, true)
 	resultContent, err := fixture.record.Result.Content()
 	if err != nil {
@@ -2003,7 +2002,7 @@ func TestTerminalLifecycleRejectsGateResultPublishedLater(t *testing.T) {
 }
 
 func TestTerminalLifecycleRejectsEnvironmentPublishedLater(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	fixture := newTemporalLifecycleFixture(t, false)
 	resultContent, err := fixture.record.Result.Content()
 	if err != nil {
@@ -2057,7 +2056,7 @@ type temporalLifecycleFixture struct {
 
 func newTemporalLifecycleFixture(t *testing.T, publishEnvironment bool) temporalLifecycleFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "test", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "none", Runtime: "go-test",
 	})

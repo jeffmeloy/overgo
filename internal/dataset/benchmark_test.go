@@ -1,7 +1,6 @@
 package dataset
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
@@ -32,11 +31,11 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	imported, err := ImportBenchmark(context.Background(), store, path, spec)
+	imported, err := ImportBenchmark(t.Context(), store, path, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded, ok, err := benchmarkImportCodec.Read(context.Background(), store, imported.ID)
+	loaded, ok, err := benchmarkImportCodec.Read(t.Context(), store, imported.ID)
 	if err != nil || !ok || !reflect.DeepEqual(loaded, imported) {
 		t.Fatalf("loaded import = %+v, %v, %v", loaded, ok, err)
 	}
@@ -44,7 +43,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 		imported.Spec.Revision != revision || imported.Spec.Split != split || imported.Spec.Conversion != conversion {
 		t.Fatalf("import provenance = %+v", imported)
 	}
-	record, ok, err := benchmarkRecordCodec.Read(context.Background(), store, imported.Records[0])
+	record, ok, err := benchmarkRecordCodec.Read(t.Context(), store, imported.Records[0])
 	if err != nil || !ok || record.Profile != imported.Profile || record.Ordinal != 0 ||
 		!reflect.DeepEqual(record.Fields, []BenchmarkField{
 			{Name: "answer", Value: []byte(`"one"`)}, {Name: "prompt", Value: []byte(`"first"`)},
@@ -53,7 +52,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 	}
 	changed := spec
 	changed.Revision += "/changed"
-	changedImport, err := ImportBenchmark(context.Background(), store, path, changed)
+	changedImport, err := ImportBenchmark(t.Context(), store, path, changed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +61,7 @@ func TestBenchmarkImportPreservesSourceAndRecordIdentity(t *testing.T) {
 		t.Fatal("source revision did not change import identities")
 	}
 	changed.SHA256 = hex.EncodeToString(make([]byte, sha256.Size))
-	if _, err := ImportBenchmark(context.Background(), store, path, changed); err == nil {
+	if _, err := ImportBenchmark(t.Context(), store, path, changed); err == nil {
 		t.Fatal("source hash mismatch accepted")
 	}
 }

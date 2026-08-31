@@ -2,6 +2,7 @@ package jinja
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -89,12 +90,7 @@ func (dp *docParser) parseUntil(terms ...string) ([]stmt, string, error) {
 }
 
 func containsStr(xs []string, v string) bool {
-	for _, x := range xs {
-		if x == v {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(xs, v)
 }
 
 func parseOutputChunk(c chunk) (stmt, error) {

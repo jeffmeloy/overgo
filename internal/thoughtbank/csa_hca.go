@@ -84,30 +84,30 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 
 	// Queries: low-rank d -> d_latent_q -> n_heads*d_head, then RoPE, then norm.
 	cq := make([]float32, seq*w.DLatentQ)
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		tok := h[t*d : (t+1)*d]
 		for i := 0; i < w.DLatentQ; i++ {
 			cq[t*w.DLatentQ+i] = float32(dot(w.WDq[i*d:(i+1)*d], tok))
 		}
 	}
 	q := make([]float32, seq*nh*dh)
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		c := cq[t*w.DLatentQ : (t+1)*w.DLatentQ]
-		for i := 0; i < nh*dh; i++ {
+		for i := range nh * dh {
 			q[t*nh*dh+i] = float32(dot(w.WUq[i*w.DLatentQ:(i+1)*w.DLatentQ], c))
 		}
 	}
 	// RoPE applies per HEAD over the time axis, so the head axis must lead.
 	qh := make([]float32, seq*nh*dh)
-	for t := 0; t < seq; t++ {
-		for hd := 0; hd < nh; hd++ {
+	for t := range seq {
+		for hd := range nh {
 			copy(qh[(hd*seq+t)*dh:(hd*seq+t+1)*dh], q[(t*nh+hd)*dh:(t*nh+hd+1)*dh])
 		}
 	}
 	rope := NewRotaryCache(seq, dh)
 	ApplyRotaryInto(qh, qh, nh, seq, dh, rope)
-	for t := 0; t < seq; t++ {
-		for hd := 0; hd < nh; hd++ {
+	for t := range seq {
+		for hd := range nh {
 			copy(q[(t*nh+hd)*dh:(t*nh+hd+1)*dh], qh[(hd*seq+t)*dh:(hd*seq+t+1)*dh])
 		}
 	}
@@ -117,9 +117,9 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 	// t (the reference left-pads by n_win and gathers t..t+n_win-1, excluding t).
 	wk := make([]float32, seq*dh)
 	wv := make([]float32, seq*dh)
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		tok := h[t*d : (t+1)*d]
-		for e := 0; e < dh; e++ {
+		for e := range dh {
 			wk[t*dh+e] = float32(dot(w.WWk[e*d:(e+1)*d], tok))
 			wv[t*dh+e] = float32(dot(w.WWv[e*d:(e+1)*d], tok))
 		}
@@ -129,8 +129,8 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 	sel := w.TopK
 	if !w.Sparse {
 		sel = nBlocks // HCA attends every block, masked causally
-	} else if sel > nBlocks {
-		sel = nBlocks
+	} else {
+		sel = min(sel, nBlocks)
 	}
 	nkv := sel + w.NWin
 
@@ -144,11 +144,9 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 	order := make([]int, nBlocks)
 	valid := make([]bool, sel)
 
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		blockOfT := t / w.M
-		for i := range valid {
-			valid[i] = false
-		}
+		clear(valid)
 
 		if w.Sparse {
 			// Lightning indexer: multi-head ReLU affinity, aggregated by learned
@@ -161,17 +159,15 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 			tok := h[t*d : (t+1)*d]
 			for ih := 0; ih < w.NIdxHeads; ih++ {
 				hw := dot(w.WW[ih*d:(ih+1)*d], tok)
-				for b := 0; b < nBlocks; b++ {
+				for b := range nBlocks {
 					var acc float64
-					for e := 0; e < dh; e++ {
+					for e := range dh {
 						qi := dot(w.WIq[(ih*dh+e)*w.DLatentQ:(ih*dh+e+1)*w.DLatentQ], c)
 						acc += qi * float64(comp[b*dh+e])
 					}
 					acc /= math.Sqrt(float64(dh))
 					var zero float64
-					if acc < zero {
-						acc = zero // ReLU
-					}
+					acc = max(acc, zero) // ReLU
 					scores[b] += hw * acc
 				}
 			}
@@ -187,7 +183,7 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 				copy(vAll[i*dh:(i+1)*dh], n)
 			}
 		} else {
-			for b := 0; b < nBlocks; b++ {
+			for b := range nBlocks {
 				if blockOfT > b {
 					valid[b] = true
 					copy(kAll[b*dh:(b+1)*dh], comp[b*dh:(b+1)*dh])
@@ -213,9 +209,9 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 
 		// Multi-query: every head reads the same K/V.
 		invSqrt := 1.0 / math.Sqrt(float64(dh))
-		for hd := 0; hd < nh; hd++ {
+		for hd := range nh {
 			qv := q[(t*nh+hd)*dh : (t*nh+hd+1)*dh]
-			for n := 0; n < nkv; n++ {
+			for n := range nkv {
 				if n < sel && !valid[n] {
 					logits[hd*nkv+n] = negativeInfinity
 					continue
@@ -224,15 +220,15 @@ func CompressedHybridAttentionForward(h []float32, seq int, w *CompressedHybridA
 			}
 		}
 		attentionSinkSoftmaxVector(weights, logits, w.SinkLogits, nh, nkv)
-		for hd := 0; hd < nh; hd++ {
+		for hd := range nh {
 			dst := headOut[(t*nh+hd)*dh : (t*nh+hd+1)*dh]
 			clear(dst)
-			for n := 0; n < nkv; n++ {
+			for n := range nkv {
 				a := float64(weights[hd*nkv+n])
 				if a == 0 {
 					continue
 				}
-				for e := 0; e < dh; e++ {
+				for e := range dh {
 					dst[e] += float32(a * float64(vAll[n*dh+e]))
 				}
 			}
@@ -256,17 +252,17 @@ func groupedOutputProjection(headOut []float32, seq, nh, dh int, w *CompressedHy
 		return nil, fmt.Errorf("attention: %d group projections, want %d", len(w.OutGroup), w.NGroups)
 	}
 	cat := make([]float32, seq*w.DModel)
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		for g := 0; g < w.NGroups; g++ {
 			in := headOut[(t*nh+g*hpg)*dh : (t*nh+(g+1)*hpg)*dh]
 			gw := w.OutGroup[g]
-			for o := 0; o < dg; o++ {
+			for o := range dg {
 				cat[t*w.DModel+g*dg+o] = float32(dot(gw[o*hpg*dh:(o+1)*hpg*dh], in))
 			}
 		}
 	}
 	out := make([]float32, seq*w.DModel)
-	for t := 0; t < seq; t++ {
+	for t := range seq {
 		row := cat[t*w.DModel : (t+1)*w.DModel]
 		for o := 0; o < w.DModel; o++ {
 			out[t*w.DModel+o] = float32(dot(w.OutProj[o*w.DModel:(o+1)*w.DModel], row))

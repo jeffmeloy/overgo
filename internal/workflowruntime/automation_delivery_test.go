@@ -1,10 +1,10 @@
 package workflowruntime
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -12,8 +12,10 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/operatoraction"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/workflowcontract"
 )
 
 type deliveryAutomationFixture struct {
@@ -36,7 +38,7 @@ func TestAutomationDelivery(t *testing.T) {
 	}
 	idempotency := deliveryIdempotency(t, execution, fixture.manual.ID, "ops://daily", status.Outputs)
 	attempt, found, err := (runrecord.AutomationDeliveryAuthority{Repository: fixture.store}).Current(
-		context.Background(), idempotency,
+		t.Context(), idempotency,
 	)
 	if err != nil || !found || attempt.State != runrecord.AutomationDeliverySucceeded || !attempt.Result.Valid() {
 		t.Fatalf("delivery evidence = (%+v, %v, %v)", attempt, found, err)
@@ -50,17 +52,17 @@ func TestAutomationDeliveryApproval(t *testing.T) {
 	defer manager.Close()
 	runtime := fixture.deliveryRuntime(t, manager)
 	execution, err := runtime.SubmitManualTo(
-		context.Background(), fixture.name, "approval", "ops://daily", fixture.inputs,
+		t.Context(), fixture.name, "approval", "ops://daily", fixture.inputs,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := manager.Wait(context.Background(), execution.Operation)
+	status, err := manager.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateBlocked || status.Recovery == nil || fixture.calls.Load() != 0 {
 		t.Fatalf("unapproved delivery = (%+v, calls=%d, err=%v)", status, fixture.calls.Load(), err)
 	}
 	approveAutomationDelivery(t, fixture.store, manager, status)
-	status, err = manager.Wait(context.Background(), execution.Operation)
+	status, err = manager.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateCompleted || fixture.calls.Load() != 1 {
 		t.Fatalf("approved delivery = (%+v, calls=%d, err=%v)", status, fixture.calls.Load(), err)
 	}
@@ -73,7 +75,7 @@ func TestAutomationDeliveryRefusesDestination(t *testing.T) {
 	defer manager.Close()
 	runtime := fixture.deliveryRuntime(t, manager)
 	if _, err := runtime.SubmitManualTo(
-		context.Background(), fixture.name, "destination", "ops://unlisted", fixture.inputs,
+		t.Context(), fixture.name, "destination", "ops://unlisted", fixture.inputs,
 	); err == nil || fixture.calls.Load() != 0 {
 		t.Fatalf("unlisted destination = (calls=%d, err=%v)", fixture.calls.Load(), err)
 	}
@@ -87,15 +89,47 @@ func TestAutomationDeliveryIdempotency(t *testing.T) {
 	runtime := fixture.deliveryRuntime(t, manager)
 	first, firstStatus := executeApprovedDelivery(t, runtime, manager, fixture, "idempotent")
 	second, err := runtime.SubmitManualTo(
-		context.Background(), fixture.name, "idempotent", "ops://daily", fixture.inputs,
+		t.Context(), fixture.name, "idempotent", "ops://daily", fixture.inputs,
 	)
 	if err != nil || second.Operation != first.Operation {
 		t.Fatalf("idempotent readmission = (%+v, %v)", second, err)
 	}
-	secondStatus, err := manager.Wait(context.Background(), second.Operation)
+	secondStatus, err := manager.Wait(t.Context(), second.Operation)
 	if err != nil || secondStatus.State != operation.StateCompleted || fixture.calls.Load() != 1 ||
 		len(firstStatus.Outputs) != len(secondStatus.Outputs) {
 		t.Fatalf("idempotent delivery = (%+v, calls=%d, err=%v)", secondStatus, fixture.calls.Load(), err)
+	}
+}
+
+func TestAutomationDeliveryRechecksArgvAuthority(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	manual, err := agenttool.NewManual(agenttool.Manual{
+		Name: "automation.argv", Description: "Exercise live argv delivery authority.",
+		Effect:    agenttool.EffectMutation,
+		Transport: agenttool.Transport{Kind: agenttool.TransportArgv, Program: "overgo-deliver"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishArgvPolicy(ctx, store, []string{"overgo-deliver"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishManualCatalog(ctx, store, []agenttool.Manual{manual}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := agenttool.PublishArgvPolicy(ctx, store, nil); err != nil {
+		t.Fatal(err)
+	}
+	runtime := AutomationRuntime{Store: store, Tools: agenttool.NewOperatorExecutor()}
+	plan := workflowcontract.AutomationExecutionPlan{Delivery: recipe.AutomationDeliveryPolicy{Tool: manual.ID}}
+	if err := runtime.deliverAutomation(ctx, artifact.ID{}, plan, "", nil); err == nil ||
+		!strings.Contains(err.Error(), "outside the committed policy") {
+		t.Fatalf("tightened argv delivery result = %v", err)
 	}
 }
 
@@ -129,7 +163,7 @@ func newDeliveryAutomationFixture(t *testing.T) deliveryAutomationFixture {
 		base.store.Close()
 		t.Fatal(err)
 	}
-	if _, err := agenttool.PublishManualCatalog(context.Background(), base.store, []agenttool.Manual{manual}); err != nil {
+	if _, err := agenttool.PublishManualCatalog(t.Context(), base.store, []agenttool.Manual{manual}); err != nil {
 		server.Close()
 		base.store.Close()
 		t.Fatal(err)
@@ -147,7 +181,7 @@ func newDeliveryAutomationFixture(t *testing.T) deliveryAutomationFixture {
 	}
 	content, err := delivery.ArtifactContent()
 	if err == nil {
-		_, err = artifact.CommitBatch(context.Background(), base.store, artifact.Batch{
+		_, err = artifact.CommitBatch(t.Context(), base.store, artifact.Batch{
 			Key: "automation/delivery/policy", Contents: []artifact.Content{content},
 		})
 	}
@@ -157,7 +191,7 @@ func newDeliveryAutomationFixture(t *testing.T) deliveryAutomationFixture {
 		t.Fatal(err)
 	}
 	authority := runrecord.AutomationAuthority{Repository: base.store}
-	active, found, err := authority.Resolve(context.Background(), base.name)
+	active, found, err := authority.Resolve(t.Context(), base.name)
 	if err != nil || !found {
 		server.Close()
 		base.store.Close()
@@ -174,7 +208,7 @@ func newDeliveryAutomationFixture(t *testing.T) deliveryAutomationFixture {
 	}
 	replacementAuthority := commitAutomationRuntimeBlob(t, base.store, artifact.KindEvidence, "automation-delivery-replacement")
 	if _, err := authority.Activate(
-		context.Background(), "automation/delivery/activate", replacement, replacementAuthority,
+		t.Context(), "automation/delivery/activate", replacement, replacementAuthority,
 	); err != nil {
 		server.Close()
 		base.store.Close()
@@ -210,17 +244,17 @@ func executeApprovedDelivery(
 ) (AutomationExecution, operation.Status) {
 	t.Helper()
 	execution, err := runtime.SubmitManualTo(
-		context.Background(), fixture.name, key, "ops://daily", fixture.inputs,
+		t.Context(), fixture.name, key, "ops://daily", fixture.inputs,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, err := manager.Wait(context.Background(), execution.Operation)
+	status, err := manager.Wait(t.Context(), execution.Operation)
 	if err != nil || status.State != operation.StateBlocked {
 		t.Fatalf("delivery approval block = (%+v, %v)", status, err)
 	}
 	approveAutomationDelivery(t, fixture.store, manager, status)
-	status, err = manager.Wait(context.Background(), execution.Operation)
+	status, err = manager.Wait(t.Context(), execution.Operation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,12 +275,12 @@ func approveAutomationDelivery(
 	}
 	decision, err := runrecord.NewHumanDecision(request, operatoraction.AnswerGrant)
 	if err == nil {
-		err = runrecord.PublishHumanDecision(context.Background(), store, request, decision)
+		err = runrecord.PublishHumanDecision(t.Context(), store, request, decision)
 	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := manager.RecoverAfterDecision(context.Background(), decision); err != nil {
+	if _, err := manager.RecoverAfterDecision(t.Context(), decision); err != nil {
 		t.Fatal(err)
 	}
 }

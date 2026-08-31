@@ -15,7 +15,7 @@ type RecipeInspectionAPI interface {
 type activeRecipeResponse struct {
 	Admitted bool                            `json:"admitted"`
 	Recipe   *modelrecipe.RuntimeDescription `json:"recipe,omitempty"`
-	Refusal  string                          `json:"refusal,omitempty"`
+	Refusal  string                          `json:"refusal,omitzero"`
 }
 
 func (h *Handler) activeRecipe(response http.ResponseWriter, request *http.Request) {

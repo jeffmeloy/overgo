@@ -220,7 +220,7 @@ func runDiffusion(
 		stepsPerBlock = options.Steps / numBlocks
 	}
 	shift := options.ShiftLogits != nil && *options.ShiftLogits
-	for block := 0; block < numBlocks; block++ {
+	for block := range numBlocks {
 		blockStart, blockEnd := 0, options.MaxLength
 		var transfers []int
 		if options.Schedule == DiffusionBlock {
@@ -229,7 +229,7 @@ func runDiffusion(
 			masked := countMasks(output, mask, blockStart, blockEnd)
 			transfers = diffusionBlockTransfers(masked, stepsPerBlock)
 		}
-		for step := 0; step < stepsPerBlock; step++ {
+		for step := range stepsPerBlock {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}

@@ -217,7 +217,7 @@ func gitHead() string {
 
 type dirtyFact struct {
 	Path           string `json:"path"`
-	OriginalPath   string `json:"original_path,omitempty"`
+	OriginalPath   string `json:"original_path,omitzero"`
 	IndexStatus    string `json:"index_status"`
 	WorktreeStatus string `json:"worktree_status"`
 	IndexIdentity  string `json:"index_identity"`

@@ -189,7 +189,7 @@ func llama4BestGrid(width, height, size, maxSide int) (int, int) {
 				continue
 			}
 			candidateW, candidateH := gridW*size, gridH*size
-			scale := math.Min(float64(candidateW)/float64(width), float64(candidateH)/float64(height))
+			scale := min(float64(candidateW)/float64(width), float64(candidateH)/float64(height))
 			targetW, targetH := int(float64(width)*scale), int(float64(height)*scale)
 			effective := min(targetW*targetH, width*height)
 			waste := candidateW*candidateH - effective

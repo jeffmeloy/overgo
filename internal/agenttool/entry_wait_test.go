@@ -30,11 +30,11 @@ func TestTransportEntryWaitHonorsDeadline(t *testing.T) {
 	}
 	firstDone := make(chan error, 1)
 	go func() {
-		_, err := executor.Invoke(context.Background(), manual, json.RawMessage(`{"pattern":"x"}`))
+		_, err := executor.Invoke(t.Context(), manual, json.RawMessage(`{"pattern":"x"}`))
 		firstDone <- err
 	}()
 	<-entered
-	bounded, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	bounded, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 	started := time.Now()
 	_, err := executor.Invoke(bounded, manual, json.RawMessage(`{"pattern":"x"}`))

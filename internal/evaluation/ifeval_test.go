@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -38,7 +37,7 @@ func TestIFEvalPinnedOracleParity(t *testing.T) {
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	report, err := EvaluateInstructionRules(
-		context.Background(), store, exactGenerator{pieces: []string{response}}, compiled, plan,
+		t.Context(), store, exactGenerator{pieces: []string{response}}, compiled, plan,
 	)
 	if err != nil {
 		t.Fatal(err)

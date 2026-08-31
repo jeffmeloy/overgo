@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -30,7 +29,7 @@ func publishSelectionModel(
 	t *testing.T, store artifact.Repository, name string, resource uint64,
 ) recipe.Definition {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	modelID := planID(t, artifact.KindModel, name+"-model")
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "routing/fixture/model/" + name,
@@ -65,7 +64,7 @@ func publishSelectionEvaluation(
 	t *testing.T, store artifact.Repository, definition recipe.Definition, name, tag string, quality float64,
 ) artifact.ID {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	exact, err := CompileExact(exactFixture())
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +124,7 @@ func publishSelectionEvaluation(
 	return evidence.ID
 }
 
-// TestEvidenceDerivedSelection pins the live selection contract: candidates
+// TestRoutingEvidenceDerivedSelection pins the live selection contract: candidates
 // admit only through verified published evaluation evidence on the
 // baseline's split measuring the baseline's metric, quality and threshold
 // derive from those measurements, resource derives from the published model
@@ -133,8 +132,8 @@ func publishSelectionEvaluation(
 // and the decision record commits to the store before the selection is
 // returned — the benchmark substrate acting as a control input, with every
 // decision on the record.
-func TestEvidenceDerivedSelection(t *testing.T) {
-	ctx := context.Background()
+func TestRoutingEvidenceDerivedSelection(t *testing.T) {
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +162,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("decision was not recorded: (%v, %v)", found, err)
 	}
-	recorded, err := modelrecipe.ParseRoutingDecision(content.Data)
+	recorded, err := modelrecipe.ParseRecipeRoutingDecision(content.Data)
 	if err != nil || recorded.ID != decision.ID || recorded.Selected != decision.Selected {
 		t.Fatalf("recorded decision = (%s, %v)", recorded.ID, err)
 	}

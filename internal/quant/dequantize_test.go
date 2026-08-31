@@ -125,7 +125,7 @@ func littleEndianValues[T ~uint16 | ~uint32 | ~uint64](values ...T) []byte {
 func TestDequantizeQ8_0(t *testing.T) {
 	source := make([]byte, 34)
 	binary.LittleEndian.PutUint16(source, 0x3800) // 0.5
-	for index := 0; index < 32; index++ {
+	for index := range 32 {
 		source[2+index] = byte(int8(index - 16))
 	}
 	output, err := Dequantize(dtype.Q8_0, source, 32)
@@ -149,14 +149,14 @@ func TestDequantizeRejectsWrongSize(t *testing.T) {
 func TestDequantizeQ4(t *testing.T) {
 	q40 := make([]byte, 18)
 	binary.LittleEndian.PutUint16(q40, 0x3c00) // 1
-	for index := 0; index < 16; index++ {
+	for index := range 16 {
 		q40[2+index] = byte(index) | byte(15-index)<<4
 	}
 	output, err := Dequantize(dtype.Q4_0, q40, 32)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for index := 0; index < 16; index++ {
+	for index := range 16 {
 		if output[index] != float32(index-8) {
 			t.Fatalf("low output[%d] = %v", index, output[index])
 		}
@@ -182,7 +182,7 @@ func TestDequantizeQ8_1(t *testing.T) {
 	source := make([]byte, 36)
 	binary.LittleEndian.PutUint16(source, 0x3800) // 0.5
 	binary.LittleEndian.PutUint16(source[2:], 0x4200)
-	for index := 0; index < 32; index++ {
+	for index := range 32 {
 		source[4+index] = byte(int8(index - 16))
 	}
 	output, err := Dequantize(dtype.Q8_1, source, 32)
@@ -197,7 +197,7 @@ func TestDequantizeQ8_1(t *testing.T) {
 func TestDequantizeQ8K(t *testing.T) {
 	source := make([]byte, 292)
 	binary.LittleEndian.PutUint32(source, math.Float32bits(0.25))
-	for index := 0; index < 256; index++ {
+	for index := range 256 {
 		source[4+index] = byte(int8(index%127 - 63))
 	}
 	output, err := Dequantize(dtype.Q8K, source, 256)
@@ -243,7 +243,7 @@ func TestDequantizeQ6K(t *testing.T) {
 	source := make([]byte, 210)
 	source[0] = 0x0f
 	source[128] = 0xe4
-	for index := 0; index < 16; index++ {
+	for index := range 16 {
 		source[192+index] = 1
 	}
 	binary.LittleEndian.PutUint16(source[208:], 0x3c00) // 1
@@ -268,7 +268,7 @@ func TestDequantizeQ6K(t *testing.T) {
 
 func TestDequantizeQ6KScaleGroups(t *testing.T) {
 	source := make([]byte, 210)
-	for index := 0; index < 16; index++ {
+	for index := range 16 {
 		source[192+index] = byte(int8(index + 1))
 	}
 	binary.LittleEndian.PutUint16(source[208:], 0x3800) // 0.5
@@ -293,7 +293,7 @@ func TestDequantizeQ6KScaleGroups(t *testing.T) {
 
 func TestDequantizeQ2K(t *testing.T) {
 	source := make([]byte, 84)
-	for index := 0; index < 16; index++ {
+	for index := range 16 {
 		source[index] = 0x21
 	}
 	source[16] = 0x03
@@ -310,10 +310,10 @@ func TestDequantizeQ2K(t *testing.T) {
 
 func TestDequantizeQ3K(t *testing.T) {
 	source := make([]byte, 110)
-	for index := 0; index < 8; index++ {
+	for index := range 8 {
 		source[96+index] = 0x11
 	}
-	for index := 0; index < 4; index++ {
+	for index := range 4 {
 		source[104+index] = 0xaa
 	}
 	source[0] = 0x01

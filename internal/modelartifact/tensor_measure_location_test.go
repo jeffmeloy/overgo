@@ -50,7 +50,7 @@ func TestMeasureAtLocationSafetensors(t *testing.T) {
 	data := make([]byte, 8, 8+len(header)+2048)
 	binary.LittleEndian.PutUint64(data, uint64(len(header)))
 	data = append(data, header...)
-	for i := 0; i < 512; i++ {
+	for i := range 512 {
 		var scalar [4]byte
 		binary.LittleEndian.PutUint32(scalar[:], math.Float32bits(float32(i)))
 		data = append(data, scalar[:]...)

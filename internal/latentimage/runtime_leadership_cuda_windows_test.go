@@ -4,7 +4,6 @@ package latentimage
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"fmt"
 	"image/png"
@@ -39,7 +38,7 @@ func BenchmarkKrea2048Leadership(b *testing.B) {
 
 func benchmarkKrea2048(b *testing.B, request Request) {
 	b.Helper()
-	ctx := context.Background()
+	ctx := b.Context()
 	totalStart := time.Now()
 	profile, err := ResolveProfile(kreaModelDir)
 	if err != nil {

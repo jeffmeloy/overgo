@@ -160,22 +160,18 @@ func (s *catalogState) addCommit(commit committedBatch) { s.commits.add(commit) 
 // Store is the hash-chained artifact catalog: a replayed record log
 // projected into slots, aliases, and lineage under one lock.
 type Store struct {
-	mu    sync.RWMutex
-	log   *recordLog
-	blobs blobStore
-	// onPublished runs after a commit's head-consistent view is
-	// published and the lock is released; subscribers may read the
-	// store reentrantly.
-	onPublished []func(artifact.CommitID, uint64)
-	state       catalogState
-	head        artifact.CommitID
-	sequence    uint64
-	replayEnd   int64
-	readOnly    bool
-	closed      bool
-	fault       error
-	root        string
-	snapshot    SnapshotReplay
+	mu        sync.RWMutex
+	log       *recordLog
+	blobs     blobStore
+	state     catalogState
+	head      artifact.CommitID
+	sequence  uint64
+	replayEnd int64
+	readOnly  bool
+	closed    bool
+	fault     error
+	root      string
+	snapshot  SnapshotReplay
 }
 
 // Open replays the store under root and returns a writable handle.
@@ -371,31 +367,11 @@ func (s *Store) sealActiveSegment() error {
 	return nil
 }
 
-// subscribePublished registers a head-publication observer. Callbacks
-// run outside the store lock, after every projection has applied, so
-// an observer reads one consistent head or a later one -- never a
-// mixed view.
-func (s *Store) subscribePublished(observer func(artifact.CommitID, uint64)) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.onPublished = append(s.onPublished, observer)
-}
-
 // Commit appends one effective transaction: the batch is normalized,
 // reduced to its delta against current state, and chained onto the head.
 func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.CommitID, error) {
-	id, advanced, err := s.commitPublished(ctx, batch)
-	if err != nil || !advanced {
-		return id, err
-	}
-	s.mu.RLock()
-	observers := slices.Clone(s.onPublished)
-	head, sequence := s.head, s.sequence
-	s.mu.RUnlock()
-	for _, observer := range observers {
-		observer(head, sequence)
-	}
-	return id, nil
+	id, _, err := s.commitPublished(ctx, batch)
+	return id, err
 }
 
 func (s *Store) commitPublished(ctx context.Context, batch artifact.Batch) (artifact.CommitID, bool, error) {
@@ -417,10 +393,9 @@ func (s *Store) commitPublished(ctx context.Context, batch artifact.Batch) (arti
 	coordinator := commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}
 	advance, replayed, err := coordinator.commit(normalized, payloadHash, s.head, s.sequence)
 	if err != nil {
-		var fault appendFault
-		if errors.As(err, &fault) {
+		if fault, ok := errors.AsType[appendFault](err); ok {
 			s.fault = fault.cause
-			return advance.id, false, fmt.Errorf("%w: %w", ErrStoreFaulted, fault.cause)
+			return advance.id, false, errors.Join(ErrStoreFaulted, fault.cause)
 		}
 		return artifact.CommitID{}, false, err
 	}
@@ -730,7 +705,7 @@ func (s *Store) ready(write bool) error {
 		return ErrClosed
 	}
 	if s.fault != nil {
-		return fmt.Errorf("%w: %w", ErrStoreFaulted, s.fault)
+		return errors.Join(ErrStoreFaulted, s.fault)
 	}
 	if write && s.readOnly {
 		return ErrReadOnly

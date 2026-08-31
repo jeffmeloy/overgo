@@ -16,7 +16,7 @@ import (
 func driverTargets(t *testing.T, count int) []CompositionTarget {
 	t.Helper()
 	targets := make([]CompositionTarget, 0, count)
-	for index := 0; index < count; index++ {
+	for index := range count {
 		name := "driver-target-" + string(rune('a'+index))
 		targets = append(targets, CompositionTarget{
 			Label: name,
@@ -89,7 +89,7 @@ func driverAttemptRecords(t *testing.T, store *overgodb.Store) int {
 	t.Helper()
 	count := 0
 	if _, err := overgodb.VisitDecodedDocuments(
-		context.Background(), store, overgodb.DocumentQuery{
+		t.Context(), store, overgodb.DocumentQuery{
 			Contracts: []artifact.DocumentContract{{
 				Kind: artifact.KindEvidence, MediaType: DriverAttemptMediaType, Schema: DriverAttemptSchema,
 			}}, Order: overgodb.DocumentOldestFirst,
@@ -114,7 +114,7 @@ func driverAttemptRecords(t *testing.T, store *overgodb.Store) int {
 // and stops exactly at the attempt budget derived from measured history —
 // the ceiling of attempts per historical promotion — naming the stop.
 func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 // while operator authority stops the loop before any further attempt and
 // is never overridden.
 func TestCompositionLoopSaturationStops(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

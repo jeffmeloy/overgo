@@ -1,7 +1,6 @@
 package latentvideo
 
 import (
-	"context"
 	"math"
 	"os"
 	"path/filepath"
@@ -50,7 +49,7 @@ func TestDecodeClipSource(t *testing.T) {
 	if err != nil {
 		t.Skip("FFmpeg is unavailable on this host")
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	const frames, height, width = 5, 32, 48
 	encoder, err := NewMP4Encoder(ctx, ffmpeg, 8, height, width, UnitPixels)
 	if err != nil {
@@ -58,12 +57,12 @@ func TestDecodeClipSource(t *testing.T) {
 	}
 	levels := [3]float32{0.8, 0.4, 0.2}
 	frame := make([]float32, 3*height*width)
-	for channel := 0; channel < 3; channel++ {
-		for pixel := 0; pixel < height*width; pixel++ {
+	for channel := range 3 {
+		for pixel := range height * width {
 			frame[channel*height*width+pixel] = levels[channel]
 		}
 	}
-	for index := 0; index < frames; index++ {
+	for index := range frames {
 		if err := encoder.Add(index, frame, height, width); err != nil {
 			t.Fatal(err)
 		}
@@ -81,10 +80,10 @@ func TestDecodeClipSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	spatial := height * width
-	for channel := 0; channel < 3; channel++ {
+	for channel := range 3 {
 		var sum float64
-		for f := 0; f < frames; f++ {
-			for pixel := 0; pixel < spatial; pixel++ {
+		for f := range frames {
+			for pixel := range spatial {
 				sum += float64(decoded[(channel*frames+f)*spatial+pixel])
 			}
 		}

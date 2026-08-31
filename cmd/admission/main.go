@@ -22,7 +22,17 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/trainingprogram"
 )
+
+type mechanismCandidateSpecification struct {
+	Assessments []trainingprogram.MechanismAssessment `json:"assessments"`
+	Provenance  artifact.ID                           `json:"provenance"`
+	Mechanism   artifact.ID                           `json:"mechanism"`
+	CostBound   artifact.ID                           `json:"cost_bound"`
+	Benefit     artifact.ID                           `json:"benefit"`
+	Authority   artifact.ID                           `json:"authority"`
+}
 
 func main() {
 	clioptions.MainNamed("admission", func() error { return run(os.Args[1:], os.Stdout) })
@@ -32,6 +42,7 @@ func run(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("admission", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	bind := flags.String("bind", "", "path to an admission-binding JSON specification to identify and commit")
+	mechanism := flags.String("mechanism", "", "path to an evidence-gated mechanism candidate JSON specification")
 	succeed := flags.String("succeed", "", "artifact ID of the generation-N binding to validate")
 	prior := flags.String("prior", "", "artifact ID of the generation N-1 binding")
 	approval := flags.String("approval", "", "artifact ID of the prior decider's approval decision")
@@ -39,16 +50,77 @@ func run(args []string, output io.Writer) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *recordStore == "" || (*bind == "") == (*succeed == "") {
-		return errors.New("usage: admission -bind <binding.json> -record <overgodb> | admission -succeed <id> -prior <id> -approval <id> -record <overgodb>")
+	modes := 0
+	for _, selected := range []bool{*bind != "", *succeed != "", *mechanism != ""} {
+		if selected {
+			modes++
+		}
+	}
+	if flags.NArg() != 0 || *recordStore == "" || modes != 1 {
+		return errors.New("usage: admission -bind <binding.json> -record <overgodb> | admission -succeed <id> -prior <id> -approval <id> -record <overgodb> | admission -mechanism <candidate.json> -record <overgodb>")
 	}
 	if *bind != "" {
 		return runBind(*bind, *recordStore, output)
+	}
+	if *mechanism != "" {
+		return runMechanism(*mechanism, *recordStore, output)
 	}
 	if *prior == "" || *approval == "" {
 		return errors.New("succession requires -prior and -approval")
 	}
 	return runSucceed(*succeed, *prior, *approval, *recordStore, output)
+}
+
+func runMechanism(path, recordStore string, output io.Writer) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var specification mechanismCandidateSpecification
+	if err := strictjson.DecodeBytes(data, &specification); err != nil {
+		return err
+	}
+	census, err := trainingprogram.CompileMechanismCensus(specification.Assessments)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.Open(recordStore)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	provenance, err := runrecord.RequireExternalMechanismProvenance(context.Background(), store, specification.Provenance)
+	if err != nil {
+		return err
+	}
+	candidate, err := trainingprogram.CompileMechanismCandidate(
+		census, specification.Provenance, specification.Mechanism, specification.CostBound, specification.Benefit,
+	)
+	if err != nil {
+		return err
+	}
+	if err := runrecord.ValidateMechanismCandidateEvidence(
+		context.Background(), store, candidate, provenance, specification.Authority,
+	); err != nil {
+		return err
+	}
+	censusContent, err := census.Content()
+	if err != nil {
+		return err
+	}
+	candidateContent, err := candidate.Content()
+	if err != nil {
+		return err
+	}
+	lineage := append(census.Lineage(), candidate.Lineage()...)
+	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+		Key:      "admission/mechanism-evidence/" + candidate.ID().String(),
+		Contents: []artifact.Content{censusContent, candidateContent}, Lineage: lineage,
+	}); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "mechanism candidate evidence validated: candidate=%s census=%s\n", candidate.ID(), census.ID())
+	return nil
 }
 
 func runBind(path, recordStore string, output io.Writer) error {

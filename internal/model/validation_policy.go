@@ -1,5 +1,7 @@
 package model
 
+import "slices"
+
 // BaseRotaryValidationPolicy: base rotary invariant.
 type BaseRotaryValidationPolicy uint8
 
@@ -200,10 +202,5 @@ func (p ValidationPolicy) supportsYaRN() bool {
 }
 
 func policyOneOf[T comparable](policy T, candidates ...T) bool {
-	for _, candidate := range candidates {
-		if policy == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(candidates, policy)
 }

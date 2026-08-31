@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"context"
 	"math"
 	"slices"
 	"strings"
@@ -210,7 +209,7 @@ func TestMultimodalInputAdmission(t *testing.T) {
 		supported := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: architecture}, AttentionSpec: model.AttentionSpec{RopeSections: [4]int32{2, 2, 0, 0}}}}}
 		supported = attachFixtureProgram(supported)
 		_, _, err := supported.ForwardCachedWithMultimodalInputs(
-			context.Background(), nil, nil, MultiAxisPositions{}, nil,
+			t.Context(), nil, nil, MultiAxisPositions{}, nil,
 		)
 		if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {
 			t.Fatalf("%s multimodal error = %v", architecture, err)
@@ -220,7 +219,7 @@ func TestMultimodalInputAdmission(t *testing.T) {
 	unsupported := &Runner{preparedModel: preparedModel{spec: model.Spec{CommonSpec: model.CommonSpec{Architecture: "llama"}}}}
 	unsupported = attachFixtureProgram(unsupported)
 	_, _, err := unsupported.ForwardCachedWithMultimodalInputs(
-		context.Background(), nil, nil, MultiAxisPositions{}, nil,
+		t.Context(), nil, nil, MultiAxisPositions{}, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "does not support") {
 		t.Fatalf("unsupported multimodal error = %v", err)
@@ -232,7 +231,7 @@ func TestMultimodalInputRejectsIncompleteAxes(t *testing.T) {
 	runner = attachFixtureProgram(runner)
 	positions := MultiAxisPositions{{0}, {0}, nil, {0}}
 	_, _, err := runner.ForwardCachedWithMultimodalInputs(
-		context.Background(), []tokenizer.TokenID{0}, nil, positions, nil,
+		t.Context(), []tokenizer.TokenID{0}, nil, positions, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "position 2") {
 		t.Fatalf("incomplete multi-axis error = %v", err)
@@ -245,7 +244,7 @@ func TestProjectedInputDeepstackAdmission(t *testing.T) {
 	}}}
 	runner = attachFixtureProgram(runner)
 	_, _, err := runner.ForwardCachedWithProjectedInputs(
-		context.Background(), nil, nil,
+		t.Context(), nil, nil,
 		ProjectedInputs{DeepstackEmbeddings: []reference.Value{{}}},
 	)
 	if err == nil || !strings.Contains(err.Error(), "token sequence is empty") {

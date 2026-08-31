@@ -21,6 +21,21 @@ const (
 )
 
 func prepareMerge(root, source string, output io.Writer) error {
+	return prepareMergeWithProjection(root, source, plan.MergeProjectionSemanticUnion, output)
+}
+
+func prepareMergeWithProjection(
+	root, source string,
+	projection plan.MergeProjection,
+	output io.Writer,
+) error {
+	parsedProjection, err := plan.ParseMergeProjection(string(projection))
+	if err != nil {
+		return fmt.Errorf("prepare-merge projection: %w", err)
+	}
+	if parsedProjection != projection {
+		return errors.New("prepare-merge projection is not canonical")
+	}
 	canonicalRoot, err := gitauthority.RepositoryRoot(context.Background(), root)
 	if err != nil {
 		return err
@@ -58,6 +73,15 @@ func prepareMerge(root, source string, output io.Writer) error {
 			fmt.Fprintf(output, "prepare-merge: HEAD already contains %s at %s\n", source, snapshot)
 			return nil
 		}
+		liveSourceStore := ""
+		if projection == plan.MergeProjectionFirstParentTarget {
+			liveSourceStore, err = firstParentTargetSourceStore(
+				context.Background(), root, snapshot, closureSnapshot.source,
+			)
+			if err != nil {
+				return err
+			}
+		}
 		baseRef, err := uniqueMergeBase(root, localRevision, snapshot)
 		if err != nil {
 			return err
@@ -70,13 +94,16 @@ func prepareMerge(root, source string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		localAuthority, incomingAuthority, err := resolveMergeAuthorities(
-			root, localRevision, snapshot, local, incoming,
-		)
-		if err != nil {
-			return fmt.Errorf("prepare-merge completion authority: %w", err)
+		var localAuthority, incomingAuthority plan.CompletionAuthority
+		if projection == plan.MergeProjectionSemanticUnion {
+			localAuthority, incomingAuthority, err = resolveMergeAuthorities(
+				root, localRevision, snapshot, local, incoming,
+			)
+			if err != nil {
+				return fmt.Errorf("prepare-merge completion authority: %w", err)
+			}
 		}
-		merged, err := plan.MergeDocumentsWithCompletion(base, local, incoming, localAuthority, incomingAuthority)
+		merged, err := projectMergePlan(base, local, incoming, localAuthority, incomingAuthority, projection)
 		if err != nil {
 			return err
 		}
@@ -85,8 +112,16 @@ func prepareMerge(root, source string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if err := plan.VerifyProspectiveMergeAuthority(
+		if projection == plan.MergeProjectionFirstParentTarget {
+			if err := verifyFirstParentTargetMergeSources(
+				context.Background(), root, localRevision, snapshot, local, incoming, merged,
+				closureSnapshot.store,
+			); err != nil {
+				return fmt.Errorf("prepare-merge completion authority: %w", err)
+			}
+		} else if err := plan.VerifyProspectiveMergeAuthorityWithProjection(
 			root, localRevision, snapshot, local, incoming, merged, localAuthority, incomingAuthority,
+			projection,
 		); err != nil {
 			return fmt.Errorf("prepare-merge completion authority: %w", err)
 		}
@@ -113,7 +148,7 @@ func prepareMerge(root, source string, output io.Writer) error {
 			if conflictErr != nil {
 				return conflictErr
 			}
-			for _, path := range strings.Fields(string(conflicts)) {
+			for path := range strings.FieldsSeq(string(conflicts)) {
 				if path != plan.Path && path != compatibilityDocumentPath && path != trainingCompatibilityDocumentPath {
 					return fmt.Errorf("prepare-merge source conflict; merge aborted: %w", mergeErr)
 				}
@@ -143,9 +178,28 @@ func prepareMerge(root, source string, output io.Writer) error {
 			fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local OvergoDB worktree)")
 		}
 		keepMerge = true
-		fmt.Fprintf(output, "prepare-merge: %s@%s staged; finalize with cmd/gate -merge -plan %s/do\n", source, snapshot, mergeID)
+		projectionArguments, err := mergeFinalizeProjectionArguments(projection, liveSourceStore)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(
+			output,
+			"prepare-merge: %s@%s staged; finalize with cmd/gate -merge%s -plan %s/do\n",
+			source, snapshot, projectionArguments, mergeID,
+		)
 		return nil
 	})
+}
+
+func projectMergePlan(
+	base, local, incoming plan.Plan,
+	localAuthority, incomingAuthority plan.CompletionAuthority,
+	projection plan.MergeProjection,
+) (plan.Plan, error) {
+	if projection == plan.MergeProjectionFirstParentTarget {
+		return local, nil
+	}
+	return plan.MergeDocumentsWithCompletion(base, local, incoming, localAuthority, incomingAuthority)
 }
 
 func uniqueMergeBase(root, localRevision, incomingRevision string) (string, error) {
@@ -184,6 +238,72 @@ func resolveMergeAuthorities(
 		)
 	}
 	return localAuthority, incomingAuthority, nil
+}
+
+func verifyFirstParentTargetMergeSources(
+	ctx context.Context,
+	root, localRevision, incomingRevision string,
+	local, incoming, merged plan.Plan,
+	sourceSnapshotPath string,
+) (returnErr error) {
+	if strings.TrimSpace(sourceSnapshotPath) == "" {
+		return errors.New("first-parent-target requires a replay-verified source store snapshot")
+	}
+	targetStore, err := overgodb.OpenReadOnly(filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory))
+	if err != nil {
+		return err
+	}
+	defer func() { returnErr = errors.Join(returnErr, targetStore.Close()) }()
+	sourceStore, err := overgodb.OpenReadOnly(sourceSnapshotPath)
+	if err != nil {
+		return err
+	}
+	defer func() { returnErr = errors.Join(returnErr, sourceStore.Close()) }()
+
+	localAuthority, err := plan.ResolveCompletionAuthority(ctx, root, localRevision, local, targetStore)
+	if err != nil {
+		return fmt.Errorf("local parent %.12s: %w", localRevision, err)
+	}
+	incomingAuthority, err := plan.ResolveCompletionAuthority(ctx, root, incomingRevision, incoming, sourceStore)
+	if err != nil {
+		return fmt.Errorf("incoming parent %.12s is not proven by its source authority store: %w", incomingRevision, err)
+	}
+	_, err = plan.VerifyFirstParentTargetMergeSources(
+		ctx, root, localRevision, incomingRevision, local, incoming, merged,
+		localAuthority, incomingAuthority, targetStore, sourceStore,
+	)
+	return err
+}
+
+func firstParentTargetSourceStore(
+	ctx context.Context,
+	root, incomingRevision, sourceStorePath string,
+) (string, error) {
+	if strings.TrimSpace(sourceStorePath) == "" {
+		return "", errors.New("prepare-merge: first-parent-target requires a registered source worktree OvergoDB store")
+	}
+	store, err := gitauthority.RequireRegisteredWorktreeStore(ctx, root, sourceStorePath, incomingRevision)
+	if err != nil {
+		return "", fmt.Errorf("prepare-merge: first-parent-target source store: %w", err)
+	}
+	return store, nil
+}
+
+func mergeFinalizeProjectionArguments(projection plan.MergeProjection, sourceStore string) (string, error) {
+	switch projection {
+	case plan.MergeProjectionSemanticUnion:
+		return "", nil
+	case plan.MergeProjectionFirstParentTarget:
+		if strings.TrimSpace(sourceStore) == "" {
+			return "", errors.New("prepare-merge: first-parent-target finalize command requires its live source store")
+		}
+		if strings.ContainsAny(sourceStore, "\"\r\n") {
+			return "", errors.New("prepare-merge: source store path cannot be rendered safely")
+		}
+		return " -plan-projection " + string(projection) + ` -merge-source-store "` + sourceStore + `"`, nil
+	default:
+		return "", errors.New("prepare-merge: invalid merge projection")
+	}
 }
 
 func verifySourceSnapshot(source, snapshot string, latest []byte, resolveErr error) error {

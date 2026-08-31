@@ -44,8 +44,7 @@ func LaneOutcomeOf(err error) LaneOutcome {
 	if err == nil {
 		return LanePassed
 	}
-	var terminal laneError
-	if errors.As(err, &terminal) {
+	if terminal, ok := errors.AsType[laneError](err); ok {
 		return terminal.outcome
 	}
 	return LaneFailed

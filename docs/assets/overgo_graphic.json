@@ -1,15 +1,15 @@
 {
   "document_type": "system_architecture_graphic",
-  "schema_version": "1.0",
+  "schema_version": "2.0",
   "figure": {
-    "id": "overgo-system-architecture",
-    "title": "OVERGO SYSTEM ARCHITECTURE",
-    "subtitle": "Deterministic execution, measured steering, and evidence-based decisions",
-    "image": "docs/assets/overgo-platform-architecture-scientific.png",
-    "purpose": "A renderer-neutral definition of the architecture figure used by the project documentation.",
+    "id": "overgo-technical-architecture",
+    "title": "OVERGO TECHNICAL ARCHITECTURE",
+    "subtitle": "Deterministic control, native model execution, durable evidence, and policy-governed activation",
+    "image": "docs/assets/overgo-platform-technical-architecture.png",
+    "purpose": "Detailed technical architecture plate for the project README.",
     "tone": [
-      "scientific",
       "technical",
+      "scientific",
       "neutral",
       "non-promotional"
     ]
@@ -19,505 +19,189 @@
     "height": 1024,
     "unit": "px",
     "background": "#ffffff",
-    "safe_margin": 14,
-    "coordinate_system": "top-left origin"
+    "layout": "wide landscape"
   },
-  "typography": {
-    "family": "Inter, Segoe UI, Arial, sans-serif",
-    "title": {
-      "size": 44,
-      "weight": 700,
-      "color": "#101b2d",
-      "tracking": 1.5
-    },
-    "subtitle": {
-      "size": 28,
-      "weight": 400,
-      "color": "#344054"
-    },
-    "section": {
-      "size": 22,
-      "weight": 700,
-      "color": "#0e2450"
-    },
-    "node_title": {
-      "size": 16,
-      "weight": 600,
-      "color": "#0e2450"
-    },
-    "node_detail": {
-      "size": 12,
-      "weight": 400,
-      "color": "#182230"
-    }
+  "visual_language": {
+    "grid": "8px",
+    "typography": "condensed sans-serif headings with monospaced secondary annotations",
+    "control_path": "teal",
+    "evidence_path": "green",
+    "policy_path": "amber",
+    "section_frames": "navy",
+    "external_adapter": "navy dashed",
+    "effects": "flat fills and linework; no gradients, shadows, or three-dimensional effects"
   },
-  "style_tokens": {
-    "surface": "#ffffff",
-    "record": {
-      "fill": "#e7eef8",
-      "stroke": "#142b59",
-      "stroke_width": 2,
-      "radius": 8
-    },
-    "active_state": {
-      "fill": "#d9f0ee",
-      "stroke": "#0d7377",
-      "stroke_width": 2,
-      "radius": 8
-    },
-    "evidence": {
-      "fill": "#e4f1dc",
-      "stroke": "#4f7d35",
-      "stroke_width": 2,
-      "radius": 8
-    },
-    "decision": {
-      "fill": "#fff0cf",
-      "stroke": "#d07a00",
-      "stroke_width": 2,
-      "radius": 8
-    },
-    "modality": {
-      "fill": "#e8f5f5",
-      "stroke": "#0d7377",
-      "stroke_width": 2,
-      "radius": 7
-    },
-    "section_frame": {
-      "fill": "#ffffff",
-      "stroke": "#142b59",
-      "stroke_width": 1.5,
-      "radius": 9
-    },
-    "capability_frame": {
-      "fill": "#ffffff",
-      "stroke": "#0d7377",
-      "stroke_width": 1.5,
-      "radius": 9
-    },
-    "primary_edge": {
-      "color": "#17355f",
-      "width": 2,
-      "arrow": "filled"
-    },
-    "association_edge": {
-      "color": "#667085",
-      "width": 1.5,
-      "dash": [
-        6,
-        5
-      ]
-    },
-    "feedback_edge": {
-      "color": "#0d6670",
-      "width": 2,
-      "arrow": "filled"
-    }
-  },
-  "layout": {
-    "title": {
-      "bounds": [
-        250,
-        14,
-        1035,
-        92
+  "layers": [
+    {
+      "order": 1,
+      "id": "interfaces-and-compatibility",
+      "label": "INTERFACES AND COMPATIBILITY",
+      "components": [
+        {
+          "label": "CLI AND WORKBENCH",
+          "detail": "inspect · operate · intervene"
+        },
+        {
+          "label": "OPENAI-STYLE HTTP",
+          "detail": "chat · responses · embeddings · media"
+        },
+        {
+          "label": "ANTHROPIC-STYLE HTTP",
+          "detail": "messages · token counting"
+        },
+        {
+          "label": "AUTOMATION AND PEERS",
+          "detail": "schedules · webhooks · delegation"
+        }
       ],
-      "alignment": "center"
-    },
-    "regions": [
-      {
-        "id": "control-loop",
-        "label": "CONTROL LOOP",
-        "bounds": [
-          14,
-          130,
-          1226,
-          264
-        ],
-        "style": "section_frame"
-      },
-      {
-        "id": "capabilities",
-        "label": "CAPABILITIES",
-        "bounds": [
-          14,
-          420,
-          1226,
-          295
-        ],
-        "style": "capability_frame"
-      },
-      {
-        "id": "foundations",
-        "label": "FOUNDATIONS",
-        "bounds": [
-          14,
-          741,
-          1226,
-          168
-        ],
-        "style": "section_frame"
-      },
-      {
-        "id": "external-access",
-        "label": "EXTERNAL ACCESS",
-        "bounds": [
-          1292,
-          130,
-          226,
-          779
-        ],
-        "style": "section_frame"
-      },
-      {
-        "id": "legend",
-        "label": null,
-        "bounds": [
-          52,
-          943,
-          1438,
-          57
-        ],
-        "style": "unframed"
+      "external_adapter": {
+        "label": "REMOTE PEER EXECUTION (ADAPTER)",
+        "detail": "execute via adapter · not owner of control"
       }
-    ]
-  },
-  "nodes": [
-    {
-      "id": "steer",
-      "region": "control-loop",
-      "label": "Steer",
-      "detail": "goals · constraints",
-      "bounds": [29, 204, 129, 95],
-      "style": "active_state",
-      "semantic_role": "steering_state"
     },
     {
-      "id": "compile",
-      "region": "control-loop",
-      "label": "Compile",
-      "detail": "typed workflow",
-      "bounds": [196, 204, 121, 95],
-      "style": "active_state",
-      "semantic_role": "active_state"
-    },
-    {
-      "id": "admit",
-      "region": "control-loop",
-      "label": "Admit",
-      "detail": "limits · placement",
-      "bounds": [352, 204, 120, 95],
-      "style": "record",
-      "semantic_role": "immutable_record"
-    },
-    {
-      "id": "execute",
-      "region": "control-loop",
-      "label": "Execute",
-      "detail": "bounded runtime",
-      "bounds": [509, 204, 120, 95],
-      "style": "active_state",
-      "semantic_role": "active_state"
-    },
-    {
-      "id": "evaluate",
-      "region": "control-loop",
-      "label": "Evaluate",
-      "detail": "metrics · comparisons",
-      "bounds": [670, 204, 133, 95],
-      "style": "evidence",
-      "semantic_role": "measured_evidence"
-    },
-    {
-      "id": "decide",
-      "region": "control-loop",
-      "label": "Decide",
-      "detail": "evidence · policy",
-      "bounds": [839, 204, 105, 95],
-      "style": "decision",
-      "semantic_role": "policy_decision"
-    },
-    {
-      "id": "activate",
-      "region": "control-loop",
-      "label": "Activate",
-      "detail": "versioned state",
-      "bounds": [975, 204, 107, 95],
-      "style": "active_state",
-      "semantic_role": "active_state"
-    },
-    {
-      "id": "observe",
-      "region": "control-loop",
-      "label": "Observe",
-      "detail": "telemetry · outcomes",
-      "bounds": [1113, 204, 114, 95],
-      "style": "record",
-      "semantic_role": "immutable_record"
-    },
-    {
-      "id": "inference",
-      "region": "capabilities",
-      "label": "Inference",
-      "bounds": [41, 479, 190, 61],
-      "style": "active_state"
-    },
-    {
-      "id": "training",
-      "region": "capabilities",
-      "label": "Training",
-      "bounds": [266, 479, 191, 61],
-      "style": "active_state"
-    },
-    {
-      "id": "model-composition",
-      "region": "capabilities",
-      "label": "Model composition",
-      "bounds": [500, 479, 217, 61],
-      "style": "active_state"
-    },
-    {
-      "id": "agents-automation",
-      "region": "capabilities",
-      "label": "Agents & automation",
-      "bounds": [759, 479, 212, 61],
-      "style": "active_state"
-    },
-    {
-      "id": "distributed-execution",
-      "region": "capabilities",
-      "label": "Distributed execution",
-      "bounds": [1006, 479, 209, 61],
-      "style": "active_state"
-    },
-    {
-      "id": "text",
-      "region": "capabilities",
-      "label": "text",
-      "bounds": [180, 628, 114, 58],
-      "style": "modality"
-    },
-    {
-      "id": "image",
-      "region": "capabilities",
-      "label": "image",
-      "bounds": [338, 628, 113, 58],
-      "style": "modality"
-    },
-    {
-      "id": "audio",
-      "region": "capabilities",
-      "label": "audio",
-      "bounds": [497, 628, 113, 58],
-      "style": "modality"
-    },
-    {
-      "id": "video",
-      "region": "capabilities",
-      "label": "video",
-      "bounds": [665, 628, 112, 58],
-      "style": "modality"
-    },
-    {
-      "id": "time-series",
-      "region": "capabilities",
-      "label": "time series",
-      "bounds": [827, 628, 121, 58],
-      "style": "modality"
-    },
-    {
-      "id": "tabular",
-      "region": "capabilities",
-      "label": "tabular",
-      "bounds": [994, 628, 111, 58],
-      "style": "modality"
-    },
-    {
-      "id": "content-identity",
-      "region": "foundations",
-      "label": "Content identity",
-      "bounds": [33, 800, 152, 73],
-      "style": "record"
-    },
-    {
-      "id": "provenance",
-      "region": "foundations",
-      "label": "Provenance",
-      "bounds": [209, 800, 150, 73],
-      "style": "record"
-    },
-    {
-      "id": "evidence-store",
-      "region": "foundations",
-      "label": "Evidence store",
-      "bounds": [381, 800, 148, 73],
-      "style": "record"
-    },
-    {
-      "id": "measurement-history",
-      "region": "foundations",
-      "label": "Measurement history",
-      "bounds": [553, 800, 149, 73],
-      "style": "record"
-    },
-    {
-      "id": "run-records",
-      "region": "foundations",
-      "label": "Run records",
-      "bounds": [725, 800, 151, 73],
-      "style": "record"
-    },
-    {
-      "id": "checkpoints",
-      "region": "foundations",
-      "label": "Checkpoints",
-      "bounds": [901, 800, 148, 73],
-      "style": "record"
-    },
-    {
-      "id": "compute-storage",
-      "region": "foundations",
-      "label": "Compute & storage",
-      "bounds": [1073, 800, 149, 73],
-      "style": "record"
-    }
-  ],
-  "interfaces": [
-    {
-      "id": "operator-workbench",
-      "label": "Operator workbench",
-      "bounds": [1302, 188, 206, 245],
-      "items": [
-        "steer goals & constraints",
-        "inspect measurements",
-        "intervene & recover",
-        "exceptional approvals"
+      "order": 2,
+      "id": "deterministic-control-plane",
+      "label": "DETERMINISTIC CONTROL PLANE",
+      "pipeline": [
+        {
+          "label": "STEER",
+          "detail": "goals + constraints"
+        },
+        {
+          "label": "COMPILE",
+          "detail": "typed plans"
+        },
+        {
+          "label": "ADMIT",
+          "detail": "limits + placement"
+        },
+        {
+          "label": "EXECUTE",
+          "detail": "bounded runs"
+        },
+        {
+          "label": "EVALUATE",
+          "detail": "suites + metrics"
+        },
+        {
+          "label": "DECIDE",
+          "detail": "evidence + policy"
+        },
+        {
+          "label": "ACTIVATE",
+          "detail": "versioned state"
+        },
+        {
+          "label": "OBSERVE",
+          "detail": "telemetry + outcomes"
+        }
+      ],
+      "feedback": {
+        "from": "OBSERVE",
+        "to": "STEER",
+        "label": "MEASURED FEEDBACK"
+      },
+      "decision_outcomes": [
+        "PROMOTE",
+        "REJECT",
+        "QUARANTINE",
+        "ROLLBACK"
       ]
     },
     {
-      "id": "api",
-      "label": "API",
-      "bounds": [1302, 449, 206, 139],
-      "items": [
-        "tasks & state",
-        "measurements & events",
-        "agents & automation"
+      "order": 3,
+      "id": "execution-domains",
+      "label": "EXECUTION DOMAINS",
+      "components": [
+        {
+          "label": "SERVING",
+          "detail": "OpenAI · Anthropic · rerank · grammar"
+        },
+        {
+          "label": "MODEL AND ARTIFACTS",
+          "detail": "GGUF · safetensors · HF · LoRA"
+        },
+        {
+          "label": "TRAINING",
+          "detail": "SFT · DPO · GRPO · Muon · resume"
+        },
+        {
+          "label": "EVALUATION",
+          "detail": "benchmarks · likelihood · safety · routing"
+        },
+        {
+          "label": "AGENTS AND WORKFLOWS",
+          "detail": "tools · operations · obligations · recovery"
+        },
+        {
+          "label": "DATASETS",
+          "detail": "Arrow · Parquet · streaming · materialization"
+        }
       ]
     },
     {
-      "id": "command-line",
-      "label": "Command line",
-      "bounds": [1302, 603, 206, 135],
-      "items": [
-        "inspect & verify",
-        "operate workflows",
-        "manage artifacts"
-      ]
+      "order": 4,
+      "id": "runtime-substrates",
+      "label": "RUNTIME SUBSTRATES",
+      "components": [
+        {
+          "label": "GO HOST REFERENCE",
+          "detail": "portable semantics · verification path"
+        },
+        {
+          "label": "CUDA RUNTIME",
+          "detail": "kernels · ABI · device lanes"
+        },
+        {
+          "label": "MULTIMODAL COMPUTE",
+          "detail": "text · image · audio · video · tabular · time series"
+        }
+      ],
+      "runtime_features": "continuous scheduling · prompt cache · context shift · speculative decoding"
     },
     {
-      "id": "scheduled-jobs",
-      "label": "Scheduled jobs",
-      "bounds": [1302, 753, 206, 134],
-      "items": [
-        "execution & evaluation",
-        "observation",
-        "policy-driven actions"
+      "order": 5,
+      "id": "durable-state-and-evidence",
+      "label": "DURABLE STATE AND EVIDENCE",
+      "components": [
+        {
+          "label": "OVERGODB",
+          "detail": "typed documents · segmented journals · projections · checkpoints · snapshots"
+        },
+        {
+          "label": "CONTENT IDENTITY AND LINEAGE"
+        },
+        {
+          "label": "RUN RECORDS AND RECEIPTS"
+        },
+        {
+          "label": "BACKUP · COMPACTION · REPAIR · VERIFY"
+        }
       ]
     }
   ],
-  "edges": [
-    {"from": "steer", "to": "compile", "style": "primary_edge"},
-    {"from": "compile", "to": "admit", "style": "primary_edge"},
-    {"from": "admit", "to": "execute", "style": "primary_edge"},
-    {"from": "execute", "to": "evaluate", "style": "primary_edge"},
-    {"from": "evaluate", "to": "decide", "style": "primary_edge"},
-    {"from": "decide", "to": "activate", "style": "primary_edge"},
-    {"from": "activate", "to": "observe", "style": "primary_edge"},
-    {
-      "from": "observe",
-      "to": "steer",
-      "style": "feedback_edge",
-      "route": "below control-loop nodes",
-      "label": "measurements inform steering",
-      "meaning": "durable measurements and outcomes inform the next steering action"
-    },
-    {
-      "from": "execute",
-      "to": [
-        "inference",
-        "training",
-        "model-composition",
-        "agents-automation",
-        "distributed-execution"
-      ],
-      "style": "association_edge"
-    },
-    {
-      "from": [
-        "inference",
-        "training",
-        "model-composition",
-        "agents-automation",
-        "distributed-execution"
-      ],
-      "to": [
-        "text",
-        "image",
-        "audio",
-        "video",
-        "time-series",
-        "tabular"
-      ],
-      "style": "association_edge",
-      "meaning": "capabilities may consume or produce one or more modalities; no all-to-all support claim is implied"
-    },
-    {
-      "from": "operator-workbench",
-      "to": "steer",
-      "style": "primary_edge",
-      "direction": "forward",
-      "meaning": "the operator currently supplies goals and constraints through an external client"
-    },
-    {
-      "from": "observe",
-      "to": "operator-workbench",
-      "style": "primary_edge",
-      "direction": "forward",
-      "meaning": "the workbench projects measurements and state without owning execution"
-    },
-    {
-      "from": "api",
-      "to": "capabilities",
-      "style": "primary_edge",
-      "direction": "bidirectional"
-    },
-    {
-      "from": "scheduled-jobs",
-      "to": "foundations",
-      "style": "primary_edge",
-      "direction": "bidirectional"
-    }
-  ],
-  "legend": [
-    {"label": "immutable record", "style": "record"},
-    {"label": "active state", "style": "active_state"},
-    {"label": "measured evidence", "style": "evidence"},
-    {"label": "policy decision", "style": "decision"},
-    {"label": "modality", "style": "modality"},
-    {"label": "measurement feedback", "style": "feedback_edge"}
+  "relationships": [
+    "Interfaces feed the deterministic control plane.",
+    "EXECUTE dispatches bounded work into execution domains.",
+    "Execution domains use the host, CUDA, and multimodal runtime substrates.",
+    "Runtime and domain activity produce durable state, lineage, run records, and receipts.",
+    "Durable evidence flows back into EVALUATE and OBSERVE.",
+    "DECIDE applies evidence and policy to promotion, rejection, quarantine, or rollback.",
+    "Remote peers remain bounded execution adapters and do not own control."
   ],
   "rendering_constraints": [
-    "Preserve the control loop as the dominant left-to-right sequence.",
-    "Keep external access, especially the operator workbench, outside the control-loop boundary.",
-    "Represent human input as current steering through the workbench, not as a mandatory approval stage.",
-    "Represent Decide as deterministic evidence and policy evaluation.",
-    "Show durable measurements feeding the next steering action; future model steering uses the same bounded interface.",
-    "Do not imply that every capability supports every modality.",
-    "Do not introduce repository-specific product names into the architecture labels.",
-    "Do not use mascots, decorative characters, gradients, shadows, slogans, or sales language.",
-    "Use solid semantic fills, not outlines alone, to distinguish categories.",
-    "Use only the semantic colors defined by the legend.",
-    "Keep labels legible at README display width and preserve generous whitespace.",
-    "Treat this JSON as the editable semantic specification and the PNG as its reviewed presentation rendering."
+    "Keep the five numbered layers visually distinct and aligned.",
+    "Preserve the eight-stage control plane as the dominant left-to-right sequence.",
+    "Use orthogonal connectors with visible arrowheads.",
+    "Terminate the EXECUTE connector at the distribution bus between layers 2 and 3; do not extend it through the bus.",
+    "Terminate the upward evidence connector exactly at the bottom border of OBSERVE.",
+    "Terminate module connectors at box borders without crossing those borders.",
+    "Keep control, evidence, and policy paths visually distinct.",
+    "Do not imply that remote peers own control-plane state.",
+    "Do not imply that every execution domain supports every modality.",
+    "Keep all labels legible at approximately 1200 pixels display width.",
+    "Do not add claims that are not represented in the repository.",
+    "Treat this JSON as the editable semantic specification and the PNG as its reviewed rendering."
   ]
 }

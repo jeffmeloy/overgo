@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -22,7 +21,7 @@ func TestAgentSessionList(t *testing.T) {
 	}
 	defer store.Close()
 	generator := responseRecipeGenerator(t, &fakeGenerator{})
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key:       "agent/session-list-identity",
 		Artifacts: []artifact.Descriptor{{ID: generator.description.Identity.Recipe}},
 	}); err != nil {
@@ -32,7 +31,7 @@ func TestAgentSessionList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := agenttool.PublishManualCatalog(context.Background(), store, manuals); err != nil {
+	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil {
 		t.Fatal(err)
 	}
 	first, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Repository: store}, generator)

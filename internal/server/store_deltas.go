@@ -19,7 +19,7 @@ const (
 // the consumer's exact head, or a resync directive naming the current
 // snapshot coordinate when no delta can honestly bridge.
 type storeDeltasResponse struct {
-	Resync            bool                     `json:"resync,omitempty"`
+	Resync            bool                     `json:"resync,omitzero"`
 	Head              string                   `json:"head"`
 	Sequence          uint64                   `json:"sequence"`
 	ProjectionVersion string                   `json:"projection_version"`

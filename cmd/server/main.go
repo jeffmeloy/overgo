@@ -138,6 +138,10 @@ func run() error {
 	}
 	defer runner.Close()
 	policy := runner.RuntimePolicy()
+	agentRetrieval, err := newAgentRetrievalProvider(runner, runner.ModelID(), policy.ID)
+	if err != nil {
+		return err
+	}
 	serving := policy.Serving
 	clioptions.ApplyDefault(explicit, "model-id", modelID, serving.ModelID)
 	clioptions.ApplyDefault(explicit, "max-tokens", maxTokens, serving.MaxTokens)
@@ -293,6 +297,8 @@ func run() error {
 		HubToken:           os.Getenv("OVERGO_HF_TOKEN"),
 		HubDownloadRoot:    hubRoot,
 		Evaluation:         evaluationWorkspace,
+		AgentEmbedder:      agentRetrieval,
+		AgentReranker:      agentRetrieval,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,
 			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,

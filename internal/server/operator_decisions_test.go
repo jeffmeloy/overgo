@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -25,7 +24,7 @@ func TestOperatorDecisionInteractionContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	ctx := context.Background()
+	ctx := t.Context()
 	operationID := testutil.ArtifactID(t, artifact.KindEvidence, "server-decision-operation")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "server-decision-recipe")
 	request, err := operatoraction.NewApprovalRequest(operationID, recipeID, operatoraction.Action{

@@ -96,10 +96,10 @@ func finalLatentFixture(fixturesDir, manifest string) ([]float32, [4]int, error)
 func tileLatent(src []float32, srcShape [4]int, frames, height, width int) []float32 {
 	channels, sf, sh, sw := srcShape[0], srcShape[1], srcShape[2], srcShape[3]
 	dst := make([]float32, channels*frames*height*width)
-	for c := 0; c < channels; c++ {
-		for f := 0; f < frames; f++ {
-			for y := 0; y < height; y++ {
-				for x := 0; x < width; x++ {
+	for c := range channels {
+		for f := range frames {
+			for y := range height {
+				for x := range width {
 					dst[((c*frames+f)*height+y)*width+x] = src[((c*sf+f%sf)*sh+y%sh)*sw+x%sw]
 				}
 			}
@@ -113,7 +113,7 @@ func latentFrameZero(src []float32, shape [4]int) ([]float32, [4]int) {
 	channels, frames, height, width := shape[0], shape[1], shape[2], shape[3]
 	plane := height * width
 	out := make([]float32, channels*plane)
-	for c := 0; c < channels; c++ {
+	for c := range channels {
 		copy(out[c*plane:(c+1)*plane], src[c*frames*plane:c*frames*plane+plane])
 	}
 	return out, [4]int{channels, 1, height, width}
@@ -188,9 +188,7 @@ func contextDiff(got, want []float32) (maxDiff, meanDiff float64) {
 	for i := range want {
 		d := math.Abs(float64(got[i]) - float64(want[i]))
 		sum += d
-		if d > maxDiff {
-			maxDiff = d
-		}
+		maxDiff = max(maxDiff, d)
 	}
 	return maxDiff, sum / float64(len(want))
 }

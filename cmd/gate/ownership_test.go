@@ -1,8 +1,10 @@
 package main
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -70,10 +72,7 @@ func TestPhaseCacheIgnoresUnownedPlanChanges(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	paths := make([]string, 0, len(files))
-	for path := range files {
-		paths = append(paths, path)
-	}
+	paths := slices.Collect(maps.Keys(files))
 	buildBefore, err := fingerprintPhaseInputs(root, "build", paths)
 	if err != nil {
 		t.Fatal(err)

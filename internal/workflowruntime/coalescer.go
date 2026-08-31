@@ -3,7 +3,8 @@ package workflowruntime
 import (
 	"context"
 	"errors"
-	"sort"
+	"maps"
+	"slices"
 	"sync"
 )
 
@@ -74,10 +75,5 @@ func (c *ReconcileCoalescer) Reconcile(
 func (c *ReconcileCoalescer) Pending() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	keys := make([]string, 0, len(c.pending))
-	for key := range c.pending {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(c.pending))
 }

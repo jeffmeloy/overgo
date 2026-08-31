@@ -1,7 +1,6 @@
 package loop
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -30,7 +29,7 @@ func breakerObservations(value float64, count int) []LiveObservation {
 // step per consecutive breach to operator-stop, a clear window resets the
 // count, and the published transition cites its window derivation.
 func TestCandidateCircuitBreakerTransitions(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	historyEvidence := testutil.ArtifactID(t, artifact.KindEvidence, "breaker-history")
 	window, err := evaluation.DeriveLiveSafetyWindow(
 		"exact-match", runrecord.DirectionMaximize,

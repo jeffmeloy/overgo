@@ -22,6 +22,9 @@ const (
 	// OutputDirectoryMode is the traversable mode for generated output
 	// directories.
 	OutputDirectoryMode = os.FileMode(0o755)
+	// PrivateFileMode is the owner-only mode for local state that can contain
+	// command arguments, failure context, or other non-published evidence.
+	PrivateFileMode = os.FileMode(0o600)
 )
 
 // Main: common command error exit.

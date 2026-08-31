@@ -7,10 +7,10 @@ package hostmath
 // AdaptiveShiftScale: dst = x*(1+scale) + shift per row; shift/scale are [d]
 // vectors broadcast over rows. dst may alias x.
 func AdaptiveShiftScale(dst, x, shift, scale []float32, rows, d int) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		xr := x[r*d : (r+1)*d]
 		dr := dst[r*d : (r+1)*d]
-		for i := 0; i < d; i++ {
+		for i := range d {
 			dr[i] = xr[i]*(1+scale[i]) + shift[i]
 		}
 	}
@@ -21,10 +21,10 @@ func AdaptiveShiftScale(dst, x, shift, scale []float32, rows, d int) {
 // dShift += sum_rows dy and dScale += sum_rows dy*x (either may be nil to
 // skip). x is the modulation INPUT (the normalized rows). dx may alias dy.
 func AdaptiveShiftScaleBackward(dx, dShift, dScale, x, scale, dy []float32, rows, d int) {
-	for r := 0; r < rows; r++ {
+	for r := range rows {
 		xr := x[r*d : (r+1)*d]
 		dyr := dy[r*d : (r+1)*d]
-		for i := 0; i < d; i++ {
+		for i := range d {
 			g := dyr[i]
 			if dShift != nil {
 				dShift[i] += g

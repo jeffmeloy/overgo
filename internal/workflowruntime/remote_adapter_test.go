@@ -89,7 +89,7 @@ func TestRemoteCancellation(t *testing.T) {
 	}
 	defer manager.Close()
 	runID := testutil.ArtifactID(t, artifact.KindRun, "cancelled-remote-stage-run")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	operationID, err := manager.Submit(ctx, operation.Request{
 		Task: fixture.selection.Program.Definition().Task, Recipe: fixture.selection.Program.Definition().ID,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
@@ -101,7 +101,7 @@ func TestRemoteCancellation(t *testing.T) {
 	}
 	<-started
 	cancel()
-	status, err := manager.Wait(context.Background(), operationID)
+	status, err := manager.Wait(t.Context(), operationID)
 	if err != nil || status.State != operation.StateCancelled || len(status.Attempts) != 1 {
 		t.Fatalf("cancelled remote operation = %+v, %v", status, err)
 	}
@@ -123,14 +123,14 @@ func TestRemoteArtifactIdentity(t *testing.T) {
 		},
 	)}
 	operationID := testutil.ArtifactID(t, artifact.KindEvidence, "remote-artifact-operation")
-	if _, err := adapter.Execute(t.Context(), fixture.request(operationID, nil)); err == nil {
+	if _, err := adapter.Execute(context.WithoutCancel(t.Context()), fixture.request(operationID, nil)); err == nil {
 		t.Fatal("remote output identity drift accepted")
 	}
 }
 
 func newRemoteAdapterFixture(t *testing.T) remoteAdapterFixture {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

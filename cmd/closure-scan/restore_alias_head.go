@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -44,11 +45,11 @@ type closureAliasRestoreResult struct {
 	CurrentAliases   int         `json:"current_aliases"`
 	Changes          int         `json:"changes"`
 	PredictedStale   int         `json:"predicted_stale_bindings"`
-	AuthorityError   string      `json:"predicted_authority_error,omitempty"`
+	AuthorityError   string      `json:"predicted_authority_error,omitzero"`
 	AuthorityDigest  string      `json:"authority_digest"`
 	Confirmed        bool        `json:"confirmed"`
 	Record           artifact.ID `json:"record,omitzero"`
-	Commit           string      `json:"commit,omitempty"`
+	Commit           string      `json:"commit,omitzero"`
 }
 
 type closureAliasRestoreRecord struct {
@@ -201,7 +202,7 @@ func restoreClosureAliasesAtReviewedHead(
 	if err := bindClosureOperationKey(closureRestoreReviewedHeadOperation, &batch); err != nil {
 		return result, err
 	}
-	commit, err := store.Commit(ctx, batch)
+	commit, err := artifact.CommitBatch(ctx, store, batch)
 	if err != nil {
 		return result, err
 	}
@@ -237,11 +238,7 @@ func requireCanonicalClosureAliasTargets(
 	for _, document := range documents {
 		byID[document.ID] = document
 	}
-	names := make([]string, 0, len(aliases))
-	for name := range aliases {
-		names = append(names, name)
-	}
-	slices.Sort(names)
+	names := slices.Sorted(maps.Keys(aliases))
 	for _, name := range names {
 		target := aliases[name]
 		document, found := byID[target]
@@ -296,11 +293,8 @@ func currentClosureAliasMap(ctx context.Context, store *overgodb.Store) (map[str
 }
 
 func closureAliasDelta(current, desired map[string]artifact.ID) []artifact.AliasBinding {
-	names := make([]string, 0, len(current)+len(desired))
-	for name := range current {
-		names = append(names, name)
-	}
-	for name := range desired {
+	names := slices.Collect(maps.Keys(current))
+	for name := range maps.Keys(desired) {
 		if _, found := current[name]; !found {
 			names = append(names, name)
 		}

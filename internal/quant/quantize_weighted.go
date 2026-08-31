@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 
 	"overgo/internal/binaryschema"
@@ -44,7 +45,7 @@ func buildIQ1QuantCodebook(grid []uint64) iq1QuantCodebook {
 	}
 	for gridIndex, packed := range grid {
 		var encoded uint16
-		for lane := 0; lane < 8; lane++ {
+		for lane := range 8 {
 			value := int8(byte(packed >> uint(lane*8)))
 			result.lanes[gridIndex][lane] = value
 			encoded |= uint16(value+1) << uint(iq2CodebookLevelBits*lane)
@@ -137,9 +138,9 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 			for attempt := -attempts; attempt <= attempts; attempt++ {
 				inverse := (5 + float32(attempt)*0.1) / effectiveMaximum
 				candidateScale := 1 / inverse
-				for subGroup := 0; subGroup < groupWidth/iqCodebookLaneWidth; subGroup++ {
+				for subGroup := range groupWidth / iqCodebookLaneWidth {
 					var encoded uint16
-					for lane := 0; lane < iqCodebookLaneWidth; lane++ {
+					for lane := range iqCodebookLaneWidth {
 						index := subGroup*iqCodebookLaneWidth + lane
 						level := nearestIntGGML(0.5 * (inverse*absoluteValues[index] - 1))
 						level = max(minimumQuantizedLevel, min(iq2CodebookLevelMax, level))
@@ -170,12 +171,12 @@ func quantizeIQ2Weighted(dataType dtype.Type, values, importance []float32, outp
 			}
 			if scale > 0 {
 				inverse := 1 / scale
-				for subGroup := 0; subGroup < groupWidth/iqCodebookLaneWidth; subGroup++ {
+				for subGroup := range groupWidth / iqCodebookLaneWidth {
 					if dataType == dtype.IQ2XS && onGrid[subGroup] {
 						continue
 					}
 					var encoded uint16
-					for lane := 0; lane < iqCodebookLaneWidth; lane++ {
+					for lane := range iqCodebookLaneWidth {
 						index := subGroup*iqCodebookLaneWidth + lane
 						level := nearestIntGGML(0.5 * (inverse*absoluteValues[index] - 1))
 						level = max(minimumQuantizedLevel, min(iq2CodebookLevelMax, level))
@@ -301,7 +302,7 @@ func makeQPQuants(values []float32, levels []int8, weights []float32, maximumLev
 		sumValue += weights[index] * value * float32(level)
 		sumQuantized += weights[index] * float32(level*level)
 	}
-	for attempt := 0; attempt < 5; attempt++ {
+	for range 5 {
 		changed := false
 		for index, value := range values {
 			old := float32(levels[index])
@@ -379,7 +380,7 @@ func iq1FindBest(encoded uint16, values, weights []float32, scale float32, allow
 			unique = append(unique, distance)
 		}
 	}
-	sort.Ints(unique)
+	slices.Sort(unique)
 	threshold := unique[min(iq1NeighborTierCount, len(unique))-1]
 	bestIndex := -1
 	bestError := float32(math.MaxFloat32)
@@ -500,7 +501,7 @@ func quantizeIQ1SWeighted(values, importance []float32, output []byte) error {
 			}
 			indices := [4]int{}
 			allOnGrid := true
-			for subGroup := 0; subGroup < 4; subGroup++ {
+			for subGroup := range 4 {
 				encoded := encodeIQ2Levels(levels[subGroup*8 : (subGroup+1)*8])
 				gridIndex, ok := iq1Codebook.index[encoded]
 				if !ok {
@@ -609,7 +610,7 @@ func quantizeIQ1MWeighted(values, importance []float32, output []byte) error {
 						} else if position < second {
 							level = 1
 						}
-						for pattern := 0; pattern < 4; pattern++ {
+						for pattern := range 4 {
 							usePositive := pattern < 2
 							if item.index >= 8 {
 								usePositive = pattern%2 == 0
@@ -623,7 +624,7 @@ func quantizeIQ1MWeighted(values, importance []float32, output []byte) error {
 							q2[pattern] += weight[item.index] * quantized * quantized
 						}
 					}
-					for pattern := 0; pattern < 4; pattern++ {
+					for pattern := range 4 {
 						if q2[pattern] > 0 && qx[pattern]*qx[pattern] > bestScore*q2[pattern] {
 							scale, bestScore = qx[pattern]/q2[pattern], qx[pattern]*qx[pattern]/q2[pattern]
 							bestFirst, bestSecond, bestPattern = first, second, pattern
@@ -652,7 +653,7 @@ func quantizeIQ1MWeighted(values, importance []float32, output []byte) error {
 				bestPattern = [4]int{3, 2, 1, 0}[bestPattern]
 			}
 			allOnGrid := true
-			for subGroup := 0; subGroup < 2; subGroup++ {
+			for subGroup := range 2 {
 				allowed := negative
 				if (subGroup == 0 && bestPattern < iq1ShiftPatternCount) ||
 					(subGroup == 1 && bestPattern%iq1ShiftPatternCount == 0) {

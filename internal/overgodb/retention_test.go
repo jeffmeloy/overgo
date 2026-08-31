@@ -1,7 +1,6 @@
 package overgodb
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -29,7 +28,7 @@ func retentionContent(t *testing.T, kind artifact.Kind, body any) artifact.Conte
 }
 
 func TestRetentionTypedLineage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	source, err := Open(filepath.Join(root, "source"))
 	if err != nil {
@@ -89,7 +88,7 @@ func TestRetentionTypedLineage(t *testing.T) {
 }
 
 func TestExactCompactionFrames(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	source, err := Open(filepath.Join(root, "source"))
 	if err != nil {
@@ -128,7 +127,7 @@ func TestExactCompactionFrames(t *testing.T) {
 // TestRetentionRefusesExistingDestination keeps compaction from writing into
 // a store that already holds anything.
 func TestRetentionRefusesExistingDestination(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	source, err := Open(filepath.Join(root, "source"))
 	if err != nil {
@@ -159,7 +158,7 @@ func TestRetentionRefusesExistingDestination(t *testing.T) {
 }
 
 func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	root := t.TempDir()
 	source, err := Open(filepath.Join(root, "source"))
 	if err != nil {

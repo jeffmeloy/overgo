@@ -1,7 +1,6 @@
 package protection
 
 import (
-	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"net/http/httptest"
@@ -50,22 +49,22 @@ func TestCandidatePrincipalCannotWriteSealedAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := PublishSealed(context.Background(), server.Client(), server.URL, candidate); err == nil {
+		if _, err := PublishSealed(t.Context(), server.Client(), server.URL, candidate); err == nil {
 			t.Fatalf("candidate principal wrote %s authority", spec.Kind)
 		}
 		alias := "sealed/" + string(spec.Kind) + "/" + spec.Name
-		if _, ok, err := store.ResolveAlias(context.Background(), alias); err != nil || ok {
+		if _, ok, err := store.ResolveAlias(t.Context(), alias); err != nil || ok {
 			t.Fatalf("candidate %s write changed authority state: %v, %v", spec.Kind, ok, err)
 		}
 		write, err := SignSealedWrite(private, spec)
 		if err != nil {
 			t.Fatal(err)
 		}
-		stored, err := PublishSealed(context.Background(), server.Client(), server.URL, write)
+		stored, err := PublishSealed(t.Context(), server.Client(), server.URL, write)
 		if err != nil || stored != write.ID {
 			t.Fatalf("%s authority write = %s, %v; want %s", spec.Kind, stored, err, write.ID)
 		}
-		if resolved, ok, err := store.ResolveAlias(context.Background(), alias); err != nil || !ok || resolved != write.ID {
+		if resolved, ok, err := store.ResolveAlias(t.Context(), alias); err != nil || !ok || resolved != write.ID {
 			t.Fatalf("%s alias = %s, %v, %v; want %s", spec.Kind, resolved, ok, err, write.ID)
 		}
 	}
@@ -87,7 +86,7 @@ func TestCandidatePrincipalCannotWriteSealedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PublishSealed(context.Background(), server.Client(), server.URL, write); err != nil {
+	if _, err := PublishSealed(t.Context(), server.Client(), server.URL, write); err != nil {
 		t.Fatal(err)
 	}
 	stale := updated
@@ -98,7 +97,7 @@ func TestCandidatePrincipalCannotWriteSealedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PublishSealed(context.Background(), server.Client(), server.URL, staleWrite); err == nil {
+	if _, err := PublishSealed(t.Context(), server.Client(), server.URL, staleWrite); err == nil {
 		t.Fatal("stale golden update changed sealed authority")
 	}
 }

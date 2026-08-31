@@ -9,8 +9,10 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
@@ -35,7 +37,7 @@ type EvaluationReport struct {
 }
 
 type EvaluationFailure struct {
-	Name        string          `json:"name,omitempty"`
+	Name        string          `json:"name,omitzero"`
 	Observation json.RawMessage `json:"observation"`
 }
 
@@ -57,6 +59,7 @@ type EvaluationComparison struct {
 type EvaluationWorkspaceAPI interface {
 	EvaluationCapabilities(context.Context) ([]EvaluationCapability, error)
 	ExecuteEvaluation(context.Context, artifact.ID, []artifact.ID, operation.Reporter) (operation.Completion, error)
+	ExecuteSupervisedGroundedReplay(context.Context, artifact.ID, evaluation.SupervisedGroundedReplayRequest, operation.Reporter) (operation.Completion, error)
 	EvaluationHistory(context.Context, artifact.ID) ([]EvaluationHistoryEntry, error)
 	EvaluationReport(context.Context, artifact.ID) (EvaluationReport, error)
 	EvaluationFailures(context.Context, artifact.ID) ([]EvaluationFailure, error)
@@ -217,6 +220,80 @@ func (workspace *EvaluationWorkspace) executeEvaluation(
 	return operation.Completion{Run: lastRun, Outputs: outputs}, nil
 }
 
+// ExecuteSupervisedGroundedReplay runs one admitted replay through the existing operation owner.
+func (workspace *EvaluationWorkspace) ExecuteSupervisedGroundedReplay(
+	ctx context.Context,
+	model artifact.ID,
+	request evaluation.SupervisedGroundedReplayRequest,
+	reporter operation.Reporter,
+) (operation.Completion, error) {
+	if workspace == nil || workspace.repository == nil || model != workspace.model ||
+		request.RunRecipe != workspace.recipe || reporter == nil {
+		return operation.Completion{}, errors.New("evaluation workspace: grounded replay request is not admitted")
+	}
+	intent, err := artifact.JSONID(artifact.KindEvidence, struct {
+		Version uint16                                     `json:"version"`
+		Model   artifact.ID                                `json:"model"`
+		Recipe  artifact.ID                                `json:"recipe"`
+		Request evaluation.SupervisedGroundedReplayRequest `json:"request"`
+	}{
+		Version: artifact.InitialDocumentVersion,
+		Model:   model,
+		Recipe:  workspace.recipe,
+		Request: request,
+	})
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	return operation.ExecuteReentrant(ctx, workspace.repository, reporter, operation.Request{
+		Task: recipe.TaskInference, Recipe: workspace.recipe,
+	}, intent, func(ctx context.Context) (operation.Completion, error) {
+		total := uint64(1)
+		result, err := evaluation.RunSupervisedGroundedReplay(ctx, workspace.repository, request)
+		if err != nil {
+			return operation.Completion{}, err
+		}
+		reporter.Progress(total, &total)
+		reporter.Publishing()
+		return operation.Completion{Run: result.Run.ID, Outputs: groundedReplayOutputs(result)}, nil
+	})
+}
+
+func groundedReplayOutputs(result evaluation.SupervisedGroundedReplayResult) []artifact.ID {
+	outputs := []artifact.ID{
+		result.Summary,
+		result.Episode.ID,
+		result.ArcProjection.ID,
+		result.ArcSelection.ID,
+		result.Route.ID,
+		result.RouteFailure.ID,
+		result.Fallback.ID,
+		result.Trajectories[0].ID,
+		result.Trajectories[1].ID,
+		result.Baseline.ID,
+		result.Trial.ID,
+		result.Transform.ID(),
+		result.Proposal.ID,
+		result.Promotion.ID,
+	}
+	for _, probe := range result.Probes {
+		outputs = append(outputs, probe.ID)
+	}
+	seen := make(map[artifact.ID]struct{}, len(outputs))
+	unique := outputs[:0]
+	for _, id := range outputs {
+		if !id.Valid() {
+			continue
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	return unique
+}
+
 func (workspace *EvaluationWorkspace) EvaluationHistory(ctx context.Context, model artifact.ID) ([]EvaluationHistoryEntry, error) {
 	if workspace == nil || workspace.repository == nil || model != workspace.model {
 		return nil, errors.New("evaluation workspace: model is not selected")
@@ -305,8 +382,9 @@ func (workspace *EvaluationWorkspace) loadEvaluation(ctx context.Context, id art
 }
 
 type evaluationRunRequest struct {
-	Model artifact.ID   `json:"model"`
-	Plans []artifact.ID `json:"plans"`
+	Model          artifact.ID                                 `json:"model"`
+	Plans          []artifact.ID                               `json:"plans,omitempty"`
+	GroundedReplay *evaluation.SupervisedGroundedReplayRequest `json:"grounded_replay,omitempty"`
 }
 
 func (h *Handler) evaluationCapabilities(response http.ResponseWriter, request *http.Request) {
@@ -338,16 +416,19 @@ func (h *Handler) evaluationRun(response http.ResponseWriter, request *http.Requ
 		writeGenerationError(response, err)
 		return
 	}
-	if err := admitEvaluationRequest(capabilities, body); err != nil {
+	recipeID, err := admitEvaluationRequest(capabilities, body, h.config.MaxStoredResponses)
+	if err != nil {
 		writeInvalidRequest(response, err)
 		return
 	}
-	recipeID := capabilities[0].Recipe
 	id, err := h.operations.Submit(context.WithoutCancel(request.Context()), operation.Request{
 		Task: recipe.TaskInference, Recipe: recipeID,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 		return h.executeObservedOperation(ctx, reporter, recipe.TaskInference, recipeID,
 			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
+				if body.GroundedReplay != nil {
+					return workspace.ExecuteSupervisedGroundedReplay(ctx, body.Model, *body.GroundedReplay, reporter)
+				}
 				return workspace.ExecuteEvaluation(ctx, body.Model, body.Plans, reporter)
 			})
 	})
@@ -358,25 +439,185 @@ func (h *Handler) evaluationRun(response http.ResponseWriter, request *http.Requ
 	writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
 }
 
-func admitEvaluationRequest(capabilities []EvaluationCapability, request evaluationRunRequest) error {
-	if !request.Model.Valid() || len(request.Plans) == 0 {
-		return errors.New("evaluation workspace: model and plans are required")
+func admitEvaluationRequest(capabilities []EvaluationCapability, request evaluationRunRequest, limit int) (artifact.ID, error) {
+	if !request.Model.Valid() || limit <= 0 || (len(request.Plans) == 0) == (request.GroundedReplay == nil) {
+		return artifact.ID{}, errors.New("evaluation workspace: exactly one bounded evaluation request is required")
 	}
-	admitted := make(map[artifact.ID]struct{}, len(capabilities))
+	admitted := make(map[artifact.ID]artifact.ID, len(capabilities))
+	modelRecipes := make(map[artifact.ID]struct{})
 	for _, capability := range capabilities {
 		if capability.Model == request.Model && capability.Recipe.Kind() == artifact.KindRecipe && capability.Suite.Plan.Kind() == artifact.KindProfile {
-			admitted[capability.Suite.Plan] = struct{}{}
+			admitted[capability.Suite.Plan] = capability.Recipe
+			modelRecipes[capability.Recipe] = struct{}{}
 		}
 	}
+	if request.GroundedReplay != nil {
+		if _, ok := modelRecipes[request.GroundedReplay.RunRecipe]; !ok {
+			return artifact.ID{}, errors.New("evaluation workspace: grounded replay recipe is not admitted for model")
+		}
+		if err := admitGroundedReplayRequest(*request.GroundedReplay, limit); err != nil {
+			return artifact.ID{}, err
+		}
+		return request.GroundedReplay.RunRecipe, nil
+	}
+	if len(request.Plans) > limit {
+		return artifact.ID{}, errors.New("evaluation workspace: plan selection exceeds the admitted bound")
+	}
 	seen := make(map[artifact.ID]struct{}, len(request.Plans))
+	var recipeID artifact.ID
 	for _, plan := range request.Plans {
-		if _, ok := admitted[plan]; !ok {
-			return errors.New("evaluation workspace: plan is not admitted for model")
+		planRecipe, ok := admitted[plan]
+		if !ok {
+			return artifact.ID{}, errors.New("evaluation workspace: plan is not admitted for model")
 		}
 		if _, duplicate := seen[plan]; duplicate {
-			return errors.New("evaluation workspace: duplicate plan")
+			return artifact.ID{}, errors.New("evaluation workspace: duplicate plan")
 		}
+		if recipeID.Valid() && recipeID != planRecipe {
+			return artifact.ID{}, errors.New("evaluation workspace: plans span recipes")
+		}
+		recipeID = planRecipe
 		seen[plan] = struct{}{}
+	}
+	return recipeID, nil
+}
+
+func admitGroundedReplayRequest(request evaluation.SupervisedGroundedReplayRequest, limit int) error {
+	bounded32 := func(values ...uint32) bool {
+		for _, value := range values {
+			if value == 0 || uint64(value) > uint64(limit) {
+				return false
+			}
+		}
+		return true
+	}
+	bounded64 := func(max uint64, values ...uint64) bool {
+		for _, value := range values {
+			if value == 0 || value > max {
+				return false
+			}
+		}
+		return true
+	}
+	if request.RunRecipe.Kind() != artifact.KindRecipe {
+		return errors.New("evaluation workspace: grounded replay recipe is invalid")
+	}
+	if _, err := request.EpisodeBounds.Identify(); err != nil ||
+		!bounded32(
+			request.EpisodeBounds.MaximumEpisodes,
+			request.EpisodeBounds.MaximumEventsPerEpisode,
+			request.EpisodeBounds.MaximumCallsPerEpisode,
+			request.EpisodeBounds.MaximumReferencesPerEpisode,
+		) || len(request.EpisodeSources) == 0 || len(request.EpisodeSources) > limit ||
+		uint64(len(request.EpisodeSources)) > uint64(request.EpisodeBounds.MaximumEpisodes) {
+		return errors.Join(errors.New("evaluation workspace: grounded replay episode projection is unbounded"), err)
+	}
+	for _, source := range request.EpisodeSources {
+		if source.Attempt.Kind() != artifact.KindEvidence || source.Trajectory.Kind() != artifact.KindEvidence {
+			return errors.New("evaluation workspace: grounded replay episode source is invalid")
+		}
+	}
+	if request.ArcTrajectory.Kind() != artifact.KindEvidence || request.ArcTokenizer.Kind() != artifact.KindTokenizer ||
+		request.ArcCounter.Kind() != artifact.KindProfile || strings.TrimSpace(request.ArcBranch) != request.ArcBranch ||
+		len(request.ArcBranch) > maxRequestBytes {
+		return errors.New("evaluation workspace: grounded replay interaction authority is invalid")
+	}
+	if _, err := request.ArcBounds.Identify(); err != nil ||
+		!bounded32(
+			request.ArcBounds.MaximumBranches,
+			request.ArcBounds.MaximumArcs,
+			request.ArcBounds.MaximumProjectedSequences,
+			request.ArcBounds.MaximumToolPairs,
+			request.ArcBounds.MaximumReferences,
+		) {
+		return errors.Join(errors.New("evaluation workspace: grounded replay interaction projection is unbounded"), err)
+	}
+	if _, err := request.ArcSelection.Identify(); err != nil ||
+		!bounded64(uint64(maxRequestBytes), request.ArcSelection.MaxTokens, request.ArcSelection.MaxBytes) ||
+		!bounded64(uint64(limit), request.ArcSelection.MaxDocuments, request.ArcSelection.MaxResults) ||
+		!bounded32(request.ArcSelection.MaxDepth) {
+		return errors.Join(errors.New("evaluation workspace: grounded replay interaction selection is unbounded"), err)
+	}
+	if len(request.RetrievalSources) == 0 || len(request.RetrievalSources) > limit {
+		return errors.New("evaluation workspace: grounded replay retrieval sources are unbounded")
+	}
+	totalDocuments := 0
+	for _, source := range request.RetrievalSources {
+		if source.Kind != artifact.KindFile && source.Kind != artifact.KindDatasetShard ||
+			len(source.Documents) == 0 || len(source.Documents) > limit-totalDocuments {
+			return errors.New("evaluation workspace: grounded replay retrieval source is invalid")
+		}
+		totalDocuments += len(source.Documents)
+		for _, document := range source.Documents {
+			if document.Source.Valid() || document.Text == "" || len(document.Structure) > limit {
+				return errors.New("evaluation workspace: grounded replay retrieval document is invalid")
+			}
+		}
+	}
+	baseline, baselineErr := evaluation.NewRetrievalCase(request.BaselineCase)
+	trial, trialErr := evaluation.NewRetrievalCase(request.TrialCase)
+	if baselineErr != nil || trialErr != nil || baseline.ID == trial.ID ||
+		len(baseline.Judgments) > limit || len(trial.Judgments) > limit ||
+		request.BaselineReceipt.Kind() != artifact.KindEvidence || request.TrialReceipt.Kind() != artifact.KindEvidence ||
+		request.BaselineReceipt == request.TrialReceipt {
+		return errors.Join(errors.New("evaluation workspace: grounded replay retrieval comparison is invalid"), baselineErr, trialErr)
+	}
+	if len(request.Transform.Inputs) == 0 || len(request.Transform.Inputs) > limit ||
+		len(request.Transform.Outputs) == 0 || len(request.Transform.Outputs) > limit {
+		return errors.New("evaluation workspace: grounded replay transform is unbounded")
+	}
+	if _, err := dataset.NewDatasetTransform(request.Transform); err != nil {
+		return errors.Join(errors.New("evaluation workspace: grounded replay transform is invalid"), err)
+	}
+	if len(request.Probes) < 2 || len(request.Probes) > limit || len(request.RouteCandidates) != len(request.Probes) ||
+		request.RouteMaxAttempts < 2 || uint64(request.RouteMaxAttempts) > uint64(limit) {
+		return errors.New("evaluation workspace: grounded replay route is unbounded")
+	}
+	for _, probe := range request.Probes {
+		if probe.Case.Kind() != artifact.KindRecipe || probe.Profile.Kind() != artifact.KindProfile ||
+			probe.Placement.ID.Kind() != artifact.KindProfile || probe.Environment.Kind() != artifact.KindEvidence ||
+			probe.Trace.Kind() != artifact.KindEvidence || probe.StageReceipt.Kind() != artifact.KindEvidence ||
+			probe.CheckDecision.Kind() != artifact.KindEvidence || probe.Observation.Kind() != artifact.KindEvidence {
+			return errors.New("evaluation workspace: grounded replay production probe is invalid")
+		}
+	}
+	if strings.TrimSpace(request.Route.Intent) != request.Route.Intent || request.Route.Intent == "" ||
+		len(request.Route.Intent) > maxRequestBytes || request.Route.Authority.Kind() != artifact.KindEvidence ||
+		len(request.Route.AllowedBoundaries) == 0 || len(request.Route.AllowedBoundaries) > limit {
+		return errors.New("evaluation workspace: grounded replay route request is invalid")
+	}
+	for _, boundary := range request.Route.AllowedBoundaries {
+		if !boundary.Valid() {
+			return errors.New("evaluation workspace: grounded replay route boundary is invalid")
+		}
+	}
+	seenCandidates := make(map[artifact.ID]struct{}, len(request.RouteCandidates))
+	for _, candidate := range request.RouteCandidates {
+		if candidate.Probe.Kind() != artifact.KindEvidence || candidate.Manual.Kind() != artifact.KindRecipe {
+			return errors.New("evaluation workspace: grounded replay route candidate is invalid")
+		}
+		if _, duplicate := seenCandidates[candidate.Probe]; duplicate {
+			return errors.New("evaluation workspace: grounded replay route candidate is duplicated")
+		}
+		seenCandidates[candidate.Probe] = struct{}{}
+	}
+	if request.RouteFailure.Version != 0 && request.RouteFailure.Version != artifact.InitialDocumentVersion || request.RouteFailure.ID.Valid() ||
+		strings.TrimSpace(request.RouteFailure.Source) == "" || request.RouteFailure.Message == "" ||
+		request.RouteFailure.ObservedUnixNS <= 0 || request.RouteFailure.Run.Valid() {
+		return errors.New("evaluation workspace: grounded replay failure observation is invalid")
+	}
+	seenTrajectories := make(map[artifact.ID]struct{}, len(request.Trajectories))
+	for _, trajectory := range request.Trajectories {
+		if trajectory.Kind() != artifact.KindEvidence {
+			return errors.New("evaluation workspace: grounded replay trajectory is invalid")
+		}
+		if _, duplicate := seenTrajectories[trajectory]; duplicate {
+			return errors.New("evaluation workspace: grounded replay trajectory is duplicated")
+		}
+		seenTrajectories[trajectory] = struct{}{}
+	}
+	if request.KnowledgeAdmission.Kind() != artifact.KindEvidence {
+		return errors.New("evaluation workspace: grounded replay knowledge admission is invalid")
 	}
 	return nil
 }

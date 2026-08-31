@@ -1,6 +1,7 @@
 package sampling
 
 import (
+	"cmp"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -167,9 +168,7 @@ func NewGBNFGrammarWithOptions(
 	if len(source) > maxGBNFSourceBytes {
 		return nil, fmt.Errorf("GBNF source exceeds %d bytes", maxGBNFSourceBytes)
 	}
-	if root == "" {
-		root = "root"
-	}
+	root = cmp.Or(root, "root")
 	if len(tokenPieces) == 0 {
 		return nil, errors.New("GBNF token vocabulary is empty")
 	}
@@ -1356,9 +1355,7 @@ func partialUTF8Ranges(partial []byte) ([]gbnfRange, bool) {
 	low := rune(accumulated << (6 * remaining))
 	high := rune(uint32(low) | (1<<(6*remaining) - 1))
 	minimum := []rune{0, 0, 0x80, 0x800, 0x10000}[length]
-	if low < minimum {
-		low = minimum
-	}
+	low = max(low, minimum)
 	if high > utf8.MaxRune {
 		high = utf8.MaxRune
 	}
@@ -1433,7 +1430,7 @@ func grammarSignature(
 	for token := range grammar.triggerTokens {
 		triggerTokens = append(triggerTokens, token)
 	}
-	sort.Ints(triggerTokens)
+	slices.Sort(triggerTokens)
 	binary.LittleEndian.PutUint64(encoded[:], uint64(len(triggerTokens)))
 	_, _ = hash.Write(encoded[:])
 	for _, token := range triggerTokens {

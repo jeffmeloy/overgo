@@ -1,10 +1,10 @@
 package trainingworkflow
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -40,7 +40,7 @@ func TestTrainingWorkflowRequiresStoredAuthority(t *testing.T) {
 	}
 	defer store.Close()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "missing active recipe")
-	_, err = Execute(context.Background(), Request{
+	_, err = Execute(t.Context(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "output"), Steps: 1,
 	})
@@ -53,6 +53,187 @@ func TestTrainingWorkflowExactResumeMatrix(t *testing.T) {
 	t.Run("token", testTokenResume)
 	t.Run("dpo", testDPOResume)
 	t.Run("grpo", testGRPOResume)
+}
+
+func TestMoETrainingPublishesRouterObservationsWithoutChangingNumerics(t *testing.T) {
+	executableCommit := strings.Repeat("ab", 20)
+	stubExecutableCodeCommit(t, executableCommit)
+	root, model, dataset, store, recipeID := moeWorkflowFixture(t)
+	base := Request{
+		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
+		Steps: 1, Host: true,
+	}
+	base.OutputDirectory = filepath.Join(root, "without-observation")
+	want, err := Execute(t.Context(), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base.OutputDirectory = filepath.Join(root, "with-observation")
+	base.Observations = store
+	got, err := Execute(t.Context(), base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Losses, want.Losses) || got.Checkpoint.ID() != want.Checkpoint.ID() {
+		t.Fatalf("instrumented numerics differ: losses=%v/%v checkpoints=%s/%s", got.Losses, want.Losses, got.Checkpoint.ID(), want.Checkpoint.ID())
+	}
+	wantModel, err := densecausal.Load(filepath.Join(root, "without-observation"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotModel, err := densecausal.Load(filepath.Join(root, "with-observation"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotModel.Weights, wantModel.Weights) {
+		t.Fatal("instrumented checkpoint weights differ")
+	}
+	if len(got.RouterObservations) != 1 {
+		t.Fatalf("router observation identities=%d want=1", len(got.RouterObservations))
+	}
+	coverageTarget, found, err := store.ResolveAlias(t.Context(), runrecord.MoERouterObservationCoverageAlias)
+	if err != nil || !found || coverageTarget != got.RouterObservationCoverage {
+		t.Fatalf("router coverage alias = (%s, %t, %v)", coverageTarget, found, err)
+	}
+	coverage, chunk, err := runrecord.RequireMoERouterObservationCoverage(t.Context(), store, got.RouterObservationCoverage)
+	if err != nil || coverage.Chunk != got.RouterObservations[0] || len(chunk.Observations) != 1 {
+		t.Fatalf("router chunk = (coverage=%+v observations=%d err=%v)", coverage, len(chunk.Observations), err)
+	}
+	router := chunk.Observations[0]
+	if router.ID.Kind() != artifact.KindEvidence {
+		t.Fatalf("router observation identity = %s", router.ID)
+	}
+	run, err := runrecord.RequireRun(t.Context(), store, router.Run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, err := runrecord.NewCodeRevision(executableCommit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := runrecord.RequireServingObservation(t.Context(), store, got.Observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(run.Inputs, router.Model) ||
+		router.Dataset != got.Checkpoint.Dataset || router.Split != got.Checkpoint.Split ||
+		router.Recipe != recipeID || router.Checkpoint != got.Checkpoint.ID() ||
+		router.Policy != got.Checkpoint.RunPlan || router.Code != code.ID ||
+		session.Run != run.ID || !slices.Contains(run.Outputs, got.Checkpoint.ID()) {
+		t.Fatalf("router authority is not exact: router=%+v run=%+v session=%+v", router, run, session)
+	}
+}
+
+func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
+	stubExecutableCodeCommit(t, strings.Repeat("cd", 20))
+	incomplete, err := newRouterObservationCollector(0, 1, []int{1, 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	observation := densecausal.MoERouterObservation{
+		Layer: 1, Rows: 1, Experts: 2, TopK: 1,
+		Selections: []int{0}, CombineWeights: []float32{1}, Accepted: []bool{true},
+		Margins: []densecausal.MoERouterMargin{{Observed: true, Value: 1}},
+	}
+	if err := incomplete.observe(0, observation); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := incomplete.complete(); err == nil {
+		t.Fatal("missing routed layer accepted")
+	}
+	if err := incomplete.observe(0, observation); err == nil {
+		t.Fatal("duplicate routed layer accepted")
+	}
+	bounded, err := newRouterObservationCollector(0, 1, []int{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bounded.encoded = artifact.MaxContentBytes
+	if err := bounded.observe(0, observation); err == nil {
+		t.Fatal("capture beyond the repository content bound accepted")
+	}
+
+	root, model, dataset, store, recipeID := moeWorkflowFixture(t)
+	request := Request{
+		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
+		Steps: 1, Host: true, Observations: store,
+	}
+	request.OutputDirectory = filepath.Join(root, "first-retained")
+	first, err := Execute(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.OutputDirectory = filepath.Join(root, "second-retained")
+	second, err := Execute(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.RouterObservationCoverage.Valid() || !second.RouterObservationCoverage.Valid() ||
+		first.RouterObservationCoverage == second.RouterObservationCoverage {
+		t.Fatalf("coverage heads = %s/%s", first.RouterObservationCoverage, second.RouterObservationCoverage)
+	}
+	current, found, err := store.ResolveAlias(t.Context(), runrecord.MoERouterObservationCoverageAlias)
+	if err != nil || !found || current != second.RouterObservationCoverage {
+		t.Fatalf("current coverage alias = (%s, %t, %v)", current, found, err)
+	}
+	destination := filepath.Join(root, "compacted-observations")
+	if _, err := overgodb.Compact(t.Context(), store, destination); err != nil {
+		t.Fatal(err)
+	}
+	compacted, err := overgodb.OpenReadOnly(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer compacted.Close()
+	if found, err := compacted.HasContent(t.Context(), second.RouterObservationCoverage); err != nil || !found {
+		t.Fatalf("current coverage retained = (%t, %v)", found, err)
+	}
+	for _, id := range second.RouterObservations {
+		if found, err := compacted.HasContent(t.Context(), id); err != nil || !found {
+			t.Fatalf("current router observation %s retained = (%t, %v)", id, found, err)
+		}
+	}
+	if found, err := compacted.HasContent(t.Context(), first.RouterObservationCoverage); err != nil || found {
+		t.Fatalf("superseded coverage retained = (%t, %v)", found, err)
+	}
+	for _, id := range first.RouterObservations {
+		if found, err := compacted.HasContent(t.Context(), id); err != nil || found {
+			t.Fatalf("superseded router observation %s retained = (%t, %v)", id, found, err)
+		}
+	}
+}
+
+func TestTrainingRequestCannotOverrideExecutableCodeRevision(t *testing.T) {
+	if _, present := reflect.TypeFor[Request]().FieldByName("CodeCommit"); present {
+		t.Fatal("training request exposes a caller-controlled code revision")
+	}
+}
+
+func stubExecutableCodeCommit(t *testing.T, commit string) {
+	t.Helper()
+	prior := executableCodeCommit
+	executableCodeCommit = func(string) (string, error) { return commit, nil }
+	t.Cleanup(func() { executableCodeCommit = prior })
+}
+
+func moeWorkflowFixture(t *testing.T) (string, string, string, *overgodb.Store, artifact.ID) {
+	t.Helper()
+	root := t.TempDir()
+	spec := testutil.DenseCausalSpec{
+		Vocab: 32, Hidden: 16, Heads: 2, HeadDim: 8,
+		KVHeads: 2, Intermediate: 32, Layers: 2, Seed: 17,
+		MoELayer: 1, MoEExperts: 4, MoEIntermediate: 8, MoEShared: 8,
+	}
+	weights, shapes := testutil.DenseCausalWeights(t, spec)
+	model := filepath.Join(root, "model")
+	mixtureConfig := `{"model_type":"deepseek_v2","num_attention_heads":2,"head_dim":8,"max_position_embeddings":16,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true,"num_experts_per_tok":2,"moe_intermediate_size":8,"routed_scaling_factor":1,"norm_topk_prob":true,"scoring_func":"softmax"}`
+	writeModelDocument(t, model, weights, shapes, mixtureConfig)
+	dataset := filepath.Join(root, "dataset.txt")
+	if err := os.WriteFile(dataset, []byte("abcd"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveTokenPrediction)
+	return root, model, dataset, store, recipeID
 }
 
 func TestTrainingObjectiveAdmissionMatrix(t *testing.T) {
@@ -118,7 +299,7 @@ func TestGRPOUsesSharedRecipeTrainingRuntime(t *testing.T) {
 	}
 	store, recipeID := trainingAuthority(t, model, "", dataset, trainingprogram.ObjectiveGRPO)
 	var observed []trainingprogram.GRPOObservation
-	result, err := Execute(context.Background(), Request{
+	result, err := Execute(t.Context(), Request{
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "output"), Steps: 1, Host: true,
 		ObjectiveScale: 1, ObserveGRPO: func(value trainingprogram.GRPOObservation) { observed = append(observed, value) },
@@ -165,14 +346,14 @@ func TestTrainingObservationSharesDirectedLifecycle(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "observed recipe")
 	testutil.PublishArtifact(t, store, modelID)
 	testutil.PublishArtifact(t, store, recipeID)
-	if err := observer.Admit(context.Background(), modelID, recipeID); err != nil {
+	if err := observer.Admit(t.Context(), modelID, recipeID); err != nil {
 		t.Fatal(err)
 	}
-	observationID, err := observer.Finish(context.Background(), modelID, recipeID, nil, 0)
+	observationID, err := observer.Finish(t.Context(), modelID, recipeID, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runrecord.RequireServingObservation(context.Background(), store, observationID); err != nil {
+	if _, err := runrecord.RequireServingObservation(t.Context(), store, observationID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -223,26 +404,26 @@ func verifyWorkflowResume(t *testing.T, root string, request Request) {
 	t.Helper()
 	request.Steps = 2
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
-	want, err := Execute(context.Background(), request)
+	want, err := Execute(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.Steps = 1
 	request.OutputDirectory = filepath.Join(root, "first")
-	first, err := Execute(context.Background(), request)
+	first, err := Execute(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	request.ModelDirectory = ""
 	request.ResumeDirectory = request.OutputDirectory
 	request.OutputDirectory = filepath.Join(root, "resumed")
-	got, err := Execute(context.Background(), request)
+	got, err := Execute(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if request.Observations != nil {
 		for _, result := range []Result{want, first, got} {
-			if _, err := runrecord.RequireServingObservation(context.Background(), request.Observations, result.Observation); err != nil {
+			if _, err := runrecord.RequireServingObservation(t.Context(), request.Observations, result.Observation); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -320,13 +501,18 @@ func hasLineage(lineage []trainingprogram.LineageParent, parent artifact.ID, rel
 
 func writeModel(t *testing.T, directory string, weights map[string][]float32, shapes map[string][]int) {
 	t.Helper()
+	config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"max_position_embeddings":16,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
+	writeModelDocument(t, directory, weights, shapes, config)
+}
+
+func writeModelDocument(t *testing.T, directory string, weights map[string][]float32, shapes map[string][]int, config string) {
+	t.Helper()
 	if err := os.MkdirAll(directory, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := safetensors.Save(filepath.Join(directory, trainingprogram.CheckpointWeights), weights, shapes, nil); err != nil {
 		t.Fatal(err)
 	}
-	config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"max_position_embeddings":16,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
 	tokenizer := `{"model":{"type":"BPE","vocab":{"a":1,"b":2,"c":3,"d":4},"merges":[]}}`
 	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600); err != nil {
 		t.Fatal(err)
@@ -338,7 +524,7 @@ func writeModel(t *testing.T, directory string, weights map[string][]float32, sh
 
 func trainingAuthority(t *testing.T, policyDirectory, referenceDirectory, datasetPath string, objectiveKind trainingprogram.ObjectiveKind) (*overgodb.Store, artifact.ID) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "repodb"))
 	if err != nil {
 		t.Fatal(err)

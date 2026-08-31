@@ -231,7 +231,7 @@ func remediateClosureReactivations(
 	if err := bindClosureOperationKey(closureRemediateRecoveryOperation, &batch); err != nil {
 		return result, err
 	}
-	commit, err := store.Commit(ctx, batch)
+	commit, err := artifact.CommitBatch(ctx, store, batch)
 	if err != nil {
 		return result, err
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/runrecord"
 )
 
@@ -144,7 +145,7 @@ func compileSchedulerEvidence(outcomes []CandidateOutcome) ([]SchedulerEvidenceR
 				return nil, errors.New("plan: capability delta overflows")
 			}
 		}
-		sort.Strings(metrics)
+		slices.Sort(metrics)
 		if row.metrics == nil {
 			row.metrics = metrics
 		} else if !slices.Equal(row.metrics, metrics) {
@@ -319,4 +320,4 @@ func cloneCandidateOutcomes(source []CandidateOutcome) []CandidateOutcome {
 	return result
 }
 
-func finite(value float64) bool { return !math.IsNaN(value) && !math.IsInf(value, 0) }
+func finite(value float64) bool { return checked.Finite64(value) }

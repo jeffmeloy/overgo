@@ -160,7 +160,7 @@ func (m *Model) attnSubForward(l layer, xn []float32, invFreq []float64, seq int
 	hostmath.Linear(tr.v, xn, l.v, seq, d.Hidden, kvWidth)
 	if l.qb != nil {
 		// Bias lands before rope, matching the HF projection layout.
-		for p := 0; p < seq; p++ {
+		for p := range seq {
 			hostmath.AddBias(tr.qPost[p*width:(p+1)*width], l.qb)
 			hostmath.AddBias(tr.kPost[p*kvWidth:(p+1)*kvWidth], l.kb)
 			hostmath.AddBias(tr.v[p*kvWidth:(p+1)*kvWidth], l.vb)
@@ -168,7 +168,7 @@ func (m *Model) attnSubForward(l layer, xn []float32, invFreq []float64, seq int
 	}
 	tr.qScaled = append([]float32(nil), tr.qPost...)
 	tr.kRoped = append([]float32(nil), tr.kPost...)
-	for p := 0; p < seq; p++ {
+	for p := range seq {
 		for h := 0; h < d.Heads; h++ {
 			hostmath.ApplyRotaryHalf(tr.qScaled[(p*d.Heads+h)*d.HeadDim:(p*d.Heads+h+1)*d.HeadDim], invFreq, p)
 		}
@@ -199,7 +199,7 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) e
 	hn := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormInto(hn, x, l.postLN, seq, d.Hidden, d.RMSEps)
 	if l.moe != nil {
-		mixture, _, err := moeForward(hn, *l.moe, seq, d.Hidden, d.MoE)
+		mixture, _, _, err := moeForward(hn, *l.moe, seq, d.Hidden, d.MoE)
 		if err != nil {
 			return err
 		}

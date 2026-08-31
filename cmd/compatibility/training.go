@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -26,7 +25,7 @@ type trainingSpecification struct {
 	Model         artifact.ID                 `json:"model"`
 	Name          string                      `json:"name"`
 	Supersedes    []artifact.ID               `json:"supersedes,omitempty"`
-	ModelFile     string                      `json:"model_file,omitempty"`
+	ModelFile     string                      `json:"model_file,omitzero"`
 	EvidenceFiles []string                    `json:"evidence_files,omitempty"`
 	DatasetFiles  []string                    `json:"dataset_files,omitempty"`
 	Claims        []runrecord.CapabilityClaim `json:"claims"`
@@ -82,7 +81,7 @@ func loadTrainingVerifications(root string) ([]trainingVerification, error) {
 	if len(paths) == len([]string(nil)) {
 		return nil, errors.New("training compatibility: no verification specifications")
 	}
-	sort.Strings(paths)
+	slices.Sort(paths)
 	result := make([]trainingVerification, len(paths))
 	for index, path := range paths {
 		var specification trainingSpecification

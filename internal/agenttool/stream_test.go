@@ -1,7 +1,6 @@
 package agenttool
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +20,7 @@ func TestHTTPJSONStreamProducesSequencedEventsAndTerminal(t *testing.T) {
 	}))
 	defer server.Close()
 	manual := streamManual(t, server.URL)
-	stream, err := NewOperatorExecutor().OpenStream(context.Background(), manual, json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
+	stream, err := NewOperatorExecutor().OpenStream(t.Context(), manual, json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
 		MaxEvents: 2, MaxEventBytes: 256, MaxBytes: 512,
 	})
 	if err != nil {
@@ -29,7 +28,7 @@ func TestHTTPJSONStreamProducesSequencedEventsAndTerminal(t *testing.T) {
 	}
 	defer stream.Close()
 	for sequence := uint64(1); sequence <= 2; sequence++ {
-		event, err := stream.Receive(context.Background())
+		event, err := stream.Receive(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -40,7 +39,7 @@ func TestHTTPJSONStreamProducesSequencedEventsAndTerminal(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := stream.Receive(context.Background()); !errors.Is(err, io.EOF) {
+	if _, err := stream.Receive(t.Context()); !errors.Is(err, io.EOF) {
 		t.Fatalf("end error = %v", err)
 	}
 	terminal, err := stream.Terminal()
@@ -62,17 +61,17 @@ func TestHTTPJSONStreamFailsAtAdmissionBound(t *testing.T) {
 		fmt.Fprintln(response, `{"value":2}`)
 	}))
 	defer server.Close()
-	stream, err := NewOperatorExecutor().OpenStream(context.Background(), streamManual(t, server.URL), json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
+	stream, err := NewOperatorExecutor().OpenStream(t.Context(), streamManual(t, server.URL), json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
 		MaxEvents: 1, MaxEventBytes: 128, MaxBytes: 128,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stream.Close()
-	if _, err := stream.Receive(context.Background()); err != nil {
+	if _, err := stream.Receive(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := stream.Receive(context.Background()); !errors.Is(err, io.EOF) {
+	if _, err := stream.Receive(t.Context()); !errors.Is(err, io.EOF) {
 		t.Fatalf("end error = %v", err)
 	}
 	terminal, err := stream.Terminal()
@@ -91,7 +90,7 @@ func TestHTTPJSONStreamCancellationProducesTerminal(t *testing.T) {
 		<-request.Context().Done()
 	}))
 	defer server.Close()
-	stream, err := NewOperatorExecutor().OpenStream(context.Background(), streamManual(t, server.URL), json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
+	stream, err := NewOperatorExecutor().OpenStream(t.Context(), streamManual(t, server.URL), json.RawMessage(`{"pattern":"x"}`), StreamPolicy{
 		MaxEvents: 1, MaxEventBytes: 128, MaxBytes: 128,
 	})
 	if err != nil {

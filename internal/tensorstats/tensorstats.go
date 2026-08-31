@@ -15,7 +15,6 @@ package tensorstats
 import (
 	"math"
 	"slices"
-	"sort"
 
 	"overgo/internal/checked"
 )
@@ -41,7 +40,7 @@ func ExactLMoments(finite []float64) LMoments {
 // exactLMomentsSorted sorts caller-owned finite values in place and computes the
 // unbiased probability-weighted L-moments.
 func exactLMomentsSorted(values []float64) LMoments {
-	sort.Float64s(values)
+	slices.Sort(values)
 	n := len(values)
 	if n == 0 {
 		return LMoments{}
@@ -173,7 +172,7 @@ func (a *ValueAccumulator) Stats() (ValueStats, bool) {
 	}
 	n := float64(a.finite)
 	var zero float64
-	variance := math.Max(zero, a.m2/n)
+	variance := max(zero, a.m2/n)
 	rms := a.rms()
 	var normalizedL1L2, maxEnergyFraction, normalizedEnergyEntropy float64
 	if a.maxAbs > 0 {
@@ -251,7 +250,7 @@ func Characterize(elements uint64, samples []float64) (Characterization, bool) {
 			finite = append(finite, x)
 		}
 	}
-	sort.Float64s(finite)
+	slices.Sort(finite)
 	lower := Quantile(finite, 0.25)
 	upper := Quantile(finite, 0.75)
 	return Characterization{
@@ -267,5 +266,5 @@ func Characterize(elements uint64, samples []float64) (Characterization, bool) {
 	}, true
 }
 
-func clampUnit(value float64) float64       { return math.Max(0, math.Min(1, value)) }
-func clampUnitSigned(value float64) float64 { return math.Max(-1, math.Min(1, value)) }
+func clampUnit(value float64) float64       { return max(0, min(1, value)) }
+func clampUnitSigned(value float64) float64 { return max(-1, min(1, value)) }

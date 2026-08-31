@@ -156,7 +156,7 @@ func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelP
 	} else if !found {
 		batch.Artifacts = []artifact.Descriptor{{ID: modelID, Size: size}}
 	}
-	if _, err := store.Commit(ctx, batch); err != nil {
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		return artifact.ID{}, err
 	}
 	return modelID, nil

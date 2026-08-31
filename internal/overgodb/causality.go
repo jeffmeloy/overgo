@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -37,7 +38,7 @@ type CausalityResult struct {
 	ProjectionVersion uint16                `json:"projection_version"`
 	Matched           int                   `json:"matched"`
 	Links             []artifact.CausalLink `json:"links,omitempty"`
-	Truncated         bool                  `json:"truncated,omitempty"`
+	Truncated         bool                  `json:"truncated,omitzero"`
 }
 
 type causalityFacet struct {
@@ -225,11 +226,11 @@ func (f causalityFacet) selectIDs(query CausalityQuery) []artifact.ID {
 	case query.Trigger != "":
 		candidates = slices.Clone(f.byTrigger[query.Trigger])
 	default:
-		candidates = make([]artifact.ID, 0, len(f.records))
-		for id := range f.records {
-			candidates = append(candidates, id)
+		candidates = slices.SortedFunc(maps.Keys(f.records), artifact.CompareID)
+		switch {
+		case candidates == nil:
+			candidates = []artifact.ID{}
 		}
-		slices.SortFunc(candidates, artifact.CompareID)
 	}
 	return slices.DeleteFunc(candidates, func(id artifact.ID) bool {
 		link := f.records[id]

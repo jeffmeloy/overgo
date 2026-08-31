@@ -2,7 +2,6 @@ package dataset
 
 import (
 	"bytes"
-	"context"
 	"encoding/binary"
 	"hash/crc32"
 	"os"
@@ -30,20 +29,20 @@ func TestDatasetCatalogPublishReplayAndLocations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(context.Background(), artifact.Batch{
+	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "fixture/stale-dataset-alias", Artifacts: []artifact.Descriptor{{ID: stale}},
 		Aliases: []artifact.AliasBinding{{Name: registeredAlias(fixtureDatasetName), Target: stale}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	publication, err := PublishLegacyCatalog(context.Background(), store, legacyRoot, contentRoot)
+	publication, err := PublishLegacyCatalog(t.Context(), store, legacyRoot, contentRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !publication.Changed || !publication.Coverage.Complete || publication.Coverage.Registered != len([]string{fixtureDatasetName, fixtureDirectoryName}) {
 		t.Fatalf("publication = %+v", publication)
 	}
-	replay, err := PublishLegacyCatalog(context.Background(), store, legacyRoot, contentRoot)
+	replay, err := PublishLegacyCatalog(t.Context(), store, legacyRoot, contentRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +188,7 @@ func testCompiledCatalog(t *testing.T, path string) CompiledCatalog {
 // publication gains its location fact on republication after its
 // bytes appear, and the converged catalog is then idempotent again.
 func TestDatasetCatalogPublishRecordsLateArrivals(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	legacyRoot, contentRoot := legacyCatalogFixture(t)
 	moved := filepath.Join(t.TempDir(), fixtureFileName)
 	if err := os.Rename(filepath.Join(contentRoot, fixtureFileName), moved); err != nil {

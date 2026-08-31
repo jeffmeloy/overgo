@@ -1,7 +1,6 @@
 package automationcheck
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -29,7 +28,7 @@ func TestDeviceCheck(t *testing.T) {
 	if err != nil || len(planned) != 1 {
 		t.Fatalf("plan = %+v, %v", planned, err)
 	}
-	if _, err := Run(context.Background(), planned[0]); err != nil {
+	if _, err := Run(t.Context(), planned[0]); err != nil {
 		t.Fatal(err)
 	}
 	if len(calls) != 1 || !strings.Contains(calls[0], "./cmd/device-lane -paths-file ") {

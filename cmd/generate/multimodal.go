@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -70,9 +71,7 @@ func audioProjectedPrompt(
 		var sampleRate int
 		samples, sampleRate, err = media.DecodeWAV(data)
 		want, rateErr := projector.AudioSampleRate(audio)
-		if err == nil {
-			err = rateErr
-		}
+		err = cmp.Or(err, rateErr)
 		if err == nil && sampleRate != want {
 			err = fmt.Errorf("sample rate %d Hz; want %d Hz", sampleRate, want)
 		}

@@ -26,10 +26,10 @@ const (
 )
 
 type unclassifiedReportCounts struct {
-	PolicyCandidates   int `json:"policy_candidates,omitempty"`
+	PolicyCandidates   int `json:"policy_candidates,omitzero"`
 	Constants          int `json:"constants"`
-	Literals           int `json:"literals,omitempty"`
-	Assumptions        int `json:"assumptions,omitempty"`
+	Literals           int `json:"literals,omitzero"`
+	Assumptions        int `json:"assumptions,omitzero"`
 	Classified         int `json:"classified"`
 	Unclassified       int `json:"unclassified"`
 	RecoverablePrior   int `json:"recoverable_prior_decisions"`
@@ -59,11 +59,11 @@ type historicalDecisionProvenance struct {
 	Match            string                `json:"match"`
 	BindingCount     int                   `json:"binding_count"`
 	Fixture          artifact.ID           `json:"pinning_fixture"`
-	Alias            string                `json:"alias,omitempty"`
+	Alias            string                `json:"alias,omitzero"`
 	LatestAlias      *historicalAliasEvent `json:"latest_alias_event,omitempty"`
-	SelectedByAlias  bool                  `json:"selected_by_active_alias,omitempty"`
+	SelectedByAlias  bool                  `json:"selected_by_active_alias,omitzero"`
 	RecoveryEligible bool                  `json:"automatic_recovery_eligible"`
-	RecoveryBlocker  string                `json:"automatic_recovery_blocker,omitempty"`
+	RecoveryBlocker  string                `json:"automatic_recovery_blocker,omitzero"`
 }
 
 type historicalDecisionMatch struct {
@@ -91,7 +91,7 @@ type recoveredAliasAudit struct {
 	Sequence       uint64                  `json:"reactivation_sequence"`
 	Provenance     string                  `json:"provenance"`
 	Eligible       bool                    `json:"eligible_under_current_successor_lifecycle"`
-	Blocker        string                  `json:"blocker,omitempty"`
+	Blocker        string                  `json:"blocker,omitzero"`
 	ActiveBindings []recoveredAliasBinding `json:"active_bindings"`
 }
 
@@ -104,7 +104,7 @@ type recoveredAliasBinding struct {
 
 type unclassifiedReport struct {
 	Version         uint16                   `json:"version"`
-	Selection       string                   `json:"selection,omitempty"`
+	Selection       string                   `json:"selection,omitzero"`
 	Source          string                   `json:"source"`
 	CatalogHead     string                   `json:"catalog_head"`
 	CatalogSequence uint64                   `json:"catalog_sequence"`

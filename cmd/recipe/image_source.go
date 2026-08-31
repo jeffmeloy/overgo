@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -154,7 +154,7 @@ func latentImageInventory(path string) (modelartifact.Inventory, error) {
 				indexName = entry.Name()
 			}
 		}
-		sort.Strings(weights)
+		slices.Sort(weights)
 		if len(weights) == 0 {
 			return modelartifact.Inventory{}, fmt.Errorf("latent image inventory: no %s weights", directory)
 		}

@@ -79,7 +79,7 @@ func TestPermanentMagicGateRejectsIncompleteClosureEvidence(t *testing.T) {
 }
 
 func TestPublicationRequiresStoredOwnerAndFixture(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestPublicationRequiresStoredOwnerAndFixture(t *testing.T) {
 }
 
 func TestActiveBindingsResolveExactOwnerAndValue(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestActiveBindingsRejectAmbiguousOrStaleRows(t *testing.T) {
 
 func activeFixture(t *testing.T) (context.Context, *overgodb.Store, SourceBinding, artifact.ID) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

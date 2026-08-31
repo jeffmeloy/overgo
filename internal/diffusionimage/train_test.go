@@ -81,7 +81,7 @@ func TestTinyModelTrainDescends(t *testing.T) {
 		}
 	}()
 	losses := make([]float64, 0, steps)
-	for step := 0; step < steps; step++ {
+	for step := range steps {
 		loss, err := trainer.Step(x, target, fx.B, fx.H, fx.W)
 		if err != nil {
 			t.Fatal(err)

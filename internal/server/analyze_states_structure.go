@@ -68,7 +68,7 @@ func spearmanDistanceMatrix(vectors [][]float32) [][]float64 {
 		ranks[i] = fractionalRanks(v)
 	}
 	distance := newSquare(n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		for j := i + 1; j < n; j++ {
 			value := 1 - pearson(ranks[i], ranks[j])
 			distance[i][j] = value
@@ -90,7 +90,7 @@ func cosineDistanceMatrix(vectors [][]float32) [][]float64 {
 		norms[i] = math.Sqrt(sum)
 	}
 	distance := newSquare(n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		for j := i + 1; j < n; j++ {
 			var dot float64
 			for d := range vectors[i] {
@@ -112,7 +112,7 @@ func cosineDistanceMatrix(vectors [][]float32) [][]float64 {
 func euclideanDistanceMatrix(vectors [][]float32) [][]float64 {
 	n := len(vectors)
 	distance := newSquare(n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		for j := i + 1; j < n; j++ {
 			var sum float64
 			for d := range vectors[i] {
@@ -155,9 +155,9 @@ func kNNAdjacency(distance [][]float64, k int) [][]int {
 		k = n - 1
 	}
 	adjacency := make([][]int, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		order := make([]int, 0, n-1)
-		for j := 0; j < n; j++ {
+		for j := range n {
 			if j != i {
 				order = append(order, j)
 			}
@@ -194,7 +194,7 @@ func nonMetricMDS(distance [][]float64, maxIterations int, tolerance float64) ([
 	// Upper-triangle pairs, ordered by the *rank* of their dissimilarity. Only
 	// this ordering is consumed downstream — magnitudes never are.
 	pairs := make([]mdsPair, 0, n*(n-1)/2)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		for j := i + 1; j < n; j++ {
 			pairs = append(pairs, mdsPair{i, j})
 		}
@@ -211,7 +211,7 @@ func nonMetricMDS(distance [][]float64, maxIterations int, tolerance float64) ([
 	iterationsRun := 0
 	current := make([]float64, len(pairs)) // embedding distances, pair order
 	disparities := make([]float64, len(pairs))
-	for iteration := 0; iteration < maxIterations; iteration++ {
+	for iteration := range maxIterations {
 		for index, p := range pairs {
 			current[index] = euclid2(coords[p.i], coords[p.j])
 		}
@@ -302,7 +302,7 @@ func initRankLayout(distance [][]float64, coords [][2]float64) {
 	n := len(distance)
 	anchorA, anchorB := 0, 0
 	best := math.Inf(-1)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		for j := i + 1; j < n; j++ {
 			if distance[i][j] > best {
 				best, anchorA, anchorB = distance[i][j], i, j
@@ -311,7 +311,7 @@ func initRankLayout(distance [][]float64, coords [][2]float64) {
 	}
 	rankX := rankOf(distanceColumn(distance, anchorA))
 	rankY := rankOf(distanceColumn(distance, anchorB))
-	for i := 0; i < n; i++ {
+	for i := range n {
 		coords[i] = [2]float64{
 			2*float64(rankX[i])/float64(n-1) - 1,
 			2*float64(rankY[i])/float64(n-1) - 1,
@@ -411,7 +411,7 @@ func guttmanUpdate(coords [][2]float64, pairs []mdsPair, disparities, current []
 		next[p.j][0] += coords[p.i][0] - bx
 		next[p.j][1] += coords[p.i][1] - by
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		coords[i][0] = next[i][0] / float64(n)
 		coords[i][1] = next[i][1] / float64(n)
 	}

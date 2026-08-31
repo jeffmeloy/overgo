@@ -79,7 +79,7 @@ func encodePlaceholderRuns(
 		if expanded {
 			sourceCount = count
 		}
-		for index := 0; index < sourceCount; index++ {
+		for index := range sourceCount {
 			if !strings.HasPrefix(remaining, placeholder) {
 				return nil, nil, fmt.Errorf("tokenizer: placeholder run %d has %d tokens, need %d", run, index, count)
 			}

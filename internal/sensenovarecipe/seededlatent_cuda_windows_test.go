@@ -3,7 +3,6 @@
 package sensenovarecipe
 
 import (
-	"context"
 	"os"
 	"slices"
 	"testing"
@@ -83,7 +82,7 @@ func TestSenseNovaSeededLatentMatchesOracle(t *testing.T) {
 	}
 	defer worker.Close()
 	var got []float32
-	err = worker.Do(context.Background(), func(state *device.State) error {
+	err = worker.Do(t.Context(), func(state *device.State) error {
 		stream := torchrng.NewStream(oracle.Request.Seed)
 		defer stream.Close(state)
 		got, err = routedlm.SeededFlowLatent(stream, state, plan, image)

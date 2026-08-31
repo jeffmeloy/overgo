@@ -46,7 +46,7 @@ func TestRealCheckpointTrainingSmoke(t *testing.T) {
 	t.Logf("trainable parameters=%d image=%dx%dx%d pixels=%d", trainer.pack.ParameterCount(), golden.B, golden.H, golden.W, len(golden.X))
 	start := time.Now()
 	losses := make([]float64, 0, steps)
-	for step := 0; step < steps; step++ {
+	for step := range steps {
 		stepStart := time.Now()
 		loss, err := trainer.Step(x, target, golden.B, golden.H, golden.W)
 		if err != nil {

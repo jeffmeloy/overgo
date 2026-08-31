@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -785,11 +786,7 @@ func importClosureDocuments(
 				groups[previousAlias] = append(groups[previousAlias], document)
 			}
 		}
-		previousAliases := make([]string, 0, len(groups))
-		for alias := range groups {
-			previousAliases = append(previousAliases, alias)
-		}
-		slices.Sort(previousAliases)
+		previousAliases := slices.Sorted(maps.Keys(groups))
 		type historicalConsensus struct {
 			document  closureledger.Document
 			ambiguous bool
@@ -1246,11 +1243,7 @@ func auditClosureRecoveryReactivations(
 	for _, document := range documents {
 		byID[document.ID] = document
 	}
-	aliases := make([]string, 0, len(history.byAlias))
-	for alias := range history.byAlias {
-		aliases = append(aliases, alias)
-	}
-	slices.Sort(aliases)
+	aliases := slices.Sorted(maps.Keys(history.byAlias))
 	var audits []closureRecoveryReactivation
 	for _, alias := range aliases {
 		events := history.byAlias[alias]
@@ -1304,9 +1297,7 @@ func auditClosureRecoveryReactivations(
 		}
 		synthetic := history
 		synthetic.latest = make(map[string]overgodb.AliasEvent, len(history.latest))
-		for name, event := range history.latest {
-			synthetic.latest[name] = event
-		}
+		maps.Copy(synthetic.latest, history.latest)
 		synthetic.latest[alias] = events[retirement]
 		analysis, err := resolveClosureRecovery(documents, synthetic)
 		if err != nil {
@@ -1395,10 +1386,7 @@ func closureLiveSuccessorBeforeReactivation(
 			before.byAlias[name] = append(before.byAlias[name], event)
 		}
 	}
-	documents := make([]closureledger.Document, 0, len(byID))
-	for _, candidate := range byID {
-		documents = append(documents, candidate)
-	}
+	documents := slices.Collect(maps.Values(byID))
 	analysis, err := resolveClosureRecovery(documents, before)
 	if err != nil {
 		return "", artifact.ID{}, false, err
@@ -1613,6 +1601,7 @@ func commitClosureDocumentsAtHead(
 	}
 	defer store.Close()
 	batch := artifact.Batch{Aliases: retirements}
+	batchedContents := map[artifact.ID]bool{}
 	if expectedHead != nil {
 		expected := *expectedHead
 		batch.ExpectedHead = &expected
@@ -1677,9 +1666,10 @@ func commitClosureDocumentsAtHead(
 		}
 		if found, err := store.HasContent(context.Background(), document.ID); err != nil {
 			return 0, artifact.CommitID{}, err
-		} else if !found {
+		} else if !found && !batchedContents[document.ID] {
 			batch.Contents = append(batch.Contents, content)
 			batch.Lineage = append(batch.Lineage, document.Lineage()...)
+			batchedContents[document.ID] = true
 		}
 	}
 	if batch.Empty() {

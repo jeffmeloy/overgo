@@ -486,22 +486,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "go-only-guard",
-          "title": "Seal the Go-only plugin and UTCP boundary before post-proof expansion",
-          "status": "open",
-          "verify": "go test ./cmd/gate ./internal/repoanalysis ./internal/recipe ./internal/agenttool ./internal/loop ./internal/dataset ./internal/trainingprogram ./internal/trainingworkflow -run '^(TestModernGoRatchetAtClosure|TestRSIRuntimeIsGoOnly)$' -count=1",
-          "rationale": "Re-run and seal the same early Go-only ratchet over the proven vertical slice before opening the post-proof plugin and peer frontier. Every later slice extends this always-required census with its own surface in the producing commit. Prompts and descriptions remain typed artifact data, but Markdown skills, plugin manifests, embedded interpreters, runtime scripts, and filesystem discovery cannot grant capabilities or alter runtime semantics; UTCP resolution remains outward or agent-facing and deterministic in-process owners remain direct Go. No duplicate check is introduced.",
-          "depends_on": [
-            "architecture-closure/single-entry-guards"
-          ],
-          "capabilities": [
-            "go-only",
-            "architecture-guard",
-            "authority",
-            "gate-ratchet"
-          ]
-        },
-        {
           "id": "migration-drill",
           "title": "Rebuild a legacy store into segmented journal, blob, and projection layout and execute backup, restore, retention, and rollback drills",
           "status": "open",

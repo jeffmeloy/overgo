@@ -10,16 +10,6 @@ var CanonicalOutcomes = []Outcome{
 	OutcomeInconclusive, OutcomeLost, OutcomeRecovered,
 }
 
-// OutcomeVocabulary returns the canonical members as strings for
-// vocabulary guards.
-func OutcomeVocabulary() []string {
-	vocabulary := make([]string, len(CanonicalOutcomes))
-	for index, outcome := range CanonicalOutcomes {
-		vocabulary[index] = string(outcome)
-	}
-	return vocabulary
-}
-
 // ValidOutcome reports membership in the canonical vocabulary.
 func ValidOutcome(outcome Outcome) bool {
 	return slices.Contains(CanonicalOutcomes, outcome)

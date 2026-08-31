@@ -123,11 +123,11 @@ func ModelArtifactDir(t testing.TB, name string) string {
 // vocabulary cannot quietly fork per subsystem. The caller passes its
 // own package directory; allowed names exempt exact constant names
 // (mappings that intentionally share wire values).
-func ForbidVocabularyRedefinition(t testing.TB, packageDir string, vocabulary []string, allowed ...string) {
+func ForbidVocabularyRedefinition[T ~string](t testing.TB, packageDir string, vocabulary []T, allowed ...string) {
 	t.Helper()
 	values := map[string]bool{}
 	for _, value := range vocabulary {
-		values[value] = true
+		values[string(value)] = true
 	}
 	exempt := map[string]bool{}
 	for _, name := range allowed {

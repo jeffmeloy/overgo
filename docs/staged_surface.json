@@ -29,8 +29,8 @@
     {
       "package": "overgo/internal/closurescan",
       "name": "AgentHarnessSurfaceRegressions",
-      "reason": "Harness surface regression audit delivered ahead of its gate phase.",
-      "retire_with": "architecture-closure/single-entry-guards"
+      "reason": "Harness surface regression audit delivered ahead of the final common-code and policy-copy census.",
+      "retire_with": "architecture-closure/tightness-census"
     },
     {
       "package": "overgo/internal/evaluation",
@@ -113,8 +113,8 @@
     {
       "package": "overgo/internal/repoanalysis",
       "name": "AuditAgentHarnessConsolidation",
-      "reason": "Agent harness consolidation audit delivered ahead of its gate phase.",
-      "retire_with": "architecture-closure/single-entry-guards"
+      "reason": "Agent harness consolidation audit delivered ahead of the final common-code and policy-copy census.",
+      "retire_with": "architecture-closure/tightness-census"
     },
     {
       "package": "overgo/internal/runrecord",
@@ -325,12 +325,6 @@
         "classification": "test-support",
         "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
       }
-    },
-    {
-      "package": "overgo/internal/runrecord",
-      "name": "OutcomeVocabulary",
-      "reason": "String view of the canonical outcomes for vocabulary guards; staged with the vocabulary.",
-      "retire_with": "architecture-closure/single-entry-guards"
     },
     {
       "package": "overgo/internal/runrecord",

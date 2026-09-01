@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "model-abstraction-exactness",
-      "title": "Tighten the model abstraction to its stated boundary",
-      "status": "open",
-      "steps": [
-        {
-          "id": "family-branch-census",
-          "title": "Move genericizable family checks into profile policies, type chat templates where token boundaries determine them, add a family-named-branch census, and adjust the README claim",
-          "status": "open",
-          "verify": "go test ./internal/model -run '^TestArchitectureFamilyBranchCensus$' -count=1",
-          "rationale": "A new model expressible through existing primitives introduces no family-named branch in shared execution code; the census enumerates every remaining branch outside catalogs, errors, fixtures, and presentation."
-        }
-      ]
-    },
-    {
       "id": "verification-depth",
       "title": "Raise risk-weighted verification depth over serving and operator surfaces",
       "status": "open",

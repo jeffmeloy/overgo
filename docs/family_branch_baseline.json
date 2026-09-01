@@ -1,0 +1,66 @@
+{
+ "version": 1,
+ "doc": "Reviewed census of family-named branches remaining in shared execution code. A new model expressible through existing primitives introduces none; a row leaves when its check moves into a declared profile policy.",
+ "branches": [
+  {
+   "file": "cmd/mot-train-probe/main.go",
+   "literal": "sensenova",
+   "count": 1
+  },
+  {
+   "file": "internal/densecausal/load_gguf.go",
+   "literal": "llama",
+   "count": 1
+  },
+  {
+   "file": "internal/tokenizer/bpe.go",
+   "literal": "bert",
+   "count": 5
+  },
+  {
+   "file": "internal/tokenizer/bpe.go",
+   "literal": "gemma4",
+   "count": 2
+  },
+  {
+   "file": "internal/tokenizer/bpe.go",
+   "literal": "llama",
+   "count": 4
+  },
+  {
+   "file": "internal/tokenizer/bpe.go",
+   "literal": "t5",
+   "count": 3
+  },
+  {
+   "file": "internal/tokenizer/dna_encode.go",
+   "literal": "bert",
+   "count": 2
+  },
+  {
+   "file": "internal/tokenizer/vocab.go",
+   "literal": "bert",
+   "count": 1
+  },
+  {
+   "file": "internal/tokenizer/vocab.go",
+   "literal": "gemma4",
+   "count": 3
+  },
+  {
+   "file": "internal/tokenizer/vocab.go",
+   "literal": "gpt2",
+   "count": 4
+  },
+  {
+   "file": "internal/tokenizer/vocab.go",
+   "literal": "llama",
+   "count": 1
+  },
+  {
+   "file": "internal/tokenizer/vocab.go",
+   "literal": "t5",
+   "count": 2
+  }
+ ]
+}

@@ -22,8 +22,12 @@ components, and expresses each model family as a typed prototype definition in
 OvergoDB: the tensor layout, execution modes, operators, and numerical features
 that family needs. Specific checkpoints are verified as instances inside a
 prototype. Adding a model is adding a prototype definition and a recipe, not a
-new code path -- model identity lives in the store as data, never in a switch
-statement in shared code.
+new code path -- model identity lives in the store as data, and a reviewed
+census (docs/family_branch_baseline.json, enforced by the architecture
+family-branch test) pins the small residue of family-named branches that
+remain in shared execution code: the GGUF tokenizer-algorithm kinds and the
+llama-compatibility loader. That census only shrinks; a new model
+expressible through existing primitives introduces no family-named branch.
 
 An operator can steer the framework by supplying goals, constraints,
 priorities, and decisions about what to investigate next. The graphical

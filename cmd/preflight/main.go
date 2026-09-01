@@ -17,6 +17,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
 	"overgo/internal/jsonfile"
+	"overgo/internal/model"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/repoanalysis"
@@ -49,6 +50,7 @@ func run() error {
 		{"sbom", repoCheck("./cmd/sbom")},
 		{"formatting", checkFormatting},
 		{"structure-budgets", checkStructureBudgets},
+		{"family-branches", checkFamilyBranches},
 		{"dirty-generated", checkDirtyGenerated},
 	}
 	failures := 0
@@ -142,6 +144,38 @@ func checkStructureBudgets() (string, error) {
 		first := regressions[0]
 		return "", fmt.Errorf("harness surface: %d regression(s); first: %s %d -> %d %s",
 			len(regressions), first.Metric, first.Base, first.Value, first.Detail)
+	}
+	return "", nil
+}
+
+// checkFamilyBranches holds shared execution code to the reviewed
+// family-named-branch baseline: a new branch or a grown one refuses here
+// with the instruction to consult a declared profile policy instead.
+func checkFamilyBranches() (string, error) {
+	var baseline struct {
+		Version  int                  `json:"version"`
+		Doc      string               `json:"doc"`
+		Branches []model.FamilyBranch `json:"branches"`
+	}
+	if err := jsonfile.DecodeStrict("docs/family_branch_baseline.json", &baseline); err != nil {
+		return "", err
+	}
+	allowed := map[string]int{}
+	for _, branch := range baseline.Branches {
+		allowed[branch.File+"\x00"+branch.Literal] = branch.Count
+	}
+	current, err := model.FamilyBranchCensus(".")
+	if err != nil {
+		return "", err
+	}
+	for _, branch := range current {
+		limit, known := allowed[branch.File+"\x00"+branch.Literal]
+		if !known {
+			return "", fmt.Errorf("new family-named branch: %s compares %q; consult a declared profile policy", branch.File, branch.Literal)
+		}
+		if branch.Count > limit {
+			return "", fmt.Errorf("family-named branch grew: %s %q %d -> %d", branch.File, branch.Literal, limit, branch.Count)
+		}
 	}
 	return "", nil
 }

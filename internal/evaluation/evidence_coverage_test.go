@@ -788,7 +788,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 		t.Fatalf("cold replay projection differs: projection=%+v err=%v", coldProjection, err)
 	}
 	rebuiltRoot := t.TempDir()
-	if _, err := overgodb.Rebuild(ctx, cold, rebuiltRoot, nil); err != nil {
+	if _, err := overgodb.Rebuild(ctx, cold, rebuiltRoot, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := cold.Close(); err != nil {

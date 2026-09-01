@@ -177,7 +177,7 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 		t.Fatalf("current coverage alias = (%s, %t, %v)", current, found, err)
 	}
 	destination := filepath.Join(root, "compacted-observations")
-	if _, err := overgodb.Compact(t.Context(), store, destination); err != nil {
+	if _, err := overgodb.Compact(t.Context(), store, destination, nil); err != nil {
 		t.Fatal(err)
 	}
 	compacted, err := overgodb.OpenReadOnly(destination)

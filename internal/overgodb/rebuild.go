@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strings"
 
 	"overgo/internal/artifact"
 )
@@ -42,7 +41,7 @@ const (
 // stripped artifact keeps its registered identity, size, lineage, and
 // locations, so references to it stay resolvable. The source is not
 // modified.
-func Rebuild(ctx context.Context, source *Store, destination string, strip func(artifact.Descriptor) bool) (RebuildReport, error) {
+func Rebuild(ctx context.Context, source *Store, destination string, strip func(artifact.Descriptor) bool, admit StoreLocalAdmission) (RebuildReport, error) {
 	if source == nil || destination == "" {
 		return RebuildReport{}, errors.New("overgodb: rebuild needs a source store and destination")
 	}
@@ -54,13 +53,9 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 		source.mu.RUnlock()
 		return RebuildReport{}, err
 	}
-	for _, alias := range source.state.aliasViews("") {
-		if strings.HasPrefix(alias.Name, StoreLocalAliasPrefix) {
-			source.mu.RUnlock()
-			return RebuildReport{}, fmt.Errorf(
-				"overgodb: live store-local alias %q prevents rebuild", alias.Name,
-			)
-		}
+	if err := admitStoreLocalAliases("rebuild", source.state.aliasViews(""), admit); err != nil {
+		source.mu.RUnlock()
+		return RebuildReport{}, err
 	}
 	source.mu.RUnlock()
 	target, err := Open(destination)

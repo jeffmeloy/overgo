@@ -15,6 +15,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 )
 
 func main() {
@@ -33,7 +34,7 @@ func run() error {
 		return err
 	}
 	defer source.Close()
-	report, err := overgodb.Compact(context.Background(), source, *destination)
+	report, err := overgodb.Compact(context.Background(), source, *destination, runrecord.GateLifecycleAtRest(source))
 	if err != nil {
 		return err
 	}

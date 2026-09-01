@@ -66,7 +66,7 @@ func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 	}
 
 	destination := filepath.Join(t.TempDir(), "retained")
-	report, err := Compact(ctx, store, destination)
+	report, err := Compact(ctx, store, destination, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

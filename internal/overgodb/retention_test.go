@@ -61,7 +61,7 @@ func TestRetentionTypedLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := Compact(ctx, source, filepath.Join(root, "compact"))
+	report, err := Compact(ctx, source, filepath.Join(root, "compact"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestExactCompactionFrames(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination := filepath.Join(root, "compact")
-	if _, err := Compact(ctx, source, destination); err != nil {
+	if _, err := Compact(ctx, source, destination, nil); err != nil {
 		t.Fatal(err)
 	}
 	compacted, err := OpenReadOnly(destination)
@@ -152,7 +152,7 @@ func TestRetentionRefusesExistingDestination(t *testing.T) {
 	if err := occupied.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Compact(ctx, source, filepath.Join(root, "occupied")); err == nil {
+	if _, err := Compact(ctx, source, filepath.Join(root, "occupied"), nil); err == nil {
 		t.Fatal("compaction wrote into an occupied store")
 	}
 }
@@ -177,7 +177,7 @@ func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination := filepath.Join(root, "compact")
-	if _, err := Compact(ctx, source, destination); err == nil ||
+	if _, err := Compact(ctx, source, destination, nil); err == nil ||
 		!strings.Contains(err.Error(), localAlias) {
 		t.Fatalf("store-local compaction error = %v", err)
 	}
@@ -193,7 +193,7 @@ func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "cannot be retired") {
 		t.Fatalf("store-local retirement error = %v", err)
 	}
-	if _, err := Compact(ctx, source, destination); err == nil ||
+	if _, err := Compact(ctx, source, destination, nil); err == nil ||
 		!strings.Contains(err.Error(), localAlias) {
 		t.Fatalf("irrevocable store-local compaction error = %v", err)
 	}

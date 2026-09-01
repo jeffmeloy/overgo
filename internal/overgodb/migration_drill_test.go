@@ -111,7 +111,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	// Migration: rebuild into a fresh segmented layout and read it back
 	// read-only.
 	rebuiltRoot := filepath.Join(base, "rebuilt")
-	report, err := Rebuild(ctx, source, rebuiltRoot, nil)
+	report, err := Rebuild(ctx, source, rebuiltRoot, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 
 	// Retention: compaction preserves the live surface in a fresh root.
 	compactRoot := filepath.Join(base, "compacted")
-	if _, err := Compact(ctx, source, compactRoot); err != nil {
+	if _, err := Compact(ctx, source, compactRoot, nil); err != nil {
 		t.Fatal(err)
 	}
 	compacted, err := OpenReadOnly(compactRoot)

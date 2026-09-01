@@ -99,6 +99,17 @@ func ReadLifecycleEvent(ctx context.Context, reader artifact.Reader, id artifact
 	return lifecycleCodec.Read(ctx, reader, id)
 }
 
+// LifecycleDocumentContract exposes the exact lifecycle document contract
+// for store-wide scans by authority owners.
+func LifecycleDocumentContract() artifact.DocumentContract {
+	return lifecycleContract
+}
+
+// ParseLifecycleEvent decodes one exact typed lifecycle document.
+func ParseLifecycleEvent(content []byte) (LifecycleEvent, error) {
+	return lifecycleCodec.Parse(content)
+}
+
 func (e LifecycleEvent) Content() (artifact.Content, error) {
 	return lifecycleCodec.Content(e)
 }

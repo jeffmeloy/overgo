@@ -183,3 +183,34 @@ func (b blobStore) has(id artifact.ID) bool {
 	_, statErr := os.Stat(destination)
 	return statErr == nil
 }
+
+// MergeBlobTrees moves every content-addressed blob under sourceRoot's
+// blobs directory into destinationRoot's blob tree. A journal swap after a
+// rebuild needs this: the rebuilt journal references content the rebuild
+// externalized into its own blobs directory, and a swap without the blobs
+// strands every chain whose content the old journal carried inline. Blob
+// paths are content hashes, so an already-present target is byte-identical
+// and the source copy is simply dropped.
+func MergeBlobTrees(sourceRoot, destinationRoot string) error {
+	source := filepath.Join(sourceRoot, blobDirectory)
+	if _, err := os.Stat(source); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		relative, err := filepath.Rel(source, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(destinationRoot, blobDirectory, relative)
+		if _, err := os.Stat(target); err == nil {
+			return os.Remove(path)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), storeDirectoryMode); err != nil {
+			return err
+		}
+		return os.Rename(path, target)
+	})
+}

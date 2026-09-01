@@ -75,6 +75,10 @@ func groundedDoctrineDecisions() []string {
 // row-specific assertions are conditional while the ratchets remain active.
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
+	if strings.Contains(document.Campaign, "audio.cpp") {
+		assertAudioCapabilityCampaign(t, document)
+		return
+	}
 	// Each campaign pins its own structure ratchet, keyed by campaign
 	// identity the way the grounded doctrine binding already is: the
 	// integrated-RSI snapshot binds to the RSI control-plane campaign, and
@@ -418,6 +422,57 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"live-safety/circuit-breaker")
 }
 
+// assertAudioCapabilityCampaign admits the branch-specific audio campaign
+// without weakening its structure to the historical RSI or validation
+// whitelists. Once the campaign adopts the repeated master-sync workflow, the
+// plan itself must retain one exact synchronization row before every work row.
+func assertAudioCapabilityCampaign(t *testing.T, document Plan) {
+	t.Helper()
+	for _, required := range []string{
+		"pinned behavioral oracle", "never a linked runtime", "exact stop and resume", "pre/post WER",
+	} {
+		if !strings.Contains(document.Doctrine, required) {
+			t.Errorf("audio campaign doctrine omits %q", required)
+		}
+	}
+	workflow := strings.Contains(document.Doctrine, "Every retained work row executes as one repeated automation cycle.")
+	paired := 0
+	for _, item := range document.Items {
+		if strings.HasPrefix(item.ID, "merge-") || item.ID == "workflow-cycle" {
+			continue
+		}
+		for _, step := range item.Steps {
+			if step.Status != StatusOpen || strings.TrimSpace(step.Verify) == "" {
+				t.Errorf("audio campaign step %s/%s lacks an open machine-checked verifier", item.ID, step.ID)
+			}
+		}
+		if !workflow {
+			continue
+		}
+		if len(item.Steps)%2 != 0 {
+			t.Errorf("audio workflow item %s has %d rows, want sync/work pairs", item.ID, len(item.Steps))
+			continue
+		}
+		for index := 0; index < len(item.Steps); index += 2 {
+			sync, work := item.Steps[index], item.Steps[index+1]
+			if sync.ID != "sync-"+work.ID {
+				t.Errorf("audio workflow pair %s[%d] = %s then %s", item.ID, index, sync.ID, work.ID)
+			}
+			if sync.Verify != "git merge-base --is-ancestor master HEAD && go run ./cmd/plan -status" {
+				t.Errorf("audio workflow sync %s/%s has verifier %q", item.ID, sync.ID, sync.Verify)
+			}
+			wantDependency := []string{item.ID + "/" + sync.ID}
+			if !slices.Equal(work.DependsOn, wantDependency) {
+				t.Errorf("audio workflow work %s/%s dependencies = %v, want %v", item.ID, work.ID, work.DependsOn, wantDependency)
+			}
+			paired++
+		}
+	}
+	if workflow && paired == 0 {
+		t.Error("audio workflow doctrine has no retained sync/work pairs")
+	}
+}
+
 // assertValidationCampaignSnapshot pins the validation-only freeze campaign:
 // only its declared drill steps may appear (completed rows leave plan.json,
 // so absence is fine and unknown ids are the violation), every retained step
@@ -437,6 +492,11 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"hermetic-foundation/browser-workbench",
 		"hermetic-foundation/release-build",
 		"hermetic-foundation/store-drills",
+		// Fix rows injected under the owner's correct-as-you-go directive
+		// (2026-08-31) are declared here when a drill surfaces a defect:
+		// the store drill exposed the rebuild/compaction refusal, the
+		// stranded-blob swap, and the missing lifecycle evidence lineage.
+		"store-lifecycle-admission/do",
 		"inference-e2e/verified-matrix",
 		"inference-e2e/serving-operations",
 		"training-e2e/route-drills",

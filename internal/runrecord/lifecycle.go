@@ -125,6 +125,29 @@ func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
 	return nil
 }
 
+// GateLifecycleAtRest builds the store-local admission a physical store
+// rewrite (rebuild or compaction) needs: the gate lifecycle head may cross
+// only while it is finalized, because a prepared lifecycle is an in-flight
+// gate whose receipts are still being written. The lifecycle documents
+// themselves are content-addressed evidence and survive the rewrite with
+// identical identities; only an unresolved authority blocks it. Any
+// store-local alias this package does not own is refused as unknown.
+func GateLifecycleAtRest(reader artifact.Reader) func(name string, target artifact.ID) error {
+	return func(name string, target artifact.ID) error {
+		if name != GateLifecycleCurrentAlias {
+			return fmt.Errorf("run record: unknown store-local authority %q", name)
+		}
+		lifecycle, err := RequireGateLifecycle(context.Background(), reader, target)
+		if err != nil {
+			return err
+		}
+		if lifecycle.State != GateFinalized {
+			return fmt.Errorf("run record: gate lifecycle %s is %s, not at rest", target, lifecycle.State)
+		}
+		return nil
+	}
+}
+
 // OutstandingGateDebt derives preparations lacking a finalization.
 func OutstandingGateDebt(records []GateLifecycle) ([]GateLifecycle, error) {
 	prepared := map[artifact.ID]GateLifecycle{}

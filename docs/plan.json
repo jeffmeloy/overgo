@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "inference-e2e",
-      "title": "End-to-end inference over the verified artifact matrix",
-      "status": "open",
-      "steps": [
-        {
-          "id": "serving-operations",
-          "title": "Exercise concurrent scheduling, live model swap through the proxy, restart continuation, and download cancellation with clean server shutdown",
-          "status": "open",
-          "verify": "go run ./cmd/device-lane",
-          "rationale": "These are the operational paths a single-model serve never touches; each has a gated suite under the device and server lanes. Bind the combined invocation via -setverify when the drill starts.",
-          "depends_on": [
-            "inference-e2e/verified-matrix"
-          ]
-        }
-      ]
-    },
-    {
       "id": "training-e2e",
       "title": "End-to-end training beyond a successful update step",
       "status": "open",

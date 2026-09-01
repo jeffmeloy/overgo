@@ -55,9 +55,32 @@ and specific -- unattended operation at scale, improvement of the proposing
 model's own cognition, and measured effectiveness against competing strategies
 (see What remains before fully autonomous RSI).
 
-![Overgo technical architecture](docs/assets/overgo-platform-technical-architecture.png)
+![Overgo governed RSI architecture](docs/assets/overgo-platform-technical-architecture.png)
 
 [Structured figure definition](docs/assets/overgo_graphic.json)
+
+## The recursive control boundary
+
+Overgo is an RSI system because measured outcomes can change the mechanism
+that proposes, executes, or judges later work. It is not recursive merely
+because a model can generate another patch. Every iteration crosses the same
+deterministic boundary:
+
+| Phase | Authority and invariant |
+| --- | --- |
+| Steer | An operator or model proposes a bounded goal. A proposal grants no execution or activation authority. |
+| Form candidate | The proposal becomes a typed, falsifiable candidate over a model, recipe, policy, dataset, mechanism, or code change. |
+| Compile and realize | Go owners prove dependency and capability closure, then materialize the candidate through bounded execution. |
+| Evaluate | Baselines, ablations, benchmark suites, retrieval judgments, resource measurements, and production probes produce comparable evidence. |
+| Decide | Executable policy admits promotion, rejection, quarantine, rollback, or further supervised work. Model preference cannot substitute for evidence. |
+| Persist | OvergoDB records identities, lineage, receipts, metrics, decisions, checkpoints, and versioned active state. |
+| Recur | Durable outcomes expose the next capability gap and inform the next steering proposal under explicit budgets and stop conditions. |
+
+The same cycle governs changes to inference, training, evaluation, retrieval,
+routing, automation, and the control system itself. The repository demonstrates
+supervised system-level RSI through this loop. It does not claim unattended
+operation at scale or autonomous improvement of the proposing model's
+cognition.
 
 ## Objectives
 

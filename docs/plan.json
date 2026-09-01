@@ -1,6 +1,258 @@
 {
-  "campaign": "Deterministic RSI storage, execution, and grounded capability control plane",
-  "doctrine": "OvergoDB remains the sole canonical artifact transaction authority. Modularization separates a small hash-chained metadata journal, immutable content-addressed blobs, compiled Go projections and checkpoints, and bounded operational coordination while preserving artifact.Repository, global ordering, atomic batches, alias compare-and-set, lineage validation, read-only refresh, backup, retention, and deterministic replay. High-volume observations are chunked into blobs and committed through bounded summaries; heartbeats, wake signals, and partial process output remain operational unless they cause a meaningful durable transition. Multica and semantic-router are used only as independently re-expressed inventories of operational problems and observable behavior: no source, schema, file format, runtime, Markdown skill, plugin mechanism, or product layer is copied. Modern and Marin Overgo source integrations remain subordinate to the same common owners and ratchets; repository, commit, license, path, mechanism, or transform provenance is evidence only and can never grant capability or execution authority. docs/plan.json is the sole live execution plan; imported branch plans, roadmaps, design records, staged-surface manifests, and historical Git snapshots are evidence or inventories only and cannot schedule work, satisfy dependencies, or grant completion. RSI uses four shared components rather than domain platforms: one typed and falsifiable cross-domain candidate spine, one evidence-gated promotion and rollback lifecycle, one evidence-driven budget and stop driver, and one transport-neutral UTCP effect, approval, and receipt contract. Model, composition, mechanism, dataset, routing, steering, and code logic enter only as compiled Go candidate-source, realization, or evaluator plugins. AgentTaskContract or DelegatedAgentInvocation provides the task ceiling, active AutomationPolicyLifecycle provides a standing unattended grant within that ceiling, and operatoraction HumanDecision is the argument-bound per-action grant; the shared StageReceipt binds whichever exact authority was consumed. Agent-initiated and cross-process or peer calls may resolve the invocation contract through UTCP transports; deterministic in-process orchestration calls existing Go owners directly and shares only the contract and receipt shape, never the tool transport. Derived decisions are distribution-free where justified and otherwise bind their distribution assumptions, explicit missing-data coverage, and architecture tests that refuse bypasses. One shared sequential-control owner calibrates frozen Phase I incumbent limits and applies them in Phase II with replay-measured in-control run length and shift detection delay on the exact ordered, autocorrelated stream; common-cause or insufficient evidence cannot request lifecycle, budget, or autonomy mutation. The first capability proof is one local same-base composite advanced only to a supervised non-serving verified state while the production incumbent and unattended grant remain unchanged; advanced plugins, optimization, peer transport, rollout, live safety, concurrency, and closure are built from its persisted trace rather than ahead of it. Interaction efficiency is an external behavior: equal or better task capability with fewer semantic commits, journal documents, lineage edges, projection scans, decoded blobs, bytes, wakeups, context repetitions, model turns, capability invocations, approval rounds, tool calls, retries, and waits. Every optimization starts from a measured representative interaction trace, preserves exact admitted inputs and evidence, consolidates common policy or mechanics, and deletes the displaced path in the same commit. Grounded capability learning adapts only the highest-value PentAGI and RAGFlow concepts through existing Go owners: capability episodes are rebuildable projections over exact run-record authority; structural hybrid retrieval remains dataset-owned and emits evidence only when consumed; production probes, evidence-dominant routing, and exact trajectory supervision remain subordinate to typed placement, invocation, lifecycle, and receipt authority; reusable episode knowledge enters only as an admitted immutable dataset transform with independent held-out benefit. No second event log, mutable agent-memory service, provider router, external runtime, vector or graph database, prompt-owned workflow, Markdown skill, copied source, or free threshold is introduced.",
+  "campaign": "Integrated validation of the merged platform before any further capability work",
+  "doctrine": "This campaign is a capability freeze enforced by structure: docs/plan.json is the sole live execution plan, every commit binds to a plan row through the gate, and this plan contains only validation rows, so no new model family, workflow, policy, command, or optimization mechanism can land while any row is open. Durability precedes measurement: the 706-commit local history and the OvergoDB store are published to durable copies before any drill runs. The pre-integration master tip 53b58aae is the historical comparison point wherever a delta is meaningful; the consumer census already diffs against plan-slice@53b58aae. Every drill has a deterministic Go owner whose exit code is the verdict -- a checklist item a person attests to is not evidence. Lanes report UNAVAILABLE honestly when a device, model, browser, or toolkit is missing; unavailable is never passing evidence and never a failure of the drill's owner. Measurement judgments are multidimensional through the exact improvement-fitness owner: a throughput gain that reduces quality, or a quality gain that violates memory bounds, does not pass. Rows whose exact invocation depends on execution-time facts (installed model identities, device presence) bind their final verify through plan -setverify before work starts, never through prose. Findings discovered during a drill are parked with cmd/finding and scheduled as rows only after this campaign completes or by explicit owner decision.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
-  "items": []
+  "items": [
+    {
+      "id": "durability",
+      "title": "Publish the local history and store to durable copies",
+      "status": "open",
+      "steps": [
+        {
+          "id": "publish-history",
+          "title": "Push master to origin and push the pre-integration tip 53b58aae as branch pre-integration-master so the comparison point is durable",
+          "status": "open",
+          "verify": "git fetch -q origin master \u0026\u0026 git merge-base --is-ancestor HEAD FETCH_HEAD",
+          "rationale": "706 local-only commits are a single-disk risk; nothing else in this campaign reduces it. Requires the owner's remote credentials; record an external-prereq stop if push authorization is unavailable.",
+          "depends_on": [
+            "campaign-bootstrap/author-validation-plan"
+          ]
+        },
+        {
+          "id": "snapshot-store",
+          "title": "Publish a verified OvergoDB backup with overgodb-backup and record its head commit and sequence identity",
+          "status": "open",
+          "verify": "go run ./cmd/store-check",
+          "rationale": "Git does not carry the store; overgodb-backup verifies the copy by replaying it read-only and matching head commit and sequence before renaming into place. Bind the exact destination via -setverify when the drill starts.",
+          "depends_on": [
+            "campaign-bootstrap/author-validation-plan"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "freeze-capture",
+      "title": "Capture the frozen surface identity",
+      "status": "open",
+      "steps": [
+        {
+          "id": "capture-identity",
+          "title": "Record exact commit identity, API and compatibility manifests, SBOM, kernel manifest, installed model identities, and CUDA driver and device facts as evidence against plan-slice@53b58aae",
+          "status": "open",
+          "verify": "go run ./cmd/preflight \u0026\u0026 go run ./cmd/kernel-manifest \u0026\u0026 go run ./cmd/cuda-info",
+          "rationale": "Every later drill's result is attributable only if the surface it ran against is pinned first; the manifests and censuses are the existing owners of that identity.",
+          "depends_on": [
+            "durability/publish-history",
+            "durability/snapshot-store"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hermetic-foundation",
+      "title": "Hermetic and operational foundation lanes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "hermetic-suite",
+          "title": "Run the full hermetic test lane through its Go owner",
+          "status": "open",
+          "verify": "go run ./cmd/test-lane",
+          "rationale": "test-lane is the common owner CI and release checks use; incomplete evidence is explicit rather than absorbed.",
+          "depends_on": [
+            "freeze-capture/capture-identity"
+          ]
+        },
+        {
+          "id": "repeat-agreement",
+          "title": "Run repeat-agreement checks for the inference and server suites",
+          "status": "open",
+          "verify": "go run ./cmd/coverage-lanes -repeat ./internal/inference \u0026\u0026 go run ./cmd/coverage-lanes -repeat ./internal/server",
+          "rationale": "A test that changes outcome between identical runs is a finding, never noise absorbed by a retry.",
+          "depends_on": [
+            "hermetic-foundation/hermetic-suite"
+          ]
+        },
+        {
+          "id": "coverage-floors",
+          "title": "Hold the hermetic coverage lanes to their reviewed floors",
+          "status": "open",
+          "verify": "go run ./cmd/coverage-lanes",
+          "rationale": "Per-lane floors keep an aggregate number from hiding a weak execution path.",
+          "depends_on": [
+            "hermetic-foundation/hermetic-suite"
+          ]
+        },
+        {
+          "id": "race-lane",
+          "title": "Run the host race lane and CUDA racecheck/synccheck",
+          "status": "open",
+          "verify": "go run ./cmd/race-lane",
+          "rationale": "Missing compiler, device, driver, or sanitizer reports UNAVAILABLE explicitly rather than passing silently.",
+          "depends_on": [
+            "hermetic-foundation/hermetic-suite"
+          ]
+        },
+        {
+          "id": "browser-workbench",
+          "title": "Run the real-browser GUI acceptance lane, covering the in-memory key with opt-in persistence and the sanitized rendering path",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane",
+          "rationale": "The key-storage and DOM-helper changes landed with static and hermetic evidence only; the browser lane is their end-to-end owner.",
+          "depends_on": [
+            "hermetic-foundation/hermetic-suite"
+          ]
+        },
+        {
+          "id": "release-build",
+          "title": "Produce the reproducible release build through its owner",
+          "status": "open",
+          "verify": "go run ./cmd/release",
+          "rationale": "A release artifact whose hashes derive from the pinned commit is the deliverable the rest of the campaign certifies.",
+          "depends_on": [
+            "hermetic-foundation/hermetic-suite"
+          ]
+        },
+        {
+          "id": "store-drills",
+          "title": "Exercise backup, restore, rebuild, repair, compaction, and migration on a copy of the store",
+          "status": "open",
+          "verify": "go run ./cmd/store-check",
+          "rationale": "overgodb-backup, overgodb-rebuild, overgodb-repair, and overgodb-compact each run against a copied store; store-check is the final integrity verdict. Bind the drill's scripted sequence via -setverify when it starts.",
+          "depends_on": [
+            "durability/snapshot-store"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inference-e2e",
+      "title": "End-to-end inference over the verified artifact matrix",
+      "status": "open",
+      "steps": [
+        {
+          "id": "verified-matrix",
+          "title": "Serve the verified matrix -- Qwen3 dense text and quantized CUDA, Qwen3.5 hybrid execution with MTP speculation, Gemma3 text, Gemma4 multimodal projection, T5 encoder, and one media-generation recipe -- measuring output correctness, buffered and streaming parity, native, OpenAI-style, and Anthropic-style protocol parity, time to first token, tokens per second, peak host memory and VRAM, prompt-cache reuse, context shifting, and speculative decoding on versus off",
+          "status": "open",
+          "verify": "go run ./cmd/smoke-lane",
+          "rationale": "The smoke matrix is the servable predicate over the store, judged against verified models rather than all prototypes; perf-sweep and perplexity supply the per-model measurements. Bind the exact matrix invocation via -setverify once installed model identities are captured.",
+          "depends_on": [
+            "hermetic-foundation/hermetic-suite",
+            "freeze-capture/capture-identity"
+          ]
+        },
+        {
+          "id": "serving-operations",
+          "title": "Exercise concurrent scheduling, live model swap through the proxy, restart continuation, and download cancellation with clean server shutdown",
+          "status": "open",
+          "verify": "go run ./cmd/device-lane",
+          "rationale": "These are the operational paths a single-model serve never touches; each has a gated suite under the device and server lanes. Bind the combined invocation via -setverify when the drill starts.",
+          "depends_on": [
+            "inference-e2e/verified-matrix"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "training-e2e",
+      "title": "End-to-end training beyond a successful update step",
+      "status": "open",
+      "steps": [
+        {
+          "id": "route-drills",
+          "title": "For every declared training route: load exact recorded input, train through the declared architecture route, publish checkpoint and optimizer state, stop and resume exactly, verify data-stream and random-state continuity, reload the checkpoint, run post-training inference, evaluate the pre/post bracket, and confirm frozen components remain unchanged",
+          "status": "open",
+          "verify": "go run ./cmd/train-lane",
+          "rationale": "train-lane is the store-derived training matrix through the same workflow a user runs; exact resume and frozen-component invariance are where training verification usually lies. Dense token training requires -freeze-lexical or the host Newton-Schulz path stalls at zero GPU utilization.",
+          "depends_on": [
+            "inference-e2e/verified-matrix"
+          ]
+        },
+        {
+          "id": "preference-objectives",
+          "title": "Exercise DPO and GRPO with valid objective-specific inputs and evaluate their brackets",
+          "status": "open",
+          "verify": "go run ./cmd/training-objective",
+          "rationale": "Preference objectives need inputs a smoke cannot supply; this drill provides them explicitly rather than skipping the routes.",
+          "depends_on": [
+            "training-e2e/route-drills"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "benchmark-routing",
+      "title": "Benchmark and routing validation",
+      "status": "open",
+      "steps": [
+        {
+          "id": "pinned-benchmarks",
+          "title": "Execute the pinned benchmark set with each model's declared conversation framing: a broad knowledge suite such as MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and multimodal evaluation where applicable",
+          "status": "open",
+          "verify": "go run ./cmd/evaluate -all",
+          "rationale": "evaluate -all derives models and suites from the store; results publish through benchmark -publish into the evidence picker with denominators.",
+          "depends_on": [
+            "inference-e2e/verified-matrix"
+          ]
+        },
+        {
+          "id": "resource-quality-fitness",
+          "title": "Run throughput and memory sweeps and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "status": "open",
+          "verify": "go build ./cmd/perf-sweep ./cmd/perplexity",
+          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Bind the sweep matrix and the loop -compare-resource-fitness invocation via -setverify when the drill starts.",
+          "depends_on": [
+            "benchmark-routing/pinned-benchmarks"
+          ]
+        },
+        {
+          "id": "routing-replay",
+          "title": "Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
+          "status": "open",
+          "verify": "go build ./cmd/router-observation ./cmd/rerank",
+          "rationale": "Routing quality is only measurable against the recorded stream; replay keeps the judgment exact and distribution-honest. Bind the replay invocation via -setverify when the drill starts.",
+          "depends_on": [
+            "benchmark-routing/pinned-benchmarks"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "failure-recovery",
+      "title": "Deliberate failure and recovery drills",
+      "status": "open",
+      "steps": [
+        {
+          "id": "interruption-drills",
+          "title": "Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
+          "status": "open",
+          "verify": "go run ./cmd/store-check",
+          "rationale": "Interruption is the one input every durable subsystem claims to survive; each drill damages a copy, never the canonical store, and store-check is the verdict.",
+          "depends_on": [
+            "hermetic-foundation/store-drills"
+          ]
+        },
+        {
+          "id": "control-plane-drills",
+          "title": "Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
+          "status": "open",
+          "verify": "go build ./cmd/loop ./cmd/agent-loop",
+          "rationale": "The control plane's refusal and recovery paths are capability claims like any other; each has an evidence door under cmd/loop and cmd/agent-loop. Bind the drill sequence via -setverify when it starts.",
+          "depends_on": [
+            "failure-recovery/interruption-drills"
+          ]
+        },
+        {
+          "id": "gate-recovery-drill",
+          "title": "Interrupt a gate run against a scratch clone and recover through -recover-preparation, -recover-interrupted, and the watchdog",
+          "status": "open",
+          "verify": "go build ./cmd/gate",
+          "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit, and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. Bind the scripted drill via -setverify when it starts.",
+          "depends_on": [
+            "failure-recovery/interruption-drills"
+          ]
+        }
+      ]
+    }
+  ]
 }

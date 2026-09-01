@@ -163,10 +163,13 @@ func releaseManifestAuditCommand(root string) *exec.Cmd {
 }
 
 func buildArchive(root string) ([]byte, error) {
-	binaryDirectory := filepath.Join(root, "bin")
-	if err := os.MkdirAll(binaryDirectory, releaseDirectoryMode); err != nil {
+	// Build outside the source tree: the gate verifies this owner inside an
+	// immutable candidate worktree, so the tree itself must stay untouched.
+	binaryDirectory, err := os.MkdirTemp("", "overgo-release-bin-")
+	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = os.RemoveAll(binaryDirectory) }()
 	entries := make([]archiveEntry, 0, len(releaseCommands)+len(releaseDocuments)+1)
 	for _, name := range releaseCommands {
 		output := filepath.Join(binaryDirectory, name+".exe")

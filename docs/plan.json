@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "release-build",
-          "title": "Produce the reproducible release build through its owner",
-          "status": "open",
-          "verify": "go run ./cmd/release",
-          "rationale": "A release artifact whose hashes derive from the pinned commit is the deliverable the rest of the campaign certifies.",
-          "depends_on": [
-            "hermetic-foundation/hermetic-suite"
-          ]
-        },
-        {
           "id": "store-drills",
           "title": "Exercise backup, restore, rebuild, repair, compaction, and migration on a copy of the store",
           "status": "open",

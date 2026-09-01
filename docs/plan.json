@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "store-drills",
-          "title": "Exercise backup, restore, rebuild, repair, compaction, and migration on a copy of the store",
-          "status": "open",
-          "verify": "go run ./cmd/store-check",
-          "rationale": "overgodb-backup, overgodb-rebuild, overgodb-repair, and overgodb-compact each run against a copied store; store-check is the final integrity verdict. Bind the drill's scripted sequence via -setverify when it starts.",
-          "depends_on": [
-            "durability/snapshot-store"
-          ]
-        },
-        {
           "id": "race-lane",
           "title": "Run the host race lane and CUDA racecheck/synccheck",
           "status": "open",

@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "durability",
-      "title": "Publish the local history and store to durable copies",
-      "status": "open",
-      "steps": [
-        {
-          "id": "publish-history",
-          "title": "Push master to origin and push the pre-integration tip 53b58aae as branch pre-integration-master so the comparison point is durable",
-          "status": "open",
-          "verify": "git fetch -q origin master \u0026\u0026 git merge-base --is-ancestor HEAD FETCH_HEAD",
-          "rationale": "706 local-only commits are a single-disk risk; nothing else in this campaign reduces it. Requires the owner's remote credentials; record an external-prereq stop if push authorization is unavailable.",
-          "depends_on": [
-            "campaign-bootstrap/author-validation-plan"
-          ]
-        }
-      ]
-    },
-    {
       "id": "freeze-capture",
       "title": "Capture the frozen surface identity",
       "status": "open",

@@ -82,6 +82,9 @@ func run(args []string) error {
 	publishDelegationSpec := flags.String("publish-delegation", "", "publish one delegated agent invocation from this spec")
 	automationTransitionSpecPath := flags.String("publish-automation-transition", "", "publish one automation policy lifecycle transition from this spec")
 	trajectoryPlanSpecPath := flags.String("bind-trajectory-plan", "", "bind agent trajectories onto one stored evaluation plan from this spec")
+	efficiencyTraceSpecPath := flags.String("publish-efficiency-trace", "", "publish one measured interaction-work trace from this spec")
+	directionSpecPath := flags.String("publish-direction", "", "publish one extracted residual-direction claim from this spec")
+	attemptReceiptSpecPath := flags.String("attempt-receipt", "", "resolve and print one terminal attempt receipt from this spec")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -108,6 +111,12 @@ func run(args []string) error {
 		return publishAutomationTransition(*repoPath, *automationTransitionSpecPath, os.Stdout)
 	case *trajectoryPlanSpecPath != "":
 		return bindTrajectoryPlan(*repoPath, *trajectoryPlanSpecPath, os.Stdout)
+	case *efficiencyTraceSpecPath != "":
+		return publishEfficiencyTrace(*repoPath, *efficiencyTraceSpecPath, os.Stdout)
+	case *directionSpecPath != "":
+		return publishDirection(*repoPath, *directionSpecPath, os.Stdout)
+	case *attemptReceiptSpecPath != "":
+		return readAttemptReceipt(*repoPath, *attemptReceiptSpecPath, os.Stdout)
 	}
 	var loaded config
 	if err := jsonfile.Decode(*configPath, &loaded); err != nil {

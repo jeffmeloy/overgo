@@ -57,12 +57,6 @@
       }
     },
     {
-      "package": "overgo/internal/runrecord",
-      "name": "NewEfficiencyTrace",
-      "reason": "Efficiency-trace construction remains test-proven until the measured efficiency gate publishes persisted comparison claims.",
-      "retire_with": "verification-depth/inference-coverage"
-    },
-    {
       "package": "overgo/internal/artifact/repositorytest",
       "name": "CountingRepository",
       "reason": "Shared commit-counting wrapper proving one-batch semantic transitions across runrecord, workflowruntime, and modelrecipe; test-support surface is test-consumed by design.",
@@ -106,24 +100,6 @@
         "classification": "test-support",
         "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
       }
-    },
-    {
-      "package": "overgo/internal/testevidence",
-      "name": "RepeatAgreementForCommand",
-      "reason": "Repeat-agreement verdict for flaky-command detection, delivered ahead of the verification-depth lanes.",
-      "retire_with": "verification-depth/inference-coverage"
-    },
-    {
-      "package": "overgo/internal/runrecord",
-      "name": "ResolveTerminalAttemptReceipt",
-      "reason": "Per-operation attempt-ordinal receipt lookup.",
-      "retire_with": "verification-depth/inference-coverage"
-    },
-    {
-      "package": "overgo/internal/representation",
-      "name": "NewResidualDirection",
-      "reason": "Constructor for extracted residual-direction claims, delivered ahead of the extraction pipeline the improvement loop runs.",
-      "retire_with": "verification-depth/inference-coverage"
     }
   ]
 }

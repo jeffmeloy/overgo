@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "verification-depth",
-      "title": "Raise risk-weighted verification depth over serving and operator surfaces",
-      "status": "open",
-      "steps": [
-        {
-          "id": "inference-coverage",
-          "title": "Raise host inference coverage toward sixty percent over cache shifting, prompt reuse, speculative decoding, sampling, cancellation, and lifecycle; require host-reference tests per compiled operator policy and CUDA parity per activated-recipe operator",
-          "status": "open",
-          "verify": "go test ./internal/inference -count=1",
-          "rationale": "Separate coverage summaries for hermetic logic, real browser, real CUDA, and installed models keep an aggregate number from hiding weak execution paths."
-        }
-      ]
-    },
-    {
       "id": "portability-polish",
       "title": "Portability, licensing, and operational polish",
       "status": "open",

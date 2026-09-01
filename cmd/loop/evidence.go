@@ -15,6 +15,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/representation"
 	"overgo/internal/runrecord"
 )
 
@@ -245,6 +246,115 @@ func bindTrajectoryPlan(root, specPath string, output io.Writer) error {
 		return err
 	}
 	_, err = fmt.Fprintf(output, "bound trajectory plan %s\n", bound.Identity())
+	return err
+}
+
+// efficiencyTraceSpec is one measured interaction-work record.
+type efficiencyTraceSpec struct {
+	Trace runrecord.EfficiencyTrace `json:"trace"`
+}
+
+// publishEfficiencyTrace mints and commits one efficiency trace: the exact
+// work one representative task cost on one surface, bound to the completed
+// result and its evidence so a reduction can never take credit for doing
+// less of the task.
+func publishEfficiencyTrace(root, specPath string, output io.Writer) error {
+	var spec efficiencyTraceSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	trace, err := runrecord.NewEfficiencyTrace(spec.Trace)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.Open(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	content, err := trace.Content()
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+		Key:       "loop/efficiency-trace/" + trace.ID.String(),
+		Artifacts: []artifact.Descriptor{content.Descriptor},
+		Contents:  []artifact.Content{content},
+	}); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "published efficiency trace %s\n", trace.ID)
+	return err
+}
+
+// directionSpec is one extracted residual-direction claim.
+type directionSpec struct {
+	Direction representation.ResidualDirection `json:"direction"`
+}
+
+// publishDirection mints and commits one residual direction with the full
+// authority lineage its claim depends on; the steering candidate spine
+// admits it only through the common admission entry.
+func publishDirection(root, specPath string, output io.Writer) error {
+	var spec directionSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	direction, err := representation.NewResidualDirection(spec.Direction)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.Open(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	content, err := direction.Content()
+	if err != nil {
+		return err
+	}
+	if _, err := artifact.CommitBatch(context.Background(), store, artifact.Batch{
+		Key:       "loop/residual-direction/" + direction.ID.String(),
+		Artifacts: []artifact.Descriptor{content.Descriptor},
+		Contents:  []artifact.Content{content},
+		Lineage:   direction.Lineage(),
+	}); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "published residual direction %s\n", direction.ID)
+	return err
+}
+
+// attemptReceiptSpec addresses one operation's terminal attempt receipt.
+type attemptReceiptSpec struct {
+	Operation artifact.ID `json:"operation"`
+	Attempt   uint32      `json:"attempt"`
+}
+
+// readAttemptReceipt resolves and prints one terminal attempt receipt: the
+// operator's read path over the exact recovery evidence chain.
+func readAttemptReceipt(root, specPath string, output io.Writer) error {
+	var spec attemptReceiptSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	store, err := overgodb.OpenReadOnly(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	receipt, found, err := runrecord.ResolveTerminalAttemptReceipt(context.Background(), store, spec.Operation, spec.Attempt)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("loop: operation %s attempt %d has no terminal receipt", spec.Operation, spec.Attempt)
+	}
+	encoded, err := json.MarshalIndent(receipt, "", " ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", encoded)
 	return err
 }
 

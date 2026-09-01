@@ -79,7 +79,7 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 
 	// Cold rebuild into a fresh layout, then answer read-only.
 	rebuiltRoot := filepath.Join(base, "rebuilt")
-	if _, err := Rebuild(ctx, store, rebuiltRoot, nil); err != nil {
+	if _, err := Rebuild(ctx, store, rebuiltRoot, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	rebuilt, err := OpenReadOnly(rebuiltRoot)

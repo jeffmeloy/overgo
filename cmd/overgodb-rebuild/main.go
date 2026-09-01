@@ -19,6 +19,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 )
 
 // strippedSchemas are derived-cache document schemas: recomputable
@@ -57,7 +58,7 @@ func run() error {
 	}
 	report, err := overgodb.Rebuild(context.Background(), source, *destination, func(descriptor artifact.Descriptor) bool {
 		return strippedSchemas[descriptor.Schema]
-	})
+	}, runrecord.GateLifecycleAtRest(source))
 	closeErr := source.Close()
 	if err != nil {
 		return errors.Join(err, closeErr)
@@ -91,6 +92,9 @@ func swapJournals(repo, destination string, discardOld bool) error {
 		return err
 	}
 	if err := os.Rename(rebuiltJournal, journal); err != nil {
+		return err
+	}
+	if err := overgodb.MergeBlobTrees(destination, repo); err != nil {
 		return err
 	}
 	fmt.Printf("swapped: previous journal kept at %s\n", previous)

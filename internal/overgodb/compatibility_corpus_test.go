@@ -222,7 +222,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		}
 		defer store.Close()
 		destination := filepath.Join(t.TempDir(), "compacted")
-		if _, err := Compact(t.Context(), store, destination); err != nil {
+		if _, err := Compact(t.Context(), store, destination, nil); err != nil {
 			t.Fatal(err)
 		}
 		compacted, err := OpenReadOnly(destination)

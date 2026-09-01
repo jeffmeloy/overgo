@@ -8,6 +8,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,8 @@ import (
 	"path/filepath"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 )
 
 const (
@@ -34,7 +37,11 @@ func main() {
 func run() error {
 	repo := flag.String("repo", "overgodb-store", "OvergoDB store directory")
 	apply := flag.Bool("apply", false, "perform the repair; default reports only")
+	lineage := flag.Bool("lineage", false, "commit the lineage edges committed lifecycle events declare but the store lacks (additive typed-document repair)")
 	flag.Parse()
+	if *lineage {
+		return reconcileLineage(*repo)
+	}
 	journal := filepath.Join(*repo, "overgodb.log")
 	validEnd, total, frames, badFrames, err := scanJournal(journal)
 	if err != nil {
@@ -155,4 +162,22 @@ func copyPrefix(source, destination string, bytesToCopy int64) error {
 		return err
 	}
 	return out.Close()
+}
+
+// reconcileLineage repairs the typed-document layer: lifecycle events
+// published without their declared lineage edges leave evidence invisible
+// to lineage-closure consumers such as compaction's retained set.
+func reconcileLineage(repo string) error {
+	store, err := overgodb.Open(repo)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	report, err := modelrecipe.ReconcileLifecycleLineage(context.Background(), store)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("lineage reconciled: events=%d missing_edges_committed=%d skipped_events=%d\n",
+		report.Events, report.MissingEdges, report.SkippedEvents)
+	return nil
 }

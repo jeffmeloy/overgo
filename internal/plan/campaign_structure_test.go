@@ -437,6 +437,11 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"hermetic-foundation/browser-workbench",
 		"hermetic-foundation/release-build",
 		"hermetic-foundation/store-drills",
+		// Fix rows injected under the owner's correct-as-you-go directive
+		// (2026-08-31) are declared here when a drill surfaces a defect:
+		// the store drill exposed the rebuild/compaction refusal, the
+		// stranded-blob swap, and the missing lifecycle evidence lineage.
+		"store-lifecycle-admission/do",
 		"inference-e2e/verified-matrix",
 		"inference-e2e/serving-operations",
 		"training-e2e/route-drills",

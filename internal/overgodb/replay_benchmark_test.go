@@ -82,7 +82,7 @@ func BenchmarkCompaction(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		if _, err := Compact(ctx, source, b.TempDir()); err != nil {
+		if _, err := Compact(ctx, source, b.TempDir(), nil); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -349,7 +349,7 @@ func reverifyActiveCapability(
 	batch, err := artifact.NewDocumentBatch(
 		"recipe/reverified/"+definition.ID.String()+"/"+event.ID.String(),
 		[]artifact.Content{decisionContent, eventContent},
-		decision.Lineage(),
+		append(decision.Lineage(), event.Lineage()...),
 		[]artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID, Previous: &current.ID}},
 	)
 	if err != nil {

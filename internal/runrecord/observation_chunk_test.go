@@ -320,7 +320,7 @@ func TestObservationChunkPublication(t *testing.T) {
 	}
 
 	compactedRoot := filepath.Join(root, "compacted")
-	if _, err := overgodb.Compact(ctx, store, compactedRoot); err != nil {
+	if _, err := overgodb.Compact(ctx, store, compactedRoot, nil); err != nil {
 		t.Fatal(err)
 	}
 	compacted, err := overgodb.OpenReadOnly(compactedRoot)

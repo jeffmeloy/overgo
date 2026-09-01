@@ -48,7 +48,7 @@ func TestDatasetCatalogCompactionRetainsAuthorityAndLocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination := filepath.Join(root, "compact")
-	if _, err := overgodb.Compact(ctx, source, destination); err != nil {
+	if _, err := overgodb.Compact(ctx, source, destination, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := source.Close(); err != nil {

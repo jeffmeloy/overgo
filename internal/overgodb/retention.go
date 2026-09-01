@@ -19,6 +19,32 @@ import (
 // rebuilding logical facts cannot preserve their original commit receipts.
 const StoreLocalAliasPrefix = "store-local/"
 
+// StoreLocalAdmission decides whether one store-local alias may cross a
+// rebuild or compaction. The storage layer cannot judge a store-local
+// authority's rest state -- the document schemas live above it -- so the
+// caller supplies the judgment: return nil to admit the alias into the
+// destination, or an error naming why the authority is still live. A nil
+// admission keeps the historical behavior of refusing every store-local
+// alias.
+type StoreLocalAdmission func(name string, target artifact.ID) error
+
+// admitStoreLocalAliases applies one admission to every store-local alias
+// view, returning the refusal that stops the physical rewrite.
+func admitStoreLocalAliases(operation string, aliases []AliasView, admit StoreLocalAdmission) error {
+	for _, alias := range aliases {
+		if !strings.HasPrefix(alias.Name, StoreLocalAliasPrefix) {
+			continue
+		}
+		if admit == nil {
+			return fmt.Errorf("overgodb: live store-local alias %q prevents %s", alias.Name, operation)
+		}
+		if err := admit(alias.Name, alias.Target); err != nil {
+			return fmt.Errorf("overgodb: store-local alias %q refuses %s: %w", alias.Name, operation, err)
+		}
+	}
+	return nil
+}
+
 // RetentionReport counts one compaction.
 type RetentionReport struct {
 	RetainedArtifacts int
@@ -39,7 +65,7 @@ type RetentionReport struct {
 }
 
 // Compact writes alias-rooted parent closure to a new store.
-func Compact(ctx context.Context, source *Store, destinationRoot string) (RetentionReport, error) {
+func Compact(ctx context.Context, source *Store, destinationRoot string, admit StoreLocalAdmission) (RetentionReport, error) {
 	report := RetentionReport{}
 	if source == nil {
 		return report, errors.New("overgodb retention: nil source store")
@@ -56,13 +82,9 @@ func Compact(ctx context.Context, source *Store, destinationRoot string) (Retent
 		return report, err
 	}
 	aliases := source.state.aliasViews("")
-	for _, alias := range aliases {
-		if strings.HasPrefix(alias.Name, StoreLocalAliasPrefix) {
-			source.mu.RUnlock()
-			return report, fmt.Errorf(
-				"overgodb retention: live store-local alias %q prevents compaction", alias.Name,
-			)
-		}
+	if err := admitStoreLocalAliases("compaction", aliases, admit); err != nil {
+		source.mu.RUnlock()
+		return report, err
 	}
 	for execution, link := range source.state.causality.records {
 		causality[execution] = link.Clone()

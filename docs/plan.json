@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "training-e2e",
-      "title": "End-to-end training beyond a successful update step",
-      "status": "open",
-      "steps": [
-        {
-          "id": "preference-objectives",
-          "title": "Exercise DPO and GRPO with valid objective-specific inputs and evaluate their brackets",
-          "status": "open",
-          "verify": "go run ./cmd/training-objective",
-          "rationale": "Preference objectives need inputs a smoke cannot supply; this drill provides them explicitly rather than skipping the routes.",
-          "depends_on": [
-            "training-e2e/route-drills"
-          ]
-        }
-      ]
-    },
-    {
       "id": "benchmark-routing",
       "title": "Benchmark and routing validation",
       "status": "open",

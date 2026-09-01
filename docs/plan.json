@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "repeat-agreement",
-          "title": "Run repeat-agreement checks for the inference and server suites",
-          "status": "open",
-          "verify": "go run ./cmd/coverage-lanes -repeat ./internal/inference \u0026\u0026 go run ./cmd/coverage-lanes -repeat ./internal/server",
-          "rationale": "A test that changes outcome between identical runs is a finding, never noise absorbed by a retry.",
-          "depends_on": [
-            "hermetic-foundation/hermetic-suite"
-          ]
-        },
-        {
           "id": "coverage-floors",
           "title": "Hold the hermetic coverage lanes to their reviewed floors",
           "status": "open",

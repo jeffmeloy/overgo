@@ -2,7 +2,7 @@
   "version": 1,
   "doc": "Reviewed hermetic statement-coverage floors per package for the coverage-lanes report. Floors only rise (coverage-lanes -update after an improvement); the model, CUDA, and browser lanes are measured by their own gated suites and never blend into these numbers.",
   "hermetic": {
-    "./internal/inference": 41.5,
-    "./internal/server": 72.0
+    "./internal/inference": 41.8,
+    "./internal/server": 72.7
   }
 }

@@ -1,0 +1,13 @@
+{
+  "driverVersion": "13.2",
+  "devices": [
+    {
+      "ordinal": 0,
+      "name": "NVIDIA GeForce RTX 4090 D",
+      "totalMemoryBytes": 51526500352,
+      "computeCapabilityMajor": 8,
+      "computeCapabilityMinor": 9,
+      "multiprocessorCount": 114
+    }
+  ]
+}

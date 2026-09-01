@@ -4,24 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "freeze-capture",
-      "title": "Capture the frozen surface identity",
-      "status": "open",
-      "steps": [
-        {
-          "id": "capture-identity",
-          "title": "Record exact commit identity, API and compatibility manifests, SBOM, kernel manifest, installed model identities, and CUDA driver and device facts as evidence against plan-slice@53b58aae",
-          "status": "open",
-          "verify": "go run ./cmd/preflight \u0026\u0026 go run ./cmd/kernel-manifest \u0026\u0026 go run ./cmd/cuda-info",
-          "rationale": "Every later drill's result is attributable only if the surface it ran against is pinned first; the manifests and censuses are the existing owners of that identity.",
-          "depends_on": [
-            "durability/publish-history",
-            "durability/snapshot-store"
-          ]
-        }
-      ]
-    },
-    {
       "id": "hermetic-foundation",
       "title": "Hermetic and operational foundation lanes",
       "status": "open",

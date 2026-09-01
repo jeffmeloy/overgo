@@ -21,15 +21,23 @@ import (
 )
 
 const (
-	cudaTestEnv       = "OVERGO_CUDA_TEST"
+	cudaTestEnv = "OVERGO_CUDA_TEST"
+	// raceCompilerEnv names an explicit cgo compiler for the host lane, the
+	// same environment-gate pattern the browser lane uses: the worktree-local
+	// toolchain is machine state a gate's immutable candidate worktree does
+	// not carry, so a verifier running there passes the real location in.
+	raceCompilerEnv   = "OVERGO_RACE_CC"
 	hostRacePattern   = "./internal/..."
 	sanitizerTool     = "compute-sanitizer"
 	deviceRacePackage = "./internal/cuda/executor"
 	localRaceCompiler = ".tools/llvm-mingw/bin/x86_64-w64-mingw32-clang.exe"
 	// Race instrumentation makes the real synthetic VAE workload exceed Go's
 	// default package timeout on the reference Windows host. Keep the full
-	// workload and give every package a bounded, evidence-derived allowance.
-	hostRaceTimeout = 30 * time.Minute
+	// workload and give every package a bounded, evidence-derived allowance:
+	// the 2026-08-31 campaign run cut internal/tabularicl at exactly 30
+	// minutes with its late decoder-trainer tests still queued, so the
+	// measured need is above 30 and the allowance doubles it.
+	hostRaceTimeout = 60 * time.Minute
 )
 
 var deviceRaceTools = []string{"racecheck", "synccheck"}
@@ -122,6 +130,12 @@ func deviceRace() error {
 }
 
 func cCompiler() (string, error) {
+	if override := strings.TrimSpace(os.Getenv(raceCompilerEnv)); override != "" {
+		if resolved, findErr := exec.LookPath(override); findErr == nil {
+			return resolved, nil
+		}
+		return "", fmt.Errorf("c compiler unavailable (%s names %q, which is absent); the race detector needs cgo", raceCompilerEnv, override)
+	}
 	out, err := clioptions.CombinedOutput(os.Environ(), "go", "env", "CC")
 	configured := "gcc"
 	if err == nil {

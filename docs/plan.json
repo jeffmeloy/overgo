@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "hermetic-foundation",
-      "title": "Hermetic and operational foundation lanes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "race-lane",
-          "title": "Run the host race lane and CUDA racecheck/synccheck",
-          "status": "open",
-          "verify": "go run ./cmd/race-lane",
-          "rationale": "Missing compiler, device, driver, or sanitizer reports UNAVAILABLE explicitly rather than passing silently. The device lane is green on this machine; the host lane needs the llvm-mingw toolchain installed at .tools/llvm-mingw, an external download awaiting owner authorization, so the row sits after the drills that can run now.",
-          "depends_on": [
-            "hermetic-foundation/hermetic-suite"
-          ]
-        }
-      ]
-    },
-    {
       "id": "inference-e2e",
       "title": "End-to-end inference over the verified artifact matrix",
       "status": "open",

@@ -9,26 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "race-lane",
-          "title": "Run the host race lane and CUDA racecheck/synccheck",
-          "status": "open",
-          "verify": "go run ./cmd/race-lane",
-          "rationale": "Missing compiler, device, driver, or sanitizer reports UNAVAILABLE explicitly rather than passing silently.",
-          "depends_on": [
-            "hermetic-foundation/hermetic-suite"
-          ]
-        },
-        {
-          "id": "browser-workbench",
-          "title": "Run the real-browser GUI acceptance lane, covering the in-memory key with opt-in persistence and the sanitized rendering path",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane",
-          "rationale": "The key-storage and DOM-helper changes landed with static and hermetic evidence only; the browser lane is their end-to-end owner.",
-          "depends_on": [
-            "hermetic-foundation/hermetic-suite"
-          ]
-        },
-        {
           "id": "release-build",
           "title": "Produce the reproducible release build through its owner",
           "status": "open",
@@ -46,6 +26,16 @@
           "rationale": "overgodb-backup, overgodb-rebuild, overgodb-repair, and overgodb-compact each run against a copied store; store-check is the final integrity verdict. Bind the drill's scripted sequence via -setverify when it starts.",
           "depends_on": [
             "durability/snapshot-store"
+          ]
+        },
+        {
+          "id": "race-lane",
+          "title": "Run the host race lane and CUDA racecheck/synccheck",
+          "status": "open",
+          "verify": "go run ./cmd/race-lane",
+          "rationale": "Missing compiler, device, driver, or sanitizer reports UNAVAILABLE explicitly rather than passing silently. The device lane is green on this machine; the host lane needs the llvm-mingw toolchain installed at .tools/llvm-mingw, an external download awaiting owner authorization, so the row sits after the drills that can run now.",
+          "depends_on": [
+            "hermetic-foundation/hermetic-suite"
           ]
         }
       ]

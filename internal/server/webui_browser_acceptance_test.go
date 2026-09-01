@@ -140,6 +140,34 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.Eventually(ctx, `document.querySelector(".operation-strip").textContent.includes("0 active")`); err != nil {
 		t.Fatal(err)
 	}
+
+	// The API key must live in memory for the page session: browser storage
+	// stays empty until the operator opts in through the remember control,
+	// and opting back out removes the stored key.
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const key = document.querySelector("#api-key");
+      const remember = document.querySelector("#api-key-remember");
+      if (!key || !remember || remember.checked) return false;
+      key.value = "browser-lane-secret";
+      key.dispatchEvent(new Event("change", {bubbles:true}));
+      if (localStorage.getItem("overgo.apiKey") !== null) return false;
+      remember.checked = true;
+      remember.dispatchEvent(new Event("change", {bubbles:true}));
+      if (localStorage.getItem("overgo.apiKey") !== "browser-lane-secret") return false;
+      remember.checked = false;
+      remember.dispatchEvent(new Event("change", {bubbles:true}));
+      return localStorage.getItem("overgo.apiKey") === null;
+    })()`)
+	// Model output renders through the sanitizing DOM builder: markup in the
+	// text becomes text, never elements, while the markdown subset still
+	// produces real formatting nodes.
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const rendered = window.overgo.md("<script>window.pwned=1<\/script> **bold** <img src=x onerror=window.pwned=1>");
+      const host = document.createElement("div");
+      host.appendChild(rendered);
+      return !host.querySelector("script,img") && !window.pwned &&
+        host.textContent.includes("<script>") && !!host.querySelector("strong,b");
+    })()`)
 }
 
 func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, artifact.ID) {

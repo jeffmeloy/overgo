@@ -17,16 +17,6 @@
           "depends_on": [
             "campaign-bootstrap/author-validation-plan"
           ]
-        },
-        {
-          "id": "snapshot-store",
-          "title": "Publish a verified OvergoDB backup with overgodb-backup and record its head commit and sequence identity",
-          "status": "open",
-          "verify": "go run ./cmd/store-check",
-          "rationale": "Git does not carry the store; overgodb-backup verifies the copy by replaying it read-only and matching head commit and sequence before renaming into place. Bind the exact destination via -setverify when the drill starts.",
-          "depends_on": [
-            "campaign-bootstrap/author-validation-plan"
-          ]
         }
       ]
     },

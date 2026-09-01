@@ -1,0 +1,15 @@
+Copyright (c) 2026 Jeff Meloy. All rights reserved.
+
+This repository is a private research codebase. No license is granted to
+use, copy, modify, distribute, or create derivative works of this software,
+in whole or in part, without the prior written permission of the copyright
+holder.
+
+Third-party acknowledgement: the inference runtime reimplements behavior
+studied from the llama.cpp project (https://github.com/ggml-org/llama.cpp,
+MIT license) as an independent Go implementation used for format and parity
+reference. No llama.cpp source code is included in this repository.
+
+This all-rights-reserved default is deliberate: it preserves every future
+licensing option for the owner. Relicensing is a single-file owner decision
+and requires no code change.

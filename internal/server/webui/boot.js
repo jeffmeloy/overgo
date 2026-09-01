@@ -7,10 +7,20 @@
   "use strict";
   const KEY_STORAGE = "overgo.apiKey";
 
-  function getKey() { return localStorage.getItem(KEY_STORAGE) || ""; }
-  function setKey(value) {
-    if (value) localStorage.setItem(KEY_STORAGE, value);
-    else localStorage.removeItem(KEY_STORAGE);
+  // The key lives in memory for the page session; browser storage is
+  // opt-in via the "remember" control so a shared machine never keeps a
+  // key the operator did not ask it to keep.
+  let sessionKey = "";
+  try { sessionKey = localStorage.getItem(KEY_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
+  const keyWasPersisted = sessionKey !== "";
+
+  function getKey() { return sessionKey; }
+  function setKey(value, remember) {
+    sessionKey = value || "";
+    try {
+      if (remember && sessionKey) localStorage.setItem(KEY_STORAGE, sessionKey);
+      else localStorage.removeItem(KEY_STORAGE);
+    } catch (_) { /* storage unavailable; the in-memory key still works */ }
   }
 
   function authHeaders(extra) {
@@ -107,7 +117,6 @@
         if (value == null || value === false) continue;
         if (name === "class") node.className = value;
         else if (name === "text") node.textContent = value;
-        else if (name === "html") node.innerHTML = value;
         else if (name.startsWith("on") && typeof value === "function") node.addEventListener(name.slice(2), value);
         else node.setAttribute(name, value);
       }
@@ -494,9 +503,14 @@
     document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
 
     const keyInput = document.getElementById("api-key");
+    const keyRemember = document.getElementById("api-key-remember");
     keyInput.value = getKey();
+    keyRemember.checked = keyWasPersisted;
+    keyRemember.addEventListener("change", () => {
+      setKey(keyInput.value.trim(), keyRemember.checked);
+    });
     keyInput.addEventListener("change", () => {
-      setKey(keyInput.value.trim());
+      setKey(keyInput.value.trim(), keyRemember.checked);
       invalidateModel(); // the cached model was fetched under the old key
       // Re-mount the active tab so its data reloads under the new key.
       for (const tab of tabs) {

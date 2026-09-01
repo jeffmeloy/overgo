@@ -148,6 +148,11 @@ a { color:var(--acc); }
   transition:border-color .15s, box-shadow .15s;
 }
 .keyfield:focus { border-color:var(--acc); }
+.key-remember {
+  display:inline-flex; align-items:center; gap:5px; margin-left:8px;
+  font:11px var(--mono); color:var(--dim); cursor:pointer; user-select:none;
+}
+.key-remember input { accent-color:var(--acc); }
 .pill {
   display:inline-flex; align-items:center; gap:6px;
   font:11px var(--mono); color:var(--dim); background:var(--bg2);

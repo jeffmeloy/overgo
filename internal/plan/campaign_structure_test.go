@@ -75,6 +75,15 @@ func groundedDoctrineDecisions() []string {
 // row-specific assertions are conditional while the ratchets remain active.
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
+	// Each campaign pins its own structure ratchet, keyed by campaign
+	// identity the way the grounded doctrine binding already is: the
+	// integrated-RSI snapshot binds to the RSI control-plane campaign, and
+	// the validation freeze campaign that replaced it after the RSI rows
+	// completed binds to its own step whitelist below.
+	if strings.Contains(document.Campaign, "Integrated validation") {
+		assertValidationCampaignSnapshot(t, document)
+		return
+	}
 	assertIntegratedReconciliationSnapshot(t, document)
 	// The shared-spine doctrine binds once the grounded campaign is adopted;
 	// a first-parent-target merge lands under the target's prior campaign,
@@ -407,6 +416,59 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	assertCampaignFrontier(t, document,
 		"deterministic-rollout/promotion-binding",
 		"live-safety/circuit-breaker")
+}
+
+// assertValidationCampaignSnapshot pins the validation-only freeze campaign:
+// only its declared drill steps may appear (completed rows leave plan.json,
+// so absence is fine and unknown ids are the violation), every retained step
+// carries a non-empty machine-checked verify, and the doctrine keeps the
+// freeze and the honesty rules stated.
+func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
+	t.Helper()
+	wantIDs := []string{
+		"campaign-bootstrap/author-validation-plan",
+		"durability/publish-history",
+		"durability/snapshot-store",
+		"freeze-capture/capture-identity",
+		"hermetic-foundation/hermetic-suite",
+		"hermetic-foundation/repeat-agreement",
+		"hermetic-foundation/coverage-floors",
+		"hermetic-foundation/race-lane",
+		"hermetic-foundation/browser-workbench",
+		"hermetic-foundation/release-build",
+		"hermetic-foundation/store-drills",
+		"inference-e2e/verified-matrix",
+		"inference-e2e/serving-operations",
+		"training-e2e/route-drills",
+		"training-e2e/preference-objectives",
+		"benchmark-routing/pinned-benchmarks",
+		"benchmark-routing/resource-quality-fitness",
+		"benchmark-routing/routing-replay",
+		"failure-recovery/interruption-drills",
+		"failure-recovery/control-plane-drills",
+		"failure-recovery/gate-recovery-drill",
+	}
+	want := make(map[string]bool, len(wantIDs))
+	for _, id := range wantIDs {
+		want[id] = true
+	}
+	for _, item := range document.Items {
+		for _, step := range item.Steps {
+			id := item.ID + "/" + step.ID
+			if !want[id] {
+				t.Errorf("validation campaign has undeclared step %s; the freeze admits only validation drills", id)
+				continue
+			}
+			if strings.TrimSpace(step.Verify) == "" {
+				t.Errorf("validation step %s has no machine-checked verify", id)
+			}
+		}
+	}
+	for _, required := range []string{"capability freeze enforced by structure", "UNAVAILABLE", "plan -setverify"} {
+		if !strings.Contains(document.Doctrine, required) {
+			t.Errorf("validation campaign doctrine omits %q", required)
+		}
+	}
 }
 
 func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {

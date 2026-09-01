@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "hermetic-suite",
-          "title": "Run the full hermetic test lane through its Go owner",
-          "status": "open",
-          "verify": "go run ./cmd/test-lane",
-          "rationale": "test-lane is the common owner CI and release checks use; incomplete evidence is explicit rather than absorbed.",
-          "depends_on": [
-            "freeze-capture/capture-identity"
-          ]
-        },
-        {
           "id": "repeat-agreement",
           "title": "Run repeat-agreement checks for the inference and server suites",
           "status": "open",

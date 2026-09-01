@@ -9,17 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "verified-matrix",
-          "title": "Serve the verified matrix -- Qwen3 dense text and quantized CUDA, Qwen3.5 hybrid execution with MTP speculation, Gemma3 text, Gemma4 multimodal projection, T5 encoder, and one media-generation recipe -- measuring output correctness, buffered and streaming parity, native, OpenAI-style, and Anthropic-style protocol parity, time to first token, tokens per second, peak host memory and VRAM, prompt-cache reuse, context shifting, and speculative decoding on versus off",
-          "status": "open",
-          "verify": "go run ./cmd/smoke-lane",
-          "rationale": "The smoke matrix is the servable predicate over the store, judged against verified models rather than all prototypes; perf-sweep and perplexity supply the per-model measurements. Bind the exact matrix invocation via -setverify once installed model identities are captured.",
-          "depends_on": [
-            "hermetic-foundation/hermetic-suite",
-            "freeze-capture/capture-identity"
-          ]
-        },
-        {
           "id": "serving-operations",
           "title": "Exercise concurrent scheduling, live model swap through the proxy, restart continuation, and download cancellation with clean server shutdown",
           "status": "open",

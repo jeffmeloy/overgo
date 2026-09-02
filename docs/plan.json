@@ -1,13 +1,204 @@
 {
-  "campaign": "Integrated validation of the merged platform before any further capability work",
-  "doctrine": "This campaign is a capability freeze enforced by structure: docs/plan.json is the sole live execution plan, every commit binds to a plan row through the gate, and this plan contains only validation rows, so no new model family, workflow, policy, command, or optimization mechanism can land while any row is open. Durability precedes measurement: the 706-commit local history and the OvergoDB store are published to durable copies before any drill runs. The pre-integration master tip 53b58aae is the historical comparison point wherever a delta is meaningful; the consumer census already diffs against plan-slice@53b58aae. Every drill has a deterministic Go owner whose exit code is the verdict -- a checklist item a person attests to is not evidence. Lanes report UNAVAILABLE honestly when a device, model, browser, or toolkit is missing; unavailable is never passing evidence and never a failure of the drill's owner. Measurement judgments are multidimensional through the exact improvement-fitness owner: a throughput gain that reduces quality, or a quality gain that violates memory bounds, does not pass. Rows whose exact invocation depends on execution-time facts (installed model identities, device presence) bind their final verify through plan -setverify before work starts, never through prose. Findings discovered during a drill are parked with cmd/finding and scheduled as rows only after this campaign completes or by explicit owner decision.",
+  "campaign": "Integrated validation, phase 2: repository cleanup, benchmark completion, modality verification, and close-out",
+  "doctrine": "This campaign continues the capability freeze enforced by structure: docs/plan.json is the sole live execution plan, every commit binds to a plan row through the gate, and the freeze whitelist in internal/plan/campaign_structure_test.go admits only the rows named here, so no new model family, workflow, policy, or optimization mechanism lands while any row is open; the only construction admitted is a fix a drill surfaced, declared under the owner's correct-as-you-go directive. Owner rules of 2026-09-01/02 govern every row: no task runs for hours unattended -- every evaluate pass carries -budget, models run smallest first with the 27B last, and MATH is excluded from this campaign; a claim-recording run (evaluate -all, benchmark -publish, train) runs only on a clean tree after its code has landed, never inside the gate, whose candidate always reads as dirty; store-reading verifies run under OVERGO_DATA_ROOT; every green output ends with an honesty line naming what did NOT run. Lanes report UNAVAILABLE honestly when a device, model, browser, oracle, or toolkit is missing; unavailable is never passing evidence and never a failure of the drill's owner, and a model whose modality has no declared expectation is reported as unverified, not as verified. Rows whose exact invocation depends on execution-time facts (installed model identities, device presence, evidence identities) bind their final verify through plan -setverify before work starts, never through prose. Findings discovered during a row are parked with cmd/finding and scheduled as rows by the close-out item, not absorbed silently. Reports are generated, never hand-written: docs/BENCHMARK.md by cmd/benchmark-report and docs/MEDIA_REPORT.md by cmd/compatibility -update-media, each with a -check that is its row's verify.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "failure-recovery",
-      "title": "Deliberate failure and recovery drills",
+      "id": "repo-cleanup",
+      "title": "Repository and workstation cleanup",
       "status": "open",
       "steps": [
+        {
+          "id": "scrap-and-drill-copies",
+          "title": "Remove development scrap under ./tmp (scratch programs, triage JSON, logs), stray drill binaries under ./bin, and the drill store copies under C:/Users/jeffm/overgo-store-drill*, keeping only what a plan row or finding still cites",
+          "status": "open",
+          "verify": "go run ./cmd/store-check",
+          "rationale": "Scrap is not evidence; the canonical store must be untouched by the cleanup, and store-check is that verdict. Nothing durable lives in tmp: every measurement it held is in a commit message, the store, or a finding.",
+          "depends_on": [
+            "phase2-bootstrap/author-phase2-plan"
+          ]
+        },
+        {
+          "id": "stash-reconciliation",
+          "title": "Pop and commit the owner's README Muon-optimizer section (stash@{0}); list the other twelve stashes with their branches and dates for the owner and drop only those the owner names",
+          "status": "open",
+          "verify": "go run ./cmd/compatibility -check",
+          "rationale": "The README section is finished owner work parked during the benchmark row; the older stashes are lane history the owner decides on. The README is a development manifest, so the compatibility check guards its claims.",
+          "depends_on": [
+            "repo-cleanup/scrap-and-drill-copies"
+          ]
+        },
+        {
+          "id": "routing-resource-size",
+          "title": "Fix the routing resource signal: SelectServingRecipe must take a candidate's resource from its recorded component bytes on disk, never the descriptor size of a manifest artifact (finding cb39538b, high)",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run 'TestSelectServingRecipe' -count=1",
+          "rationale": "Cheapest-eligible chose gemma-4-12B (15 GB) over Qwen3.5-4B (8.6 GB) because the manifest artifact is 172 bytes; a fix surfaced by the routing drill is admitted under the correct-as-you-go directive. Re-record the five routing decisions afterwards so the replay corpus judges real sizes.",
+          "depends_on": [
+            "repo-cleanup/stash-reconciliation"
+          ]
+        },
+        {
+          "id": "findings-disposition",
+          "title": "Dispose every parked finding: close those fixed here, and record an owner decision (schedule, defer with reason, or reject) for the rest -- resource no-regression tolerance (dc790871), rollout-plan author (c9c88020), rebuild refusal on gated stores (6bf17fb8), and any older open finding",
+          "status": "open",
+          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -refusals",
+          "rationale": "A finding without a disposition is an unowned fact. The refusal ledger lists what stays open; the row's honesty line names each finding and its decision.",
+          "depends_on": [
+            "repo-cleanup/routing-resource-size"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "benchmark-completion",
+      "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
+      "status": "open",
+      "steps": [
+        {
+          "id": "bbh-pass",
+          "title": "Record BBH (5761 grouped cases) for every servable text model under both protocols, smallest first, with -budget; the 27B runs last in its own pass",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "BBH is the suite that cost 13 hours before the kernel fix; measured at 0.2 s per case on the 27B it is a 20-minute pass. Raw completion is the anchor; the template protocol answers by generated letter. Bind the exact evaluate invocation with -setverify before the run and re-bind the report check after it.",
+          "depends_on": [
+            "repo-cleanup/findings-disposition"
+          ]
+        },
+        {
+          "id": "musr-pass",
+          "title": "Record MuSR (756 grouped cases, long narratives) for every servable text model under both protocols with -budget",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "MuSR prompts run to a thousand tokens; at 6 ms per prompt token the 27B needs about an hour, which is the ceiling for one pass under the owner rule. If the pass exceeds its budget the report records budget-exceeded, not a partial score.",
+          "depends_on": [
+            "benchmark-completion/bbh-pass"
+          ]
+        },
+        {
+          "id": "ifeval-pass",
+          "title": "Record IFEval (131 exact-vocabulary cases, generative, 256 tokens) for every servable text model through each model's chat template with its declared sampling recorded, greedy decoding",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "Instruction following is only meaningful through the model's own template; the special-token and end-of-turn fixes (d75d3554) make that path honest. Generation is decode-bound and unchanged by the kernel fix, so the budget is set from measured decode rates.",
+          "depends_on": [
+            "benchmark-completion/musr-pass"
+          ]
+        },
+        {
+          "id": "dna-pass",
+          "title": "Record the DNA sequence-scoring suite (128 cases) for Carbon-500M at the current commit and any other model declaring the dna domain",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "Carbon's only quality record is a perplexity from an older commit; the domain-routed suite is its benchmark and must be re-recorded at the kernel-fixed code.",
+          "depends_on": [
+            "benchmark-completion/ifeval-pass"
+          ]
+        },
+        {
+          "id": "mmlu-pro-pass",
+          "title": "Record MMLU-Pro (12032 cases) for every servable text model under both protocols, smallest first; the 27B runs as its own operator-launched pass with -budget 3h",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "MMLU-Pro is the suite the model cards report, so it is the comparison that matters; it is also the largest, and the 27B at about 0.7 s per case needs over two hours. The 27B pass is launched by the owner, never unattended by the loop, and the smaller models complete first.",
+          "depends_on": [
+            "benchmark-completion/dna-pass"
+          ]
+        },
+        {
+          "id": "published-comparison",
+          "title": "Compare every recorded suite against its declared published references and the local lm-eval oracle runs, extend the reference declarations to every model that has a model card, and regenerate docs/BENCHMARK.md with a per-model comparison section",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "A benchmark number without its reference is a bare fact; the references are store declarations with sources and protocols, and the report prints measured beside published with the protocol difference in view. MATH stays excluded and the report says so.",
+          "depends_on": [
+            "benchmark-completion/mmlu-pro-pass"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "modality-verification",
+      "title": "Verify every registered model's activated modalities against a declared expectation",
+      "status": "open",
+      "steps": [
+        {
+          "id": "capability-census",
+          "title": "Publish the capability census: every registered model with its activated tasks, evidence tier, staleness, and on-disk presence, as a store record and a generated table",
+          "status": "open",
+          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -verifications",
+          "rationale": "The catalog holds about 28 models across 9 tasks and the verification matrix names 5; the census is the denominator every following row reports against. A stale activation is listed as stale, never dropped.",
+          "depends_on": [
+            "benchmark-completion/published-comparison"
+          ]
+        },
+        {
+          "id": "declared-smoke-expectations",
+          "title": "Replace the non-empty-output smoke oracle with a declared expectation per model: an instruct model gets a chat probe with a substring oracle, a base model a likelihood floor, a domain model its domain probe; a model without a declaration is reported unverified",
+          "status": "open",
+          "verify": "go run ./cmd/smoke-lane",
+          "rationale": "The verified-matrix row overclaimed correctness on a liveness check; a fix surfaced by the drill is admitted under the correct-as-you-go directive. The lane's exit code is the verdict and its honesty line names every model that ran without an expectation.",
+          "depends_on": [
+            "modality-verification/capability-census"
+          ]
+        },
+        {
+          "id": "text-and-vision",
+          "title": "Verify the chat, embedding, rerank, and vision-language activations (Qwen, gemma-4, MiniCPM, Qwen3-VL, SenseNova) through smoke-lane, cmd/embedding, cmd/rerank, and vqaparity or sensenovaparity with their declared oracles",
+          "status": "open",
+          "verify": "go run ./cmd/smoke-lane",
+          "rationale": "These are the largest activation group; each owner already exists and reports UNAVAILABLE when an oracle or fixture is missing. Bind the exact lane sequence with -setverify when the row starts.",
+          "depends_on": [
+            "modality-verification/declared-smoke-expectations"
+          ]
+        },
+        {
+          "id": "image-and-video",
+          "title": "Verify the image and video generation activations (Krea-2-Turbo, SimpleDiffusion, Wan2.1-T2V, LiveEdit, Un-0 latent video) through the composite generation lane and latentvideo-run against the media verifier fixtures, exporting samples",
+          "status": "open",
+          "verify": "go run ./cmd/composite-generation-lane",
+          "rationale": "The media-gen campaign left measured phases, peaks, and verifier runs; this row re-runs them at the current commit so the media report reflects code that exists. Bind the exact lane sequence with -setverify when the row starts.",
+          "depends_on": [
+            "modality-verification/text-and-vision"
+          ]
+        },
+        {
+          "id": "speech-ocr-tabular-forecast",
+          "title": "Verify the speech synthesis (pocket-tts), OCR (Unlimited-OCR, SenseNova infographic), tabular (tabular-train-probe), series forecast, and embodied (Hy-Embodied-RxBrain) activations through their owners, each against a declared oracle or reported unverified",
+          "status": "open",
+          "verify": "go run ./cmd/eval-lane",
+          "rationale": "These activations are the ones the memory notes as stale ('active recipe lacks verified evidence'); the row either verifies them at the current commit or records exactly which oracle is missing as a finding. Bind the exact owner sequence with -setverify when the row starts.",
+          "depends_on": [
+            "modality-verification/image-and-video"
+          ]
+        },
+        {
+          "id": "media-report",
+          "title": "Regenerate docs/MEDIA_REPORT.md from the store's verification records and link the benchmark report from it, so one generated document summarizes every model's verified modalities and benchmark rows",
+          "status": "open",
+          "verify": "go run ./cmd/compatibility -check",
+          "rationale": "The report is generated by cmd/compatibility -update-media from store activations and verification claims; hand-written summaries are refused. Its check is the verdict that the document matches the store.",
+          "depends_on": [
+            "modality-verification/speech-ocr-tabular-forecast"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "failure-recovery",
+      "title": "Deliberate failure and recovery drills carried over from phase 1",
+      "status": "open",
+      "steps": [
+        {
+          "id": "rollout-plan-author",
+          "title": "Add the rollout-plan authoring door (recipe rollout-plan: baseline, candidate, admission evidence, cohort evidence, rollback authority) that derives the cohort share and observation contract from the admission evidence, so rollout projection, quarantine re-entry, and live rollback have a committed plan to run against (finding c9c88020)",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run 'TestRolloutPlan' -count=1",
+          "rationale": "Three control-plane owners parse a committed rollout plan and no command authors one; the phase-1 drill stopped on this prerequisite. It is construction admitted under the correct-as-you-go directive because the drill cannot run without it.",
+          "depends_on": [
+            "modality-verification/media-report"
+          ]
+        },
         {
           "id": "control-plane-drills",
           "title": "Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
@@ -15,7 +206,7 @@
           "verify": "go build ./cmd/loop ./cmd/agent-loop",
           "rationale": "The control plane's refusal and recovery paths are capability claims like any other; each has an evidence door under cmd/loop and cmd/agent-loop. Bind the drill sequence via -setverify when it starts.",
           "depends_on": [
-            "failure-recovery/interruption-drills"
+            "failure-recovery/rollout-plan-author"
           ]
         },
         {
@@ -25,7 +216,24 @@
           "verify": "go build ./cmd/gate",
           "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit, and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. Bind the scripted drill via -setverify when it starts.",
           "depends_on": [
-            "failure-recovery/interruption-drills"
+            "failure-recovery/control-plane-drills"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "campaign-closeout",
+      "title": "Close the campaign",
+      "status": "open",
+      "steps": [
+        {
+          "id": "closeout",
+          "title": "Publish the campaign census evidence, bind it with plan -bind-census, record the final verification matrix and benchmark and media reports at the closing commit, write the owner-facing summary into the commit body, and clear the recorded stop so the plan is empty",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "A campaign ends with the plan empty and every claim bound to evidence at one commit; the close-out row is where the loop proves it has nothing left to do.",
+          "depends_on": [
+            "failure-recovery/gate-recovery-drill"
           ]
         }
       ]

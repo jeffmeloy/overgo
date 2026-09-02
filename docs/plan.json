@@ -4,19 +4,15 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "repo-cleanup",
-      "title": "Repository and workstation cleanup",
+      "id": "resource-tolerance",
+      "title": "Resource no-regression tolerance: derive the repeat-measurement tolerance from the recorded identical-run pair (fixtures/resource_runs_qwen35_4b_mmlu_repeat*.json) so an identical evaluation replay is accepted while a real regression beyond the recorded noise is refused; closes finding dc790871",
       "status": "open",
       "steps": [
         {
-          "id": "findings-disposition",
-          "title": "Dispose every parked finding: close those fixed here, and record an owner decision (schedule, defer with reason, or reject) for the rest -- resource no-regression tolerance (dc790871), rollout-plan author (c9c88020), rebuild refusal on gated stores (6bf17fb8), and any older open finding",
+          "id": "do",
+          "title": "Resource no-regression tolerance: derive the repeat-measurement tolerance from the recorded identical-run pair (fixtures/resource_runs_qwen35_4b_mmlu_repeat*.json) so an identical evaluation replay is accepted while a real regression beyond the recorded noise is refused; closes finding dc790871",
           "status": "open",
-          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -refusals",
-          "rationale": "A finding without a disposition is an unowned fact. The refusal ledger lists what stays open; the row's honesty line names each finding and its decision.",
-          "depends_on": [
-            "repo-cleanup/routing-resource-size"
-          ]
+          "verify": "go run ./cmd/loop -compare-resource-runs fixtures/resource_runs_qwen35_4b_mmlu_repeat.json \u0026\u0026 go run ./cmd/loop -compare-resource-runs fixtures/resource_runs_qwen35_4b_mmlu_repeat_reverse.json"
         }
       ]
     },

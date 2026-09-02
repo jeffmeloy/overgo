@@ -21,6 +21,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/finding"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -49,6 +50,7 @@ func run(args []string, output io.Writer) error {
 	servable := flags.Bool("servable", false, "list models with an active inference recipe and on-disk presence (the discovery query)")
 	generations := flags.Bool("generations", false, "list generation records with descendant depth derived from the committed graph")
 	refusals := flags.Bool("refusals", false, "list refused decisions with their measured evidence (the refusal ledger)")
+	findings := flags.Bool("findings", false, "list live findings: parked findings without a disposition, plus the gate's one active advisory finding (the findings ledger)")
 	budgets := flags.Bool("budgets", false, "list split partitions and query-budget grants with balances derived from committed charges")
 	experiments := flags.Bool("experiments", false, "reconcile experiment lifecycle chains to their current state, flagging expired leases and runners")
 	components := flags.Bool("components", false, "list committed component decompositions with per-role counts (classification ledger)")
@@ -79,6 +81,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *refusals {
 		return writeRefusals(output, *repository, *limit)
+	}
+	if *findings {
+		return writeFindings(output, *repository)
 	}
 	if *budgets {
 		return writeBudgets(output, *repository, *limit)
@@ -475,6 +480,59 @@ func writeRefusals(output io.Writer, repository string, limit int) error {
 		return err
 	}
 	fmt.Fprintf(output, "%d refusal(s); honesty: rows derive from committed decision documents only; refusals without measurement evidence cannot be committed\n", count)
+	return nil
+}
+
+// writeFindings prints the findings ledger: every parked finding that has
+// no disposition bound, and the gate's one live advisory finding. Older
+// advisory documents are history the alias has moved past, and a disposed
+// finding is read through its disposition, so neither is a live row.
+func writeFindings(output io.Writer, repository string) error {
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	advisory, advisoryFound, err := artifact.ResolveAlias(ctx, store, finding.GateAdvisoriesAlias)
+	if err != nil {
+		return err
+	}
+	live, advisories := 0, 0
+	disposed := map[finding.Status]int{}
+	var deferred []string
+	err = visitDocuments(ctx, store, artifact.DocumentContract{
+		Kind: artifact.KindEvidence, MediaType: finding.MediaType, Schema: finding.Schema,
+	}, finding.Parse, func(_ overgodb.DocumentView, document finding.Document) error {
+		if document.Status != finding.StatusOpen {
+			return nil
+		}
+		if document.Title == finding.GateAdvisoriesTitle {
+			advisories++
+			if !advisoryFound || document.ID != advisory {
+				return nil
+			}
+		} else if disposition, found, err := finding.Disposition(ctx, store, document.ID); err != nil {
+			return err
+		} else if found {
+			disposed[disposition.Status]++
+			if disposition.Status == finding.StatusDeferred {
+				deferred = append(deferred, fmt.Sprintf("deferred %s severity=%s %s", document.ID, document.Severity, document.Title))
+			}
+			return nil
+		}
+		live++
+		fmt.Fprintf(output, "finding %s severity=%s %s\n", document.ID, document.Severity, document.Title)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	for _, line := range deferred {
+		fmt.Fprintln(output, line)
+	}
+	fmt.Fprintf(output, "%d live finding(s); %d closed, %d refuted, %d deferred by disposition; %d gate advisory document(s) of which the alias target counts; honesty: a finding is live until a disposition alias binds it, a deferred finding is acknowledged debt whose reason its disposition cites, and the gate advisory is live only at its alias\n",
+		live, disposed[finding.StatusClosed], disposed[finding.StatusRefuted], disposed[finding.StatusDeferred], advisories)
 	return nil
 }
 

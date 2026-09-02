@@ -62,6 +62,7 @@ func run() error {
 	family := flag.String("family", "", "restrict -all to one derived suite source suffix (e.g. mmlu)")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
+	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
 	importDNA := flag.String("import-dna-corpus", "", "import a bounded slice of every parquet subset under this corpus root and merge the entries into the active benchmark catalog")
 	dnaLimit := flag.Int("dna-limit", 16, "sequences imported per corpus subset for -import-dna-corpus")
 	flag.Parse()
@@ -80,6 +81,12 @@ func run() error {
 		}
 		fmt.Printf("benchmark catalog %s merged %d DNA corpus slice(s)\n", catalog, count)
 		return nil
+	}
+	if spec := strings.TrimSpace(*declareReferences); spec != "" {
+		if flag.NArg() != 0 {
+			return errors.New("usage: evaluate -declare-references <spec.json> [-repo <store>]")
+		}
+		return declareReferenceScores(context.Background(), *repository, spec, *catalogLimit)
 	}
 	if csv := strings.TrimSpace(*declareDomains); csv != "" {
 		if flag.NArg() != 1 {

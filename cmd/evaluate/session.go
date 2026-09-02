@@ -77,14 +77,17 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		return fail(err)
 	}
 	runtime := evaluation.Runtime(runner)
+	prompting := evaluation.PromptingRawCompletion
 	if value.ChatProtocol {
 		runtime = chatShapedRuntime{runner}
+		prompting = evaluation.PromptingChatTemplate
 	}
 	campaign, err := evaluation.NewIsolatedCampaign(store, runtime, identity, environment, value.CodeCommit)
 	if err != nil {
 		_ = runner.Close()
 		return fail(err)
 	}
+	campaign.WithPrompting(prompting)
 	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model}, nil
 }
 

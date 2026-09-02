@@ -64,6 +64,11 @@ type ChoiceObservation struct {
 	Selected int       `json:"selected"`
 	Answer   int       `json:"answer"`
 	Tied     bool      `json:"tied"`
+	// Raw is the generated answer text when the case was answered by
+	// generation through the chat template; likelihood scoring leaves
+	// it empty and Selected below zero means no candidate letter was
+	// found in it.
+	Raw string `json:"raw,omitzero"`
 }
 
 type MultipleChoiceReport struct {
@@ -147,9 +152,16 @@ func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthoritie
 		Kind          string                      `json:"kind"`
 		Normalization sequencescore.Normalization `json:"normalization"`
 		Aggregation   string                      `json:"aggregation"`
+		// Method is empty for likelihood scoring (every earlier plan)
+		// and names the generated-letter method under the chat-template
+		// protocol, so the two are distinct scorer authorities.
+		Method string `json:"method,omitzero"`
 	}{
 		Version: artifact.InitialDocumentVersion, Kind: MultipleChoiceKind,
 		Normalization: compiled.suite.Normalization, Aggregation: compiled.suite.Aggregation,
+	}
+	if authorities.Execution.Prompting == PromptingChatTemplate {
+		scorer.Method = chatChoiceMethod
 	}
 	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
@@ -199,20 +211,29 @@ func scoreMultipleChoice(
 	observations := make([]ChoiceObservation, len(suite.Cases))
 	correct := 0
 	progress := trackProgress(ctx, suite.Source, len(suite.Cases))
+	chat, generative := scorer.(ChatChoiceRuntime)
 	for index, testCase := range suite.Cases {
-		scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)
-		if err != nil {
-			return nil, 0, err
+		if generative {
+			observation, err := answerChoiceByGeneration(ctx, chat, testCase)
+			if err != nil {
+				return nil, 0, err
+			}
+			observations[index] = observation
+		} else {
+			scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)
+			if err != nil {
+				return nil, 0, err
+			}
+			selection, err := sequencescore.Select(scores, suite.Normalization)
+			if err != nil {
+				return nil, 0, err
+			}
+			observations[index] = ChoiceObservation{
+				Name: testCase.Name, Values: selection.Values, Selected: selection.Index,
+				Answer: testCase.Answer, Tied: selection.Tied,
+			}
 		}
-		selection, err := sequencescore.Select(scores, suite.Normalization)
-		if err != nil {
-			return nil, 0, err
-		}
-		observations[index] = ChoiceObservation{
-			Name: testCase.Name, Values: selection.Values, Selected: selection.Index,
-			Answer: testCase.Answer, Tied: selection.Tied,
-		}
-		hit := !selection.Tied && selection.Index == testCase.Answer
+		hit := !observations[index].Tied && observations[index].Selected == testCase.Answer
 		if hit {
 			correct++
 		}

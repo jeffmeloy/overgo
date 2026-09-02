@@ -101,6 +101,16 @@ type chatShapedRuntime struct {
 	*inference.Runner
 }
 
+// ShapeChatPrompt renders the prompt as one user turn with the model
+// turn opened, thinking disabled where the template offers the switch:
+// the evaluation asks for the answer letter, not a reasoning trace.
+func (r chatShapedRuntime) ShapeChatPrompt(prompt string) (string, error) {
+	return r.Runner.FormatChatWithOptions(
+		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: prompt}},
+		inference.ChatFormatOptions{AddGenerationPrompt: true, EnableThinking: false},
+	)
+}
+
 // ScoreContinuations shapes a non-empty prompt through the declared
 // chat template before scoring; see the type comment for the contract.
 // A shaped prompt ends at the assistant turn opener, so candidates

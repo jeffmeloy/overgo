@@ -45,6 +45,7 @@ const (
 	kernelExpF32
 	kernelF16ToF32
 	kernelF32ToBf16
+	kernelF32ToF16
 	kernelFlatSliceF32
 	kernelFp8ToF32
 	kernelFwhtF32
@@ -240,6 +241,7 @@ var kernelFunctionNames = [...]string{
 	"exp_f32",
 	"f16_to_f32",
 	"f32_to_bf16",
+	"f32_to_f16",
 	"flat_slice_f32",
 	"fp8_to_f32",
 	"fwht_f32",
@@ -431,6 +433,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	5,
 	4,
 	5,
+	3,
 	3,
 	3,
 	3,

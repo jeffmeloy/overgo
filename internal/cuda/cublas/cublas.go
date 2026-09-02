@@ -24,7 +24,9 @@ const (
 )
 
 const (
-	DataF32              DataType      = 0
+	DataF32 DataType = 0
+	// DataF16 is cuBLAS CUDA_R_16F: IEEE half-precision operands.
+	DataF16              DataType      = 2
 	DataBF16             DataType      = 14
 	ComputeF32           ComputeType   = 68
 	GemmDefault          GemmAlgorithm = -1

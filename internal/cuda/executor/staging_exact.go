@@ -36,10 +36,9 @@ func (c *CompiledGraph) ReserveExactWeightStaging() error {
 			// Single-token decode reads the native weight directly; no staging.
 			continue
 		}
-		if attributes, ok := node.Attrs.(tensor.MulMatAttributes); ok &&
-			attributes.Compute == tensor.MulMatComputeBF16TensorCore {
-			// Tensor-core mul_mat stages the BF16 activation, not the weight,
-			// and is already reserved at full extent by Compile.
+		if tensorCoreMulMat(node) {
+			// Tensor-core mul_mat stages the half-precision activation, not
+			// the weight, and is already reserved at full extent by Compile.
 			continue
 		}
 		inner, rows := node.Inputs[0].Shape.Dims[0], node.Inputs[0].Shape.Dims[1]

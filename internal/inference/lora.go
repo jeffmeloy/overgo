@@ -160,6 +160,9 @@ func loRAScale(loaded loadedLoRA, weight model.LoRAWeight) float32 {
 
 func (r *Runner) newGraphBuilder() *tensor.Builder {
 	builder := tensor.NewBuilder()
+	// Inference graphs multiply half-precision weights in their own dtype
+	// on tensor cores; the host reference executes the same graph exactly.
+	builder.SetMulMatCompute(tensor.MulMatComputeNativeTensorCore)
 	if r == nil || len(r.loraAdapters) == 0 {
 		return builder
 	}

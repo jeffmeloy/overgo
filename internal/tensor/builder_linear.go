@@ -90,13 +90,19 @@ func (b *Builder) mulMat(left, right *Tensor, compute MulMatCompute) *Tensor {
 		b.setError(errors.New("mul_mat input is nil"))
 		return nil
 	}
-	if compute != MulMatComputeExact && compute != MulMatComputeBF16TensorCore {
+	if compute != MulMatComputeExact && compute != MulMatComputeBF16TensorCore &&
+		compute != MulMatComputeNativeTensorCore {
 		b.setError(fmt.Errorf("mul_mat compute policy %d is invalid", compute))
 		return nil
 	}
 	if compute == MulMatComputeBF16TensorCore && (left.Type != dtype.BF16 || right.Type != dtype.F32) {
 		b.setError(fmt.Errorf("BF16 tensor-core mul_mat requires BF16 x F32, got %s x %s", left.Type, right.Type))
 		return nil
+	}
+	if compute == MulMatComputeNativeTensorCore && !nativeTensorCoreApplies(left.Type, right.Type) {
+		// The graph-wide policy names the half-precision projections; an
+		// F32 or quantized mul_mat under it keeps its exact arithmetic.
+		compute = MulMatComputeExact
 	}
 	if left.Shape.Rank != 2 || right.Shape.Rank != 2 {
 		b.setError(errors.New("initial mul_mat implementation requires rank-2 inputs"))

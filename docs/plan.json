@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "model-generation-settings",
-      "title": "Declare each model's provided generation settings (generation_config.json / README sampling recommendations: temperature, top-p, top-k, repetition penalty) as store model-config components with source digests and have the runtime policy and evaluation apply them; the store currently holds zero model-config declarations",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declare each model's provided generation settings (generation_config.json / README sampling recommendations: temperature, top-p, top-k, repetition penalty) as store model-config components with source digests and have the runtime policy and evaluation apply them; the store currently holds zero model-config declarations",
-          "status": "open",
-          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -configs"
-        }
-      ]
-    },
-    {
       "id": "evaluate-family-compile",
       "title": "Compile only the requested suite family in evaluate workers: each worker spends minutes deriving all 24k store cases before a two-second MMLU suite",
       "status": "open",

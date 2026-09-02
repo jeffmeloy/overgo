@@ -447,6 +447,12 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"training-e2e/route-drills",
 		"training-e2e/preference-objectives",
 		"benchmark-routing/pinned-benchmarks",
+		// The benchmark drill (2026-09-01/02) surfaced that no model's
+		// provided sampling reached the runtime and that every evaluate
+		// worker compiles the whole suite catalog before a two-second
+		// suite; both are corrected in-campaign under the same directive.
+		"model-generation-settings/do",
+		"evaluate-family-compile/do",
 		"benchmark-routing/resource-quality-fitness",
 		"benchmark-routing/routing-replay",
 		"failure-recovery/interruption-drills",

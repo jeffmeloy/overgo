@@ -29,8 +29,9 @@ func TestDocsHoldNoUnplannedBinaries(t *testing.T) {
 			return err
 		}
 		relative = filepath.ToSlash(relative)
-		if relative == ".loop_state" {
-			// Loop continuity state: plain text, dot-named by the driver.
+		if relative == ".loop_state" || relative == ".bounded_request" {
+			// Loop continuity state and the bounded-request marker: plain
+			// text, dot-named by the driver and ignored by git.
 			return nil
 		}
 		extension := strings.ToLower(filepath.Ext(relative))

@@ -126,7 +126,6 @@ var directCommitAllowances = []authorityAllowance{
 	{File: "internal/gate/preparation.go", Count: oneAuthoritySite},
 	{File: "internal/gate/recovery.go", Count: twoAuthoritySites},
 	{File: "cmd/graft-probe/main.go", Count: oneAuthoritySite},
-	{File: "cmd/hf-gguf-convert/main.go", Count: oneAuthoritySite},
 	{File: "cmd/lora-extract/main.go", Count: oneAuthoritySite},
 	{File: "cmd/model-characterize/main.go", Count: twoAuthoritySites},
 	{File: "cmd/offline-artifact-validate/main.go", Count: oneAuthoritySite},

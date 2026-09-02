@@ -32,9 +32,9 @@ func TestASTStructuralProfileGate(t *testing.T) {
 	}
 	g := gateContext{repo: root, paths: []string{"internal/p/p.go"}}
 	skipped, err := g.stepProfile()
-	if err != nil || skipped || len(g.honesty) < 4 || !strings.Contains(g.honesty[0], "runtime=1 files") ||
-		!strings.Contains(g.honesty[1], "delta vs HEAD") {
-		t.Fatalf("profile step = skipped %v, err %v, honesty %v", skipped, err, g.honesty)
+	if err != nil || skipped || len(g.audit) < 4 || !strings.Contains(g.audit[0], "runtime=1 files") ||
+		!strings.Contains(g.audit[1], "delta vs HEAD") {
+		t.Fatalf("profile step = skipped %v, err %v, audit %v", skipped, err, g.audit)
 	}
 }
 
@@ -94,7 +94,7 @@ func TestAdvisoryCandidate(t *testing.T) {
 	}
 }
 
-func TestSurfaceDeltaHonesty(t *testing.T) {
+func TestSurfaceDeltaAudit(t *testing.T) {
 	base := codeprofile.Profile{
 		Runtime: codeprofile.Partition{Files: 2, Nodes: 100}, Test: codeprofile.Partition{Files: 1, Nodes: 30},
 		Functions: []codeprofile.Function{{File: "v.go", Name: "validateBase", Nodes: 20, AdvisoryClass: "validator"}},
@@ -109,7 +109,7 @@ func TestSurfaceDeltaHonesty(t *testing.T) {
 		Clones: []codeprofile.Clone{{Nodes: 6, Functions: []string{"a:f", "b:g"}}}, DuplicateExcessNodes: 6,
 		ExportedDeclarations: 2, PackageImportEdges: 1,
 	}
-	got := surfaceDeltaHonesty(base, candidate)
+	got := surfaceDeltaAudit(base, candidate)
 	for _, want := range []string{
 		"runtime=+1 files/+25 nodes", "automation=+0/+0", "generated=+0/+0", "test=+0/+5",
 		"duplicate_excess=-4", "exported=+2", "imports=+1",
@@ -150,7 +150,7 @@ func TestAutomationROIProjection(t *testing.T) {
 		!strings.Contains(got, "production_ast=") || !strings.Contains(got, "go_lines=") || err == nil {
 		t.Fatalf("automation ROI = %+v, %q, %v", movement, got, err)
 	}
-	if compact := compactHonesty([]string{got}); len(compact) != 1 || !strings.HasPrefix(compact[0], "advisory: roi: ") {
+	if compact := compactAudit([]string{got}); len(compact) != 1 || !strings.HasPrefix(compact[0], "advisory: roi: ") {
 		t.Fatalf("automation ROI hidden from gate summary: %v", compact)
 	}
 	if _, err := automationROIAdmission("deletion", codeprofile.ProductionMovement{Deleted: 1, GoLinesDeleted: 1}); err != nil {
@@ -177,7 +177,7 @@ func TestASTProfileEvidenceGate(t *testing.T) {
 	if err := g.appendProfileEvidence(&batch, "0123456789abcdef0123456789abcdef01234567", gate); err != nil {
 		t.Fatal(err)
 	}
-	if len(batch.Contents) != 0 || !strings.Contains(g.honesty[len(g.honesty)-1], "not persisted") {
+	if len(batch.Contents) != 0 || !strings.Contains(g.audit[len(g.audit)-1], "not persisted") {
 		t.Fatalf("contaminated profile was persisted: %+v", batch)
 	}
 }

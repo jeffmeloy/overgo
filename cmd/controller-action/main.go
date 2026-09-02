@@ -94,7 +94,7 @@ func run(args []string, output io.Writer) error {
 		for _, realization := range realizations {
 			fmt.Fprintf(output, "materialized arm: %s directory=%s\n", realization, result.Directories[realization])
 		}
-		fmt.Fprintln(output, "honesty: persisted realize decision executed through direct Go owners; sources were store-derived; no activation alias moved")
+		fmt.Fprintln(output, "audit: persisted realize decision executed through direct Go owners; sources were store-derived; no activation alias moved")
 		return nil
 	}
 	batch, err := controlleraction.CompileTransaction(ctx, store, action)
@@ -115,7 +115,7 @@ func run(args []string, output io.Writer) error {
 		fmt.Fprintf(output, "offline output: %s tensors=%d peak_resident_bytes=%d\n",
 			result.Destination, result.TensorCount, result.PeakResidentBytes)
 	}
-	fmt.Fprintf(output, "action %s compiled %d artifact(s); honesty: deterministic Go executor, allowlist-only, never orchestrates\n",
+	fmt.Fprintf(output, "action %s compiled %d artifact(s); audit: deterministic Go executor, allowlist-only, never orchestrates\n",
 		action.Kind, len(batch.Contents))
 	return nil
 }

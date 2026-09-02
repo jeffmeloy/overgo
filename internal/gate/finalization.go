@@ -196,7 +196,7 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 			return g.oweRecord(batch, err)
 		}
 	}
-	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, g.paths, g.honesty); err != nil {
+	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, g.paths, g.audit); err != nil {
 		return g.oweRecord(batch, err)
 	}
 	if _, err := store.Commit(context.Background(), batch); err != nil {
@@ -221,7 +221,7 @@ func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit st
 		return nil
 	}
 	if g.profileDirty {
-		g.honesty = append(g.honesty, "code profile evidence not persisted: unplanned Go dirt is outside the committed target")
+		g.audit = append(g.audit, "code profile evidence not persisted: unplanned Go dirt is outside the committed target")
 		return nil
 	}
 	evidence, err := codeprofile.NewEvidence(codeCommit, gateResult, *g.profile)
@@ -255,7 +255,7 @@ func (g *gateContext) appendAttemptRecord(
 	attempt := runrecord.AttemptRecord{
 		PlanItem: item, PlanStep: step, Result: resultID, Recipe: recipeID,
 		// The driver exports the declared strategy; an interactive
-		// session leaves it empty and the record stays honest.
+		// session leaves it empty and the record stays exact.
 		Strategy:   os.Getenv(loop.StrategyEnvironment),
 		CodeCommit: codeCommit, Outcome: outcome, Failure: failure,
 		WallNS: uint64(time.Since(g.start).Nanoseconds()),

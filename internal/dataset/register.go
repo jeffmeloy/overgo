@@ -17,7 +17,7 @@ import (
 )
 
 // modalityByExtension maps file formats to their modality class; a
-// format outside the table reports the honest unknown rather than a
+// format outside the table reports unknown rather than a
 // guess. Format knowledge is generic -- no dataset names appear here.
 var modalityByExtension = map[string]string{
 	".mp4": "video", ".webm": "video", ".mov": "video", ".mkv": "video",
@@ -172,7 +172,7 @@ func walkDirectoryInventory(root string) ([]InventoryFile, []string, uint64, err
 // identity binds to content, bounded by the file, never the whole
 // directory in memory.
 // modalitySet returns the distinct modalities present in the corpus,
-// sorted. It is the honest description of a mixed dataset -- every
+// sorted. It is the exact description of a mixed dataset -- every
 // class that appears, none discarded by a volume heuristic.
 func modalitySet(files []InventoryFile) []string {
 	present := map[string]bool{}

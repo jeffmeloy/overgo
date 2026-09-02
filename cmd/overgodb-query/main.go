@@ -378,7 +378,7 @@ func writeServable(output io.Writer, repository string, limit int) error {
 		fmt.Fprintf(output, "servable model=%s tier=%s recipe=%s present=%t location=%s\n",
 			entry.Model, entry.Tier, entry.Recipe, entry.Present, entry.Location)
 	}
-	fmt.Fprintf(output, "%d servable model(s), %d stale activation(s); honesty: every listed file hashes to its recorded component identity; stale activations are reported, never served\n", served, len(entries)-served)
+	fmt.Fprintf(output, "%d servable model(s), %d stale activation(s); audit: every listed file hashes to its recorded component identity; stale activations are reported, never served\n", served, len(entries)-served)
 	return nil
 }
 
@@ -445,7 +445,7 @@ func writeGenerations(output io.Writer, repository string, limit int) error {
 			}
 		}
 	}
-	fmt.Fprintf(output, "%d generation record(s); honesty: depth derives from committed generation records only; models without records are depth-0 roots; seed consumption validates against committed budget grants when present\n", len(records))
+	fmt.Fprintf(output, "%d generation record(s); audit: depth derives from committed generation records only; models without records are depth-0 roots; seed consumption validates against committed budget grants when present\n", len(records))
 	return nil
 }
 
@@ -479,7 +479,7 @@ func writeRefusals(output io.Writer, repository string, limit int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "%d refusal(s); honesty: rows derive from committed decision documents only; refusals without measurement evidence cannot be committed\n", count)
+	fmt.Fprintf(output, "%d refusal(s); audit: rows derive from committed decision documents only; refusals without measurement evidence cannot be committed\n", count)
 	return nil
 }
 
@@ -577,7 +577,7 @@ func writeExperiments(output io.Writer, repository string, limit int) error {
 		}
 		fmt.Fprintln(output, line)
 	}
-	fmt.Fprintf(output, "%d experiment(s); honesty: state derives from committed lifecycle chains only; a diverged or illegal chain errors rather than guesses\n", len(ids))
+	fmt.Fprintf(output, "%d experiment(s); audit: state derives from committed lifecycle chains only; a diverged or illegal chain errors rather than guesses\n", len(ids))
 	return nil
 }
 
@@ -615,7 +615,7 @@ func writeComponents(output io.Writer, repository string, limit int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "%d decomposition(s); honesty: rows derive from committed classification documents only; no retrieval index exists yet\n", count)
+	fmt.Fprintf(output, "%d decomposition(s); audit: rows derive from committed classification documents only; no retrieval index exists yet\n", count)
 	return nil
 }
 
@@ -641,7 +641,7 @@ func writeProposals(output io.Writer, repository string, limit int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "%d proposal(s); honesty: every row is promotion-blocked by construction; this ledger advises and never authorizes\n", count)
+	fmt.Fprintf(output, "%d proposal(s); audit: every row is promotion-blocked by construction; this ledger advises and never authorizes\n", count)
 	return nil
 }
 
@@ -671,7 +671,7 @@ func writeAdmissions(output io.Writer, repository string, limit int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "%d admission binding(s); honesty: domains must be pairwise distinct by construction; succession requires the cited prior-authority approval\n", count)
+	fmt.Fprintf(output, "%d admission binding(s); audit: domains must be pairwise distinct by construction; succession requires the cited prior-authority approval\n", count)
 	return nil
 }
 
@@ -697,7 +697,7 @@ func writeComposed(output io.Writer, repository string, limit int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "%d composed artifact(s); honesty: rows derive from committed assembly documents; execution and lineage resolve through the store graph\n", count)
+	fmt.Fprintf(output, "%d composed artifact(s); audit: rows derive from committed assembly documents; execution and lineage resolve through the store graph\n", count)
 	return nil
 }
 
@@ -759,7 +759,7 @@ func writeConfigs(output io.Writer, repository string, limit int) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "%d model-config declaration(s); honesty: components derive from digested source files committed with model lineage; generic code reads these declarations, never literals\n", count)
+	fmt.Fprintf(output, "%d model-config declaration(s); audit: components derive from digested source files committed with model lineage; generic code reads these declarations, never literals\n", count)
 	return nil
 }
 
@@ -808,7 +808,7 @@ func writeVerifications(output io.Writer, repository string, limit int) error {
 		}
 		fmt.Fprintf(output, "model %s %s %s\n", row.Name, row.Model, strings.Join(cells, " "))
 	}
-	fmt.Fprintf(output, "%d model(s) from %d record(s); honesty: rows derive from committed verification records; every tier claim is grounded in named evidence, and unrecorded models simply do not appear\n",
+	fmt.Fprintf(output, "%d model(s) from %d record(s); audit: rows derive from committed verification records; every tier claim is grounded in named evidence, and unrecorded models simply do not appear\n",
 		len(matrix), len(records))
 	return nil
 }
@@ -853,7 +853,7 @@ func writeRetrieve(output io.Writer, repository, name string, limit int) error {
 		fmt.Fprintf(output, "hit %.4f model=%s component=%s role=%s signal=%s\n",
 			hit.Relevance, hit.Descriptor.Model, hit.Descriptor.Name, hit.Descriptor.Role, signalFor(hit))
 	}
-	fmt.Fprintf(output, "%d hit(s) over %d component(s), exact inverted index; honesty: advisory retrieval, candidates require blocked proposals and the experiment plane\n",
+	fmt.Fprintf(output, "%d hit(s) over %d component(s), exact inverted index; audit: advisory retrieval, candidates require blocked proposals and the experiment plane\n",
 		len(hits), index.Len())
 	return nil
 }
@@ -879,7 +879,7 @@ func writeGapTargets(output io.Writer, repository string, limit int) error {
 		return err
 	}
 	if len(evidence) == 0 {
-		fmt.Fprintln(output, "0 target(s); honesty: no admitted evaluation evidence is committed")
+		fmt.Fprintln(output, "0 target(s); audit: no admitted evaluation evidence is committed")
 		return nil
 	}
 	targets, err := evaluation.DeriveCapabilityGapTargets(ctx, store, evidence)
@@ -893,7 +893,7 @@ func writeGapTargets(output io.Writer, repository string, limit int) error {
 		fmt.Fprintf(output, "target %s metric=%s recipe=%s model=%s measured=%.4f reference=%.4f gap=%.4f\n",
 			target.Kind, target.Metric, target.Recipe, target.Model, target.Measured, target.Reference, target.Gap)
 	}
-	fmt.Fprintf(output, "%d target(s) over %d evidence document(s); honesty: targets derive only from admitted evidence, and a metric nobody measured produces no target\n",
+	fmt.Fprintf(output, "%d target(s) over %d evidence document(s); audit: targets derive only from admitted evidence, and a metric nobody measured produces no target\n",
 		len(targets), len(evidence))
 	return nil
 }
@@ -954,7 +954,7 @@ func writeBudgets(output io.Writer, repository string, limit int) error {
 			}
 		}
 	}
-	fmt.Fprintf(output, "%d partition(s), %d budget(s); honesty: balances and blinding derive from committed documents only; violations and over-consumption report loudly rather than clamping\n",
+	fmt.Fprintf(output, "%d partition(s), %d budget(s); audit: balances and blinding derive from committed documents only; violations and over-consumption report loudly rather than clamping\n",
 		len(partitions), len(grants))
 	return nil
 }

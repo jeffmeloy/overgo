@@ -275,7 +275,7 @@ func runClaim(input claimInput, recordStore string, output io.Writer) error {
 	}
 	fmt.Fprintf(output, "claim committed: %s model=%s name=%s %s=%s commit=%.12s\n",
 		record.ID, model, input.name, input.capability, input.tier, commit)
-	fmt.Fprintln(output, "honesty: verifier source matched a clean HEAD; the model identity is the weights digest; the claim is grounded in the committed evidence document")
+	fmt.Fprintln(output, "audit: verifier source matched a clean HEAD; the model identity is the weights digest; the claim is grounded in the committed evidence document")
 	return nil
 }
 
@@ -426,7 +426,7 @@ func runRecordVerification(specPath, recordStore string, output io.Writer) error
 		}
 		fmt.Fprintf(output, "claim %s: %s (%d evidence) %s\n", claim.Capability, claim.Tier, len(claim.Evidence), provenance)
 	}
-	fmt.Fprintf(output, "honesty: %d evidence artifact(s) committed in this store, %d identified externally; tiers claim only what their evidence grounds\n",
+	fmt.Fprintf(output, "audit: %d evidence artifact(s) committed in this store, %d identified externally; tiers claim only what their evidence grounds\n",
 		committed, external)
 	return nil
 }

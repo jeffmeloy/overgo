@@ -41,7 +41,7 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "backup published: %s head=%s sequence=%d; honesty: replay-verified against the source head, not byte-compared\n",
+	fmt.Fprintf(output, "backup published: %s head=%s sequence=%d; audit: replay-verified against the source head, not byte-compared\n",
 		*destination, head, sequence)
 	return nil
 }

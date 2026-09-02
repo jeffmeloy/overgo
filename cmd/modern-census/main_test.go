@@ -67,7 +67,7 @@ func TestModernGoWorkSelectionReportsCoverage(t *testing.T) {
 	}
 }
 
-func TestModernCensusExtremaFixReportsHonesty(t *testing.T) {
+func TestModernCensusExtremaFixReportsAudit(t *testing.T) {
 	root := t.TempDir()
 	directory := filepath.Join(root, "internal", "sample")
 	if err := os.MkdirAll(directory, 0o755); err != nil {
@@ -85,18 +85,18 @@ func TestModernCensusExtremaFixReportsHonesty(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(output.String()); got != "modern-census: extrema rewritten=1 files=1 retained=0 source=typed-ordered-extrema-policy" {
-		t.Fatalf("first extrema honesty line = %q", got)
+		t.Fatalf("first extrema audit line = %q", got)
 	}
 	output.Reset()
 	if err := run([]string{"-fix-extrema", "-root", root}, &output); err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(output.String()); got != "modern-census: extrema rewritten=0 files=0 retained=0 source=typed-ordered-extrema-policy" {
-		t.Fatalf("second extrema honesty line = %q", got)
+		t.Fatalf("second extrema audit line = %q", got)
 	}
 }
 
-func TestModernCensusNumericRangeFixReportsHonesty(t *testing.T) {
+func TestModernCensusNumericRangeFixReportsAudit(t *testing.T) {
 	root := t.TempDir()
 	directory := filepath.Join(root, "internal", "hostmath")
 	if err := os.MkdirAll(directory, 0o755); err != nil {
@@ -114,14 +114,14 @@ func TestModernCensusNumericRangeFixReportsHonesty(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(output.String()); got != "modern-census: numeric-range rewritten=1 files=1 retained=0 source=typed-stable-integer-bounds" {
-		t.Fatalf("first numeric range honesty line = %q", got)
+		t.Fatalf("first numeric range audit line = %q", got)
 	}
 	output.Reset()
 	if err := run([]string{"-fix-numeric-range", "-root", root}, &output); err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(output.String()); got != "modern-census: numeric-range rewritten=0 files=0 retained=0 source=typed-stable-integer-bounds" {
-		t.Fatalf("second numeric range honesty line = %q", got)
+		t.Fatalf("second numeric range audit line = %q", got)
 	}
 }
 
@@ -152,7 +152,7 @@ func TestModernCensusCheckRequiresCompleteRatchetAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	if text := output.String(); !strings.Contains(text, "check=pass measured=48/48") || !strings.Contains(text, "baseline=docs/modern_go_baseline.json") {
-		t.Fatalf("check honesty line=%q", text)
+		t.Fatalf("check audit line=%q", text)
 	}
 	legacy := []byte("package sample\n\nfunc fallback(value, other string) string { if value == \"\" { value = other }; return value }\n")
 	if err := os.WriteFile(path, legacy, 0o644); err != nil {
@@ -163,7 +163,7 @@ func TestModernCensusCheckRequiresCompleteRatchetAdmission(t *testing.T) {
 	}
 }
 
-func TestModernCensusManualIdiomFixReportsHonesty(t *testing.T) {
+func TestModernCensusManualIdiomFixReportsAudit(t *testing.T) {
 	root := t.TempDir()
 	directory := filepath.Join(root, "internal", "sample")
 	if err := os.MkdirAll(directory, 0o755); err != nil {
@@ -181,14 +181,14 @@ func TestModernCensusManualIdiomFixReportsHonesty(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(output.String()); got != "modern-census: manual-idioms fallback=1 ticker=0 slice-clone=0 typed-sort=0 files=1 retained=0 source=typed-eager-safe-equivalence" {
-		t.Fatalf("first manual honesty line=%q", got)
+		t.Fatalf("first manual audit line=%q", got)
 	}
 	output.Reset()
 	if err := run([]string{"-fix-manual-idioms", "-root", root}, &output); err != nil {
 		t.Fatal(err)
 	}
 	if got := strings.TrimSpace(output.String()); got != "modern-census: manual-idioms fallback=0 ticker=0 slice-clone=0 typed-sort=0 files=0 retained=0 source=typed-eager-safe-equivalence" {
-		t.Fatalf("second manual honesty line=%q", got)
+		t.Fatalf("second manual audit line=%q", got)
 	}
 }
 
@@ -218,7 +218,7 @@ func TestModernCensusExceptionClosureIsDeterministic(t *testing.T) {
 		t.Fatal(err)
 	}
 	if text := output.String(); !strings.Contains(text, "exceptions=closed groups=1 candidates=1") || !strings.Contains(text, "authority=") {
-		t.Fatalf("exception closure honesty line=%q", text)
+		t.Fatalf("exception closure audit line=%q", text)
 	}
 	name := filepath.Join(root, filepath.FromSlash(repoanalysis.ModernGoBaselineFile))
 	first, err := os.ReadFile(name)
@@ -241,7 +241,7 @@ func TestModernCensusExceptionClosureIsDeterministic(t *testing.T) {
 		t.Fatal(err)
 	}
 	if text := output.String(); !strings.Contains(text, "unresolved=0") || !strings.Contains(text, "excluded=6") {
-		t.Fatalf("published census honesty line=%q", text)
+		t.Fatalf("published census audit line=%q", text)
 	}
 	publishedName := filepath.Join(root, filepath.FromSlash(repoanalysis.ModernGoPublishedCensusFile))
 	firstPublished, err := os.ReadFile(publishedName)

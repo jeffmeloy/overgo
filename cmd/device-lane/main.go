@@ -1,6 +1,6 @@
 // device-lane: the CUDA/device verification lane (floor component 8; the
 // unique remainder of the retired verify.ps1). Runs the env-gated CUDA
-// integration tests and the device probes with honest reporting: a missing
+// integration tests and the device probes with explicit reporting: a missing
 // device or toolkit is UNAVAILABLE, never passing evidence.
 //
 // Target form (Automation Doctrine Layer 3) scopes kernels by manifest diff;
@@ -73,9 +73,9 @@ func run() error {
 	}
 	fmt.Printf("=== DEVICE LANE GREEN in %.1fs ===\n", time.Since(start).Seconds())
 	if plan.Full {
-		fmt.Printf("honesty: device scope=full reason=%s\n", plan.Reason)
+		fmt.Printf("audit: device scope=full reason=%s\n", plan.Reason)
 	} else {
-		fmt.Printf("honesty: device scope=packages(%d) functions(%d)\n", len(plan.Packages), len(plan.Functions))
+		fmt.Printf("audit: device scope=packages(%d) functions(%d)\n", len(plan.Packages), len(plan.Functions))
 	}
 	return nil
 }

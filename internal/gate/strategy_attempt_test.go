@@ -55,8 +55,8 @@ func TestGateAttemptBindsStrategyIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	attempt := attemptFromBatch(t, batch)
-	if attempt.StrategyID != strategy.ID || attempt.Strategy != "display-label" || len(gate.honesty) != 0 {
-		t.Fatalf("bound attempt = %+v, honesty=%v", attempt, gate.honesty)
+	if attempt.StrategyID != strategy.ID || attempt.Strategy != "display-label" || len(gate.audit) != 0 {
+		t.Fatalf("bound attempt = %+v, audit=%v", attempt, gate.audit)
 	}
 	foundStrategyParent := false
 	for _, edge := range batch.Lineage {
@@ -74,8 +74,8 @@ func TestGateAttemptBindsStrategyIdentity(t *testing.T) {
 		t.Fatalf("unresolved attempt was not recordable: %v", err)
 	}
 	attempt = attemptFromBatch(t, batch)
-	if attempt.StrategyID.Valid() || attempt.Strategy != "display-label" || len(unresolved.honesty) != 1 {
-		t.Fatalf("unresolved attempt = %+v, honesty=%v", attempt, unresolved.honesty)
+	if attempt.StrategyID.Valid() || attempt.Strategy != "display-label" || len(unresolved.audit) != 1 {
+		t.Fatalf("unresolved attempt = %+v, audit=%v", attempt, unresolved.audit)
 	}
 
 	t.Setenv(loop.StrategyIDEnvironment, "")

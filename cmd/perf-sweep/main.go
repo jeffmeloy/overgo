@@ -199,7 +199,7 @@ func runCheck(baselinePath, promptsPath string) error {
 	}
 	fmt.Printf("perf-sweep: %d/%d installed baselines within wall and device-memory ceilings source_commit=%s\n",
 		len(baseline.Models), len(baseline.Models), baseline.SourceCommit)
-	fmt.Println("honesty: each model ran in this process against the fixed fixture; ceilings and source measurements are review-owned by the baseline")
+	fmt.Println("audit: each model ran in this process against the fixed fixture; ceilings and source measurements are review-owned by the baseline")
 	return nil
 }
 

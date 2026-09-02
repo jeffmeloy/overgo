@@ -121,7 +121,7 @@ func run(args []string, output io.Writer) error {
 		verdict = "SHIP"
 	}
 	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
-	fmt.Fprintln(output, "honesty: host-reference execution; single corpus slice; verdict binds only this artifact pair, layer, and budget")
+	fmt.Fprintln(output, "audit: host-reference execution; single corpus slice; verdict binds only this artifact pair, layer, and budget")
 	return nil
 }
 
@@ -188,7 +188,7 @@ func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore strin
 	fmt.Fprintf(output, "bridge proposal committed: %s\n", proposal.ID)
 	fmt.Fprintf(output, "state: %s -- %s\n", proposal.State, proposal.Blocker)
 	fmt.Fprintf(output, "candidates: %d; required verifier: %s\n", len(proposal.Candidates), proposal.RequiredVerifier)
-	fmt.Fprintln(output, "honesty: advisory by construction; this document cannot authorize work")
+	fmt.Fprintln(output, "audit: advisory by construction; this document cannot authorize work")
 	return nil
 }
 
@@ -252,7 +252,7 @@ func runSynthesize(
 	fmt.Fprintf(output, "synthesis decision committed: %s (%s)\n", outcome.Decision.ID, verdict)
 	fmt.Fprintf(output, "generation record: %s\n", outcome.Record.ID)
 	fmt.Fprintf(output, "reason: %s\n", outcome.Decision.Reason)
-	fmt.Fprintln(output, "honesty: the proposal stays promotion-blocked; this decision is evidence for the experiment plane, never an override")
+	fmt.Fprintln(output, "audit: the proposal stays promotion-blocked; this decision is evidence for the experiment plane, never an override")
 	return nil
 }
 
@@ -300,6 +300,6 @@ func runChain(scorerDir, drafterDir, tokensPath, recordStore string, prefix, dra
 		verdict = "SHIP"
 	}
 	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
-	fmt.Fprintln(output, "honesty: host-reference greedy decode; displaced-window CE; verdict binds only this model pair, window protocol, and budget")
+	fmt.Fprintln(output, "audit: host-reference greedy decode; displaced-window CE; verdict binds only this model pair, window protocol, and budget")
 	return nil
 }

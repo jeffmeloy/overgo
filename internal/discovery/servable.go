@@ -31,7 +31,7 @@ type Entry struct {
 
 // Servable lists models with active inference recipes; presence is a stat of
 // recorded locations (manifest first, then components; recorded-but-missing
-// or unrecorded reports Present=false, honestly).
+// or unrecorded reports Present=false).
 func Servable(ctx context.Context, store *overgodb.Store, limit int) ([]Entry, error) {
 	return ServableWithMemo(ctx, store, limit, nil)
 }

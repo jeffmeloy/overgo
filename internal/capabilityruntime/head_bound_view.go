@@ -40,7 +40,7 @@ type HeadBoundView struct {
 // changed=false means the consumer's derived state is exactly current and
 // re-derivation may be skipped. changed=true hands over the ordered coalesced
 // delta and advances the view to the delta's resulting head. resync=true
-// means no delta can honestly bridge — an unseeded view, broken continuity,
+// means no delta can bridge — an unseeded view, broken continuity,
 // or a foreign projection contract — and the consumer must rebuild its
 // derived state from the current snapshot; the view advances to that head.
 func (v *HeadBoundView) Reconcile(

@@ -10,9 +10,9 @@ import (
 )
 
 // TestMediaReportRendersStoreTruth pins the generated-report contract:
-// an empty store renders the honest empty statement, media-task scope
+// an empty store renders the empty statement, media-task scope
 // excludes text tasks, and a claim cell states tier, measurements, and
-// commit -- or the honest dash when no verification stands.
+// commit -- or the dash when no verification stands.
 func TestMediaReportRendersStoreTruth(t *testing.T) {
 	root := t.TempDir()
 	store, err := overgodb.Open(root + "/store")
@@ -51,7 +51,7 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 		t.Fatalf("claim cell = %q", cell)
 	}
 	if claimCell(claims, recipe.TaskVideoGen) != "-" {
-		t.Fatal("an absent claim must render the honest dash")
+		t.Fatal("an absent claim must render the dash")
 	}
 	if staleCell("") != "-" || !strings.Contains(staleCell("no policy"), "stale: no policy") {
 		t.Fatal("stale cell contract")

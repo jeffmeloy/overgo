@@ -204,7 +204,7 @@ func render(rows []modelRow) []byte {
 			fmt.Fprintf(&output, "Published references for suites without a committed evaluation: %s\n\n", referenceCell(unmeasured))
 		}
 	}
-	output.WriteString("## Honesty\n\n")
+	output.WriteString("## Audit\n\n")
 	evaluated, referenced := 0, 0
 	for _, row := range rows {
 		if len(row.suites) != 0 {

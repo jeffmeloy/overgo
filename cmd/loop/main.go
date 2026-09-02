@@ -148,7 +148,7 @@ func run(args []string) error {
 	}
 	world := &execWorld{config: loaded, strategy: strategy}
 	outcome, err := loop.Run(world, strategy.Loop)
-	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; honesty: the gate remains the sole commit path, workers cannot advance an unverified step\n",
+	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked)
 	return err
 }

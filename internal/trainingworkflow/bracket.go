@@ -18,7 +18,7 @@ const (
 
 // BracketSlice is one side of a training bracket: the committed
 // benchmark and evaluation evidence standing for a model at a point in
-// time. An empty slice is honest -- it records that no evidence stood.
+// time. An empty slice is exact -- it records that no evidence stood.
 type BracketSlice struct {
 	Benchmark *evaluation.BenchmarkSummary `json:"benchmark,omitempty"`
 	Evals     []evaluation.EvalSummary     `json:"evals,omitempty"`

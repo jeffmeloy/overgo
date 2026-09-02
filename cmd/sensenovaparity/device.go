@@ -20,7 +20,7 @@ package main
 //      on the denoise trajectory. RNG-independent (uses the fixture's own z and
 //      velocity).
 //
-// What does NOT run here (named honestly in the ladder + the report): the
+// What does NOT run here (named explicitly in the ladder + the report): the
 // 42-layer branch-routed understanding-prefix + generation-branch cross-attn
 // transformer body that PRODUCES the `hidden` boundary the flow head consumes.
 // Its device port is scaffolded by prefilldevicegraph.go + CompileRopePlan but

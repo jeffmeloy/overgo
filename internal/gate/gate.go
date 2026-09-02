@@ -75,7 +75,7 @@ type gateContext struct {
 	messageFile         string
 	storePath           string
 	steps               []runrecord.GateStep
-	honesty             []string
+	audit               []string
 	start               time.Time
 	environment         runrecord.Environment
 	preparation         runrecord.GateLifecycle
@@ -441,12 +441,12 @@ func (g *gateContext) resolveAttemptStrategy(reader artifact.Reader) {
 	}
 	id, err := artifact.ParseID(declared)
 	if err != nil || id.Kind() != artifact.KindProfile || reader == nil {
-		g.honesty = append(g.honesty, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
+		g.audit = append(g.audit, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
 		return
 	}
 	strategy, err := loop.RequireStrategy(context.Background(), reader, id)
 	if err != nil {
-		g.honesty = append(g.honesty, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
+		g.audit = append(g.audit, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
 		return
 	}
 	g.strategy = &strategy
@@ -496,13 +496,13 @@ func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, 
 	if failure != "" {
 		fmt.Fprintf(output, "blocker: %s\n", failure)
 	}
-	for _, line := range compactHonesty(g.honesty) {
+	for _, line := range compactAudit(g.audit) {
 		fmt.Fprintln(output, line)
 	}
 }
 
-func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch *artifact.Batch, owners, honesty []string) error {
-	evidence := slices.DeleteFunc(compactHonesty(honesty), func(line string) bool {
+func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch *artifact.Batch, owners, audit []string) error {
+	evidence := slices.DeleteFunc(compactAudit(audit), func(line string) bool {
 		return !strings.HasPrefix(line, "advisory: review:") && !strings.HasPrefix(line, "advisory: warning:") &&
 			(!strings.HasPrefix(line, "advisory: consumer:") || strings.Contains(line, "candidates=;"))
 	})
@@ -529,7 +529,7 @@ func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch
 	return nil
 }
 
-func compactHonesty(lines []string) []string {
+func compactAudit(lines []string) []string {
 	var output []string
 	for _, line := range lines {
 		label := ""

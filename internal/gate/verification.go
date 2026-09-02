@@ -170,7 +170,7 @@ func (g *gateContext) pipeline() error {
 		if !ran {
 			if exclusion, excluded := impact.ExclusionReason(name); excluded {
 				g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
-				g.honesty = append(g.honesty, name+" skipped: "+exclusion)
+				g.audit = append(g.audit, name+" skipped: "+exclusion)
 			}
 			continue
 		}
@@ -181,7 +181,7 @@ func (g *gateContext) pipeline() error {
 		g.terminal[name] = result.Evidence
 		g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
 		if result.Evidence.Reused {
-			g.honesty = append(g.honesty, name+" reused: derived inputs already passed this step")
+			g.audit = append(g.audit, name+" reused: derived inputs already passed this step")
 		}
 		if result.Err != nil {
 			return fmt.Errorf("%s: %w", name, result.Err)
@@ -324,7 +324,7 @@ func (g *gateContext) stepArchitectureRatchet() (bool, error) {
 	// step or an evidence-bound retained classification.
 	report.Rules += len(staged.Staged) + 1
 	report.Sites += len(staged.Staged)
-	g.honesty = append(g.honesty, fmt.Sprintf(
+	g.audit = append(g.audit, fmt.Sprintf(
 		"architecture ratchet: source=%s paths=%d rules=%d sites=%d findings=%d",
 		report.SourceIdentity, len(g.paths), report.Rules, report.Sites, len(report.Findings),
 	))
@@ -356,13 +356,13 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf(
+	g.audit = append(g.audit, fmt.Sprintf(
 		"code profile: runtime=%d files/%d nodes automation=%d/%d generated=%d/%d test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
 		profile.Runtime.Files, profile.Runtime.Nodes, profile.Automation.Files, profile.Automation.Nodes,
 		profile.Generated.Files, profile.Generated.Nodes, profile.Test.Files, profile.Test.Nodes, profile.DuplicateExcessNodes,
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
-	g.honesty = append(g.honesty, surfaceDeltaHonesty(base, profile))
+	g.audit = append(g.audit, surfaceDeltaAudit(base, profile))
 	baseline, ratcheted, err := codeprofile.LoadCloneBaseline(filepath.Join(g.repo, filepath.FromSlash(codeprofile.CloneBaselineFile)))
 	if err != nil {
 		return false, err
@@ -371,7 +371,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 		if err := codeprofile.AdmitCloneBaseline(baseline, profile.DuplicateExcessNodes); err != nil {
 			return false, err
 		}
-		g.honesty = append(g.honesty, fmt.Sprintf(
+		g.audit = append(g.audit, fmt.Sprintf(
 			"clone ratchet: duplicate_excess=%d ceiling=%d headroom=%d",
 			profile.DuplicateExcessNodes, baseline.DuplicateExcessNodes,
 			baseline.DuplicateExcessNodes-profile.DuplicateExcessNodes,
@@ -383,12 +383,12 @@ func (g *gateContext) stepProfile() (bool, error) {
 			return false, err
 		}
 		summary, err := automationROIAdmission("commit", movement)
-		g.honesty = append(g.honesty, summary)
+		g.audit = append(g.audit, summary)
 		if err != nil {
 			return false, err
 		}
 	}
-	g.honesty = append(g.honesty, profileReviewFocus(profile, g.changedGoFiles()))
+	g.audit = append(g.audit, profileReviewFocus(profile, g.changedGoFiles()))
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
 		return false, err
 	}
@@ -411,11 +411,11 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 			return err
 		}
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf(
+	g.audit = append(g.audit, fmt.Sprintf(
 		"function impact: base=%s candidate=%s seeds=%d reachable=%d unknown=%d",
 		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable), len(impact.Unknown),
 	))
-	g.honesty = append(g.honesty, impactSelectionHonesty(profile.Impact))
+	g.audit = append(g.audit, impactSelectionAudit(profile.Impact))
 	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
 		return err
 	}
@@ -428,7 +428,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.honesty = append(g.honesty, consumerCensusHonesty("commit", selection.Context, declarations, base, current))
+	g.audit = append(g.audit, consumerCensusAudit("commit", selection.Context, declarations, base, current))
 	if unconsumed := codeprofile.NewUnconsumedSurface(baseDeclarations, declarations); len(unconsumed) > 0 {
 		// docs/staged_surface.json is the reviewed acceptance for new
 		// surface whose consumer is deliberately deferred (owner ruling
@@ -440,7 +440,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 		}
 		accepted, blocking := codeprofile.PartitionStagedSurface(unconsumed, staged)
 		if len(accepted) > 0 {
-			g.honesty = append(g.honesty, fmt.Sprintf(
+			g.audit = append(g.audit, fmt.Sprintf(
 				"staged surface accepted per docs/staged_surface.json: %s", consumerCandidates(accepted)))
 		}
 		if len(blocking) > 0 {
@@ -450,7 +450,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 
 	mergeBase, err := command(g.repo, "git", "merge-base", "master", "HEAD")
 	if err != nil {
-		g.honesty = append(g.honesty, "consumer census plan-slice unavailable: "+err.Error())
+		g.audit = append(g.audit, "consumer census plan-slice unavailable: "+err.Error())
 		return nil
 	}
 	mergeBase = strings.TrimSpace(mergeBase)
@@ -468,7 +468,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 			return err
 		}
 		summary, err := automationROIAdmission("plan-slice@"+mergeBase[:12], movement)
-		g.honesty = append(g.honesty, summary)
+		g.audit = append(g.audit, summary)
 		if err != nil {
 			return err
 		}
@@ -482,11 +482,11 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.honesty = append(g.honesty, consumerCensusHonesty("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
+	g.audit = append(g.audit, consumerCensusAudit("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
 }
 
-func impactSelectionHonesty(selection codeprofile.ImpactSelection) string {
+func impactSelectionAudit(selection codeprofile.ImpactSelection) string {
 	return fmt.Sprintf(
 		"impact selection: excluded=%d/%d triggered=%d unresolved=%d snapshot=%s",
 		selection.Excluded, selection.Owned, selection.Triggered, selection.Unresolved, selection.Identity,
@@ -511,7 +511,7 @@ func automationROIAdmission(scope string, movement codeprofile.ProductionMovemen
 	return summary, nil
 }
 
-func consumerCensusHonesty(scope, context string, declarations []codeprofile.ConsumerDeclaration, base, current codeprofile.ConsumerSummary) string {
+func consumerCensusAudit(scope, context string, declarations []codeprofile.ConsumerDeclaration, base, current codeprofile.ConsumerSummary) string {
 	declarations = slices.DeleteFunc(slices.Clone(declarations), func(value codeprofile.ConsumerDeclaration) bool {
 		return value.ProductionReferences > 0 || value.Boundary != ""
 	})
@@ -579,7 +579,7 @@ func pathSet(paths []string) map[string]bool {
 	return set
 }
 
-func surfaceDeltaHonesty(base, candidate codeprofile.Profile) string {
+func surfaceDeltaAudit(base, candidate codeprofile.Profile) string {
 	runtimeFiles, runtimeNodes := candidate.Runtime.Files-base.Runtime.Files, candidate.Runtime.Nodes-base.Runtime.Nodes
 	automationFiles, automationNodes := candidate.Automation.Files-base.Automation.Files, candidate.Automation.Nodes-base.Automation.Nodes
 	duplicateExcess := candidate.DuplicateExcessNodes - base.DuplicateExcessNodes
@@ -859,7 +859,7 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 			return false, err
 		}
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf(
+	g.audit = append(g.audit, fmt.Sprintf(
 		"modern-Go ratchet: findings=%d candidates=%d inspected=%d typed=%d catalog=%s",
 		len(candidate.Findings), candidate.CandidateCount(), baseline.Coverage.InspectedFiles,
 		baseline.Coverage.TypedFiles, baseline.CatalogCommit,
@@ -897,7 +897,7 @@ func (g *gateContext) pathsTouchAny(prefixes ...string) bool {
 
 func (g *gateContext) stepBuild() (bool, error) {
 	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
-		g.honesty = append(g.honesty, "build skipped: no Go-owned source or asset paths in -paths")
+		g.audit = append(g.audit, "build skipped: no Go-owned source or asset paths in -paths")
 		return true, nil
 	}
 	_, err := command(g.repo, "go", "build", "./...")
@@ -913,7 +913,7 @@ func (g *gateContext) stepTest() (bool, error) {
 		return false, err
 	}
 	if len(changed) == 0 {
-		g.honesty = append(g.honesty, "tests skipped: no Go package owns a source or embedded asset in -paths")
+		g.audit = append(g.audit, "tests skipped: no Go package owns a source or embedded asset in -paths")
 		return true, nil
 	}
 	out, err := command(g.repo, "go", "list", "-f", "{{.ImportPath}} {{join .Deps \",\"}}", "./...")
@@ -947,13 +947,13 @@ func (g *gateContext) stepTest() (bool, error) {
 		return false, err
 	}
 	if len(boundaryCoverage.Boundaries) != 0 {
-		g.honesty = append(g.honesty, "assembled agent boundaries: "+strings.Join(boundaryCoverage.Boundaries, ","))
+		g.audit = append(g.audit, "assembled agent boundaries: "+strings.Join(boundaryCoverage.Boundaries, ","))
 	}
 	if len(direct)+len(dependent) == 0 {
-		g.honesty = append(g.honesty, "tests skipped: changed packages have no importers and no tests resolved")
+		g.audit = append(g.audit, "tests skipped: changed packages have no importers and no tests resolved")
 		return true, nil
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
+	g.audit = append(g.audit, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
 	inputGraph, err := g.inputGraph()
 	if err != nil {
 		return false, err
@@ -975,7 +975,7 @@ func (g *gateContext) stepTest() (bool, error) {
 		}
 	}
 	if len(dependent) == 0 {
-		g.packageCacheHonesty(directReused, len(directPending))
+		g.packageCacheAudit(directReused, len(directPending))
 		return false, nil
 	}
 	dependentInputs, err := packageInputIdentities(inputGraph, dependent)
@@ -994,14 +994,14 @@ func (g *gateContext) stepTest() (bool, error) {
 		return false, err
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
-		g.honesty = append(g.honesty, fmt.Sprintf(
+		g.audit = append(g.audit, fmt.Sprintf(
 			"dependent fixture evidence not credited: %d skipped, %d unavailable",
 			len(report.Skipped), len(report.Unavailable),
 		))
 	} else if err := g.recordPackagePasses(dependentPending, "complete", dependentInputs); err != nil {
 		return false, err
 	}
-	g.packageCacheHonesty(directReused+dependentReused, len(directPending)+len(dependentPending))
+	g.packageCacheAudit(directReused+dependentReused, len(directPending)+len(dependentPending))
 	return false, nil
 }
 
@@ -1027,9 +1027,9 @@ func (g *gateContext) packageCachePartition(packages []string, mode string, inpu
 	return pending, reused, nil
 }
 
-func (g *gateContext) packageCacheHonesty(reused, executed int) {
+func (g *gateContext) packageCacheAudit(reused, executed int) {
 	if reused+executed > 0 {
-		g.honesty = append(g.honesty, fmt.Sprintf("package test evidence: %d reused + %d executed", reused, executed))
+		g.audit = append(g.audit, fmt.Sprintf("package test evidence: %d reused + %d executed", reused, executed))
 	}
 }
 
@@ -1111,7 +1111,7 @@ func (g *gateContext) stepMagics() (bool, error) {
 			err, gateStorePath,
 		)
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf(
+	g.audit = append(g.audit, fmt.Sprintf(
 		"permanent magic authority: production=%d classified=%d tests=%d open=0 stale=0 policy_copies=0",
 		report.ProductionSites, report.ClassifiedSites, report.TestSites,
 	))
@@ -1134,7 +1134,7 @@ func (g *gateContext) remediateStaleClosureBindings() error {
 	if err != nil {
 		return fmt.Errorf("gate: closure rebind remediation: %w", err)
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf(
+	g.audit = append(g.audit, fmt.Sprintf(
 		"remediation: closure rebind applied (%s) wall=%dms",
 		strings.TrimSpace(out), time.Since(started).Milliseconds(),
 	))
@@ -1204,7 +1204,7 @@ func (g *gateContext) stepArchitecture() (bool, error) {
 	for _, domain := range report.Domains {
 		domains = append(domains, string(domain.Domain))
 	}
-	g.honesty = append(g.honesty, fmt.Sprintf(
+	g.audit = append(g.audit, fmt.Sprintf(
 		"entry authority ratchet: domains=%s wall=%dms",
 		strings.Join(domains, ","), time.Since(started).Milliseconds(),
 	))

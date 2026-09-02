@@ -422,7 +422,7 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 // only its declared drill steps may appear (completed rows leave plan.json,
 // so absence is fine and unknown ids are the violation), every retained step
 // carries a non-empty machine-checked verify, and the doctrine keeps the
-// freeze and the honesty rules stated.
+// freeze and the audit rules stated.
 func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
 	wantIDs := []string{

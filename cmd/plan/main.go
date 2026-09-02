@@ -642,7 +642,7 @@ func runVerify(it plan.Item, st plan.Step) error {
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
 	class, err := planverify.Execute(context.Background(), ".", st.Verify)
 	if err != nil {
-		return fmt.Errorf("verify %s/%s: %w -- run the named oracle against its real prerequisite or record an honest stop", it.ID, st.ID, err)
+		return fmt.Errorf("verify %s/%s: %w -- run the named oracle against its real prerequisite or record a recorded stop", it.ID, st.ID, err)
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: PASS verdict=%s\n", it.ID, st.ID, class)
 	return nil

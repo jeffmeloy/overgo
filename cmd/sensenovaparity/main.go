@@ -5,10 +5,10 @@
 // CUDA-gated harness (sensenova_edit_cuda_windows_test.go,
 // research_cuda_windows_test.go): it reads the SAME fixture JSON and asserts
 // each stage the fixtures + ported host surface + the read-only checkpoint can
-// honestly verify, streaming only the tensors it probes (never materializing
+// verify, streaming only the tensors it probes (never materializing
 // the 35GB model).
 //
-// Honesty contract (task step 3): stages backed by a real value oracle are
+// Audit contract (task step 3): stages backed by a real value oracle are
 // asserted (schedule knots, z geometry/sigma, plan+rope derivation). Stages
 // that reach flow-forward arithmetic the fixtures do NOT cover are computed on
 // the real checkpoint and reported ORACLE-ABSENT (finiteness/shape only, no

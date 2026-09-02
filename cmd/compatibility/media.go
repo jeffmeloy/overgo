@@ -374,7 +374,7 @@ var mediaRunPhases = map[runrecord.Phase]bool{
 }
 
 // phaseCell renders the run's recorded node-phase walls in recorded
-// order, or the honest dash when the run predates phase capture.
+// order, or the dash when the run predates phase capture.
 func phaseCell(phases []runrecord.PhaseMetric) string {
 	parts := make([]string, 0, len(phases))
 	for _, metric := range phases {
@@ -469,7 +469,7 @@ func staleCell(stale string) string {
 }
 
 // claimCell renders the strongest verification claim recorded for the
-// capability, or the honest dash when none stands.
+// capability, or the dash when none stands.
 func claimCell(claims []runrecord.CapabilityClaim, task recipe.Task) string {
 	for _, claim := range claims {
 		if claim.Capability != string(task) {

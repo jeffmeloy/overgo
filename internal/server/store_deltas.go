@@ -17,7 +17,7 @@ const (
 // storeDeltasResponse serves one head-bound reconciliation step to a
 // read-only peer or the embedded UI: either the ordered coalesced delta from
 // the consumer's exact head, or a resync directive naming the current
-// snapshot coordinate when no delta can honestly bridge.
+// snapshot coordinate when no delta can bridge.
 type storeDeltasResponse struct {
 	Resync            bool                     `json:"resync,omitzero"`
 	Head              string                   `json:"head"`

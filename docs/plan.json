@@ -1,21 +1,8 @@
 {
   "campaign": "Integrated validation, phase 2: repository cleanup, benchmark completion, modality verification, and close-out",
-  "doctrine": "This campaign continues the capability freeze enforced by structure: docs/plan.json is the sole live execution plan, every commit binds to a plan row through the gate, and the freeze whitelist in internal/plan/campaign_structure_test.go admits only the rows named here, so no new model family, workflow, policy, or optimization mechanism lands while any row is open; the only construction admitted is a fix a drill surfaced, declared under the owner's correct-as-you-go directive. Owner rules of 2026-09-01/02 govern every row: no task runs for hours unattended -- every evaluate pass carries -budget, models run smallest first with the 27B last, and MATH is excluded from this campaign; a claim-recording run (evaluate -all, benchmark -publish, train) runs only on a clean tree after its code has landed, never inside the gate, whose candidate always reads as dirty; store-reading verifies run under OVERGO_DATA_ROOT; every green output ends with an honesty line naming what did NOT run. Lanes report UNAVAILABLE honestly when a device, model, browser, oracle, or toolkit is missing; unavailable is never passing evidence and never a failure of the drill's owner, and a model whose modality has no declared expectation is reported as unverified, not as verified. Rows whose exact invocation depends on execution-time facts (installed model identities, device presence, evidence identities) bind their final verify through plan -setverify before work starts, never through prose. Findings discovered during a row are parked with cmd/finding and scheduled as rows by the close-out item, not absorbed silently. Reports are generated, never hand-written: docs/BENCHMARK.md by cmd/benchmark-report and docs/MEDIA_REPORT.md by cmd/compatibility -update-media, each with a -check that is its row's verify.",
+  "doctrine": "This campaign continues the capability freeze enforced by structure: docs/plan.json is the sole live execution plan, every commit binds to a plan row through the gate, and the freeze whitelist in internal/plan/campaign_structure_test.go admits only the rows named here, so no new model family, workflow, policy, or optimization mechanism lands while any row is open; the only construction admitted is a fix a drill surfaced, declared under the owner's correct-as-you-go directive. Owner rules of 2026-09-01/02 govern every row: no task runs for hours unattended -- every evaluate pass carries -budget, models run smallest first with the 27B last, and MATH is excluded from this campaign; a claim-recording run (evaluate -all, benchmark -publish, train) runs only on a clean tree after its code has landed, never inside the gate, whose candidate always reads as dirty; store-reading verifies run under OVERGO_DATA_ROOT; every green output ends with an audit line naming what did NOT run. Lanes report UNAVAILABLE when a device, model, browser, oracle, or toolkit is missing; unavailable is never passing evidence and never a failure of the drill's owner, and a model whose modality has no declared expectation is reported as unverified, not as verified. Rows whose exact invocation depends on execution-time facts (installed model identities, device presence, evidence identities) bind their final verify through plan -setverify before work starts, never through prose. Findings discovered during a row are parked with cmd/finding and scheduled as rows by the close-out item, not absorbed silently. Reports are generated, never hand-written: docs/BENCHMARK.md by cmd/benchmark-report and docs/MEDIA_REPORT.md by cmd/compatibility -update-media, each with a -check that is its row's verify.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
-    {
-      "id": "audit-language",
-      "title": "Audit language sweep (owner rule 2026-09-02): replace the honest/honesty/dishonest framing in Go output lines, comments, and test names under cmd and internal with objective audit statements of the deciding rule; behavior unchanged",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Audit language sweep (owner rule 2026-09-02): replace the honest/honesty/dishonest framing in Go output lines, comments, and test names under cmd and internal with objective audit statements of the deciding rule; behavior unchanged",
-          "status": "open",
-          "verify": "test $(grep -rli honest --include=*.go cmd internal | wc -l) -eq 0"
-        }
-      ]
-    },
     {
       "id": "docs-pruning",
       "title": "Prune unreferenced docs: the two architecture PNGs README does not cite (docs/assets/overgo-platform-architecture.png, overgo-platform-architecture-scientific.png, 5.7 MB) and the phase-1 freeze capture (docs/freeze_capture, no code or doctrine reference); media samples are regenerated by the media-report row and verification specs are audited by the modality census, so both stay",
@@ -59,7 +46,7 @@
           "title": "Record IFEval (131 exact-vocabulary cases, generative, 256 tokens) for every servable text model through each model's chat template with its declared sampling recorded, greedy decoding",
           "status": "open",
           "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Instruction following is only meaningful through the model's own template; the special-token and end-of-turn fixes (d75d3554) make that path honest. Generation is decode-bound and unchanged by the kernel fix, so the budget is set from measured decode rates.",
+          "rationale": "Instruction following is only meaningful through the model's own template; the special-token and end-of-turn fixes (d75d3554) make that path correct. Generation is decode-bound and unchanged by the kernel fix, so the budget is set from measured decode rates.",
           "depends_on": [
             "benchmark-completion/musr-pass"
           ]
@@ -116,7 +103,7 @@
           "title": "Replace the non-empty-output smoke oracle with a declared expectation per model: an instruct model gets a chat probe with a substring oracle, a base model a likelihood floor, a domain model its domain probe; a model without a declaration is reported unverified",
           "status": "open",
           "verify": "go run ./cmd/smoke-lane",
-          "rationale": "The verified-matrix row overclaimed correctness on a liveness check; a fix surfaced by the drill is admitted under the correct-as-you-go directive. The lane's exit code is the verdict and its honesty line names every model that ran without an expectation.",
+          "rationale": "The verified-matrix row overclaimed correctness on a liveness check; a fix surfaced by the drill is admitted under the correct-as-you-go directive. The lane's exit code is the verdict and its audit line names every model that ran without an expectation.",
           "depends_on": [
             "modality-verification/capability-census"
           ]

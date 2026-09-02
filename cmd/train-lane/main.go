@@ -139,12 +139,12 @@ func run() error {
 		}
 	}
 	if trainable == 0 {
-		fmt.Println("train-lane: 0 training-activated models; nothing to train (honest empty, not green)")
+		fmt.Println("train-lane: 0 training-activated models; nothing to train (empty, not green)")
 		return runrecord.LaneError(runrecord.LaneEmpty, "capability catalog has no training activations")
 	}
 	fmt.Printf("=== TRAIN %d passed / %d failed / %d unavailable / %d objective-unsupported of %d training-activated ===\n",
 		passed, failed, unavailable, unsupported, trainable)
-	fmt.Println("honesty: matrix derived from training activations; each step runs the recipe-authorized workflow and records its session observation; objective-unsupported rows need RL inputs a smoke cannot supply")
+	fmt.Println("audit: matrix derived from training activations; each step runs the recipe-authorized workflow and records its session observation; objective-unsupported rows need RL inputs a smoke cannot supply")
 	if failed > 0 {
 		return runrecord.LaneError(runrecord.LaneFailed, fmt.Sprintf("%d failed, %d unavailable", failed, unavailable))
 	}

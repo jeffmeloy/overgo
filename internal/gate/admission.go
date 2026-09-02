@@ -138,7 +138,7 @@ func (g *gateContext) stepProtection() (bool, error) {
 		)
 	}
 	g.stepEvidence["protection"] = configured + ";activation=" + activated
-	g.honesty = append(g.honesty, "protection: "+g.stepEvidence["protection"])
+	g.audit = append(g.audit, "protection: "+g.stepEvidence["protection"])
 	return false, nil
 }
 
@@ -187,7 +187,7 @@ func (g *gateContext) stepScope() (bool, error) {
 	dirtyPaths, unplanned := scopeDirty(g.paths, dirty)
 	var verificationInputs []string
 	for _, path := range unplanned {
-		g.honesty = append(g.honesty, "unplanned dirty (not shipped): "+path)
+		g.audit = append(g.audit, "unplanned dirty (not shipped): "+path)
 		g.profileDirty = g.profileDirty || strings.HasSuffix(path, ".go")
 		if unplannedVerificationInput(path) {
 			verificationInputs = append(verificationInputs, path)

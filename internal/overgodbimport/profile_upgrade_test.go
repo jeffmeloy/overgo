@@ -177,7 +177,7 @@ func TestProfileUpgradeBackfillsFieldsAddedAfterPublication(t *testing.T) {
 	}
 }
 
-// TestProfileUpgradeRefusesUnregisteredArchitecture keeps the backfill honest:
+// TestProfileUpgradeRefusesUnregisteredArchitecture keeps the backfill exact:
 // an architecture the catalog does not declare has no authority to complete it.
 func TestProfileUpgradeRefusesUnregisteredArchitecture(t *testing.T) {
 	if _, err := upgradeRenamedProfile([]byte(

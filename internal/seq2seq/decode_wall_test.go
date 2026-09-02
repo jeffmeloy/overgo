@@ -9,7 +9,7 @@ import (
 // TestDecodeWall: matched-protocol wall measurement against the reference's
 // research-tagged oracle test (extmodel TestNeedleIncrementalDecodeMatchesJAXOracle).
 // That test's reported elapsed covers artifact resolve+load, encode(src), and
-// len(tgt)=8 incremental advances plus parity asserts; the honest match here
+// len(tgt)=8 incremental advances plus parity asserts; the parity match here
 // is: load once (reported separately), then median-of-5 for (a) Encode +
 // DecodeFull over the oracle pair and (b) an 8-token incremental Generate
 // from the oracle src. Numbers land in docs/plan.json (rung6-needle

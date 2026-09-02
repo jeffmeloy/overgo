@@ -54,6 +54,7 @@ func run() error {
 	worker := flag.Bool("worker", false, "run one model worker")
 	modelIndex := flag.Int("model-index", -1, "worker model index")
 	modelPath := flag.String("model-path", "", "worker model path for -all (the parent lists the catalog once and hands each worker its model)")
+	budget := flag.Duration("budget", evaluationBudget, "wall-clock ceiling on one -all pass, shared as equal slices across the models still to run; a model cut at its slice is recorded budget-exceeded")
 	importCache := flag.String("import-hf-cache", "", "scan a HuggingFace dataset cache root, import every recognized benchmark, and publish the active catalog")
 	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
 	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all")
@@ -102,7 +103,7 @@ func run() error {
 		if *worker {
 			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *chatProtocol)
 		}
-		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *chatProtocol)
+		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *chatProtocol, *budget)
 	}
 	if *listSuites {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {

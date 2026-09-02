@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "interruption-drills",
-          "title": "Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
-          "status": "open",
-          "verify": "go run ./cmd/store-check",
-          "rationale": "Interruption is the one input every durable subsystem claims to survive; each drill damages a copy, never the canonical store, and store-check is the verdict.",
-          "depends_on": [
-            "hermetic-foundation/store-drills"
-          ]
-        },
-        {
           "id": "control-plane-drills",
           "title": "Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
           "status": "open",

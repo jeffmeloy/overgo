@@ -76,7 +76,10 @@ var errEvaluationSliceElapsed = errors.New("evaluate: the model's evaluation-bud
 // runAllParent fans one worker process out per servable model, the
 // same isolation the manifest path uses: a model that dies cannot take
 // the remaining evaluations with it.
-func runAllParent(ctx context.Context, repository string, device int, family string, limit int, chatProtocol bool) error {
+func runAllParent(ctx context.Context, repository string, device int, family string, limit int, chatProtocol bool, budget time.Duration) error {
+	if budget <= 0 {
+		return errors.New("evaluate: the evaluation budget must be positive")
+	}
 	// The claim precondition holds once, up front: every worker binds
 	// its evidence to the verifying commit, so a dirty tree refuses the
 	// pass here in one line instead of once per model after each load.
@@ -91,13 +94,13 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 	if err != nil {
 		return err
 	}
-	deadline := time.Now().Add(evaluationBudget)
+	deadline := time.Now().Add(budget)
 	var failures []error
 	for index, model := range models {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			failures = append(failures, fmt.Errorf(
-				"model %q: unevaluated; the %s evaluation budget elapsed", model, evaluationBudget))
+				"model %q: unevaluated; the %s evaluation budget elapsed", model, budget))
 			continue
 		}
 		// Each model gets an equal share of the budget still unspent, so a

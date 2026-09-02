@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "inference-e2e",
-      "title": "End-to-end inference over the verified artifact matrix",
-      "status": "open",
-      "steps": [
-        {
-          "id": "serving-operations",
-          "title": "Exercise buffered and streaming native, OpenAI-style, and Anthropic-style contracts; ordered media projection; prompt-cache and context options; bounded concurrent scheduling; restart continuation; live model-swap drain and replacement; download cancellation and shutdown; hermetic continuous-cache and speculative parity; and the full CUDA device lane",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^(TestAdaptiveServingContractMatrix|TestCompletion|TestNativeCompletion|TestChatCompletion|TestBufferedResponsesFunctionCall|TestBufferedAnthropicMessages|TestServerContextShiftOptionReachesGenerator|TestServerParksBoundedGenerationRequests|TestResponsesContinuationRestart|TestDownloadShutdownOwnership)$' -count=1 -v \u0026\u0026 go test ./internal/modelswap -run '^(TestModelSwapSupervisor|TestModelSwapProxy|TestExternalProcessLifecycle)$' -count=1 -v \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^(TestHermeticCUDAContinuousCacheParity|TestNextNMTPDeviceSpeculationLossless)$' -count=1 -v \u0026\u0026 go run ./cmd/device-lane",
-          "rationale": "The native four-token smoke serve does not exercise protocol shaping or operational lifecycle. The server contract matrix owns streaming native, OpenAI Completions, Chat Completions and Responses, Anthropic Messages, tools, ordered image/audio/video projection, session continuity, prompt-cache accounting, cancellation and refusal paths; named companion tests add buffered paths, context-shift propagation, bounded request parking, restart continuation and download-shutdown cleanup. The model-swap suite owns drain-before-replace, request routing and child-process reaping. Hermetic CUDA tests compare continuous cache execution with the host authority and require speculative decoding to emit exactly the plain greedy tokens. device-lane supplies the real CUDA availability, kernel, executor, model, projector, optimizer, device-math and dense-causal evidence. Model-specific text generation was completed by verified-matrix; installed multimodal, encoder and generation recipes remain independently evidenced in the compatibility catalog rather than being implied by this operational verifier.",
-          "depends_on": [
-            "inference-e2e/sync-serving-operations"
-          ]
-        }
-      ]
-    },
-    {
       "id": "training-e2e",
       "title": "End-to-end training beyond a successful update step",
       "status": "open",

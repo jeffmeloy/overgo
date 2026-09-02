@@ -99,6 +99,9 @@ type residentProjectionCase struct {
 var residentProjectionCases = [...]residentProjectionCase{
 	{name: "decode", rightRows: 1, tolerance: accuracyQuantized},
 	{name: "prefill", rightRows: 3, tolerance: accuracyQuantized},
+	// Twelve columns exceed every decode span (native 2-byte and fp8
+	// weights, q8 input spans) so the staged and chunked paths stay covered.
+	{name: "prefill-staged", rightRows: 12, tolerance: accuracyQuantized},
 	{name: "greedy", rightRows: 1, selectTopK: true, tolerance: accuracyExact},
 }
 

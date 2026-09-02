@@ -227,7 +227,7 @@ func launchLinearLayout(
 				decodeKernel = kernelMulMatBf16F32
 				upconvertKernel = kernelBf16ToF32
 			}
-			if rightRows == 1 && inner%2 == 0 && rightNode.Type == dtype.F32 {
+			if nativeDecodeSpanFits(weightScalarBytes, rightRows) && inner%2 == 0 && rightNode.Type == dtype.F32 {
 				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
 				if err != nil {
 					return err
@@ -272,7 +272,7 @@ func launchLinearLayout(
 			traits, _ := leftNode.Type.Traits()
 			scaleOffset := uint64(inner) * uint64(leftRows) * traits.TypeSize
 			scale := left + driver.DevicePtr(scaleOffset)
-			if rightRows == 1 {
+			if nativeDecodeSpanFits(traits.TypeSize, rightRows) {
 				launchCount, err := bf16MulMatLaunchCount(leftRows, rightRows)
 				if err != nil {
 					return err
@@ -527,6 +527,23 @@ func launchStagedNativeMatMul(
 		start += rows
 	}
 	return nil
+}
+
+// nativeDecodeSpanFits decides whether a native-dtype (F16, BF16, fp8)
+// mul_mat with rightRows input columns runs through the decode kernel,
+// which reads the resident weight once per column, or through the staged
+// path, which reads the weight once, writes its F32 copy, and reads that
+// copy back for SGEMM. The decode kernel wins while the bytes it moves
+// (columns x weight bytes) stay below the staged path's traffic (weight
+// bytes plus two F32 passes): four columns for 2-byte weights, eight for
+// fp8. A grouped-choice continuation of a few tokens therefore never
+// upconverts the whole model.
+func nativeDecodeSpanFits(weightScalarBytes uint64, rightRows uint32) bool {
+	if weightScalarBytes == 0 {
+		return false
+	}
+	stagedTraffic := weightScalarBytes + 2*f32ScalarBytes
+	return uint64(rightRows)*weightScalarBytes < stagedTraffic
 }
 
 func bf16MulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {

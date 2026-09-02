@@ -535,6 +535,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"audit-language/do",
 		"choice-scoring-fix/do",
 		"group-metric-names/do",
+		"native-decode-span/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",
 		"benchmark-completion/musr-pass",

@@ -4,15 +4,15 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "resource-tolerance",
-      "title": "Resource no-regression tolerance: derive the repeat-measurement tolerance from the recorded identical-run pair (fixtures/resource_runs_qwen35_4b_mmlu_repeat*.json) so an identical evaluation replay is accepted while a real regression beyond the recorded noise is refused; closes finding dc790871",
+      "id": "audit-language",
+      "title": "Audit language sweep (owner rule 2026-09-02): replace the honest/honesty/dishonest framing in Go output lines, comments, and test names under cmd and internal with objective audit statements of the deciding rule; behavior unchanged",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Resource no-regression tolerance: derive the repeat-measurement tolerance from the recorded identical-run pair (fixtures/resource_runs_qwen35_4b_mmlu_repeat*.json) so an identical evaluation replay is accepted while a real regression beyond the recorded noise is refused; closes finding dc790871",
+          "title": "Audit language sweep (owner rule 2026-09-02): replace the honest/honesty/dishonest framing in Go output lines, comments, and test names under cmd and internal with objective audit statements of the deciding rule; behavior unchanged",
           "status": "open",
-          "verify": "go run ./cmd/loop -compare-resource-runs fixtures/resource_runs_qwen35_4b_mmlu_repeat.json \u0026\u0026 go run ./cmd/loop -compare-resource-runs fixtures/resource_runs_qwen35_4b_mmlu_repeat_reverse.json"
+          "verify": "test $(grep -rli honest --include=*.go cmd internal | wc -l) -eq 0"
         }
       ]
     },

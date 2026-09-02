@@ -531,7 +531,7 @@ func writeFindings(output io.Writer, repository string) error {
 	for _, line := range deferred {
 		fmt.Fprintln(output, line)
 	}
-	fmt.Fprintf(output, "%d live finding(s); %d closed, %d refuted, %d deferred by disposition; %d gate advisory document(s) of which the alias target counts; honesty: a finding is live until a disposition alias binds it, a deferred finding is acknowledged debt whose reason its disposition cites, and the gate advisory is live only at its alias\n",
+	fmt.Fprintf(output, "%d live finding(s); %d closed, %d refuted, %d deferred by disposition; %d gate advisory document(s) of which the alias target counts; audit rule: a finding is live until a disposition alias binds it, a deferred finding is acknowledged debt whose disposition cites the reason, and the gate advisory is live only at its alias\n",
 		live, disposed[finding.StatusClosed], disposed[finding.StatusRefuted], disposed[finding.StatusDeferred], advisories)
 	return nil
 }

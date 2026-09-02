@@ -33,6 +33,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
@@ -70,12 +71,12 @@ func main() {
 func run(args []string) error {
 	flags := flag.NewFlagSet("loop", flag.ContinueOnError)
 	configPath := flags.String("config", "docs/loop.json", "machine-local loop configuration")
-	repoPath := flags.String("repo", "overgodb-store", "OvergoDB root for the evidence doors")
+	repoPath := flags.String("repo", "", "OvergoDB root for the evidence doors; empty resolves the store through the data-root contract")
 	publishStrategySpec := flags.String("publish-strategy", "", "publish one strategy from this spec (worker, catalog, loop config) and exit")
 	experimentSpec := flags.String("experiment", "", "replay one strategy experiment from this spec and print the comparison")
 	publishFitnessSpec := flags.String("publish-fitness", "", "publish one pairwise improvement-fitness proof from this request spec")
 	resourceLanesSpec := flags.String("compare-resource-fitness", "", "replay one resource no-regression proof from this lanes spec")
-	resourceRunsSpec := flags.String("compare-resource-runs", "", "judge a baseline and a candidate run's committed resource observations through the resource no-regression owner from this spec ({name, baseline_run, candidate_run, required_metrics})")
+	resourceRunsSpec := flags.String("compare-resource-runs", "", "judge a baseline and a candidate run's committed resource observations through the resource no-regression owner from this spec ({name, baseline_run, repeat_runs, candidate_run, required_metrics}; repeat_runs are identical-protocol repeats of the baseline that set the measured noise envelope)")
 	deriveRecipesSpec := flags.String("derive-recipes", "", "derive one materialized candidate's per-arm recipes from this spec")
 	moeCoverageSpec := flags.String("moe-coverage", "", "run one indexed MoE router observation read from this spec")
 	evaluateCandidateSpec := flags.String("evaluate-candidate", "", "judge one candidate's measured arms through the cross-domain evaluator from this spec")
@@ -88,6 +89,13 @@ func run(args []string) error {
 	attemptReceiptSpecPath := flags.String("attempt-receipt", "", "resolve and print one terminal attempt receipt from this spec")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	if *repoPath == "" {
+		roots, err := dataroot.ResolveCurrent()
+		if err != nil {
+			return err
+		}
+		*repoPath = roots.Store
 	}
 	switch {
 	case *publishStrategySpec != "":

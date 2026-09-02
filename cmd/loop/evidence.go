@@ -533,8 +533,12 @@ type resourceLanesSpec struct {
 // streams form one lane: the baseline and the candidate of a
 // no-regression judgment over the metrics the operator requires.
 type resourceRunsSpec struct {
-	Name            string                     `json:"name"`
-	BaselineRun     artifact.ID                `json:"baseline_run"`
+	Name        string      `json:"name"`
+	BaselineRun artifact.ID `json:"baseline_run"`
+	// RepeatRuns are further runs of the baseline work under the identical
+	// protocol; their spread against the baseline is the lane's measured
+	// noise envelope.
+	RepeatRuns      []artifact.ID              `json:"repeat_runs,omitempty"`
 	CandidateRun    artifact.ID                `json:"candidate_run"`
 	RequiredMetrics []runrecord.ResourceMetric `json:"required_metrics"`
 }
@@ -558,8 +562,10 @@ func compareResourceRuns(root, specPath string, output io.Writer) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	streams := make([]runrecord.ObservationStream, 0, 2)
-	for _, run := range []artifact.ID{spec.BaselineRun, spec.CandidateRun} {
+	runs := append([]artifact.ID{spec.BaselineRun}, spec.RepeatRuns...)
+	runs = append(runs, spec.CandidateRun)
+	streams := make([]runrecord.ObservationStream, 0, len(runs))
+	for _, run := range runs {
 		// The complete stream: every chunk the run committed, whatever
 		// its size, is the evidence under judgment.
 		stream, found, err := runrecord.LoadObservationStream(ctx, store, run, runrecord.ObservationStreamBounds{
@@ -574,7 +580,8 @@ func compareResourceRuns(root, specPath string, output io.Writer) error {
 		streams = append(streams, stream)
 	}
 	comparison, err := runrecord.CompareResourceFitness(ctx, store, []runrecord.ResourceFitnessLane{{
-		Name: spec.Name, RequiredMetrics: spec.RequiredMetrics, Baseline: streams[0], Candidate: streams[1],
+		Name: spec.Name, RequiredMetrics: spec.RequiredMetrics,
+		Baseline: streams[0], Repeats: streams[1 : len(streams)-1], Candidate: streams[len(streams)-1],
 	}})
 	if err != nil {
 		return err

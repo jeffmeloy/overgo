@@ -392,6 +392,57 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		t.Fatalf("historical comparison after alias advance = (%+v, %v)", requiredComparison, err)
 	}
 
+	// Repeats of the baseline set the measured noise envelope: a candidate
+	// inside it is neither a regression nor a strict improvement.
+	repeatScope := agentBaselineScope
+	repeatScope.Attempt = id(artifact.KindEvidence, "agent repeat attempt")
+	envelopeCandidateScope := agentCandidateScope
+	envelopeCandidateScope.Attempt = id(artifact.KindEvidence, "agent envelope candidate attempt")
+	for _, attempt := range []artifact.ID{repeatScope.Attempt, envelopeCandidateScope.Attempt} {
+		testutil.PublishArtifact(t, store, attempt)
+	}
+	repeat := stream(repeatScope, 10, 110, 1_000, 1, 2)
+	withinEnvelope := stream(envelopeCandidateScope, 10, 108, 1_000, 1, 2)
+	envelopeLane := ResourceFitnessLane{
+		Name: ResourceLaneAgent, RequiredMetrics: required, RequireInteractions: true,
+		Baseline: agentBaseline, Repeats: []ObservationStream{repeat}, Candidate: withinEnvelope,
+	}
+	enveloped, err := CompareResourceFitness(ctx, store, []ResourceFitnessLane{envelopeLane})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := enveloped.Lanes[0].NoiseEnvelope; !reflect.DeepEqual(got, []ResourceMeasure{
+		{Metric: ResourceCostUnits, Value: 0},
+		{Metric: ResourcePeakHostBytes, Value: 0},
+		{Metric: ResourceWallNS, Value: 10},
+	}) {
+		t.Fatalf("noise envelope = %+v", got)
+	}
+	if enveloped.StrictImprovement || len(enveloped.Lanes[0].StrictMetrics) != 0 {
+		t.Fatalf("a candidate inside the noise envelope counted as an improvement: %+v", enveloped.Lanes[0])
+	}
+	if !slices.Contains(enveloped.SourceChunks(), repeat.ChunkIDs[0]) {
+		t.Fatal("the repeat's chunk is not a cited source")
+	}
+	if _, err := NewResourceFitnessComparison([]ResourceFitnessLane{{
+		Name: ResourceLaneAgent, RequiredMetrics: required, RequireInteractions: true,
+		Baseline: agentBaseline, Repeats: []ObservationStream{agentBaseline}, Candidate: withinEnvelope,
+	}}); err == nil {
+		t.Fatal("a repeat reusing the baseline attempt was admitted")
+	}
+	beyond := cloneResourceFitnessLanes([]ResourceFitnessLane{envelopeLane})
+	setResourceMeasure(&beyond[0].Candidate.Aggregate, ResourceWallNS, 111)
+	if _, err := NewResourceFitnessComparison(beyond); err == nil {
+		t.Fatal("a candidate beyond the noise envelope was admitted")
+	}
+	strict := cloneResourceFitnessLanes([]ResourceFitnessLane{envelopeLane})
+	setResourceMeasure(&strict[0].Candidate.Aggregate, ResourceWallNS, 85)
+	strictComparison, err := NewResourceFitnessComparison(strict)
+	if err != nil || !strictComparison.StrictImprovement ||
+		!reflect.DeepEqual(strictComparison.Lanes[0].StrictMetrics, []ResourceMeasure{{Metric: ResourceWallNS, Value: 15}}) {
+		t.Fatalf("strict improvement beyond the envelope = %+v, %v", strictComparison.Lanes[0].StrictMetrics, err)
+	}
+
 	refusals := []struct {
 		name   string
 		mutate func([]ResourceFitnessLane)

@@ -426,6 +426,9 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 // without weakening its structure to the historical RSI or validation
 // whitelists. Once the campaign adopts the repeated master-sync workflow, the
 // plan itself must retain one exact synchronization row before every work row.
+// Between the gated synchronization commit and its paired work commit, the
+// completed sync row is pruned and the leading work row retains its exact
+// dependency on that completion authority.
 func assertAudioCapabilityCampaign(t *testing.T, document Plan) {
 	t.Helper()
 	for _, required := range []string{
@@ -449,12 +452,18 @@ func assertAudioCapabilityCampaign(t *testing.T, document Plan) {
 		if !workflow {
 			continue
 		}
-		if len(item.Steps)%2 != 0 {
-			t.Errorf("audio workflow item %s has %d rows, want sync/work pairs", item.ID, len(item.Steps))
-			continue
+		steps := item.Steps
+		if len(steps)%2 != 0 {
+			work := steps[0]
+			wantDependency := []string{item.ID + "/sync-" + work.ID}
+			if strings.HasPrefix(work.ID, "sync-") || !slices.Equal(work.DependsOn, wantDependency) {
+				t.Errorf("audio workflow item %s has invalid leading post-sync work row %s with dependencies %v, want %v", item.ID, work.ID, work.DependsOn, wantDependency)
+				continue
+			}
+			steps = steps[1:]
 		}
-		for index := 0; index < len(item.Steps); index += 2 {
-			sync, work := item.Steps[index], item.Steps[index+1]
+		for index := 0; index < len(steps); index += 2 {
+			sync, work := steps[index], steps[index+1]
 			if sync.ID != "sync-"+work.ID {
 				t.Errorf("audio workflow pair %s[%d] = %s then %s", item.ID, index, sync.ID, work.ID)
 			}

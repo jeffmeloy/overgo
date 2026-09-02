@@ -24,11 +24,16 @@ func LowerIdentifier(value string, maxBytes int) bool {
 		return false
 	}
 	for index := range len(value) {
-		character := value[index]
-		if (character < 'a' || character > 'z') && (character < '0' || character > '9') &&
-			character != '.' && character != '-' && character != '_' {
+		if !LowerIdentifierByte(value[index]) {
 			return false
 		}
 	}
 	return true
+}
+
+// LowerIdentifierByte reports whether one byte belongs to the lower-case
+// identifier alphabet: a lower-case letter, a digit, '.', '-', or '_'.
+func LowerIdentifierByte(character byte) bool {
+	return character >= 'a' && character <= 'z' || character >= '0' && character <= '9' ||
+		character == '.' || character == '-' || character == '_'
 }

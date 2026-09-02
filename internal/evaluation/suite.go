@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/textcheck"
 )
 
 const ExactGenerationKind = "exact-generation"
@@ -258,10 +260,25 @@ func accuracyMetrics(accuracy float64, groups []AccuracyGroup) []runrecord.Metri
 	metrics[0] = runrecord.Metric{Name: "accuracy", Value: accuracy, Direction: runrecord.DirectionMaximize}
 	for _, group := range groups {
 		metrics = append(metrics, runrecord.Metric{
-			Name: "accuracy/" + group.Name, Value: group.Accuracy, Direction: runrecord.DirectionMaximize,
+			Name: groupAccuracyMetricName(group.Name), Value: group.Accuracy, Direction: runrecord.DirectionMaximize,
 		})
 	}
 	return metrics
+}
+
+// groupAccuracyMetricName names one group's accuracy metric within the
+// run-record label alphabet (lower-case letters, digits, '.', '-', '_'):
+// "accuracy." followed by the group name lowered, with every other byte
+// written as '-'. A slash or capital in a dataset subset name must not
+// make the whole evaluation unrecordable.
+func groupAccuracyMetricName(group string) string {
+	name := []byte("accuracy." + strings.ToLower(group))
+	for index := len("accuracy."); index < len(name); index++ {
+		if !textcheck.LowerIdentifierByte(name[index]) {
+			name[index] = '-'
+		}
+	}
+	return string(name)
 }
 
 func accuracyMetricContract(groups []string) []runrecord.Metric {
@@ -276,7 +293,7 @@ func accuracyMetricContract(groups []string) []runrecord.Metric {
 	metrics := make([]runrecord.Metric, 1, len(unique)+1)
 	metrics[0] = runrecord.Metric{Name: "accuracy", Direction: runrecord.DirectionMaximize}
 	for _, name := range unique {
-		metrics = append(metrics, runrecord.Metric{Name: "accuracy/" + name, Direction: runrecord.DirectionMaximize})
+		metrics = append(metrics, runrecord.Metric{Name: groupAccuracyMetricName(name), Direction: runrecord.DirectionMaximize})
 	}
 	return metrics
 }

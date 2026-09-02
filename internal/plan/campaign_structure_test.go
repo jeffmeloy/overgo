@@ -469,6 +469,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"repo-cleanup/findings-disposition",
 		"resource-tolerance/do",
 		"audit-language/do",
+		"choice-scoring-fix/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",
 		"benchmark-completion/musr-pass",

@@ -62,20 +62,15 @@ func SelectServingRecipe(
 		if err != nil {
 			return modelrecipe.RecipeRoutingDecision{}, err
 		}
-		descriptor, found, err := store.Artifact(ctx, definition.Model)
+		resource, err := routingResourceBytes(ctx, store, definition.Model)
 		if err != nil {
 			return modelrecipe.RecipeRoutingDecision{}, err
-		}
-		if !found || descriptor.Size == 0 {
-			return modelrecipe.RecipeRoutingDecision{}, fmt.Errorf(
-				"evaluation: model %s has no published resource evidence", definition.Model,
-			)
 		}
 		routingCandidates = append(routingCandidates, modelrecipe.RoutingCandidate{
 			Recipe: evidence.Recipe, Model: definition.Model,
 			Evidence:      []artifact.ID{evidence.ID},
 			Quality:       signedQuality(value, direction),
-			ResourceBytes: descriptor.Size,
+			ResourceBytes: resource,
 		})
 	}
 	signal := modelrecipe.RoutingSignal{
@@ -94,6 +89,43 @@ func SelectServingRecipe(
 		return modelrecipe.RecipeRoutingDecision{}, err
 	}
 	return decision, nil
+}
+
+// routingResourceBytes is a candidate model's resource cost: the recorded
+// bytes of its weights. A model catalogued by component manifest has a
+// 172-byte manifest artifact, so the descriptor size is not the model's
+// cost; the sum of its components' recorded sizes is -- the same sizes
+// the servable listing verifies against the files on disk. A model whose
+// artifact is the raw weights costs its own recorded size; a manifest
+// with no components, or an artifact with no recorded bytes, refuses.
+func routingResourceBytes(ctx context.Context, store artifact.Repository, model artifact.ID) (uint64, error) {
+	if manifest, found, err := store.Manifest(ctx, model); err != nil {
+		return 0, err
+	} else if found {
+		var total uint64
+		for _, component := range manifest.Components {
+			descriptor, ok, err := store.Artifact(ctx, component.Artifact)
+			if err != nil {
+				return 0, err
+			}
+			if !ok || descriptor.Size == 0 {
+				return 0, fmt.Errorf("evaluation: model %s component %s has no recorded bytes", model, component.Artifact)
+			}
+			total += descriptor.Size
+		}
+		if total == 0 {
+			return 0, fmt.Errorf("evaluation: model %s has no published resource evidence", model)
+		}
+		return total, nil
+	}
+	descriptor, found, err := store.Artifact(ctx, model)
+	if err != nil {
+		return 0, err
+	}
+	if !found || descriptor.Size == 0 {
+		return 0, fmt.Errorf("evaluation: model %s has no published resource evidence", model)
+	}
+	return descriptor.Size, nil
 }
 
 // signedQuality orients a measured value in its improvement direction so

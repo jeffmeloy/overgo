@@ -187,3 +187,84 @@ func TestRoutingEvidenceDerivedSelection(t *testing.T) {
 		t.Fatal("unadmitted candidate evidence selected")
 	}
 }
+
+// A model catalogued by component manifest has a tiny manifest artifact;
+// its routing cost is the recorded weights file on disk, so it must not
+// win "cheapest" on the manifest's size, and a manifest with no recorded
+// file has no resource evidence at all.
+func TestRoutingResourceIsRecordedBytesNotManifestSize(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	baseline, _ := publishSelectionEvidence(t, store, "incumbent", 8192, 0.5)
+	cheapStrong, cheapDefinition := publishSelectionEvidence(t, store, "cheap-strong", 2048, 0.6)
+	manifestModel := publishSelectionManifestModel(t, store, "manifest-model", 4096)
+	manifestEvidence := publishSelectionEvaluation(t, store, manifestModel, "manifest-model", "base", 0.7)
+	decision, err := SelectServingRecipe(
+		ctx, store, recipe.TaskInference, exactMetricName, baseline,
+		[]artifact.ID{manifestEvidence, cheapStrong},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decision.Selected != cheapDefinition.ID {
+		t.Fatalf("selection = %s; the 4096-byte manifest model must not beat the 2048-byte model on its 172-byte manifest", decision.Selected)
+	}
+	for _, candidate := range decision.Candidates {
+		if candidate.Model == manifestModel.Model && candidate.ResourceBytes != 4096 {
+			t.Fatalf("manifest model resource = %d, want its 4096 recorded bytes", candidate.ResourceBytes)
+		}
+	}
+	unsized := publishSelectionManifestModel(t, store, "unsized-manifest", 0)
+	unsizedEvidence := publishSelectionEvaluation(t, store, unsized, "unsized-manifest", "base", 0.7)
+	if _, err := SelectServingRecipe(
+		ctx, store, recipe.TaskInference, exactMetricName, baseline, []artifact.ID{unsizedEvidence},
+	); err == nil || !strings.Contains(err.Error(), "no recorded bytes") {
+		t.Fatalf("manifest without recorded component bytes was admitted: %v", err)
+	}
+}
+
+// publishSelectionManifestModel commits one fixture model catalogued by
+// component manifest: the model identity is the manifest's, and the
+// weights component carries the recorded bytes.
+func publishSelectionManifestModel(
+	t *testing.T, store artifact.Repository, name string, componentBytes uint64,
+) recipe.Definition {
+	t.Helper()
+	ctx := t.Context()
+	weightsID := planID(t, artifact.KindTensorSet, name+"-weights")
+	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+		Role: artifact.ComponentWeights, Name: "weights", Artifact: weightsID,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	modelID := manifest.ID
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "routing/fixture/model/" + name,
+		Artifacts: []artifact.Descriptor{
+			{ID: weightsID, Size: componentBytes},
+			{ID: planID(t, artifact.KindProfile, name+"-profile")},
+			{ID: planID(t, artifact.KindModelDefinition, name+"-definition")},
+			{ID: planID(t, artifact.KindEvidence, name+"-environment")},
+		},
+		Manifests: []artifact.Manifest{manifest},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := modelrecipe.InferenceWithModelDefinition(
+		modelID, planID(t, artifact.KindProfile, name+"-profile"),
+		planID(t, artifact.KindModelDefinition, name+"-definition"),
+		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "routing/fixture/candidate/"+name, definition); err != nil {
+		t.Fatal(err)
+	}
+	return definition
+}

@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "routing-resource-size",
-          "title": "Fix the routing resource signal: SelectServingRecipe must take a candidate's resource from its recorded component bytes on disk, never the descriptor size of a manifest artifact (finding cb39538b, high)",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run 'TestSelectServingRecipe' -count=1",
-          "rationale": "Cheapest-eligible chose gemma-4-12B (15 GB) over Qwen3.5-4B (8.6 GB) because the manifest artifact is 172 bytes; a fix surfaced by the routing drill is admitted under the correct-as-you-go directive. Re-record the five routing decisions afterwards so the replay corpus judges real sizes.",
-          "depends_on": [
-            "repo-cleanup/stash-reconciliation"
-          ]
-        },
-        {
           "id": "findings-disposition",
           "title": "Dispose every parked finding: close those fixed here, and record an owner decision (schedule, defer with reason, or reject) for the rest -- resource no-regression tolerance (dc790871), rollout-plan author (c9c88020), rebuild refusal on gated stores (6bf17fb8), and any older open finding",
           "status": "open",

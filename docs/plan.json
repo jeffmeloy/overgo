@@ -1,6 +1,6 @@
 {
-  "campaign": "Complete integrated platform validation, then transfer audio.cpp capabilities through one native train-evaluate-serve proof and expand the shared audio substrate",
-  "doctrine": "Every retained work row executes as one repeated automation cycle. First run go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target; when master is not already contained, finalize the injected merge row with the exact cmd/gate -merge command printed by the owner so master code and source-store evidence enter while the audio plan remains the explicit reconciliation target. Second inspect the merged repository, query its authorities instead of inferring them, and reconcile every affected remaining row; commit the paired sync row through cmd/gate. Third perform only the paired work row and run its declared verifier. Fourth commit that work row through cmd/gate, which records evidence and prunes it atomically; then restart the cycle from the current master tip. Raw git merge, raw git commit, implementation before the paired sync row, and carrying a plan assumption across a master merge are refused. Each sync row inherits the paired work row's original dependencies, and the work row depends only on that completed sync authority. The retained integrated-validation rows remain the capability-freeze prerequisite and run before audio implementation; this branch does not evade or discard open master obligations. After they complete, audio.cpp is a pinned behavioral oracle and mechanism source, never a linked runtime, hosted server, package manager, or permanent product dependency. The transfer unit is a verified processing capability: source commit, license and artifact identity, neutral typed contract, intermediate golden traces, Go CPU reference, manifest-owned CUDA where measurement justifies it, recipe-selected consumer, evaluation evidence, and deletion of temporary comparison adapters. ASR is first because Overgo already serves and trains speech synthesis but lacks a first-class transcription lifecycle. The first elected model is a compact CTC-capable artifact selected from the pinned census by runnable artifact availability, traceability, architectural reuse, memory, and wall cost; no family name enters shared executors. Forward parity precedes backward implementation, while task, artifact, state, and checkpoint contracts retain the information required for gradients, deterministic replay, trainable-parameter selection, and optimizer state. The campaign is not complete when inference runs: its proof is a recorded audio dataset entering native training, exact stop and resume preserving optimizer, random and data-stream state, a pre/post WER bracket, and the resulting checkpoint serving through the authenticated API with complete OvergoDB lineage. CPU is the numerical authority. CUDA enters only through kernels/manifest.json and must match the CPU contract on the same artifact and fixtures. Streaming work owns bounded sessions, cancellation, chunk-boundary invariance, finalization, and backpressure. Every quality or performance claim names its artifact, dataset, environment, denominator, latency, throughput, host memory and VRAM. Later ASR, VAD, alignment, diarization, voice and generative-audio rows stay behind the first closed-loop proof so breadth cannot hide an incomplete lifecycle. Findings outside this scope are recorded but do not expand the campaign.",
+  "campaign": "Complete integrated platform validation, then transfer validated audio.cpp behavior into reusable audio primitives and composable ingest-train-evaluate-serve recipes",
+  "doctrine": "Every retained work row executes as one repeated automation cycle. First run go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target; when master is not already contained, finalize the injected merge row with the exact cmd/gate -merge command printed by the owner so master code and source-store evidence enter while the audio plan remains the explicit reconciliation target. Second inspect the merged repository, query its authorities instead of inferring them, and reconcile every affected remaining row; commit the paired sync row through cmd/gate. Third perform only the paired work row and run its declared verifier. Fourth commit that work row through cmd/gate, which records evidence and prunes it atomically; then restart the cycle from the current master tip. Raw git merge, raw git commit, implementation before the paired sync row, and carrying a plan assumption across a master merge are refused. Each sync row inherits the paired work row's original dependencies, and the work row depends only on that completed sync authority. The retained integrated-validation rows remain the capability-freeze prerequisite and run before audio implementation; this branch does not evade or discard open master obligations. After they complete, audio.cpp and the downloaded reference repositories are pinned behavioral oracles and mechanism sources, never linked runtimes, hosted servers, package managers, or permanent product dependencies. The transfer unit is a verified processing capability: source commit, license and artifact identity, decoded-signal admission profile, explicit compatibility decision, neutral typed contract, intermediate golden traces, Go CPU reference, manifest-owned CUDA where measurement justifies it, recipe-selected consumer, evaluation evidence, and deletion of temporary comparison adapters. Granite Speech 5.0 470M TurboCTC is the first ASR oracle because native Safetensors offline inference passed the pinned LibriSpeech fixtures. Nemotron 3.5 ASR native Safetensors is the materially different streaming ASR oracle; its downloaded NeMo-Speech Q8 GGUF is a valid container but an incompatible tensor schema and must be rejected explicitly rather than guessed from its extension. FireRedVAD is the first offline and streaming segmentation oracle because both checkpoints passed the same decoded fixtures. No family name enters shared executors. Schema, headers, duration, and transcript metadata never establish usable audio: admission decodes samples, measures signal content, and quarantines silent, near-silent, corrupt, clipped, non-finite, or otherwise policy-invalid records before evaluation or training. The current AMI materialization is negative evidence and remains quarantined until repaired; pinned LibriSpeech clean is the initial positive dataset. Forward parity precedes backward implementation, while task, artifact, state, and checkpoint contracts retain the information required for gradients, deterministic replay, trainable-parameter selection, and optimizer state. The campaign is not complete when inference runs: its proof is the composed recipe ingest to decode to validate to segment to transcribe to score to materialize to train to benchmark to publish to serve, with exact stop and resume preserving optimizer, random and data-stream state and complete OvergoDB lineage. CPU is the numerical authority. CUDA enters only through kernels/manifest.json and must match the CPU contract on the same artifact and fixtures; unavailable or unsupported toolchains are reported as unavailable, never as passing evidence. Streaming work owns bounded sessions, cancellation, chunk-boundary invariance, finalization, discontinuity, and backpressure. Every quality or performance claim names its artifact, dataset, environment, denominator, latency, throughput, host memory and VRAM. Signal validation and VAD land in the first ASR lifecycle because they protect evaluation and training materialization; later ASR architectures, alignment, diarization, voice, and generative-audio rows remain gated so breadth cannot hide an incomplete lifecycle. Findings outside this scope are recorded but do not expand the campaign.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
@@ -9,26 +9,11 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-race-lane",
-          "title": "Merge master and reconcile the plan before: Run the host race lane and CUDA racecheck/synccheck",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "hermetic-foundation/hermetic-suite"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "race-lane",
           "title": "Run the host race lane and CUDA racecheck/synccheck",
           "status": "open",
           "verify": "go run ./cmd/race-lane",
-          "rationale": "Missing compiler, device, driver, or sanitizer reports UNAVAILABLE explicitly rather than passing silently. The device lane is green on this machine; the host lane needs the llvm-mingw toolchain installed at .tools/llvm-mingw, an external download awaiting owner authorization, so the row sits after the drills that can run now.",
+          "rationale": "Missing compiler, device, driver, or sanitizer reports UNAVAILABLE explicitly rather than passing silently. Master 10425260 adds the explicit OVERGO_RACE_CC authority for machine-local compilers used from immutable gate candidates and raises the evidence-derived host package timeout from 30 to 60 minutes. This machine has the compiler at C:\\Users\\jeffm\\overgo\\.tools\\llvm-mingw\\bin\\x86_64-w64-mingw32-clang.exe, compute-sanitizer from CUDA 12.9, and a visible RTX 4090 D; execute the verifier with OVERGO_RACE_CC bound to that exact compiler and retain unavailable or failed device evidence honestly.",
           "depends_on": [
             "hermetic-foundation/sync-race-lane"
           ]
@@ -357,7 +342,7 @@
         },
         {
           "id": "sync-artifact-election",
-          "title": "Merge master and reconcile the plan before: Elect and register one compact CTC ASR artifact with complete bytes, tokenizer, configuration, reference execution, and license, preferring Granite ASR only if the census and installed artifacts support it",
+          "title": "Merge master and reconcile the plan before: Register Granite Speech 5.0 470M TurboCTC as the first ASR oracle with complete bytes, tokenizer, configuration, reference execution, license and pinned LibriSpeech parity evidence",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
@@ -372,17 +357,48 @@
         },
         {
           "id": "artifact-election",
-          "title": "Elect and register one compact CTC ASR artifact with complete bytes, tokenizer, configuration, reference execution, and license, preferring Granite ASR only if the census and installed artifacts support it",
+          "title": "Register Granite Speech 5.0 470M TurboCTC as the first ASR oracle with complete bytes, tokenizer, configuration, reference execution, license and pinned LibriSpeech parity evidence",
           "status": "open",
           "verify": "go test ./internal/audioparity -run TestFirstASRArtifactElection",
-          "rationale": "Artifact availability and executable evidence decide the first model; a remembered family preference does not. The election records rejected candidates and the measurements that would reopen the choice.",
+          "rationale": "The installed native Safetensors artifact completed CPU inference on four pinned LibriSpeech fixtures: three strict transcript matches and one contraction-only normalization difference. Registration preserves exact artifact and fixture identities, timings, expected and observed transcripts, normalization policy and the measurements that would reopen the choice.",
           "depends_on": [
             "oracle-intake/sync-artifact-election"
           ],
           "capabilities": [
             "artifact-identity",
             "model-characterization",
-            "decision-evidence"
+            "decision-evidence",
+            "granite-speech-oracle"
+          ]
+        },
+        {
+          "id": "sync-artifact-compatibility",
+          "title": "Merge master and reconcile the plan before: Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "oracle-intake/artifact-election"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "artifact-compatibility",
+          "title": "Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/audioparity -run 'Test.*Audio.*Qualification|Test.*Audio.*Compatibility|Test.*Incompatible.*GGUF'",
+          "rationale": "A valid GGUF or Safetensors container is not sufficient evidence that a loader can execute it. The qualification report records supported native Granite and Nemotron Safetensors layouts and rejects the downloaded NeMo-Speech Q8 GGUF because its tensor naming and graph layout do not satisfy the audio.cpp-derived recipe; extension-based fallback and silent tensor remapping are prohibited.",
+          "depends_on": [
+            "oracle-intake/sync-artifact-compatibility"
+          ],
+          "capabilities": [
+            "audio-artifact-qualification",
+            "tensor-schema-validation",
+            "explicit-incompatibility"
           ]
         }
       ]
@@ -399,7 +415,7 @@
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "oracle-intake/artifact-election"
+            "oracle-intake/artifact-compatibility"
           ],
           "capabilities": [
             "master-synchronization",
@@ -423,13 +439,43 @@
           ]
         },
         {
+          "id": "sync-signal-validation-contract",
+          "title": "Merge master and reconcile the plan before: Define a typed decoded-signal profile and admission decision for schema validity, decode status, duration, channel geometry, finite samples, peak, RMS, silence, clipping, DC offset and policy violations",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "audio-contracts/task-artifact-contracts"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "signal-validation-contract",
+          "title": "Define a typed decoded-signal profile and admission decision for schema validity, decode status, duration, channel geometry, finite samples, peak, RMS, silence, clipping, DC offset and policy violations",
+          "status": "open",
+          "verify": "go test ./internal/recipecontract ./internal/artifact ./internal/dataset -run 'Test.*Audio.*SignalProfile|Test.*Audio.*Admission'",
+          "rationale": "The AMI shard demonstrates that valid Parquet, WAV headers, durations and transcripts can still contain unusable signal. Admission and quarantine reasons are durable typed evidence consumed consistently by ingestion, evaluation, training and serving rather than ad hoc thresholds inside a model.",
+          "depends_on": [
+            "audio-contracts/sync-signal-validation-contract"
+          ],
+          "capabilities": [
+            "decoded-signal-profile",
+            "audio-admission-policy",
+            "dataset-quarantine"
+          ]
+        },
+        {
           "id": "sync-stream-session-contract",
           "title": "Merge master and reconcile the plan before: Define bounded audio stream sessions with explicit chunk state, overlap, backpressure, cancellation, finalization, discontinuity and restart semantics",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "audio-contracts/task-artifact-contracts"
+            "audio-contracts/signal-validation-contract"
           ],
           "capabilities": [
             "master-synchronization",
@@ -456,9 +502,39 @@
     },
     {
       "id": "audio-primitives",
-      "title": "Port the shared CPU audio frontend with oracle parity",
+      "title": "Port decoded-signal validation and the shared CPU audio frontend with oracle parity",
       "status": "open",
       "steps": [
+        {
+          "id": "sync-decode-inspect",
+          "title": "Merge master and reconcile the plan before: Decode supported audio and embedded dataset payloads into a canonical sample stream, calculate the typed signal profile, and reject or quarantine corrupt, silent, near-silent, non-finite, clipped and geometry-invalid inputs before model execution",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "audio-contracts/signal-validation-contract"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "decode-inspect",
+          "title": "Decode supported audio and embedded dataset payloads into a canonical sample stream, calculate the typed signal profile, and reject or quarantine corrupt, silent, near-silent, non-finite, clipped and geometry-invalid inputs before model execution",
+          "status": "open",
+          "verify": "go test ./internal/audiodsp ./internal/dataset ./internal/artifact -run 'Test.*Audio.*Decode|Test.*Signal.*Integrity|Test.*Silent|Test.*Clipping'",
+          "rationale": "Inspection operates on decoded samples rather than extensions, schemas or container headers. Positive fixtures include pinned LibriSpeech clean audio; negative fixtures include all-zero, near-zero, corrupt, truncated, non-finite and clipped signals plus a hashed sample from the quarantined AMI materialization.",
+          "depends_on": [
+            "audio-primitives/sync-decode-inspect"
+          ],
+          "capabilities": [
+            "audio-decoding",
+            "signal-integrity",
+            "schema-aware-audio-ingestion"
+          ]
+        },
         {
           "id": "sync-dsp-reference",
           "title": "Merge master and reconcile the plan before: Implement artifact-derived resampling, framing, windowing, STFT and inverse STFT, filterbanks, log-mel features, normalization and chunk assembly in Go with reusable scratch ownership",
@@ -466,7 +542,7 @@
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "audio-contracts/task-artifact-contracts"
+            "audio-primitives/decode-inspect"
           ],
           "capabilities": [
             "master-synchronization",
@@ -588,18 +664,56 @@
       ]
     },
     {
+      "id": "audio-recipes",
+      "title": "Compose validated audio primitives into native operational recipes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-validated-transcription",
+          "title": "Merge master and reconcile the plan before: Compile and execute ingest to decode to validate to normalize to segment to transcribe to timestamp to persist as one typed recipe with explicit admission failures and complete lineage",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "asr-reference/offline-recipe",
+            "speech-analysis-expansion/vad"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "validated-transcription",
+          "title": "Compile and execute ingest to decode to validate to normalize to segment to transcribe to timestamp to persist as one typed recipe with explicit admission failures and complete lineage",
+          "status": "open",
+          "verify": "go test ./internal/modelrecipe ./internal/audiodsp ./internal/speechanalysis ./internal/speechrecognition ./internal/dataset -run 'Test.*Validated.*Transcription|Test.*Audio.*Recipe.*Admission|Test.*Segment.*Transcribe.*Lineage'",
+          "rationale": "Reusable primitives become a product capability only through a recipe that owns ordering, state, resources, failures and provenance. Valid LibriSpeech fixtures reach stored transcripts; corrupt and silent fixtures stop at admission and cannot become evaluation successes or training records.",
+          "depends_on": [
+            "audio-recipes/sync-validated-transcription"
+          ],
+          "capabilities": [
+            "validated-transcription-recipe",
+            "vad-asr-composition",
+            "audio-lineage"
+          ]
+        }
+      ]
+    },
+    {
       "id": "asr-evaluation",
       "title": "Make audio quality and resource fitness native evidence",
       "status": "open",
       "steps": [
         {
           "id": "sync-wer-suite",
-          "title": "Merge master and reconcile the plan before: Add pinned transcription evaluation with normalization provenance, WER, CER, utterance counts, duration, failure accounting and grouped slices",
+          "title": "Merge master and reconcile the plan before: Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "asr-reference/offline-recipe"
+            "audio-recipes/validated-transcription"
           ],
           "capabilities": [
             "master-synchronization",
@@ -609,17 +723,18 @@
         },
         {
           "id": "wer-suite",
-          "title": "Add pinned transcription evaluation with normalization provenance, WER, CER, utterance counts, duration, failure accounting and grouped slices",
+          "title": "Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
           "status": "open",
           "verify": "go test ./internal/evaluation -run 'Test.*Transcription|Test.*WordErrorRate|Test.*CharacterErrorRate'",
-          "rationale": "The trainer needs a quality bracket whose denominator and normalization are stable. Aggregate WER without failed-utterance accounting or slices can conceal regressions.",
+          "rationale": "The trainer needs a quality bracket whose denominator and normalization are stable. Predictions are produced from audio bytes without reference text entering inference inputs or fixture selection, then compared to separately stored targets. Silent and invalid controls must fail admission or remain non-speech; aggregate WER without admission failures, inference failures and grouped slices can conceal regressions or metadata leakage.",
           "depends_on": [
             "asr-evaluation/sync-wer-suite"
           ],
           "capabilities": [
             "wer",
             "cer",
-            "audio-evaluation"
+            "audio-evaluation",
+            "negative-control-evaluation"
           ]
         },
         {
@@ -661,12 +776,12 @@
       "steps": [
         {
           "id": "sync-transcriptions-route",
-          "title": "Merge master and reconcile the plan before: Implement OpenAI-compatible POST /v1/audio/transcriptions with typed native parity, explicit supported formats, bounded uploads, cancellation and recorded recipe execution",
+          "title": "Merge master and reconcile the plan before: Implement OpenAI-compatible POST /v1/audio/transcriptions through the validated transcription recipe with explicit supported formats, bounded uploads, typed admission failures, cancellation and recorded execution",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "asr-reference/offline-recipe"
+            "audio-recipes/validated-transcription"
           ],
           "capabilities": [
             "master-synchronization",
@@ -676,10 +791,10 @@
         },
         {
           "id": "transcriptions-route",
-          "title": "Implement OpenAI-compatible POST /v1/audio/transcriptions with typed native parity, explicit supported formats, bounded uploads, cancellation and recorded recipe execution",
+          "title": "Implement OpenAI-compatible POST /v1/audio/transcriptions through the validated transcription recipe with explicit supported formats, bounded uploads, typed admission failures, cancellation and recorded execution",
           "status": "open",
           "verify": "go test ./internal/server -run 'Test.*AudioTranscriptions'",
-          "rationale": "The route must use the same authenticated workspace, artifact, recipe and operation owners as existing APIs. It does not inherit audio.cpp's server or model-management surface.",
+          "rationale": "The route must use the same authenticated workspace, artifact, recipe and operation owners as existing APIs. It maps decoded-signal admission failures explicitly, cannot report invalid or silent input as a successful transcription, and does not inherit audio.cpp's server or model-management surface.",
           "depends_on": [
             "asr-serving/sync-transcriptions-route"
           ],
@@ -747,7 +862,7 @@
           "title": "Profile the CPU recipe, reuse existing kernels where their contracts match, and add only measured missing operators through the kernel manifest and generated ABI",
           "status": "open",
           "verify": "go test ./cmd/kernel-manifest ./cmd/kernel-bindings ./internal/devicemath -run 'Test.*Audio|Test.*Manifest|Test.*Binding'",
-          "rationale": "CUDA surface follows measured time and operator contracts. Model-specific kernels or hand-written ABI paths are refused when an existing manifest operator can serve the shape.",
+          "rationale": "CUDA surface follows measured time and operator contracts. Model-specific kernels or hand-written ABI paths are refused when an existing manifest operator can serve the shape. Reference CUDA parity is currently unavailable because CUDA 12.9 rejects Visual Studio 2026/MSVC 19.51 and cudafe++ crashes under the unsupported-compiler override; use a supported VS 2022 toolchain or a CUDA release that supports the installed compiler before treating reference CUDA as evidence.",
           "depends_on": [
             "asr-cuda/sync-profile-and-bind"
           ],
@@ -778,7 +893,7 @@
           "title": "Prove CPU and CUDA parity for intermediate activations, logits, decoded transcripts and WER, then record wall, real-time factor, host memory and VRAM",
           "status": "open",
           "verify": "go run ./cmd/device-lane",
-          "rationale": "A device-unavailable result is not passing evidence. The CUDA route becomes eligible only when the same artifact and fixtures preserve quality within recorded tolerances.",
+          "rationale": "A device-unavailable result is not passing evidence. The lane records the compiler, toolkit, driver, GPU and exact unavailability reason. The CUDA route becomes eligible only after the toolchain is supported and the same artifact and fixtures preserve intermediate values and quality within recorded tolerances.",
           "depends_on": [
             "asr-cuda/sync-device-parity"
           ],
@@ -796,12 +911,13 @@
       "steps": [
         {
           "id": "sync-dataset-materialization",
-          "title": "Merge master and reconcile the plan before: Register and materialize a pinned speech dataset as waveform, transcript and derived-feature training records with deterministic splits, resumable stream position and complete source lineage",
+          "title": "Merge master and reconcile the plan before: Register pinned LibriSpeech clean and materialize only admitted waveform, transcript and derived-feature records with deterministic splits, resumable stream position, rejection accounting and complete source lineage",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "asr-evaluation/wer-suite"
+            "asr-evaluation/wer-suite",
+            "audio-recipes/validated-transcription"
           ],
           "capabilities": [
             "master-synchronization",
@@ -811,17 +927,18 @@
         },
         {
           "id": "dataset-materialization",
-          "title": "Register and materialize a pinned speech dataset as waveform, transcript and derived-feature training records with deterministic splits, resumable stream position and complete source lineage",
+          "title": "Register pinned LibriSpeech clean and materialize only admitted waveform, transcript and derived-feature records with deterministic splits, resumable stream position, rejection accounting and complete source lineage",
           "status": "open",
-          "verify": "go test ./internal/dataset ./internal/trainingdata -run 'Test.*Audio.*Material|Test.*Speech.*Split|Test.*Audio.*Resume'",
-          "rationale": "Training begins from the same typed audio and artifact contracts as inference. Split membership, transformations and stream position must survive restart exactly.",
+          "verify": "go test ./internal/dataset ./internal/trainingdata -run 'Test.*Audio.*Material|Test.*Speech.*Split|Test.*Audio.*Resume|Test.*Audio.*Admission|Test.*Silent.*Reject'",
+          "rationale": "Training begins from the same decoded-signal admission, typed audio and artifact contracts as inference. Split membership, transformations, rejection counts and stream position must survive restart exactly. The current AMI materialization remains quarantined because decoded samples are silent despite valid schemas, headers, durations and transcripts; it cannot enter training or benchmark denominators until repaired and revalidated.",
           "depends_on": [
             "asr-training/sync-dataset-materialization"
           ],
           "capabilities": [
             "speech-dataset",
             "deterministic-splits",
-            "resumable-materialization"
+            "resumable-materialization",
+            "signal-admission-gate"
           ]
         },
         {
@@ -927,7 +1044,7 @@
       "steps": [
         {
           "id": "sync-second-architecture",
-          "title": "Merge master and reconcile the plan before: Port a second materially different ASR architecture, preferring Qwen ASR only when its artifact and oracle path are complete, while reusing the same frontend, task, evaluation, serving and training contracts",
+          "title": "Merge master and reconcile the plan before: Port Nemotron 3.5 ASR native Safetensors as the second materially different architecture with offline, timestamp-token and streaming parity while reusing the shared frontend, task, evaluation, serving and training contracts",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
@@ -942,16 +1059,18 @@
         },
         {
           "id": "second-architecture",
-          "title": "Port a second materially different ASR architecture, preferring Qwen ASR only when its artifact and oracle path are complete, while reusing the same frontend, task, evaluation, serving and training contracts",
+          "title": "Port Nemotron 3.5 ASR native Safetensors as the second materially different architecture with offline, timestamp-token and streaming parity while reusing the shared frontend, task, evaluation, serving and training contracts",
           "status": "open",
           "verify": "go test ./internal/speechrecognition ./internal/modelrecipe -run 'Test.*SecondASR|Test.*SharedAudioContract'",
-          "rationale": "A second real consumer proves the abstraction and exposes family leakage. Shared executors remain neutral; architecture facts stay in the recipe and artifact declarations.",
+          "rationale": "The installed native Safetensors artifact completed offline and streaming reference inference on the pinned LibriSpeech fixtures, with three normalized-exact transcripts and one minor recognition error. A second real consumer proves the abstraction and exposes family leakage. Architecture facts, timestamp tokens and streaming state stay in artifact and recipe declarations; the incompatible Q8 GGUF remains rejected qualification evidence rather than an alternate loader shortcut.",
           "depends_on": [
             "shared-asr-proof/sync-second-architecture"
           ],
           "capabilities": [
             "multi-architecture-asr",
-            "contract-reuse"
+            "contract-reuse",
+            "nemotron-asr",
+            "timestamp-token-streaming"
           ]
         },
         {
@@ -989,17 +1108,19 @@
     },
     {
       "id": "speech-analysis-expansion",
-      "title": "Expand shared speech analysis after the ASR lifecycle is proven",
+      "title": "Deliver native speech segmentation, then expand shared speech analysis",
       "status": "open",
       "steps": [
         {
           "id": "sync-vad",
-          "title": "Merge master and reconcile the plan before: Port one compact voice-activity detector with offline and streaming parity and consume its segments in the transcription recipe",
+          "title": "Merge master and reconcile the plan before: Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "shared-asr-proof/live-model-operations"
+            "oracle-intake/artifact-compatibility",
+            "audio-contracts/stream-session-contract",
+            "audio-primitives/intermediate-parity"
           ],
           "capabilities": [
             "master-synchronization",
@@ -1009,16 +1130,17 @@
         },
         {
           "id": "vad",
-          "title": "Port one compact voice-activity detector with offline and streaming parity and consume its segments in the transcription recipe",
+          "title": "Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
           "status": "open",
-          "verify": "go test ./internal/speechanalysis ./internal/speechrecognition -run 'Test.*VAD'",
-          "rationale": "VAD is the smallest second consumer of the frontend and stream contracts and can remove measured wasted ASR work without introducing a second scheduler.",
+          "verify": "go test ./internal/speechanalysis ./internal/audioparity -run 'Test.*FireRedVAD|Test.*VAD.*Offline|Test.*VAD.*Stream|Test.*VAD.*Boundary'",
+          "rationale": "Both downloaded FireRedVAD checkpoints load under the reference runtime. Offline and streaming boundaries closely agree on all four pinned LibriSpeech fixtures. The all-zero AMI negative fixture must produce no speech; it is negative validation evidence, not a transcription-quality sample. The primitive shares the frontend and bounded stream contracts and introduces no second scheduler.",
           "depends_on": [
             "speech-analysis-expansion/sync-vad"
           ],
           "capabilities": [
             "voice-activity-detection",
-            "stream-segmentation"
+            "stream-segmentation",
+            "fireredvad-parity"
           ]
         },
         {
@@ -1028,7 +1150,8 @@
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "speech-analysis-expansion/vad"
+            "speech-analysis-expansion/vad",
+            "shared-asr-proof/live-model-operations"
           ],
           "capabilities": [
             "master-synchronization",

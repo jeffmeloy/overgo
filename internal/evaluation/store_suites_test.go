@@ -162,6 +162,16 @@ func TestDeriveStoreSuites(t *testing.T) {
 	if descriptor.Kind != MultipleChoiceKind || descriptor.Cases != 5 {
 		t.Fatalf("descriptor = %+v, want the 5-case multiple-choice suite", descriptor)
 	}
+	// A family request compiles that family alone and names an absent
+	// family instead of deriving nothing silently.
+	only, _, err := DeriveStoreSuiteFamily(ctx, store, authorities, "mmlu")
+	if err != nil || len(only) != 1 || only[0].Descriptor().Source != "store/mmlu" {
+		t.Fatalf("family derivation = %d suites, %v", len(only), err)
+	}
+	if _, _, err := DeriveStoreSuiteFamily(ctx, store, authorities, "bbh"); err == nil ||
+		!strings.Contains(err.Error(), "no bbh family") {
+		t.Fatalf("absent family error = %v", err)
+	}
 }
 
 // TestAssembleDNASuite pins the corpus-slice window: whole-genome rows

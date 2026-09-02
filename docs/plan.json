@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "evaluate-family-compile",
-      "title": "Compile only the requested suite family in evaluate workers: each worker spends minutes deriving all 24k store cases before a two-second MMLU suite",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile only the requested suite family in evaluate workers: each worker spends minutes deriving all 24k store cases before a two-second MMLU suite",
-          "status": "open",
-          "verify": "go test ./cmd/evaluate ./internal/evaluation -count=1"
-        }
-      ]
-    },
-    {
       "id": "benchmark-routing",
       "title": "Benchmark and routing validation",
       "status": "open",

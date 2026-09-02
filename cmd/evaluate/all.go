@@ -107,10 +107,12 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 		slice := remaining / time.Duration(len(models)-index)
 		fmt.Printf("evaluating %d/%d (%.1fh slice, %.1fh budget left): %s\n",
 			index+1, len(models), slice.Hours(), remaining.Hours(), model)
+		// The worker receives the model path: the parent already listed
+		// and hashed every servable file once, and a worker that listed
+		// again would hash the whole catalog before loading one model.
 		arguments := []string{
 			"-all", "-worker", "-repo", repository,
-			"-device", strconv.Itoa(device), "-model-index", strconv.Itoa(index),
-			"-catalog-limit", strconv.Itoa(limit),
+			"-device", strconv.Itoa(device), "-model-path", model,
 		}
 		if family != "" {
 			arguments = append(arguments, "-family", family)
@@ -151,20 +153,16 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 // derived suites and publishes the evidence through the campaign
 // ledger -- the same session the manifest path opens, fed by suites
 // compiled from the store instead of files.
-func runAllWorker(ctx context.Context, repository string, device int, family string, limit, index int, chatProtocol bool) error {
-	models, err := servableModelPaths(ctx, repository, limit)
-	if err != nil {
-		return err
-	}
-	if index < 0 || index >= len(models) {
-		return errors.New("evaluate: worker model index is invalid")
+func runAllWorker(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool) error {
+	if strings.TrimSpace(modelPath) == "" {
+		return errors.New("evaluate: worker model path is required")
 	}
 	commit, err := runrecord.VerifyingCommit(".")
 	if err != nil {
 		return err
 	}
 	shared := manifest{Repository: repository, CodeCommit: commit, Device: device, ChatProtocol: chatProtocol}
-	session, err := openEvaluationSession(ctx, shared, modelRequest{Path: models[index], Suites: []string{"derived"}})
+	session, err := openEvaluationSession(ctx, shared, modelRequest{Path: modelPath, Suites: []string{"derived"}})
 	if err != nil {
 		return err
 	}
@@ -228,7 +226,10 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 			fmt.Printf("published prompt template: scoring prefix %q\n", prefix)
 		}
 	}
-	suites, skipped, err := evaluation.DeriveStoreSuites(ctx, s.store, s.campaign.Authorities())
+	// Only the requested family is read and compiled: the catalog's
+	// other twenty thousand cases cost minutes per worker for a suite
+	// that scores in seconds.
+	suites, skipped, err := evaluation.DeriveStoreSuiteFamily(ctx, s.store, s.campaign.Authorities(), family)
 	if err != nil {
 		return err
 	}

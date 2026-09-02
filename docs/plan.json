@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "resource-quality-fitness",
-          "title": "Run throughput and memory sweeps and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
-          "status": "open",
-          "verify": "go build ./cmd/perf-sweep ./cmd/perplexity",
-          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Bind the sweep matrix and the loop -compare-resource-fitness invocation via -setverify when the drill starts.",
-          "depends_on": [
-            "benchmark-routing/pinned-benchmarks"
-          ]
-        },
-        {
           "id": "routing-replay",
           "title": "Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
           "status": "open",

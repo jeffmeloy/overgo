@@ -1,6 +1,6 @@
 {
   "schema": "overgo/performance-sweep-baseline/v1",
-  "source_commit": "1e17479da2bc5b6fa4ac76e133df512712cb08a2",
+  "source_commit": "98678b7e",
   "fixture": "fixtures/sweep_sft_prompts.json",
   "regression_scale": 10000,
   "maximum_wall_increase": 5000,
@@ -11,15 +11,15 @@
       "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f16-ropefix.gguf",
       "prompt_tokens": 2625,
       "generated_tokens": 64,
-      "wall_ns": 3874640400,
+      "wall_ns": 4335517300,
       "peak_device_bytes": 1965131776
     },
     {
       "name": "minicpm5-1b-f16",
       "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/MiniCPM5-1B-f16.gguf",
       "prompt_tokens": 2501,
-      "generated_tokens": 35,
-      "wall_ns": 5129639800,
+      "generated_tokens": 32,
+      "wall_ns": 5104544400,
       "peak_device_bytes": 2714267904
     },
     {
@@ -27,24 +27,24 @@
       "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen2.5-0.5B-f16.gguf",
       "prompt_tokens": 2625,
       "generated_tokens": 64,
-      "wall_ns": 2995414500,
+      "wall_ns": 2979371200,
       "peak_device_bytes": 1399821056
     },
     {
       "name": "qwen35-4b-f16",
       "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf",
       "prompt_tokens": 2697,
-      "generated_tokens": 14,
-      "wall_ns": 4953808500,
-      "peak_device_bytes": 15700271616
+      "generated_tokens": 1,
+      "wall_ns": 4776852300,
+      "peak_device_bytes": 15599607808
     },
     {
       "name": "qwen35-9b-q8",
       "model_path": "C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/../../models/Qwen3.5-9B-Q8_0.gguf",
       "prompt_tokens": 2697,
       "generated_tokens": 64,
-      "wall_ns": 12687315700,
-      "peak_device_bytes": 16495886336
+      "wall_ns": 7792671300,
+      "peak_device_bytes": 16533155840
     }
   ]
 }

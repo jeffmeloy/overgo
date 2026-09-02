@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
@@ -526,6 +527,64 @@ func queryMoECoverage(root, specPath string, output io.Writer) error {
 // resourceLanesSpec declares the compared workload lanes.
 type resourceLanesSpec struct {
 	Lanes []runrecord.ResourceFitnessLane `json:"lanes"`
+}
+
+// resourceRunsSpec names two committed runs whose resource observation
+// streams form one lane: the baseline and the candidate of a
+// no-regression judgment over the metrics the operator requires.
+type resourceRunsSpec struct {
+	Name            string                     `json:"name"`
+	BaselineRun     artifact.ID                `json:"baseline_run"`
+	CandidateRun    artifact.ID                `json:"candidate_run"`
+	RequiredMetrics []runrecord.ResourceMetric `json:"required_metrics"`
+}
+
+// compareResourceRuns judges two runs through the resource no-regression
+// owner: each run's committed observation stream is loaded at its current
+// head and the lane replays through CompareResourceFitness, which refuses
+// any candidate increase on a required metric. The typed comparison, or
+// the exact refusal, is the verdict.
+func compareResourceRuns(root, specPath string, output io.Writer) error {
+	var spec resourceRunsSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	if spec.Name == "" || !spec.BaselineRun.Valid() || !spec.CandidateRun.Valid() || len(spec.RequiredMetrics) == 0 {
+		return errors.New("loop: resource run comparison requires a lane name, two runs, and required metrics")
+	}
+	store, err := overgodb.OpenReadOnly(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	ctx := context.Background()
+	streams := make([]runrecord.ObservationStream, 0, 2)
+	for _, run := range []artifact.ID{spec.BaselineRun, spec.CandidateRun} {
+		// The complete stream: every chunk the run committed, whatever
+		// its size, is the evidence under judgment.
+		stream, found, err := runrecord.LoadObservationStream(ctx, store, run, runrecord.ObservationStreamBounds{
+			MaxChunks: math.MaxInt, MaxRawBytes: math.MaxUint64,
+		})
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("loop: run %s committed no resource observations", run)
+		}
+		streams = append(streams, stream)
+	}
+	comparison, err := runrecord.CompareResourceFitness(ctx, store, []runrecord.ResourceFitnessLane{{
+		Name: spec.Name, RequiredMetrics: spec.RequiredMetrics, Baseline: streams[0], Candidate: streams[1],
+	}})
+	if err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(comparison, "", " ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", encoded)
+	return err
 }
 
 // compareResourceLanes replays a resource no-regression proof over every

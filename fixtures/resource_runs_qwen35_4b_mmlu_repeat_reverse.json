@@ -1,0 +1,6 @@
+{
+  "name": "evaluation",
+  "baseline_run": "run:sha256:4d015cc14143878d1fceb4ceb64c1e7a6fbc90fef6d5e8b10b99242861d1e1b4",
+  "candidate_run": "run:sha256:7bce379706419adc3da24144ec897fa8229fd362caa24041a88b2d6b9a1bcc94",
+  "required_metrics": ["wall_ns"]
+}

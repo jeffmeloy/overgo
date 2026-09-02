@@ -184,12 +184,14 @@ func EvaluateInstructionRules(
 		Observations: make([]InstructionRulesObservation, len(compiled.suite.Cases)),
 	}
 	strictPrompts, loosePrompts, strictRules, looseRules, rules := 0, 0, 0, 0, 0
+	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
 		result, err := generateText(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 		if err != nil {
 			return InstructionRulesReport{}, err
 		}
 		strict, loose := evaluateInstructionViews(result.Text, compiled.rules[index])
+		progress.hit(allTrue(strict))
 		if allTrue(strict) {
 			strictPrompts++
 		}

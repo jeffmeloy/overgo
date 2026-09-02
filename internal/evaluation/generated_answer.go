@@ -160,6 +160,7 @@ func EvaluateGeneratedAnswer(
 		Observations: make([]GeneratedAnswerObservation, len(compiled.suite.Cases)),
 	}
 	correct := 0
+	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
 		result, err := generateText(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 		if err != nil {
@@ -180,6 +181,7 @@ func EvaluateGeneratedAnswer(
 			Name: testCase.Name, Raw: result.Text, Scored: scored, Accepted: accepted,
 			Prompt: result.PromptTokens, Generated: result.GeneratedTokens,
 		}
+		progress.hit(accepted)
 	}
 	report.Accuracy = float64(correct) / float64(len(report.Observations))
 	if math.IsNaN(report.Accuracy) || math.IsInf(report.Accuracy, 0) {

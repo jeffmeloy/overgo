@@ -151,11 +151,13 @@ func EvaluateSequenceScoring(
 	// empty context.
 	prefix := runtimeScoringPrefix(scorer)
 	var totalNLL float64
+	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for _, testCase := range compiled.suite.Cases {
 		scores, err := scorer.ScoreContinuations(ctx, prefix, []string{testCase.Text})
 		if err != nil {
 			return SequenceScoringReport{}, err
 		}
+		progress.advance()
 		if len(scores) != 1 || scores[0].Tokens == 0 || scores[0].LogProbability > 0 ||
 			math.IsNaN(scores[0].LogProbability) || math.IsInf(scores[0].LogProbability, 0) {
 			return SequenceScoringReport{}, errors.New("evaluation: sequence score is not a finite likelihood")

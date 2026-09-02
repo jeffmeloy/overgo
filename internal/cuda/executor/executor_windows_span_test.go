@@ -10,11 +10,12 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// TestExecutorSpanColumns pins the span verify batch's kernel contract:
-// up to eight input columns ride the q8-input integer kernels, one weight
-// read serving every column, at the documented int8-activation tolerance;
-// per-column greedy selection stays exact; and a ninth column falls back
-// to the float path at the shared quantized tolerance.
+// TestExecutorSpanColumns pins the span kernel contract: up to eight
+// input columns ride the q8-input integer kernels in one launch, one
+// weight read serving every column, at the documented int8-activation
+// tolerance; per-column greedy selection stays exact; and a ninth column
+// opens a second span launch on the same path rather than falling back
+// to the per-column float kernel.
 func TestExecutorSpanColumns(t *testing.T) {
 	for _, storageType := range []dtype.Type{dtype.Q8_0, dtype.Q4K, dtype.Q5K, dtype.Q6K} {
 		t.Run(storageType.String(), func(t *testing.T) {
@@ -34,7 +35,7 @@ func TestExecutorSpanColumns(t *testing.T) {
 				{name: "span5", rightRows: 5, tolerance: inputQuantizedDecodeTolerance},
 				{name: "span8", rightRows: 8, tolerance: inputQuantizedDecodeTolerance},
 				{name: "span8-greedy", rightRows: 8, selectTopK: true, tolerance: accuracyExact},
-				{name: "float9", rightRows: 9, tolerance: accuracyQuantized},
+				{name: "span9", rightRows: 9, tolerance: inputQuantizedDecodeTolerance},
 			} {
 				t.Run(testCase.name, func(t *testing.T) {
 					rightShape := tensor.MustShape(leftShape.Slice()[0], testCase.rightRows)

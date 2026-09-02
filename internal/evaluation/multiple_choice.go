@@ -198,6 +198,7 @@ func scoreMultipleChoice(
 ) ([]ChoiceObservation, float64, error) {
 	observations := make([]ChoiceObservation, len(suite.Cases))
 	correct := 0
+	progress := trackProgress(ctx, suite.Source, len(suite.Cases))
 	for index, testCase := range suite.Cases {
 		scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)
 		if err != nil {
@@ -211,9 +212,11 @@ func scoreMultipleChoice(
 			Name: testCase.Name, Values: selection.Values, Selected: selection.Index,
 			Answer: testCase.Answer, Tied: selection.Tied,
 		}
-		if !selection.Tied && selection.Index == testCase.Answer {
+		hit := !selection.Tied && selection.Index == testCase.Answer
+		if hit {
 			correct++
 		}
+		progress.hit(hit)
 	}
 	accuracy := float64(correct) / float64(len(observations))
 	if math.IsNaN(accuracy) || math.IsInf(accuracy, 0) {

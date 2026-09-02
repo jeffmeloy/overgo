@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
@@ -132,8 +134,32 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 	if err != nil {
 		return fmt.Errorf("evaluate: compile suite %q: %w", path, err)
 	}
-	_, err = s.campaign.Evaluate(ctx, compiled)
+	_, err = s.campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), compiled)
 	return err
+}
+
+// printProgress reports a suite's case loop at a geometric cadence: at
+// every power-of-two case count and at completion. The cadence is
+// derived from the count itself, so a suite of N cases prints about
+// log2(N) lines whatever its speed, each carrying the running score,
+// the measured rate, and the remaining time that rate projects -- a
+// 13-hour suite (the 27B over BBH) is distinguishable from a hang
+// within its first seconds, and its cost is known long before it ends.
+func printProgress(value evaluation.Progress) {
+	if value.Done != value.Total && value.Done&(value.Done-1) != 0 {
+		return
+	}
+	perCase := value.Elapsed / time.Duration(value.Done)
+	remaining := perCase * time.Duration(value.Total-value.Done)
+	score := "-"
+	if value.Scored {
+		// The printed precision resolves one case of the suite: as many
+		// decimals as the case count has digits.
+		score = strconv.FormatFloat(value.Score, 'f', len(strconv.Itoa(value.Total)), 64)
+	}
+	fmt.Printf("  progress %s: %d/%d score=%s elapsed=%s per-case=%s remaining=%s\n",
+		value.Suite, value.Done, value.Total, score,
+		value.Elapsed.Round(time.Second), perCase.Round(time.Millisecond), remaining.Round(time.Second))
 }
 
 func (s *nativeSession) Close() error {

@@ -6,7 +6,7 @@ Models are the servable catalog ordered smallest first by recorded bytes. Each s
 
 ## Comparison
 
-| Model | Bytes | Decode tok/s | store/dna | store/mmlu |
+| Model | Bytes | Decode tok/s | store/dna (raw-completion) | store/mmlu (raw-completion) |
 | --- | --- | --- | --- | --- |
 | Qwen2.5-0.5B-f16 | 994065792 | 491.4 | — | accuracy 0.42 |
 | Carbon-500M-f16-ropefix | 1029821280 | — | perplexity 5969 | — |
@@ -15,7 +15,7 @@ Models are the servable catalog ordered smallest first by recorded bytes. Each s
 | Qwen3.5-9B-Q8_0 | 9527502048 | — | — | accuracy 0.59 |
 | gemma-4-E4B-it-bf16 | 14940816608 | — | — | accuracy 0.44 |
 | gemma-4-12B-it-fp8-native | 15342646656 | — | — | accuracy 0.38 |
-| Qwen3.8-27B-UD-Q6_K | 21983677344 | 1.626 | — | accuracy 0.65 |
+| Qwen3.8-27B-UD-Q6_K | 21983677344 | 26.66 | — | accuracy 0.65 |
 | gemma-4-12B-it-fp8-bf16 | 23829476736 | — | — | accuracy 0.38 |
 
 ## Records
@@ -26,9 +26,9 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen2.5-0.5B-
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/mmlu | accuracy=0.42 | store/mmlu accuracy=0.31 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.046; C:/Users/jeffm/eval/overgo_qwen25_benchmark_results/results.json)<br>store/mmlu accuracy=0.475 (5-shot, full MMLU, base model; https://qwenlm.github.io/blog/qwen2.5-llm/) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 1.802s | `evaluation:sha256:dc69a94c1b94950a90503a64b7e4d3ff105f75717a6721ca32b14cf755df9944` |
+| store/mmlu (raw-completion) | accuracy=0.42 | store/mmlu accuracy=0.31 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.046; C:/Users/jeffm/eval/overgo_qwen25_benchmark_results/results.json)<br>store/mmlu accuracy=0.475 (5-shot, full MMLU, base model; https://qwenlm.github.io/blog/qwen2.5-llm/) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 1.802s | `evaluation:sha256:dc69a94c1b94950a90503a64b7e4d3ff105f75717a6721ca32b14cf755df9944` |
 
-Published references for suites without a committed evaluation: store/bbh accuracy=0.203 (3-shot CoT, base model; https://qwenlm.github.io/blog/qwen2.5-llm/)<br>store/mmlu-pro accuracy=0.1492 (model card headline; https://huggingface.co/Qwen/Qwen2.5-0.5B)<br>store/mmlu-pro accuracy=0.157 (5-shot, base model; https://qwenlm.github.io/blog/qwen2.5-llm/)
+Published references for suites without a committed evaluation: store/bbh accuracy=0.203 (3-shot CoT, base model; https://qwenlm.github.io/blog/qwen2.5-llm/)<br>store/mmlu accuracy=0.31 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.046; C:/Users/jeffm/eval/overgo_qwen25_benchmark_results/results.json)<br>store/mmlu accuracy=0.475 (5-shot, full MMLU, base model; https://qwenlm.github.io/blog/qwen2.5-llm/)<br>store/mmlu-pro accuracy=0.1492 (model card headline; https://huggingface.co/Qwen/Qwen2.5-0.5B)<br>store/mmlu-pro accuracy=0.157 (5-shot, base model; https://qwenlm.github.io/blog/qwen2.5-llm/)
 
 ### Carbon-500M-f16-ropefix
 
@@ -36,7 +36,7 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/dna | mean_nll_per_token=8.694<br>perplexity=5969 | — | `10425260c2b6da1a67cf2f49503b701a880ebf27` | 2m46.261s | `evaluation:sha256:2bd6705892f50c3000e03a086648d0b4e907fd9112b4a5532f18b0f9192892ba` |
+| store/dna (raw-completion) | mean_nll_per_token=8.694<br>perplexity=5969 | — | `10425260c2b6da1a67cf2f49503b701a880ebf27` | 2m46.261s | `evaluation:sha256:2bd6705892f50c3000e03a086648d0b4e907fd9112b4a5532f18b0f9192892ba` |
 
 Published references for suites without a committed evaluation: store/mmlu accuracy=0.22 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.042; DNA model, English suite not meaningful; C:/Users/jeffm/eval/overgo_carbon500m_benchmark_results/results.json)
 
@@ -46,7 +46,9 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/MiniCPM5-1B-f
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/mmlu | accuracy=0.34 | store/mmlu accuracy=0.35 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.048; C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 2.355s | `evaluation:sha256:42d75f93b3d508ce0d987717ead0fd4b4373c4369522937332f730a000a25479` |
+| store/mmlu (raw-completion) | accuracy=0.34 | store/mmlu accuracy=0.35 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.048; C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 2.355s | `evaluation:sha256:42d75f93b3d508ce0d987717ead0fd4b4373c4369522937332f730a000a25479` |
+
+Published references for suites without a committed evaluation: store/mmlu accuracy=0.35 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.048; C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results/results.json)
 
 ### Qwen3.5-4B-f16
 
@@ -54,9 +56,9 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f1
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/mmlu | accuracy=0.55 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 12.81s | `evaluation:sha256:860b0de42ffbabb103a6e18244a2887c5875bd46bcd576a1d13f4565da67bc80` |
+| store/mmlu (raw-completion) | accuracy=0.55 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 12.81s | `evaluation:sha256:860b0de42ffbabb103a6e18244a2887c5875bd46bcd576a1d13f4565da67bc80` |
 
-Published references for suites without a committed evaluation: store/ifeval prompt_strict=0.898 (post-trained instruct; https://huggingface.co/Qwen/Qwen3.5-4B)<br>store/mmlu-pro accuracy=0.791 (post-trained instruct, generative; https://huggingface.co/Qwen/Qwen3.5-4B)
+Published references for suites without a committed evaluation: store/ifeval prompt_strict=0.898 (post-trained instruct; https://huggingface.co/Qwen/Qwen3.5-4B)<br>store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json)<br>store/mmlu-pro accuracy=0.791 (post-trained instruct, generative; https://huggingface.co/Qwen/Qwen3.5-4B)
 
 ### Qwen3.5-9B-Q8_0
 
@@ -64,7 +66,7 @@ Location `C:/Users/jeffm/adaptive_new/models/Qwen3.5-9B-Q8_0.gguf`, 9527502048 b
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/mmlu | accuracy=0.59 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 12.409s | `evaluation:sha256:1df519ba2d2940ffb1c99264bc6a93507551c69dfcb3962b860b662ff714e847` |
+| store/mmlu (raw-completion) | accuracy=0.59 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 12.409s | `evaluation:sha256:1df519ba2d2940ffb1c99264bc6a93507551c69dfcb3962b860b662ff714e847` |
 
 Published references for suites without a committed evaluation: store/ifeval prompt_strict=0.915 (post-trained instruct; card is for the unquantized model; https://huggingface.co/Qwen/Qwen3.5-9B)<br>store/mmlu-pro accuracy=0.825 (post-trained instruct, generative; card is for the unquantized model; https://huggingface.co/Qwen/Qwen3.5-9B)
 
@@ -74,7 +76,9 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-E4B-i
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/mmlu | accuracy=0.44 | store/mmlu accuracy=0.33 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.047; C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 13s | `evaluation:sha256:534a6ec1824ea627ae753e693ad2e0e135216b015ca6735d2d5d2975dd6894cd` |
+| store/mmlu (raw-completion) | accuracy=0.44 | store/mmlu accuracy=0.33 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.047; C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 13s | `evaluation:sha256:534a6ec1824ea627ae753e693ad2e0e135216b015ca6735d2d5d2975dd6894cd` |
+
+Published references for suites without a committed evaluation: store/mmlu accuracy=0.33 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.047; C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results/results.json)
 
 ### gemma-4-12B-it-fp8-native
 
@@ -82,7 +86,7 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-12B-i
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/mmlu | accuracy=0.38 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 23.872s | `evaluation:sha256:aebcd785b16d5cde812c93eef408fd1f1505403806a34ef7f1611e0f197da7f9` |
+| store/mmlu (raw-completion) | accuracy=0.38 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 23.872s | `evaluation:sha256:aebcd785b16d5cde812c93eef408fd1f1505403806a34ef7f1611e0f197da7f9` |
 
 Published references for suites without a committed evaluation: store/mmlu-pro accuracy=0.772 (instruction-tuned 12B unified, generative; card is for the unquantized model; https://huggingface.co/google/gemma-4-12b-it)
 
@@ -92,7 +96,7 @@ Location `C:/Users/jeffm/overgo/models/Qwen3.8-27B-UD-Q6_K/Qwen3.8-27B-UD-Q6_K.g
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/mmlu | accuracy=0.65 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 1m13.261s | `evaluation:sha256:a76e6ccda16f07ae628600e081de9eb34f730a220098d6ff5fb412ea1a82dff2` |
+| store/mmlu (raw-completion) | accuracy=0.65 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 1m13.261s | `evaluation:sha256:a76e6ccda16f07ae628600e081de9eb34f730a220098d6ff5fb412ea1a82dff2` |
 
 ### gemma-4-12B-it-fp8-bf16
 
@@ -100,7 +104,7 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-12B-i
 
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
-| store/mmlu | accuracy=0.38 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 28.989s | `evaluation:sha256:204fd751c0ed2e91f64627ece824928ce6d6fd4c4be5260514453dde445c4599` |
+| store/mmlu (raw-completion) | accuracy=0.38 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 28.989s | `evaluation:sha256:204fd751c0ed2e91f64627ece824928ce6d6fd4c4be5260514453dde445c4599` |
 
 Published references for suites without a committed evaluation: store/mmlu-pro accuracy=0.772 (instruction-tuned 12B unified, generative; card is for the unquantized model; https://huggingface.co/google/gemma-4-12b-it)
 

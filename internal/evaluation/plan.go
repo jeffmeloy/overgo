@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -51,6 +52,31 @@ const (
 
 type ExecutionPolicy struct {
 	Lifecycle Lifecycle `json:"lifecycle"`
+	// Prompting names how a scored prompt reaches the model: the raw
+	// completion text (the recorded anchor, the empty default so
+	// earlier plans keep their identity) or the model's own declared
+	// chat template. Two protocols are two plans, so their records
+	// never collapse into one "latest" score.
+	Prompting Prompting `json:"prompting,omitzero"`
+}
+
+// Prompting is the prompt-shaping protocol an execution policy binds.
+type Prompting string
+
+const (
+	// PromptingRawCompletion scores the suite's prompt text unchanged.
+	PromptingRawCompletion Prompting = ""
+	// PromptingChatTemplate shapes each prompt through the model's
+	// declared chat template before scoring.
+	PromptingChatTemplate Prompting = "chat-template"
+)
+
+// Label names the protocol for reports; the raw default reads as such.
+func (prompting Prompting) Label() string {
+	if prompting == PromptingRawCompletion {
+		return "raw-completion"
+	}
+	return string(prompting)
 }
 
 type ExactAuthorities struct {
@@ -205,7 +231,8 @@ func bindPlan[C, S any](
 		authorities.Environment.Kind() != artifact.KindEvidence || !validCommit(authorities.CodeCommit) {
 		return Plan{}, errors.New("evaluation: invalid plan authorities")
 	}
-	if authorities.Execution.Lifecycle != LifecycleIsolated && authorities.Execution.Lifecycle != LifecycleResident {
+	if authorities.Execution.Lifecycle != LifecycleIsolated && authorities.Execution.Lifecycle != LifecycleResident ||
+		authorities.Execution.Prompting != PromptingRawCompletion && authorities.Execution.Prompting != PromptingChatTemplate {
 		return Plan{}, errors.New("evaluation: invalid execution policy")
 	}
 	body := planBody{
@@ -228,6 +255,25 @@ func bindPlan[C, S any](
 func (p Plan) Identity() artifact.ID { return p.identity }
 
 func (p Plan) Dataset() artifact.ID { return p.body.Dataset }
+
+// Execution names the plan's bound execution-policy authority.
+func (p Plan) Execution() artifact.ID { return p.body.Execution }
+
+// ReadExecutionPolicy decodes a bound execution-policy authority.
+func ReadExecutionPolicy(ctx context.Context, reader artifact.Reader, id artifact.ID) (ExecutionPolicy, error) {
+	content, found, err := artifact.ReadContent(ctx, reader, id)
+	if err != nil {
+		return ExecutionPolicy{}, err
+	}
+	if !found {
+		return ExecutionPolicy{}, errors.New("evaluation: execution policy is absent")
+	}
+	var policy ExecutionPolicy
+	if err := json.Unmarshal(content.Data, &policy); err != nil {
+		return ExecutionPolicy{}, err
+	}
+	return policy, nil
+}
 
 func ParsePlan(content []byte) (Plan, error) {
 	var body planBody

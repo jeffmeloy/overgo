@@ -142,7 +142,9 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 					suite.references = append(suite.references, reference)
 				}
 			}
-			row.suites[summary.Suite] = suite
+			// One column per suite and prompting protocol: the raw
+			// anchor and the template-shaped pass stand side by side.
+			row.suites[summary.Suite+" ("+summary.Prompting+")"] = suite
 		}
 		rows = append(rows, row)
 	}

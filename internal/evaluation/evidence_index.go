@@ -20,11 +20,38 @@ type BenchmarkSummary struct {
 	Record                artifact.ID `json:"record,omitzero"`
 }
 
-// EvalSummary is one suite's latest committed evaluation for a recipe.
+// EvalSummary is one suite's latest committed evaluation for a recipe
+// under one prompting protocol; the raw-completion anchor and the
+// chat-template pass of the same suite are two summaries.
 type EvalSummary struct {
-	Suite   string             `json:"suite"`
-	Record  artifact.ID        `json:"record,omitzero"`
-	Metrics map[string]float64 `json:"metrics"`
+	Suite     string             `json:"suite"`
+	Prompting string             `json:"prompting"`
+	Record    artifact.ID        `json:"record,omitzero"`
+	Metrics   map[string]float64 `json:"metrics"`
+}
+
+// recordPrompting reads the prompting protocol an evaluation record ran
+// under: its run's plan input binds the execution policy. A record whose
+// plan cannot be read reports the raw anchor, the only protocol earlier
+// records could have run.
+func recordPrompting(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) Prompting {
+	bound, err := runrecord.RequireRun(ctx, store, record.Run)
+	if err != nil || len(bound.Inputs) == 0 {
+		return PromptingRawCompletion
+	}
+	content, found, err := artifact.ReadContent(ctx, store, bound.Inputs[0])
+	if err != nil || !found {
+		return PromptingRawCompletion
+	}
+	plan, err := ParsePlan(content.Data)
+	if err != nil {
+		return PromptingRawCompletion
+	}
+	policy, err := ReadExecutionPolicy(ctx, store, plan.Execution())
+	if err != nil {
+		return PromptingRawCompletion
+	}
+	return policy.Prompting
 }
 
 // EvidenceIndex joins the store's committed evidence back onto models:
@@ -114,19 +141,21 @@ func LatestEvidence(
 		if !named {
 			return nil
 		}
+		prompting := recordPrompting(ctx, store, record).Label()
 		if seenSuite[record.Recipe] == nil {
 			seenSuite[record.Recipe] = map[string]bool{}
 		}
-		if seenSuite[record.Recipe][suite] {
+		key := suite + "\x00" + prompting
+		if seenSuite[record.Recipe][key] {
 			return nil
 		}
-		seenSuite[record.Recipe][suite] = true
+		seenSuite[record.Recipe][key] = true
 		metrics := make(map[string]float64, len(record.Metrics))
 		for _, metric := range record.Metrics {
 			metrics[metric.Name] = metric.Value
 		}
 		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], EvalSummary{
-			Suite: suite, Record: record.ID, Metrics: metrics,
+			Suite: suite, Prompting: prompting, Record: record.ID, Metrics: metrics,
 		})
 		return nil
 	})

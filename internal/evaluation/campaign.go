@@ -19,6 +19,17 @@ type Campaign struct {
 	environment runrecord.Environment
 	commit      string
 	lifecycle   Lifecycle
+	prompting   Prompting
+}
+
+// WithPrompting binds the prompt-shaping protocol every plan this
+// campaign compiles will carry; the campaign's runtime must shape
+// prompts the same way, since the record describes what ran.
+func (campaign *Campaign) WithPrompting(prompting Prompting) *Campaign {
+	if campaign != nil {
+		campaign.prompting = prompting
+	}
+	return campaign
 }
 
 type CampaignResult struct {
@@ -87,7 +98,7 @@ func (campaign *Campaign) Authorities() ExactAuthorities {
 	return ExactAuthorities{
 		ModelDefinition: campaign.identity.Definition, RuntimeRecipe: campaign.identity.Recipe,
 		CodeCommit: campaign.commit, Environment: campaign.environment.ID,
-		Execution: ExecutionPolicy{Lifecycle: campaign.lifecycle},
+		Execution: ExecutionPolicy{Lifecycle: campaign.lifecycle, Prompting: campaign.prompting},
 	}
 }
 

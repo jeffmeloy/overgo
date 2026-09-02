@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "chat-protocol-pass",
-      "title": "Score the MMLU family under each model's declared chat template (evaluate -all -family mmlu -chat-protocol) and report it beside the raw-completion anchor; explain the gemma-4-12B scores below the E4B; republish the 27B decode benchmark claim at the current commit (measured 25.8 tok/s, report still shows the old 1.6 tok/s record)",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Score the MMLU family under each model's declared chat template (evaluate -all -family mmlu -chat-protocol) and report it beside the raw-completion anchor; explain the gemma-4-12B scores below the E4B; republish the 27B decode benchmark claim at the current commit (measured 25.8 tok/s, report still shows the old 1.6 tok/s record)",
-          "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check"
-        }
-      ]
-    },
-    {
       "id": "model-generation-settings",
       "title": "Declare each model's provided generation settings (generation_config.json / README sampling recommendations: temperature, top-p, top-k, repetition penalty) as store model-config components with source digests and have the runtime policy and evaluation apply them; the store currently holds zero model-config declarations",
       "status": "open",

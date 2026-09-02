@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "benchmark-routing",
-      "title": "Benchmark and routing validation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "routing-replay",
-          "title": "Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
-          "status": "open",
-          "verify": "go build ./cmd/router-observation ./cmd/rerank",
-          "rationale": "Routing quality is only measurable against the recorded stream; replay keeps the judgment exact and distribution-honest. Bind the replay invocation via -setverify when the drill starts.",
-          "depends_on": [
-            "benchmark-routing/pinned-benchmarks"
-          ]
-        }
-      ]
-    },
-    {
       "id": "failure-recovery",
       "title": "Deliberate failure and recovery drills",
       "status": "open",

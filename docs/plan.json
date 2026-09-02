@@ -9,34 +9,18 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-verified-matrix",
-          "title": "Merge master and reconcile the plan before: Serve the verified matrix -- Qwen3 dense text and quantized CUDA, Qwen3.5 hybrid execution with MTP speculation, Gemma3 text, Gemma4 multimodal projection, T5 encoder, and one media-generation recipe -- measuring output correctness, buffered and streaming parity, native, OpenAI-style, and Anthropic-style protocol parity, time to first token, tokens per second, peak host memory and VRAM, prompt-cache reuse, context shifting, and speculative decoding on versus off",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "hermetic-foundation/hermetic-suite",
-            "freeze-capture/capture-identity"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "verified-matrix",
-          "title": "Serve the verified matrix -- Qwen3 dense text and quantized CUDA, Qwen3.5 hybrid execution with MTP speculation, Gemma3 text, Gemma4 multimodal projection, T5 encoder, and one media-generation recipe -- measuring output correctness, buffered and streaming parity, native, OpenAI-style, and Anthropic-style protocol parity, time to first token, tokens per second, peak host memory and VRAM, prompt-cache reuse, context shifting, and speculative decoding on versus off",
+          "title": "Run the native four-token smoke serve over every model selected by the store's verified servable predicate, require non-empty generated text, and record per-model outcome and wall time",
           "status": "open",
           "verify": "go run ./cmd/smoke-lane",
-          "rationale": "The smoke matrix is the servable predicate over the store, judged against verified models rather than all prototypes; perf-sweep and perplexity supply the per-model measurements. Bind the exact matrix invocation via -setverify once installed model identities are captured.",
+          "rationale": "The verifier performs native generation, not protocol-parity or performance qualification. At reconciliation the store-derived matrix contained nine verified models: 0754fb8aca42 Carbon-500M F16, 2164ee6535ce Qwen2.5-0.5B F16, 353fb1a59060 MiniCPM5-1B F16, 73dc8d6fd450 Qwen3.8-27B Q6_K, 887f41243686 Qwen3.5-4B F16, 896a878974e5 Qwen3.5-9B Q8_0, d0be4bb0e24f Gemma4-12B FP8 native, f5e632cd3f60 Gemma4-12B FP8/BF16, and fb09299dd00e Gemma4-E4B BF16. smoke-lane re-derives that predicate, hashes every recorded component, runs generate -n 4, rejects empty text, and records outcome plus wall time against the active recipe. The Q6_K and Q8_0 entries exercise the merged K-quant prefill path, including its once-per-span q8 staging. Protocol parity remains a serving-operation obligation; prefill/decode throughput, memory, cache, context-shift, and speculation comparisons remain resource-fitness obligations.",
           "depends_on": [
             "inference-e2e/sync-verified-matrix"
           ]
         },
         {
           "id": "sync-serving-operations",
-          "title": "Merge master and reconcile the plan before: Exercise concurrent scheduling, live model swap through the proxy, restart continuation, and download cancellation with clean server shutdown",
+          "title": "Merge master and reconcile the plan before: Exercise buffered and streaming native, OpenAI-style, and Anthropic-style protocol parity; verified text, multimodal projection, encoder, and media-generation recipes; prompt-cache reuse, context shifting, speculative decoding, concurrent scheduling, live model swap, restart continuation, download cancellation, and clean shutdown",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
@@ -51,10 +35,10 @@
         },
         {
           "id": "serving-operations",
-          "title": "Exercise concurrent scheduling, live model swap through the proxy, restart continuation, and download cancellation with clean server shutdown",
+          "title": "Exercise buffered and streaming native, OpenAI-style, and Anthropic-style protocol parity; verified text, multimodal projection, encoder, and media-generation recipes; prompt-cache reuse, context shifting, speculative decoding, concurrent scheduling, live model swap, restart continuation, download cancellation, and clean shutdown",
           "status": "open",
           "verify": "go run ./cmd/device-lane",
-          "rationale": "These are the operational paths a single-model serve never touches; each has a gated suite under the device and server lanes. Bind the combined invocation via -setverify when the drill starts.",
+          "rationale": "These are the protocol, capability, and operational paths the native four-token smoke serve does not touch. Each has a gated suite under the device and server lanes; bind the exact installed recipe matrix and combined invocation via -setverify when the drill starts.",
           "depends_on": [
             "inference-e2e/sync-serving-operations"
           ]
@@ -125,7 +109,7 @@
       "steps": [
         {
           "id": "sync-pinned-benchmarks",
-          "title": "Merge master and reconcile the plan before: Execute the pinned benchmark set with each model's declared conversation framing: a broad knowledge suite such as MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and multimodal evaluation where applicable",
+          "title": "Merge master and reconcile the plan before: Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring, then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
@@ -140,17 +124,17 @@
         },
         {
           "id": "pinned-benchmarks",
-          "title": "Execute the pinned benchmark set with each model's declared conversation framing: a broad knowledge suite such as MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and multimodal evaluation where applicable",
+          "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring, then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
           "status": "open",
-          "verify": "go run ./cmd/evaluate -all",
-          "rationale": "evaluate -all derives models and suites from the store; results publish through benchmark -publish into the evidence picker with denominators.",
+          "verify": "go run ./cmd/evaluate -all \u0026\u0026 go run ./cmd/benchmark-report -check",
+          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor is comparable with lm-eval; the landed chat-template pass is retained as diagnostic evidence only because every model scored lower and thought-channel templates place the answer letter at the wrong next-token position. Before a chat-template score is compared with a published result, this row must bind a template-aware answer opener or generated-answer scorer. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
           "depends_on": [
             "benchmark-routing/sync-pinned-benchmarks"
           ]
         },
         {
           "id": "sync-resource-quality-fitness",
-          "title": "Merge master and reconcile the plan before: Run throughput and memory sweeps and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "title": "Merge master and reconcile the plan before: Measure prefill and decode throughput separately across prompt lengths and K-quant span boundaries, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
@@ -165,10 +149,10 @@
         },
         {
           "id": "resource-quality-fitness",
-          "title": "Run throughput and memory sweeps and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "title": "Measure prefill and decode throughput separately across prompt lengths and K-quant span boundaries, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
           "status": "open",
           "verify": "go build ./cmd/perf-sweep ./cmd/perplexity",
-          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Bind the sweep matrix and the loop -compare-resource-fitness invocation via -setverify when the drill starts.",
+          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Master 0c51e3d5 stages K-quant q8 input once and executes wide prefills in eight-column spans, so the bound sweep must report prefill separately from decode and include prompt lengths immediately below, at, and above span boundaries on quantized CUDA models. Bind those invocations, peak host-memory and VRAM capture, perplexity, and loop -compare-resource-fitness via -setverify when the drill starts.",
           "depends_on": [
             "benchmark-routing/sync-resource-quality-fitness"
           ]

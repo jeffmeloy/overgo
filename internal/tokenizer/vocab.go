@@ -88,6 +88,7 @@ type Vocab struct {
 	StripAccents bool
 
 	tokenToID   map[string]TokenID
+	eogByName   map[TokenID]bool
 	mergeRank   map[pair]int
 	special     []TokenID
 	ugmMaxLen   int
@@ -273,6 +274,7 @@ func Load(file *gguf.File) (*Vocab, error) {
 		}
 	}
 	vocab.fimDeclared = vocab.FIMPad != NullToken || vocab.FIMRep != NullToken || vocab.FIMSep != NullToken
+	vocab.markEndOfGenerationByName()
 	if vocab.BOS >= TokenID(len(vocab.Tokens)) {
 		vocab.BOS = NullToken
 	}
@@ -465,6 +467,52 @@ func isSerializedCodebookToken(text string) bool {
 	return true
 }
 
+// endOfGenerationNames are the control tokens upstream (llama.cpp
+// llama-vocab.cpp, pinned commit) marks end-of-generation by name
+// whatever the metadata declares: a converted GGUF whose eos points at
+// <|endoftext|> still ends a turn at <|im_end|>, and gemma4 ends one at
+// <turn|>. A model that emits one of these has stopped.
+var endOfGenerationNames = map[string]bool{
+	"<|eot_id|>": true, "<|im_end|>": true, "<|end|>": true,
+	"<|return|>": true, "<|call|>": true, "<|flush|>": true, "<|calls|>": true,
+	"<end_of_turn>": true, "<|endoftext|>": true, "</s>": true, "<|eom_id|>": true,
+	"<EOT>": true, "_<EOT>": true, "[EOT]": true, "[EOS]": true,
+	"<|end_of_text|>": true, "<end_of_utterance>": true,
+	"<eos>": true, "<turn|>": true, "<|tool_response>": true,
+	"<｜end▁of▁sentence｜>": true,
+}
+
+// endOfTurnNames are the names upstream promotes to the end-of-turn
+// token when the metadata declares none, in the same precedence.
+var endOfTurnNames = []string{
+	"<|eot_id|>", "<|im_end|>", "<|end|>", "<end_of_turn>", "<|endoftext|>",
+	"<|end_of_text|>", "<EOT>", "_<EOT>", "[EOT]", "<｜end▁of▁sentence｜>", "<end_of_utterance>",
+}
+
+// markEndOfGenerationByName ports the upstream name rule: every token
+// whose text is a known end marker is end-of-generation, and an
+// undeclared end-of-turn token is discovered by name.
+func (v *Vocab) markEndOfGenerationByName() {
+	if v == nil {
+		return
+	}
+	v.eogByName = make(map[TokenID]bool)
+	for id, token := range v.Tokens {
+		if endOfGenerationNames[token.Text] {
+			v.eogByName[TokenID(id)] = true
+		}
+	}
+	if v.EOT != NullToken {
+		return
+	}
+	for _, name := range endOfTurnNames {
+		if id, ok := v.tokenToID[name]; ok {
+			v.EOT = id
+			return
+		}
+	}
+}
+
 // IsEOG reports declared terminal IDs.
 func (v *Vocab) IsEOG(id TokenID) bool {
 	if v == nil || id < 0 || int(id) >= len(v.Tokens) {
@@ -474,6 +522,9 @@ func (v *Vocab) IsEOG(id TokenID) bool {
 		if terminal != NullToken && id == terminal {
 			return true
 		}
+	}
+	if v.eogByName[id] {
+		return true
 	}
 	return v.fimDeclared && (id == v.FIMPad || id == v.FIMRep || id == v.FIMSep)
 }

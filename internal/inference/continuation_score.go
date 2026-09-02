@@ -27,6 +27,21 @@ func (r *Runner) ScoreContinuations(
 	prompt string,
 	candidates []string,
 ) ([]sequencescore.Score, error) {
+	return r.ScoreContinuationsParsed(ctx, prompt, candidates, false)
+}
+
+// ScoreContinuationsParsed scores candidates against a prompt whose
+// special-token text is parsed into the declared tokens when
+// parseSpecial is set -- a template-shaped prompt carries turn markers
+// the model must see as single tokens, exactly as serving encodes them.
+// Raw suite prompts keep parseSpecial false so benchmark text can never
+// smuggle a control token.
+func (r *Runner) ScoreContinuationsParsed(
+	ctx context.Context,
+	prompt string,
+	candidates []string,
+	parseSpecial bool,
+) ([]sequencescore.Score, error) {
 	if r == nil || r.vocab == nil {
 		return nil, errRunnerNil
 	}
@@ -37,7 +52,8 @@ func (r *Runner) ScoreContinuations(
 	if ctx == nil || len(candidates) < 1 {
 		return nil, errors.New("inference: incomplete continuation scoring request")
 	}
-	promptIDs, err := r.vocab.Encode(prompt, tokenizer.EncodeOptions{AddSpecial: true})
+	encoding := tokenizer.EncodeOptions{AddSpecial: true, ParseSpecial: parseSpecial}
+	promptIDs, err := r.vocab.Encode(prompt, encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +76,7 @@ func (r *Runner) ScoreContinuations(
 		if candidate == "" {
 			return nil, errors.New("inference: continuation candidate is empty")
 		}
-		full, err := r.vocab.Encode(prompt+candidate, tokenizer.EncodeOptions{AddSpecial: true})
+		full, err := r.vocab.Encode(prompt+candidate, encoding)
 		if err != nil {
 			return nil, err
 		}

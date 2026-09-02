@@ -205,6 +205,99 @@ Authentication and method requirements are defined per route. The generated
 The supported training combinations and their evidence are listed in
 [Training compatibility](docs/TRAINING_COMPATIBILITY.md).
 
+### Universal Muon Optimizer
+
+Overgo uses a single optimizer policy across all trainable models and parameter geometries. Training exposes no user-facing optimizer controls. Learning rate, momentum, optimizer selection, scheduling, warmup, and parameter-specific optimizer recipes are determined by the trainer. The optimizer derives its behavior from statistical and geometric invariants rather than per-model hyperparameter tuning.
+
+Overgo uses `CLTMinSamples = 30` as a minimum statistical sample floor, based on the conventional large-sample central limit theorem heuristic. For exponential momentum, the effective sample size is
+
+$$
+N_{\mathrm{eff}}=\frac{1+\mu}{1-\mu}.
+$$
+
+Setting \(N_{\mathrm{eff}}=30\) gives
+
+$$
+\mu=\frac{N-1}{N+1}
+=\frac{29}{31}
+\approx 0.93548.
+$$
+
+Momentum follows from the statistical horizon rather than being selected or tuned per model. The same `CLTMinSamples` invariant is used elsewhere in Overgo for autocorrelation-aware tail windows, batch-size derivation, evaluation sampling, and calibration. Each subsystem maps the common statistical floor into its own calculation.
+
+Momentum accumulation changes the characteristic scale of an update. Overgo compensates for this with
+
+$$
+\sqrt{1-\mu^2}.
+$$
+
+This normalizes the effect of the derived momentum value on update magnitude.
+
+For a trainable tensor represented as an \(m\times n\) matrix, Overgo forms the momentum direction and applies Newton–Schulz orthogonalization. The direction is normalized before orthogonalization, making the Muon update invariant to positive rescaling of the input gradient.
+
+The approximately semi-orthogonal result is scaled by
+
+$$
+\eta_t
+\sqrt{\max(m,n)}
+\sqrt{1-\mu^2}.
+$$
+
+For an approximately semi-orthogonal \(m\times n\) matrix \(Q\),
+
+$$
+\|Q\|_F \approx \sqrt{\min(m,n)}.
+$$
+
+Therefore,
+
+$$
+\|\Delta W\|_F
+\approx
+\eta_t
+\sqrt{1-\mu^2}
+\sqrt{mn},
+$$
+
+and the RMS update per parameter is approximately
+
+$$
+\operatorname{RMS}(\Delta W)
+\approx
+\eta_t\sqrt{1-\mu^2}.
+$$
+
+The resulting RMS update is approximately independent of tensor dimensions. Matrix shape therefore does not require a separate learning-rate rule. Vectors and scalars are handled by the same optimizer rather than routed to a separate optimization algorithm. The optimizer is used for matrices, vectors, scalars, embeddings, normalization parameters, adapters, and other trainable tensors.
+
+This removes several common sources of model-specific optimizer tuning:
+
+* gradient magnitude is normalized before the Muon update;
+* tensor geometry is compensated analytically;
+* momentum is derived from an effective statistical horizon;
+* momentum-induced update scaling is explicitly normalized;
+* learning-rate policy is derived by the trainer;
+* all trainable parameter geometries use the same optimizer implementation.
+
+The low-level optimizer records resolved learning rate, momentum, schedule, and optimizer state for execution and exact checkpoint/resume. These values are execution state rather than caller-configured training policy.
+
+The training interface is therefore reduced to:
+
+$$
+\boxed{
+\text{model}
++
+\text{data}
++
+\text{objective}
++
+\text{budget}
+\longrightarrow
+\text{train}
+}
+$$
+
+The same trainer is used across dense decoders, encoders, mixture-of-experts models, LoRA and adapter training, image, video, audio, time-series, tabular, and other differentiable architectures without per-model optimizer tuning. Training policies that require repeated human hyperparameter search are not used.
+
 ### Evaluation, routing, and live safety
 
 - Store-derived suites for exact answers, multiple choice, grouped choice,

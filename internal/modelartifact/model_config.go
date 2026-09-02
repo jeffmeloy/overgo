@@ -37,11 +37,82 @@ type SequenceExtensionConfig struct {
 }
 
 // GenerationEssentials are the generation-relevant declarations: begin and
-// end-of-sequence token IDs and the declared context length.
+// end-of-sequence token IDs, the declared context length, and the
+// sampling the model's own configuration or card recommends.
 type GenerationEssentials struct {
-	BOSTokens     []int64 `json:"bos_tokens,omitempty"`
-	EOSTokens     []int64 `json:"eos_tokens,omitempty"`
-	ContextLength uint64  `json:"context_length,omitzero"`
+	BOSTokens     []int64             `json:"bos_tokens,omitempty"`
+	EOSTokens     []int64             `json:"eos_tokens,omitempty"`
+	ContextLength uint64              `json:"context_length,omitzero"`
+	Sampling      *GenerationSampling `json:"sampling,omitempty"`
+}
+
+// GenerationSampling is the sampling a model ships with: the
+// generation_config.json of its checkpoint, or the settings its model
+// card recommends when the checkpoint declares none. Origin names which;
+// a model card declaration carries its URL and mode. Zero fields are
+// undeclared and leave the runtime policy's value standing.
+type GenerationSampling struct {
+	Origin            string  `json:"origin"`
+	Mode              string  `json:"mode,omitzero"`
+	DoSample          bool    `json:"do_sample"`
+	Temperature       float64 `json:"temperature,omitzero"`
+	TopP              float64 `json:"top_p,omitzero"`
+	TopK              int     `json:"top_k,omitzero"`
+	MinP              float64 `json:"min_p,omitzero"`
+	PresencePenalty   float64 `json:"presence_penalty,omitzero"`
+	RepetitionPenalty float64 `json:"repetition_penalty,omitzero"`
+}
+
+// declaredSampling is the shape both generation_config.json and a
+// model_card_sampling.json declaration share.
+type declaredSampling struct {
+	Source            string   `json:"source"`
+	Mode              string   `json:"mode"`
+	DoSample          *bool    `json:"do_sample"`
+	Temperature       *float64 `json:"temperature"`
+	TopP              *float64 `json:"top_p"`
+	TopK              *int     `json:"top_k"`
+	MinP              *float64 `json:"min_p"`
+	PresencePenalty   *float64 `json:"presence_penalty"`
+	RepetitionPenalty *float64 `json:"repetition_penalty"`
+}
+
+// ModelCardSamplingFile is the declaration file an operator writes beside
+// a checkpoint (or in a directory of its own for a GGUF-only model) to
+// record the sampling a model card recommends, with its source URL.
+const ModelCardSamplingFile = "model_card_sampling.json"
+
+func (declared declaredSampling) sampling(origin string) *GenerationSampling {
+	if declared.DoSample == nil && declared.Temperature == nil && declared.TopP == nil && declared.TopK == nil &&
+		declared.MinP == nil && declared.PresencePenalty == nil && declared.RepetitionPenalty == nil {
+		return nil
+	}
+	result := &GenerationSampling{Origin: origin, Mode: declared.Mode}
+	if declared.Source != "" {
+		result.Origin = declared.Source
+	}
+	if declared.DoSample != nil {
+		result.DoSample = *declared.DoSample
+	}
+	if declared.Temperature != nil {
+		result.Temperature = *declared.Temperature
+	}
+	if declared.TopP != nil {
+		result.TopP = *declared.TopP
+	}
+	if declared.TopK != nil {
+		result.TopK = *declared.TopK
+	}
+	if declared.MinP != nil {
+		result.MinP = *declared.MinP
+	}
+	if declared.PresencePenalty != nil {
+		result.PresencePenalty = *declared.PresencePenalty
+	}
+	if declared.RepetitionPenalty != nil {
+		result.RepetitionPenalty = *declared.RepetitionPenalty
+	}
+	return result
 }
 
 // ConfigSource names one source file and its content digest, so the
@@ -77,6 +148,10 @@ var modelConfigCodec = artifact.JSONDocumentCodec(
 			generation := *value.Generation
 			generation.BOSTokens = slices.Clone(generation.BOSTokens)
 			generation.EOSTokens = slices.Clone(generation.EOSTokens)
+			if generation.Sampling != nil {
+				sampling := *generation.Sampling
+				generation.Sampling = &sampling
+			}
 			value.Generation = &generation
 		}
 		value.Sources = slices.Clone(value.Sources)
@@ -168,6 +243,31 @@ func ReadModelConfigComponents(directory string) (*SequenceExtensionConfig, *Gen
 		}
 		generation.BOSTokens, generation.EOSTokens = bos, eos
 		populated = populated || len(bos) > 0 || len(eos) > 0
+		var sampling declaredSampling
+		if err := json.Unmarshal(data, &sampling); err != nil {
+			return nil, nil, nil, fmt.Errorf("model config: parse generation_config.json sampling: %w", err)
+		}
+		if declared := sampling.sampling("generation_config.json"); declared != nil {
+			generation.Sampling = declared
+			populated = true
+		}
+	}
+	// A model card declaration, when present, is the operator's explicit
+	// record of the recommended settings and stands over the checkpoint's
+	// generation config.
+	if data, ok, err := read(ModelCardSamplingFile); err != nil {
+		return nil, nil, nil, err
+	} else if ok {
+		var sampling declaredSampling
+		if err := json.Unmarshal(data, &sampling); err != nil {
+			return nil, nil, nil, fmt.Errorf("model config: parse %s: %w", ModelCardSamplingFile, err)
+		}
+		declared := sampling.sampling(ModelCardSamplingFile)
+		if declared == nil || sampling.Source == "" {
+			return nil, nil, nil, fmt.Errorf("model config: %s declares no sampling or no source", ModelCardSamplingFile)
+		}
+		generation.Sampling = declared
+		populated = true
 	}
 	if data, ok, err := read("config.json"); err != nil {
 		return nil, nil, nil, err

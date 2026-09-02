@@ -32,14 +32,28 @@ const (
 // and candidate observation streams. RequiredMetrics is the minimum metric
 // contract; both streams must additionally expose the same complete sample
 // protocol and metric keysets, and every observed metric is compared.
+//
+// Repeats are further measurements of the baseline under the identical
+// protocol. Together with the baseline they define the lane's NoiseEnvelope:
+// per metric, the spread (max minus min) the same work showed across the
+// repeated runs -- measured, never a knob, as in the descendant-improvement
+// contract. A candidate regresses a metric only beyond the baseline plus that
+// envelope, and improves it strictly only beyond the baseline minus it. With
+// no repeats the envelope is zero and any increase is a regression. The
+// envelope is the small-sample mode of the live safety window: a min-max
+// band from n identical runs contains a further identical run with
+// probability (n-1)/(n+1), so the number of repeats, not a constant, sets
+// how often an unchanged workload is refused.
 type ResourceFitnessLane struct {
-	Name                string            `json:"name"`
-	RequiredMetrics     []ResourceMetric  `json:"required_metrics,omitempty"`
-	RequireInteractions bool              `json:"require_interactions,omitzero"`
-	Baseline            ObservationStream `json:"baseline"`
-	Candidate           ObservationStream `json:"candidate"`
-	StrictMetrics       []ResourceMeasure `json:"strict_metrics,omitempty"`
-	StrictInteractions  *InteractionWork  `json:"strict_interactions,omitempty"`
+	Name                string              `json:"name"`
+	RequiredMetrics     []ResourceMetric    `json:"required_metrics,omitempty"`
+	RequireInteractions bool                `json:"require_interactions,omitzero"`
+	Baseline            ObservationStream   `json:"baseline"`
+	Repeats             []ObservationStream `json:"repeats,omitempty"`
+	Candidate           ObservationStream   `json:"candidate"`
+	NoiseEnvelope       []ResourceMeasure   `json:"noise_envelope,omitempty"`
+	StrictMetrics       []ResourceMeasure   `json:"strict_metrics,omitempty"`
+	StrictInteractions  *InteractionWork    `json:"strict_interactions,omitempty"`
 }
 
 // ResourceFitnessComparison is an immutable no-regression proof over every
@@ -121,13 +135,7 @@ func verifyResourceFitnessComparisonSources(
 				return errors.Join(err, fmt.Errorf("run record: resource fitness lane %q cost provider is not an exact capability", lane.Name))
 			}
 		}
-		for _, endpoint := range []struct {
-			name   string
-			stream ObservationStream
-		}{
-			{name: "baseline", stream: lane.Baseline},
-			{name: "candidate", stream: lane.Candidate},
-		} {
+		for _, endpoint := range lane.endpoints() {
 			head := endpoint.stream.SummaryIDs[len(endpoint.stream.SummaryIDs)-1]
 			replayed, requireErr := RequireObservationStream(
 				ctx, reader, endpoint.stream.Scope.Attempt, head,
@@ -147,12 +155,30 @@ func verifyResourceFitnessComparisonSources(
 	return nil
 }
 
+// resourceFitnessEndpoint names one observation stream of a lane.
+type resourceFitnessEndpoint struct {
+	name   string
+	stream ObservationStream
+}
+
+// endpoints lists every stream the lane judges: the baseline, each repeat
+// of it, and the candidate.
+func (lane ResourceFitnessLane) endpoints() []resourceFitnessEndpoint {
+	endpoints := make([]resourceFitnessEndpoint, 0, len(lane.Repeats)+2)
+	endpoints = append(endpoints, resourceFitnessEndpoint{name: "baseline", stream: lane.Baseline})
+	for index, repeat := range lane.Repeats {
+		endpoints = append(endpoints, resourceFitnessEndpoint{name: fmt.Sprintf("repeat %d", index+1), stream: repeat})
+	}
+	return append(endpoints, resourceFitnessEndpoint{name: "candidate", stream: lane.Candidate})
+}
+
 // SourceChunks returns the sorted unique raw chunks cited by the comparison.
 func (value ResourceFitnessComparison) SourceChunks() []artifact.ID {
 	var chunks []artifact.ID
 	for _, lane := range value.Lanes {
-		chunks = append(chunks, lane.Baseline.ChunkIDs...)
-		chunks = append(chunks, lane.Candidate.ChunkIDs...)
+		for _, endpoint := range lane.endpoints() {
+			chunks = append(chunks, endpoint.stream.ChunkIDs...)
+		}
 	}
 	slices.SortFunc(chunks, artifact.CompareID)
 	return slices.Compact(chunks)
@@ -163,10 +189,10 @@ func (value ResourceFitnessComparison) SourceChunks() []artifact.ID {
 func (value ResourceFitnessComparison) Lineage() []artifact.Lineage {
 	parents := make([]artifact.ID, 0)
 	for _, lane := range value.Lanes {
-		for _, endpoint := range []ObservationStream{lane.Baseline, lane.Candidate} {
-			parents = append(parents, endpoint.SummaryIDs...)
-			parents = append(parents, endpoint.ChunkIDs...)
-			parents = append(parents, endpoint.Aggregate.Authorities()...)
+		for _, endpoint := range lane.endpoints() {
+			parents = append(parents, endpoint.stream.SummaryIDs...)
+			parents = append(parents, endpoint.stream.ChunkIDs...)
+			parents = append(parents, endpoint.stream.Aggregate.Authorities()...)
 		}
 	}
 	slices.SortFunc(parents, artifact.CompareID)
@@ -209,7 +235,8 @@ func canonicalizeResourceFitnessComparison(value *ResourceFitnessComparison) err
 		if err := canonicalizeResourceFitnessLane(lane); err != nil {
 			return err
 		}
-		for _, attempt := range []artifact.ID{lane.Baseline.Scope.Attempt, lane.Candidate.Scope.Attempt} {
+		for _, endpoint := range lane.endpoints() {
+			attempt := endpoint.stream.Scope.Attempt
 			if _, duplicate := seenAttempts[attempt]; duplicate {
 				return errors.New("run record: resource fitness attempt is reused across lanes")
 			}
@@ -235,27 +262,36 @@ func canonicalizeResourceFitnessLane(lane *ResourceFitnessLane) error {
 	if len(lane.RequiredMetrics) == 0 && !lane.RequireInteractions {
 		return fmt.Errorf("run record: resource fitness lane %q has no comparison contract", lane.Name)
 	}
-	if err := validateMaterializedObservationStream(lane.Baseline); err != nil {
-		return errors.Join(err, fmt.Errorf("run record: invalid resource fitness lane %q baseline", lane.Name))
+	lane.Repeats = slices.Clone(lane.Repeats)
+	if len(lane.Repeats)+2 > MaximumAttemptPopulation {
+		return fmt.Errorf("run record: resource fitness lane %q repeats exceed the attempt population", lane.Name)
 	}
-	if err := validateMaterializedObservationStream(lane.Candidate); err != nil {
-		return errors.Join(err, fmt.Errorf("run record: invalid resource fitness lane %q candidate", lane.Name))
-	}
-	baselineScope, candidateScope := lane.Baseline.Scope, lane.Candidate.Scope
-	if baselineScope.Surface != candidateScope.Surface || baselineScope.Hardware != candidateScope.Hardware ||
-		baselineScope.Provider != candidateScope.Provider || baselineScope.Attempt == candidateScope.Attempt {
-		return fmt.Errorf("run record: resource fitness lane %q scopes are not comparable", lane.Name)
-	}
-	if !sameObservationProtocol(lane.Baseline.Coverage, lane.Candidate.Coverage) {
-		return fmt.Errorf("run record: resource fitness lane %q observation protocols differ", lane.Name)
-	}
-	baselineMeasures, candidateMeasures := lane.Baseline.Aggregate.Measures, lane.Candidate.Aggregate.Measures
-	if len(baselineMeasures) != len(candidateMeasures) {
-		return fmt.Errorf("run record: resource fitness lane %q metric keysets differ", lane.Name)
-	}
-	for index := range baselineMeasures {
-		if baselineMeasures[index].Metric != candidateMeasures[index].Metric {
+	endpoints := lane.endpoints()
+	baselineScope := lane.Baseline.Scope
+	baselineMeasures := lane.Baseline.Aggregate.Measures
+	seenAttempts := make(map[artifact.ID]struct{}, len(endpoints))
+	for _, endpoint := range endpoints {
+		if err := validateMaterializedObservationStream(endpoint.stream); err != nil {
+			return errors.Join(err, fmt.Errorf("run record: invalid resource fitness lane %q %s", lane.Name, endpoint.name))
+		}
+		scope := endpoint.stream.Scope
+		if _, duplicate := seenAttempts[scope.Attempt]; duplicate ||
+			baselineScope.Surface != scope.Surface || baselineScope.Hardware != scope.Hardware ||
+			baselineScope.Provider != scope.Provider {
+			return fmt.Errorf("run record: resource fitness lane %q scopes are not comparable", lane.Name)
+		}
+		seenAttempts[scope.Attempt] = struct{}{}
+		if !sameObservationProtocol(lane.Baseline.Coverage, endpoint.stream.Coverage) {
+			return fmt.Errorf("run record: resource fitness lane %q observation protocols differ", lane.Name)
+		}
+		measures := endpoint.stream.Aggregate.Measures
+		if len(baselineMeasures) != len(measures) {
 			return fmt.Errorf("run record: resource fitness lane %q metric keysets differ", lane.Name)
+		}
+		for index := range baselineMeasures {
+			if baselineMeasures[index].Metric != measures[index].Metric {
+				return fmt.Errorf("run record: resource fitness lane %q metric keysets differ", lane.Name)
+			}
 		}
 	}
 	for _, required := range lane.RequiredMetrics {
@@ -263,13 +299,32 @@ func canonicalizeResourceFitnessLane(lane *ResourceFitnessLane) error {
 			return fmt.Errorf("run record: resource fitness lane %q lacks required metric %q", lane.Name, required)
 		}
 	}
+	// The noise envelope is the measured spread of the same work across the
+	// baseline and its repeats; without repeats it is zero.
+	lane.NoiseEnvelope = nil
+	if len(lane.Repeats) != 0 {
+		lane.NoiseEnvelope = make([]ResourceMeasure, len(baselineMeasures))
+		for index, baseline := range baselineMeasures {
+			low, high := baseline.Value, baseline.Value
+			for _, repeat := range lane.Repeats {
+				low = min(low, repeat.Aggregate.Measures[index].Value)
+				high = max(high, repeat.Aggregate.Measures[index].Value)
+			}
+			lane.NoiseEnvelope[index] = ResourceMeasure{Metric: baseline.Metric, Value: high - low}
+		}
+	}
+	candidateMeasures := lane.Candidate.Aggregate.Measures
 	strictMetrics := make([]ResourceMeasure, 0, len(baselineMeasures))
 	for index, baseline := range baselineMeasures {
 		candidate := candidateMeasures[index]
-		if candidate.Value > baseline.Value {
-			return fmt.Errorf("run record: resource fitness lane %q regresses metric %q", lane.Name, baseline.Metric)
+		var envelope uint64
+		if lane.NoiseEnvelope != nil {
+			envelope = lane.NoiseEnvelope[index].Value
 		}
-		if candidate.Value < baseline.Value {
+		if candidate.Value > baseline.Value && candidate.Value-baseline.Value > envelope {
+			return fmt.Errorf("run record: resource fitness lane %q regresses metric %q beyond its noise envelope %d", lane.Name, baseline.Metric, envelope)
+		}
+		if candidate.Value < baseline.Value && baseline.Value-candidate.Value > envelope {
 			strictMetrics = append(strictMetrics, ResourceMeasure{
 				Metric: baseline.Metric, Value: baseline.Value - candidate.Value,
 			})
@@ -430,7 +485,12 @@ func cloneResourceFitnessLanes(lanes []ResourceFitnessLane) []ResourceFitnessLan
 	for index := range result {
 		result[index].RequiredMetrics = slices.Clone(result[index].RequiredMetrics)
 		result[index].Baseline = cloneObservationStream(result[index].Baseline)
+		result[index].Repeats = slices.Clone(result[index].Repeats)
+		for repeat := range result[index].Repeats {
+			result[index].Repeats[repeat] = cloneObservationStream(result[index].Repeats[repeat])
+		}
 		result[index].Candidate = cloneObservationStream(result[index].Candidate)
+		result[index].NoiseEnvelope = slices.Clone(result[index].NoiseEnvelope)
 		result[index].StrictMetrics = slices.Clone(result[index].StrictMetrics)
 		if result[index].StrictInteractions != nil {
 			work := *result[index].StrictInteractions

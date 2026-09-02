@@ -44,6 +44,28 @@ func DeriveStoreSuites(
 	reader artifact.Reader,
 	authorities ExactAuthorities,
 ) ([]CompiledSuite, map[string]int, error) {
+	return deriveStoreSuites(ctx, reader, authorities, "")
+}
+
+// DeriveStoreSuiteFamily compiles one family's suite alone: the records
+// of every other family are neither read nor compiled, so a worker asked
+// for a hundred-case family does not spend minutes assembling the whole
+// catalog first. An empty family derives every suite.
+func DeriveStoreSuiteFamily(
+	ctx context.Context,
+	reader artifact.Reader,
+	authorities ExactAuthorities,
+	family string,
+) ([]CompiledSuite, map[string]int, error) {
+	return deriveStoreSuites(ctx, reader, authorities, family)
+}
+
+func deriveStoreSuites(
+	ctx context.Context,
+	reader artifact.Reader,
+	authorities ExactAuthorities,
+	wanted string,
+) ([]CompiledSuite, map[string]int, error) {
 	id, bound, err := artifact.ResolveAlias(ctx, reader, benchmarkCatalogAlias)
 	if err != nil || !bound {
 		return nil, nil, errors.Join(err, errors.New("evaluation: active benchmark catalog is absent"))
@@ -59,7 +81,7 @@ func DeriveStoreSuites(
 			return nil, nil, errors.Join(err, fmt.Errorf("evaluation: benchmark import %s is unreadable", entry.Name))
 		}
 		family, recognized := familyForConversion(imported.Spec.Conversion)
-		if !recognized {
+		if !recognized || wanted != "" && family.family != wanted {
 			continue
 		}
 		subset := entry.Name
@@ -84,6 +106,9 @@ func DeriveStoreSuites(
 		}
 	}
 	if len(families) == 0 {
+		if wanted != "" {
+			return nil, nil, fmt.Errorf("evaluation: the catalog holds no %s family", wanted)
+		}
 		return nil, nil, errors.New("evaluation: the catalog holds no recognized benchmark families")
 	}
 	assemblers := map[string]func([]storeCase) (any, int, error){

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"overgo/internal/artifact"
 	"overgo/internal/hfconvert"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
@@ -49,50 +48,24 @@ func main() {
 // converted model identity. A directory declaring nothing commits nothing;
 // that fact is reported, not padded.
 func recordModelConfig(source, output, recordStore string) error {
-	sequence, generation, sources, err := modelartifact.ReadModelConfigComponents(source)
-	if err != nil {
-		return err
-	}
-	if sequence == nil && generation == nil {
-		fmt.Println("model config: source directory declares no extractable components; nothing committed")
-		return nil
-	}
-	converted, err := os.Open(output)
-	if err != nil {
-		return err
-	}
-	defer converted.Close()
-	model, _, err := artifact.Identify(artifact.KindModel, converted)
-	if err != nil {
-		return err
-	}
-	document, err := modelartifact.NewModelConfigDocument(model, sequence, generation, sources)
-	if err != nil {
-		return err
-	}
 	store, err := overgodb.Open(recordStore)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	batch, err := document.Batch("model-config/" + document.ID.String())
+	model, err := modelartifact.IdentifyConvertedModel(output)
 	if err != nil {
 		return err
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	id, recorded, err := modelartifact.RecordModelConfig(context.Background(), store, source, model)
+	if err != nil {
 		return err
 	}
-	fmt.Printf("model config committed: %s model=%s sources=%d\n", document.ID, model, len(document.Sources))
-	if document.Sequence != nil {
-		fmt.Printf("sequence extension: k=%d range=[%d,%d) specials=%d auto_tags=%t\n",
-			document.Sequence.K, document.Sequence.StartID,
-			document.Sequence.StartID+document.Sequence.Vocabulary,
-			len(document.Sequence.SpecialTokens), document.Sequence.AutoTags)
+	if !recorded {
+		fmt.Println("model config: source directory declares no extractable components; nothing committed")
+		return nil
 	}
-	if document.Generation != nil {
-		fmt.Printf("generation: bos=%v eos=%v context=%d\n",
-			document.Generation.BOSTokens, document.Generation.EOSTokens, document.Generation.ContextLength)
-	}
+	fmt.Printf("model config committed: %s\n", id)
 	fmt.Println("honesty: components derive from digested source files; absent declarations stay absent")
 	return nil
 }

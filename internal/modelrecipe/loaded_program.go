@@ -10,6 +10,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 )
 
@@ -54,6 +55,18 @@ func ResolveActiveGGUF(
 	loaded.state.Policy, err = ResolveRuntimePolicy(ctx, store, definition)
 	if err != nil {
 		return fail(err)
+	}
+	// The model's own declared sampling (its generation config or model
+	// card) overlays the catalog policy; a store without typed document
+	// projections cannot hold a declaration, so the policy stands.
+	if documents, ok := store.(overgodb.DocumentReader); ok {
+		config, declared, err := ResolveModelConfig(ctx, documents, loaded.state.Inventory.Manifest.ID)
+		if err != nil {
+			return fail(err)
+		}
+		if declared && config.Generation != nil {
+			ApplyDeclaredSampling(&loaded.state.Policy, config.Generation.Sampling)
+		}
 	}
 	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)
 	if !ok {

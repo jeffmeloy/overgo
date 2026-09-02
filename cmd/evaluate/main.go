@@ -53,13 +53,15 @@ func run() error {
 	manifestPath := flag.String("manifest", "", "evaluation manifest")
 	worker := flag.Bool("worker", false, "run one model worker")
 	modelIndex := flag.Int("model-index", -1, "worker model index")
+	modelPath := flag.String("model-path", "", "worker model path for -all (the parent lists the catalog once and hands each worker its model)")
+	budget := flag.Duration("budget", evaluationBudget, "wall-clock ceiling on one -all pass, shared as equal slices across the models still to run; a model cut at its slice is recorded budget-exceeded")
 	importCache := flag.String("import-hf-cache", "", "scan a HuggingFace dataset cache root, import every recognized benchmark, and publish the active catalog")
 	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
 	repository := flag.String("repo", "overgodb-store", "OvergoDB root for -import-hf-cache, -list-derived-suites, and -all")
 	allModels := flag.Bool("all", false, "evaluate every servable local model against the store's derived suites")
 	chatProtocol := flag.Bool("chat-protocol", false, "score multiple-choice suites through each model's declared chat template; the raw completion protocol stays the recorded anchor")
 	device := flag.Int("device", 0, "CUDA device ordinal for -all")
-	family := flag.String("family", "", "restrict -all to one derived suite source suffix (e.g. mmlu)")
+	family := flag.String("family", "", "restrict -all and -list-derived-suites to one derived suite family (e.g. mmlu); only that family's records are read and compiled")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
 	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
@@ -99,9 +101,9 @@ func run() error {
 			return errors.New("usage: evaluate -all [-repo <store>] [-device N] [-family name]")
 		}
 		if *worker {
-			return runAllWorker(context.Background(), *repository, *device, *family, *catalogLimit, *modelIndex, *chatProtocol)
+			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *chatProtocol)
 		}
-		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *chatProtocol)
+		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *chatProtocol, *budget)
 	}
 	if *listSuites {
 		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" {
@@ -114,7 +116,7 @@ func run() error {
 		defer store.Close()
 		// Placeholder authorities admit compilation for listing; running a
 		// suite still binds the real model, recipe, and environment.
-		suites, skipped, err := evaluation.DeriveStoreSuites(context.Background(), store, evaluation.ListingAuthorities())
+		suites, skipped, err := evaluation.DeriveStoreSuiteFamily(context.Background(), store, evaluation.ListingAuthorities(), strings.TrimSpace(*family))
 		if err != nil {
 			return err
 		}

@@ -1224,7 +1224,11 @@ func capturePendingMerge(repo string) (*gateMergeIntent, error) {
 			return nil, pathErr
 		}
 		if _, autoMergeErr := os.Lstat(autoMergePath); autoMergeErr == nil {
-			return nil, errors.New("gate: orphan AUTO_MERGE exists without MERGE_HEAD")
+			// A stash pop leaves AUTO_MERGE behind with no merge in
+			// progress; the gate refuses rather than deleting a marker
+			// that could also belong to a concurrent merge, and names
+			// the one-line remediation for the common case.
+			return nil, errors.New("gate: orphan AUTO_MERGE exists without MERGE_HEAD -- a git stash pop leaves it behind; if no merge is in progress, remove .git/AUTO_MERGE and re-run")
 		} else if !errors.Is(autoMergeErr, os.ErrNotExist) {
 			return nil, autoMergeErr
 		}

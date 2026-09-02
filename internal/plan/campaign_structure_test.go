@@ -511,11 +511,43 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"training-e2e/route-drills",
 		"training-e2e/preference-objectives",
 		"benchmark-routing/pinned-benchmarks",
+		// The benchmark drill (2026-09-01/02) surfaced that no model's
+		// provided sampling reached the runtime and that every evaluate
+		// worker compiles the whole suite catalog before a two-second
+		// suite; both are corrected in-campaign under the same directive.
+		"model-generation-settings/do",
+		"evaluate-family-compile/do",
 		"benchmark-routing/resource-quality-fitness",
 		"benchmark-routing/routing-replay",
 		"failure-recovery/interruption-drills",
 		"failure-recovery/control-plane-drills",
 		"failure-recovery/gate-recovery-drill",
+		// Phase 2 (owner directive 2026-09-02): repository cleanup, the
+		// remaining benchmark suites except MATH, modality verification of
+		// every registered model, the generated media report, the fixes the
+		// phase-1 drills surfaced, and the close-out.
+		"phase2-bootstrap/author-phase2-plan",
+		"repo-cleanup/scrap-and-drill-copies",
+		"repo-cleanup/stash-reconciliation",
+		"repo-cleanup/routing-resource-size",
+		"repo-cleanup/findings-disposition",
+		"resource-tolerance/do",
+		"audit-language/do",
+		"docs-pruning/do",
+		"benchmark-completion/bbh-pass",
+		"benchmark-completion/musr-pass",
+		"benchmark-completion/ifeval-pass",
+		"benchmark-completion/dna-pass",
+		"benchmark-completion/mmlu-pro-pass",
+		"benchmark-completion/published-comparison",
+		"modality-verification/capability-census",
+		"modality-verification/declared-smoke-expectations",
+		"modality-verification/text-and-vision",
+		"modality-verification/image-and-video",
+		"modality-verification/speech-ocr-tabular-forecast",
+		"modality-verification/media-report",
+		"failure-recovery/rollout-plan-author",
+		"campaign-closeout/closeout",
 	}
 	want := make(map[string]bool, len(wantIDs))
 	for _, id := range wantIDs {

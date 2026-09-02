@@ -512,12 +512,12 @@ func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch
 	if len(owners) == 0 {
 		owners = []string{"repository"}
 	}
-	document, findingBatch, err := finding.NewTextBatch("Actionable gate advisories", finding.SeverityMedium, owners, evidence,
+	document, findingBatch, err := finding.NewTextBatch(finding.GateAdvisoriesTitle, finding.SeverityMedium, owners, evidence,
 		"Resolve each advisory at its owning source and retain a failable regression check.", "The gate emits no actionable advisory for the same owner surface.")
 	if err != nil {
 		return err
 	}
-	alias := artifact.AliasBinding{Name: "finding/active/gate-advisories", Target: document.ID}
+	alias := artifact.AliasBinding{Name: finding.GateAdvisoriesAlias, Target: document.ID}
 	if previous, found, err := artifact.ResolveAlias(ctx, store, alias.Name); err != nil {
 		return err
 	} else if found {

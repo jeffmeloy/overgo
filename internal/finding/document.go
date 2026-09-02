@@ -37,6 +37,9 @@ const (
 	StatusOpen    Status = "open"
 	StatusClosed  Status = "closed"
 	StatusRefuted Status = "refuted"
+	// StatusDeferred records an owner decision to keep a finding parked with
+	// a stated reason; it is acknowledged debt, not a live row.
+	StatusDeferred Status = "deferred"
 )
 
 var contract = artifact.DocumentContract{
@@ -169,7 +172,7 @@ func canonicalize(document *Document) error {
 		return errors.New("finding: invalid severity")
 	}
 	switch document.Status {
-	case StatusOpen, StatusClosed, StatusRefuted:
+	case StatusOpen, StatusClosed, StatusRefuted, StatusDeferred:
 	default:
 		return errors.New("finding: invalid status")
 	}

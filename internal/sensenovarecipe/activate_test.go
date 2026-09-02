@@ -76,7 +76,7 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 // read-only checkpoint: derive facts through routedlm, build the
 // content-addressed inventory, register + activate, then round-trip resolve +
 // prove the model bytes are present. Gated by OVERGO_SENSENOVA_MODEL so CI and
-// plan-verify honestly skip (mirrors TestActiveRecipeQwen35Open).
+// plan-verify skip (mirrors TestActiveRecipeQwen35Open).
 func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
@@ -181,7 +181,7 @@ func publishFlowProfileFixture(t *testing.T, ctx context.Context, store *overgod
 }
 
 // assertRoundTrip resolves the activated recipe through the shared predicate and
-// asserts the active identity, the honest experimental tier, and a compilable
+// asserts the active identity, the recorded experimental tier, and a compilable
 // image-gen program.
 func assertRoundTrip(
 	t *testing.T,

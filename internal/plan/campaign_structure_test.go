@@ -486,7 +486,7 @@ func assertAudioCapabilityCampaign(t *testing.T, document Plan) {
 // only its declared drill steps may appear (completed rows leave plan.json,
 // so absence is fine and unknown ids are the violation), every retained step
 // carries a non-empty machine-checked verify, and the doctrine keeps the
-// freeze and the honesty rules stated.
+// freeze and the audit rules stated.
 func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
 	wantIDs := []string{
@@ -533,6 +533,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"repo-cleanup/findings-disposition",
 		"resource-tolerance/do",
 		"audit-language/do",
+		"choice-scoring-fix/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",
 		"benchmark-completion/musr-pass",

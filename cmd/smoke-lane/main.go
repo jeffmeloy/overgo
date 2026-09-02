@@ -48,7 +48,7 @@ func run() error {
 		return errorsJoin(err, closeErr)
 	}
 	if len(entries) == 0 {
-		fmt.Println("smoke-lane: 0 servable models; nothing to smoke (honest empty, not green)")
+		fmt.Println("smoke-lane: 0 servable models; nothing to smoke (empty, not green)")
 		return runrecord.LaneError(runrecord.LaneEmpty, "servable matrix has no models")
 	}
 	unavailable, failed, passed := 0, 0, 0
@@ -85,7 +85,7 @@ func run() error {
 	}
 	fmt.Printf("=== SMOKE %d passed / %d failed / %d unavailable of %d servable ===\n",
 		passed, failed, unavailable, len(entries))
-	fmt.Println("honesty: matrix derived from the servable predicate; runs recorded to the store per model recipe")
+	fmt.Println("audit: matrix derived from the servable predicate; runs recorded to the store per model recipe")
 	if failed > 0 {
 		return runrecord.LaneError(runrecord.LaneFailed, fmt.Sprintf("%d failed, %d unavailable", failed, unavailable))
 	}
@@ -96,7 +96,7 @@ func run() error {
 }
 
 // serve runs one short generation through the recipe-authorized path. A
-// subprocess keeps the lane honest: it exercises exactly what a user runs.
+// subprocess keeps the lane exact: it exercises exactly what a user runs.
 func serve(location string) error {
 	cmd := exec.Command("go", "run", "./cmd/generate", "-n", "4", location, smokePrompt)
 	out, err := cmd.CombinedOutput()

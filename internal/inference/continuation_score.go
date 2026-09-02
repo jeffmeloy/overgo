@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"overgo/internal/sequencescore"
 	"overgo/internal/tokenizer"
@@ -72,6 +71,7 @@ func (r *Runner) ScoreContinuationsParsed(
 		}
 	}
 	continuations := make([][]tokenizer.TokenID, len(candidates))
+	shared := len(promptIDs)
 	for index, candidate := range candidates {
 		if candidate == "" {
 			return nil, errors.New("inference: continuation candidate is empty")
@@ -94,10 +94,27 @@ func (r *Runner) ScoreContinuationsParsed(
 			continuations[index] = full
 			continue
 		}
-		if len(full) <= len(promptIDs) || !slices.Equal(full[:len(promptIDs)], promptIDs) {
-			return nil, fmt.Errorf("inference: candidate %d changes the compiled prompt token prefix", index)
+		if len(full) <= len(promptIDs) {
+			return nil, fmt.Errorf("inference: candidate %d adds no token to the prompt", index)
 		}
-		continuations[index] = full[len(promptIDs):]
+		// A candidate may merge its first characters into the prompt's
+		// last token (":" + " (" -> ": ("), so its encoding need not
+		// keep the prompt's tokens as a prefix. The scored context is
+		// the longest token prefix shared by the prompt and every
+		// candidate; the tokens past it, prompt tail included, are the
+		// continuation, the same conditional likelihood lm-eval and
+		// llama.cpp score across such a boundary.
+		shared = min(shared, commonTokenPrefix(promptIDs, full))
+		continuations[index] = full
+	}
+	if !bosContext {
+		if shared == 0 {
+			return nil, errors.New("inference: the candidates share no prompt context")
+		}
+		promptIDs = promptIDs[:shared]
+		for index := range continuations {
+			continuations[index] = continuations[index][shared:]
+		}
 	}
 	if len(promptIDs) == 0 {
 		return nil, errors.New("inference: continuation prompt produced no tokens")

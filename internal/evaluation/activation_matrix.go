@@ -63,7 +63,7 @@ type ActivationMatrixCell struct {
 	Gap      string      `json:"gap,omitzero"`
 }
 
-// ActivationMatrix records the full applicable cross-product and honest totals.
+// ActivationMatrix records the full applicable cross-product and exact totals.
 type ActivationMatrix struct {
 	Version     uint16                 `json:"version"`
 	Registry    artifact.ID            `json:"registry"`

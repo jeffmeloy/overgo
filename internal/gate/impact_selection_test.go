@@ -31,8 +31,8 @@ func TestImpactExclusionRateEvidence(t *testing.T) {
 		Excluded: metrics.Excluded, Unresolved: metrics.Unresolved,
 	}
 	if selection.Owned != 2 || selection.Triggered != 1 || selection.Excluded != 1 || selection.Unresolved != 0 ||
-		!strings.Contains(impactSelectionHonesty(selection), "excluded=1/2") {
-		t.Fatalf("impact selection = %+v, %q", selection, impactSelectionHonesty(selection))
+		!strings.Contains(impactSelectionAudit(selection), "excluded=1/2") {
+		t.Fatalf("impact selection = %+v, %q", selection, impactSelectionAudit(selection))
 	}
 	gate, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("gate"))
 	if err != nil {

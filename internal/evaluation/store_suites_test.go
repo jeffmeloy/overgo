@@ -54,7 +54,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 	}
 	bbhSuite := bbh.(GroupedChoiceSuite)
 	if bbhSuite.Cases[0].Prompt != "Q: not True is\nA:" ||
-		len(bbhSuite.Cases[0].Candidates) != 2 || bbhSuite.Cases[0].Candidates[0] != "False" ||
+		len(bbhSuite.Cases[0].Candidates) != 2 || bbhSuite.Cases[0].Candidates[0] != " False" ||
 		bbhSuite.Cases[0].Answer != 0 || bbhSuite.Cases[1].Answer != 1 {
 		t.Fatalf("bbh cases = %+v", bbhSuite.Cases)
 	}
@@ -71,7 +71,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 	}
 	musrSuite := musr.(GroupedChoiceSuite)
 	if musrSuite.Cases[0].Prompt != "A is left of B.\n\nWhere is A?\n\n1 - left\n2 - right\nAnswer:" ||
-		musrSuite.Cases[0].Candidates[0] != "left" {
+		musrSuite.Cases[0].Candidates[0] != " left" {
 		t.Fatalf("musr case = %+v", musrSuite.Cases[0])
 	}
 

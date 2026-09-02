@@ -66,7 +66,7 @@ type CatalogEntry struct {
 	// Modality is the dataset's primary declared class: an explicit
 	// declaration when one is given, "mixed" when the corpus spans more
 	// than one modality, or the single modality present. It is never a
-	// byte-volume guess -- Modalities carries the honest set.
+	// byte-volume guess -- Modalities carries the exact set.
 	Modality string `json:"modality"`
 	// Modalities is the set of distinct modalities the corpus contains,
 	// so a mixed dataset is described faithfully rather than reduced to

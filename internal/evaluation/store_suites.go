@@ -248,6 +248,12 @@ func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
 	return suite, 0, nil
 }
 
+// targetDelimiter separates a prompt that ends in its answer cue ("A:",
+// "Answer:") from each scored candidate: lm-eval's target_delimiter, so a
+// candidate is scored as the word the model would emit after the cue, not
+// glued to the colon.
+const targetDelimiter = " "
+
 // assembleChoiceGroups renders extractive-answer records (BBH) as one
 // grouped-choice suite: each task is a group, its candidate space is
 // the distinct targets the task actually uses, and the recorded target
@@ -268,10 +274,13 @@ func assembleChoiceGroups(family, schema string, cases []storeCase) (any, int, e
 			targetsByGroup[entry.subset] = append(targetsByGroup[entry.subset], target)
 		}
 	}
+	candidatesByGroup := map[string][]string{}
 	for group := range targetsByGroup {
 		slices.Sort(targetsByGroup[group])
+		candidatesByGroup[group] = make([]string, len(targetsByGroup[group]))
 		for index, target := range targetsByGroup[group] {
 			seen[group][target] = index
+			candidatesByGroup[group][index] = targetDelimiter + target
 		}
 	}
 	suite := GroupedChoiceSuite{
@@ -290,7 +299,7 @@ func assembleChoiceGroups(family, schema string, cases []storeCase) (any, int, e
 		suite.Cases = append(suite.Cases, DemonstratedChoice{
 			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Group: entry.subset,
 			Prompt:     "Q: " + input + "\nA:",
-			Candidates: targetsByGroup[entry.subset], Answer: seen[entry.subset][target],
+			Candidates: candidatesByGroup[entry.subset], Answer: seen[entry.subset][target],
 		})
 	}
 	return suite, 0, nil
@@ -334,9 +343,13 @@ func assembleMuSRSuite(cases []storeCase) (any, int, error) {
 			fmt.Fprintf(&prompt, "%d - %s\n", index+1, choice)
 		}
 		prompt.WriteString("Answer:")
+		candidates := make([]string, len(choices))
+		for index, choice := range choices {
+			candidates[index] = targetDelimiter + choice
+		}
 		suite.Cases = append(suite.Cases, DemonstratedChoice{
 			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Group: entry.subset,
-			Prompt: prompt.String(), Candidates: choices, Answer: answer,
+			Prompt: prompt.String(), Candidates: candidates, Answer: answer,
 		})
 	}
 	return suite, 0, nil

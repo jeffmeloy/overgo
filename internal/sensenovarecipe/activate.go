@@ -34,7 +34,7 @@ import (
 // contract; production binding remains separate from activation truth.
 const Task = recipe.TaskImageGen
 
-// EvidenceTier: the honest activation tier -- the sensenovaparity ladder
+// EvidenceTier: the measured activation tier -- the sensenovaparity ladder
 // establishes that verification evidence stands, not a ship-bar oracle.
 const EvidenceTier = recipe.EvidenceVerified
 
@@ -162,7 +162,7 @@ func Resolve(
 }
 
 // Present stats the recorded model location, mirroring the discovery servable
-// presence predicate (recorded-and-present, honestly false when unrecorded or
+// presence predicate (recorded-and-present, false when unrecorded or
 // missing). It returns the location backing the servable claim.
 func Present(ctx context.Context, store artifact.Reader, modelID artifact.ID) (string, bool, error) {
 	locations, err := store.Locations(ctx, modelID)

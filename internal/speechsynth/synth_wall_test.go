@@ -10,7 +10,7 @@ import (
 // TestSynthWall: matched-protocol wall measurement against the reference's
 // research-tagged e2e test (adaptive extmodel TestSpeechFlowGenerateE2E).
 // That test's reported elapsed covers artifact resolve+load, the golden-text
-// generation loop, latent->PCM codec decode, and parity asserts; the honest
+// generation loop, latent->PCM codec decode, and parity asserts; the parity
 // match here is: load once (reported separately), then median-of-5 warm
 // walls for the SAME golden synth — voice conditioning + golden text ids +
 // recorded noise -> latents -> PCM. Numbers land in docs/plan.json

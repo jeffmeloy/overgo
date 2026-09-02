@@ -165,25 +165,25 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		surface = automationcheck.ManifestSurface(structural)
 		if requiresManifestBootstrap(g.paths) {
 			surface.Unknown = append(surface.Unknown, "manifest analyzer or planner implementation changed")
-			g.honesty = append(g.honesty, "manifest bootstrap: analyzer-owned change forced the complete selectable plan")
+			g.audit = append(g.audit, "manifest bootstrap: analyzer-owned change forced the complete selectable plan")
 		}
 	} else {
 		if legacyErr == nil {
 			surface = ownershipSurface(legacy)
 		}
 		surface.Unknown = append(surface.Unknown, "code manifest unavailable: "+structuralErr.Error())
-		g.honesty = append(g.honesty, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
+		g.audit = append(g.audit, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
 	}
 	if graphErr != nil {
 		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
-		g.honesty = append(g.honesty, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
+		g.audit = append(g.audit, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
 	}
 	definitions, surface, coverage, completenessErr := automationcheck.CompleteOwnership(definitions, surface, nil)
 	if completenessErr != nil {
 		return plannedPipeline{}, completenessErr
 	}
 	if len(coverage.UncoveredPackages)+len(coverage.UncoveredSymbols) != 0 {
-		g.honesty = append(g.honesty, fmt.Sprintf(
+		g.audit = append(g.audit, fmt.Sprintf(
 			"ownership incomplete; owned checks defaulted to run: packages=%d symbols=%d",
 			len(coverage.UncoveredPackages), len(coverage.UncoveredSymbols),
 		))
@@ -212,7 +212,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		g.baseManifest, g.candidateManifest = &baseManifest, &candidateManifest
 		boundPlan = &bound
 		g.selectionID = bound.ID.String()
-		g.honesty = append(g.honesty, "manifest plan: "+bound.ID.String())
+		g.audit = append(g.audit, "manifest plan: "+bound.ID.String())
 	}
 	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan, structural: structural}, nil
 }
@@ -300,7 +300,7 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
 	if reused {
-		g.honesty = append(g.honesty, "candidate code manifest reused by exact analysis authority")
+		g.audit = append(g.audit, "candidate code manifest reused by exact analysis authority")
 	}
 	delta, err := codemanifest.Diff(baseManifest, candidateManifest)
 	if err != nil {

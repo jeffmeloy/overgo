@@ -46,7 +46,7 @@ func ProjectionContractVersion() string {
 
 // DeltasSince serves the coalesced view change from a consumer's exact last
 // head to the current head, bounded to maxCommits journal commits per call.
-// resync reports that no delta can honestly bridge the consumer's state —
+// resync reports that no delta can bridge the consumer's state —
 // an unknown or diverged previous coordinate, a head behind a retention or
 // rebuild, or a differing projection contract — and the consumer must take
 // a bounded snapshot resync instead of applying anything.

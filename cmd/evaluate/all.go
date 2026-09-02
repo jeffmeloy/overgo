@@ -135,7 +135,7 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 		cancel()
 		switch {
 		case errors.Is(context.Cause(workerCtx), errEvaluationSliceElapsed):
-			// Budget exhaustion is honest, not a failure: the suites the
+			// Budget exhaustion is a recorded outcome, not a failure: the suites the
 			// worker committed before the slice elapsed are real recorded
 			// evidence, and a model too heavy to finish in its share on this
 			// hardware is a measured fact, not a broken pass. The pass fails
@@ -271,7 +271,7 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 
 // familyFilterOutcome decides an empty family selection: a model whose
 // declared domains admit other suites but not this family is excluded
-// by its own declaration — the honest outcome is a named skip, exactly
+// by its own declaration — the outcome is a named skip, exactly
 // like the domain filter admitting nothing at all. Undeclared models
 // keep full coverage, so a missed filter there names a family the
 // catalog cannot serve.

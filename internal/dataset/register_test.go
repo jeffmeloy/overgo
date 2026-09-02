@@ -28,7 +28,7 @@ func registerFixture(t *testing.T) string {
 }
 
 // TestRegisterDirectoryDataset pins the new-dataset path: a directory
-// registers with its honest modality set (mixed here), the active
+// registers with its exact modality set (mixed here), the active
 // catalog carries the entry beside existing ones, re-registration is
 // idempotent, and coverage reports the dataset available on disk.
 func TestRegisterDirectoryDataset(t *testing.T) {
@@ -72,7 +72,7 @@ func TestRegisterDirectoryDataset(t *testing.T) {
 		t.Fatalf("entry = %+v, want the corpus published and available", entry)
 	}
 	if entry.Entry.Modality != MixedModality || !slices.Equal(entry.Entry.Modalities, []string{"structured", "video"}) {
-		t.Fatalf("modality = %q set = %v, want a mixed corpus with the honest set, not a byte-volume winner",
+		t.Fatalf("modality = %q set = %v, want a mixed corpus with the exact set, not a byte-volume winner",
 			entry.Entry.Modality, entry.Entry.Modalities)
 	}
 	repeat, err := RegisterDirectoryDataset(ctx, store, "clip-corpus", root)

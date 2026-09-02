@@ -436,7 +436,7 @@ func recordExperimentTransition(root, inputPath string, output io.Writer) error 
 	}
 	fmt.Fprintf(output, "experiment transition committed: %s state=%s experiment=%s retry=%d\n",
 		record.ID, record.State, record.Experiment, record.Retry)
-	fmt.Fprintln(output, "honesty: transitions carry evidence identities; the state machine refuses illegal edges")
+	fmt.Fprintln(output, "audit: transitions carry evidence identities; the state machine refuses illegal edges")
 	return nil
 }
 

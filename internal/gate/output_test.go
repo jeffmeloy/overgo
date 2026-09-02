@@ -20,13 +20,13 @@ func TestGateAdvisoryFindingPublication(t *testing.T) {
 	store := mustGateValue(overgodb.Open(filepath.Join(t.TempDir(), "store")))
 	defer store.Close()
 	batch := artifact.Batch{Key: "gate/fixture"}
-	honesty := []string{"magic backlog: 2 inherited uncatalogued constants"}
-	if err := appendGateAdvisoryFinding(t.Context(), store, &batch, []string{"internal/p"}, honesty); err != nil {
+	audit := []string{"magic backlog: 2 inherited uncatalogued constants"}
+	if err := appendGateAdvisoryFinding(t.Context(), store, &batch, []string{"internal/p"}, audit); err != nil {
 		t.Fatal(err)
 	}
 	mustGateValue(store.Commit(t.Context(), batch))
 	next := artifact.Batch{Key: "gate/fixture/repeat"}
-	if err := appendGateAdvisoryFinding(t.Context(), store, &next, []string{"internal/p"}, honesty); err != nil ||
+	if err := appendGateAdvisoryFinding(t.Context(), store, &next, []string{"internal/p"}, audit); err != nil ||
 		len(next.Aliases) != 1 || next.Aliases[0].Previous == nil || *next.Aliases[0].Previous != batch.Aliases[0].Target {
 		t.Fatalf("deduplicated finding = %+v, %v", next.Aliases, err)
 	}
@@ -40,7 +40,7 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 			{Name: "test", Outcome: runrecord.StepReused},
 			{Name: "claims", Outcome: runrecord.StepSkipped},
 		},
-		honesty: []string{
+		audit: []string{
 			"code profile: production=700 files/1000000 nodes and a large routine baseline",
 			"code profile delta vs HEAD: production=+0 files/-20 nodes duplicate_excess=-12",
 			"consumer census commit context=windows/amd64 delta: production=+1 test_only=+0 boundary=+0 zero=+0",

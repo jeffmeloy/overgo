@@ -69,7 +69,7 @@ func run(hostOnly, deviceOnly bool) error {
 		}
 	}
 	fmt.Printf("=== RACE LANE GREEN in %.1fs ===\n", time.Since(start).Seconds())
-	fmt.Printf("honesty: host-race %s, device-sanitizer %s\n", ranLabel(runHost), ranLabel(runDevice))
+	fmt.Printf("audit: host-race %s, device-sanitizer %s\n", ranLabel(runHost), ranLabel(runDevice))
 	return nil
 }
 

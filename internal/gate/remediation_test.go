@@ -37,13 +37,13 @@ func TestGateRefusalsCarryDeterministicRemediation(t *testing.T) {
 		t.Fatalf("rebind remediation command = %v", recorded)
 	}
 	receipt := false
-	for _, line := range gate.honesty {
+	for _, line := range gate.audit {
 		if strings.HasPrefix(line, "remediation: closure rebind applied") && strings.Contains(line, "wall=") {
 			receipt = true
 		}
 	}
 	if !receipt {
-		t.Fatalf("rebind remediation left no receipt: %q", gate.honesty)
+		t.Fatalf("rebind remediation left no receipt: %q", gate.audit)
 	}
 
 	fixture := newStaleLifecycleRecoveryFixture(t, 2, true)

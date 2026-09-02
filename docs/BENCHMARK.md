@@ -59,7 +59,7 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f1
 | Suite | Metrics | Published reference | Commit | Wall | Record |
 | --- | --- | --- | --- | --- | --- |
 | store/mmlu (chat-template) | accuracy=0.53 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `d75d3554941482c31fe467853244d937c1b1b628` | 8.533s | `evaluation:sha256:bb099dfe783b6480acb63a91d305e409898bed9617251a0ccde0b0a90394b710` |
-| store/mmlu (raw-completion) | accuracy=0.55 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 12.81s | `evaluation:sha256:860b0de42ffbabb103a6e18244a2887c5875bd46bcd576a1d13f4565da67bc80` |
+| store/mmlu (raw-completion) | accuracy=0.55 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `c49dd29e01f9e0ab27cc48e78fbc654e1ffaf85c` | 12.315s | `evaluation:sha256:c3acdf62b4a74a91c7b8bc5d3f64fb23ee31f5a41998dde330f0ac943cf9be7c` |
 
 Published references for suites without a committed evaluation: store/ifeval prompt_strict=0.898 (post-trained instruct; https://huggingface.co/Qwen/Qwen3.5-4B)<br>store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json)<br>store/mmlu-pro accuracy=0.791 (post-trained instruct, generative; https://huggingface.co/Qwen/Qwen3.5-4B)
 
@@ -116,7 +116,7 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-12B-i
 
 Published references for suites without a committed evaluation: store/mmlu-pro accuracy=0.772 (instruction-tuned 12B unified, generative; card is for the unquantized model; https://huggingface.co/google/gemma-4-12b-it)
 
-## Honesty
+## Audit
 
 9 servable model(s); 9 with committed evaluations; 4 with a published reference declared; 3 suite(s) with evidence.
 Models without evidence appear with dashes rather than being omitted. A published reference is a store declaration naming its source and protocol; the measured value is not adjusted toward it.

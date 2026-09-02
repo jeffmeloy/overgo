@@ -20,13 +20,13 @@ func TestArchitectureRatchetIncludesGoOnlyPolicy(t *testing.T) {
 		t.Fatalf("architecture ratchet over the live tree = (skipped=%t, %v)", skipped, err)
 	}
 	governed := false
-	for _, line := range gate.honesty {
+	for _, line := range gate.audit {
 		if strings.HasPrefix(line, "entry authority ratchet:") && strings.Contains(line, "go-only") {
 			governed = true
 		}
 	}
 	if !governed {
-		t.Fatalf("gate ratchet does not report go-only governance: %q", gate.honesty)
+		t.Fatalf("gate ratchet does not report go-only governance: %q", gate.audit)
 	}
 	root := t.TempDir()
 	rogue := filepath.Join(root, "internal", "rogue")

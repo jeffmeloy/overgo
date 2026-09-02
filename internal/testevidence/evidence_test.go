@@ -54,7 +54,7 @@ func TestCIRequiredEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	if report.PassedTests != 1 || report.PassedPackages != 1 || len(report.ClassifiedSkipped) != 1 {
-		t.Fatalf("required evidence counts are dishonest: %+v", report)
+		t.Fatalf("required evidence counts are wrong: %+v", report)
 	}
 	if len(report.Skipped) != 0 || len(report.Unavailable) != 0 {
 		t.Fatalf("required evidence unexpectedly incomplete: %+v", report)

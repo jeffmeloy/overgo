@@ -99,7 +99,7 @@ func run() error {
 	}
 	fmt.Printf("empirical advisory threshold: metric=%s observations=%d window=%d disjoint_scores=%d alarm_budget=%g threshold=%g\n",
 		*metric, len(observations), calibration.Window, len(surprises), *budget, threshold)
-	fmt.Println("honesty: directional evidence only; repeated sequential looks and regime changes are not covered by the recorded per-look budget")
+	fmt.Println("audit: directional evidence only; repeated sequential looks and regime changes are not covered by the recorded per-look budget")
 	if !raised {
 		fmt.Println("verdict: no directional regression at the empirical threshold")
 		return nil
@@ -132,7 +132,7 @@ func run() error {
 func escalate(ctx context.Context, store *overgodb.Store, latest runrecord.Advisory, previous *artifact.ID) error {
 	seriesKey := latest.Recipe.String() + "/" + latest.Environment.String() + "/" + latest.Metric
 	if previous == nil {
-		fmt.Println("honesty: directional advisory only; a later non-overlapping window is required for a finding")
+		fmt.Println("audit: directional advisory only; a later non-overlapping window is required for a finding")
 		return nil
 	}
 	content, found, err := artifact.ReadContent(ctx, store, *previous)
@@ -150,7 +150,7 @@ func escalate(ctx context.Context, store *overgodb.Store, latest runrecord.Advis
 		return errors.New("advisories: active series alias is inconsistent")
 	}
 	if !nonOverlappingConfirmation(prior, latest) {
-		fmt.Println("honesty: directional advisory only; a later non-overlapping window is required for a finding")
+		fmt.Println("audit: directional advisory only; a later non-overlapping window is required for a finding")
 		return nil
 	}
 	findingAlias := "finding/active/regression/" + strings.TrimPrefix(runrecord.AdvisoryAlias(
@@ -160,7 +160,7 @@ func escalate(ctx context.Context, store *overgodb.Store, latest runrecord.Advis
 		return err
 	}
 	if openFindingExists {
-		fmt.Println("honesty: confirmed regression already has an open finding; no duplicate emitted")
+		fmt.Println("audit: confirmed regression already has an open finding; no duplicate emitted")
 		return nil
 	}
 	document, err := finding.New(

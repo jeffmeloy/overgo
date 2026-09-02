@@ -66,6 +66,6 @@ func recordModelConfig(source, output, recordStore string) error {
 		return nil
 	}
 	fmt.Printf("model config committed: %s\n", id)
-	fmt.Println("honesty: components derive from digested source files; absent declarations stay absent")
+	fmt.Println("audit: components derive from digested source files; absent declarations stay absent")
 	return nil
 }

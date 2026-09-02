@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
+	"overgo/internal/tokenizer"
 )
 
 type evaluationSession interface {
@@ -111,6 +112,16 @@ func (r chatShapedRuntime) ShapeChatPrompt(prompt string) (string, error) {
 	)
 }
 
+// Generate parses the template's special tokens out of the shaped
+// prompt, as serving does: a turn marker split into its characters is
+// text the model never saw in training.
+func (r chatShapedRuntime) Generate(
+	ctx context.Context, prompt string, options inference.GenerateOptions,
+) ([]tokenizer.TokenID, string, error) {
+	options.ParseSpecial = true
+	return r.Runner.Generate(ctx, prompt, options)
+}
+
 // ScoreContinuations shapes a non-empty prompt through the declared
 // chat template before scoring; see the type comment for the contract.
 // A shaped prompt ends at the assistant turn opener, so candidates
@@ -132,7 +143,7 @@ func (r chatShapedRuntime) ScoreContinuations(
 			for index, candidate := range candidates {
 				opening[index] = cmp.Or(strings.TrimPrefix(candidate, " "), candidate)
 			}
-			return r.Runner.ScoreContinuations(ctx, shaped, opening)
+			return r.Runner.ScoreContinuationsParsed(ctx, shaped, opening, true)
 		}
 	}
 	return r.Runner.ScoreContinuations(ctx, prompt, candidates)

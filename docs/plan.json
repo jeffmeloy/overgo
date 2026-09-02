@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "stash-reconciliation",
-          "title": "Pop and commit the owner's README Muon-optimizer section (stash@{0}); list the other twelve stashes with their branches and dates for the owner and drop only those the owner names",
-          "status": "open",
-          "verify": "go run ./cmd/compatibility -check",
-          "rationale": "The README section is finished owner work parked during the benchmark row; the older stashes are lane history the owner decides on. The README is a development manifest, so the compatibility check guards its claims.",
-          "depends_on": [
-            "repo-cleanup/scrap-and-drill-copies"
-          ]
-        },
-        {
           "id": "routing-resource-size",
           "title": "Fix the routing resource signal: SelectServingRecipe must take a candidate's resource from its recorded component bytes on disk, never the descriptor size of a manifest artifact (finding cb39538b, high)",
           "status": "open",

@@ -9,26 +9,11 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-serving-operations",
-          "title": "Merge master and reconcile the plan before: Exercise buffered and streaming native, OpenAI-style, and Anthropic-style protocol parity; verified text, multimodal projection, encoder, and media-generation recipes; prompt-cache reuse, context shifting, speculative decoding, concurrent scheduling, live model swap, restart continuation, download cancellation, and clean shutdown",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "inference-e2e/verified-matrix"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "serving-operations",
-          "title": "Exercise buffered and streaming native, OpenAI-style, and Anthropic-style protocol parity; verified text, multimodal projection, encoder, and media-generation recipes; prompt-cache reuse, context shifting, speculative decoding, concurrent scheduling, live model swap, restart continuation, download cancellation, and clean shutdown",
+          "title": "Exercise buffered and streaming native, OpenAI-style, and Anthropic-style contracts; ordered media projection; prompt-cache and context options; bounded concurrent scheduling; restart continuation; live model-swap drain and replacement; download cancellation and shutdown; hermetic continuous-cache and speculative parity; and the full CUDA device lane",
           "status": "open",
-          "verify": "go run ./cmd/device-lane",
-          "rationale": "These are the protocol, capability, and operational paths the native four-token smoke serve does not touch. Each has a gated suite under the device and server lanes; bind the exact installed recipe matrix and combined invocation via -setverify when the drill starts.",
+          "verify": "go test ./internal/server -run '^(TestAdaptiveServingContractMatrix|TestCompletion|TestNativeCompletion|TestChatCompletion|TestBufferedResponsesFunctionCall|TestBufferedAnthropicMessages|TestServerContextShiftOptionReachesGenerator|TestServerParksBoundedGenerationRequests|TestResponsesContinuationRestart|TestDownloadShutdownOwnership)$' -count=1 -v \u0026\u0026 go test ./internal/modelswap -run '^(TestModelSwapSupervisor|TestModelSwapProxy|TestExternalProcessLifecycle)$' -count=1 -v \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^(TestHermeticCUDAContinuousCacheParity|TestNextNMTPDeviceSpeculationLossless)$' -count=1 -v \u0026\u0026 go run ./cmd/device-lane",
+          "rationale": "The native four-token smoke serve does not exercise protocol shaping or operational lifecycle. The server contract matrix owns streaming native, OpenAI Completions, Chat Completions and Responses, Anthropic Messages, tools, ordered image/audio/video projection, session continuity, prompt-cache accounting, cancellation and refusal paths; named companion tests add buffered paths, context-shift propagation, bounded request parking, restart continuation and download-shutdown cleanup. The model-swap suite owns drain-before-replace, request routing and child-process reaping. Hermetic CUDA tests compare continuous cache execution with the host authority and require speculative decoding to emit exactly the plain greedy tokens. device-lane supplies the real CUDA availability, kernel, executor, model, projector, optimizer, device-math and dense-causal evidence. Model-specific text generation was completed by verified-matrix; installed multimodal, encoder and generation recipes remain independently evidenced in the compatibility catalog rather than being implied by this operational verifier.",
           "depends_on": [
             "inference-e2e/sync-serving-operations"
           ]
@@ -117,7 +102,7 @@
           "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring, then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
           "status": "open",
           "verify": "go run ./cmd/evaluate -all \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master aff27ec7 replaced the invalid next-token template pass with a distinct generated-letter scorer: it disables thinking, asks for the letter only, generates greedily within 16 tokens, extracts the first standalone candidate letter, records the raw answer, and counts an unmatched answer as incorrect. The benchmark row must run that scorer before comparing chat-template results with published generative results. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
+          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master d75d3554 completed the generated-letter protocol by parsing chat-template control tokens as special tokens and recognizing end-of-generation markers by token name; cc4485a0 records the corrected MMLU comparison. Qwen3.5-4B, Qwen3.5-9B, Gemma4-12B and Qwen3.8-27B now score near or above their raw anchors, while base, long-thinking and explanation-prone models retain honest bounded unmatched counts. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The remaining broad suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
           "depends_on": [
             "benchmark-routing/sync-pinned-benchmarks"
           ]

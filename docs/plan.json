@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "verified-matrix",
-          "title": "Run the native four-token smoke serve over every model selected by the store's verified servable predicate, require non-empty generated text, and record per-model outcome and wall time",
-          "status": "open",
-          "verify": "go run ./cmd/smoke-lane",
-          "rationale": "The verifier performs native generation, not protocol-parity or performance qualification. At reconciliation the store-derived matrix contained nine verified models: 0754fb8aca42 Carbon-500M F16, 2164ee6535ce Qwen2.5-0.5B F16, 353fb1a59060 MiniCPM5-1B F16, 73dc8d6fd450 Qwen3.8-27B Q6_K, 887f41243686 Qwen3.5-4B F16, 896a878974e5 Qwen3.5-9B Q8_0, d0be4bb0e24f Gemma4-12B FP8 native, f5e632cd3f60 Gemma4-12B FP8/BF16, and fb09299dd00e Gemma4-E4B BF16. smoke-lane re-derives that predicate, hashes every recorded component, runs generate -n 4, rejects empty text, and records outcome plus wall time against the active recipe. The Q6_K and Q8_0 entries exercise the merged K-quant prefill path, including its once-per-span q8 staging. Protocol parity remains a serving-operation obligation; prefill/decode throughput, memory, cache, context-shift, and speculation comparisons remain resource-fitness obligations.",
-          "depends_on": [
-            "inference-e2e/sync-verified-matrix"
-          ]
-        },
-        {
           "id": "sync-serving-operations",
           "title": "Merge master and reconcile the plan before: Exercise buffered and streaming native, OpenAI-style, and Anthropic-style protocol parity; verified text, multimodal projection, encoder, and media-generation recipes; prompt-cache reuse, context shifting, speculative decoding, concurrent scheduling, live model swap, restart continuation, download cancellation, and clean shutdown",
           "status": "open",
@@ -127,7 +117,7 @@
           "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring, then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
           "status": "open",
           "verify": "go run ./cmd/evaluate -all \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor is comparable with lm-eval; the landed chat-template pass is retained as diagnostic evidence only because every model scored lower and thought-channel templates place the answer letter at the wrong next-token position. Before a chat-template score is compared with a published result, this row must bind a template-aware answer opener or generated-answer scorer. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
+          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master aff27ec7 replaced the invalid next-token template pass with a distinct generated-letter scorer: it disables thinking, asks for the letter only, generates greedily within 16 tokens, extracts the first standalone candidate letter, records the raw answer, and counts an unmatched answer as incorrect. The benchmark row must run that scorer before comparing chat-template results with published generative results. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
           "depends_on": [
             "benchmark-routing/sync-pinned-benchmarks"
           ]

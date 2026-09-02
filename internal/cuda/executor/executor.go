@@ -1261,9 +1261,11 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, conv2DStagingBytes)
 			}
 		}
+		// Every column count stages: prefill chunks its columns through
+		// the span kernel, so the workspace holds the whole right operand.
 		if fast := node.Op == tensor.OpMulMat && len(node.Inputs) == 2 &&
 			q8InputFastPathType(node.Inputs[0].Type); fast &&
-			node.Inputs[1].Shape.Rank == 2 && node.Inputs[1].Shape.Dims[1] <= q8InputSpanColumns {
+			node.Inputs[1].Shape.Rank == 2 {
 			elements, elementErr := node.Inputs[1].Shape.Elements()
 			if elementErr != nil || elements%q8InputTraits.BlockSize != 0 ||
 				elements/q8InputTraits.BlockSize > math.MaxUint64/q8InputTraits.TypeSize {

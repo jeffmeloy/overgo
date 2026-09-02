@@ -1038,13 +1038,13 @@ func TestExecutorQ8MulMatMatchesDequantizedReference(t *testing.T) {
 	checkResidentMulMat(t, dtype.Q8_0, leftShape, storage, dequantized)
 }
 
-// TestExecutorQ6KMulMatMatchesDequantizedReference pins the q6_K decode
-// fast path: the single-vector case routes through the q8-input integer
-// kernel. Its int8 activation quantization carries ~0.5% relative error
-// against the dequantized float reference on these 512-wide dots, so
-// the decode case holds a documented looser absolute bound; the greedy
-// case demands exact selection — the serving invariant — and prefill
-// rides the float path at the shared quantized tolerance.
+// TestExecutorQ6KMulMatMatchesDequantizedReference pins the K-quant
+// q8-input path: every column count routes through the q8-input integer
+// kernel, prefills wider than one span chunking across launches. Its
+// int8 activation quantization carries ~0.5% relative error against the
+// dequantized float reference on these 512-wide dots, so the cases hold
+// a documented looser absolute bound; the greedy case demands exact
+// selection — the serving invariant.
 func TestExecutorQ6KMulMatMatchesDequantizedReference(t *testing.T) {
 	for _, storageType := range []dtype.Type{dtype.Q4K, dtype.Q5K, dtype.Q6K} {
 		t.Run(storageType.String(), func(t *testing.T) {
@@ -1061,9 +1061,12 @@ func TestExecutorQ6KMulMatMatchesDequantizedReference(t *testing.T) {
 			const inputQuantizedDecodeTolerance = 8e-2
 			for _, testCase := range []residentProjectionCase{
 				{name: "decode", rightRows: 1, tolerance: inputQuantizedDecodeTolerance},
-				// Short prefills within the span-column window now ride the
-				// same int8 activation path as decode.
+				// Prefills ride the same int8 activation path as decode:
+				// within one span, one column past a span boundary (a
+				// partial trailing span), and across several full spans.
 				{name: "prefill", rightRows: 3, tolerance: inputQuantizedDecodeTolerance},
+				{name: "prefill-span-boundary", rightRows: 9, tolerance: inputQuantizedDecodeTolerance},
+				{name: "prefill-spans", rightRows: 20, tolerance: inputQuantizedDecodeTolerance},
 				{name: "greedy", rightRows: 1, selectTopK: true, tolerance: accuracyExact},
 			} {
 				t.Run(testCase.name, func(t *testing.T) {

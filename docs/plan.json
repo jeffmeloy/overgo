@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "pinned-benchmarks",
-          "title": "Execute the pinned benchmark set with each model's declared conversation framing: a broad knowledge suite such as MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and multimodal evaluation where applicable",
-          "status": "open",
-          "verify": "go run ./cmd/evaluate -all",
-          "rationale": "evaluate -all derives models and suites from the store; results publish through benchmark -publish into the evidence picker with denominators.",
-          "depends_on": [
-            "inference-e2e/verified-matrix"
-          ]
-        },
-        {
           "id": "resource-quality-fitness",
           "title": "Run throughput and memory sweeps and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
           "status": "open",

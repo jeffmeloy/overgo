@@ -396,6 +396,12 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			return err
 		}
 		if len(issues) > 0 {
+			// Every stale binding prints: remediation is a batch (one
+			// edit shifts every literal offset after it), and a report
+			// naming only the first costs one gate run per binding.
+			for _, issue := range issues {
+				fmt.Printf("stale %s %s:%s\n", issue.Kind, issue.File, issue.Name)
+			}
 			return fmt.Errorf("%d scoped closure binding(s) stale; first=%s:%s", len(issues), issues[0].File, issues[0].Name)
 		}
 	}

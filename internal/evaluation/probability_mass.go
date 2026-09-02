@@ -148,6 +148,7 @@ func EvaluateProbabilityMass(
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 		Observations: make([]ProbabilityMassObservation, len(compiled.suite.Cases)),
 	}
+	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
 		scores, err := scorer.ScoreContinuations(ctx, testCase.Prompt, testCase.Candidates)
 		if err != nil {
@@ -159,6 +160,7 @@ func EvaluateProbabilityMass(
 		}
 		report.Observations[index] = ProbabilityMassObservation{Name: testCase.Name, Values: values, Mass: mass}
 		report.Mean += mass
+		progress.observe(mass)
 	}
 	report.Mean /= float64(len(report.Observations))
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)

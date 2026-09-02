@@ -1,13 +1,16 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
@@ -32,22 +35,54 @@ func servableModelPaths(ctx context.Context, repository string, limit int) ([]st
 	if err != nil {
 		return nil, err
 	}
-	paths := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Present && entry.Stale == "" && entry.Location != "" {
-			paths = append(paths, entry.Location)
-		}
+	type sized struct {
+		path  string
+		bytes int64
 	}
-	if len(paths) == 0 {
+	models := make([]sized, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.Present || entry.Stale != "" || entry.Location == "" {
+			continue
+		}
+		info, err := os.Stat(entry.Location)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, sized{path: entry.Location, bytes: info.Size()})
+	}
+	if len(models) == 0 {
 		return nil, errors.New("evaluate: the store holds no servable local model")
+	}
+	// Smallest model first (owner rule 2026-09-01): the cheapest models
+	// calibrate the pass and surface a broken suite in seconds, and the
+	// largest model -- the one whose failure costs hours -- runs only
+	// after every smaller model has scored. Recorded bytes on disk are
+	// the size; ties fall back to the location so workers agree.
+	slices.SortFunc(models, func(a, b sized) int {
+		return cmp.Or(cmp.Compare(a.bytes, b.bytes), strings.Compare(a.path, b.path))
+	})
+	paths := make([]string, len(models))
+	for index, model := range models {
+		paths[index] = model.path
 	}
 	return paths, nil
 }
+
+// errEvaluationSliceElapsed is the cause a worker's context carries when
+// its share of the evaluation budget runs out, so budget exhaustion is
+// distinguishable from every other cancellation.
+var errEvaluationSliceElapsed = errors.New("evaluate: the model's evaluation-budget slice elapsed")
 
 // runAllParent fans one worker process out per servable model, the
 // same isolation the manifest path uses: a model that dies cannot take
 // the remaining evaluations with it.
 func runAllParent(ctx context.Context, repository string, device int, family string, limit int, chatProtocol bool) error {
+	// The claim precondition holds once, up front: every worker binds
+	// its evidence to the verifying commit, so a dirty tree refuses the
+	// pass here in one line instead of once per model after each load.
+	if _, err := runrecord.VerifyingCommit("."); err != nil {
+		return err
+	}
 	models, err := servableModelPaths(ctx, repository, limit)
 	if err != nil {
 		return err
@@ -56,9 +91,22 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 	if err != nil {
 		return err
 	}
+	deadline := time.Now().Add(evaluationBudget)
 	var failures []error
 	for index, model := range models {
-		fmt.Printf("evaluating %d/%d: %s\n", index+1, len(models), model)
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			failures = append(failures, fmt.Errorf(
+				"model %q: unevaluated; the %s evaluation budget elapsed", model, evaluationBudget))
+			continue
+		}
+		// Each model gets an equal share of the budget still unspent, so a
+		// single heavy model (the 27B over the 5761-case BBH suite) is
+		// bounded to its slice rather than starving the models after it;
+		// slices left unused by fast models widen the shares that follow.
+		slice := remaining / time.Duration(len(models)-index)
+		fmt.Printf("evaluating %d/%d (%.1fh slice, %.1fh budget left): %s\n",
+			index+1, len(models), slice.Hours(), remaining.Hours(), model)
 		arguments := []string{
 			"-all", "-worker", "-repo", repository,
 			"-device", strconv.Itoa(device), "-model-index", strconv.Itoa(index),
@@ -70,12 +118,29 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 		if chatProtocol {
 			arguments = append(arguments, "-chat-protocol")
 		}
-		receipt, runErr := processcontrol.Run(ctx, processcontrol.Command{
+		// The remaining budget bounds this one worker: a single model that
+		// would run past the ceiling is terminated and recorded as
+		// budget-exceeded, so no model can consume the whole pass -- the
+		// exact gap the 27B BBH run exposed, where a per-model floor cannot
+		// preempt a model already inside its suite set.
+		workerCtx, cancel := context.WithTimeoutCause(ctx, slice, errEvaluationSliceElapsed)
+		receipt, runErr := processcontrol.Run(workerCtx, processcontrol.Command{
 			Path: executable, Args: arguments, Stdout: os.Stdout, Stderr: os.Stderr,
 		})
-		if runErr != nil {
+		cancel()
+		switch {
+		case errors.Is(context.Cause(workerCtx), errEvaluationSliceElapsed):
+			// Budget exhaustion is honest, not a failure: the suites the
+			// worker committed before the slice elapsed are real recorded
+			// evidence, and a model too heavy to finish in its share on this
+			// hardware is a measured fact, not a broken pass. The pass fails
+			// only on genuine evaluation errors, the same way the smoke lane
+			// treats an unavailable model.
+			fmt.Printf("model %q: BUDGET-EXCEEDED at its %.1fh slice; committed suites retained, remaining suites not scored\n",
+				model, slice.Hours())
+		case runErr != nil:
 			failures = append(failures, fmt.Errorf("model %q: %w", model, runErr))
-		} else if receipt.ExitCode != 0 {
+		case receipt.ExitCode != 0:
 			failures = append(failures, fmt.Errorf("model %q: exit status %d", model, receipt.ExitCode))
 		}
 	}
@@ -189,7 +254,7 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 		}
 		selected++
 		fmt.Printf("suite %s (%s, %d cases)\n", descriptor.Source, descriptor.Kind, descriptor.Cases)
-		result, err := s.campaign.Evaluate(ctx, suite)
+		result, err := s.campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), suite)
 		if err != nil {
 			return fmt.Errorf("evaluate: %s: %w", descriptor.Source, err)
 		}

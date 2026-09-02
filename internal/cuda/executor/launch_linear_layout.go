@@ -311,11 +311,7 @@ func launchLinearLayout(
 			if uint64(leftRows)*uint64(rightRows) > math.MaxUint32 {
 				return fmt.Errorf("%s mul_mat output element count exceeds uint32", leftNode.Type)
 			}
-			function := functions[quantKernels[leftNode.Type].mulMat]
-			quantizedRight := right
-			spanInput := false
-			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast &&
-				rightRows <= q8InputSpanColumns {
+			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast {
 				if q8Input == nil || q8Input.staging == 0 {
 					return fmt.Errorf("%s mul_mat input workspace is unavailable", leftNode.Type)
 				}
@@ -332,25 +328,18 @@ func launchLinearLayout(
 					}
 					q8Input.stagedNode = rightNode
 				}
-				function = functions[inputKernel]
-				quantizedRight = q8Input.staging
-				spanInput = true
+				return launchQ8InputSpans(
+					state, functions[inputKernel], left, q8Input.staging, output, inner, leftRows, rightRows,
+				)
 			}
+			function := functions[quantKernels[leftNode.Type].mulMat]
 			launchCount, err := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
 			if err != nil {
 				return err
 			}
-			if spanInput {
-				// One warp per output row serves every span column from a
-				// single weight read.
-				launchCount, err = q8InputMulMatLaunchCount(leftRows, 1)
-				if err != nil {
-					return err
-				}
-			}
 			return launch1DABI(
 				state, function, launchCount,
-				&left, &quantizedRight, &output, &inner, &leftRows, &rightRows,
+				&left, &right, &output, &inner, &leftRows, &rightRows,
 			)
 		}
 		if blas == nil {
@@ -556,6 +545,41 @@ func q8InputMulMatLaunchCount(leftRows, rightRows uint32) (uint32, error) {
 		return 0, errors.New("Q8_0 input mul_mat launch size exceeds uint32")
 	}
 	return uint32(warps * warpThreads), nil
+}
+
+// launchQ8InputSpans runs a quantized-weight mul_mat over the staged
+// q8 right operand in spans of q8InputSpanColumns: one warp per weight
+// row serves a whole span from a single weight read, so a prompt of N
+// columns reads the weights ceil(N/span) times instead of N times --
+// the difference between prefill at decode rate and prefill at the
+// kernel's span throughput (the 27B BBH pass measured 33 ms per prompt
+// token on the per-column kernel, one full weight stream per token).
+// The staged input is row-major q8 blocks; the output is column-major
+// [rightRows][leftRows] f32, so both advance by whole spans.
+func launchQ8InputSpans(
+	state *device.State,
+	function boundKernel,
+	left, staged, output driver.DevicePtr,
+	inner, leftRows, rightRows uint32,
+) error {
+	launchCount, err := q8InputMulMatLaunchCount(leftRows, 1)
+	if err != nil {
+		return err
+	}
+	inputStride := uint64(inner) / q8InputTraits.BlockSize * q8InputTraits.TypeSize
+	outputStride := uint64(leftRows) * f32ScalarBytes
+	for start := uint32(0); start < rightRows; start += q8InputSpanColumns {
+		columns := min(q8InputSpanColumns, rightRows-start)
+		spanInput := staged + driver.DevicePtr(uint64(start)*inputStride)
+		spanOutput := output + driver.DevicePtr(uint64(start)*outputStride)
+		if err := launch1DABI(
+			state, function, launchCount,
+			&left, &spanInput, &spanOutput, &inner, &leftRows, &columns,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func launchQ8InputQuantization(
@@ -1128,13 +1152,14 @@ func launchQ8ArgmaxReduction(
 
 // q8InputSpanColumns: input columns one warp serves per weight read in
 // the q8-input mul_mat kernels — mirrors the kernels' Q8_INPUT_SPAN_MAX
-// and bounds the speculation verify batch.
+// and bounds the speculation verify batch; wider prefills chunk into
+// spans of this width (launchQ8InputSpans).
 const q8InputSpanColumns = 8
 
-// q8InputMulMatKernels names the decode fast path per storage type: a
-// single input vector quantizes once to q8 blocks and the weight dot
-// products run integer dp4a. Types without an entry keep the float
-// path.
+// q8InputMulMatKernels names the q8-input path per storage type: the
+// right operand quantizes once to q8 blocks and the weight dot products
+// run integer dp4a, decode and prefill alike. Types without an entry
+// keep the float path.
 var q8InputMulMatKernels = map[dtype.Type]kernelFunctionID{
 	dtype.Q8_0: kernelMulMatQ80InputF32,
 	dtype.Q4K:  kernelMulMatQ4KInputF32,

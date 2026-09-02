@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
@@ -251,12 +252,25 @@ func catalogBenchmarks(ctx context.Context, value manifest) error {
 	return store.Close()
 }
 
+// evaluationBudget is the owner ceiling on one full evaluation pass
+// (2026-09-01): a pass that cannot finish inside it must fail loudly with
+// the models it never reached named, so the operator scales suites or
+// hardware -- exceeding the ceiling silently is not an option, and neither
+// is reporting a truncated pass as complete.
+const evaluationBudget = 6 * time.Hour
+
 func runParent(ctx context.Context, value manifest, launch workerLauncher) error {
 	if ctx == nil || launch == nil || len(value.Models) == 0 {
 		return errors.New("evaluate: incomplete parent execution")
 	}
+	deadline := time.Now().Add(evaluationBudget)
 	var failures []error
 	for index, model := range value.Models {
+		if time.Now().After(deadline) {
+			failures = append(failures, fmt.Errorf(
+				"model %q: unevaluated; the %s evaluation budget elapsed", model.Path, evaluationBudget))
+			continue
+		}
 		if err := launch(ctx, index); err != nil {
 			failures = append(failures, fmt.Errorf("model %q: %w", model.Path, err))
 		}

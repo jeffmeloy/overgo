@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
@@ -40,10 +41,19 @@ func main() {
 }
 
 func run() error {
-	repository := flag.String("repo", "overgodb-store", "OvergoDB store directory")
+	repository := flag.String("repo", "", "OvergoDB store directory; empty resolves via the data-root contract (OVERGO_DATA_ROOT, local-models.json, or ./overgodb-store)")
 	baselinePath := flag.String("baseline", "docs/published_debt.json", "committed baseline of already-broken chains")
 	printBaseline := flag.Bool("print-baseline", false, "emit the current failures as a baseline document and exit zero")
 	flag.Parse()
+	if strings.TrimSpace(*repository) == "" {
+		// A plan-row verify runs in the gate's candidate worktree, which
+		// holds no store; the data-root contract names the canonical one.
+		roots, err := dataroot.ResolveCurrent()
+		if err != nil {
+			return err
+		}
+		*repository = roots.Store
+	}
 	failures, checked, err := activeChainFailures(*repository)
 	if err != nil {
 		return err

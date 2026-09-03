@@ -88,6 +88,16 @@ func answerChoiceByGeneration(
 	return observation, nil
 }
 
+// chatChoiceLetters returns the letters the extractor reads for a case,
+// the same ones answerChoiceByGeneration asked for.
+func chatChoiceLetters(testCase MultipleChoiceCase) []string {
+	_, letters, err := chatChoicePrompt(testCase)
+	if err != nil {
+		return testCase.Candidates
+	}
+	return letters
+}
+
 // chatOptionLetters bounds the lettered option list a chat prompt can
 // carry: one letter per option through Z.
 const chatOptionLetters = 26
@@ -139,3 +149,55 @@ func choiceCandidatesAreLetters(candidates []string) bool {
 
 // unmatchedChoice is the selection of an answer that named no candidate.
 const unmatchedChoice = -1
+
+// validateChatChoiceSuite refuses, at plan time, a suite the chat-template
+// protocol cannot ask: every case must render as a prompt whose answer is
+// one of the letters the extractor reads. The BBH chat pass scored zero
+// over thousands of cases because nothing checked this before the run.
+func validateChatChoiceSuite(cases []MultipleChoiceCase) error {
+	for _, testCase := range cases {
+		if len(testCase.Candidates) == 0 {
+			return fmt.Errorf("evaluation: case %s has no candidates for the chat-template protocol", testCase.Name)
+		}
+		if _, _, err := chatChoicePrompt(testCase); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// chatProbeCases is how many generated answers the protocol judges before
+// it decides the suite is being scored at all (the owner's measure-one-case
+// rule applied to correctness): when none of the first eight answers names
+// a candidate, the run refuses with the first reply shown beside its
+// candidates, seconds into the pass instead of hours.
+const chatProbeCases = 8
+
+// chatProbe watches the generated answers of one suite for the
+// all-unmatched signature of a protocol that cannot score it.
+type chatProbe struct {
+	matched  int
+	judged   int
+	first    ChoiceObservation
+	firstSet bool
+	letters  []string
+}
+
+// judge records one generated answer and refuses once the probe window
+// (or the whole suite, when shorter) has produced no match at all.
+func (probe *chatProbe) judge(observation ChoiceObservation, letters []string, last bool) error {
+	if !probe.firstSet {
+		probe.first, probe.letters, probe.firstSet = observation, letters, true
+	}
+	probe.judged++
+	if observation.Selected != unmatchedChoice {
+		probe.matched++
+	}
+	if probe.matched != 0 || (probe.judged < chatProbeCases && !last) {
+		return nil
+	}
+	return fmt.Errorf(
+		"evaluation: chat-template protocol refused: none of the first %d generated answers named a candidate; case %s answered %q, candidates %q",
+		probe.judged, probe.first.Name, probe.first.Raw, probe.letters,
+	)
+}

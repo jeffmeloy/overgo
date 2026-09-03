@@ -170,6 +170,10 @@ func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
 // 13-hour suite (the 27B over BBH) is distinguishable from a hang
 // within its first seconds, and its cost is known long before it ends.
 func printProgress(value evaluation.Progress) {
+	if value.Sample != "" {
+		fmt.Printf("  sample %s: %s\n", value.Suite, value.Sample)
+		return
+	}
 	if value.Done != value.Total && value.Done&(value.Done-1) != 0 {
 		return
 	}

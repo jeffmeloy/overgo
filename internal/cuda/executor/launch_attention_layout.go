@@ -141,23 +141,31 @@ func launchBF16Attention(
 const attentionBlasQueryFloor = uint32(32)
 
 // blasAttentionGeometry: strided-batched SGEMM attention admission
-// (non-causal featureless dense MHA, full logical KV) + the derived tile
-// geometry. Query chunk: eight head-width row tiles saturate the SGEMM n
-// dimension and cut K/V reloads 8x vs a single head-width tile. Key chunk:
-// four head-width tiles keep the score tile (heads*chunk*keyChunk floats)
+// (featureless dense attention, causal or not, with an optional causal
+// sliding window and softcap, grouped-query heads batched per key-value
+// head, logical KV within the capacity page) + the derived tile geometry.
+// Query chunk: eight head-width row tiles saturate the SGEMM n dimension
+// and cut K/V reloads 8x vs a single head-width tile. Key chunk: four
+// head-width tiles keep the score tile (heads*chunk*keyChunk floats)
 // L2-resident so the online softmax and PV accumulate never round-trip
 // scores through DRAM. Returns (chunk, keyChunk, staging bytes, ok);
-// staging = score tile + per-row stats (max+sum).
+// staging = score tile + per-row stats (max+sum). Causal prompt prefill
+// admitted here is what the per-query online kernel served before, at
+// one key walk per block thread (the gemma-4 E4B 184-token prompt spent
+// 71% of its GPU time there).
 func blasAttentionGeometry(
 	queryHeads, keyValueHeads, queryTokens, keyValueTokens, keyCapacityTokens, keyWidth, valueWidth uint32,
 	attributes tensor.AttentionAttributes,
 ) (uint32, uint32, uint64, bool) {
-	if attributes.Causal || attributes.HasBlockMask || attributes.HasSinks ||
-		attributes.Softcap != 0 || attributes.MaxALiBiBias != 0 || attributes.Window != 0 ||
-		attributes.SymmetricWindow || attributes.ChunkedWindow || attributes.QueryStart != 0 ||
+	if attributes.HasBlockMask || attributes.HasSinks ||
+		attributes.MaxALiBiBias != 0 ||
+		attributes.SymmetricWindow || attributes.ChunkedWindow ||
 		attributes.RelativeBuckets != 0 ||
-		queryHeads == 0 || queryHeads != keyValueHeads || keyWidth == 0 || keyWidth != valueWidth ||
-		keyValueTokens == 0 || keyValueTokens != keyCapacityTokens ||
+		queryHeads == 0 || keyValueHeads == 0 || queryHeads%keyValueHeads != 0 ||
+		keyWidth == 0 || keyWidth != valueWidth ||
+		keyValueTokens == 0 || keyValueTokens > keyCapacityTokens ||
+		(!attributes.Causal && (attributes.Window != 0 || attributes.QueryStart != 0)) ||
+		(attributes.Causal && uint64(attributes.QueryStart)+uint64(queryTokens) > uint64(keyValueTokens)) ||
 		queryTokens < attentionBlasQueryFloor {
 		return 0, 0, 0, false
 	}
@@ -213,6 +221,17 @@ func blasAttentionScoreBytes(node *tensor.Tensor) (uint64, bool) {
 	return bytes, ok
 }
 
+// blasAttentionLaunch carries one admitted attention node's geometry and
+// masks into the strided-batched SGEMM launcher.
+type blasAttentionLaunch struct {
+	queryHeads, keyValueHeads                      uint32
+	queryTokens, keyValueTokens, keyCapacityTokens uint32
+	keyWidth, sequences, chunk, keyChunk           uint32
+	scale                                          float32
+	queryStart, causal, window                     uint32
+	softcap                                        float32
+}
+
 // launchBlasFullAttention: exact F32 attention as strided-batched SGEMM
 // QK^T -> attention_online_softmax_f32 -> strided-batched SGEMM PV
 // (beta=1 accumulate), tiled over query rows and key tokens so the score
@@ -225,21 +244,33 @@ func launchBlasFullAttention(
 	functions functionSet,
 	blas *blasState,
 	query, key, value, keyBias, output driver.DevicePtr,
-	queryHeads, queryTokens, keyValueTokens, keyWidth, sequences, chunk, keyChunk uint32,
-	scale float32,
+	geometry blasAttentionLaunch,
 ) error {
 	const softmaxThreads = uint32(256)
 	const f64Bytes = uint32(8)
+	queryHeads, keyValueHeads := geometry.queryHeads, geometry.keyValueHeads
+	queryTokens, keyValueTokens, keyWidth := geometry.queryTokens, geometry.keyValueTokens, geometry.keyWidth
+	chunk, keyChunk, scale := geometry.chunk, geometry.keyChunk, geometry.scale
+	queryStart, causal, window, softcap := geometry.queryStart, geometry.causal, geometry.window, geometry.softcap
+	// Query rows are interleaved [token][head][channel]; key/value rows
+	// [token][kvhead][channel]. Grouped-query heads batch per key-value
+	// head with a zero key stride, so every query head of a group reads the
+	// group's single K/V head without a repack.
+	group := queryHeads / keyValueHeads
 	d := uint64(queryHeads) * uint64(keyWidth)
+	kvD := uint64(keyValueHeads) * uint64(keyWidth)
 	rowBytes := d * 4
+	kvRowBytes := kvD * 4
+	headBytes := uint64(keyWidth) * 4
 	scores := blas.scores
 	stats := scores + driver.DevicePtr(uint64(queryHeads)*uint64(chunk)*uint64(keyChunk)*4)
 	statRows := queryHeads * chunk
 	scoreStride := int64(uint64(chunk) * uint64(keyChunk))
-	for sequence := uint32(0); sequence < sequences; sequence++ {
+	scoreBytes := uint64(scoreStride) * 4
+	for sequence := uint32(0); sequence < geometry.sequences; sequence++ {
 		qBase := query + driver.DevicePtr(uint64(sequence)*uint64(queryTokens)*rowBytes)
-		kBase := key + driver.DevicePtr(uint64(sequence)*uint64(keyValueTokens)*rowBytes)
-		vBase := value + driver.DevicePtr(uint64(sequence)*uint64(keyValueTokens)*rowBytes)
+		kBase := key + driver.DevicePtr(uint64(sequence)*uint64(geometry.keyCapacityTokens)*kvRowBytes)
+		vBase := value + driver.DevicePtr(uint64(sequence)*uint64(geometry.keyCapacityTokens)*kvRowBytes)
 		oBase := output + driver.DevicePtr(uint64(sequence)*uint64(queryTokens)*rowBytes)
 		for start := uint32(0); start < queryTokens; start += chunk {
 			rows := min(chunk, queryTokens-start)
@@ -253,25 +284,43 @@ func launchBlasFullAttention(
 			); err != nil {
 				return err
 			}
-			for keyStart := uint32(0); keyStart < keyValueTokens; keyStart += keyChunk {
-				keys := min(keyChunk, keyValueTokens-keyStart)
-				kTile := kBase + driver.DevicePtr(uint64(keyStart)*rowBytes)
-				vTile := vBase + driver.DevicePtr(uint64(keyStart)*rowBytes)
-				if !traceExternalCall(
-					state, traceTagSGEMMStrided,
-					uint64(kTile), uint64(qChunk), uint64(scores),
-					uint64(keys), uint64(rows), uint64(keyWidth), uint64(queryHeads),
-				) {
-					if err := blas.library.SGEMMStridedBatched(
-						blas.handle, cublas.OperationTranspose, cublas.OperationNone,
-						int32(keys), int32(rows), int32(keyWidth), 1,
-						kTile, int32(d), int64(keyWidth),
-						qChunk, int32(d), int64(keyWidth),
-						0,
-						scores, int32(keyChunk), scoreStride,
-						int32(queryHeads),
-					); err != nil {
-						return err
+			// A causal chunk reads no key past its last row's position, and a
+			// window reads none before its first row's window start; the key
+			// tiles outside that range are skipped whole, the rest masked
+			// per row in the softmax.
+			chunkPosition := queryStart + start
+			keyEnd := keyValueTokens
+			keyBegin := uint32(0)
+			if causal != 0 {
+				keyEnd = min(keyValueTokens, chunkPosition+rows)
+				if window > 0 && chunkPosition+1 > window {
+					keyBegin = chunkPosition + 1 - window
+				}
+			}
+			for keyStart := keyBegin; keyStart < keyEnd; keyStart += keyChunk {
+				keys := min(keyChunk, keyEnd-keyStart)
+				kTile := kBase + driver.DevicePtr(uint64(keyStart)*kvRowBytes)
+				vTile := vBase + driver.DevicePtr(uint64(keyStart)*kvRowBytes)
+				for keyValueHead := uint32(0); keyValueHead < keyValueHeads; keyValueHead++ {
+					kHead := kTile + driver.DevicePtr(uint64(keyValueHead)*headBytes)
+					qHead := qChunk + driver.DevicePtr(uint64(keyValueHead)*uint64(group)*headBytes)
+					scoreHead := scores + driver.DevicePtr(uint64(keyValueHead)*uint64(group)*scoreBytes)
+					if !traceExternalCall(
+						state, traceTagSGEMMStrided,
+						uint64(kHead), uint64(qHead), uint64(scoreHead),
+						uint64(keys), uint64(rows), uint64(keyWidth), uint64(group),
+					) {
+						if err := blas.library.SGEMMStridedBatched(
+							blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+							int32(keys), int32(rows), int32(keyWidth), 1,
+							kHead, int32(kvD), 0,
+							qHead, int32(d), int64(keyWidth),
+							0,
+							scoreHead, int32(keyChunk), scoreStride,
+							int32(group),
+						); err != nil {
+							return err
+						}
 					}
 				}
 				if err := launchGridSharedABI(
@@ -280,24 +329,30 @@ func launchBlasFullAttention(
 					driver.Dim3{X: softmaxThreads, Y: 1, Z: 1}, softmaxThreads*f64Bytes,
 					&scores, &oChunk, &stats,
 					&keyBias, &keyStart, &keys, &keyChunk, &rows, &chunk, &keyWidth, &queryHeads, &scale,
+					&chunkPosition, &causal, &window, &softcap,
 				); err != nil {
 					return err
 				}
-				if !traceExternalCall(
-					state, traceTagSGEMMStrided,
-					uint64(vTile), uint64(scores), uint64(oChunk),
-					uint64(keyWidth), uint64(rows), uint64(keys), uint64(queryHeads),
-				) {
-					if err := blas.library.SGEMMStridedBatched(
-						blas.handle, cublas.OperationNone, cublas.OperationNone,
-						int32(keyWidth), int32(rows), int32(keys), 1,
-						vTile, int32(d), int64(keyWidth),
-						scores, int32(keyChunk), scoreStride,
-						1,
-						oChunk, int32(d), int64(keyWidth),
-						int32(queryHeads),
-					); err != nil {
-						return err
+				for keyValueHead := uint32(0); keyValueHead < keyValueHeads; keyValueHead++ {
+					vHead := vTile + driver.DevicePtr(uint64(keyValueHead)*headBytes)
+					oHead := oChunk + driver.DevicePtr(uint64(keyValueHead)*uint64(group)*headBytes)
+					scoreHead := scores + driver.DevicePtr(uint64(keyValueHead)*uint64(group)*scoreBytes)
+					if !traceExternalCall(
+						state, traceTagSGEMMStrided,
+						uint64(vHead), uint64(scoreHead), uint64(oHead),
+						uint64(keyWidth), uint64(rows), uint64(keys), uint64(group),
+					) {
+						if err := blas.library.SGEMMStridedBatched(
+							blas.handle, cublas.OperationNone, cublas.OperationNone,
+							int32(keyWidth), int32(rows), int32(keys), 1,
+							vHead, int32(kvD), 0,
+							scoreHead, int32(keyChunk), scoreStride,
+							1,
+							oHead, int32(d), int64(keyWidth),
+							int32(group),
+						); err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -472,8 +527,14 @@ func launchAttentionLayout(
 				return launchBlasFullAttention(
 					state, functions, blas,
 					query, key, value, keyBias, output,
-					queryHeads, queryTokens, keyValueTokens, keyWidth, sequences, chunk, keyChunk,
-					scale,
+					blasAttentionLaunch{
+						queryHeads: queryHeads, keyValueHeads: keyValueHeads,
+						queryTokens: queryTokens, keyValueTokens: keyValueTokens,
+						keyCapacityTokens: keyCapacityTokens, keyWidth: keyWidth,
+						sequences: sequences, chunk: chunk, keyChunk: keyChunk,
+						scale: scale, queryStart: queryStart, causal: causal,
+						window: window, softcap: softcap,
+					},
 				)
 			}
 		}

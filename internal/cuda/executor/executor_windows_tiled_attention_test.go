@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"cmp"
 	"context"
 	"testing"
 
@@ -218,5 +219,89 @@ func TestExecutorBLASAttentionKeyBiasMatchesReference(t *testing.T) {
 	t.Logf("max_abs_diff=%.6g at=%d", worst, at)
 	if worst > 5e-5 {
 		t.Fatalf("max abs diff %.6g > 5e-5", worst)
+	}
+}
+
+// TestExecutorPrefillAttentionMatchesReference: causal prompt prefill on
+// the strided-batched SGEMM path vs the reference backend: plain causal,
+// grouped-query heads, a past context (query start), a causal sliding
+// window, a softcap, and a logical KV count below the cache capacity
+// page, every case at or above the SGEMM query floor.
+func TestExecutorPrefillAttentionMatchesReference(t *testing.T) {
+	cases := []struct {
+		name                    string
+		width                   uint64
+		queryHeads, keyValHeads uint64
+		queryTokens, pastTokens uint64
+		capacity                uint64
+		window                  uint32
+		softcap                 float32
+	}{
+		{"causal_mha", 128, 4, 4, 96, 0, 0, 0, 0},
+		{"causal_gqa", 128, 4, 2, 100, 0, 0, 0, 0},
+		{"causal_past", 64, 6, 3, 64, 40, 0, 0, 0},
+		{"causal_window", 128, 4, 2, 100, 0, 0, 48, 0},
+		{"causal_window_past", 64, 4, 1, 40, 70, 0, 32, 0},
+		{"causal_softcap", 128, 4, 4, 96, 0, 0, 0, 50},
+		{"causal_capacity", 128, 4, 2, 64, 40, 160, 0, 0},
+		{"causal_window_capacity", 64, 8, 2, 48, 100, 256, 64, 30},
+	}
+	cuda := newFixtureExecutor(t)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			logical := testCase.pastTokens + testCase.queryTokens
+			capacity := cmp.Or(testCase.capacity, logical)
+			query := builder.Input("q", dtype.F32, tensor.MustShape(testCase.width, testCase.queryHeads, testCase.queryTokens))
+			feeds := map[*tensor.Tensor]reference.Value{query: patternedValue(query.Shape, 1, 0.11, 0)}
+			var key, value *tensor.Tensor
+			if testCase.capacity == 0 {
+				key = builder.Input("k", dtype.F32, tensor.MustShape(testCase.width, testCase.keyValHeads, logical))
+				value = builder.Input("v", dtype.F32, tensor.MustShape(testCase.width, testCase.keyValHeads, logical))
+				feeds[key] = patternedValue(key.Shape, 2, 0.09, 0)
+				feeds[value] = patternedValue(value.Shape, 3, 0.07, 0)
+			} else {
+				builder.SetCacheAppendPlan(tensor.CacheAppendPlan{
+					CapacityTokens: uint32(capacity), ActiveTokens: uint32(testCase.pastTokens),
+				})
+				pastKey := builder.Input("past_k", dtype.F32, tensor.MustShape(testCase.width, testCase.keyValHeads, capacity))
+				newKey := builder.Input("new_k", dtype.F32, tensor.MustShape(testCase.width, testCase.keyValHeads, testCase.queryTokens))
+				pastValue := builder.Input("past_v", dtype.F32, tensor.MustShape(testCase.width, testCase.keyValHeads, capacity))
+				newValue := builder.Input("new_v", dtype.F32, tensor.MustShape(testCase.width, testCase.keyValHeads, testCase.queryTokens))
+				key = builder.AppendCache(pastKey, newKey, 2)
+				value = builder.AppendCache(pastValue, newValue, 2)
+				feeds[pastKey] = patternedValue(pastKey.Shape, 2, 0.09, 0)
+				feeds[newKey] = patternedValue(newKey.Shape, 4, 0.09, 0)
+				feeds[pastValue] = patternedValue(pastValue.Shape, 3, 0.07, 0)
+				feeds[newValue] = patternedValue(newValue.Shape, 5, 0.07, 0)
+			}
+			attention := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{
+				Scale: 0.0883883, Causal: true, QueryStart: uint32(testCase.pastTokens),
+				Window: testCase.window, Softcap: testCase.softcap,
+			})
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			compiled, err := Compile(attention)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !compiled.needBlas {
+				t.Fatal("causal prefill attention did not request BLAS")
+			}
+			want, err := reference.Execute([]*tensor.Tensor{attention}, feeds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := cuda.ExecuteCompiled(context.WithoutCancel(t.Context()), compiled, feeds, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			worst, at := maxAbsDifference(t, got[attention].Data, want[attention].Data)
+			t.Logf("%s max_abs_diff=%.6g at=%d", testCase.name, worst, at)
+			if worst > 5e-5 {
+				t.Fatalf("max abs diff %.6g > 5e-5", worst)
+			}
+		})
 	}
 }

@@ -182,6 +182,22 @@ func ListingAuthorities() ExactAuthorities {
 	}
 }
 
+// DerivedSuiteDescriptors compiles the store's benchmark catalog and keys
+// every suite's descriptor by its source name, so a report can state each
+// suite's kind and case count beside the records that ran it.
+func DerivedSuiteDescriptors(ctx context.Context, store *overgodb.Store, authorities ExactAuthorities) map[string]SuiteDescriptor {
+	descriptors := map[string]SuiteDescriptor{}
+	suites, _, err := DeriveStoreSuites(ctx, store, authorities)
+	if err != nil {
+		return descriptors
+	}
+	for _, suite := range suites {
+		descriptor := suite.Descriptor()
+		descriptors[descriptor.Source] = descriptor
+	}
+	return descriptors
+}
+
 // DerivedSuiteNames maps the store's derived suite dataset identities
 // to their source names without binding a model: the same catalog
 // derivation the workspace performs, compiled under listing

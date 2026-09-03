@@ -4,19 +4,33 @@ Generated from the store's committed evaluation and benchmark records. Do not ed
 
 Models are the servable catalog ordered smallest first by recorded bytes. Each suite cell is the headline metric of the model's latest committed evaluation of that suite under one prompting protocol; a dash means no committed evaluation. Suites are the store's derived benchmark suites (`evaluate -list-derived-suites`). The raw-completion protocol scores the suite's prompt text unchanged and is the recorded anchor comparable with lm-eval. The chat-template protocol wraps the prompt in the model's declared template with thinking disabled, asks for the letter only, greedily generates the model's answer, and reads the first standalone candidate letter from it; an answer naming no candidate counts as incorrect. Model cards report generative results, so the chat-template rows are the ones to set beside a published number.
 
+## Suites
+
+Every suite is scored 0-shot from the store's catalog. The raw-completion protocol scores each candidate's likelihood after the prompt; the chat-template protocol renders the prompt through the model's declared template, generates a short answer, and reads the answer letter. Published references are declared per model with their own protocol and shot count, so a cell and its reference are comparable only when those match.
+
+| Suite | Kind | Cases |
+| --- | --- | --- |
+| store/bbh | grouped-multiple-choice | 5761 |
+| store/dna | sequence-scoring | 128 |
+| store/ifeval | instruction-rules | 131 |
+| store/math | structured-generated | 5000 |
+| store/mmlu | multiple-choice | 100 |
+| store/mmlu-pro | mmlu-pro | 12032 |
+| store/musr | grouped-multiple-choice | 756 |
+
 ## Comparison
 
-| Model | Bytes | Decode tok/s | store/dna (raw-completion) | store/mmlu (chat-template) | store/mmlu (raw-completion) |
-| --- | --- | --- | --- | --- | --- |
-| Qwen2.5-0.5B-f16 | 994065792 | 491.4 | — | accuracy 0.03 | accuracy 0.42 |
-| Carbon-500M-f16-ropefix | 1029821280 | — | perplexity 5969 | — | — |
-| MiniCPM5-1B-f16 | 2166391968 | 336.4 | — | accuracy 0 | accuracy 0.34 |
-| Qwen3.5-4B-f16 | 8664046912 | 88.85 | — | accuracy 0.53 | accuracy 0.55 |
-| Qwen3.5-9B-Q8_0 | 9527502048 | — | — | accuracy 0.61 | accuracy 0.59 |
-| gemma-4-E4B-it-bf16 | 14940816608 | — | — | accuracy 0.2 | accuracy 0.44 |
-| gemma-4-12B-it-fp8-native | 15342646656 | — | — | accuracy 0.5 | accuracy 0.38 |
-| Qwen3.8-27B-UD-Q6_K | 21983677344 | 26.66 | — | accuracy 0.7 | accuracy 0.65 |
-| gemma-4-12B-it-fp8-bf16 | 23829476736 | — | — | accuracy 0.5 | accuracy 0.38 |
+| Model | Bytes | Decode tok/s | store/bbh (chat-template) | store/bbh (raw-completion) | store/dna (raw-completion) | store/mmlu (chat-template) | store/mmlu (raw-completion) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Qwen2.5-0.5B-f16 | 994065792 | 491.4 | accuracy 0.0637 | accuracy 0.3275 | — | accuracy 0.03 | accuracy 0.42 |
+| Carbon-500M-f16-ropefix | 1029821280 | — | — | — | perplexity 5969 | — | — |
+| MiniCPM5-1B-f16 | 2166391968 | 336.4 | — | accuracy 0.3626 | — | accuracy 0 | accuracy 0.34 |
+| Qwen3.5-4B-f16 | 8664046912 | 88.85 | — | accuracy 0.5414 | — | accuracy 0.53 | accuracy 0.55 |
+| Qwen3.5-9B-Q8_0 | 9527502048 | — | — | accuracy 0.5931 | — | accuracy 0.61 | accuracy 0.59 |
+| gemma-4-E4B-it-bf16 | 14940816608 | — | — | accuracy 0.5824 | — | accuracy 0.2 | accuracy 0.44 |
+| gemma-4-12B-it-fp8-native | 15342646656 | — | — | accuracy 0.4968 | — | accuracy 0.5 | accuracy 0.38 |
+| Qwen3.8-27B-UD-Q6_K | 21983677344 | 26.66 | — | accuracy 0.6554 | — | accuracy 0.7 | accuracy 0.65 |
+| gemma-4-12B-it-fp8-bf16 | 23829476736 | — | — | accuracy 0.4982 | — | accuracy 0.5 | accuracy 0.38 |
 
 ## Records
 
@@ -24,10 +38,12 @@ Models are the servable catalog ordered smallest first by recorded bytes. Each s
 
 Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen2.5-0.5B-f16.gguf`, 994065792 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/mmlu (chat-template) | accuracy=0.03 | store/mmlu accuracy=0.31 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.046; C:/Users/jeffm/eval/overgo_qwen25_benchmark_results/results.json)<br>store/mmlu accuracy=0.475 (5-shot, full MMLU, base model; https://qwenlm.github.io/blog/qwen2.5-llm/) | `d75d3554941482c31fe467853244d937c1b1b628` | 4.472s | `evaluation:sha256:fcea2cf1fccc475031eb2ca846bcadc5ed57fc2282c8f6cfeaac3f05c2525aad` |
-| store/mmlu (raw-completion) | accuracy=0.42 | store/mmlu accuracy=0.31 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.046; C:/Users/jeffm/eval/overgo_qwen25_benchmark_results/results.json)<br>store/mmlu accuracy=0.475 (5-shot, full MMLU, base model; https://qwenlm.github.io/blog/qwen2.5-llm/) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 1.802s | `evaluation:sha256:dc69a94c1b94950a90503a64b7e4d3ff105f75717a6721ca32b14cf755df9944` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/bbh (chat-template) | accuracy=0.0637<br>accuracy.boolean_expressions=0.42<br>accuracy.causal_judgement=0.09091<br>accuracy.date_understanding=0<br>accuracy.disambiguation_qa=0<br>accuracy.formal_fallacies=0.036<br>accuracy.geometric_shapes=0<br>accuracy.hyperbaton=0.484<br>accuracy.logical_deduction_five_objects=0<br>accuracy.logical_deduction_seven_objects=0<br>accuracy.logical_deduction_three_objects=0<br>accuracy.movie_recommendation=0.008<br>accuracy.navigate=0<br>accuracy.object_counting=0.092<br>accuracy.penguins_in_a_table=0<br>accuracy.reasoning_about_colored_objects=0.028<br>accuracy.ruin_names=0<br>accuracy.salient_translation_error_detection=0<br>accuracy.snarks=0.4607<br>accuracy.sports_understanding=0<br>accuracy.temporal_sequences=0.004<br>accuracy.tracking_shuffled_objects_five_objects=0<br>accuracy.tracking_shuffled_objects_seven_objects=0<br>accuracy.tracking_shuffled_objects_three_objects=0<br>accuracy.web_of_lies=0 | store/bbh accuracy=0.203 (3-shot CoT, base model; https://qwenlm.github.io/blog/qwen2.5-llm/) | `4a64203261dba872f876c18dd8ab97821b52ffcc` | 5761 | 4m53.563s | 51ms | `evaluation:sha256:db964c7d74fad3f1207802c5de2d95f393a92585111ae37c58eba5152da74585` |
+| store/bbh (raw-completion) | accuracy=0.3275<br>accuracy.boolean_expressions=0.572<br>accuracy.causal_judgement=0.5187<br>accuracy.date_understanding=0.192<br>accuracy.disambiguation_qa=0.452<br>accuracy.formal_fallacies=0.528<br>accuracy.geometric_shapes=0.068<br>accuracy.hyperbaton=0.624<br>accuracy.logical_deduction_five_objects=0.212<br>accuracy.logical_deduction_seven_objects=0.16<br>accuracy.logical_deduction_three_objects=0.344<br>accuracy.movie_recommendation=0.432<br>accuracy.navigate=0.58<br>accuracy.object_counting=0.268<br>accuracy.penguins_in_a_table=0.1781<br>accuracy.reasoning_about_colored_objects=0.132<br>accuracy.ruin_names=0.108<br>accuracy.salient_translation_error_detection=0.128<br>accuracy.snarks=0.5225<br>accuracy.sports_understanding=0.54<br>accuracy.temporal_sequences=0.168<br>accuracy.tracking_shuffled_objects_five_objects=0.164<br>accuracy.tracking_shuffled_objects_seven_objects=0.152<br>accuracy.tracking_shuffled_objects_three_objects=0.34<br>accuracy.web_of_lies=0.52 | store/bbh accuracy=0.203 (3-shot CoT, base model; https://qwenlm.github.io/blog/qwen2.5-llm/) | `66460e87e41d93b8932c77c7b84c293936885105` | 5761 | 10m25.729s | 109ms | `evaluation:sha256:b72a94e500f12fab24cac3b58f1c1755afcac4990102a85b1cba24015136b67e` |
+| store/mmlu (chat-template) | accuracy=0.03 | store/mmlu accuracy=0.31 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.046; C:/Users/jeffm/eval/overgo_qwen25_benchmark_results/results.json)<br>store/mmlu accuracy=0.475 (5-shot, full MMLU, base model; https://qwenlm.github.io/blog/qwen2.5-llm/) | `d75d3554941482c31fe467853244d937c1b1b628` | 100 | 4.472s | 45ms | `evaluation:sha256:fcea2cf1fccc475031eb2ca846bcadc5ed57fc2282c8f6cfeaac3f05c2525aad` |
+| store/mmlu (raw-completion) | accuracy=0.42 | store/mmlu accuracy=0.31 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.046; C:/Users/jeffm/eval/overgo_qwen25_benchmark_results/results.json)<br>store/mmlu accuracy=0.475 (5-shot, full MMLU, base model; https://qwenlm.github.io/blog/qwen2.5-llm/) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 100 | 1.802s | 18ms | `evaluation:sha256:dc69a94c1b94950a90503a64b7e4d3ff105f75717a6721ca32b14cf755df9944` |
 
 Published references for suites without a committed evaluation: store/bbh accuracy=0.203 (3-shot CoT, base model; https://qwenlm.github.io/blog/qwen2.5-llm/)<br>store/mmlu accuracy=0.31 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.046; C:/Users/jeffm/eval/overgo_qwen25_benchmark_results/results.json)<br>store/mmlu accuracy=0.475 (5-shot, full MMLU, base model; https://qwenlm.github.io/blog/qwen2.5-llm/)<br>store/mmlu-pro accuracy=0.1492 (model card headline; https://huggingface.co/Qwen/Qwen2.5-0.5B)<br>store/mmlu-pro accuracy=0.157 (5-shot, base model; https://qwenlm.github.io/blog/qwen2.5-llm/)
 
@@ -35,9 +51,9 @@ Published references for suites without a committed evaluation: store/bbh accura
 
 Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f16-ropefix.gguf`, 1029821280 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/dna (raw-completion) | mean_nll_per_token=8.694<br>perplexity=5969 | — | `10425260c2b6da1a67cf2f49503b701a880ebf27` | 2m46.261s | `evaluation:sha256:2bd6705892f50c3000e03a086648d0b4e907fd9112b4a5532f18b0f9192892ba` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/dna (raw-completion) | mean_nll_per_token=8.694<br>perplexity=5969 | — | `10425260c2b6da1a67cf2f49503b701a880ebf27` | 128 | 2m46.261s | 1.299s | `evaluation:sha256:2bd6705892f50c3000e03a086648d0b4e907fd9112b4a5532f18b0f9192892ba` |
 
 Published references for suites without a committed evaluation: store/mmlu accuracy=0.22 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.042; DNA model, English suite not meaningful; C:/Users/jeffm/eval/overgo_carbon500m_benchmark_results/results.json)
 
@@ -45,10 +61,11 @@ Published references for suites without a committed evaluation: store/mmlu accur
 
 Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/MiniCPM5-1B-f16.gguf`, 2166391968 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/mmlu (chat-template) | accuracy=0 | store/mmlu accuracy=0.35 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.048; C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results/results.json) | `d75d3554941482c31fe467853244d937c1b1b628` | 6.406s | `evaluation:sha256:a13c1a9246e505f3816780dd1d4632d5b1e6725c9c27b0a514b25d9576111d5e` |
-| store/mmlu (raw-completion) | accuracy=0.34 | store/mmlu accuracy=0.35 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.048; C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 2.355s | `evaluation:sha256:42d75f93b3d508ce0d987717ead0fd4b4373c4369522937332f730a000a25479` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/bbh (raw-completion) | accuracy=0.3626<br>accuracy.boolean_expressions=0.548<br>accuracy.causal_judgement=0.5187<br>accuracy.date_understanding=0.456<br>accuracy.disambiguation_qa=0.364<br>accuracy.formal_fallacies=0.468<br>accuracy.geometric_shapes=0.42<br>accuracy.hyperbaton=0.524<br>accuracy.logical_deduction_five_objects=0.2<br>accuracy.logical_deduction_seven_objects=0.156<br>accuracy.logical_deduction_three_objects=0.388<br>accuracy.movie_recommendation=0.332<br>accuracy.navigate=0.42<br>accuracy.object_counting=0.368<br>accuracy.penguins_in_a_table=0.3904<br>accuracy.reasoning_about_colored_objects=0.304<br>accuracy.ruin_names=0.36<br>accuracy.salient_translation_error_detection=0.304<br>accuracy.snarks=0.4438<br>accuracy.sports_understanding=0.46<br>accuracy.temporal_sequences=0.22<br>accuracy.tracking_shuffled_objects_five_objects=0.16<br>accuracy.tracking_shuffled_objects_seven_objects=0.124<br>accuracy.tracking_shuffled_objects_three_objects=0.348<br>accuracy.web_of_lies=0.5 | — | `66460e87e41d93b8932c77c7b84c293936885105` | 5761 | 13m36.55s | 142ms | `evaluation:sha256:c7b527e1c274f4924afbd9bc687561fbbb4d2640e511c063dc4aaaa77c7b003b` |
+| store/mmlu (chat-template) | accuracy=0 | store/mmlu accuracy=0.35 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.048; C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results/results.json) | `d75d3554941482c31fe467853244d937c1b1b628` | 100 | 6.406s | 64ms | `evaluation:sha256:a13c1a9246e505f3816780dd1d4632d5b1e6725c9c27b0a514b25d9576111d5e` |
+| store/mmlu (raw-completion) | accuracy=0.34 | store/mmlu accuracy=0.35 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.048; C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 100 | 2.355s | 24ms | `evaluation:sha256:42d75f93b3d508ce0d987717ead0fd4b4373c4369522937332f730a000a25479` |
 
 Published references for suites without a committed evaluation: store/mmlu accuracy=0.35 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.048; C:/Users/jeffm/eval/overgo_minicpm5_benchmark_results/results.json)
 
@@ -56,10 +73,11 @@ Published references for suites without a committed evaluation: store/mmlu accur
 
 Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Qwen3.5-4B-f16.gguf`, 8664046912 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/mmlu (chat-template) | accuracy=0.53 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `d75d3554941482c31fe467853244d937c1b1b628` | 8.533s | `evaluation:sha256:bb099dfe783b6480acb63a91d305e409898bed9617251a0ccde0b0a90394b710` |
-| store/mmlu (raw-completion) | accuracy=0.55 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `c49dd29e01f9e0ab27cc48e78fbc654e1ffaf85c` | 12.315s | `evaluation:sha256:c3acdf62b4a74a91c7b8bc5d3f64fb23ee31f5a41998dde330f0ac943cf9be7c` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/bbh (raw-completion) | accuracy=0.5414<br>accuracy.boolean_expressions=0.68<br>accuracy.causal_judgement=0.5775<br>accuracy.date_understanding=0.688<br>accuracy.disambiguation_qa=0.484<br>accuracy.formal_fallacies=0.584<br>accuracy.geometric_shapes=0.244<br>accuracy.hyperbaton=0.864<br>accuracy.logical_deduction_five_objects=0.532<br>accuracy.logical_deduction_seven_objects=0.468<br>accuracy.logical_deduction_three_objects=0.756<br>accuracy.movie_recommendation=0.592<br>accuracy.navigate=0.616<br>accuracy.object_counting=0.452<br>accuracy.penguins_in_a_table=0.4658<br>accuracy.reasoning_about_colored_objects=0.592<br>accuracy.ruin_names=0.652<br>accuracy.salient_translation_error_detection=0.588<br>accuracy.snarks=0.5787<br>accuracy.sports_understanding=0.6<br>accuracy.temporal_sequences=0.848<br>accuracy.tracking_shuffled_objects_five_objects=0.18<br>accuracy.tracking_shuffled_objects_seven_objects=0.128<br>accuracy.tracking_shuffled_objects_three_objects=0.288<br>accuracy.web_of_lies=0.524 | — | `66460e87e41d93b8932c77c7b84c293936885105` | 5761 | 1h1m10.994s | 637ms | `evaluation:sha256:78dba4dfb54174514cb79384de7aa3651300530b20607df24c69a4320711fb05` |
+| store/mmlu (chat-template) | accuracy=0.53 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `d75d3554941482c31fe467853244d937c1b1b628` | 100 | 8.533s | 85ms | `evaluation:sha256:bb099dfe783b6480acb63a91d305e409898bed9617251a0ccde0b0a90394b710` |
+| store/mmlu (raw-completion) | accuracy=0.55 | store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json) | `c49dd29e01f9e0ab27cc48e78fbc654e1ffaf85c` | 100 | 12.315s | 123ms | `evaluation:sha256:c3acdf62b4a74a91c7b8bc5d3f64fb23ee31f5a41998dde330f0ac943cf9be7c` |
 
 Published references for suites without a committed evaluation: store/ifeval prompt_strict=0.898 (post-trained instruct; https://huggingface.co/Qwen/Qwen3.5-4B)<br>store/mmlu accuracy=0.58 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.050; C:/Users/jeffm/eval/overgo_qwen35_4b_benchmark_results/results.json)<br>store/mmlu-pro accuracy=0.791 (post-trained instruct, generative; https://huggingface.co/Qwen/Qwen3.5-4B)
 
@@ -67,10 +85,11 @@ Published references for suites without a committed evaluation: store/ifeval pro
 
 Location `C:/Users/jeffm/adaptive_new/models/Qwen3.5-9B-Q8_0.gguf`, 9527502048 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/mmlu (chat-template) | accuracy=0.61 | — | `d75d3554941482c31fe467853244d937c1b1b628` | 12.823s | `evaluation:sha256:e7b683098e190c735266273c2dd91508ace859fd665238b06d579df946dae8a4` |
-| store/mmlu (raw-completion) | accuracy=0.59 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 12.409s | `evaluation:sha256:1df519ba2d2940ffb1c99264bc6a93507551c69dfcb3962b860b662ff714e847` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/bbh (raw-completion) | accuracy=0.5931<br>accuracy.boolean_expressions=0.744<br>accuracy.causal_judgement=0.5615<br>accuracy.date_understanding=0.688<br>accuracy.disambiguation_qa=0.656<br>accuracy.formal_fallacies=0.58<br>accuracy.geometric_shapes=0.392<br>accuracy.hyperbaton=0.868<br>accuracy.logical_deduction_five_objects=0.62<br>accuracy.logical_deduction_seven_objects=0.508<br>accuracy.logical_deduction_three_objects=0.816<br>accuracy.movie_recommendation=0.724<br>accuracy.navigate=0.68<br>accuracy.object_counting=0.476<br>accuracy.penguins_in_a_table=0.5753<br>accuracy.reasoning_about_colored_objects=0.688<br>accuracy.ruin_names=0.676<br>accuracy.salient_translation_error_detection=0.628<br>accuracy.snarks=0.5955<br>accuracy.sports_understanding=0.672<br>accuracy.temporal_sequences=0.936<br>accuracy.tracking_shuffled_objects_five_objects=0.18<br>accuracy.tracking_shuffled_objects_seven_objects=0.168<br>accuracy.tracking_shuffled_objects_three_objects=0.284<br>accuracy.web_of_lies=0.504 | — | `ebbcd6575ff8af5e5529844302b8d6e5c9cf31cf` | 5761 | 42m3.585s | 438ms | `evaluation:sha256:45d99693f8c31afef634c7a076fb9219fc16d2a1bc6ee90c54477c917934880d` |
+| store/mmlu (chat-template) | accuracy=0.61 | — | `d75d3554941482c31fe467853244d937c1b1b628` | 100 | 12.823s | 128ms | `evaluation:sha256:e7b683098e190c735266273c2dd91508ace859fd665238b06d579df946dae8a4` |
+| store/mmlu (raw-completion) | accuracy=0.59 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 100 | 12.409s | 124ms | `evaluation:sha256:1df519ba2d2940ffb1c99264bc6a93507551c69dfcb3962b860b662ff714e847` |
 
 Published references for suites without a committed evaluation: store/ifeval prompt_strict=0.915 (post-trained instruct; card is for the unquantized model; https://huggingface.co/Qwen/Qwen3.5-9B)<br>store/mmlu-pro accuracy=0.825 (post-trained instruct, generative; card is for the unquantized model; https://huggingface.co/Qwen/Qwen3.5-9B)
 
@@ -78,10 +97,11 @@ Published references for suites without a committed evaluation: store/ifeval pro
 
 Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-E4B-it-bf16.gguf`, 14940816608 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/mmlu (chat-template) | accuracy=0.2 | store/mmlu accuracy=0.33 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.047; C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results/results.json) | `d75d3554941482c31fe467853244d937c1b1b628` | 43.807s | `evaluation:sha256:1839eb74709b74b80110785f54114cde6f1ffe881ba1ffa85a491c073b3392b8` |
-| store/mmlu (raw-completion) | accuracy=0.44 | store/mmlu accuracy=0.33 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.047; C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 13s | `evaluation:sha256:534a6ec1824ea627ae753e693ad2e0e135216b015ca6735d2d5d2975dd6894cd` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/bbh (raw-completion) | accuracy=0.5824<br>accuracy.boolean_expressions=0.764<br>accuracy.causal_judgement=0.5241<br>accuracy.date_understanding=0.716<br>accuracy.disambiguation_qa=0.456<br>accuracy.formal_fallacies=0.58<br>accuracy.geometric_shapes=0.408<br>accuracy.hyperbaton=0.952<br>accuracy.logical_deduction_five_objects=0.572<br>accuracy.logical_deduction_seven_objects=0.544<br>accuracy.logical_deduction_three_objects=0.832<br>accuracy.movie_recommendation=0.648<br>accuracy.navigate=0.588<br>accuracy.object_counting=0.464<br>accuracy.penguins_in_a_table=0.5411<br>accuracy.reasoning_about_colored_objects=0.768<br>accuracy.ruin_names=0.704<br>accuracy.salient_translation_error_detection=0.6<br>accuracy.snarks=0.618<br>accuracy.sports_understanding=0.6<br>accuracy.temporal_sequences=0.972<br>accuracy.tracking_shuffled_objects_five_objects=0.16<br>accuracy.tracking_shuffled_objects_seven_objects=0.16<br>accuracy.tracking_shuffled_objects_three_objects=0.264<br>accuracy.web_of_lies=0.52 | — | `ebbcd6575ff8af5e5529844302b8d6e5c9cf31cf` | 5761 | 1h7m27.71s | 703ms | `evaluation:sha256:0c083c460df15611f7e239065324f6e00b73e78af09f7046d9b37f523ac8b037` |
+| store/mmlu (chat-template) | accuracy=0.2 | store/mmlu accuracy=0.33 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.047; C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results/results.json) | `d75d3554941482c31fe467853244d937c1b1b628` | 100 | 43.807s | 438ms | `evaluation:sha256:1839eb74709b74b80110785f54114cde6f1ffe881ba1ffa85a491c073b3392b8` |
+| store/mmlu (raw-completion) | accuracy=0.44 | store/mmlu accuracy=0.33 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.047; C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results/results.json) | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 100 | 13s | 130ms | `evaluation:sha256:534a6ec1824ea627ae753e693ad2e0e135216b015ca6735d2d5d2975dd6894cd` |
 
 Published references for suites without a committed evaluation: store/mmlu accuracy=0.33 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.047; C:/Users/jeffm/eval/overgo_gemma4e4b_benchmark_results/results.json)
 
@@ -89,10 +109,11 @@ Published references for suites without a committed evaluation: store/mmlu accur
 
 Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-12B-it-fp8-native.gguf`, 15342646656 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/mmlu (chat-template) | accuracy=0.5 | — | `d75d3554941482c31fe467853244d937c1b1b628` | 53.416s | `evaluation:sha256:c1349bab9aa1a56491f96525c0f7e0824ddc157a567eee0626e702de508cae8b` |
-| store/mmlu (raw-completion) | accuracy=0.38 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 23.872s | `evaluation:sha256:aebcd785b16d5cde812c93eef408fd1f1505403806a34ef7f1611e0f197da7f9` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/bbh (raw-completion) | accuracy=0.4968<br>accuracy.boolean_expressions=0.6<br>accuracy.causal_judgement=0.492<br>accuracy.date_understanding=0.624<br>accuracy.disambiguation_qa=0.4<br>accuracy.formal_fallacies=0.532<br>accuracy.geometric_shapes=0.368<br>accuracy.hyperbaton=0.564<br>accuracy.logical_deduction_five_objects=0.556<br>accuracy.logical_deduction_seven_objects=0.212<br>accuracy.logical_deduction_three_objects=0.916<br>accuracy.movie_recommendation=0.28<br>accuracy.navigate=0.62<br>accuracy.object_counting=0.144<br>accuracy.penguins_in_a_table=0.637<br>accuracy.reasoning_about_colored_objects=0.712<br>accuracy.ruin_names=0.64<br>accuracy.salient_translation_error_detection=0.452<br>accuracy.snarks=0.5<br>accuracy.sports_understanding=0.46<br>accuracy.temporal_sequences=0.996<br>accuracy.tracking_shuffled_objects_five_objects=0.276<br>accuracy.tracking_shuffled_objects_seven_objects=0.22<br>accuracy.tracking_shuffled_objects_three_objects=0.324<br>accuracy.web_of_lies=0.456 | — | `3e89a8977574952148a58c3d5a5428395f6f8190` | 5761 | 1h48m8.577s | 1.126s | `evaluation:sha256:29278da91512b5e4ca0c24924aa3ad196c298960bbe51cd91b2a33328c7b7229` |
+| store/mmlu (chat-template) | accuracy=0.5 | — | `d75d3554941482c31fe467853244d937c1b1b628` | 100 | 53.416s | 534ms | `evaluation:sha256:c1349bab9aa1a56491f96525c0f7e0824ddc157a567eee0626e702de508cae8b` |
+| store/mmlu (raw-completion) | accuracy=0.38 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 100 | 23.872s | 239ms | `evaluation:sha256:aebcd785b16d5cde812c93eef408fd1f1505403806a34ef7f1611e0f197da7f9` |
 
 Published references for suites without a committed evaluation: store/mmlu-pro accuracy=0.772 (instruction-tuned 12B unified, generative; card is for the unquantized model; https://huggingface.co/google/gemma-4-12b-it)
 
@@ -100,23 +121,25 @@ Published references for suites without a committed evaluation: store/mmlu-pro a
 
 Location `C:/Users/jeffm/overgo/models/Qwen3.8-27B-UD-Q6_K/Qwen3.8-27B-UD-Q6_K.gguf`, 21983677344 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/mmlu (chat-template) | accuracy=0.7 | — | `d75d3554941482c31fe467853244d937c1b1b628` | 1m29.339s | `evaluation:sha256:b679e4645357c5deefc9044f05974d4d39c4bbe727105d40d2ff4e724fc8f23d` |
-| store/mmlu (raw-completion) | accuracy=0.65 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 1m13.261s | `evaluation:sha256:a76e6ccda16f07ae628600e081de9eb34f730a220098d6ff5fb412ea1a82dff2` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/bbh (raw-completion) | accuracy=0.6554<br>accuracy.boolean_expressions=0.684<br>accuracy.causal_judgement=0.6096<br>accuracy.date_understanding=0.796<br>accuracy.disambiguation_qa=0.716<br>accuracy.formal_fallacies=0.532<br>accuracy.geometric_shapes=0.472<br>accuracy.hyperbaton=0.9<br>accuracy.logical_deduction_five_objects=0.704<br>accuracy.logical_deduction_seven_objects=0.612<br>accuracy.logical_deduction_three_objects=0.96<br>accuracy.movie_recommendation=0.808<br>accuracy.navigate=0.752<br>accuracy.object_counting=0.536<br>accuracy.penguins_in_a_table=0.6712<br>accuracy.reasoning_about_colored_objects=0.852<br>accuracy.ruin_names=0.836<br>accuracy.salient_translation_error_detection=0.724<br>accuracy.snarks=0.7135<br>accuracy.sports_understanding=0.588<br>accuracy.temporal_sequences=0.996<br>accuracy.tracking_shuffled_objects_five_objects=0.244<br>accuracy.tracking_shuffled_objects_seven_objects=0.2<br>accuracy.tracking_shuffled_objects_three_objects=0.336<br>accuracy.web_of_lies=0.5 | — | `3e89a8977574952148a58c3d5a5428395f6f8190` | 5761 | 3h4m1.415s | 1.917s | `evaluation:sha256:97e1dfee9e9ee67ceccaac730c1ec776a3ad76ec96fb00a1ee62ddca2499c5a7` |
+| store/mmlu (chat-template) | accuracy=0.7 | — | `d75d3554941482c31fe467853244d937c1b1b628` | 100 | 1m29.339s | 893ms | `evaluation:sha256:b679e4645357c5deefc9044f05974d4d39c4bbe727105d40d2ff4e724fc8f23d` |
+| store/mmlu (raw-completion) | accuracy=0.65 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 100 | 1m13.261s | 733ms | `evaluation:sha256:a76e6ccda16f07ae628600e081de9eb34f730a220098d6ff5fb412ea1a82dff2` |
 
 ### gemma-4-12B-it-fp8-bf16
 
 Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/gemma-4-12B-it-fp8-bf16.gguf`, 23829476736 bytes.
 
-| Suite | Metrics | Published reference | Commit | Wall | Record |
-| --- | --- | --- | --- | --- | --- |
-| store/mmlu (chat-template) | accuracy=0.5 | — | `d75d3554941482c31fe467853244d937c1b1b628` | 57.944s | `evaluation:sha256:4a86c82139dbb3cf3529372a53d41b7e130d9cf6d6ef630648c192036cdc00b9` |
-| store/mmlu (raw-completion) | accuracy=0.38 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 28.989s | `evaluation:sha256:204fd751c0ed2e91f64627ece824928ce6d6fd4c4be5260514453dde445c4599` |
+| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| store/bbh (raw-completion) | accuracy=0.4982<br>accuracy.boolean_expressions=0.608<br>accuracy.causal_judgement=0.4973<br>accuracy.date_understanding=0.62<br>accuracy.disambiguation_qa=0.396<br>accuracy.formal_fallacies=0.532<br>accuracy.geometric_shapes=0.364<br>accuracy.hyperbaton=0.564<br>accuracy.logical_deduction_five_objects=0.56<br>accuracy.logical_deduction_seven_objects=0.216<br>accuracy.logical_deduction_three_objects=0.916<br>accuracy.movie_recommendation=0.284<br>accuracy.navigate=0.6<br>accuracy.object_counting=0.144<br>accuracy.penguins_in_a_table=0.6301<br>accuracy.reasoning_about_colored_objects=0.716<br>accuracy.ruin_names=0.636<br>accuracy.salient_translation_error_detection=0.464<br>accuracy.snarks=0.5056<br>accuracy.sports_understanding=0.46<br>accuracy.temporal_sequences=0.996<br>accuracy.tracking_shuffled_objects_five_objects=0.28<br>accuracy.tracking_shuffled_objects_seven_objects=0.22<br>accuracy.tracking_shuffled_objects_three_objects=0.316<br>accuracy.web_of_lies=0.488 | — | `3e89a8977574952148a58c3d5a5428395f6f8190` | 5761 | 1h36m54.388s | 1.009s | `evaluation:sha256:bfc32553147d06e9564638c2abc69bf8319b138ac47dcdc7f6a260682f4eacc3` |
+| store/mmlu (chat-template) | accuracy=0.5 | — | `d75d3554941482c31fe467853244d937c1b1b628` | 100 | 57.944s | 579ms | `evaluation:sha256:4a86c82139dbb3cf3529372a53d41b7e130d9cf6d6ef630648c192036cdc00b9` |
+| store/mmlu (raw-completion) | accuracy=0.38 | — | `0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a` | 100 | 28.989s | 290ms | `evaluation:sha256:204fd751c0ed2e91f64627ece824928ce6d6fd4c4be5260514453dde445c4599` |
 
 Published references for suites without a committed evaluation: store/mmlu-pro accuracy=0.772 (instruction-tuned 12B unified, generative; card is for the unquantized model; https://huggingface.co/google/gemma-4-12b-it)
 
 ## Audit
 
-9 servable model(s); 9 with committed evaluations; 4 with a published reference declared; 3 suite(s) with evidence.
+9 servable model(s); 9 with committed evaluations; 4 with a published reference declared; 5 suite(s) with evidence.
 Models without evidence appear with dashes rather than being omitted. A published reference is a store declaration naming its source and protocol; the measured value is not adjusted toward it.

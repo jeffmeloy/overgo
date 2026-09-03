@@ -29,7 +29,7 @@ const (
 func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticLlamaGGUF(t)
+	path := writeHermeticLlamaGGUFWithContext(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,16 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	}
 	defer hostBatch.Close(t.Context())
 
-	steps := [][]tokenizer.TokenID{{1, 4}, {5}, {6}}
+	// A decode session is keyed by the past page it was compiled to read as
+	// well as its target page, so replays happen only within one page
+	// class. The replay counter is cumulative over a sequence's session
+	// lineage: these nine decode steps compile at pasts 2, 3, 4, 5, 8, and
+	// 9 (each a new page class) and replay at pasts 6 and 7 on the 8-token
+	// page and at past 10 on the 16-token page, three replays; the forked
+	// cohort below then compiles at past 11 and replays at 12, both on the
+	// 16-token page.
+	const singleSequenceReplays = 3
+	steps := [][]tokenizer.TokenID{{1, 4}, {5}, {6}, {7}, {4}, {5}, {6}, {7}, {4}, {5}}
 	for step, tokens := range steps {
 		device, deviceErr := deviceBatch.Step(t.Context(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
 		host, hostErr := hostBatch.Step(t.Context(), []SequenceBatchInput{{ID: 1, Tokens: tokens}})
@@ -70,7 +79,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	deviceBatch.mu.Lock()
 	session := deviceBatch.sequences[1].device.session
 	deviceBatch.mu.Unlock()
-	if session == nil || session.replays != 1 || session.program.identity.output.mode != deviceOutputLogits {
+	if session == nil || session.replays != singleSequenceReplays || session.program.identity.output.mode != deviceOutputLogits {
 		t.Fatalf("generic decode session = %+v", session)
 	}
 	beforeFailure := deviceBatch.Snapshot()
@@ -135,7 +144,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticLlamaGGUF(t)
+	path := writeHermeticLlamaGGUFWithContext(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -179,13 +188,17 @@ func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
 	}
 }
 
-func writeHermeticLlamaGGUF(t *testing.T) string {
+// writeHermeticLlamaGGUFWithContext writes the hermetic fixture with the
+// given context length (hermeticContext for the parity tests); the cache
+// page bands a test straddles are set by the context, everything else by
+// the fixture's fixed shape.
+func writeHermeticLlamaGGUFWithContext(t *testing.T, context uint32) string {
 	t.Helper()
 	metadata := []gguf.Metadata{
 		testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "llama"),
 		testutil.GGUFScalar("general.name", gguf.ValueTypeString, "hermetic-cuda"),
 		testutil.GGUFScalar("llama.block_count", gguf.ValueTypeUint32, uint32(1)),
-		testutil.GGUFScalar("llama.context_length", gguf.ValueTypeUint32, hermeticContext),
+		testutil.GGUFScalar("llama.context_length", gguf.ValueTypeUint32, context),
 		testutil.GGUFScalar("llama.embedding_length", gguf.ValueTypeUint32, uint32(hermeticEmbedding)),
 		testutil.GGUFScalar("llama.feed_forward_length", gguf.ValueTypeUint32, uint32(hermeticFFN)),
 		testutil.GGUFScalar("llama.attention.head_count", gguf.ValueTypeUint32, uint32(hermeticHeads)),

@@ -101,7 +101,7 @@ func run() error {
 			return errors.New("usage: evaluate -all [-repo <store>] [-device N] [-family name]")
 		}
 		if *worker {
-			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *chatProtocol)
+			return runAllWorker(context.Background(), *repository, *device, *family, *modelPath, *chatProtocol, *budget)
 		}
 		return runAllParent(context.Background(), *repository, *device, *family, *catalogLimit, *chatProtocol, *budget)
 	}

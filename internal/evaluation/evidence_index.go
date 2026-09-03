@@ -14,6 +14,7 @@ import (
 // from the claim's evidence document.
 type BenchmarkSummary struct {
 	Tier                  string      `json:"tier"`
+	PromptTokensPerSecond float64     `json:"prompt_tokens_per_second_p50,omitzero"`
 	DecodeTokensPerSecond float64     `json:"decode_tokens_per_second_p50,omitzero"`
 	WallNS                uint64      `json:"wall_ns,omitzero"`
 	PeakDeviceBytes       uint64      `json:"peak_device_bytes,omitzero"`
@@ -71,6 +72,7 @@ type EvidenceIndex struct {
 // own fields standing.
 type benchmarkEvidenceHeadline struct {
 	Summary struct {
+		PromptTokensPerSecondP50 float64 `json:"prompt_tokens_per_second_p50"`
 		DecodeTokensPerSecondP50 float64 `json:"decode_tokens_per_second_p50"`
 	} `json:"summary"`
 }
@@ -114,6 +116,7 @@ func LatestEvidence(
 				if content, found, err := artifact.ReadContent(ctx, store, claim.Evidence[0]); err == nil && found {
 					var headline benchmarkEvidenceHeadline
 					if json.Unmarshal(content.Data, &headline) == nil {
+						summary.PromptTokensPerSecond = headline.Summary.PromptTokensPerSecondP50
 						summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
 					}
 				}
@@ -180,6 +183,22 @@ func ListingAuthorities() ExactAuthorities {
 		Environment:     id(artifact.KindEvidence, "evaluation/listing"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
+}
+
+// DerivedSuiteDescriptors compiles the store's benchmark catalog and keys
+// every suite's descriptor by its source name, so a report can state each
+// suite's kind and case count beside the records that ran it.
+func DerivedSuiteDescriptors(ctx context.Context, store *overgodb.Store, authorities ExactAuthorities) map[string]SuiteDescriptor {
+	descriptors := map[string]SuiteDescriptor{}
+	suites, _, err := DeriveStoreSuites(ctx, store, authorities)
+	if err != nil {
+		return descriptors
+	}
+	for _, suite := range suites {
+		descriptor := suite.Descriptor()
+		descriptors[descriptor.Source] = descriptor
+	}
+	return descriptors
 }
 
 // DerivedSuiteNames maps the store's derived suite dataset identities

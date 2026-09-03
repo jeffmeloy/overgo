@@ -30,7 +30,13 @@ type decodeDynamicSlot struct {
 }
 
 type decodeSessionIdentity struct {
-	capacity   uint32
+	capacity uint32
+	// source is the page capacity of the past cache the program was
+	// compiled to read: the cache-append copy's extent. Two pasts can share
+	// the target capacity while their pages differ (256 tokens on a
+	// 256-token page, 300 on a 512-token page both append into 512), and a
+	// session compiled for the larger page reads past the smaller one.
+	source     uint32
 	branches   uint32
 	tokenCount uint32
 	output     deviceOutputPlan
@@ -38,11 +44,11 @@ type decodeSessionIdentity struct {
 }
 
 func (i decodeSessionIdentity) matches(
-	capacity, tokenCount uint32,
+	capacity, source, tokenCount uint32,
 	output deviceOutputPlan,
 	lora [32]byte,
 ) bool {
-	return i.capacity == capacity &&
+	return i.capacity == capacity && i.source == source &&
 		i.branches > 0 && i.tokenCount == tokenCount && i.output == output && i.lora == lora
 }
 

@@ -438,9 +438,13 @@ func launchAttentionLayout(
 		tokenCountPointer := pointers.attribute
 		hasTokenCount := tokenCountPointer != 0
 		sharedBytes := (uint64(keyCapacityTokens) + attentionDecodePartialFloats) * f32Bytes
+		// The decode kernel owns every single-query causal step, including a
+		// causal sliding window and a softcap: the online kernel serves those
+		// only through one thread per block walking the keys, which cost the
+		// gemma-4 sliding layers 1.3 ms per layer at a 250-token context.
 		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
-			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 && softcap == 0 &&
-			maxALiBiBias == 0 && window == 0 && hasTokenCount &&
+			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 &&
+			maxALiBiBias == 0 && symmetricWindow == uint32(windowModeNone) && hasTokenCount &&
 			sharedBytes <= attentionDecodeSharedLimit {
 			blocks := uint64(queryHeads) * uint64(sequences)
 			if blocks > math.MaxUint32 {
@@ -452,7 +456,7 @@ func launchAttentionLayout(
 				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
 				&query, &key, &value, &output, &keyWidth, &valueWidth,
 				&queryHeads, &keyValueHeads, &tokenCountPointer, &keyCapacityTokens,
-				&sequences, &scale,
+				&sequences, &scale, &window, &softcap,
 			)
 		}
 		// Strided-batched SGEMM path: exact F32 gemm+softmax+gemm with the

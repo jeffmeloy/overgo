@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"slices"
 	"time"
 
@@ -51,6 +52,7 @@ type options struct {
 	DeviceTopK     bool
 	LoRA           []string
 	Publish        bool
+	CPUProfile     string
 }
 
 type runMetrics struct {
@@ -86,34 +88,38 @@ type summaryMetrics struct {
 	TTFTMillisecondsP50        float64 `json:"ttft_ms_p50"`
 	TTFTMillisecondsMinimum    float64 `json:"ttft_ms_min"`
 	TotalMillisecondsP50       float64 `json:"total_ms_p50"`
+	PromptTokensPerSecondP50   float64 `json:"prompt_tokens_per_second_p50"`
 	DecodeTokensPerSecondP50   float64 `json:"decode_tokens_per_second_p50"`
 	EndToEndTokensPerSecondP50 float64 `json:"end_to_end_tokens_per_second_p50"`
 }
 
 type benchmarkResult struct {
-	ModelPath              string                 `json:"model_path"`
-	ModelName              string                 `json:"model_name"`
-	Architecture           string                 `json:"architecture"`
-	FileType               string                 `json:"file_type"`
-	ParameterCount         uint64                 `json:"parameter_count"`
-	ModelBytes             uint64                 `json:"model_bytes"`
-	Residency              recipe.ResidencyPolicy `json:"residency"`
-	CachePrompt            bool                   `json:"cache_prompt"`
-	BatchSequences         int                    `json:"batch_sequences"`
-	Speculative            bool                   `json:"speculative"`
-	Temperature            float64                `json:"temperature"`
-	TopK                   int                    `json:"top_k"`
-	DeviceTopK             bool                   `json:"device_top_k"`
-	Device                 driver.DeviceInfo      `json:"device"`
-	LoadMilliseconds       float64                `json:"load_ms"`
-	HostHeapBeforeBytes    uint64                 `json:"host_heap_before_bytes"`
-	HostHeapAfterLoadBytes uint64                 `json:"host_heap_after_load_bytes"`
-	HostHeapAfterRunsBytes uint64                 `json:"host_heap_after_runs_bytes"`
-	DeviceAfterLoadBytes   uint64                 `json:"device_after_load_bytes"`
-	DeviceAfterRunsBytes   uint64                 `json:"device_after_runs_bytes"`
-	DevicePeakBytes        uint64                 `json:"device_peak_bytes"`
-	Runs                   []runMetrics           `json:"runs"`
-	Summary                summaryMetrics         `json:"summary"`
+	ModelPath      string                 `json:"model_path"`
+	ModelName      string                 `json:"model_name"`
+	Architecture   string                 `json:"architecture"`
+	FileType       string                 `json:"file_type"`
+	ParameterCount uint64                 `json:"parameter_count"`
+	ModelBytes     uint64                 `json:"model_bytes"`
+	Residency      recipe.ResidencyPolicy `json:"residency"`
+	// EndOfSequenceIgnored records that every run decoded the declared
+	// token budget with end-of-generation tokens banned.
+	EndOfSequenceIgnored   bool              `json:"end_of_sequence_ignored"`
+	CachePrompt            bool              `json:"cache_prompt"`
+	BatchSequences         int               `json:"batch_sequences"`
+	Speculative            bool              `json:"speculative"`
+	Temperature            float64           `json:"temperature"`
+	TopK                   int               `json:"top_k"`
+	DeviceTopK             bool              `json:"device_top_k"`
+	Device                 driver.DeviceInfo `json:"device"`
+	LoadMilliseconds       float64           `json:"load_ms"`
+	HostHeapBeforeBytes    uint64            `json:"host_heap_before_bytes"`
+	HostHeapAfterLoadBytes uint64            `json:"host_heap_after_load_bytes"`
+	HostHeapAfterRunsBytes uint64            `json:"host_heap_after_runs_bytes"`
+	DeviceAfterLoadBytes   uint64            `json:"device_after_load_bytes"`
+	DeviceAfterRunsBytes   uint64            `json:"device_after_runs_bytes"`
+	DevicePeakBytes        uint64            `json:"device_peak_bytes"`
+	Runs                   []runMetrics      `json:"runs"`
+	Summary                summaryMetrics    `json:"summary"`
 }
 
 func main() {
@@ -135,6 +141,7 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.CachePrompt, "cache-prompt", false, "reuse retained prompt state between runs")
 	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
 	flags.BoolVar(&result.Publish, "publish", false, "commit the result as benchmark evidence with a verification claim (requires -repo and a clean worktree)")
+	flags.StringVar(&result.CPUProfile, "cpuprofile", "", "write a Go CPU profile of the whole run to this file (host-side time between kernels)")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -180,6 +187,17 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	if options.CPUProfile != "" {
+		profile, profileErr := os.Create(options.CPUProfile)
+		if profileErr != nil {
+			return profileErr
+		}
+		defer profile.Close()
+		if profileErr := pprof.StartCPUProfile(profile); profileErr != nil {
+			return profileErr
+		}
+		defer pprof.StopCPUProfile()
+	}
 	cuda, err := driver.Open()
 	if err != nil {
 		return err
@@ -218,7 +236,13 @@ func run(args []string) error {
 		if options.BatchSequences > 0 {
 			return executeContinuousBatch(context.Background(), runner, options, promptIDs, index)
 		}
-		sampler, samplerErr := sampling.New(sampling.Config{Temperature: float32(options.Temperature), TopK: options.TopK})
+		// A benchmark measures its declared token budget: every recognized
+		// end-of-generation token is banned so a model that would answer
+		// the prompt in one token still decodes the budget.
+		sampler, samplerErr := sampling.New(sampling.Config{
+			Temperature: float32(options.Temperature), TopK: options.TopK,
+			LogitBiases: endOfGenerationBans(runner),
+		})
 		if samplerErr != nil {
 			return runMetrics{}, samplerErr
 		}
@@ -330,6 +354,7 @@ func run(args []string) error {
 		ParameterCount:         properties.ParameterCount,
 		ModelBytes:             properties.ModelSize,
 		Residency:              runner.Residency(),
+		EndOfSequenceIgnored:   true,
 		CachePrompt:            options.CachePrompt,
 		BatchSequences:         options.BatchSequences,
 		Temperature:            options.Temperature,
@@ -491,25 +516,41 @@ func executeContinuousBatch(
 func summarizeRuns(runs []runMetrics) summaryMetrics {
 	ttft := make([]float64, len(runs))
 	total := make([]float64, len(runs))
+	prompt := make([]float64, len(runs))
 	decode := make([]float64, len(runs))
 	endToEnd := make([]float64, len(runs))
 	for index, run := range runs {
 		ttft[index] = run.TTFTMilliseconds
 		total[index] = run.TotalMilliseconds
+		prompt[index] = run.PromptTokensPerSecond
 		decode[index] = run.DecodeTokensPerSecond
 		endToEnd[index] = run.EndToEndTokensPerSecond
 	}
 	slices.Sort(ttft)
 	slices.Sort(total)
+	slices.Sort(prompt)
 	slices.Sort(decode)
 	slices.Sort(endToEnd)
 	return summaryMetrics{
 		TTFTMillisecondsP50:        median(ttft),
 		TTFTMillisecondsMinimum:    ttft[0],
 		TotalMillisecondsP50:       median(total),
+		PromptTokensPerSecondP50:   median(prompt),
 		DecodeTokensPerSecondP50:   median(decode),
 		EndToEndTokensPerSecondP50: median(endToEnd),
 	}
+}
+
+// endOfGenerationBans biases every recognized end-of-generation token out
+// of the sampler, the generate command's ignore-eos, so a run measures the
+// declared token budget rather than the model's choice to stop.
+func endOfGenerationBans(runner *inference.Runner) []sampling.LogitBias {
+	tokens := runner.SamplingEOGTokens()
+	bans := make([]sampling.LogitBias, 0, len(tokens))
+	for _, token := range tokens {
+		bans = append(bans, sampling.LogitBias{Token: int(token), Bias: sampling.BannedLogit()})
+	}
+	return bans
 }
 
 func median(sorted []float64) float64 {

@@ -3982,7 +3982,10 @@ extern "C" __global__ void attention_f32(
 
 // key_value_token_count: device scalar so decode launches stay byte-identical
 // across steps; key_value_stride is the KV capacity used for addressing and
-// shared-memory partitioning.
+// shared-memory partitioning. window > 0 is a causal sliding window: the
+// query at position key_value_tokens-1 reads the last `window` keys, derived
+// from the device token count so a windowed layer replays the same launch
+// too. softcap > 0 applies the tanh score cap before the softmax.
 extern "C" __global__ void attention_decode_f32(
         const float * query,
         const float * key,
@@ -3995,7 +3998,9 @@ extern "C" __global__ void attention_decode_f32(
         const unsigned int * key_value_token_count,
         unsigned int key_value_stride,
         unsigned int sequences,
-        float scale) {
+        float scale,
+        unsigned int window,
+        float softcap) {
     const unsigned int row = blockIdx.x;
     const unsigned int query_head = row % query_heads;
     const unsigned int sequence = row / query_heads;
@@ -4003,6 +4008,7 @@ extern "C" __global__ void attention_decode_f32(
         return;
     }
     const unsigned int key_value_tokens = key_value_token_count[0];
+    const unsigned int key_first = window > 0 && key_value_tokens > window ? key_value_tokens - window : 0;
     const unsigned int group_size = query_heads / key_value_heads;
     const unsigned int key_value_head = query_head / group_size;
     const unsigned int query_offset =
@@ -4011,20 +4017,23 @@ extern "C" __global__ void attention_decode_f32(
     float * scores = shared;
     float * partial = shared + key_value_stride;
     float local_maximum = -3.402823466e+38F;
-    for (unsigned int token = threadIdx.x; token < key_value_tokens; token += blockDim.x) {
+    for (unsigned int token = key_first + threadIdx.x; token < key_value_tokens; token += blockDim.x) {
         const unsigned int key_offset =
             ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * key_width;
         float dot = 0.0f;
         for (unsigned int channel = 0; channel < key_width; ++channel) {
             dot += query[query_offset + channel] * key[key_offset + channel];
         }
-        const float score = dot * scale;
+        float score = dot * scale;
+        if (softcap > 0.0f) {
+            score = softcap * tanhf(score / softcap);
+        }
         scores[token] = score;
         local_maximum = fmaxf(local_maximum, score);
     }
     const float maximum = block_max_f32(local_maximum, partial);
     float local_sum = 0.0f;
-    for (unsigned int token = threadIdx.x; token < key_value_tokens; token += blockDim.x) {
+    for (unsigned int token = key_first + threadIdx.x; token < key_value_tokens; token += blockDim.x) {
         const float probability = expf(scores[token] - maximum);
         scores[token] = probability;
         local_sum += probability;
@@ -4032,7 +4041,7 @@ extern "C" __global__ void attention_decode_f32(
     const float sum = block_sum_f32(local_sum, partial);
     for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
         float weighted = 0.0f;
-        for (unsigned int token = 0; token < key_value_tokens; ++token) {
+        for (unsigned int token = key_first; token < key_value_tokens; ++token) {
             const unsigned int value_offset =
                 ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
             weighted += scores[token] * value[value_offset + channel];

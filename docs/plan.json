@@ -9,26 +9,11 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-pinned-benchmarks",
-          "title": "Merge master and reconcile the plan before: Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring; for every chat-template choice suite prove one rendered case, print the first answer beside its candidates, and refuse an unrenderable or all-unmatched protocol; then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "inference-e2e/verified-matrix"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "pinned-benchmarks",
           "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring; for every chat-template choice suite prove one rendered case, print the first answer beside its candidates, and refuse an unrenderable or all-unmatched protocol; then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
           "status": "open",
           "verify": "go run ./cmd/evaluate -all \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master d75d3554 completed the generated-letter protocol by parsing chat-template control tokens as special tokens and recognizing end-of-generation markers by token name; cc4485a0 records the corrected MMLU comparison. Master c36e5b70 renders BBH, MuSR and other text candidates as lettered options while leaving existing letter candidates direct; 4a642032 refuses an unrenderable suite at plan time, prints the first generated answer and its candidates, and stops after an all-unmatched eight-case probe instead of recording zero. Qwen3.5-4B, Qwen3.5-9B, Gemma4-12B and Qwen3.8-27B now score near or above their raw anchors, while base, long-thinking and explanation-prone models retain bounded unmatched counts. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The remaining broad suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
+          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master d75d3554 completed the generated-letter protocol by parsing chat-template control tokens as special tokens and recognizing end-of-generation markers by token name; cc4485a0 records the corrected MMLU comparison. Master c36e5b70 renders BBH, MuSR and other text candidates as lettered options while leaving existing letter candidates direct; 4a642032 refuses an unrenderable suite at plan time, prints the first generated answer and its candidates, and stops after an all-unmatched eight-case probe instead of recording zero. Master 03f08dd2 drops instantiated CUDA graph execs whenever captured device memory is released; complete Qwen3.5 4B and 9B chat-template passes must cross the prior BBH failure windows and therefore serve as the long-run replay-safety proof as well as quality measurements. Qwen3.5-4B, Qwen3.5-9B, Gemma4-12B and Qwen3.8-27B now score near or above their raw anchors, while base, long-thinking and explanation-prone models retain bounded unmatched counts. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The remaining broad suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
           "depends_on": [
             "benchmark-routing/sync-pinned-benchmarks"
           ]

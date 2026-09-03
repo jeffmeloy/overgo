@@ -13,6 +13,7 @@ import (
 	"overgo/internal/authoritylock"
 	"overgo/internal/automationcheck"
 	"overgo/internal/gitauthority"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 )
@@ -149,15 +150,47 @@ func Run(options Options) error {
 	var planHead string
 	var indexBefore gateIndexSnapshot
 	var mergeBefore *gateMergeIntent
+	var admissionStore *overgodb.Store
+	defer func() {
+		if admissionStore != nil {
+			_ = admissionStore.Close()
+		}
+	}()
 	if !*inspectPlan {
-		mergeBefore, indexBefore, err = captureGateStartState(repo)
+		err = reportGateAdmissionPhase("capture candidate state", func() error {
+			mergeBefore, indexBefore, err = captureGateStartState(repo)
+			return err
+		})
 		if err != nil {
 			return err
 		}
-		if err := requireNoPendingGateState(repo, cleanStore); err != nil {
+		err = reportGateAdmissionPhase("open canonical store", func() error {
+			admissionStore, err = overgodb.Open(filepath.Join(repo, cleanStore))
+			return err
+		})
+		if err != nil {
+			return fmt.Errorf("gate: open admission store: %w", err)
+		}
+		if err := reportGateAdmissionPhase("validate pending lifecycle state", func() error {
+			return requireNoPendingGateStateWithStore(repo, admissionStore)
+		}); err != nil {
 			return err
 		}
-		completionAuthority, planHead, err = resolvePlanBinding(repo, cleanStore, *planRef)
+		var accelerated bool
+		err = reportGateAdmissionPhase("publish replay checkpoint", func() error {
+			accelerated, err = ensureGateStoreAcceleration(context.Background(), admissionStore)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if accelerated {
+			fmt.Fprintln(os.Stderr, "gate: admission published a checkpoint for the verified cold replay")
+		}
+		err = reportGateAdmissionPhase("resolve plan authority", func() error {
+			completionAuthority, planHead, err = resolvePlanBindingWithStore(repo, *planRef, admissionStore)
+			return err
+		})
 		if err != nil {
 			return err
 		}
@@ -239,13 +272,22 @@ func Run(options Options) error {
 		}
 		return writeGatePlanReport(os.Stdout, planned)
 	}
-	g.environment, err = discoverEnvironment(repo)
+	err = reportGateAdmissionPhase("discover verification environment", func() error {
+		g.environment, err = discoverEnvironment(repo)
+		return err
+	})
 	if err != nil {
 		return err
 	}
-	if err := g.prepare(); err != nil {
+	if err := reportGateAdmissionPhase("publish lifecycle preparation", func() error {
+		return g.prepareWithStore(admissionStore)
+	}); err != nil {
 		return err
 	}
+	if err := admissionStore.Close(); err != nil {
+		return fmt.Errorf("gate: close admission store before verification: %w", err)
+	}
+	admissionStore = nil
 	stopHeartbeat, err := g.startHeartbeat()
 	if err != nil {
 		return err
@@ -348,4 +390,26 @@ func Run(options Options) error {
 		return fmt.Errorf("commit landed but OvergoDB record debt remains: %w", recordErr)
 	}
 	return nil
+}
+
+// reportGateAdmissionPhase makes pre-heartbeat work observable. Admission must
+// finish before a durable lifecycle exists, so these progress records describe
+// the exact phase and duration without pretending that a preparation has been
+// published already.
+func reportGateAdmissionPhase(name string, action func() error) error {
+	started := time.Now()
+	fmt.Fprintf(os.Stderr, "gate: admission %s started\n", name)
+	err := action()
+	status := "completed"
+	if err != nil {
+		status = "failed"
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"gate: admission %s %s in %s\n",
+		name,
+		status,
+		time.Since(started).Round(time.Millisecond),
+	)
+	return err
 }

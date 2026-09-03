@@ -82,6 +82,23 @@ func gateMergeSourceStore(value string, merge bool, projection plan.MergeProject
 // the shared internal/plan.Current is the same "current step" cmd/plan dispatches
 // and verifies, so the gate and the dispatcher can never disagree.
 func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, error) {
+	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
+	if err != nil {
+		return plan.CompletionAuthority{}, "", err
+	}
+	defer store.Close()
+	return resolvePlanBindingWithStore(repo, ref, store)
+}
+
+// resolvePlanBindingWithStore derives plan authority through an already-open
+// gate admission store. A normal gate opens the canonical store once for
+// pending-state validation, plan binding, acceleration, and preparation;
+// reopening the full journal between those checks made admission scale with
+// the same durable history several times over.
+func resolvePlanBindingWithStore(
+	repo, ref string,
+	store *overgodb.Store,
+) (plan.CompletionAuthority, string, error) {
 	if ref == "" {
 		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan <item>/<step> is required (the plan's current open step; run `go run ./cmd/plan -next`)")
 	}
@@ -105,11 +122,6 @@ func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, 
 		return plan.CompletionAuthority{}, "", err
 	}
 	head = strings.TrimSpace(head)
-	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
-	if err != nil {
-		return plan.CompletionAuthority{}, "", err
-	}
-	defer store.Close()
 	authority, err := plan.ResolveCompletionAuthority(context.Background(), repo, head, document, store)
 	if err != nil {
 		return plan.CompletionAuthority{}, "", err

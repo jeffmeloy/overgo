@@ -532,8 +532,24 @@ func gatePlanScratchPath(repo string, preparation artifact.ID) (string, error) {
 }
 
 func (g *gateContext) prepare() error {
-	if err := requireNoPendingGateState(g.repo, g.storePath); err != nil {
+	store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
+	if err != nil {
+		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
+	}
+	defer store.Close()
+	if err := requireNoPendingGateStateWithStore(g.repo, store); err != nil {
 		return err
+	}
+	return g.prepareWithStore(store)
+}
+
+// prepareWithStore publishes the lifecycle preparation through the store that
+// already proved pending-state and plan authority. The authority lock keeps
+// other gate writers out between those checks, so reopening and replaying the
+// same journal here added cost without adding a distinct observation.
+func (g *gateContext) prepareWithStore(store *overgodb.Store) error {
+	if store == nil {
+		return errors.New("gate: lifecycle preparation requires the admission store")
 	}
 	treeKey, err := g.treeStateKey()
 	if err != nil {
@@ -559,11 +575,6 @@ func (g *gateContext) prepare() error {
 	if err != nil {
 		return err
 	}
-	store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
-	if err != nil {
-		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
-	}
-	defer store.Close()
 	g.resolveAttemptStrategy(store)
 	alias, err := gatePreparationAlias(context.Background(), store, g.preparation.ID)
 	if err != nil {
@@ -591,6 +602,21 @@ func (g *gateContext) prepare() error {
 }
 
 func requireNoPendingGateState(repo, storePath string) error {
+	store, err := overgodb.Open(filepath.Join(repo, storePath))
+	if err != nil {
+		return fmt.Errorf("gate: inspect lifecycle authority: %w", err)
+	}
+	defer store.Close()
+	return requireNoPendingGateStateWithStore(repo, store)
+}
+
+// requireNoPendingGateStateWithStore checks recovery authority without
+// reopening the canonical store. Callers that continue into plan binding or
+// preparation retain this exact store view under the gate authority lock.
+func requireNoPendingGateStateWithStore(repo string, store *overgodb.Store) error {
+	if store == nil {
+		return errors.New("gate: pending-state admission requires the canonical store")
+	}
 	if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(gateDebtFile))); err == nil {
 		return errors.New("gate: unresolved tmp/gate_debt.json; run `go run ./cmd/gate -reconcile` before another gate")
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -601,11 +627,6 @@ func requireNoPendingGateState(repo, storePath string) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	store, err := overgodb.Open(filepath.Join(repo, storePath))
-	if err != nil {
-		return fmt.Errorf("gate: inspect lifecycle authority: %w", err)
-	}
-	defer store.Close()
 	if err := requireNoOutstandingGateLifecycle(context.Background(), store); err != nil {
 		return err
 	}
@@ -622,6 +643,28 @@ func requireNoPendingGateState(repo, storePath string) error {
 		return errors.New("gate: unresolved gate lifecycle locator; run `go run ./cmd/gate -record-failure` before another gate")
 	}
 	return nil
+}
+
+// ensureGateStoreAcceleration turns a verified cold replay into the derived
+// checkpoint set future opens consume. Checkpoints are acceleration rather
+// than authority: Open already validated the journal, Snapshot binds the
+// derived state to its exact head and sequence, and a later defect falls back
+// to the same canonical log. An empty store has no snapshot boundary to write.
+func ensureGateStoreAcceleration(ctx context.Context, store *overgodb.Store) (bool, error) {
+	if ctx == nil || store == nil {
+		return false, errors.New("gate: store acceleration requires a store and context")
+	}
+	if store.SnapshotReplay().Loaded {
+		return false, nil
+	}
+	_, sequence := store.Head()
+	if sequence == 0 {
+		return false, nil
+	}
+	if _, err := store.Snapshot(ctx); err != nil {
+		return false, fmt.Errorf("gate: checkpoint cold admission store: %w", err)
+	}
+	return true, nil
 }
 
 func requireNoOutstandingGateLifecycle(ctx context.Context, store *overgodb.Store) error {

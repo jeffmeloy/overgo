@@ -480,6 +480,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"decode-session-source-capacity/do",
 		"report-wall-time/do",
 		"report-throughput/do",
+		"benchmark-token-budget/do",
 		"generation-soak/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",

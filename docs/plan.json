@@ -80,9 +80,10 @@
           "title": "Merge master and reconcile the plan before: Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. Defer this device-bearing interruption drill while GPU capacity is occupied; CPU-first audio construction and serving establish the workload the drill will later interrupt.",
           "depends_on": [
-            "hermetic-foundation/store-drills"
+            "hermetic-foundation/store-drills",
+            "asr-serving/streaming-transcription"
           ],
           "capabilities": [
             "master-synchronization",
@@ -162,15 +163,11 @@
           "title": "Merge master and reconcile the plan before: Create a deterministic audio.cpp census covering source commit, licenses, model specifications, loaders, artifact formats, preprocessing, execution graphs, streaming state, training relevance, tests, and known incomplete implementations",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. Completed race, inference, serving and training authorities are sufficient to begin CPU-only audio transfer. Remaining general GPU benchmarks and recovery drills are deferred until the native CPU transcription and streaming path exists.",
           "depends_on": [
             "hermetic-foundation/race-lane",
             "inference-e2e/serving-operations",
-            "training-e2e/preference-objectives",
-            "benchmark-routing/resource-quality-fitness",
-            "benchmark-routing/routing-replay",
-            "failure-recovery/control-plane-drills",
-            "failure-recovery/gate-recovery-drill"
+            "training-e2e/preference-objectives"
           ],
           "capabilities": [
             "master-synchronization",
@@ -595,9 +592,10 @@
           "title": "Merge master and reconcile the plan before: Record offline and chunked real-time factor, first-partial latency, finalization latency, host memory, VRAM and transcript quality through multidimensional fitness",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. WER and CPU serving land first; device resource measurements remain pending while GPU capacity is occupied.",
           "depends_on": [
-            "asr-evaluation/wer-suite"
+            "asr-evaluation/wer-suite",
+            "asr-serving/streaming-transcription"
           ],
           "capabilities": [
             "master-synchronization",
@@ -700,9 +698,10 @@
           "title": "Merge master and reconcile the plan before: Profile the CPU recipe, reuse existing kernels where their contracts match, and add only measured missing operators through the kernel manifest and generated ABI",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. The CPU numerical authority, validated transcription recipe and streaming service land before GPU profiling; if the device is occupied, this row remains pending while ready CPU-only audio work proceeds.",
           "depends_on": [
-            "asr-reference/offline-recipe"
+            "asr-reference/offline-recipe",
+            "asr-serving/streaming-transcription"
           ],
           "capabilities": [
             "master-synchronization",

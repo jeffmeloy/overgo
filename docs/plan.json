@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "generation-soak",
+      "title": "Generation soak (owner rule 2026-09-02: long-form inference reliability is as important as benchmarks): a device-lane test drives one runner through hundreds of sequential chat-template generations with prompt lengths sweeping the capacity bands on the smallest servable text model, asserting no CUDA error and stable output for a repeated prompt; bound to the device lane so every gate that touches inference or the executor runs it",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Generation soak (owner rule 2026-09-02: long-form inference reliability is as important as benchmarks): a device-lane test drives one runner through hundreds of sequential chat-template generations with prompt lengths sweeping the capacity bands on the smallest servable text model, asserting no CUDA error and stable output for a repeated prompt; bound to the device lane so every gate that touches inference or the executor runs it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run 'GenerationSoak' -count=1"
+        }
+      ]
+    },
+    {
       "id": "benchmark-completion",
       "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
       "status": "open",

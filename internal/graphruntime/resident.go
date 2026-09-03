@@ -245,6 +245,11 @@ func (s *ResidentSession) Release(ctx context.Context, programs ...*ResidentProg
 					continue
 				}
 				if checked.Nonzero(allocation.pointer) {
+					// Graphs captured over this program's weights must
+					// not replay after the range is freed.
+					if s.executor != nil {
+						errs = append(errs, s.executor.DropGraphExecs(state))
+					}
 					errs = append(errs, state.Driver.MemFree(allocation.pointer))
 				}
 				if allocation.bytes <= s.staticBytes {

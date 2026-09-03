@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-route-drills",
-          "title": "Merge master and reconcile the plan before: For every declared training route: load exact recorded input, train through the declared architecture route, publish checkpoint and optimizer state, stop and resume exactly, verify data-stream and random-state continuity, reload the checkpoint, run post-training inference, evaluate the pre/post bracket, and confirm frozen components remain unchanged",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "inference-e2e/verified-matrix"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "route-drills",
           "title": "For every declared training route: load exact recorded input, train through the declared architecture route, publish checkpoint and optimizer state, stop and resume exactly, verify data-stream and random-state continuity, reload the checkpoint, run post-training inference, evaluate the pre/post bracket, and confirm frozen components remain unchanged",
           "status": "open",
@@ -67,7 +52,7 @@
       "steps": [
         {
           "id": "sync-pinned-benchmarks",
-          "title": "Merge master and reconcile the plan before: Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring, then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
+          "title": "Merge master and reconcile the plan before: Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring; for every chat-template choice suite prove one rendered case, print the first answer beside its candidates, and refuse an unrenderable or all-unmatched protocol; then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
@@ -82,17 +67,17 @@
         },
         {
           "id": "pinned-benchmarks",
-          "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring, then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
+          "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring; for every chat-template choice suite prove one rendered case, print the first answer beside its candidates, and refuse an unrenderable or all-unmatched protocol; then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
           "status": "open",
           "verify": "go run ./cmd/evaluate -all \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master d75d3554 completed the generated-letter protocol by parsing chat-template control tokens as special tokens and recognizing end-of-generation markers by token name; cc4485a0 records the corrected MMLU comparison. Qwen3.5-4B, Qwen3.5-9B, Gemma4-12B and Qwen3.8-27B now score near or above their raw anchors, while base, long-thinking and explanation-prone models retain honest bounded unmatched counts. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The remaining broad suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
+          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master d75d3554 completed the generated-letter protocol by parsing chat-template control tokens as special tokens and recognizing end-of-generation markers by token name; cc4485a0 records the corrected MMLU comparison. Master c36e5b70 renders BBH, MuSR and other text candidates as lettered options while leaving existing letter candidates direct; 4a642032 refuses an unrenderable suite at plan time, prints the first generated answer and its candidates, and stops after an all-unmatched eight-case probe instead of recording zero. Qwen3.5-4B, Qwen3.5-9B, Gemma4-12B and Qwen3.8-27B now score near or above their raw anchors, while base, long-thinking and explanation-prone models retain bounded unmatched counts. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The remaining broad suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
           "depends_on": [
             "benchmark-routing/sync-pinned-benchmarks"
           ]
         },
         {
           "id": "sync-resource-quality-fitness",
-          "title": "Merge master and reconcile the plan before: Measure prefill and decode throughput separately across prompt lengths and K-quant span boundaries, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "title": "Merge master and reconcile the plan before: Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
@@ -107,10 +92,10 @@
         },
         {
           "id": "resource-quality-fitness",
-          "title": "Measure prefill and decode throughput separately across prompt lengths and K-quant span boundaries, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "title": "Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
           "status": "open",
           "verify": "go build ./cmd/perf-sweep ./cmd/perplexity",
-          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Master 0c51e3d5 stages K-quant q8 input once and executes wide prefills in eight-column spans, so the bound sweep must report prefill separately from decode and include prompt lengths immediately below, at, and above span boundaries on quantized CUDA models. Bind those invocations, peak host-memory and VRAM capture, perplexity, and loop -compare-resource-fitness via -setverify when the drill starts.",
+          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Repeated baseline runs must derive the measured min-max noise envelope before declaring regression or improvement. Master 0c51e3d5 stages K-quant q8 input once and executes wide prefills in eight-column spans; ebbcd657 routes short F16, BF16 and fp8 spans through native-dtype decode according to traffic-derived bounds; 3e89a897 runs qualifying half-precision prefills through tensor cores without F32 weight staging. The sweep must report prefill separately from decode and include widths immediately below, at and above every applicable boundary, with CPU numerical authority retained. Bind those invocations, repeated baselines, peak host-memory and VRAM capture, perplexity, and loop -compare-resource-fitness via -setverify when the drill starts.",
           "depends_on": [
             "benchmark-routing/sync-resource-quality-fitness"
           ]
@@ -199,7 +184,7 @@
         },
         {
           "id": "sync-gate-recovery-drill",
-          "title": "Merge master and reconcile the plan before: Interrupt a gate run against a scratch clone and recover through -recover-preparation, -recover-interrupted, and the watchdog",
+          "title": "Merge master and reconcile the plan before: Measure gate and plan admission across repeated projected merges, report every pre-heartbeat phase, interrupt a gate run against a scratch clone, and recover through -recover-preparation, -recover-interrupted, and the watchdog",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
@@ -214,10 +199,10 @@
         },
         {
           "id": "gate-recovery-drill",
-          "title": "Interrupt a gate run against a scratch clone and recover through -recover-preparation, -recover-interrupted, and the watchdog",
+          "title": "Measure gate and plan admission across repeated projected merges, report every pre-heartbeat phase, interrupt a gate run against a scratch clone, and recover through -recover-preparation, -recover-interrupted, and the watchdog",
           "status": "open",
-          "verify": "go build ./cmd/gate",
-          "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit, and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. Bind the scripted drill via -setverify when it starts.",
+          "verify": "go build ./cmd/gate ./cmd/plan",
+          "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. The audio synchronization chain exposed exponential completion-authority reconstruction across projected merges and unobservable pre-heartbeat work. The repaired resolver derives each revision, plan digest and store head once per invocation, admission reuses one store handle, and gate phases are timed; the drill must establish explicit latency budgets for gate and cmd/plan authority resolution at increasing merge depth, require linear scaling, exercise interruption before and after preparation, and prove recovery leaves no debt or commit intent. Bind the scripted drill via -setverify when it starts.",
           "depends_on": [
             "failure-recovery/sync-gate-recovery-drill"
           ]

@@ -871,9 +871,24 @@ func TestCompletionAuthorityReconstructsRepeatedFirstParentTargetMerges(t *testi
 		if slices.ContainsFunc(target.Items, func(item Item) bool { return item.ID == incomingID }) {
 			t.Fatalf("source row %s entered target plan", incomingID)
 		}
-		resolved, err := resolveFixture(fixture, target, "HEAD")
+		resolver := completionAuthorityResolver{
+			cache: make(map[completionAuthorityCacheKey]CompletionAuthority),
+		}
+		resolved, err := resolver.resolve(
+			t.Context(), fixture.repository, "HEAD", target, fixture.store,
+		)
 		if err != nil {
 			t.Fatalf("resolve target merge %s: %v", targetID, err)
+		}
+		expectedBoundaries := 2
+		if targetID == "second" {
+			expectedBoundaries = 3
+		}
+		if resolver.uncached != expectedBoundaries {
+			t.Fatalf(
+				"resolve target merge %s derived %d uncached boundaries, want %d",
+				targetID, resolver.uncached, expectedBoundaries,
+			)
 		}
 		if !resolved.completed("seed/do") {
 			t.Fatal("first-parent ancestor completion authority was lost")

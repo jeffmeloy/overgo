@@ -599,6 +599,36 @@ func ResolveCompletionAuthority(
 	document Plan,
 	store *overgodb.Store,
 ) (CompletionAuthority, error) {
+	resolver := completionAuthorityResolver{
+		cache: make(map[completionAuthorityCacheKey]CompletionAuthority),
+	}
+	return resolver.resolve(ctx, repository, revision, document, store)
+}
+
+type completionAuthorityCacheKey struct {
+	repository    string
+	revision      string
+	planDigest    [sha256.Size]byte
+	storeHead     artifact.CommitID
+	storeSequence uint64
+}
+
+// completionAuthorityResolver keeps one admission's recursively verified
+// first-parent boundaries. A chain of projected merges otherwise re-walks
+// every older boundary once for each descendant, making resolution
+// exponential in the number of merges even though every proof input is
+// immutable at the captured repository revision and store head.
+type completionAuthorityResolver struct {
+	cache    map[completionAuthorityCacheKey]CompletionAuthority
+	uncached int
+}
+
+func (resolver *completionAuthorityResolver) resolve(
+	ctx context.Context,
+	repository, revision string,
+	document Plan,
+	store *overgodb.Store,
+) (CompletionAuthority, error) {
 	if ctx == nil || store == nil {
 		return CompletionAuthority{}, errors.New("plan: completion authority requires the store")
 	}
@@ -620,6 +650,14 @@ func ResolveCompletionAuthority(
 		return CompletionAuthority{}, err
 	}
 	storeHead, storeSequence := store.Head()
+	key := completionAuthorityCacheKey{
+		repository: repository, revision: revision, planDigest: digest,
+		storeHead: storeHead, storeSequence: storeSequence,
+	}
+	if cached, found := resolver.cache[key]; found {
+		return cached, nil
+	}
+	resolver.uncached++
 	authority := CompletionAuthority{
 		resolved:            true,
 		planDigest:          digest,
@@ -728,7 +766,7 @@ func ResolveCompletionAuthority(
 			// graph. Resolve exactly parent[0]; the graph cut in
 			// gitCompletionMessages ensures this recursive proof never follows the
 			// source parent whose store may no longer exist.
-			localBoundary, boundaryErr := ResolveCompletionAuthority(
+			localBoundary, boundaryErr := resolver.resolve(
 				ctx, repository, candidate.commit.parents[completionLocalParentIndex],
 				transition.local, store,
 			)
@@ -826,6 +864,7 @@ func ResolveCompletionAuthority(
 	if currentHead, currentSequence := store.Head(); currentHead != storeHead || currentSequence != storeSequence {
 		return CompletionAuthority{}, errors.New("plan: completion authority store moved during resolution")
 	}
+	resolver.cache[key] = authority
 	return authority, nil
 }
 

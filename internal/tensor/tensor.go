@@ -122,7 +122,20 @@ type MulMatCompute uint8
 const (
 	MulMatComputeExact MulMatCompute = iota
 	MulMatComputeBF16TensorCore
+	// MulMatComputeNativeTensorCore multiplies a resident F16 or BF16
+	// weight in its own precision on tensor cores: the F32 activation is
+	// rounded to the weight's dtype and products accumulate in F32, the
+	// arithmetic llama.cpp and cuBLAS-backed runtimes use for prefill. It
+	// applies only where a native half-precision weight meets an F32
+	// activation; every other mul_mat in the graph stays exact.
+	MulMatComputeNativeTensorCore
 )
+
+// nativeTensorCoreApplies reports whether the native tensor-core policy
+// governs a mul_mat with these operand types.
+func nativeTensorCoreApplies(left, right dtype.Type) bool {
+	return (left == dtype.F16 || left == dtype.BF16) && right == dtype.F32
+}
 
 type MulMatAttributes struct {
 	Compute MulMatCompute
@@ -428,7 +441,8 @@ func (b *Builder) SetMulMatCompute(compute MulMatCompute) {
 		b.setError(errors.New("mul_mat compute policy must be set before graph construction"))
 		return
 	}
-	if compute != MulMatComputeExact && compute != MulMatComputeBF16TensorCore {
+	if compute != MulMatComputeExact && compute != MulMatComputeBF16TensorCore &&
+		compute != MulMatComputeNativeTensorCore {
 		b.setError(fmt.Errorf("mul_mat compute policy %d is invalid", compute))
 		return
 	}

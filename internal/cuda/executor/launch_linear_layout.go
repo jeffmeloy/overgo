@@ -175,28 +175,35 @@ func launchLinearLayout(
 		left := pointers.input(0)
 		right := pointers.input(1)
 		if leftNode.Type == dtype.F16 || leftNode.Type == dtype.BF16 {
-			attributes, hasAttributes := runtimeAttributes.(tensor.MulMatAttributes)
-			tensorCore := hasAttributes && attributes.Compute == tensor.MulMatComputeBF16TensorCore
-			if tensorCore && rightRows > 1 {
-				if leftNode.Type != dtype.BF16 || rightNode.Type != dtype.F32 {
-					return errors.New("BF16 tensor-core mul_mat has incompatible inputs")
+			if tensorCoreMulMatAttributes(leftNode.Type, runtimeAttributes) && rightRows > 1 {
+				// Tensor-core prefill: the resident half-precision weight is
+				// multiplied as stored; the F32 activation is rounded to the
+				// same dtype in the staging workspace (one pack per node,
+				// shared by every weight it feeds) and cuBLAS accumulates
+				// the products in F32. The weight is read once per forward.
+				if rightNode.Type != dtype.F32 {
+					return fmt.Errorf("%s tensor-core mul_mat has incompatible inputs", leftNode.Type)
 				}
 				if blas == nil || blas.staging == 0 {
-					return errors.New("BF16 tensor-core mul_mat workspace is unavailable")
+					return fmt.Errorf("%s tensor-core mul_mat workspace is unavailable", leftNode.Type)
 				}
 				elements := uint64(inner) * uint64(rightRows)
 				if elements > math.MaxUint32 || elements*bf16ScalarBytes > blas.stagingBytes {
-					return errors.New("BF16 tensor-core mul_mat input exceeds workspace")
+					return fmt.Errorf("%s tensor-core mul_mat input exceeds workspace", leftNode.Type)
 				}
-				if blas.stagedNode != rightNode {
+				packKernel, operandType := kernelF32ToBf16, cublas.DataBF16
+				if leftNode.Type == dtype.F16 {
+					packKernel, operandType = kernelF32ToF16, cublas.DataF16
+				}
+				if blas.stagedNode != rightNode || blas.stagedType != leftNode.Type {
 					count := uint32(elements)
 					if err := launch1DABI(
-						state, functions[kernelF32ToBf16], count,
+						state, functions[packKernel], count,
 						&right, &blas.staging, &count,
 					); err != nil {
 						return err
 					}
-					blas.stagedNode = rightNode
+					blas.stagedNode, blas.stagedType = rightNode, leftNode.Type
 				}
 				if traceExternalCall(
 					state, traceTagGEMMEx,
@@ -208,8 +215,8 @@ func launchLinearLayout(
 				return blas.library.GEMMEx(
 					blas.handle, cublas.OperationTranspose, cublas.OperationNone,
 					int32(leftRows), int32(rightRows), int32(inner), gemmProductScale,
-					left, cublas.DataBF16, int32(inner),
-					blas.staging, cublas.DataBF16, int32(inner), gemmAccumulatorScale,
+					left, operandType, int32(inner),
+					blas.staging, operandType, int32(inner), gemmAccumulatorScale,
 					output, cublas.DataF32, int32(leftRows), cublas.ComputeF32, cublas.GemmDefault,
 				)
 			}
@@ -527,6 +534,30 @@ func launchStagedNativeMatMul(
 		start += rows
 	}
 	return nil
+}
+
+// tensorCoreMulMat reports whether a compiled mul_mat node multiplies on
+// tensor cores with its activation staged in the weight's dtype: the
+// explicit BF16 policy, or the native policy over an F16 or BF16 weight.
+func tensorCoreMulMat(node *tensor.Tensor) bool {
+	if node == nil || len(node.Inputs) == 0 {
+		return false
+	}
+	return tensorCoreMulMatAttributes(node.Inputs[0].Type, node.Attrs)
+}
+
+func tensorCoreMulMatAttributes(weightType dtype.Type, attributes tensor.Attributes) bool {
+	mulMat, ok := attributes.(tensor.MulMatAttributes)
+	if !ok {
+		return false
+	}
+	switch mulMat.Compute {
+	case tensor.MulMatComputeBF16TensorCore:
+		return weightType == dtype.BF16
+	case tensor.MulMatComputeNativeTensorCore:
+		return weightType == dtype.F16 || weightType == dtype.BF16
+	}
+	return false
 }
 
 // nativeDecodeSpanFits decides whether a native-dtype (F16, BF16, fp8)

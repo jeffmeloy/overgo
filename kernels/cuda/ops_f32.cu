@@ -126,6 +126,21 @@ extern "C" __global__ void f32_to_bf16(
     output[index] = (unsigned short) (bits >> 16);
 }
 
+// F32 -> F16 round-to-nearest-even pack (tensor-core prefill stages the F32
+// activation as F16 next to a resident F16 weight; cuBLAS multiplies both in
+// F16 and accumulates in F32). Values beyond the F16 range saturate to
+// infinity exactly as __float2half_rn defines.
+extern "C" __global__ void f32_to_f16(
+        const float * input,
+        unsigned short * output,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    output[index] = __half_as_ushort(__float2half_rn(input[index]));
+}
+
 // F16 -> F32 lossless upconvert (prefill weight staging feeds SGEMM). F16 has
 // fewer exponent/mantissa bits than F32, so every value expands exactly.
 extern "C" __global__ void f16_to_f32(

@@ -1235,8 +1235,9 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			if rightRows != 1 {
 				compiled.needBlas = true
 				stagingRows, stagingWidth := leftRows, f32ScalarBytes
-				if attributes, ok := node.Attrs.(tensor.MulMatAttributes); ok &&
-					attributes.Compute == tensor.MulMatComputeBF16TensorCore {
+				if tensorCoreMulMat(node) {
+					// Tensor-core mul_mat stages the activation in the
+					// weight's 2-byte dtype, never the weight.
 					stagingRows, stagingWidth = rightRows, bf16ScalarBytes
 				}
 				if inner > math.MaxUint64/stagingRows {
@@ -2199,6 +2200,9 @@ type blasState struct {
 	staging      driver.DevicePtr
 	stagingBytes uint64
 	stagedNode   *tensor.Tensor
+	// stagedType is the dtype the staged activation was packed to; a
+	// node feeding both F16 and BF16 weights repacks when it switches.
+	stagedType dtype.Type
 	// scores: attention score staging for the strided-batched SGEMM path
 	scores     driver.DevicePtr
 	scoreBytes uint64

@@ -31,7 +31,7 @@ func greedyToken(t *testing.T, logits []float32) tokenizer.TokenID {
 func TestDeviceDecodeSpan(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticLlamaGGUF(t)
+	path := writeHermeticLlamaGGUFWithContext(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)

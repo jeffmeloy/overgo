@@ -155,11 +155,41 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 // runAllWorker evaluates one servable model against the store's
 // derived suites and publishes the evidence through the campaign
 // ledger -- the same session the manifest path opens, fed by suites
-// compiled from the store instead of files.
-func runAllWorker(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool) error {
+// compiled from the store instead of files. The budget bounds the
+// worker's own pass: a worker launched by hand is the same bounded
+// pass the parent runs, not an unbounded one (the 12B BBH chat pass
+// ran 2h18m past a 2h ceiling the worker accepted and ignored).
+func runAllWorker(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool, budget time.Duration) error {
 	if strings.TrimSpace(modelPath) == "" {
 		return errors.New("evaluate: worker model path is required")
 	}
+	return runBudgetedPass(ctx, budget, modelPath, func(ctx context.Context) error {
+		return runAllWorkerPass(ctx, repository, device, family, modelPath, chatProtocol)
+	})
+}
+
+// runBudgetedPass runs one model's pass under the budget and turns
+// budget exhaustion into the recorded outcome the parent reports: the
+// suites committed before the ceiling are evidence, the rest are not
+// scored, and the pass is not a failure.
+func runBudgetedPass(ctx context.Context, budget time.Duration, model string, pass func(context.Context) error) error {
+	if budget <= 0 {
+		return errors.New("evaluate: the evaluation budget must be positive")
+	}
+	ctx, cancel := context.WithTimeoutCause(ctx, budget, errEvaluationSliceElapsed)
+	defer cancel()
+	err := pass(ctx)
+	if errors.Is(context.Cause(ctx), errEvaluationSliceElapsed) {
+		fmt.Printf("model %q: BUDGET-EXCEEDED at its %.1fh budget; committed suites retained, remaining suites not scored\n",
+			model, budget.Hours())
+		return nil
+	}
+	return err
+}
+
+// runAllWorkerPass opens the session and campaigns the derived suites
+// under the already-bounded context.
+func runAllWorkerPass(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool) error {
 	commit, err := runrecord.VerifyingCommit(".")
 	if err != nil {
 		return err

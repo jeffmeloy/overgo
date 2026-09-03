@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "chat-answer-opener",
+      "title": "Chat-template answer opener (surfaced by the BBH chat pass): gemma models reason past the 16-token answer bound and MiniCPM opens a thinking channel, so 12 of 27 BBH groups scored near zero as unmatched answers (E4B 0.362 chat vs 0.582 raw); replays show a fixed assistant-turn opener (The answer is) yields the letter immediately from both, where a system message does not reach the thinking model; the generated-letter protocol opens the model turn with that opener, the answer bound follows the opener, the method name changes so prior records are a different plan, and the chat BBH pass is re-run under it",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Chat-template answer opener (surfaced by the BBH chat pass): gemma models reason past the 16-token answer bound and MiniCPM opens a thinking channel, so 12 of 27 BBH groups scored near zero as unmatched answers (E4B 0.362 chat vs 0.582 raw); replays show a fixed assistant-turn opener (The answer is) yields the letter immediately from both, where a system message does not reach the thinking model; the generated-letter protocol opens the model turn with that opener, the answer bound follows the opener, the method name changes so prior records are a different plan, and the chat BBH pass is re-run under it",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run 'TestChatTemplate|TestMatchChoiceLetter' -count=1"
+        }
+      ]
+    },
+    {
       "id": "benchmark-completion",
       "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
       "status": "open",

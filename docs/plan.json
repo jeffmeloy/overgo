@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-preference-objectives",
-          "title": "Merge master and reconcile the plan before: Exercise DPO and GRPO with valid objective-specific inputs and evaluate their brackets",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "training-e2e/route-drills"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "preference-objectives",
           "title": "Exercise DPO and GRPO with valid objective-specific inputs and evaluate their brackets",
           "status": "open",

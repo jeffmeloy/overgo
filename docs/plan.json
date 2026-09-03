@@ -4,6 +4,32 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "gate-authority-memoization",
+      "title": "Gate admission authority memoization (defect inherited from master, fixed on codex/overgo_audiocpp at b5385d62): the completion-authority resolver re-derives every historical first-parent-target merge recursively without retaining results, so admission grows roughly exponentially with projected-merge depth (hours on a branch with 14 such merges, seconds on master with 3); cherry-pick the resolver-scoped cache keyed by repository, revision, plan digest, store head and sequence, the single canonical store handle across admission, and the pre-heartbeat phase timing from that commit's first-parent history (completion.go, merge_projection_test.go, run.go, admission.go, preparation.go); verify the scaling test and that the shared handle does not hold the store across the acceptance candidate's store-reading verifies",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate admission authority memoization (defect inherited from master, fixed on codex/overgo_audiocpp at b5385d62): the completion-authority resolver re-derives every historical first-parent-target merge recursively without retaining results, so admission grows roughly exponentially with projected-merge depth (hours on a branch with 14 such merges, seconds on master with 3); cherry-pick the resolver-scoped cache keyed by repository, revision, plan digest, store head and sequence, the single canonical store handle across admission, and the pre-heartbeat phase timing from that commit's first-parent history (completion.go, merge_projection_test.go, run.go, admission.go, preparation.go); verify the scaling test and that the shared handle does not hold the store across the acceptance candidate's store-reading verifies",
+          "status": "open",
+          "verify": "go test ./internal/plan -run 'MergeProjection|Completion|Authority' -count=1 \u0026\u0026 go test ./internal/gate -run 'Admission|Preparation|Run' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "chat-protocol-guards",
+      "title": "Chat-protocol guards (the BBH chat pass scored 0 without refusing): refuse at plan time when the generated-letter scorer is bound to a suite whose candidates are not letters and the prompt lists no lettered options; treat a run whose generated answers matched no candidate at all as a protocol refusal recorded as such, never as a zero score; and make every evaluate pass score one case per suite first, print the raw reply beside the candidates, and refuse to continue when nothing matched (the owner's measure-one-case rule applied to correctness)",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Chat-protocol guards (the BBH chat pass scored 0 without refusing): refuse at plan time when the generated-letter scorer is bound to a suite whose candidates are not letters and the prompt lists no lettered options; treat a run whose generated answers matched no candidate at all as a protocol refusal recorded as such, never as a zero score; and make every evaluate pass score one case per suite first, print the raw reply beside the candidates, and refuse to continue when nothing matched (the owner's measure-one-case rule applied to correctness)",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run 'ChatProtocol|ChatChoice|Unmatched|Probe|GeneratedLetter' -count=1 \u0026\u0026 go test ./cmd/evaluate -count=1"
+        }
+      ]
+    },
+    {
       "id": "benchmark-completion",
       "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
       "status": "open",

@@ -1,6 +1,6 @@
 {
   "campaign": "Complete integrated platform validation, then transfer validated audio.cpp behavior into reusable audio primitives and composable ingest-train-evaluate-serve recipes",
-  "doctrine": "Every retained work row executes as one repeated automation cycle. First run go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target; when master is not already contained, finalize the injected merge row with the exact cmd/gate -merge command printed by the owner so master code and source-store evidence enter while the audio plan remains the explicit reconciliation target. Second inspect the merged repository, query its authorities instead of inferring them, and reconcile every affected remaining row; commit the paired sync row through cmd/gate. Third perform only the paired work row and run its declared verifier. Fourth commit that work row through cmd/gate, which records evidence and prunes it atomically; then restart the cycle from the current master tip. Raw git merge, raw git commit, implementation before the paired sync row, and carrying a plan assumption across a master merge are refused. Each sync row inherits the paired work row's original dependencies, and the work row depends only on that completed sync authority. The retained integrated-validation rows remain the capability-freeze prerequisite and run before audio implementation; this branch does not evade or discard open master obligations. After they complete, audio.cpp and the downloaded reference repositories are pinned behavioral oracles and mechanism sources; each is never a linked runtime, hosted server, package manager, or permanent product dependency. The transfer unit is a verified processing capability: source commit, license and artifact identity, decoded-signal admission profile, explicit compatibility decision, neutral typed contract, intermediate golden traces, Go CPU reference, manifest-owned CUDA where measurement justifies it, recipe-selected consumer, evaluation evidence, and deletion of temporary comparison adapters. Granite Speech 5.0 470M TurboCTC is the first ASR oracle because native Safetensors offline inference passed the pinned LibriSpeech fixtures. Nemotron 3.5 ASR native Safetensors is the materially different streaming ASR oracle; its downloaded NeMo-Speech Q8 GGUF is a valid container but an incompatible tensor schema and must be rejected explicitly rather than guessed from its extension. FireRedVAD is the first offline and streaming segmentation oracle because both checkpoints passed the same decoded fixtures. No family name enters shared executors. Schema, headers, duration, and transcript metadata never establish usable audio: admission decodes samples, measures signal content, and quarantines silent, near-silent, corrupt, clipped, non-finite, or otherwise policy-invalid records before evaluation or training. The current AMI materialization is negative evidence and remains quarantined until repaired; pinned LibriSpeech clean is the initial positive dataset. Forward parity precedes backward implementation, while task, artifact, state, and checkpoint contracts retain the information required for gradients, deterministic replay, trainable-parameter selection, and optimizer state. The campaign is not complete when inference runs: its proof is the composed recipe ingest to decode to validate to segment to transcribe to score to materialize to train to benchmark to publish to serve, with exact stop and resume preserving optimizer, random and data-stream state, a pre/post WER bracket and complete OvergoDB lineage. CPU is the numerical authority. CUDA enters only through kernels/manifest.json and must match the CPU contract on the same artifact and fixtures; unavailable or unsupported toolchains are reported as unavailable, never as passing evidence. Streaming work owns bounded sessions, cancellation, chunk-boundary invariance, finalization, discontinuity, and backpressure. Every quality or performance claim names its artifact, dataset, environment, denominator, latency, throughput, host memory and VRAM. Signal validation and VAD land in the first ASR lifecycle because they protect evaluation and training materialization; later ASR architectures, alignment, diarization, voice, and generative-audio rows remain gated so breadth cannot hide an incomplete lifecycle. Findings outside this scope are recorded but do not expand the campaign.",
+  "doctrine": "Every retained work row executes as one repeated automation cycle. First run go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target; when master is not already contained, finalize the injected merge row with the exact cmd/gate -merge command printed by the owner so master code and source-store evidence enter while the audio plan remains the explicit reconciliation target. Second inspect the merged repository, query its authorities instead of inferring them, and reconcile every affected remaining row; commit the paired sync row through cmd/gate. Third perform only the paired work row and run its declared verifier. Fourth commit that work row through cmd/gate, which records evidence and prunes it atomically; then restart the cycle from the current master tip. Raw git merge, raw git commit, implementation before the paired sync row, and carrying a plan assumption across a master merge are refused. Each sync row inherits the paired work row's original dependencies, and the work row depends only on that completed sync authority. The retained integrated-validation rows remain the capability-freeze prerequisite and run before audio implementation; this branch does not evade or discard open master obligations. After they complete, audio.cpp and the downloaded reference repositories are pinned behavioral oracles and mechanism sources; each is never a linked runtime, hosted server, package manager, or permanent product dependency. The transfer unit is a verified processing capability: source commit, license and artifact identity, decoded-signal admission profile, explicit compatibility decision, neutral typed contract, intermediate golden traces, Go CPU reference, manifest-owned CUDA where measurement justifies it, recipe-selected consumer, evaluation evidence, and deletion of temporary comparison adapters. Granite Speech 5.0 470M TurboCTC is the first ASR oracle because native Safetensors offline inference passed the pinned LibriSpeech fixtures. Nemotron 3.5 ASR native Safetensors is the materially different streaming ASR oracle; its downloaded NeMo-Speech Q8 GGUF is a valid container but an incompatible tensor schema and must be rejected explicitly rather than guessed from its extension. FireRedVAD is the first offline and streaming segmentation oracle because both checkpoints passed the same decoded fixtures. No family name enters shared executors. Schema, headers, duration, and transcript metadata never establish usable audio: admission decodes samples, measures signal content, and quarantines silent, near-silent, corrupt, clipped, non-finite, or otherwise policy-invalid records before evaluation or training. The current AMI materialization is negative evidence and remains quarantined until repaired; pinned LibriSpeech clean is the initial positive dataset. Forward parity precedes backward implementation, while task, artifact, state, and checkpoint contracts retain the information required for gradients, deterministic replay, trainable-parameter selection, and optimizer state. The campaign is not complete when inference runs: its proof is the composed recipe ingest to decode to validate to segment to transcribe to score to materialize to train to benchmark to publish to serve, with exact stop and resume preserving optimizer, random and data-stream state, a pre/post WER bracket and complete OvergoDB lineage. CPU is the numerical authority. CUDA enters only through kernels/manifest.json and must match the CPU contract on the same artifact and fixtures; unavailable or unsupported toolchains are reported as unavailable, never as passing evidence. Streaming work owns bounded sessions, cancellation, chunk-boundary invariance, finalization, discontinuity, and backpressure. Every quality or performance claim names its artifact, dataset, environment, denominator, latency, throughput, host memory and VRAM. Signal validation and VAD land in the first ASR lifecycle because they protect evaluation and training materialization; later ASR architectures, alignment, diarization, voice, and generative-audio rows remain gated so breadth cannot hide an incomplete lifecycle. Findings outside this scope are recorded but do not expand the campaign. While GPU capacity is reserved for other work, dispatch CPU development and CPU verification before device implementation, VRAM measurement, general model benchmarks, and device-bearing recovery drills; the commit gate may use the GPU whenever its derived scope requires device evidence. The CPU tranche includes oracle intake, neutral contracts, signal admission, DSP, CPU ASR, VAD, recipes, transcription serving, WER, dataset materialization, backward execution, exact resume, the second CPU ASR architecture, live CPU operations, alignment, diarization, and reusable voice-contract consolidation.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
@@ -8,23 +8,6 @@
       "title": "Pin the audio.cpp oracle and elect the first transferable artifact",
       "status": "open",
       "steps": [
-        {
-          "id": "sync-capability-census",
-          "title": "Merge master and reconcile the plan before: Create a deterministic audio.cpp census covering source commit, licenses, model specifications, loaders, artifact formats, preprocessing, execution graphs, streaming state, training relevance, tests, and known incomplete implementations",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. Completed race, inference, serving and training authorities are sufficient to begin CPU-only audio transfer. Remaining general GPU benchmarks and recovery drills are deferred until the native CPU transcription and streaming path exists.",
-          "depends_on": [
-            "hermetic-foundation/race-lane",
-            "inference-e2e/serving-operations",
-            "training-e2e/preference-objectives"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
         {
           "id": "capability-census",
           "title": "Create a deterministic audio.cpp census covering source commit, licenses, model specifications, loaders, artifact formats, preprocessing, execution graphs, streaming state, training relevance, tests, and known incomplete implementations",
@@ -99,156 +82,6 @@
             "audio-artifact-qualification",
             "tensor-schema-validation",
             "explicit-incompatibility"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "benchmark-routing",
-      "title": "Benchmark and routing validation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "pinned-benchmarks",
-          "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring; for every chat-template choice suite prove one rendered case, print the first answer beside its candidates, and refuse an unrenderable or all-unmatched protocol; then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
-          "status": "open",
-          "verify": "go run ./cmd/evaluate -all \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master d75d3554 completed the generated-letter protocol by parsing chat-template control tokens as special tokens and recognizing end-of-generation markers by token name; cc4485a0 records the corrected MMLU comparison. Master c36e5b70 renders BBH, MuSR and other text candidates as lettered options while leaving existing letter candidates direct; 4a642032 refuses an unrenderable suite at plan time, prints the first generated answer and its candidates, and stops after an all-unmatched eight-case probe instead of recording zero. Master 03f08dd2 drops instantiated CUDA graph execs whenever captured device memory is released; complete Qwen3.5 4B and 9B chat-template passes must cross the prior BBH failure windows and therefore serve as the long-run replay-safety proof as well as quality measurements. Qwen3.5-4B, Qwen3.5-9B, Gemma4-12B and Qwen3.8-27B now score near or above their raw anchors, while base, long-thinking and explanation-prone models retain bounded unmatched counts. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The remaining broad suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
-          "depends_on": [
-            "benchmark-routing/sync-pinned-benchmarks"
-          ]
-        },
-        {
-          "id": "sync-resource-quality-fitness",
-          "title": "Merge master and reconcile the plan before: Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "benchmark-routing/pinned-benchmarks"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "resource-quality-fitness",
-          "title": "Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
-          "status": "open",
-          "verify": "go build ./cmd/perf-sweep ./cmd/perplexity",
-          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Repeated baseline runs must derive the measured min-max noise envelope before declaring regression or improvement. Master 0c51e3d5 stages K-quant q8 input once and executes wide prefills in eight-column spans; ebbcd657 routes short F16, BF16 and fp8 spans through native-dtype decode according to traffic-derived bounds; 3e89a897 runs qualifying half-precision prefills through tensor cores without F32 weight staging. The sweep must report prefill separately from decode and include widths immediately below, at and above every applicable boundary, with CPU numerical authority retained. Bind those invocations, repeated baselines, peak host-memory and VRAM capture, perplexity, and loop -compare-resource-fitness via -setverify when the drill starts.",
-          "depends_on": [
-            "benchmark-routing/sync-resource-quality-fitness"
-          ]
-        },
-        {
-          "id": "sync-routing-replay",
-          "title": "Merge master and reconcile the plan before: Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "benchmark-routing/pinned-benchmarks"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "routing-replay",
-          "title": "Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
-          "status": "open",
-          "verify": "go build ./cmd/router-observation ./cmd/rerank",
-          "rationale": "Routing quality is only measurable against the recorded stream; replay keeps the judgment exact and distribution-honest. Bind the replay invocation via -setverify when the drill starts.",
-          "depends_on": [
-            "benchmark-routing/sync-routing-replay"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "failure-recovery",
-      "title": "Deliberate failure and recovery drills",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-interruption-drills",
-          "title": "Merge master and reconcile the plan before: Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. Defer this device-bearing interruption drill while GPU capacity is occupied; CPU-first audio construction and serving establish the workload the drill will later interrupt.",
-          "depends_on": [
-            "hermetic-foundation/store-drills",
-            "asr-serving/streaming-transcription"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "interruption-drills",
-          "title": "Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
-          "status": "open",
-          "verify": "go run ./cmd/store-check",
-          "rationale": "Interruption is the one input every durable subsystem claims to survive; each drill damages a copy, never the canonical store, and store-check is the verdict.",
-          "depends_on": [
-            "failure-recovery/sync-interruption-drills"
-          ]
-        },
-        {
-          "id": "sync-control-plane-drills",
-          "title": "Merge master and reconcile the plan before: Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "failure-recovery/interruption-drills"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "control-plane-drills",
-          "title": "Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
-          "status": "open",
-          "verify": "go build ./cmd/loop ./cmd/agent-loop",
-          "rationale": "The control plane's refusal and recovery paths are capability claims like any other; each has an evidence door under cmd/loop and cmd/agent-loop. Bind the drill sequence via -setverify when it starts.",
-          "depends_on": [
-            "failure-recovery/sync-control-plane-drills"
-          ]
-        },
-        {
-          "id": "sync-gate-recovery-drill",
-          "title": "Merge master and reconcile the plan before: Measure gate and plan admission across repeated projected merges, report every pre-heartbeat phase, interrupt a gate run against a scratch clone, and recover through -recover-preparation, -recover-interrupted, and the watchdog",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "failure-recovery/interruption-drills"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "gate-recovery-drill",
-          "title": "Measure gate and plan admission across repeated projected merges, report every pre-heartbeat phase, interrupt a gate run against a scratch clone, and recover through -recover-preparation, -recover-interrupted, and the watchdog",
-          "status": "open",
-          "verify": "go build ./cmd/gate ./cmd/plan",
-          "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. The audio synchronization chain exposed exponential completion-authority reconstruction across projected merges and unobservable pre-heartbeat work. The repaired resolver derives each revision, plan digest and store head once per invocation, admission reuses one store handle, and gate phases are timed; the drill must establish explicit latency budgets for gate and cmd/plan authority resolution at increasing merge depth, require linear scaling, exercise interruption before and after preparation, and prove recovery leaves no debt or commit intent. Bind the scripted drill via -setverify when it starts.",
-          "depends_on": [
-            "failure-recovery/sync-gate-recovery-drill"
           ]
         }
       ]
@@ -514,6 +347,76 @@
       ]
     },
     {
+      "id": "speech-analysis-expansion",
+      "title": "Deliver native speech segmentation, then expand shared speech analysis",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-vad",
+          "title": "Merge master and reconcile the plan before: Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "oracle-intake/artifact-compatibility",
+            "audio-contracts/stream-session-contract",
+            "audio-primitives/intermediate-parity"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "vad",
+          "title": "Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
+          "status": "open",
+          "verify": "go test ./internal/speechanalysis ./internal/audioparity -run 'Test.*FireRedVAD|Test.*VAD.*Offline|Test.*VAD.*Stream|Test.*VAD.*Boundary'",
+          "rationale": "Both downloaded FireRedVAD checkpoints load under the reference runtime. Offline and streaming boundaries closely agree on all four pinned LibriSpeech fixtures. The all-zero AMI negative fixture must produce no speech; it is negative validation evidence, not a transcription-quality sample. The primitive shares the frontend and bounded stream contracts and introduces no second scheduler.",
+          "depends_on": [
+            "speech-analysis-expansion/sync-vad"
+          ],
+          "capabilities": [
+            "voice-activity-detection",
+            "stream-segmentation",
+            "fireredvad-parity"
+          ]
+        },
+        {
+          "id": "sync-alignment-diarization",
+          "title": "Merge master and reconcile the plan before: Add timestamped alignment and speaker-turn diarization with native evaluation for boundary error, attribution error and transcript preservation",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "speech-analysis-expansion/vad",
+            "shared-asr-proof/live-model-operations"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "alignment-diarization",
+          "title": "Add timestamped alignment and speaker-turn diarization with native evaluation for boundary error, attribution error and transcript preservation",
+          "status": "open",
+          "verify": "go test ./internal/speechanalysis ./internal/evaluation -run 'Test.*Alignment|Test.*Diarization'",
+          "rationale": "Alignment and diarization consume typed transcripts, features and stream segments. They land only with quality metrics and artifact lineage, not as unscored postprocessing.",
+          "depends_on": [
+            "speech-analysis-expansion/sync-alignment-diarization"
+          ],
+          "capabilities": [
+            "speech-alignment",
+            "speaker-diarization",
+            "speech-analysis-evaluation"
+          ]
+        }
+      ]
+    },
+    {
       "id": "audio-recipes",
       "title": "Compose validated audio primitives into native operational recipes",
       "status": "open",
@@ -547,75 +450,6 @@
             "validated-transcription-recipe",
             "vad-asr-composition",
             "audio-lineage"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "asr-evaluation",
-      "title": "Make audio quality and resource fitness native evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-wer-suite",
-          "title": "Merge master and reconcile the plan before: Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "audio-recipes/validated-transcription"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "wer-suite",
-          "title": "Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run 'Test.*Transcription|Test.*WordErrorRate|Test.*CharacterErrorRate'",
-          "rationale": "The trainer needs a quality bracket whose denominator and normalization are stable. Predictions are produced from audio bytes without reference text entering inference inputs or fixture selection, then compared to separately stored targets. Silent and invalid controls must fail admission or remain non-speech; aggregate WER without admission failures, inference failures and grouped slices can conceal regressions or metadata leakage.",
-          "depends_on": [
-            "asr-evaluation/sync-wer-suite"
-          ],
-          "capabilities": [
-            "wer",
-            "cer",
-            "audio-evaluation",
-            "negative-control-evaluation"
-          ]
-        },
-        {
-          "id": "sync-resource-suite",
-          "title": "Merge master and reconcile the plan before: Record offline and chunked real-time factor, first-partial latency, finalization latency, host memory, VRAM and transcript quality through multidimensional fitness",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. WER and CPU serving land first; device resource measurements remain pending while GPU capacity is occupied.",
-          "depends_on": [
-            "asr-evaluation/wer-suite",
-            "asr-serving/streaming-transcription"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "resource-suite",
-          "title": "Record offline and chunked real-time factor, first-partial latency, finalization latency, host memory, VRAM and transcript quality through multidimensional fitness",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/runrecord -run 'Test.*Audio.*Fitness|Test.*Transcription.*Resources'",
-          "rationale": "Faster audio that loses words or violates memory bounds does not pass. Every measurement binds the same model, dataset, code, environment and execution policy.",
-          "depends_on": [
-            "asr-evaluation/sync-resource-suite"
-          ],
-          "capabilities": [
-            "audio-resource-fitness",
-            "real-time-factor",
-            "latency-evidence"
           ]
         }
       ]
@@ -689,50 +523,18 @@
       ]
     },
     {
-      "id": "asr-cuda",
-      "title": "Accelerate the elected ASR model through manifest-owned CUDA",
+      "id": "asr-evaluation",
+      "title": "Make audio quality and resource fitness native evidence",
       "status": "open",
       "steps": [
         {
-          "id": "sync-profile-and-bind",
-          "title": "Merge master and reconcile the plan before: Profile the CPU recipe, reuse existing kernels where their contracts match, and add only measured missing operators through the kernel manifest and generated ABI",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. The CPU numerical authority, validated transcription recipe and streaming service land before GPU profiling; if the device is occupied, this row remains pending while ready CPU-only audio work proceeds.",
-          "depends_on": [
-            "asr-reference/offline-recipe",
-            "asr-serving/streaming-transcription"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "profile-and-bind",
-          "title": "Profile the CPU recipe, reuse existing kernels where their contracts match, and add only measured missing operators through the kernel manifest and generated ABI",
-          "status": "open",
-          "verify": "go test ./cmd/kernel-manifest ./cmd/kernel-bindings ./internal/devicemath -run 'Test.*Audio|Test.*Manifest|Test.*Binding'",
-          "rationale": "CUDA surface follows measured time and operator contracts. Model-specific kernels or hand-written ABI paths are refused when an existing manifest operator can serve the shape. Reference CUDA parity is currently unavailable because CUDA 12.9 rejects Visual Studio 2026/MSVC 19.51 and cudafe++ crashes under the unsupported-compiler override; use a supported VS 2022 toolchain or a CUDA release that supports the installed compiler before treating reference CUDA as evidence.",
-          "depends_on": [
-            "asr-cuda/sync-profile-and-bind"
-          ],
-          "capabilities": [
-            "cuda-manifest",
-            "profile-derived-acceleration",
-            "kernel-reuse"
-          ]
-        },
-        {
-          "id": "sync-device-parity",
-          "title": "Merge master and reconcile the plan before: Prove CPU and CUDA parity for intermediate activations, logits, decoded transcripts and WER, then record wall, real-time factor, host memory and VRAM",
+          "id": "sync-wer-suite",
+          "title": "Merge master and reconcile the plan before: Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
           "status": "open",
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "asr-cuda/profile-and-bind",
-            "asr-evaluation/resource-suite"
+            "audio-recipes/validated-transcription"
           ],
           "capabilities": [
             "master-synchronization",
@@ -741,17 +543,54 @@
           ]
         },
         {
-          "id": "device-parity",
-          "title": "Prove CPU and CUDA parity for intermediate activations, logits, decoded transcripts and WER, then record wall, real-time factor, host memory and VRAM",
+          "id": "wer-suite",
+          "title": "Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
           "status": "open",
-          "verify": "go run ./cmd/device-lane",
-          "rationale": "A device-unavailable result is not passing evidence. The lane records the compiler, toolkit, driver, GPU and exact unavailability reason. The CUDA route becomes eligible only after the toolchain is supported and the same artifact and fixtures preserve intermediate values and quality within recorded tolerances.",
+          "verify": "go test ./internal/evaluation -run 'Test.*Transcription|Test.*WordErrorRate|Test.*CharacterErrorRate'",
+          "rationale": "The trainer needs a quality bracket whose denominator and normalization are stable. Predictions are produced from audio bytes without reference text entering inference inputs or fixture selection, then compared to separately stored targets. Silent and invalid controls must fail admission or remain non-speech; aggregate WER without admission failures, inference failures and grouped slices can conceal regressions or metadata leakage.",
           "depends_on": [
-            "asr-cuda/sync-device-parity"
+            "asr-evaluation/sync-wer-suite"
           ],
           "capabilities": [
-            "cpu-cuda-parity",
-            "device-evidence"
+            "wer",
+            "cer",
+            "audio-evaluation",
+            "negative-control-evaluation"
+          ]
+        },
+        {
+          "id": "sync-resource-suite",
+          "title": "Merge master and reconcile the plan before: Record offline and chunked real-time factor, first-partial latency, finalization latency, host memory, VRAM and transcript quality through multidimensional fitness",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. WER and CPU serving land first; device resource measurements remain pending while GPU capacity is occupied.",
+          "depends_on": [
+            "asr-evaluation/wer-suite",
+            "asr-serving/streaming-transcription",
+            "asr-training/exact-resume",
+            "shared-asr-proof/live-model-operations",
+            "speech-analysis-expansion/alignment-diarization",
+            "audio-generation-expansion/voice-capability"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "resource-suite",
+          "title": "Record offline and chunked real-time factor, first-partial latency, finalization latency, host memory, VRAM and transcript quality through multidimensional fitness",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/runrecord -run 'Test.*Audio.*Fitness|Test.*Transcription.*Resources'",
+          "rationale": "Faster audio that loses words or violates memory bounds does not pass. Every measurement binds the same model, dataset, code, environment and execution policy.",
+          "depends_on": [
+            "asr-evaluation/sync-resource-suite"
+          ],
+          "capabilities": [
+            "audio-resource-fitness",
+            "real-time-factor",
+            "latency-evidence"
           ]
         }
       ]
@@ -901,7 +740,9 @@
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "asr-training/closed-loop-proof"
+            "asr-training/exact-resume",
+            "asr-serving/streaming-transcription",
+            "asr-evaluation/wer-suite"
           ],
           "capabilities": [
             "master-synchronization",
@@ -954,76 +795,6 @@
             "live-audio-model-switching",
             "multi-request-scheduling",
             "restart-recovery"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "speech-analysis-expansion",
-      "title": "Deliver native speech segmentation, then expand shared speech analysis",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-vad",
-          "title": "Merge master and reconcile the plan before: Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "oracle-intake/artifact-compatibility",
-            "audio-contracts/stream-session-contract",
-            "audio-primitives/intermediate-parity"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "vad",
-          "title": "Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
-          "status": "open",
-          "verify": "go test ./internal/speechanalysis ./internal/audioparity -run 'Test.*FireRedVAD|Test.*VAD.*Offline|Test.*VAD.*Stream|Test.*VAD.*Boundary'",
-          "rationale": "Both downloaded FireRedVAD checkpoints load under the reference runtime. Offline and streaming boundaries closely agree on all four pinned LibriSpeech fixtures. The all-zero AMI negative fixture must produce no speech; it is negative validation evidence, not a transcription-quality sample. The primitive shares the frontend and bounded stream contracts and introduces no second scheduler.",
-          "depends_on": [
-            "speech-analysis-expansion/sync-vad"
-          ],
-          "capabilities": [
-            "voice-activity-detection",
-            "stream-segmentation",
-            "fireredvad-parity"
-          ]
-        },
-        {
-          "id": "sync-alignment-diarization",
-          "title": "Merge master and reconcile the plan before: Add timestamped alignment and speaker-turn diarization with native evaluation for boundary error, attribution error and transcript preservation",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "speech-analysis-expansion/vad",
-            "shared-asr-proof/live-model-operations"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "alignment-diarization",
-          "title": "Add timestamped alignment and speaker-turn diarization with native evaluation for boundary error, attribution error and transcript preservation",
-          "status": "open",
-          "verify": "go test ./internal/speechanalysis ./internal/evaluation -run 'Test.*Alignment|Test.*Diarization'",
-          "rationale": "Alignment and diarization consume typed transcripts, features and stream segments. They land only with quality metrics and artifact lineage, not as unscored postprocessing.",
-          "depends_on": [
-            "speech-analysis-expansion/sync-alignment-diarization"
-          ],
-          "capabilities": [
-            "speech-alignment",
-            "speaker-diarization",
-            "speech-analysis-evaluation"
           ]
         }
       ]
@@ -1100,7 +871,8 @@
           "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
           "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
           "depends_on": [
-            "audio-generation-expansion/voice-capability"
+            "audio-generation-expansion/voice-capability",
+            "asr-cuda/device-parity"
           ],
           "capabilities": [
             "master-synchronization",
@@ -1121,6 +893,224 @@
             "generative-audio-election",
             "dit-reuse",
             "media-quality-evaluation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "asr-cuda",
+      "title": "Accelerate the elected ASR model through manifest-owned CUDA",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-profile-and-bind",
+          "title": "Merge master and reconcile the plan before: Profile the CPU recipe, reuse existing kernels where their contracts match, and add only measured missing operators through the kernel manifest and generated ABI",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. The CPU numerical authority, validated transcription recipe and streaming service land before GPU profiling; if the device is occupied, this row remains pending while ready CPU-only audio work proceeds.",
+          "depends_on": [
+            "asr-reference/offline-recipe",
+            "asr-serving/streaming-transcription"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "profile-and-bind",
+          "title": "Profile the CPU recipe, reuse existing kernels where their contracts match, and add only measured missing operators through the kernel manifest and generated ABI",
+          "status": "open",
+          "verify": "go test ./cmd/kernel-manifest ./cmd/kernel-bindings ./internal/devicemath -run 'Test.*Audio|Test.*Manifest|Test.*Binding'",
+          "rationale": "CUDA surface follows measured time and operator contracts. Model-specific kernels or hand-written ABI paths are refused when an existing manifest operator can serve the shape. Reference CUDA parity is currently unavailable because CUDA 12.9 rejects Visual Studio 2026/MSVC 19.51 and cudafe++ crashes under the unsupported-compiler override; use a supported VS 2022 toolchain or a CUDA release that supports the installed compiler before treating reference CUDA as evidence.",
+          "depends_on": [
+            "asr-cuda/sync-profile-and-bind"
+          ],
+          "capabilities": [
+            "cuda-manifest",
+            "profile-derived-acceleration",
+            "kernel-reuse"
+          ]
+        },
+        {
+          "id": "sync-device-parity",
+          "title": "Merge master and reconcile the plan before: Prove CPU and CUDA parity for intermediate activations, logits, decoded transcripts and WER, then record wall, real-time factor, host memory and VRAM",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "asr-cuda/profile-and-bind",
+            "asr-evaluation/resource-suite"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "device-parity",
+          "title": "Prove CPU and CUDA parity for intermediate activations, logits, decoded transcripts and WER, then record wall, real-time factor, host memory and VRAM",
+          "status": "open",
+          "verify": "go run ./cmd/device-lane",
+          "rationale": "A device-unavailable result is not passing evidence. The lane records the compiler, toolkit, driver, GPU and exact unavailability reason. The CUDA route becomes eligible only after the toolchain is supported and the same artifact and fixtures preserve intermediate values and quality within recorded tolerances.",
+          "depends_on": [
+            "asr-cuda/sync-device-parity"
+          ],
+          "capabilities": [
+            "cpu-cuda-parity",
+            "device-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "benchmark-routing",
+      "title": "Benchmark and routing validation",
+      "status": "open",
+      "steps": [
+        {
+          "id": "pinned-benchmarks",
+          "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring; for every chat-template choice suite prove one rendered case, print the first answer beside its candidates, and refuse an unrenderable or all-unmatched protocol; then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
+          "status": "open",
+          "verify": "go run ./cmd/evaluate -all \u0026\u0026 go run ./cmd/benchmark-report -check",
+          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master d75d3554 completed the generated-letter protocol by parsing chat-template control tokens as special tokens and recognizing end-of-generation markers by token name; cc4485a0 records the corrected MMLU comparison. Master c36e5b70 renders BBH, MuSR and other text candidates as lettered options while leaving existing letter candidates direct; 4a642032 refuses an unrenderable suite at plan time, prints the first generated answer and its candidates, and stops after an all-unmatched eight-case probe instead of recording zero. Master 03f08dd2 drops instantiated CUDA graph execs whenever captured device memory is released; complete Qwen3.5 4B and 9B chat-template passes must cross the prior BBH failure windows and therefore serve as the long-run replay-safety proof as well as quality measurements. Qwen3.5-4B, Qwen3.5-9B, Gemma4-12B and Qwen3.8-27B now score near or above their raw anchors, while base, long-thinking and explanation-prone models retain bounded unmatched counts. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The remaining broad suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
+          "depends_on": [
+            "benchmark-routing/sync-pinned-benchmarks"
+          ]
+        },
+        {
+          "id": "sync-resource-quality-fitness",
+          "title": "Merge master and reconcile the plan before: Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "benchmark-routing/pinned-benchmarks"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "resource-quality-fitness",
+          "title": "Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "status": "open",
+          "verify": "go build ./cmd/perf-sweep ./cmd/perplexity",
+          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Repeated baseline runs must derive the measured min-max noise envelope before declaring regression or improvement. Master 0c51e3d5 stages K-quant q8 input once and executes wide prefills in eight-column spans; ebbcd657 routes short F16, BF16 and fp8 spans through native-dtype decode according to traffic-derived bounds; 3e89a897 runs qualifying half-precision prefills through tensor cores without F32 weight staging. The sweep must report prefill separately from decode and include widths immediately below, at and above every applicable boundary, with CPU numerical authority retained. Bind those invocations, repeated baselines, peak host-memory and VRAM capture, perplexity, and loop -compare-resource-fitness via -setverify when the drill starts.",
+          "depends_on": [
+            "benchmark-routing/sync-resource-quality-fitness"
+          ]
+        },
+        {
+          "id": "sync-routing-replay",
+          "title": "Merge master and reconcile the plan before: Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "benchmark-routing/pinned-benchmarks"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "routing-replay",
+          "title": "Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
+          "status": "open",
+          "verify": "go build ./cmd/router-observation ./cmd/rerank",
+          "rationale": "Routing quality is only measurable against the recorded stream; replay keeps the judgment exact and distribution-honest. Bind the replay invocation via -setverify when the drill starts.",
+          "depends_on": [
+            "benchmark-routing/sync-routing-replay"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "failure-recovery",
+      "title": "Deliberate failure and recovery drills",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-interruption-drills",
+          "title": "Merge master and reconcile the plan before: Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. Defer this device-bearing interruption drill while GPU capacity is occupied; CPU-first audio construction and serving establish the workload the drill will later interrupt.",
+          "depends_on": [
+            "hermetic-foundation/store-drills",
+            "asr-serving/streaming-transcription"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "interruption-drills",
+          "title": "Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
+          "status": "open",
+          "verify": "go run ./cmd/store-check",
+          "rationale": "Interruption is the one input every durable subsystem claims to survive; each drill damages a copy, never the canonical store, and store-check is the verdict.",
+          "depends_on": [
+            "failure-recovery/sync-interruption-drills"
+          ]
+        },
+        {
+          "id": "sync-control-plane-drills",
+          "title": "Merge master and reconcile the plan before: Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "failure-recovery/interruption-drills"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "control-plane-drills",
+          "title": "Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
+          "status": "open",
+          "verify": "go build ./cmd/loop ./cmd/agent-loop",
+          "rationale": "The control plane's refusal and recovery paths are capability claims like any other; each has an evidence door under cmd/loop and cmd/agent-loop. Bind the drill sequence via -setverify when it starts.",
+          "depends_on": [
+            "failure-recovery/sync-control-plane-drills"
+          ]
+        },
+        {
+          "id": "sync-gate-recovery-drill",
+          "title": "Merge master and reconcile the plan before: Measure gate and plan admission across repeated projected merges, report every pre-heartbeat phase, interrupt a gate run against a scratch clone, and recover through -recover-preparation, -recover-interrupted, and the watchdog",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "failure-recovery/interruption-drills"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "gate-recovery-drill",
+          "title": "Measure gate and plan admission across repeated projected merges, report every pre-heartbeat phase, interrupt a gate run against a scratch clone, and recover through -recover-preparation, -recover-interrupted, and the watchdog",
+          "status": "open",
+          "verify": "go build ./cmd/gate ./cmd/plan",
+          "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. The audio synchronization chain exposed exponential completion-authority reconstruction across projected merges and unobservable pre-heartbeat work. The repaired resolver derives each revision, plan digest and store head once per invocation, admission reuses one store handle, and gate phases are timed; the drill must establish explicit latency budgets for gate and cmd/plan authority resolution at increasing merge depth, require linear scaling, exercise interruption before and after preparation, and prove recovery leaves no debt or commit intent. Bind the scripted drill via -setverify when it starts.",
+          "depends_on": [
+            "failure-recovery/sync-gate-recovery-drill"
           ]
         }
       ]

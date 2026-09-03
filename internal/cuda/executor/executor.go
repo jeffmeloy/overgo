@@ -663,6 +663,29 @@ func (c *CompiledGraph) InputSlot(input *tensor.Tensor) (InputSlot, bool) {
 	return InputSlot(-c.nodes[index].operandOffset - 1), true
 }
 
+// InputBytes reports the byte extent the compiled graph reads from one
+// input slot: the slot's compiled shape in its dtype. A caller binding a
+// resident buffer into the slot compares it with the buffer's capacity; a
+// smaller buffer would be read past its end by the kernels that consume
+// the slot.
+func (c *CompiledGraph) InputBytes(slot InputSlot) (uint64, bool) {
+	if c == nil {
+		return 0, false
+	}
+	for index, node := range c.order {
+		if node == nil || node.Op != tensor.OpInput || c.nodes[index].operandOffset >= 0 ||
+			InputSlot(-c.nodes[index].operandOffset-1) != slot {
+			continue
+		}
+		bytes, err := node.Shape.Bytes(node.Type)
+		if err != nil {
+			return 0, false
+		}
+		return bytes, true
+	}
+	return 0, false
+}
+
 func (c *CompiledGraph) NewDeviceInputs() *DeviceInputs {
 	if c == nil {
 		return nil

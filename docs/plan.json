@@ -4,15 +4,41 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "generation-soak",
-      "title": "Generation soak (owner rule 2026-09-02: long-form inference reliability is as important as benchmarks): a device-lane test drives one runner through hundreds of sequential chat-template generations with prompt lengths sweeping the capacity bands on the smallest servable text model, asserting no CUDA error and stable output for a repeated prompt; bound to the device lane so every gate that touches inference or the executor runs it",
+      "id": "decode-session-source-capacity",
+      "title": "Decode session reuse reads past the cache page (memcheck: copy_f32 in the cache-append copy reads 512 tokens from a 256-token page; the 4B and 9B chat-template BBH passes faulted at generations 330 and 500): the decode session identity carried the target capacity but not the past page capacity the program was compiled to read, so a session compiled over a larger page was reused for a past on a smaller page; the identity now carries the source page capacity and the compatibility check refuses the mismatch",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Generation soak (owner rule 2026-09-02: long-form inference reliability is as important as benchmarks): a device-lane test drives one runner through hundreds of sequential chat-template generations with prompt lengths sweeping the capacity bands on the smallest servable text model, asserting no CUDA error and stable output for a repeated prompt; bound to the device lane so every gate that touches inference or the executor runs it",
+          "title": "Decode session reuse reads past the cache page (memcheck: copy_f32 in the cache-append copy reads 512 tokens from a 256-token page; the 4B and 9B chat-template BBH passes faulted at generations 330 and 500): the decode session identity carried the target capacity but not the past page capacity the program was compiled to read, so a session compiled over a larger page was reused for a past on a smaller page; the identity now carries the source page capacity and the compatibility check refuses the mismatch",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run 'GenerationSoak' -count=1"
+          "verify": "go test ./internal/inference -run 'DecodeSession|CachePage|Capacity' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "report-wall-time",
+      "title": "Benchmark report wall time: every recorded evaluation cell in docs/BENCHMARK.md carries its run's wall time and per-case rate from the run record (measured_ns), and the report states the MMLU suite's shape (100 abstract-algebra cases, 0-shot) beside the published references so the headline numbers are not read as full-MMLU 5-shot",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Benchmark report wall time: every recorded evaluation cell in docs/BENCHMARK.md carries its run's wall time and per-case rate from the run record (measured_ns), and the report states the MMLU suite's shape (100 abstract-algebra cases, 0-shot) beside the published references so the headline numbers are not read as full-MMLU 5-shot",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check"
+        }
+      ]
+    },
+    {
+      "id": "report-throughput",
+      "title": "Benchmark report throughput (owner directive 2026-09-03): docs/BENCHMARK.md carries, for every servable model, prompt-processing tokens/s and decode tokens/s from the committed benchmark records beside the suite scores and each evaluation cell's wall time; models without a committed throughput record show the gap, never a blank read as measured",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Benchmark report throughput (owner directive 2026-09-03): docs/BENCHMARK.md carries, for every servable model, prompt-processing tokens/s and decode tokens/s from the committed benchmark records beside the suite scores and each evaluation cell's wall time; models without a committed throughput record show the gap, never a blank read as measured",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check"
         }
       ]
     },

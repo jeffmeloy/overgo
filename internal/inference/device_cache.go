@@ -582,41 +582,41 @@ func (r *Runner) forwardDeviceCachedBatchLocked(
 func (r *Runner) parameterizedDecodeCapacity(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
-) (uint32, bool) {
+) (uint32, uint32, bool) {
 	if len(appends) == 0 || r.program.Decode.Session != modelrecipe.DecodeSessionCapacity {
-		return 0, false
+		return 0, 0, false
 	}
 	// Span plans parameterize one bounded multi-token append; every other
 	// plan parameterizes exactly one token per branch.
 	span := plan.is(deviceOutputGreedySpan)
 	if span && len(appends) != 1 {
-		return 0, false
+		return 0, 0, false
 	}
-	var capacity, tokens uint32
+	var capacity, source, tokens uint32
 	for index, item := range appends {
 		past := item.Past
 		appended := uint32(len(item.Tokens))
 		if !span && appended != 1 {
-			return 0, false
+			return 0, 0, false
 		}
 		if appended == 0 || past == nil || past.Tokens == 0 || past.storage == nil ||
 			(plan.is(deviceOutputGreedy) && past.Selection.Pointer == 0) ||
 			uint64(past.Tokens)+uint64(appended) > uint64(r.spec.ContextLength) ||
 			past.Tokens == math.MaxUint32 {
-			return 0, false
+			return 0, 0, false
 		}
 		current := cachePageCapacity(past.Tokens, r.spec.ContextLength, r.program.Decode.Session)
 		next := cachePageCapacity(past.Tokens+appended, r.spec.ContextLength, r.program.Decode.Session)
 		if current < past.Tokens || next < past.Tokens+appended {
-			return 0, false
+			return 0, 0, false
 		}
 		if index == 0 {
-			capacity, tokens = next, past.Tokens
-		} else if next != capacity || past.Tokens != tokens {
-			return 0, false
+			capacity, source, tokens = next, current, past.Tokens
+		} else if next != capacity || current != source || past.Tokens != tokens {
+			return 0, 0, false
 		}
 	}
-	return capacity, true
+	return capacity, source, true
 }
 
 func (r *Runner) executeParameterizedDecodeSession(
@@ -627,6 +627,7 @@ func (r *Runner) executeParameterizedDecodeSession(
 	if session == nil || session.execution.Graph == nil || len(appends) != len(session.graphs) ||
 		!session.program.identity.matches(
 			session.program.identity.capacity,
+			session.program.identity.source,
 			session.program.identity.tokenCount,
 			session.program.identity.output,
 			r.currentLoRASignature(),
@@ -711,11 +712,27 @@ func bindParameterizedDecodeInputs(session *deviceDecodeSession, appends []devic
 			session.execution.Inputs.Pointers[branchPlan.feedback.slot] = past.Selection.Pointer
 		}
 		for layer, inputs := range branchPlan.cacheInputs {
-			if inputs.key.present {
-				session.execution.Inputs.Pointers[inputs.key.slot] = past.Keys[layer].Pointer
-			}
-			if inputs.value.present {
-				session.execution.Inputs.Pointers[inputs.value.slot] = past.Values[layer].Pointer
+			// The compiled session reads the whole source page from each
+			// cache input; a past whose page is smaller than the page the
+			// session was compiled over must refuse here, never be read
+			// past its end by the append copy.
+			for _, binding := range []struct {
+				input decodeInputSlot
+				value executor.DeviceValue
+				kind  string
+			}{
+				{input: inputs.key, value: past.Keys[layer], kind: "key"},
+				{input: inputs.value, value: past.Values[layer], kind: "value"},
+			} {
+				if !binding.input.present {
+					continue
+				}
+				if needed, ok := session.execution.Graph.InputBytes(binding.input.slot); !ok ||
+					binding.value.CapacityBytes < needed {
+					return fmt.Errorf("inference: parameterized decode %s cache layer %d holds %d bytes, the session reads %d",
+						binding.kind, layer, binding.value.CapacityBytes, needed)
+				}
+				session.execution.Inputs.Pointers[binding.input.slot] = binding.value.Pointer
 			}
 			if len(inputs.states) != 0 && layer >= len(past.States) {
 				return errors.New("inference: parameterized cache state layer is missing")
@@ -744,12 +761,12 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	appends []deviceBatchAppend,
 	plan deviceOutputPlan,
 ) ([]*deviceKVCache, error) {
-	capacity, parameterized := r.parameterizedDecodeCapacity(appends, plan)
+	capacity, source, parameterized := r.parameterizedDecodeCapacity(appends, plan)
 	tokenCount := uint32(1)
 	if parameterized {
 		tokenCount = uint32(len(appends[0].Tokens))
 		identity := decodeSessionIdentity{
-			capacity: capacity,
+			capacity: capacity, source: source,
 			branches: uint32(len(appends)), tokenCount: tokenCount, output: plan,
 			lora: r.currentLoRASignature(),
 		}
@@ -764,7 +781,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		compatible := session != nil && session.program.identity.branches == uint32(len(appends)) &&
 			session.program.identity.matches(
-				capacity, tokenCount, plan, r.currentLoRASignature(),
+				capacity, source, tokenCount, plan, r.currentLoRASignature(),
 			)
 		for index, item := range appends {
 			// Span sessions rebind every cache input per replay and carry
@@ -784,11 +801,9 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 	builder := r.newGraphBuilder()
 	if parameterized {
 		builder.SetCacheAppendPlan(tensor.CacheAppendPlan{
-			ActiveTokens: appends[0].Past.Tokens,
-			SourceCapacityTokens: cachePageCapacity(
-				appends[0].Past.Tokens, r.spec.ContextLength, r.program.Decode.Session,
-			),
-			CapacityTokens: capacity,
+			ActiveTokens:         appends[0].Past.Tokens,
+			SourceCapacityTokens: source,
+			CapacityTokens:       capacity,
 		})
 	}
 	hostFeeds := make(map[*tensor.Tensor]reference.Value)
@@ -838,7 +853,7 @@ func (r *Runner) forwardDeviceCachedBranchedBatchLocked(
 		}
 		program, programErr := compileDecodeSessionPlan(
 			execution.Graph, graphs, targetPlans, decodeSessionIdentity{
-				capacity: capacity,
+				capacity: capacity, source: source,
 				branches: uint32(len(graphs)), tokenCount: tokenCount, output: plan,
 				lora: r.currentLoRASignature(),
 			},

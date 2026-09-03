@@ -4,6 +4,106 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "oracle-intake",
+      "title": "Pin the audio.cpp oracle and elect the first transferable artifact",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-capability-census",
+          "title": "Merge master and reconcile the plan before: Create a deterministic audio.cpp census covering source commit, licenses, model specifications, loaders, artifact formats, preprocessing, execution graphs, streaming state, training relevance, tests, and known incomplete implementations",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. Completed race, inference, serving and training authorities are sufficient to begin CPU-only audio transfer. Remaining general GPU benchmarks and recovery drills are deferred until the native CPU transcription and streaming path exists.",
+          "depends_on": [
+            "hermetic-foundation/race-lane",
+            "inference-e2e/serving-operations",
+            "training-e2e/preference-objectives"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "capability-census",
+          "title": "Create a deterministic audio.cpp census covering source commit, licenses, model specifications, loaders, artifact formats, preprocessing, execution graphs, streaming state, training relevance, tests, and known incomplete implementations",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run TestPinnedOracleCensus",
+          "rationale": "The census prevents model-list breadth from substituting for runnable behavior and makes provenance, unsupported paths, and reusable mechanisms machine-checkable. It imports neutral evidence only and introduces no cross-repository runtime dependency.",
+          "depends_on": [
+            "oracle-intake/sync-capability-census"
+          ],
+          "capabilities": [
+            "audio-oracle-provenance",
+            "license-accounting",
+            "capability-census"
+          ]
+        },
+        {
+          "id": "sync-artifact-election",
+          "title": "Merge master and reconcile the plan before: Register Granite Speech 5.0 470M TurboCTC as the first ASR oracle with complete bytes, tokenizer, configuration, reference execution, license and pinned LibriSpeech parity evidence",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "oracle-intake/capability-census"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "artifact-election",
+          "title": "Register Granite Speech 5.0 470M TurboCTC as the first ASR oracle with complete bytes, tokenizer, configuration, reference execution, license and pinned LibriSpeech parity evidence",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run TestFirstASRArtifactElection",
+          "rationale": "The installed native Safetensors artifact completed CPU inference on four pinned LibriSpeech fixtures: three strict transcript matches and one contraction-only normalization difference. Registration preserves exact artifact and fixture identities, timings, expected and observed transcripts, normalization policy and the measurements that would reopen the choice.",
+          "depends_on": [
+            "oracle-intake/sync-artifact-election"
+          ],
+          "capabilities": [
+            "artifact-identity",
+            "model-characterization",
+            "decision-evidence",
+            "granite-speech-oracle"
+          ]
+        },
+        {
+          "id": "sync-artifact-compatibility",
+          "title": "Merge master and reconcile the plan before: Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "depends_on": [
+            "oracle-intake/artifact-election"
+          ],
+          "capabilities": [
+            "master-synchronization",
+            "plan-reconciliation",
+            "gated-merge"
+          ]
+        },
+        {
+          "id": "artifact-compatibility",
+          "title": "Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
+          "status": "open",
+          "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/audioparity -run 'Test.*Audio.*Qualification|Test.*Audio.*Compatibility|Test.*Incompatible.*GGUF'",
+          "rationale": "A valid GGUF or Safetensors container is not sufficient evidence that a loader can execute it. The qualification report records supported native Granite and Nemotron Safetensors layouts and rejects the downloaded NeMo-Speech Q8 GGUF because its tensor naming and graph layout do not satisfy the audio.cpp-derived recipe; extension-based fallback and silent tensor remapping are prohibited.",
+          "depends_on": [
+            "oracle-intake/sync-artifact-compatibility"
+          ],
+          "capabilities": [
+            "audio-artifact-qualification",
+            "tensor-schema-validation",
+            "explicit-incompatibility"
+          ]
+        }
+      ]
+    },
+    {
       "id": "benchmark-routing",
       "title": "Benchmark and routing validation",
       "status": "open",
@@ -149,106 +249,6 @@
           "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. The audio synchronization chain exposed exponential completion-authority reconstruction across projected merges and unobservable pre-heartbeat work. The repaired resolver derives each revision, plan digest and store head once per invocation, admission reuses one store handle, and gate phases are timed; the drill must establish explicit latency budgets for gate and cmd/plan authority resolution at increasing merge depth, require linear scaling, exercise interruption before and after preparation, and prove recovery leaves no debt or commit intent. Bind the scripted drill via -setverify when it starts.",
           "depends_on": [
             "failure-recovery/sync-gate-recovery-drill"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "oracle-intake",
-      "title": "Pin the audio.cpp oracle and elect the first transferable artifact",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-capability-census",
-          "title": "Merge master and reconcile the plan before: Create a deterministic audio.cpp census covering source commit, licenses, model specifications, loaders, artifact formats, preprocessing, execution graphs, streaming state, training relevance, tests, and known incomplete implementations",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. Completed race, inference, serving and training authorities are sufficient to begin CPU-only audio transfer. Remaining general GPU benchmarks and recovery drills are deferred until the native CPU transcription and streaming path exists.",
-          "depends_on": [
-            "hermetic-foundation/race-lane",
-            "inference-e2e/serving-operations",
-            "training-e2e/preference-objectives"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "capability-census",
-          "title": "Create a deterministic audio.cpp census covering source commit, licenses, model specifications, loaders, artifact formats, preprocessing, execution graphs, streaming state, training relevance, tests, and known incomplete implementations",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run TestPinnedOracleCensus",
-          "rationale": "The census prevents model-list breadth from substituting for runnable behavior and makes provenance, unsupported paths, and reusable mechanisms machine-checkable. It imports neutral evidence only and introduces no cross-repository runtime dependency.",
-          "depends_on": [
-            "oracle-intake/sync-capability-census"
-          ],
-          "capabilities": [
-            "audio-oracle-provenance",
-            "license-accounting",
-            "capability-census"
-          ]
-        },
-        {
-          "id": "sync-artifact-election",
-          "title": "Merge master and reconcile the plan before: Register Granite Speech 5.0 470M TurboCTC as the first ASR oracle with complete bytes, tokenizer, configuration, reference execution, license and pinned LibriSpeech parity evidence",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "oracle-intake/capability-census"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "artifact-election",
-          "title": "Register Granite Speech 5.0 470M TurboCTC as the first ASR oracle with complete bytes, tokenizer, configuration, reference execution, license and pinned LibriSpeech parity evidence",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run TestFirstASRArtifactElection",
-          "rationale": "The installed native Safetensors artifact completed CPU inference on four pinned LibriSpeech fixtures: three strict transcript matches and one contraction-only normalization difference. Registration preserves exact artifact and fixture identities, timings, expected and observed transcripts, normalization policy and the measurements that would reopen the choice.",
-          "depends_on": [
-            "oracle-intake/sync-artifact-election"
-          ],
-          "capabilities": [
-            "artifact-identity",
-            "model-characterization",
-            "decision-evidence",
-            "granite-speech-oracle"
-          ]
-        },
-        {
-          "id": "sync-artifact-compatibility",
-          "title": "Merge master and reconcile the plan before: Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "oracle-intake/artifact-election"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "artifact-compatibility",
-          "title": "Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/audioparity -run 'Test.*Audio.*Qualification|Test.*Audio.*Compatibility|Test.*Incompatible.*GGUF'",
-          "rationale": "A valid GGUF or Safetensors container is not sufficient evidence that a loader can execute it. The qualification report records supported native Granite and Nemotron Safetensors layouts and rejects the downloaded NeMo-Speech Q8 GGUF because its tensor naming and graph layout do not satisfy the audio.cpp-derived recipe; extension-based fallback and silent tensor remapping are prohibited.",
-          "depends_on": [
-            "oracle-intake/sync-artifact-compatibility"
-          ],
-          "capabilities": [
-            "audio-artifact-qualification",
-            "tensor-schema-validation",
-            "explicit-incompatibility"
           ]
         }
       ]

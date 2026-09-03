@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"overgo/internal/checked"
@@ -57,6 +58,7 @@ type ExecutionMetrics struct {
 	GraphInstantiations    uint64 `json:"graphInstantiations"`
 	GraphEvictions         uint64 `json:"graphEvictions"`
 	GraphUpdateFallbacks   uint64 `json:"graphUpdateFallbacks"`
+	GraphDrops             uint64 `json:"graphDrops"`
 	GraphCacheEntries      uint64 `json:"graphCacheEntries"`
 	GraphCacheCapacity     uint64 `json:"graphCacheCapacity"`
 	ArenaRequiredBytes     uint64 `json:"arenaRequiredBytes"`
@@ -92,9 +94,18 @@ const nativeWeightStagingLimitBytes = uint64(32 << 20)
 type graphExecEntry struct {
 	exec     driver.GraphExec
 	compiled *CompiledGraph
+	serial   uint64
 	frame    []driver.DevicePtr
 	used     uint64
 }
+
+// compiledSerials numbers every compiled graph once. The exec cache compares
+// the serial beside the pointer: a released graph's address can be reused by
+// a later compile, and a stale exec matched through that address would
+// replay kernels over memory the earlier graph owned.
+var compiledSerials atomic.Uint64
+
+func nextCompiledSerial() uint64 { return compiledSerials.Add(1) }
 
 // graphExecCache: retained instantiated graphs keyed by indexed replay frame. Retained
 // buffer leases alternate between a small set of pool slots, so steady-state
@@ -110,6 +121,7 @@ type graphExecCache struct {
 	instantiations  uint64
 	evictions       uint64
 	updateFallbacks uint64
+	drops           uint64
 }
 
 func (c *graphExecCache) match(
@@ -118,7 +130,8 @@ func (c *graphExecCache) match(
 ) (driver.GraphExec, bool) {
 	for index := range c.entries {
 		entry := &c.entries[index]
-		if entry.exec != 0 && entry.compiled == compiled && slices.Equal(entry.frame, frame) {
+		if entry.exec != 0 && entry.compiled == compiled && entry.serial == compiled.serial &&
+			slices.Equal(entry.frame, frame) {
 			c.tick++
 			c.hits++
 			entry.used = c.tick
@@ -172,6 +185,7 @@ func (c *graphExecCache) store(
 		c.instantiations++
 	}
 	entry.compiled = compiled
+	entry.serial = compiled.serial
 	entry.frame = append(entry.frame[:0], frame...)
 	c.tick++
 	entry.used = c.tick
@@ -187,6 +201,18 @@ func (c *graphExecCache) close(state *device.State) error {
 	}
 	c.entries = nil
 	return errors.Join(errs...)
+}
+
+// drop destroys every instantiated exec because device memory a captured
+// graph may reference has been freed: a replayed exec carries its kernel
+// parameters by value, so it would run over the freed range. The next
+// execution captures afresh; the counters keep the history.
+func (c *graphExecCache) drop(state *device.State) error {
+	if len(c.entries) == 0 {
+		return nil
+	}
+	c.drops++
+	return c.close(state)
 }
 
 const deviceAllocationAlignment uint64 = 256
@@ -839,6 +865,8 @@ func (t *RetainedTargets) SetSlot(slot OutputSlot, value DeviceValue) error {
 
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
+	// serial is this compilation's unique number; see compiledSerials.
+	serial         uint64
 	outputs        []*tensor.Tensor
 	outputIndexes  map[*tensor.Tensor]int
 	outputViews    []retainedStorageView
@@ -1167,6 +1195,7 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 	outputs := program.Outputs()
 	order := program.Order()
 	compiled := &CompiledGraph{
+		serial:          nextCompiledSerial(),
 		outputs:         slices.Clone(outputs),
 		outputIndexes:   make(map[*tensor.Tensor]int, len(outputs)),
 		outputViews:     make([]retainedStorageView, len(outputs)),
@@ -1411,6 +1440,22 @@ func (e *Executor) Close() error {
 	return errors.Join(errs...)
 }
 
+// DropGraphExecs destroys every instantiated graph exec. Callers that free
+// device memory a captured graph may reference (a resident session releasing
+// a program's weights) invoke it on the executor's worker turn, with that
+// turn's state, before the free; the next execution captures afresh.
+func (e *Executor) DropGraphExecs(state *device.State) error {
+	if e == nil || state == nil {
+		return errors.New("CUDA executor drop requires the worker state")
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed {
+		return nil
+	}
+	return e.resources.graphExecs.drop(state)
+}
+
 // Metrics returns executor-local graph replay and arena evidence. Reading the
 // snapshot is serialized on the CUDA worker with resource mutations.
 func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
@@ -1434,6 +1479,7 @@ func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
 			GraphInstantiations:    cache.instantiations,
 			GraphEvictions:         cache.evictions,
 			GraphUpdateFallbacks:   cache.updateFallbacks,
+			GraphDrops:             cache.drops,
 			GraphCacheEntries:      uint64(len(cache.entries)),
 			GraphCacheCapacity:     uint64(graphExecCacheCapacity),
 			ArenaRequiredBytes:     arena.requiredBytes,
@@ -2270,6 +2316,10 @@ func (e *Executor) ensureResources(
 			return nil, err
 		}
 		if e.resources.blas.staging != 0 {
+			if err := e.resources.graphExecs.drop(state); err != nil {
+				_ = state.Driver.MemFree(staging)
+				return nil, err
+			}
 			if err := state.Driver.MemFree(e.resources.blas.staging); err != nil {
 				_ = state.Driver.MemFree(staging)
 				return nil, err
@@ -2284,6 +2334,10 @@ func (e *Executor) ensureResources(
 			return nil, err
 		}
 		if e.resources.blas.scores != 0 {
+			if err := e.resources.graphExecs.drop(state); err != nil {
+				_ = state.Driver.MemFree(scores)
+				return nil, err
+			}
 			if err := state.Driver.MemFree(e.resources.blas.scores); err != nil {
 				_ = state.Driver.MemFree(scores)
 				return nil, err
@@ -2298,6 +2352,10 @@ func (e *Executor) ensureResources(
 			return nil, err
 		}
 		if e.resources.q8Input.staging != 0 {
+			if err := e.resources.graphExecs.drop(state); err != nil {
+				_ = state.Driver.MemFree(staging)
+				return nil, err
+			}
 			if err := state.Driver.MemFree(e.resources.q8Input.staging); err != nil {
 				_ = state.Driver.MemFree(staging)
 				return nil, err
@@ -2319,6 +2377,11 @@ func (r *executorResources) ensureArena(state *device.State, size uint64) (drive
 		return r.arena, nil
 	}
 	if r.arena != 0 {
+		// Captured graphs address the arena directly; none may replay
+		// over the range being freed.
+		if err := r.graphExecs.drop(state); err != nil {
+			return 0, err
+		}
 		if err := state.Driver.MemFree(r.arena); err != nil {
 			return 0, err
 		}

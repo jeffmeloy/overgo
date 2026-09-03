@@ -540,6 +540,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"chat-choice-options/do",
 		"gate-authority-memoization/do",
 		"chat-protocol-guards/do",
+		"graph-exec-staleness/do",
+		"generation-soak/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",
 		"benchmark-completion/musr-pass",

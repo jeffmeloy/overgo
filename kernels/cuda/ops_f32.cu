@@ -4220,6 +4220,11 @@ extern "C" __global__ void attention_online_init_f32(
 // for the PV accumulate, fold the tile sum into the running sum. FP64
 // shared reductions. Port of the proven external online softmax structure;
 // output rows live in the interleaved [token][head][channel] layout.
+// query_start is the absolute position of the chunk's first row; with
+// causal set a row reads keys below its own position plus one, and a
+// window keeps only the last `window` of those; a masked key writes a
+// zero probability so the PV accumulate ignores it. softcap > 0 caps
+// the scaled score with tanh before the bias, as the reference does.
 extern "C" __global__ void attention_online_softmax_f32(
         float * scores,
         float * output,
@@ -4232,7 +4237,11 @@ extern "C" __global__ void attention_online_softmax_f32(
         unsigned int chunk,
         unsigned int width,
         unsigned int heads,
-        float scale) {
+        float scale,
+        unsigned int query_start,
+        unsigned int causal,
+        unsigned int window,
+        float softcap) {
     extern __shared__ double reduce_shared[];
     __shared__ float alpha_shared;
     __shared__ float maximum_shared;
@@ -4242,10 +4251,20 @@ extern "C" __global__ void attention_online_softmax_f32(
     const unsigned int base = (head * chunk + row) * key_chunk;
     const unsigned int stat = head * chunk + row;
     const unsigned int stat_rows = heads * chunk;
+    const unsigned int causal_limit = causal ? query_start + row + 1 : 0xFFFFFFFFu;
+    const unsigned int key_first = window > 0 && causal_limit > window ? causal_limit - window : 0;
     float local_maximum = -3.402823466e+38F;
     for (unsigned int j = tid; j < keys; j += blockDim.x) {
-        const float bias = key_bias != nullptr ? key_bias[key_start + j] : 0.0f;
-        local_maximum = fmaxf(local_maximum, scores[base + j] * scale + bias);
+        const unsigned int key_token = key_start + j;
+        if (key_token >= causal_limit || key_token < key_first) {
+            continue;
+        }
+        float score = scores[base + j] * scale;
+        if (softcap > 0.0f) {
+            score = softcap * tanhf(score / softcap);
+        }
+        const float bias = key_bias != nullptr ? key_bias[key_token] : 0.0f;
+        local_maximum = fmaxf(local_maximum, score + bias);
     }
     reduce_shared[tid] = (double) local_maximum;
     __syncthreads();
@@ -4273,8 +4292,17 @@ extern "C" __global__ void attention_online_softmax_f32(
     }
     double sum = 0.0;
     for (unsigned int j = tid; j < keys; j += blockDim.x) {
-        const float bias = key_bias != nullptr ? key_bias[key_start + j] : 0.0f;
-        const float probability = expf(scores[base + j] * scale + bias - maximum);
+        const unsigned int key_token = key_start + j;
+        if (key_token >= causal_limit || key_token < key_first) {
+            scores[base + j] = 0.0f;
+            continue;
+        }
+        float score = scores[base + j] * scale;
+        if (softcap > 0.0f) {
+            score = softcap * tanhf(score / softcap);
+        }
+        const float bias = key_bias != nullptr ? key_bias[key_token] : 0.0f;
+        const float probability = expf(score + bias - maximum);
         scores[base + j] = probability;
         sum += (double) probability;
     }

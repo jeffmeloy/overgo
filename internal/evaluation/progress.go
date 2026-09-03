@@ -16,6 +16,10 @@ type Progress struct {
 	Score   float64
 	Scored  bool
 	Elapsed time.Duration
+	// Sample carries an operator-facing observation of the loop that is
+	// not a count: the first generated answer beside its candidates. A
+	// sample step scores nothing; Done and Score describe the loop so far.
+	Sample string
 }
 
 // ProgressSink receives every scored case. It owns the cadence of any
@@ -68,6 +72,17 @@ func (tracker *progressTracker) observe(score float64) {
 		Suite: tracker.suite, Done: tracker.done, Total: tracker.total,
 		Score: tracker.sum / float64(tracker.done), Scored: true,
 		Elapsed: time.Since(tracker.started),
+	})
+}
+
+// sample reports one operator-facing observation without scoring a case.
+func (tracker *progressTracker) sample(text string) {
+	if tracker == nil {
+		return
+	}
+	tracker.sink(Progress{
+		Suite: tracker.suite, Done: tracker.done, Total: tracker.total,
+		Elapsed: time.Since(tracker.started), Sample: text,
 	})
 }
 

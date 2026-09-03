@@ -3,6 +3,7 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"sort"
@@ -161,6 +162,9 @@ func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthoritie
 		Normalization: compiled.suite.Normalization, Aggregation: compiled.suite.Aggregation,
 	}
 	if authorities.Execution.Prompting == PromptingChatTemplate {
+		if err := validateChatChoiceSuite(compiled.suite.Cases); err != nil {
+			return Plan{}, err
+		}
 		scorer.Method = chatChoiceMethod
 	}
 	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
@@ -212,10 +216,19 @@ func scoreMultipleChoice(
 	correct := 0
 	progress := trackProgress(ctx, suite.Source, len(suite.Cases))
 	chat, generative := scorer.(ChatChoiceRuntime)
+	var probe chatProbe
 	for index, testCase := range suite.Cases {
 		if generative {
 			observation, err := answerChoiceByGeneration(ctx, chat, testCase)
 			if err != nil {
+				return nil, 0, err
+			}
+			letters := chatChoiceLetters(testCase)
+			if index == 0 {
+				progress.sample(fmt.Sprintf("first generated answer %s: %q against candidates %q",
+					observation.Name, observation.Raw, letters))
+			}
+			if err := probe.judge(observation, letters, index == len(suite.Cases)-1); err != nil {
 				return nil, 0, err
 			}
 			observations[index] = observation

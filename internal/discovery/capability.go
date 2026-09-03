@@ -3,7 +3,9 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -38,6 +40,25 @@ type CatalogEntry struct {
 // when the bounded alias listing could not carry every activation: a
 // clipped catalog must say so rather than read as complete.
 func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo) ([]CatalogEntry, bool, error) {
+	return CapabilityCatalogForTasks(ctx, store, limit, memo)
+}
+
+// CapabilityCatalogForTasks lists models activated for any selected task. An
+// empty task selection preserves CapabilityCatalog's full-surface behavior.
+// Filtering happens before presence verification so a task-specific lane does
+// not hash unrelated model artifacts merely to discard them afterward.
+func CapabilityCatalogForTasks(
+	ctx context.Context,
+	store *overgodb.Store,
+	limit int,
+	memo *Memo,
+	tasks ...recipe.Task,
+) ([]CatalogEntry, bool, error) {
+	for _, task := range tasks {
+		if !task.Valid() {
+			return nil, false, fmt.Errorf("capability catalog: invalid task %q", task)
+		}
+	}
 	result, err := store.Query(ctx, overgodb.Query{
 		Kind: artifact.KindRecipe, MaxResults: limit, Projection: overgodb.ProjectAliases,
 	})
@@ -50,13 +71,14 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		if !ok {
 			continue
 		}
+		if len(tasks) > 0 && !slices.Contains(tasks, task) {
+			continue
+		}
 		tasksByModel[model] = append(tasksByModel[model], task)
 	}
-	models := make([]artifact.ID, 0, len(tasksByModel))
-	for model := range tasksByModel {
-		models = append(models, model)
-	}
-	sort.Slice(models, func(i, j int) bool { return models[i].String() < models[j].String() })
+	models := slices.SortedFunc(maps.Keys(tasksByModel), func(left, right artifact.ID) int {
+		return strings.Compare(left.String(), right.String())
+	})
 	entries := make([]CatalogEntry, 0, len(models))
 	identities := map[string]fileIdentity{}
 	for _, model := range models {
@@ -76,7 +98,7 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 			entry.Location, entry.Present = path, true
 		}
 		tasks := tasksByModel[model]
-		sort.Slice(tasks, func(i, j int) bool { return tasks[i] < tasks[j] })
+		slices.Sort(tasks)
 		for _, task := range tasks {
 			capability := Capability{Task: task}
 			activation, active, err := modelrecipe.ActiveRecord(ctx, store, model, task)

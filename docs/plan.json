@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "route-drills",
-          "title": "For every declared training route: load exact recorded input, train through the declared architecture route, publish checkpoint and optimizer state, stop and resume exactly, verify data-stream and random-state continuity, reload the checkpoint, run post-training inference, evaluate the pre/post bracket, and confirm frozen components remain unchanged",
-          "status": "open",
-          "verify": "go run ./cmd/train-lane",
-          "rationale": "train-lane is the store-derived training matrix through the same workflow a user runs; exact resume and frozen-component invariance are where training verification usually lies. Dense token training requires -freeze-lexical or the host Newton-Schulz path stalls at zero GPU utilization.",
-          "depends_on": [
-            "training-e2e/sync-route-drills"
-          ]
-        },
-        {
           "id": "sync-preference-objectives",
           "title": "Merge master and reconcile the plan before: Exercise DPO and GRPO with valid objective-specific inputs and evaluate their brackets",
           "status": "open",

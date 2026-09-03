@@ -25,17 +25,31 @@ type ChatChoiceRuntime interface {
 // candidate letter in the generated text.
 const chatChoiceInstruction = "\nAnswer with the letter only."
 
+// chatAnswerOpener opens the model turn so the letter is the next
+// thing the model writes (protocol decision 2026-09-03, measured on
+// the BBH chat pass): under the instruction alone gemma-4 reasons for
+// paragraphs before naming a letter and MiniCPM5 opens its thinking
+// channel, both truncated by the answer bound and scored unmatched
+// (12 of 27 BBH groups near zero); a system message reached gemma but
+// not the thinking model, while this opener drew the letter from both
+// as the first generated token. It is appended after the template's
+// generation prompt, so it is the model's own turn, not user text.
+const chatAnswerOpener = "The answer is"
+
 // chatChoiceMethod names the scorer method the chat-template protocol
 // binds into the plan, so a generated-letter record is a different
-// plan from a likelihood record of the same suite.
-const chatChoiceMethod = "generated-letter"
+// plan from a likelihood record of the same suite. The opener changed
+// what the protocol measures, so records made under the instruction
+// alone stay a different plan under the earlier name.
+const chatChoiceMethod = "generated-letter-opener"
 
-// chatAnswerTokens bounds the answer generation (owner decision
-// 2026-09-02): a letter-only answer is a few tokens; the bound admits a
-// short phrase before the letter and records a model that exceeds it as
-// unmatched rather than letting it run on. Reopen if a template's
-// answer opener is longer than this.
-const chatAnswerTokens = 16
+// chatAnswerTokens bounds the answer generation after the opener
+// (protocol decision 2026-09-03, reopened from the 16 of 2026-09-02):
+// the letter follows the opener within a token or two, dressed at most
+// as " **B**." or " (B) option", and a model that has not named a
+// letter by then is reasoning instead, recorded as unmatched rather
+// than run on at a per-case cost the decode rate cannot afford.
+const chatAnswerTokens = 8
 
 // matchChoiceLetter reads the first standalone candidate letter in the
 // generated text: a letter that is not part of a longer word. Candidates
@@ -75,7 +89,7 @@ func answerChoiceByGeneration(
 	if err != nil {
 		return ChoiceObservation{}, err
 	}
-	result, err := generateText(ctx, runtime, testCase.Name, shaped, chatAnswerTokens)
+	result, err := generateText(ctx, runtime, testCase.Name, shaped+chatAnswerOpener, chatAnswerTokens)
 	if err != nil {
 		return ChoiceObservation{}, err
 	}

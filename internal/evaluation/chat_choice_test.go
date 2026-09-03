@@ -24,8 +24,8 @@ func (f *chatFixture) ShapeChatPrompt(prompt string) (string, error) {
 }
 
 func (f *chatFixture) Generate(_ context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
-	if !strings.HasPrefix(prompt, "<user>") || !strings.HasSuffix(prompt, "<model>") {
-		panic("generation received an unshaped prompt")
+	if !strings.HasPrefix(prompt, "<user>") || !strings.HasSuffix(prompt, "<model>"+chatAnswerOpener) {
+		panic("generation received an unshaped prompt or an unopened model turn")
 	}
 	text := f.answers[f.calls%len(f.answers)]
 	f.calls++
@@ -75,13 +75,15 @@ func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
 			{Name: "three", Prompt: "Q3\nAnswer:", Candidates: []string{" A", " B"}, Answer: 0},
 		},
 	}
-	fixture := &chatFixture{answers: []string{"B", "I think B", "no idea"}}
+	// The opener precedes every answer: a reasoning model's " **B**." and a
+	// thinking model's " (A) option" both carry the letter first.
+	fixture := &chatFixture{answers: []string{" **B**.", " (B) option", " no idea"}}
 	observations, accuracy, err := scoreMultipleChoice(t.Context(), fixture, suite)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(observations) != 3 || observations[0].Selected != 1 || observations[1].Selected != 1 ||
-		observations[2].Selected != unmatchedChoice || observations[2].Raw != "no idea" {
+		observations[2].Selected != unmatchedChoice || observations[2].Raw != " no idea" {
 		t.Fatalf("observations = %+v", observations)
 	}
 	if accuracy != 1.0/3 {

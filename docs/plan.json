@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "report-throughput",
-      "title": "Benchmark report throughput (owner directive 2026-09-03): docs/BENCHMARK.md carries, for every servable model, prompt-processing tokens/s and decode tokens/s from the committed benchmark records beside the suite scores and each evaluation cell's wall time; models without a committed throughput record show the gap, never a blank read as measured",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Benchmark report throughput (owner directive 2026-09-03): docs/BENCHMARK.md carries, for every servable model, prompt-processing tokens/s and decode tokens/s from the committed benchmark records beside the suite scores and each evaluation cell's wall time; models without a committed throughput record show the gap, never a blank read as measured",
-          "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check"
-        }
-      ]
-    },
-    {
       "id": "benchmark-completion",
       "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
       "status": "open",

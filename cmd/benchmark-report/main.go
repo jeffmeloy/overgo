@@ -194,17 +194,17 @@ func render(rows []modelRow, descriptors map[string]evaluation.SuiteDescriptor) 
 	output.WriteString("Models are the servable catalog ordered smallest first by recorded bytes. Each suite cell is the headline metric of the model's latest committed evaluation of that suite under one prompting protocol; a dash means no committed evaluation. Suites are the store's derived benchmark suites (`evaluate -list-derived-suites`). The raw-completion protocol scores the suite's prompt text unchanged and is the recorded anchor comparable with lm-eval. The chat-template protocol wraps the prompt in the model's declared template with thinking disabled, asks for the letter only, greedily generates the model's answer, and reads the first standalone candidate letter from it; an answer naming no candidate counts as incorrect. Model cards report generative results, so the chat-template rows are the ones to set beside a published number.\n\n")
 	renderSuites(&output, descriptors)
 	output.WriteString("## Comparison\n\n")
-	output.WriteString("| Model | Bytes | Decode tok/s |")
+	output.WriteString("| Model | Bytes | Prompt tok/s | Decode tok/s |")
 	for _, suite := range columns {
 		fmt.Fprintf(&output, " %s |", suite)
 	}
-	output.WriteString("\n| --- | --- | --- |")
+	output.WriteString("\n| --- | --- | --- | --- |")
 	for range columns {
 		output.WriteString(" --- |")
 	}
 	output.WriteString("\n")
 	for _, row := range rows {
-		fmt.Fprintf(&output, "| %s | %d | %s |", row.name, row.bytes, decodeCell(row))
+		fmt.Fprintf(&output, "| %s | %d | %s | %s |", row.name, row.bytes, promptCell(row), decodeCell(row))
 		for _, suite := range columns {
 			output.WriteString(" " + headlineCell(row.suites[suite]) + " |")
 		}
@@ -255,6 +255,16 @@ func decodeCell(row modelRow) string {
 		return "—"
 	}
 	return fmt.Sprintf(metricFormat, row.benchmark.DecodeTokensPerSecond)
+}
+
+// promptCell reports the committed benchmark's prompt-processing rate;
+// a record from before the summary carried it, or no record at all,
+// shows the gap rather than a number.
+func promptCell(row modelRow) string {
+	if !row.measured || row.benchmark.PromptTokensPerSecond == 0 {
+		return "—"
+	}
+	return fmt.Sprintf(metricFormat, row.benchmark.PromptTokensPerSecond)
 }
 
 // headlineMetrics orders the metric a suite cell shows: an accuracy

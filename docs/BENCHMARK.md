@@ -20,17 +20,17 @@ Every suite is scored 0-shot from the store's catalog. The raw-completion protoc
 
 ## Comparison
 
-| Model | Bytes | Decode tok/s | store/bbh (chat-template) | store/bbh (raw-completion) | store/dna (raw-completion) | store/mmlu (chat-template) | store/mmlu (raw-completion) |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Qwen2.5-0.5B-f16 | 994065792 | 491.4 | accuracy 0.0637 | accuracy 0.3275 | — | accuracy 0.03 | accuracy 0.42 |
-| Carbon-500M-f16-ropefix | 1029821280 | — | — | — | perplexity 5969 | — | — |
-| MiniCPM5-1B-f16 | 2166391968 | 336.4 | — | accuracy 0.3626 | — | accuracy 0 | accuracy 0.34 |
-| Qwen3.5-4B-f16 | 8664046912 | 88.85 | — | accuracy 0.5414 | — | accuracy 0.53 | accuracy 0.55 |
-| Qwen3.5-9B-Q8_0 | 9527502048 | — | — | accuracy 0.5931 | — | accuracy 0.61 | accuracy 0.59 |
-| gemma-4-E4B-it-bf16 | 14940816608 | — | — | accuracy 0.5824 | — | accuracy 0.2 | accuracy 0.44 |
-| gemma-4-12B-it-fp8-native | 15342646656 | — | — | accuracy 0.4968 | — | accuracy 0.5 | accuracy 0.38 |
-| Qwen3.8-27B-UD-Q6_K | 21983677344 | 26.66 | — | accuracy 0.6554 | — | accuracy 0.7 | accuracy 0.65 |
-| gemma-4-12B-it-fp8-bf16 | 23829476736 | — | — | accuracy 0.4982 | — | accuracy 0.5 | accuracy 0.38 |
+| Model | Bytes | Prompt tok/s | Decode tok/s | store/bbh (chat-template) | store/bbh (raw-completion) | store/dna (raw-completion) | store/mmlu (chat-template) | store/mmlu (raw-completion) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Qwen2.5-0.5B-f16 | 994065792 | — | 491.4 | accuracy 0.0637 | accuracy 0.3275 | — | accuracy 0.03 | accuracy 0.42 |
+| Carbon-500M-f16-ropefix | 1029821280 | — | — | — | — | perplexity 5969 | — | — |
+| MiniCPM5-1B-f16 | 2166391968 | — | 336.4 | — | accuracy 0.3626 | — | accuracy 0 | accuracy 0.34 |
+| Qwen3.5-4B-f16 | 8664046912 | — | 88.85 | — | accuracy 0.5414 | — | accuracy 0.53 | accuracy 0.55 |
+| Qwen3.5-9B-Q8_0 | 9527502048 | — | — | — | accuracy 0.5931 | — | accuracy 0.61 | accuracy 0.59 |
+| gemma-4-E4B-it-bf16 | 14940816608 | — | — | — | accuracy 0.5824 | — | accuracy 0.2 | accuracy 0.44 |
+| gemma-4-12B-it-fp8-native | 15342646656 | — | — | — | accuracy 0.4968 | — | accuracy 0.5 | accuracy 0.38 |
+| Qwen3.8-27B-UD-Q6_K | 21983677344 | — | 26.66 | — | accuracy 0.6554 | — | accuracy 0.7 | accuracy 0.65 |
+| gemma-4-12B-it-fp8-bf16 | 23829476736 | — | — | — | accuracy 0.4982 | — | accuracy 0.5 | accuracy 0.38 |
 
 ## Records
 

@@ -86,6 +86,7 @@ type summaryMetrics struct {
 	TTFTMillisecondsP50        float64 `json:"ttft_ms_p50"`
 	TTFTMillisecondsMinimum    float64 `json:"ttft_ms_min"`
 	TotalMillisecondsP50       float64 `json:"total_ms_p50"`
+	PromptTokensPerSecondP50   float64 `json:"prompt_tokens_per_second_p50"`
 	DecodeTokensPerSecondP50   float64 `json:"decode_tokens_per_second_p50"`
 	EndToEndTokensPerSecondP50 float64 `json:"end_to_end_tokens_per_second_p50"`
 }
@@ -491,22 +492,26 @@ func executeContinuousBatch(
 func summarizeRuns(runs []runMetrics) summaryMetrics {
 	ttft := make([]float64, len(runs))
 	total := make([]float64, len(runs))
+	prompt := make([]float64, len(runs))
 	decode := make([]float64, len(runs))
 	endToEnd := make([]float64, len(runs))
 	for index, run := range runs {
 		ttft[index] = run.TTFTMilliseconds
 		total[index] = run.TotalMilliseconds
+		prompt[index] = run.PromptTokensPerSecond
 		decode[index] = run.DecodeTokensPerSecond
 		endToEnd[index] = run.EndToEndTokensPerSecond
 	}
 	slices.Sort(ttft)
 	slices.Sort(total)
+	slices.Sort(prompt)
 	slices.Sort(decode)
 	slices.Sort(endToEnd)
 	return summaryMetrics{
 		TTFTMillisecondsP50:        median(ttft),
 		TTFTMillisecondsMinimum:    ttft[0],
 		TotalMillisecondsP50:       median(total),
+		PromptTokensPerSecondP50:   median(prompt),
 		DecodeTokensPerSecondP50:   median(decode),
 		EndToEndTokensPerSecondP50: median(endToEnd),
 	}

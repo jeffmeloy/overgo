@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"slices"
 	"time"
 
@@ -51,6 +52,7 @@ type options struct {
 	DeviceTopK     bool
 	LoRA           []string
 	Publish        bool
+	CPUProfile     string
 }
 
 type runMetrics struct {
@@ -139,6 +141,7 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.CachePrompt, "cache-prompt", false, "reuse retained prompt state between runs")
 	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
 	flags.BoolVar(&result.Publish, "publish", false, "commit the result as benchmark evidence with a verification claim (requires -repo and a clean worktree)")
+	flags.StringVar(&result.CPUProfile, "cpuprofile", "", "write a Go CPU profile of the whole run to this file (host-side time between kernels)")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
@@ -183,6 +186,17 @@ func run(args []string) error {
 	options, err := parseOptions(args)
 	if err != nil {
 		return err
+	}
+	if options.CPUProfile != "" {
+		profile, profileErr := os.Create(options.CPUProfile)
+		if profileErr != nil {
+			return profileErr
+		}
+		defer profile.Close()
+		if profileErr := pprof.StartCPUProfile(profile); profileErr != nil {
+			return profileErr
+		}
+		defer pprof.StopCPUProfile()
 	}
 	cuda, err := driver.Open()
 	if err != nil {

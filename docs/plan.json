@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "evaluator-batching",
+      "title": "Evaluator batching (owner observation 2026-09-03: lm_eval runs BBH several times faster): the evaluation session scores one case per forward pass under both protocols while the runtime already serves continuous batches (cmd/benchmark -batch-sequences); the multiple-choice scorer and the generated-letter scorer feed cases through the continuous-batch generator with a batch bound derived from the model's resident budget, results bit-identical to the single-case path on a fixture, wall time per suite recorded before and after",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Evaluator batching (owner observation 2026-09-03: lm_eval runs BBH several times faster): the evaluation session scores one case per forward pass under both protocols while the runtime already serves continuous batches (cmd/benchmark -batch-sequences); the multiple-choice scorer and the generated-letter scorer feed cases through the continuous-batch generator with a batch bound derived from the model's resident budget, results bit-identical to the single-case path on a fixture, wall time per suite recorded before and after",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run 'Batch' -count=1"
+        }
+      ]
+    },
+    {
       "id": "benchmark-completion",
       "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
       "status": "open",

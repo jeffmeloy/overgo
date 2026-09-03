@@ -555,6 +555,46 @@ func TestExecutorBatchedCachedAttentionMatchesReference(t *testing.T) {
 	)
 }
 
+// TestExecutorWindowedDecodeAttentionMatchesReference drives the
+// single-query causal step of a sliding-window layer over a fixed-capacity
+// cache: the token count is device-resident, so the decode kernel derives
+// the window's first key from it, and a softcap rides the same launch.
+func TestExecutorWindowedDecodeAttentionMatchesReference(t *testing.T) {
+	const (
+		width      = 4
+		queryHeads = 2
+		keyHeads   = 1
+		capacity   = 8
+		active     = 5
+		window     = 3
+	)
+	for _, softcap := range []float32{0, 1.5} {
+		builder := tensor.NewBuilder()
+		builder.SetCacheAppendPlan(tensor.CacheAppendPlan{CapacityTokens: capacity, ActiveTokens: active})
+		query := builder.Input("query", dtype.F32, tensor.MustShape(width, queryHeads, 1))
+		pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(width, keyHeads, capacity))
+		newKey := builder.Input("new_key", dtype.F32, tensor.MustShape(width, keyHeads, 1))
+		pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(width, keyHeads, capacity))
+		newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(width, keyHeads, 1))
+		key := builder.AppendCache(pastKey, newKey, 2)
+		value := builder.AppendCache(pastValue, newValue, 2)
+		output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{
+			Scale: 0.5, Softcap: softcap, Causal: true, QueryStart: active, Window: window,
+		})
+		if err := builder.Err(); err != nil {
+			t.Fatal(err)
+		}
+		feeds := map[*tensor.Tensor]reference.Value{
+			query:     patternedValue(query.Shape, 1, 0.2, 0),
+			pastKey:   patternedValue(pastKey.Shape, 2, 0.15, 0),
+			newKey:    patternedValue(newKey.Shape, 3, 0.15, 0),
+			pastValue: patternedValue(pastValue.Shape, 4, 0.2, 0),
+			newValue:  patternedValue(newValue.Shape, 5, 0.2, 0),
+		}
+		checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: 3e-5})
+	}
+}
+
 func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(4, 2, 3))

@@ -483,6 +483,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"benchmark-token-budget/do",
 		"worker-budget/do",
 		"chat-answer-opener/do",
+		"decode-rate-floor/do",
+		"evaluator-batching/do",
 		"generation-soak/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",

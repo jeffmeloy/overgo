@@ -322,6 +322,27 @@ func TestPrepareMergeRequiresExactRepositoryRoot(t *testing.T) {
 	}
 }
 
+func TestMergeOwnedDocumentLimitsAutomaticConflictResolution(t *testing.T) {
+	for _, path := range []string{
+		plan.Path,
+		compatibilityDocumentPath,
+		trainingCompatibilityDocumentPath,
+		apiManifestDocumentPath,
+		apiManifestJSONPath,
+		modernGoBaselinePath,
+		modernGoCensusPath,
+	} {
+		if !mergeOwnedDocument(path) {
+			t.Fatalf("owned generated document %q was rejected", path)
+		}
+	}
+	for _, path := range []string{"go.mod", "internal/server/routes.go", "README.md"} {
+		if mergeOwnedDocument(path) {
+			t.Fatalf("handwritten source %q was accepted", path)
+		}
+	}
+}
+
 func mergeTestRepository(t *testing.T) (string, func(...string) string) {
 	t.Helper()
 	root := t.TempDir()

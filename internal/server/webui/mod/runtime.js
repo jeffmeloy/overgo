@@ -67,12 +67,7 @@
 		  overgo.stat("Recipe stages", authority ? authority.stages : "unknown"),
 		  overgo.stat("Evidence", authority ? (authority.evidence || []).length : "unknown"),
 		  overgo.stat("Device", session.device));
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {},
-          el("th", { text: "slot" }), el("th", { text: "task" }), el("th", { text: "state" }),
-          el("th", { text: "context" }), el("th", { text: "prompt" }), el("th", { text: "cached" }),
-          el("th", { text: "completion" }), el("th", { text: "prefill" }), el("th", { text: "decode" }),
-          el("th", { text: "elapsed" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["slot", "task", "state", "context", "prompt", "cached", "completion", "prefill", "decode", "elapsed"]));
         for (const slot of data.slots) {
           const timing = slot.timings || null;
           const elapsed = timing ? Number(timing.prompt_ms) + Number(timing.predicted_ms) : null;
@@ -153,11 +148,7 @@
 	  }
 
 	  function renderOperations() {
-		const table = el("table", { class: "grid" });
-		table.appendChild(el("tr", {},
-		  el("th", { text: "state" }), el("th", { text: "task" }), el("th", { text: "recipe" }),
-		  el("th", { text: "progress" }), el("th", { text: "attempts" }), el("th", { text: "run" }),
-		  el("th", { text: "outputs" }), el("th", { text: "failure" }), el("th", { text: "decision" }), el("th", { text: "dag" })));
+		const table = el("table", { class: "grid" }, overgo.headerRow(["state", "task", "recipe", "progress", "attempts", "run", "outputs", "failure", "decision", "dag"]));
 		for (const item of current.values()) {
 		  const progress = item.progress || {};
 		  const actions = item.recovery && item.recovery.actions || [];
@@ -187,11 +178,7 @@
           overgo.stat("Observations", data.count),
           overgo.stat("Publish failures", data.publish_failures),
           overgo.stat("Catalog truncated", data.truncated ? "yes" : "no"));
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {},
-          el("th", { text: "started" }), el("th", { text: "task" }), el("th", { text: "outcome" }),
-          el("th", { text: "model" }), el("th", { text: "recipe" }), el("th", { text: "duration" }),
-          el("th", { text: "input" }), el("th", { text: "output" }), el("th", { text: "H2D" }), el("th", { text: "D2H" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["started", "task", "outcome", "model", "recipe", "duration", "input", "output", "H2D", "D2H"]));
         for (const item of data.activity) {
           table.appendChild(el("tr", {},
             el("td", { class: "mono", text: new Date(Number(item.started_unix_ns) / 1e6).toLocaleString() }),
@@ -207,23 +194,17 @@
         }
         rows.replaceChildren(table);
 
-		const stageTable = el("table", { class: "grid" });
-		stageTable.appendChild(el("tr", {}, el("th", { text: "stage" }), el("th", { text: "state" }),
-		  el("th", { text: "attempt" }), el("th", { text: "operation" }), el("th", { text: "failure" })));
+		const stageTable = el("table", { class: "grid" }, overgo.headerRow(["stage", "state", "attempt", "operation", "failure"]));
 		for (const stage of data.stages || []) stageTable.appendChild(el("tr", {},
 		  el("td", { class: "mono", text: stage.node }), el("td", { text: stage.state }),
 		  el("td", { class: "mono", text: stage.attempt }), el("td", { class: "mono", text: fmt.shortID(stage.operation) }),
 		  el("td", { text: stage.failure || "" })));
-		const decisionTable = el("table", { class: "grid" });
-		decisionTable.appendChild(el("tr", {}, el("th", { text: "answer" }), el("th", { text: "tool" }),
-		  el("th", { text: "operation" }), el("th", { text: "request" })));
+		const decisionTable = el("table", { class: "grid" }, overgo.headerRow(["answer", "tool", "operation", "request"]));
 		for (const decision of data.decisions || []) decisionTable.appendChild(el("tr", {},
 		  el("td", { text: decision.answer }), el("td", { text: decision.tool }),
 		  el("td", { class: "mono", text: fmt.shortID(decision.operation) }),
 		  el("td", { class: "mono", text: fmt.shortID(decision.request) })));
-		const interactionTable = el("table", { class: "grid" });
-		interactionTable.appendChild(el("tr", {}, el("th", { text: "response" }), el("th", { text: "node" }),
-		  el("th", { text: "trace" }), el("th", { text: "action" })));
+		const interactionTable = el("table", { class: "grid" }, overgo.headerRow(["response", "node", "trace", "action"]));
 		for (const interaction of data.interactions || []) interactionTable.appendChild(el("tr", {},
 		  el("td", { class: "mono", text: interaction.response }), el("td", { class: "mono", text: interaction.node }),
 		  el("td", { class: "mono", text: fmt.shortID(interaction.trace) }), el("td", {},

@@ -313,3 +313,15 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .tool-header .tag { margin-left:auto; }
 .tool-body { padding:0 12px 10px; }
 .tool-body pre { margin:4px 0 8px; max-height:280px; overflow:auto; font-size:12px; }
+
+/* ---- front page: the conversation first, the workbench one click away ---- */
+.shell.front .sidebar .nav-group { display:none; }
+.shell.front .sidebar { width:200px; }
+.shell.front .wrap { max-width:900px; margin:0 auto; }
+#workbench-toggle { margin:6px 10px 12px; width:calc(100% - 20px); }
+.shell:not(.front) #workbench-toggle { opacity:.7; }
+#model-evidence { max-width:46ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.front-empty { margin:40px auto 24px; max-width:560px; text-align:center; }
+.front-empty h2 { font:600 20px var(--font); margin:0 0 6px; }
+.front-empty .starters { display:flex; gap:10px; justify-content:center; margin-top:18px; flex-wrap:wrap; }
+.front-empty .tag { margin:2px; }

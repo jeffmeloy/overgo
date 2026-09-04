@@ -75,9 +75,7 @@
       }
 
       function renderInventory() {
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {}, el("th", { text: "label" }), el("th", { text: "state" }),
-          el("th", { text: "capacity" }), el("th", { text: "lease" }), el("th", { text: "authority" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["label", "state", "capacity", "lease", "authority"]));
         for (const item of inventory.peers || []) {
           const capacity = item.capacity || {};
           table.appendChild(el("tr", { onclick: () => { selectedPeer = item.peer; renderDetail(); } },
@@ -176,9 +174,7 @@
       async function renderEvidence(operation) {
         const evidence = await api.get("/peers/evidence?operation=" + encodeURIComponent(operation));
         if (!(evidence.attempts || []).length) return;
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {}, el("th", { text: "phase" }), el("th", { text: "outcome" }),
-          el("th", { text: "attempt" }), el("th", { text: "failure / log" }), el("th", { text: "artifacts" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["phase", "outcome", "attempt", "failure / log", "artifacts"]));
         for (const document of evidence.attempts || []) {
           const attempt = document.value;
           table.appendChild(el("tr", {}, el("td", { text: attempt.phase }), el("td", { text: attempt.outcome }),

@@ -35,10 +35,7 @@
     const detail = overgo.el("div");
     function render() {
       const observation = observations[Number(select.value) || 0];
-      const table = overgo.el("table", { class: "grid" });
-      table.appendChild(overgo.el("tr", {}, overgo.el("th", { text: "scorer" }),
-        overgo.el("th", { text: "chosen" }), overgo.el("th", { text: "rejected" }),
-        overgo.el("th", { text: "margin" })));
+      const table = overgo.el("table", { class: "grid" }, overgo.headerRow(["scorer", "chosen", "rejected", "margin"]));
       for (const row of [
         ["policy", observation.policy_chosen, observation.policy_rejected, observation.policy_margin],
         ["reference", observation.reference_chosen, observation.reference_rejected, observation.reference_margin],
@@ -98,9 +95,7 @@
     const rows = (trace) => trace.objective === "grpo" ? trace.grpo : trace.dpo;
     const left = rows(baseline.trace).at(-1);
     const right = rows(current.trace).at(-1);
-    const table = overgo.el("table", { class: "grid" });
-    table.appendChild(overgo.el("tr", {}, overgo.el("th", { text: "measurement" }),
-      overgo.el("th", { text: "baseline" }), overgo.el("th", { text: "current" })));
+    const table = overgo.el("table", { class: "grid" }, overgo.headerRow(["measurement", "baseline", "current"]));
     const fields = current.trace.objective === "grpo" ?
       ["loss", "mean_reward", "reward_dispersion", "gradient_l2", "update_l2"] :
       ["loss", "policy_margin", "reference_margin", "relative_margin", "gradient_l2", "update_l2"];
@@ -200,10 +195,7 @@
         prev.disabled = prior.length === 0;
         next.disabled = !nextCursor;
 
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {},
-          el("th", { text: "outcome" }), el("th", { text: "recipe" }), el("th", { text: "commit" }),
-          el("th", { text: "wall" }), el("th", { text: "heaviest phases" }), el("th", { text: "in/out" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "recipe", "commit", "wall", "heaviest phases", "in/out"]));
         for (const run of data.runs) {
           const phases = [...(run.phases || [])].sort((a, b) => b.ms - a.ms).slice(0, 3)
             .map((phase) => phase.phase + " " + phase.ms.toFixed(0) + "ms").join(", ");

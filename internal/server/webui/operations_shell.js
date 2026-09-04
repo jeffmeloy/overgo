@@ -126,9 +126,7 @@
       if (trace) links.appendChild(artifactLink(trace, "trace " + fmt.shortID(trace)));
     }
 
-    const attemptTable = el("table", { class: "grid" });
-    attemptTable.appendChild(el("tr", {}, el("th", { text: "attempt" }), el("th", { text: "outcome" }),
-      el("th", { text: "duration" }), el("th", { text: "evidence" })));
+    const attemptTable = el("table", { class: "grid" }, window.overgo.headerRow(["attempt", "outcome", "duration", "evidence"]));
     for (const document of projection.serving || []) {
       const attempt = document.value;
       attemptTable.appendChild(el("tr", {}, el("td", { class: "mono", text: attempt.attempt }),

@@ -114,22 +114,13 @@
       panel.append(
         el("div", { class: "section-title", text: "Local models" }),
         catalogNote,
-        el("table", { class: "grid" },
-          el("thead", null, el("tr", null,
-            el("th", { text: "model" }), el("th", { text: "file" }), el("th", { text: "capabilities" }), el("th", { text: "" }))),
-          catalogBody),
+        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["model", "file", "capabilities", ""])), catalogBody),
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
-        el("table", { class: "grid" },
-          el("thead", null, el("tr", null,
-            el("th", { text: "repository" }), el("th", { text: "downloads" }), el("th", { text: "likes" }), el("th", { text: "" }))),
-          resultsBody),
+        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
         el("div", { class: "section-title", text: "Downloads" }),
         jobsNote,
-        el("table", { class: "grid" },
-          el("thead", null, el("tr", null,
-            el("th", { text: "repository" }), el("th", { text: "state" }), el("th", { text: "file" }), el("th", { text: "progress" }))),
-          jobsBody));
+        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress"])), jobsBody));
 
       refreshCatalog();
       this.onActivate = () => jobPoller.start();

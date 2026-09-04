@@ -4,10 +4,7 @@
   const artifactLink = (overgo, id, label) => overgo.artifactLink(id, label, true);
 
   function metricTable(overgo, metrics) {
-    const table = overgo.el("table", { class: "grid metric-grid" });
-    table.appendChild(overgo.el("tr", {},
-      overgo.el("th", { text: "metric" }), overgo.el("th", { text: "value" }),
-      overgo.el("th", { text: "direction" })));
+    const table = overgo.el("table", { class: "grid metric-grid" }, overgo.headerRow(["metric", "value", "direction"]));
     for (const metric of metrics || []) {
       table.appendChild(overgo.el("tr", {},
         overgo.el("td", { text: metric.name }),
@@ -23,8 +20,7 @@
   }
 
   function recordTable(overgo, values) {
-    const table = overgo.el("table", { class: "grid" });
-    table.appendChild(overgo.el("tr", {}, overgo.el("th", { text: "field" }), overgo.el("th", { text: "value" })));
+    const table = overgo.el("table", { class: "grid" }, overgo.headerRow(["field", "value"]));
     for (const [name, value] of Object.entries(values || {})) {
       table.appendChild(overgo.el("tr", {},
         overgo.el("td", { text: name }), overgo.el("td", { class: "mono", text: valueText(value) })));
@@ -71,9 +67,7 @@
       function renderCapabilities() {
         fields.clear();
         suiteHost.replaceChildren();
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {}, el("th", { text: "select" }), el("th", { text: "kind" }),
-          el("th", { text: "source" }), el("th", { text: "cases" }), el("th", { text: "plan" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["select", "kind", "source", "cases", "plan"]));
         for (const capability of selectedCapabilities()) {
           const input = el("input", { type: "checkbox", value: capability.suite.plan });
           fields.set(capability.suite.plan, input);
@@ -130,9 +124,7 @@
         try {
           const comparison = await api.get("/evaluations/compare?left=" + encodeURIComponent(baseline.evaluation) +
             "&right=" + encodeURIComponent(entry.evaluation));
-          const table = el("table", { class: "grid" });
-          table.appendChild(el("tr", {}, el("th", { text: "metric" }), el("th", { text: "baseline" }),
-            el("th", { text: "current" }), el("th", { text: "delta" }), el("th", { text: "result" })));
+          const table = el("table", { class: "grid" }, overgo.headerRow(["metric", "baseline", "current", "delta", "result"]));
           for (const metric of comparison.metrics || []) {
             table.appendChild(el("tr", {}, el("td", { text: metric.name }),
               el("td", { class: "mono", text: String(metric.left) }), el("td", { class: "mono", text: String(metric.right) }),
@@ -149,9 +141,7 @@
         if (!model.value) return;
         try {
           const entries = await api.get("/evaluations/history?model=" + encodeURIComponent(model.value));
-          const table = el("table", { class: "grid" });
-          table.appendChild(el("tr", {}, el("th", { text: "outcome" }), el("th", { text: "commit" }),
-            el("th", { text: "metrics" }), el("th", { text: "run" }), el("th", { text: "actions" })));
+          const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "commit", "metrics", "run", "actions"]));
           for (const entry of entries) {
             table.appendChild(el("tr", {}, el("td", { text: entry.outcome }),
               el("td", { class: "mono", text: (entry.code_commit || "").slice(0, 10) }),

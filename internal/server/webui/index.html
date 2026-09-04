@@ -8,9 +8,10 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="shell">
+<div class="shell front">
   <nav class="sidebar">
     <a class="brand" href="/" style="text-decoration:none"><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span><span class="sub">workbench</span></a>
+    <button id="workbench-toggle" class="btn alt" title="Show or hide the workbench sections beside the conversation">Workbench</button>
     <div id="sections"></div>
     <div id="tabs" style="display:none"></div>
     <div class="foot"><span class="note" id="footer-note"></span></div>
@@ -19,6 +20,7 @@
     <header class="topbar">
       <span class="pill" id="status-pill">probing…</span>
       <span class="pill" id="model-pill"></span>
+      <span class="note" id="model-evidence" title="Committed evidence for the served model: decode tok/s from the latest benchmark, accuracy per evaluated suite"></span>
       <span class="grow"></span>
       <input class="keyfield" id="api-key" type="password" placeholder="API key (if required)" autocomplete="off" spellcheck="false">
       <label class="key-remember" title="Keep the key in browser storage; unchecked, it is held in memory for this page only"><input type="checkbox" id="api-key-remember"> remember</label>
@@ -30,7 +32,9 @@
 
 <!-- One shell, one loader. boot.js fetches /workspace/manifest and loads the
      shared libraries and every declared tab module itself; adding a tab is a
-     manifest entry plus a file under mod/, never a line here. -->
+     manifest entry plus a file under mod/, never a line here. The shell opens
+     as the front page (the conversation, workbench folded) and unfolds the
+     workbench beside it on request. -->
 <script defer src="/boot.js"></script>
 </body>
 </html>

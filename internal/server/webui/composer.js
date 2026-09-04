@@ -307,6 +307,7 @@
     return {
       element, input, attachments, attachmentParts, setBusy, addFile,
       clearAttachments() { attachments.length = 0; renderAttachments(); },
+      openPicker() { picker.click(); },
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },
     };

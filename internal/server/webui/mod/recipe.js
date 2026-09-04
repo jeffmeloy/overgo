@@ -40,10 +40,7 @@
         overgo.stat("Cache", fmt.shortID(runtime.cache_identity))));
 
       panel.appendChild(el("div", { class: "section-title", text: "Compiled stages" }));
-      const stages = el("table", { class: "grid" });
-      stages.appendChild(el("tr", {},
-        el("th", { text: "order" }), el("th", { text: "node" }), el("th", { text: "module" }),
-        el("th", { text: "placement" }), el("th", { text: "residency" }), el("th", { text: "session" })));
+      const stages = el("table", { class: "grid" }, overgo.headerRow(["order", "node", "module", "placement", "residency", "session"]));
       for (const [index, stage] of runtime.stages.entries()) {
         stages.appendChild(el("tr", {},
           el("td", { class: "mono", text: index }),
@@ -56,9 +53,7 @@
       panel.appendChild(stages);
 
       panel.appendChild(el("div", { class: "section-title", text: "Required facts" }));
-      const facts = el("table", { class: "grid" });
-      facts.appendChild(el("tr", {},
-        el("th", { text: "role" }), el("th", { text: "slot" }), el("th", { text: "artifact" })));
+      const facts = el("table", { class: "grid" }, overgo.headerRow(["role", "slot", "artifact"]));
       for (const fact of runtime.required_facts) {
         facts.appendChild(el("tr", {},
           el("td", { text: fact.role }),

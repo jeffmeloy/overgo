@@ -267,8 +267,30 @@
     });
   }
 
+  // headerRow: one table header row from its labels; every grid table used
+  // to spell the th cells out.
+  function headerRow(labels) { return el("tr", {}, ...labels.map((text) => el("th", { text }))); }
+
+  // evidenceLine: the committed evidence beside a catalog entry, decode
+  // tok/s from the latest benchmark and accuracy per evaluated suite; the
+  // header and the model picker show the same line.
+  function evidenceLine(item) {
+    const facts = [];
+    if (item.benchmark && item.benchmark.decode_tokens_per_second_p50) facts.push(Math.round(item.benchmark.decode_tokens_per_second_p50) + " tok/s");
+    for (const entry of item.evals || []) {
+      if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2));
+    }
+    return facts.join(" · ");
+  }
+
+  // The front page: the shell opens on the conversation with the workbench
+  // folded to a rail; the Workbench control and any other tab unfold it.
+  function setFront(on) { document.querySelector(".shell").classList.toggle("front", on); }
+  let servedEntry = null;
+  function servedModel() { return servedEntry; }
+
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, evidenceLine, servedModel,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
@@ -296,6 +318,7 @@
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
     activeSection = tabSection(tab);
+    if (id !== "chat") setFront(false);
     for (const t of tabs) {
       const on = t.id === id;
       const wasActive = t.panel.classList.contains("active");
@@ -339,7 +362,13 @@
       const health = await api.get("/health");
       statusPill.textContent = "online";
       statusPill.className = "pill ok";
-      if (health && health.model) modelPill.textContent = health.model;
+      if (health && health.model) {
+        modelPill.textContent = health.model;
+        const catalog = await api.get("/catalog/models").catch(() => null);
+        servedEntry = ((catalog && catalog.models) || []).find((item) =>
+          (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
+        document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : "";
+      }
     } catch (err) {
       statusPill.textContent = "offline";
       statusPill.className = "pill err";
@@ -406,19 +435,8 @@
             const swap = el("button", { class: "btn alt", text: "serve" });
             swap.addEventListener("click", () => swapModel(item, name, swap));
             const row = el("div", { class: "row" }, el("span", { class: "mono", text: name }));
-            // Committed evidence beside the entry: perf from the latest
-            // benchmark claim, quality from the latest eval per suite.
-            const facts = [];
-            if (item.benchmark && item.benchmark.decode_tokens_per_second_p50) {
-              facts.push(Math.round(item.benchmark.decode_tokens_per_second_p50) + " tok/s");
-            }
-            (item.evals || []).forEach((entry) => {
-              const suite = (entry.suite || "").replace(/^store\//, "");
-              if (entry.metrics && typeof entry.metrics.accuracy === "number") {
-                facts.push(suite + " " + entry.metrics.accuracy.toFixed(2));
-              }
-            });
-            if (facts.length) row.appendChild(el("span", { class: "note", text: facts.join(" · ") }));
+            const facts = evidenceLine(item);
+            if (facts) row.appendChild(el("span", { class: "note", text: facts }));
             row.appendChild(swap);
             return row;
           }));
@@ -592,6 +610,8 @@
     // stack a second listener each time.
     if (!shellWired) {
       shellWired = true;
+      document.getElementById("workbench-toggle").addEventListener("click", () =>
+        setFront(!document.querySelector(".shell").classList.contains("front")));
       const keyInput = document.getElementById("api-key");
       const keyRemember = document.getElementById("api-key-remember");
       keyInput.value = getKey();

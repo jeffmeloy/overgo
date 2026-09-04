@@ -37,6 +37,22 @@
           el("span", { class: "note", text: "max tokens" }), maxTokens],
       });
 
+      // The empty conversation is the getting-started card: the served model,
+      // its committed evidence, the modalities and modes its capability
+      // document declares, and three starters.
+      const served = overgo.servedModel();
+      const declared = Object.keys(capabilities.modalities || {}).filter((kind) => capabilities.modalities[kind])
+        .concat((capabilities.modes || []).filter((mode) => mode.enabled).map((mode) => mode.label));
+      const welcome = el("div", { class: "card front-empty" },
+        el("h2", { text: capabilities.name || modelID }),
+        el("div", { class: "note", text: (served && overgo.evidenceLine(served)) || "no committed evidence yet" }),
+        el("div", null, ...declared.map((label) => el("span", { class: "tag", text: label }))),
+        el("div", { class: "starters" },
+          el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() }),
+          el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
+          el("button", { class: "btn alt", text: "Switch model", onclick: () => document.getElementById("model-pill").click() })));
+      panel.insertBefore(welcome, thread.node);
+
       function renderFacts(inputTokens, usage, timings) {
         const cards = [];
         if (inputTokens != null) {
@@ -84,6 +100,7 @@
 
       async function submit(text, attachments) {
         if (controller) return;
+        welcome.remove();
         const parts = composer.attachmentParts();
         const payload = requestMessages(text, parts);
         composer.clearInput();

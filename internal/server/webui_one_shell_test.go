@@ -41,7 +41,7 @@ func TestWebUIOneShell(t *testing.T) {
 	if len(scripts) != 1 || scripts[0][1] != "/boot.js" {
 		t.Fatalf("shell script tags = %v, want only /boot.js", scripts)
 	}
-	for _, needle := range []string{`id="model-pill"`, `id="global-operation-shell"`, `id="panels"`, `class="shell"`, `nav class="sidebar"`} {
+	for _, needle := range []string{`id="model-pill"`, `id="global-operation-shell"`, `id="panels"`, `class="shell`, `nav class="sidebar"`} {
 		if !strings.Contains(string(shell), needle) {
 			t.Errorf("shell lacks %s", needle)
 		}

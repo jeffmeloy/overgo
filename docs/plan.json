@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "front-page",
-          "title": "The front page (the one shell's default view): a single conversation column with the composer (Enter sends, Shift+Enter newline, attach, stop), streamed assistant turns rendered as markdown with copy, a header that shows the served model's name and its evidence line, a collapsible conversation list, and one Workbench entry that opens the retained workbench tabs beside the conversation; the empty state is the getting-started card: the served model with its evidence and declared capabilities, three starter actions (ask, attach, switch model), and, when nothing is served, a setup card that opens the catalog or the hub download rather than a settings dialog; the page probes /health and explains how to start the server when it is absent",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestFrontPage' -count=1",
-          "rationale": "Today the landing card only probes health and links to a 24-tab shell; a first-time user must know which tab is chat. The front page makes conversation the default, and the empty state carries the whole first-run explanation.",
-          "depends_on": [
-            "gui-bootstrap/author-plan",
-            "gui-simplify/one-shell",
-            "gui-simplify/one-composer",
-            "gui-simplify/one-capability-source",
-            "gui-simplify/one-route-table"
-          ]
-        },
-        {
           "id": "model-switch",
           "title": "Model selection and live switching on the front page: the selector lists the store's servable catalog (/catalog/models) with each model's evidence line (benchmark prompt and decode tok/s, latest evaluation scores) and its declared task capabilities, switches the served model live through the swap proxy (/health?swap=) with load progress and the new model's context length and modalities shown on arrival, explains itself when the proxy is absent, and remembers the last chosen model per browser; a stale activation is listed as unservable with the loader's reason, never as a choice",
           "status": "open",

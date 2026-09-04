@@ -1,6 +1,6 @@
 {
   "campaign": "Complete integrated platform validation, then transfer validated audio.cpp behavior into reusable audio primitives and composable ingest-train-evaluate-serve recipes",
-  "doctrine": "Operator override (2026-09-04): continue audio work without merging master. The CPU ASR cycle retains audio baseline d8da8d0d; synchronization is retained-baseline reconciliation only. While this override remains, reconcile each due sync row against the current committed audio baseline rather than executing a master merge. Every cycle uses the existing automation: inspect repository and stored authorities, update affected remaining rows, commit the paired reconciliation row through cmd/gate, perform only the paired work row and its verifier, then commit through cmd/gate and repeat. A continuation request does not authorize a master merge. When master synchronization is explicitly restored, use cmd/plan -prepare-merge master -plan-projection first-parent-target and the printed gated merge command, preserving this audio plan. Raw Git merges and commits are refused. Each downloaded reference, including audio.cpp, is a pinned behavioral oracle, never a linked runtime or permanent product dependency. The transfer unit is a verified processing capability: source commit, license and artifact identity, decoded-signal admission profile, explicit compatibility decision, neutral typed contract, intermediate golden traces, Go CPU reference, manifest-owned CUDA where measurement justifies it, recipe-selected consumer, evaluation evidence, and deletion of temporary comparison adapters. Granite Speech 5.0 470M TurboCTC is the first ASR oracle because native Safetensors offline inference passed the pinned LibriSpeech fixtures. Nemotron 3.5 ASR native Safetensors is the materially different streaming ASR oracle; its downloaded NeMo-Speech Q8 GGUF is a valid container but an incompatible tensor schema and must be rejected explicitly rather than guessed from its extension. FireRedVAD is the first offline and streaming segmentation oracle because both checkpoints passed the same decoded fixtures. Common components are named by operation and contain no model-family dispatch or model-specific algorithms, even when only one recipe consumes them. Recipes and artifact declarations supply composition and numerical semantics. Preserve Go hygiene: reuse existing owners, delete displaced paths, keep exported APIs small, and verify formatting, vet, race behavior and numerical parity. Efficiency changes require fixed-input allocation and timing measurements; distinguish reusable numeric-array budgets from process memory and direct-DFT reference behavior from FFT performance. Schema, headers, duration, and transcript metadata never establish usable audio: admission decodes samples, measures signal content, and quarantines silent, near-silent, corrupt, clipped, non-finite, or otherwise policy-invalid records before evaluation or training. The historically silent AMI materialization remains quarantined pending exact source and transformation identity; this is not a blanket claim about the non-silent available AMI source shard. Pinned LibriSpeech clean is the initial positive dataset. Forward parity precedes backward implementation, while task, artifact, state, and checkpoint contracts retain the information required for gradients, deterministic replay, trainable-parameter selection, and optimizer state. The campaign is not complete when inference runs: its proof is the composed recipe ingest to decode to validate to segment to transcribe to score to materialize to train to benchmark to publish to serve, with exact stop and resume preserving optimizer, random and data-stream state, a pre/post WER bracket and complete OvergoDB lineage. CPU is the numerical authority. CUDA enters only through kernels/manifest.json and must match the CPU contract on the same artifact and fixtures; unavailable or unsupported toolchains are reported as unavailable, never as passing evidence. Streaming work owns bounded sessions, cancellation, chunk-boundary invariance, finalization, discontinuity, and backpressure. Every quality or performance claim names its artifact, dataset, environment, denominator, latency, throughput, host memory and VRAM. Signal validation and VAD land in the first ASR lifecycle because they protect evaluation and training materialization; later ASR architectures, alignment, diarization, voice, and generative-audio rows remain gated so breadth cannot hide an incomplete lifecycle. Findings outside this scope are recorded but do not expand the campaign. While GPU capacity is reserved for other work, dispatch CPU development and CPU verification before device implementation, VRAM measurement, general model benchmarks, and device-bearing recovery drills; the commit gate may use the GPU whenever its derived scope requires device evidence. The CPU tranche includes oracle intake, neutral contracts, signal admission, DSP, CPU ASR, VAD, recipes, transcription serving, WER, dataset materialization, backward execution, exact resume, the second CPU ASR architecture, live CPU operations, alignment, diarization, and reusable voice-contract consolidation.",
+  "doctrine": "Operator override (2026-09-04): work and commit only in overgo_audiocpp; do not merge master or push. Each due sync row reconciles the current committed audio baseline and stored authorities, updates affected remaining rows, and commits through cmd/gate before its paired work row. Record the exact baseline at dispatch; retained baseline d692645c is a minimum ancestor, not permission to chase master. Reconciliation commits and work commits remain separate. Resume master synchronization only on explicit authorization, using cmd/plan -prepare-merge master -plan-projection first-parent-target and its gated merge command. This user-requested plan optimization is documentation-only and does not complete runtime work. Each downloaded reference is a pinned behavioral oracle, never a linked runtime or permanent product dependency. Granite Speech 5.0 470M TurboCTC is the first offline ASR oracle; Nemotron 3.5 ASR native Safetensors is the second, streaming oracle; its incompatible Q8 GGUF remains explicitly rejected. FireRedVAD supplies segmentation evidence. Reuse internal/audiodsp, safetensors, tokenizer, hostmath/tensor, modelrecipe, capabilityruntime, dataset, evaluation, trainingprogram and trainingworkflow before adding owners. Shared execution means operation-named concrete components, even with one recipe consumer, not a new general-purpose graph engine. Model identity, tensor names, geometry, padding, normalization, weight sharing and composition belong in artifact/recipe declarations; no model-family dispatch in mathematical execution. Implement only demonstrated semantic gaps and bind each to a real recipe consumer in the same slice. Preserve one forward implementation for inference and training; checkpoint, optimizer, scheduler, resource and persistence ownership stay with the existing platform. First prove the complete processor tensor, then layer/logit/token/transcript parity, then admitted offline recipe execution and early WER/CER/resource measurements. Static DSP parity is not ASR parity, and transport chunking is not native streaming. The first train-evaluate-publish-serve proof is CPU-only with an explicit frozen-base output adapter and exact stop and resume preserving optimizer, random, scheduler and data-stream state. It includes VAD composition, a pre/post WER bracket, bounded resource measurements and complete OvergoDB lineage, but does not wait for full-encoder gradients, streaming ASR, another architecture, voice expansion or CUDA. Full-encoder training, second-architecture/native streaming, alignment, diarization, voice and generative audio remain open capabilities, not discarded scope. CPU is the numerical authority; CUDA follows measured bottlenecks through kernels/manifest.json. While GPU capacity is occupied, execute eligible CPU work; commit gates may use the GPU when their derived scope requires it. Unsupported or unavailable device execution is never passing evidence. Admission decodes actual samples and quarantines policy-invalid, silent, near-silent, corrupt, clipped or non-finite records. Reference text is isolated from prediction. Pinned LibriSpeech clean is the initial positive corpus. The historically silent AMI materialization remains quarantined until exact source/transformation identity is established; the non-silent original source does not clear it. The historical audio inspection batch-key finding remains open until canonical replay is repaired and verified; isolated-store success is not repair. Use one source-bound golden corpus, independent boundary traces and explicit tolerances across inference, evaluation and training. Reject unsupported behavior rather than silently approximating it. Preserve tied weights, cancellation, memory bounds, deterministic splits, restart state and failure denominators. Measure numerical error, allocations, wall time and host memory before claiming simplification or speed; direct DFT remains a reference, not FFT performance. Prefer caller-owned buffers and single-clip synchronous execution until batching or concurrency removes measured cost. Do not add a second loader, registry, scheduler, dataset cache, optimizer, checkpoint format, service or verifier framework. Retain broad platform benchmarks and recovery drills after the audio proof; they do not gate first CPU capability. Findings outside the audio scope are recorded without expanding it.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
@@ -10,10 +10,10 @@
       "steps": [
         {
           "id": "load-forward-decode",
-          "title": "Load the elected artifact and implement its encoder, CTC projection, tokenizer and deterministic decoder through neutral execution owners",
+          "title": "Compose the complete CPU processor and encoder from shared operators, then prove deterministic CTC transcription",
           "status": "open",
-          "verify": "go test ./internal/speechrecognition -run 'TestArtifactLoad|TestForwardParity|TestCTCDecode'",
-          "rationale": "The CPU path is the numerical authority. First compose recipe-declared delta features and frame stacking after the verified static frontend, preserving explicit trailing waveform padding and pre-transform frame selection; compare the complete processor tensor before encoder work. Static log-mel parity alone does not establish processor or ASR parity. Loader mappings, tensor shapes, intermediate activations, logits, token IDs and final text all require parity evidence against the pinned oracle.",
+          "verify": "go test ./internal/audioparity ./internal/speechrecognition -run 'TestProcessorParity|TestArtifactLoad|TestForwardParity|TestCTCDecode' -count=1",
+          "rationale": "Use three acceptance boundaries within one implementation slice: complete processor tensor (declared delta, frame stacking, trailing waveform padding and pre-transform frame selection); loaded encoder with per-layer/logit parity; greedy CTC IDs and tokenizer text on pinned audio. Reuse audiodsp, safetensors, tokenizer and hostmath/tensor through a thin concrete speechrecognition orchestrator with an existing recipe-compatible call boundary; no standalone service or new graph language. Recipe data supplies tensor-role bindings, operation order, shapes, normalization, padding, relative-position semantics, pooling and shared parameter identity. Existing additive bucket-bias attention is not query-dependent relative-position attention; causal convolution is not symmetric depthwise convolution. Add only proven gaps to the owning math component, with an independent golden for each. Keep the same forward function for future training, with explicit trainable boundaries and optional trace storage, not a second forward implementation. Start with one bounded clip and reusable workspace; defer batching, caching and fusion until measurement justifies them. Preserve all original checkpoint behavior, including intermediate CTC feedback and tied output projection. No Python runtime dependency or model-specific execution code.",
           "depends_on": [
             "asr-reference/sync-load-forward-decode"
           ],
@@ -25,25 +25,25 @@
         },
         {
           "id": "sync-offline-recipe",
-          "title": "Merge master and reconcile the plan before: Compile and execute audio to features to encoder to transcript as a native model recipe with complete artifact lineage",
+          "title": "Reconcile the retained audio baseline before asr-reference/offline-recipe",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "asr-reference/load-forward-decode"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
           "id": "offline-recipe",
-          "title": "Compile and execute audio to features to encoder to transcript as a native model recipe with complete artifact lineage",
+          "title": "Bind admitted short-clip CPU transcription to the existing model recipe and artifact lifecycle",
           "status": "open",
           "verify": "go test ./internal/modelrecipe ./internal/speechrecognition -run 'Test.*Transcription.*Recipe|Test.*Lineage'",
-          "rationale": "A package-level forward pass is not an Overgo capability until the recipe compiler, runtime and store own its inputs, outputs, resources and provenance.",
+          "rationale": "Integrate the already verified forward path into existing modelrecipe/capabilityruntime execution, without recoding preprocessing, loading or decoding. The first recipe decodes, validates, transcribes and persists bounded mono clips with cancellation, rejection accounting and complete source/model/recipe lineage. It has no VAD or alignment dependency and makes no long-form, timestamp or streaming claim. Segmentation later composes this same recipe. Refuse invalid or non-speech inputs under the declared admission policy; metadata-only admission is insufficient.",
           "depends_on": [
             "asr-reference/sync-offline-recipe"
           ],
@@ -55,25 +55,329 @@
       ]
     },
     {
+      "id": "asr-evaluation",
+      "title": "Make audio quality and resource fitness native evidence",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-wer-suite",
+          "title": "Reconcile the retained audio baseline before asr-evaluation/wer-suite",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "asr-reference/offline-recipe"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "wer-suite",
+          "title": "Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run 'Test.*Transcription|Test.*WordErrorRate|Test.*CharacterErrorRate'",
+          "rationale": "The trainer needs a quality bracket whose denominator and normalization are stable. Predictions are produced from audio bytes without reference text entering inference inputs or fixture selection, then compared to separately stored targets. Silent and invalid controls must fail admission or remain non-speech; aggregate WER without admission failures, inference failures and grouped slices can conceal regressions or metadata leakage.",
+          "depends_on": [
+            "asr-evaluation/sync-wer-suite"
+          ],
+          "capabilities": [
+            "wer",
+            "cer",
+            "audio-evaluation",
+            "negative-control-evaluation"
+          ]
+        },
+        {
+          "id": "sync-resource-suite",
+          "title": "Reconcile the retained audio baseline before asr-evaluation/resource-suite",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "asr-reference/offline-recipe",
+            "asr-evaluation/wer-suite"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "resource-suite",
+          "title": "Establish the CPU offline quality and resource baseline on the pinned admitted corpus",
+          "status": "open",
+          "verify": "go test ./internal/evaluation ./internal/runrecord -run 'Test.*Audio.*Fitness|Test.*Transcription.*Resources'",
+          "rationale": "Run the same short-clip recipe and WER/CER suite with cold load separated from warm inference, wall time, real-time factor, allocation and host-memory measurements, duration and all failure denominators. Reuse evaluation/runrecord and the existing multidimensional fitness owner, not an audio benchmark framework. This is the baseline for the first training proof and must not wait for streaming, another model, voice, full backward or CUDA. First-partial/finalization/backpressure measurements are owned by streaming-transcription; VRAM and device parity are owned by asr-cuda/device-parity. Unmeasured dimensions stay unavailable, not zero or passing.",
+          "depends_on": [
+            "asr-evaluation/sync-resource-suite"
+          ],
+          "capabilities": [
+            "audio-resource-fitness",
+            "real-time-factor",
+            "latency-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "asr-serving",
+      "title": "Expose authenticated transcription and streaming through the native server",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-transcriptions-route",
+          "title": "Reconcile the retained audio baseline before asr-serving/transcriptions-route",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "asr-reference/offline-recipe"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "transcriptions-route",
+          "title": "Expose the admitted offline recipe through POST /v1/audio/transcriptions",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'Test.*AudioTranscriptions'",
+          "rationale": "Use existing authenticated workspace, upload, operation and cancellation owners; the route is a transport adapter, not a second inference pipeline. Initially admit the short-clip recipe only, explicitly refusing unsupported formats, timestamps and streaming. When the segmented recipe is verified, bind it through the same recipe selection without duplicating route logic. Signal-admission failures remain explicit and cannot become successful transcripts.",
+          "depends_on": [
+            "asr-serving/sync-transcriptions-route"
+          ],
+          "capabilities": [
+            "openai-audio-transcriptions",
+            "authenticated-serving",
+            "bounded-upload"
+          ]
+        },
+        {
+          "id": "sync-streaming-transcription",
+          "title": "Reconcile the retained audio baseline before asr-serving/streaming-transcription",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "audio-contracts/stream-session-contract",
+            "asr-serving/transcriptions-route",
+            "shared-asr-proof/second-architecture"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "streaming-transcription",
+          "title": "Serve partial and final transcripts through the bounded session contract and prove chunk-boundary invariance, backpressure, disconnect cancellation and clean shutdown",
+          "status": "open",
+          "verify": "go test ./internal/server ./internal/capabilityruntime -run 'Test.*StreamingTranscription|Test.*Audio.*Shutdown'",
+          "rationale": "Use capabilityruntime's bounded audio sessions and the second architecture's independently verified native streaming state. Do not simulate streaming by rerunning the offline model over a growing buffer or equate upload chunking with partial inference. Reuse the offline recipe's admission, transcript and persistence contracts; add only declared state transitions, partial/final events and transport adaptation. Verify chunk-boundary invariance within native semantics, discontinuities, checkpoint/restart, first-partial and finalization latency, real-time factor, retained memory, backpressure, cancellation and clean shutdown. No second scheduler or unbounded queue.",
+          "depends_on": [
+            "asr-serving/sync-streaming-transcription"
+          ],
+          "capabilities": [
+            "streaming-transcription",
+            "backpressure",
+            "clean-shutdown"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "asr-training",
+      "title": "Prove Overgo's universal trainer on the native audio route",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-dataset-materialization",
+          "title": "Reconcile the retained audio baseline before asr-training/dataset-materialization",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "asr-reference/offline-recipe",
+            "asr-evaluation/wer-suite"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "dataset-materialization",
+          "title": "Register pinned LibriSpeech clean and materialize only admitted waveform, transcript and derived-feature records with deterministic splits, resumable stream position, rejection accounting and complete source lineage",
+          "status": "open",
+          "verify": "go test ./internal/dataset ./internal/trainingdata -run 'Test.*Audio.*Material|Test.*Speech.*Split|Test.*Audio.*Resume|Test.*Audio.*Admission|Test.*Silent.*Reject'",
+          "rationale": "Training begins from the same decoded-signal admission, typed audio and artifact contracts as inference. Split membership, transformations, rejection counts and stream position must survive restart exactly. Identify and hash the historically silent AMI materialization and its transformation before repairing or admitting it. The pinned original AMI source record is non-silent; its measured admission does not clear historical transformed data or establish corpus-wide quality. Reuse existing streaming materialization and split owners. Derived features are optional lineage-bound artifacts, not a mandatory second dataset store; do not cache encoder outputs until frozen parameter identity and a measured reuse benefit justify it. Canonical registration/replay must resolve the existing batch-key finding without changing immutable historical records or using a new key to conceal the mismatch.",
+          "depends_on": [
+            "asr-training/sync-dataset-materialization"
+          ],
+          "capabilities": [
+            "speech-dataset",
+            "deterministic-splits",
+            "resumable-materialization",
+            "signal-admission-gate"
+          ]
+        },
+        {
+          "id": "sync-trainable-graph",
+          "title": "Reconcile the retained audio baseline before asr-training/trainable-graph",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "asr-training/dataset-materialization",
+            "asr-reference/load-forward-decode"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "trainable-graph",
+          "title": "Add shared CTC loss and train an explicit output adapter with the elected base model frozen",
+          "status": "open",
+          "verify": "go test ./internal/speechrecognition ./internal/trainingprogram -run 'TestCTCGrad|TestASRAdapterTraining|TestASRFrozenBase|TestASRSharedWeightIdentity' -count=1",
+          "rationale": "Register CTC with the existing trainingprogram objective/compiler and bind the same inference forward through its forward/backward/optimizer phases. Begin with a recipe-declared output adapter whose identity initialization preserves base logits and whose gradients do not traverse the frozen encoder. Reuse existing affine gradients, optimizer, parameter selection and checkpoint owners; add only the missing CTC math and adapter binding, with independent loss/gradient parity, repeated-label/blank/length cases and explicit impossible-alignment policy. The elected output projection is also used for intermediate feedback: do not silently untie it, cache activations that depend on trainable weights, or call tied-head updates frozen-encoder training. Store the adapter and frozen-base identities explicitly and assert base weights unchanged. Full encoder and internal-adapter gradients remain in encoder-backward after the first closed-loop proof.",
+          "depends_on": [
+            "asr-training/sync-trainable-graph"
+          ],
+          "capabilities": [
+            "ctc-training",
+            "gradient-parity",
+            "frozen-component-training"
+          ]
+        },
+        {
+          "id": "sync-exact-resume",
+          "title": "Reconcile the retained audio baseline before asr-training/exact-resume",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "asr-training/trainable-graph"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "exact-resume",
+          "title": "Interrupt and resume native ASR training while preserving parameters, optimizer, random, scheduler and data-stream state, then prove the resumed trajectory matches uninterrupted execution",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -run 'Test.*ASR.*ExactResume|Test.*Audio.*Checkpoint'",
+          "rationale": "A loadable weight file is not exact resume. The comparison covers the next batch identity, loss, parameter update and optimizer state after restart.",
+          "depends_on": [
+            "asr-training/sync-exact-resume"
+          ],
+          "capabilities": [
+            "exact-training-resume",
+            "optimizer-state",
+            "data-stream-continuity"
+          ]
+        },
+        {
+          "id": "sync-closed-loop-proof",
+          "title": "Reconcile the retained audio baseline before asr-training/closed-loop-proof",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "asr-training/exact-resume",
+            "asr-serving/transcriptions-route",
+            "audio-recipes/validated-transcription",
+            "asr-evaluation/resource-suite"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "closed-loop-proof",
+          "title": "Prove the CPU audio lifecycle: adapt, resume, evaluate, publish, reload and serve the same recipe",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow ./internal/evaluation ./internal/server -run 'TestASRCPUClosedLoop' -count=1",
+          "rationale": "Use the pinned admitted dataset and frozen-base adapter through the universal trainer. Compare uninterrupted and resumed trajectories, record pre/post WER and resource fitness, publish the adapter/base/recipe lineage, reload and transcribe through the same API. Include VAD-composed admission and account for every rejected or failed case. The exact TestASRCPUClosedLoop acceptance must execute this real-artifact CPU path with explicit prerequisites and nonzero corpus counts; absent artifacts refuse rather than skip, and mocks or general train-lane success cannot establish this claim. Do not wait for CUDA, full encoder gradients, second-model or voice work. A completed experiment may report no gain; promote only when the recorded quality/resource policy permits it.",
+          "depends_on": [
+            "asr-training/sync-closed-loop-proof"
+          ],
+          "capabilities": [
+            "audio-train-evaluate-serve",
+            "checkpoint-publication",
+            "quality-bracket",
+            "lineage-closure"
+          ]
+        },
+        {
+          "id": "sync-encoder-backward",
+          "title": "Reconcile the retained audio baseline before asr-training/encoder-backward",
+          "status": "open",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "depends_on": [
+            "asr-training/closed-loop-proof"
+          ],
+          "capabilities": [
+            "retained-audio-baseline",
+            "plan-reconciliation",
+            "no-master-merge"
+          ]
+        },
+        {
+          "id": "encoder-backward",
+          "title": "Extend the same forward graph to internal adapters and full-encoder CTC training",
+          "status": "open",
+          "verify": "go test ./internal/speechrecognition ./internal/trainingprogram ./internal/trainingworkflow -run 'TestASREncoderGrad|TestASRInternalAdapter|TestASRTiedFeedbackGrad|TestASRFullTrainingResume' -count=1",
+          "rationale": "Retain full training capability without placing every encoder gradient on the first adaptation path. Reuse the existing forward and common backward owners; add gradients only for missing operators, checking each against independent oracle or finite differences. Accumulate shared-parameter contributions from both intermediate feedback and final projection into one optimizer-owned parameter. Internal adapters still require gradients through their downstream frozen operations; freezing is not permission to omit that path. Extend the same exact-resume and pre/post WER/resource evidence to full or internally adapted training, with no second trainer or checkpoint format.",
+          "depends_on": [
+            "asr-training/sync-encoder-backward"
+          ],
+          "capabilities": [
+            "ctc-encoder-backward",
+            "internal-adapter-training",
+            "shared-parameter-gradients",
+            "exact-training-resume"
+          ]
+        }
+      ]
+    },
+    {
       "id": "speech-analysis-expansion",
       "title": "Deliver native speech segmentation, then expand shared speech analysis",
       "status": "open",
       "steps": [
         {
           "id": "sync-vad",
-          "title": "Merge master and reconcile the plan before: Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
+          "title": "Reconcile the retained audio baseline before speech-analysis-expansion/vad",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
+            "asr-evaluation/resource-suite",
             "oracle-intake/artifact-compatibility",
             "audio-contracts/stream-session-contract",
             "audio-primitives/intermediate-parity"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -93,18 +397,18 @@
         },
         {
           "id": "sync-alignment-diarization",
-          "title": "Merge master and reconcile the plan before: Add timestamped alignment and speaker-turn diarization with native evaluation for boundary error, attribution error and transcript preservation",
+          "title": "Reconcile the retained audio baseline before speech-analysis-expansion/alignment-diarization",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "speech-analysis-expansion/vad",
             "shared-asr-proof/live-model-operations"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -131,26 +435,26 @@
       "steps": [
         {
           "id": "sync-validated-transcription",
-          "title": "Merge master and reconcile the plan before: Compile and execute ingest to decode to validate to normalize to segment to transcribe to timestamp to persist as one typed recipe with explicit admission failures and complete lineage",
+          "title": "Reconcile the retained audio baseline before audio-recipes/validated-transcription",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "asr-reference/offline-recipe",
             "speech-analysis-expansion/vad"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
           "id": "validated-transcription",
-          "title": "Compile and execute ingest to decode to validate to normalize to segment to transcribe to timestamp to persist as one typed recipe with explicit admission failures and complete lineage",
+          "title": "Compose verified VAD with the existing admitted transcription recipe and persist segment-level lineage",
           "status": "open",
           "verify": "go test ./internal/modelrecipe ./internal/audiodsp ./internal/speechanalysis ./internal/speechrecognition ./internal/dataset -run 'Test.*Validated.*Transcription|Test.*Audio.*Recipe.*Admission|Test.*Segment.*Transcribe.*Lineage'",
-          "rationale": "Reusable primitives become a product capability only through a recipe that owns ordering, state, resources, failures and provenance. Valid LibriSpeech fixtures reach stored transcripts; corrupt and silent fixtures stop at admission and cannot become evaluation successes or training records.",
+          "rationale": "Reuse the admitted short-clip recipe unchanged inside segmentation; do not build another decode/normalize/transcribe pipeline. Preserve sample offsets and segment lineage, explicitly declare overlap/finalization policy, and verify whole-record transcript assembly against the oracle. Segment offsets are not word-level timestamps; alignment remains a later scored capability. Valid LibriSpeech inputs produce stored transcripts; corrupt or silent inputs cannot become evaluation successes or training records. Bind this composed recipe to the same serving and dataset consumers before the first closed-loop proof.",
           "depends_on": [
             "audio-recipes/sync-validated-transcription"
           ],
@@ -163,299 +467,24 @@
       ]
     },
     {
-      "id": "asr-serving",
-      "title": "Expose authenticated transcription and streaming through the native server",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-transcriptions-route",
-          "title": "Merge master and reconcile the plan before: Implement OpenAI-compatible POST /v1/audio/transcriptions through the validated transcription recipe with explicit supported formats, bounded uploads, typed admission failures, cancellation and recorded execution",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "audio-recipes/validated-transcription"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "transcriptions-route",
-          "title": "Implement OpenAI-compatible POST /v1/audio/transcriptions through the validated transcription recipe with explicit supported formats, bounded uploads, typed admission failures, cancellation and recorded execution",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'Test.*AudioTranscriptions'",
-          "rationale": "The route must use the same authenticated workspace, artifact, recipe and operation owners as existing APIs. It maps decoded-signal admission failures explicitly, cannot report invalid or silent input as a successful transcription, and does not inherit audio.cpp's server or model-management surface.",
-          "depends_on": [
-            "asr-serving/sync-transcriptions-route"
-          ],
-          "capabilities": [
-            "openai-audio-transcriptions",
-            "authenticated-serving",
-            "bounded-upload"
-          ]
-        },
-        {
-          "id": "sync-streaming-transcription",
-          "title": "Merge master and reconcile the plan before: Serve partial and final transcripts through the bounded session contract and prove chunk-boundary invariance, backpressure, disconnect cancellation and clean shutdown",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "audio-contracts/stream-session-contract",
-            "asr-serving/transcriptions-route"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "streaming-transcription",
-          "title": "Serve partial and final transcripts through the bounded session contract and prove chunk-boundary invariance, backpressure, disconnect cancellation and clean shutdown",
-          "status": "open",
-          "verify": "go test ./internal/server ./internal/capabilityruntime -run 'Test.*StreamingTranscription|Test.*Audio.*Shutdown'",
-          "rationale": "Network streaming must not create an unbounded goroutine, queue or retained audio path. Offline and streaming results are compared under declared chunk and finalization semantics.",
-          "depends_on": [
-            "asr-serving/sync-streaming-transcription"
-          ],
-          "capabilities": [
-            "streaming-transcription",
-            "backpressure",
-            "clean-shutdown"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "asr-evaluation",
-      "title": "Make audio quality and resource fitness native evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-wer-suite",
-          "title": "Merge master and reconcile the plan before: Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "audio-recipes/validated-transcription"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "wer-suite",
-          "title": "Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run 'Test.*Transcription|Test.*WordErrorRate|Test.*CharacterErrorRate'",
-          "rationale": "The trainer needs a quality bracket whose denominator and normalization are stable. Predictions are produced from audio bytes without reference text entering inference inputs or fixture selection, then compared to separately stored targets. Silent and invalid controls must fail admission or remain non-speech; aggregate WER without admission failures, inference failures and grouped slices can conceal regressions or metadata leakage.",
-          "depends_on": [
-            "asr-evaluation/sync-wer-suite"
-          ],
-          "capabilities": [
-            "wer",
-            "cer",
-            "audio-evaluation",
-            "negative-control-evaluation"
-          ]
-        },
-        {
-          "id": "sync-resource-suite",
-          "title": "Merge master and reconcile the plan before: Record offline and chunked real-time factor, first-partial latency, finalization latency, host memory, VRAM and transcript quality through multidimensional fitness",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. WER and CPU serving land first; device resource measurements remain pending while GPU capacity is occupied.",
-          "depends_on": [
-            "asr-evaluation/wer-suite",
-            "asr-serving/streaming-transcription",
-            "asr-training/exact-resume",
-            "shared-asr-proof/live-model-operations",
-            "speech-analysis-expansion/alignment-diarization",
-            "audio-generation-expansion/voice-capability"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "resource-suite",
-          "title": "Record offline and chunked real-time factor, first-partial latency, finalization latency, host memory, VRAM and transcript quality through multidimensional fitness",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/runrecord -run 'Test.*Audio.*Fitness|Test.*Transcription.*Resources'",
-          "rationale": "Faster audio that loses words or violates memory bounds does not pass. Every measurement binds the same model, dataset, code, environment and execution policy.",
-          "depends_on": [
-            "asr-evaluation/sync-resource-suite"
-          ],
-          "capabilities": [
-            "audio-resource-fitness",
-            "real-time-factor",
-            "latency-evidence"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "asr-training",
-      "title": "Prove Overgo's universal trainer on the native audio route",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-dataset-materialization",
-          "title": "Merge master and reconcile the plan before: Register pinned LibriSpeech clean and materialize only admitted waveform, transcript and derived-feature records with deterministic splits, resumable stream position, rejection accounting and complete source lineage",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "asr-evaluation/wer-suite",
-            "audio-recipes/validated-transcription"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "dataset-materialization",
-          "title": "Register pinned LibriSpeech clean and materialize only admitted waveform, transcript and derived-feature records with deterministic splits, resumable stream position, rejection accounting and complete source lineage",
-          "status": "open",
-          "verify": "go test ./internal/dataset ./internal/trainingdata -run 'Test.*Audio.*Material|Test.*Speech.*Split|Test.*Audio.*Resume|Test.*Audio.*Admission|Test.*Silent.*Reject'",
-          "rationale": "Training begins from the same decoded-signal admission, typed audio and artifact contracts as inference. Split membership, transformations, rejection counts and stream position must survive restart exactly. Identify and hash the historically silent AMI materialization and its transformation before repairing or admitting it. The pinned original AMI source record is non-silent; its measured admission does not clear historical transformed data or establish corpus-wide quality.",
-          "depends_on": [
-            "asr-training/sync-dataset-materialization"
-          ],
-          "capabilities": [
-            "speech-dataset",
-            "deterministic-splits",
-            "resumable-materialization",
-            "signal-admission-gate"
-          ]
-        },
-        {
-          "id": "sync-trainable-graph",
-          "title": "Merge master and reconcile the plan before: Implement CTC loss and backward execution for the elected graph, beginning with frozen-component or adapter training and checking every new gradient against finite differences or an independent oracle",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "asr-training/dataset-materialization",
-            "asr-reference/load-forward-decode"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "trainable-graph",
-          "title": "Implement CTC loss and backward execution for the elected graph, beginning with frozen-component or adapter training and checking every new gradient against finite differences or an independent oracle",
-          "status": "open",
-          "verify": "go test ./internal/speechrecognition ./internal/trainingprogram -run 'Test.*CTC.*Grad|Test.*ASR.*Trainable|Test.*Frozen'",
-          "rationale": "Backward support follows proven forward operators. Frozen selection and trainable parameter ownership are explicit, and every gradient-bearing operator receives direct numerical evidence.",
-          "depends_on": [
-            "asr-training/sync-trainable-graph"
-          ],
-          "capabilities": [
-            "ctc-training",
-            "gradient-parity",
-            "frozen-component-training"
-          ]
-        },
-        {
-          "id": "sync-exact-resume",
-          "title": "Merge master and reconcile the plan before: Interrupt and resume native ASR training while preserving parameters, optimizer, random, scheduler and data-stream state, then prove the resumed trajectory matches uninterrupted execution",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "asr-training/trainable-graph"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "exact-resume",
-          "title": "Interrupt and resume native ASR training while preserving parameters, optimizer, random, scheduler and data-stream state, then prove the resumed trajectory matches uninterrupted execution",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -run 'Test.*ASR.*ExactResume|Test.*Audio.*Checkpoint'",
-          "rationale": "A loadable weight file is not exact resume. The comparison covers the next batch identity, loss, parameter update and optimizer state after restart.",
-          "depends_on": [
-            "asr-training/sync-exact-resume"
-          ],
-          "capabilities": [
-            "exact-training-resume",
-            "optimizer-state",
-            "data-stream-continuity"
-          ]
-        },
-        {
-          "id": "sync-closed-loop-proof",
-          "title": "Merge master and reconcile the plan before: Train or adapt the elected ASR artifact, evaluate a pre/post WER and resource bracket, publish the checkpoint, reload it, and serve it through /v1/audio/transcriptions with end-to-end OvergoDB lineage",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "asr-training/exact-resume",
-            "asr-serving/transcriptions-route",
-            "asr-cuda/device-parity"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
-          "id": "closed-loop-proof",
-          "title": "Train or adapt the elected ASR artifact, evaluate a pre/post WER and resource bracket, publish the checkpoint, reload it, and serve it through /v1/audio/transcriptions with end-to-end OvergoDB lineage",
-          "status": "open",
-          "verify": "go run ./cmd/train-lane",
-          "rationale": "This is the campaign's primary product proof: one system owns dataset, training, exact resume, evaluation, artifact publication and serving. Improvement is accepted only through the recorded multidimensional fitness owner, not a selected example transcript.",
-          "depends_on": [
-            "asr-training/sync-closed-loop-proof"
-          ],
-          "capabilities": [
-            "audio-train-evaluate-serve",
-            "checkpoint-publication",
-            "quality-bracket",
-            "lineage-closure"
-          ]
-        }
-      ]
-    },
-    {
       "id": "shared-asr-proof",
       "title": "Prove the substrate with a second ASR architecture and live operations",
       "status": "open",
       "steps": [
         {
           "id": "sync-second-architecture",
-          "title": "Merge master and reconcile the plan before: Port Nemotron 3.5 ASR native Safetensors as the second materially different architecture with offline, timestamp-token and streaming parity while reusing the shared frontend, task, evaluation, serving and training contracts",
+          "title": "Reconcile the retained audio baseline before shared-asr-proof/second-architecture",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
-            "asr-training/exact-resume",
-            "asr-serving/streaming-transcription",
-            "asr-evaluation/wer-suite"
+            "asr-training/closed-loop-proof",
+            "audio-contracts/stream-session-contract"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -476,18 +505,18 @@
         },
         {
           "id": "sync-live-model-operations",
-          "title": "Merge master and reconcile the plan before: Exercise concurrent transcription, resource-aware placement, live model switching, restart recovery and cancellation across both ASR artifacts",
+          "title": "Reconcile the retained audio baseline before shared-asr-proof/live-model-operations",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "shared-asr-proof/second-architecture",
             "asr-serving/streaming-transcription"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -514,17 +543,17 @@
       "steps": [
         {
           "id": "sync-tts-contract-consolidation",
-          "title": "Merge master and reconcile the plan before: Migrate PocketTTS inference and training onto the shared audio artifacts, sessions, evaluation and lifecycle contracts without regressing its existing compatibility evidence",
+          "title": "Reconcile the retained audio baseline before audio-generation-expansion/tts-contract-consolidation",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "shared-asr-proof/live-model-operations"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -544,17 +573,17 @@
         },
         {
           "id": "sync-voice-capability",
-          "title": "Merge master and reconcile the plan before: Elect and port one additional audio.cpp voice capability such as multilingual TTS or voice conversion through the shared codec, speaker and training contracts",
+          "title": "Reconcile the retained audio baseline before audio-generation-expansion/voice-capability",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "audio-generation-expansion/tts-contract-consolidation"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -574,18 +603,18 @@
         },
         {
           "id": "sync-generative-audio-probe",
-          "title": "Merge master and reconcile the plan before: Run a bounded election and forward-parity probe for one music or general-audio diffusion capability, reusing Overgo's DiT, media evaluation and training infrastructure",
+          "title": "Reconcile the retained audio baseline before audio-generation-expansion/generative-audio-probe",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "audio-generation-expansion/voice-capability",
             "asr-cuda/device-parity"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -612,18 +641,18 @@
       "steps": [
         {
           "id": "sync-profile-and-bind",
-          "title": "Merge master and reconcile the plan before: Profile the CPU recipe, reuse existing kernels where their contracts match, and add only measured missing operators through the kernel manifest and generated ABI",
+          "title": "Reconcile the retained audio baseline before asr-cuda/profile-and-bind",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. The CPU numerical authority, validated transcription recipe and streaming service land before GPU profiling; if the device is occupied, this row remains pending while ready CPU-only audio work proceeds.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
-            "asr-reference/offline-recipe",
-            "asr-serving/streaming-transcription"
+            "asr-training/closed-loop-proof",
+            "asr-evaluation/resource-suite"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -643,18 +672,18 @@
         },
         {
           "id": "sync-device-parity",
-          "title": "Merge master and reconcile the plan before: Prove CPU and CUDA parity for intermediate activations, logits, decoded transcripts and WER, then record wall, real-time factor, host memory and VRAM",
+          "title": "Reconcile the retained audio baseline before asr-cuda/device-parity",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "asr-cuda/profile-and-bind",
             "asr-evaluation/resource-suite"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -690,17 +719,17 @@
         },
         {
           "id": "sync-resource-quality-fitness",
-          "title": "Merge master and reconcile the plan before: Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "title": "Reconcile the retained audio baseline before benchmark-routing/resource-quality-fitness",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "benchmark-routing/pinned-benchmarks"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -715,17 +744,17 @@
         },
         {
           "id": "sync-routing-replay",
-          "title": "Merge master and reconcile the plan before: Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
+          "title": "Reconcile the retained audio baseline before benchmark-routing/routing-replay",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
           "depends_on": [
             "benchmark-routing/pinned-benchmarks"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -747,18 +776,18 @@
       "steps": [
         {
           "id": "sync-interruption-drills",
-          "title": "Merge master and reconcile the plan before: Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
+          "title": "Reconcile the retained audio baseline before failure-recovery/interruption-drills",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip. Defer this device-bearing interruption drill while GPU capacity is occupied; CPU-first audio construction and serving establish the workload the drill will later interrupt.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "hermetic-foundation/store-drills",
             "asr-serving/streaming-transcription"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -773,17 +802,17 @@
         },
         {
           "id": "sync-control-plane-drills",
-          "title": "Merge master and reconcile the plan before: Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
+          "title": "Reconcile the retained audio baseline before failure-recovery/control-plane-drills",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "failure-recovery/interruption-drills"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {
@@ -798,17 +827,17 @@
         },
         {
           "id": "sync-gate-recovery-drill",
-          "title": "Merge master and reconcile the plan before: Measure gate and plan admission across repeated projected merges, report every pre-heartbeat phase, interrupt a gate run against a scratch clone, and recover through -recover-preparation, -recover-interrupted, and the watchdog",
+          "title": "Reconcile the retained audio baseline before failure-recovery/gate-recovery-drill",
           "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
+          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
+          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "failure-recovery/interruption-drills"
           ],
           "capabilities": [
-            "master-synchronization",
+            "retained-audio-baseline",
             "plan-reconciliation",
-            "gated-merge"
+            "no-master-merge"
           ]
         },
         {

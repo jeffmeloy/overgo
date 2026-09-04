@@ -42,6 +42,41 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	}
 }
 
+// TestRelocateItemReranksWithoutLoss pins the mechanical re-rank: -move
+// takes an existing item to the top or before another, keeps every
+// other item in order, and refuses unknown ids.
+func TestRelocateItemReranksWithoutLoss(t *testing.T) {
+	step := []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}
+	base := plan.Plan{Items: []plan.Item{
+		{ID: "a", Status: "open", Steps: step}, {ID: "b", Status: "open", Steps: step}, {ID: "c", Status: "open", Steps: step},
+	}}
+	order := func(document plan.Plan) string {
+		ids := ""
+		for _, it := range document.Items {
+			ids += it.ID
+		}
+		return ids
+	}
+	top, err := relocateItem(base, "c", "")
+	if err != nil || order(top) != "cab" {
+		t.Fatalf("move to top = %s, %v", order(top), err)
+	}
+	before, err := relocateItem(base, "a", "c")
+	if err != nil || order(before) != "bac" {
+		t.Fatalf("move before c = %s, %v", order(before), err)
+	}
+	same, err := relocateItem(base, "b", "b")
+	if err != nil || order(same) != "abc" {
+		t.Fatalf("move before itself = %s, %v", order(same), err)
+	}
+	if _, err := relocateItem(base, "zz", ""); err == nil {
+		t.Fatal("unknown item must be rejected")
+	}
+	if _, err := relocateItem(base, "a", "nope"); err == nil {
+		t.Fatal("unknown -before must be rejected")
+	}
+}
+
 // TestPrunedDependencyRequiresGatedCompletion pins the CLI selector as a
 // consumer of the same fail-closed authority as the plan package.
 func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {

@@ -61,6 +61,37 @@ func (r *Runner) ScoreContinuationsParsed(
 	return r.scoreContinuationsHostLocked(ctx, promptIDs, continuations)
 }
 
+// ScoreContinuationTokens scores token continuations against a token
+// context the caller already holds -- the long-form verification cuts
+// its context and its true continuation out of one tokenized text, and
+// re-encoding either would move the boundary. Every continuation must
+// carry at least one token.
+func (r *Runner) ScoreContinuationTokens(
+	ctx context.Context,
+	promptIDs []tokenizer.TokenID,
+	continuations [][]tokenizer.TokenID,
+) ([]sequencescore.Score, error) {
+	if r == nil || r.vocab == nil {
+		return nil, errRunnerNil
+	}
+	if ctx == nil || len(promptIDs) == 0 || len(continuations) == 0 {
+		return nil, errors.New("inference: incomplete continuation scoring request")
+	}
+	for _, continuation := range continuations {
+		if len(continuation) == 0 {
+			return nil, errors.New("inference: continuation carries no tokens")
+		}
+	}
+	if err := r.lockOpen(); err != nil {
+		return nil, err
+	}
+	defer r.mu.Unlock()
+	if r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache() {
+		return r.scoreContinuationsDeviceLocked(ctx, promptIDs, continuations)
+	}
+	return r.scoreContinuationsHostLocked(ctx, promptIDs, continuations)
+}
+
 // continuationTokens encodes a scoring request into the scored context
 // and one continuation per candidate.
 func (r *Runner) continuationTokens(

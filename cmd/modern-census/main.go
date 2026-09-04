@@ -45,6 +45,7 @@ func run(args []string, output io.Writer) error {
 	exceptionExpiry := flags.String("expires", "", "required YYYY-MM-DD expiry for -close-exceptions")
 	publishCensus := flags.Bool("publish-census", false, "write source-bound resolved-guideline closure evidence")
 	rules := flags.String("rules", "", "comma-separated plan-owned guideline IDs for -work")
+	sites := flags.String("sites", "", "print every candidate site of one guideline ID, so a ceiling breach names its source line")
 	limit := flags.String("limit", "", "required maximum source sites for -work")
 	root := flags.String("root", ".", "repository root for -census or -work")
 	if err := flags.Parse(args); err != nil {
@@ -190,6 +191,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *censusMode {
 		return printCensus(*root, *target, output)
+	}
+	if *sites != "" {
+		return printSites(*root, *target, *sites, output)
 	}
 	catalog := repoanalysis.ModernGoCatalog()
 	applicable, err := repoanalysis.ModernGoApplicableGuidelines(*target)
@@ -380,6 +384,28 @@ func printWork(root, target, rules, limitText string, output io.Writer) error {
 		selection.Coverage.Excluded, selection.Coverage.Unmeasured, selection.TargetGo,
 		selection.BuildContext, selection.SourceIdentity, selection.CatalogCommit)
 	return nil
+}
+
+// printSites names the candidate sites of one guideline: the census
+// counts candidates per guideline, and a ceiling breach of one is fixed
+// at its source line, which the count alone does not give.
+func printSites(root, target, guideline string, output io.Writer) error {
+	census, err := repoanalysis.BuildModernGoCensus(root, target)
+	if err != nil {
+		return err
+	}
+	for _, finding := range census.Findings {
+		if finding.ID != guideline {
+			continue
+		}
+		for _, site := range finding.Candidates {
+			fmt.Fprintf(output, "site %s:%d package=%s symbol=%s test=%t generated=%t typed=%t\n",
+				site.Path, site.Line, site.Package, site.Symbol, site.Test, site.Generated, site.TypeChecked)
+		}
+		fmt.Fprintf(output, "modern-census: %s candidates=%d risk=%s\n", finding.ID, len(finding.Candidates), finding.Risk)
+		return nil
+	}
+	return fmt.Errorf("modern-census: guideline %q is not in the census", guideline)
 }
 
 func printCensus(root, target string, output io.Writer) error {

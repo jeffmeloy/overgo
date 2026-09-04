@@ -14,17 +14,27 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/longform"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 )
 
-// servableModelPaths derives the evaluation targets from the store:
-// every model whose active inference recipe is trusted and whose
-// recorded bytes are present on disk. The listing is deterministic, so
-// the parent and its workers agree on model indices without a shared
+// servableModel is one evaluation target: its weights location and
+// whether its declared domains admit text suites (undeclared models
+// keep full coverage and count as text), which decides whether the
+// long-form verification admits it.
+type servableModel struct {
+	path string
+	text bool
+}
+
+// servableModels derives the evaluation targets from the store: every
+// model whose active inference recipe is trusted and whose recorded
+// bytes are present on disk. The listing is deterministic, so the
+// parent and its workers agree on model indices without a shared
 // manifest file.
-func servableModelPaths(ctx context.Context, repository string, limit int) ([]string, error) {
+func servableModels(ctx context.Context, repository string, limit int) ([]servableModel, error) {
 	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return nil, err
@@ -38,6 +48,7 @@ func servableModelPaths(ctx context.Context, repository string, limit int) ([]st
 	type sized struct {
 		path  string
 		bytes int64
+		text  bool
 	}
 	models := make([]sized, 0, len(entries))
 	for _, entry := range entries {
@@ -48,7 +59,14 @@ func servableModelPaths(ctx context.Context, repository string, limit int) ([]st
 		if err != nil {
 			return nil, err
 		}
-		models = append(models, sized{path: entry.Location, bytes: info.Size()})
+		domains, declared, err := evaluation.EvalDomains(ctx, store, entry.Model)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, sized{
+			path: entry.Location, bytes: info.Size(),
+			text: !declared || slices.Contains(domains, evaluation.DomainText),
+		})
 	}
 	if len(models) == 0 {
 		return nil, errors.New("evaluate: the store holds no servable local model")
@@ -61,11 +79,11 @@ func servableModelPaths(ctx context.Context, repository string, limit int) ([]st
 	slices.SortFunc(models, func(a, b sized) int {
 		return cmp.Or(cmp.Compare(a.bytes, b.bytes), strings.Compare(a.path, b.path))
 	})
-	paths := make([]string, len(models))
+	targets := make([]servableModel, len(models))
 	for index, model := range models {
-		paths[index] = model.path
+		targets[index] = servableModel{path: model.path, text: model.text}
 	}
-	return paths, nil
+	return targets, nil
 }
 
 // errEvaluationSliceElapsed is the cause a worker's context carries when
@@ -86,7 +104,11 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 	if _, err := runrecord.VerifyingCommit("."); err != nil {
 		return err
 	}
-	models, err := servableModelPaths(ctx, repository, limit)
+	surface, err := longform.Surface(ctx, ".")
+	if err != nil {
+		return err
+	}
+	targets, err := servableModels(ctx, repository, limit)
 	if err != nil {
 		return err
 	}
@@ -96,20 +118,34 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 	}
 	deadline := time.Now().Add(budget)
 	var failures []error
-	for index, model := range models {
+	for index, target := range targets {
+		model := target.path
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			failures = append(failures, fmt.Errorf(
 				"model %q: unevaluated; the %s evaluation budget elapsed", model, budget))
 			continue
 		}
+		// The long-form record admits a text model before a worker loads
+		// it (owner rule 2026-09-04): a refused model is reported and the
+		// pass moves on, so a slow runtime or one misreading a long
+		// context is found in the minute its long-form run takes, not
+		// after hours of scoring. The worker repeats the check as the
+		// authority for a hand-launched pass.
+		if target.text {
+			if err := admitLongForm(ctx, repository, model, surface); err != nil {
+				fmt.Printf("model %q: REFUSED: %v\n", model, err)
+				failures = append(failures, fmt.Errorf("model %q: %w", model, err))
+				continue
+			}
+		}
 		// Each model gets an equal share of the budget still unspent, so a
 		// single heavy model (the 27B over the 5761-case BBH suite) is
 		// bounded to its slice rather than starving the models after it;
 		// slices left unused by fast models widen the shares that follow.
-		slice := remaining / time.Duration(len(models)-index)
+		slice := remaining / time.Duration(len(targets)-index)
 		fmt.Printf("evaluating %d/%d (%.1fh slice, %.1fh budget left): %s\n",
-			index+1, len(models), slice.Hours(), remaining.Hours(), model)
+			index+1, len(targets), slice.Hours(), remaining.Hours(), model)
 		// The worker receives the model path: the parent already listed
 		// and hashed every servable file once, and a worker that listed
 		// again would hash the whole catalog before loading one model.
@@ -209,6 +245,17 @@ func runAllWorkerPass(ctx context.Context, repository string, device int, family
 	return session.Close()
 }
 
+// admitLongForm reads the model's latest long-form record through a
+// reader of its own: the check precedes the session, so no writer is
+// open while it runs.
+func admitLongForm(ctx context.Context, repository, modelPath, surface string) error {
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return err
+	}
+	return errors.Join(longform.Admit(ctx, store, modelPath, surface), store.Close())
+}
+
 // declareEvalDomain binds a model's evaluation domains in the store,
 // resolving the model identity through the servable listing so the
 // declaration keys the same manifest every eval consumer reads.
@@ -276,6 +323,19 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 	if len(suites) == 0 {
 		fmt.Printf("model domains %v admit no derived suite; nothing to evaluate\n", domains)
 		return nil
+	}
+	// A text model meets the long-form admission here as well as in the
+	// parent (owner rule 2026-09-04): a worker launched by hand is the
+	// same bounded, admitted pass, and the record must pass on this
+	// tree's inference surface.
+	if !declared || slices.Contains(domains, evaluation.DomainText) {
+		surface, err := longform.Surface(ctx, ".")
+		if err != nil {
+			return err
+		}
+		if err := longform.Admit(ctx, s.store, s.runner.ModelProperties().Path, surface); err != nil {
+			return err
+		}
 	}
 	for name, dropped := range skipped {
 		fmt.Printf("suite %s: %d case(s) outside the exact vocabulary skipped\n", name, dropped)

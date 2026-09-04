@@ -1,18 +1,44 @@
 {
   "campaign": "Integrated validation, phase 2: repository cleanup, benchmark completion, modality verification, and close-out",
-  "doctrine": "This campaign continues the capability freeze enforced by structure: docs/plan.json is the sole live execution plan, every commit binds to a plan row through the gate, and the freeze whitelist in internal/plan/campaign_structure_test.go admits only the rows named here, so no new model family, workflow, policy, or optimization mechanism lands while any row is open; the only construction admitted is a fix a drill surfaced, declared under the owner's correct-as-you-go directive. Owner rules of 2026-09-01/02 govern every row: no task runs for hours unattended -- every evaluate pass carries -budget, models run smallest first with the 27B last, and MATH is excluded from this campaign; a claim-recording run (evaluate -all, benchmark -publish, train) runs only on a clean tree after its code has landed, never inside the gate, whose candidate always reads as dirty; store-reading verifies run under OVERGO_DATA_ROOT; every green output ends with an audit line naming what did NOT run. Lanes report UNAVAILABLE when a device, model, browser, oracle, or toolkit is missing; unavailable is never passing evidence and never a failure of the drill's owner, and a model whose modality has no declared expectation is reported as unverified, not as verified. Rows whose exact invocation depends on execution-time facts (installed model identities, device presence, evidence identities) bind their final verify through plan -setverify before work starts, never through prose. Findings discovered during a row are parked with cmd/finding and scheduled as rows by the close-out item, not absorbed silently. Reports are generated, never hand-written: docs/BENCHMARK.md by cmd/benchmark-report and docs/MEDIA_REPORT.md by cmd/compatibility -update-media, each with a -check that is its row's verify.",
+  "doctrine": "This campaign continues the capability freeze enforced by structure: docs/plan.json is the sole live execution plan, every commit binds to a plan row through the gate, and the freeze whitelist in internal/plan/campaign_structure_test.go admits only the rows named here, so no new model family, workflow, policy, or optimization mechanism lands while any row is open; the only construction admitted is a fix a drill surfaced, declared under the owner's correct-as-you-go directive, the model regression check the owner ordered on 2026-09-04 (efficient validation against regressions, the model-regression-* rows), and the simplification rows the owner ordered the same day (the simplify-* rows): a simplification row lowers a reviewed ceiling or removes a surface while the regression check and the committed benchmark records hold or improve, so capability improvement by simplification is measured, and a row that lowers a measured capability is refused, not averaged. Owner rules of 2026-09-01/02 govern every row: no task runs for hours unattended -- every evaluate pass carries -budget, models run smallest first with the 27B last, and MATH is excluded from this campaign; a claim-recording run (evaluate -all, benchmark -publish, train) runs only on a clean tree after its code has landed, never inside the gate, whose candidate always reads as dirty; store-reading verifies run under OVERGO_DATA_ROOT; every green output ends with an audit line naming what did NOT run. Lanes report UNAVAILABLE when a device, model, browser, oracle, or toolkit is missing; unavailable is never passing evidence and never a failure of the drill's owner, and a model whose modality has no declared expectation is reported as unverified, not as verified. Rows whose exact invocation depends on execution-time facts (installed model identities, device presence, evidence identities) bind their final verify through plan -setverify before work starts, never through prose. Findings discovered during a row are parked with cmd/finding and scheduled as rows by the close-out item, not absorbed silently. Reports are generated, never hand-written: docs/BENCHMARK.md by cmd/benchmark-report and docs/MEDIA_REPORT.md by cmd/compatibility -update-media, each with a -check that is its row's verify.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "long-form-verification",
-      "title": "Long-form verification before every suite pass (owner rule 2026-09-04): a Go tool runs each servable text model on a 2000-token prompt and a 256-token greedy generation, records prompt tok/s, decode tok/s and an output degeneration measure (distinct 4-gram ratio and longest repeated span) as evidence, and refuses the suite passes for a model whose long-form rate or output fails its declared floor, so a rate or output problem is found in minutes rather than after hours of recording",
+      "id": "model-regression-fingerprints",
+      "title": "Model regression fingerprints (owner rule 2026-09-04: efficient model validation against regressions, covering time, performance and long context): a Go owner (internal/modelregress, cmd/model-regress) records per servable text model, as committed evidence bound to the model and the code manifest, two shapes: SHORT, one fixed ~160-token prompt with a 64-token greedy continuation (its token ids and the teacher-forced mean nll of that continuation); LONG, a ladder of prompt lengths doubling from 1024 tokens (1024, 2048, 4096, ...) up to the model's declared context length as the committed model-config declaration states it (the 27B's 256k tokens, for example), and further to its declared rope sequence extension (YaRN or the family's declared scaling) when the recipe declares one, each rung with a 256-token greedy generation (token ids, distinct 4-gram ratio, longest repeated span) and a retrieval probe: facts placed at known depths of the prompt that the greedy answer must reproduce, so long-context capability is measured per rung and not only rate; the ladder stops at the deepest rung the device's measured KV capacity and the -budget admit, the deepest rung reached is recorded, and any shortfall against the declaration is reported in the audit line, never as passing; for both shapes the time and performance record: load ms, time to first token p50, prompt tok/s p50, decode tok/s p50, total wall p50 and peak device bytes, each with the run-to-run spread over 3 runs on the short shape and 1 run per rung on the ladder, so the rate and memory curve against context length is itself evidence; and a fixed deterministic sample of suite cases under the raw-completion protocol scored exactly as the capability probe; -check replays every servable model smallest first inside -budget, one model per process, both shapes every time, and refuses a continuation that is not token-identical (printing the first divergent step and the nll delta), a capability sample below its recorded accuracy, a rate below the recorded p50 minus the recorded spread, a time above the recorded p50 plus the recorded spread, or peak device bytes above the recorded value; reuses cmd/benchmark's measurement, internal/sequencescore's teacher-forced scoring, the long-form tool's degeneration measure, the committed model-config declarations for context and sequence extension, the evaluate suites' case sampling and perf-sweep's per-process isolation, no new inference path; a deliberate numerical change re-records the fingerprints in the same commit with every delta quoted in the message, so no regression lands silently and no free tolerance knob exists",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Long-form verification before every suite pass (owner rule 2026-09-04): a Go tool runs each servable text model on a 2000-token prompt and a 256-token greedy generation, records prompt tok/s, decode tok/s and an output degeneration measure (distinct 4-gram ratio and longest repeated span) as evidence, and refuses the suite passes for a model whose long-form rate or output fails its declared floor, so a rate or output problem is found in minutes rather than after hours of recording",
+          "title": "Model regression fingerprints (owner rule 2026-09-04: efficient model validation against regressions, covering time, performance and long context): a Go owner (internal/modelregress, cmd/model-regress) records per servable text model, as committed evidence bound to the model and the code manifest, two shapes: SHORT, one fixed ~160-token prompt with a 64-token greedy continuation (its token ids and the teacher-forced mean nll of that continuation); LONG, a ladder of prompt lengths doubling from 1024 tokens (1024, 2048, 4096, ...) up to the model's declared context length as the committed model-config declaration states it (the 27B's 256k tokens, for example), and further to its declared rope sequence extension (YaRN or the family's declared scaling) when the recipe declares one, each rung with a 256-token greedy generation (token ids, distinct 4-gram ratio, longest repeated span) and a retrieval probe: facts placed at known depths of the prompt that the greedy answer must reproduce, so long-context capability is measured per rung and not only rate; the ladder stops at the deepest rung the device's measured KV capacity and the -budget admit, the deepest rung reached is recorded, and any shortfall against the declaration is reported in the audit line, never as passing; for both shapes the time and performance record: load ms, time to first token p50, prompt tok/s p50, decode tok/s p50, total wall p50 and peak device bytes, each with the run-to-run spread over 3 runs on the short shape and 1 run per rung on the ladder, so the rate and memory curve against context length is itself evidence; and a fixed deterministic sample of suite cases under the raw-completion protocol scored exactly as the capability probe; -check replays every servable model smallest first inside -budget, one model per process, both shapes every time, and refuses a continuation that is not token-identical (printing the first divergent step and the nll delta), a capability sample below its recorded accuracy, a rate below the recorded p50 minus the recorded spread, a time above the recorded p50 plus the recorded spread, or peak device bytes above the recorded value; reuses cmd/benchmark's measurement, internal/sequencescore's teacher-forced scoring, the long-form tool's degeneration measure, the committed model-config declarations for context and sequence extension, the evaluate suites' case sampling and perf-sweep's per-process isolation, no new inference path; a deliberate numerical change re-records the fingerprints in the same commit with every delta quoted in the message, so no regression lands silently and no free tolerance knob exists",
           "status": "open",
-          "verify": "go test ./internal/longform -count=1"
+          "verify": "go test ./internal/modelregress -count=1"
+        }
+      ]
+    },
+    {
+      "id": "model-regression-gate",
+      "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects model-regress -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise; inapplicable, never skipped, for commits outside execution code; the fp8 12B measurement of 2026-09-04 (718 to 1646 prompt tok/s, token-identical 48-token greedy continuation) is the reference shape of a passing report",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects model-regress -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise; inapplicable, never skipped, for commits outside execution code; the fp8 12B measurement of 2026-09-04 (718 to 1646 prompt tok/s, token-identical 48-token greedy continuation) is the reference shape of a passing report",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "model-regression-baseline",
+      "title": "Record the regression fingerprints for every servable text model on a clean tree after the owner lands (owner rule 2026-09-04; both shapes, short and long, the time and performance record and the capability sample; smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind model-regress -check as this row's verify through -setverify once the evidence identities exist",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record the regression fingerprints for every servable text model on a clean tree after the owner lands (owner rule 2026-09-04; both shapes, short and long, the time and performance record and the capability sample; smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind model-regress -check as this row's verify through -setverify once the evidence identities exist",
+          "status": "open",
+          "verify": "go run ./cmd/model-regress -check -repo overgodb-store"
         }
       ]
     },
@@ -144,6 +170,71 @@
           "depends_on": [
             "failure-recovery/control-plane-drills"
           ]
+        }
+      ]
+    },
+    {
+      "id": "simplify-prefill-paths",
+      "title": "Prefill-path unification (owner rule 2026-09-04, capability improvement by simplification): mul_mat prefill now has four paths (exact F32 staging with SGEMM, f16 staging with the tensor-core GEMM for quantized and fp8 weights, direct tensor-core for half-precision weights, the span kernels below the column floor); derive one prefill policy from the weight type, the column count and the measured parity bounds already committed, retire the exact F32 staged path and the per-type duplicates it leaves behind, and let the regression ladder show the prompt tok/s curve against context length on every servable model before and after, the curve recorded as evidence and quoted in the commit; a path may be retired only where the f16-staged parity bound already holds, and the fp8 12B's 1646 prompt tok/s against its bf16 twin's 2850 is the gap the unification is measured against",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prefill-path unification (owner rule 2026-09-04, capability improvement by simplification): mul_mat prefill now has four paths (exact F32 staging with SGEMM, f16 staging with the tensor-core GEMM for quantized and fp8 weights, direct tensor-core for half-precision weights, the span kernels below the column floor); derive one prefill policy from the weight type, the column count and the measured parity bounds already committed, retire the exact F32 staged path and the per-type duplicates it leaves behind, and let the regression ladder show the prompt tok/s curve against context length on every servable model before and after, the curve recorded as evidence and quoted in the commit; a path may be retired only where the f16-staged parity bound already holds, and the fp8 12B's 1646 prompt tok/s against its bf16 twin's 2850 is the gap the unification is measured against",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "simplify-command-surface",
+      "title": "Command-surface fold (owner rule 2026-09-04, simplification): the nineteen single-purpose probe, lane and parity commands (the *-train-probe family, the *-lane family, sensenovaparity, vqaparity) fold into a train-probe command and a lane command with typed subcommands and the parity probes into eval-lane, each retired command's behavior reachable through the survivor and recorded as a move in the API manifest; a command-package ceiling enters docs/structure_budgets.json at the new count and only tightens; the plan, gate, loop and hook adapters keep their commands",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Command-surface fold (owner rule 2026-09-04, simplification): the nineteen single-purpose probe, lane and parity commands (the *-train-probe family, the *-lane family, sensenovaparity, vqaparity) fold into a train-probe command and a lane command with typed subcommands and the parity probes into eval-lane, each retired command's behavior reachable through the survivor and recorded as a move in the API manifest; a command-package ceiling enters docs/structure_budgets.json at the new count and only tightens; the plan, gate, loop and hook adapters keep their commands",
+          "status": "open",
+          "verify": "go run ./cmd/preflight"
+        }
+      ]
+    },
+    {
+      "id": "simplify-execution-core",
+      "title": "Execution-core deduplication (owner rule 2026-09-04, simplification): lower the duplicate-excess ceiling in docs/clone_baseline.json by a reviewed, measured amount concentrated in internal/cuda and internal/inference (the launch-layout, staging and attention paths that grew by copy during the prefill rows), retire the executor.go 2400-line standing exception in docs/structure_budgets.json by decomposition, and bind the new ceiling as this row's verify through -setverify before work starts; the model regression check must hold on every servable model at every step, so the reduction is proven not to move a token or a rate",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Execution-core deduplication (owner rule 2026-09-04, simplification): lower the duplicate-excess ceiling in docs/clone_baseline.json by a reviewed, measured amount concentrated in internal/cuda and internal/inference (the launch-layout, staging and attention paths that grew by copy during the prefill rows), retire the executor.go 2400-line standing exception in docs/structure_budgets.json by decomposition, and bind the new ceiling as this row's verify through -setverify before work starts; the model regression check must hold on every servable model at every step, so the reduction is proven not to move a token or a rate",
+          "status": "open",
+          "verify": "go run ./cmd/clone-census -summary -max-excess 10012"
+        }
+      ]
+    },
+    {
+      "id": "simplify-checkpoint-locations",
+      "title": "Checkpoint relocation (owner rule 2026-09-04, simplification): the servable checkpoints still resolve to paths under the retired adaptive_new tree; relocate them under overgo's models directory, re-record every model's location in the store through the existing location owner, retire the adaptive_new path from every baseline and fixture that names it, and prove the servable predicate holds for every model at its new location, so the living system no longer depends on the retired tree's disk layout",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Checkpoint relocation (owner rule 2026-09-04, simplification): the servable checkpoints still resolve to paths under the retired adaptive_new tree; relocate them under overgo's models directory, re-record every model's location in the store through the existing location owner, retire the adaptive_new path from every baseline and fixture that names it, and prove the servable predicate holds for every model at its new location, so the living system no longer depends on the retired tree's disk layout",
+          "status": "open",
+          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable"
+        }
+      ]
+    },
+    {
+      "id": "simplify-capability-report",
+      "title": "Capability-versus-mechanism report (owner rule 2026-09-04, simplification campaign close): a generated report sets the committed benchmark records and regression fingerprints (short shape, context ladder, capability sample) recorded before the simplification rows against those recorded after, beside the mechanism deltas the ratchets measure (duplicate-excess nodes, command packages, production lines, standing budget exceptions), so the campaign's claim that capability held or rose with less mechanism is a number, not a narrative; a row whose after-numbers fall below its before-numbers is listed as a regression finding, never averaged away",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Capability-versus-mechanism report (owner rule 2026-09-04, simplification campaign close): a generated report sets the committed benchmark records and regression fingerprints (short shape, context ladder, capability sample) recorded before the simplification rows against those recorded after, beside the mechanism deltas the ratchets measure (duplicate-excess nodes, command packages, production lines, standing budget exceptions), so the campaign's claim that capability held or rose with less mechanism is a number, not a narrative; a row whose after-numbers fall below its before-numbers is listed as a regression finding, never averaged away",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check"
         }
       ]
     },

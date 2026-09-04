@@ -26,6 +26,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/longform"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
@@ -76,6 +77,8 @@ type modelRow struct {
 	bytes      int64
 	benchmark  evaluation.BenchmarkSummary
 	measured   bool
+	longForm   longform.Summary
+	verified   bool
 	suites     map[string]suiteRow
 	references []evaluation.ReferenceScore
 }
@@ -116,6 +119,7 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 	// A zero bound visits the complete history; newest-first keeps the
 	// latest record per suite, so every row is the current evidence.
 	index := evaluation.LatestEvidence(ctx, store, names, 0)
+	longForms := longform.LatestByLocation(ctx, store, 0)
 	rows := make([]modelRow, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.Present || entry.Stale != "" || entry.Location == "" {
@@ -130,6 +134,7 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 			location: entry.Location, bytes: info.Size(), suites: map[string]suiteRow{},
 		}
 		row.benchmark, row.measured = index.BenchmarksByLocation[entry.Location]
+		row.longForm, row.verified = longForms[longform.Key(entry.Location)]
 		references, err := evaluation.LoadReferenceScores(ctx, store, entry.Model)
 		if err != nil {
 			return nil, err
@@ -194,17 +199,18 @@ func render(rows []modelRow, descriptors map[string]evaluation.SuiteDescriptor) 
 	output.WriteString("Models are the servable catalog ordered smallest first by recorded bytes. Each suite cell is the headline metric of the model's latest committed evaluation of that suite under one prompting protocol; a dash means no committed evaluation. Suites are the store's derived benchmark suites (`evaluate -list-derived-suites`). The raw-completion protocol scores the suite's prompt text unchanged and is the recorded anchor comparable with lm-eval. The chat-template protocol wraps the prompt in the model's declared template with thinking disabled, asks for the letter only, greedily generates the model's answer, and reads the first standalone candidate letter from it; an answer naming no candidate counts as incorrect. Model cards report generative results, so the chat-template rows are the ones to set beside a published number.\n\n")
 	renderSuites(&output, descriptors)
 	output.WriteString("## Comparison\n\n")
-	output.WriteString("| Model | Bytes | Prompt tok/s | Decode tok/s |")
+	output.WriteString("| Model | Bytes | Prompt tok/s | Decode tok/s | Long prompt tok/s | Long decode tok/s | Long-form |")
 	for _, suite := range columns {
 		fmt.Fprintf(&output, " %s |", suite)
 	}
-	output.WriteString("\n| --- | --- | --- | --- |")
+	output.WriteString("\n| --- | --- | --- | --- | --- | --- | --- |")
 	for range columns {
 		output.WriteString(" --- |")
 	}
 	output.WriteString("\n")
 	for _, row := range rows {
-		fmt.Fprintf(&output, "| %s | %d | %s | %s |", row.name, row.bytes, promptCell(row), decodeCell(row))
+		fmt.Fprintf(&output, "| %s | %d | %s | %s | %s | %s | %s |", row.name, row.bytes, promptCell(row), decodeCell(row),
+			longPromptCell(row), longDecodeCell(row), longFormCell(row))
 		for _, suite := range columns {
 			output.WriteString(" " + headlineCell(row.suites[suite]) + " |")
 		}
@@ -255,6 +261,38 @@ func decodeCell(row modelRow) string {
 		return "—"
 	}
 	return fmt.Sprintf(metricFormat, row.benchmark.DecodeTokensPerSecond)
+}
+
+// The long-form cells report the committed long-form verification: the
+// prompt and decode rates at the long prompt, and the verdict with the
+// output measures and the commit it ran on, so a suite score is read
+// beside the long-input behaviour the pass was admitted on.
+func longPromptCell(row modelRow) string {
+	if !row.verified || row.longForm.Result.Measure.PromptTokensPerSecond == 0 {
+		return "—"
+	}
+	return fmt.Sprintf(metricFormat, row.longForm.Result.Measure.PromptTokensPerSecond)
+}
+
+func longDecodeCell(row modelRow) string {
+	if !row.verified || row.longForm.Result.Measure.DecodeTokensPerSecond == 0 {
+		return "—"
+	}
+	return fmt.Sprintf(metricFormat, row.longForm.Result.Measure.DecodeTokensPerSecond)
+}
+
+func longFormCell(row modelRow) string {
+	if !row.verified {
+		return "—"
+	}
+	result := row.longForm.Result
+	verdict := "PASS"
+	if !result.Verdict.Passed {
+		verdict = "FAIL"
+	}
+	return fmt.Sprintf("%s (%d→%d tok, context gain %+.2f nat, distinct 4-gram %.2f, span %d, `%.12s`)", verdict,
+		result.Measure.PromptTokens, result.Measure.OutputTokens, result.Measure.Score.ContextGain,
+		result.Measure.DistinctFourGramRatio, result.Measure.LongestRepeatedSpan, result.Commit)
 }
 
 // promptCell reports the committed benchmark's prompt-processing rate;

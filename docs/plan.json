@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-task-artifact-contracts",
-          "title": "Merge master and reconcile the plan before: Add neutral contracts for transcription, timestamped alignment, speech turns, activity segments, converted audio and generated audio while deriving sample rate, channels, encoding, frame geometry, context and state from artifacts",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "oracle-intake/artifact-compatibility"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "task-artifact-contracts",
           "title": "Add neutral contracts for transcription, timestamped alignment, speech turns, activity segments, converted audio and generated audio while deriving sample rate, channels, encoding, frame geometry, context and state from artifacts",
           "status": "open",
@@ -917,7 +902,7 @@
           "title": "Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
           "status": "open",
           "verify": "go build ./cmd/perf-sweep ./cmd/perplexity",
-          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Repeated baseline runs must derive the measured min-max noise envelope before declaring regression or improvement. Master 0c51e3d5 stages K-quant q8 input once and executes wide prefills in eight-column spans; ebbcd657 routes short F16, BF16 and fp8 spans through native-dtype decode according to traffic-derived bounds; 3e89a897 runs qualifying half-precision prefills through tensor cores without F32 weight staging. The sweep must report prefill separately from decode and include widths immediately below, at and above every applicable boundary, with CPU numerical authority retained. Bind those invocations, repeated baselines, peak host-memory and VRAM capture, perplexity, and loop -compare-resource-fitness via -setverify when the drill starts.",
+          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Repeated baseline runs must derive the measured min-max noise envelope before declaring regression or improvement. Master 0c51e3d5 stages K-quant q8 input once and executes wide prefills in eight-column spans; ebbcd657 routes short F16, BF16 and fp8 spans through native-dtype decode according to traffic-derived bounds; 3e89a897 runs qualifying half-precision prefills through tensor cores without F32 weight staging. Master d89dc918 routes continuation scoring through the resident device cache when available while preserving the host-cache implementation as the CPU reference, and evaluate now accepts a CPU-profile output; the later benchmark drill must reuse those paths rather than introduce an audio-specific scoring or profiling owner. The sweep must report prefill separately from decode and include widths immediately below, at and above every applicable boundary, with CPU numerical authority retained. Bind those invocations, repeated baselines, peak host-memory and VRAM capture, perplexity, and loop -compare-resource-fitness via -setverify when the drill starts.",
           "depends_on": [
             "benchmark-routing/sync-resource-quality-fitness"
           ]

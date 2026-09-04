@@ -126,7 +126,7 @@ func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.Tok
 // score on the corpus prefix of the rung's length; it stops after the
 // rung whose prefill ran past the rung budget, and reports why it
 // stopped when it did not climb every planned rung.
-func Ladder(ctx context.Context, runner *inference.Runner, corpus []tokenizer.TokenID, rungs []int, floors Floors) ([]Rung, string, error) {
+func Ladder(ctx context.Context, runner *inference.Runner, corpus []tokenizer.TokenID, rungs []int, floors Floors, progress func(Rung) string) ([]Rung, string, error) {
 	var climbed []Rung
 	for index, length := range rungs {
 		prompt := corpus[:length]
@@ -143,6 +143,13 @@ func Ladder(ctx context.Context, runner *inference.Runner, corpus []tokenizer.To
 			return climbed, fmt.Sprintf("rung %d score: %v", length, err), nil
 		}
 		climbed = append(climbed, Rung{Measure: generation.Measure, OutputIDs: tokenIDs(generation.Tokens)})
+		// The caller reads each rung as it lands and may end the ladder
+		// with a reason of its own, the device's memory for one.
+		if progress != nil {
+			if reason := progress(climbed[len(climbed)-1]); reason != "" && index+1 < len(rungs) {
+				return climbed, fmt.Sprintf("after rung %d: %s", length, reason), nil
+			}
+		}
 		if generation.Measure.PromptMilliseconds > floors.RungBudgetSeconds*1000 && index+1 < len(rungs) {
 			return climbed, fmt.Sprintf("rung %d prefill took %.1fs, past the %.0fs rung budget", length,
 				generation.Measure.PromptMilliseconds/1000, floors.RungBudgetSeconds), nil

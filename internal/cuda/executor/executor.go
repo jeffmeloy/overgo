@@ -1162,6 +1162,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 		}
+		if bytes, ok := decodePartialBytes(node); ok {
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+		}
 	}
 	plannerExcluded := compiled.skipped
 	if externalOutputs {

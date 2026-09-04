@@ -4,13 +4,26 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "long-context-collapse",
-      "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
+      "id": "decode-attention-per-key-cost",
+      "title": "Decode attention per-key cost on small heads (follow-up to long-context-collapse): the tiled decode kernel costs more per key than the capacity-buffer kernel it replaced at short contexts on the smallest model, the Qwen2.5-0.5B reading 139 tokens/s at rung 1024 against 295 before, where the E4B is within three percent; the executor's BenchmarkDecodeAttention must first keep its cache device-resident (its per-step host upload of the capacity-sized feeds dominates and scales with the cache), then the kernel's key loop is measured and brought back to the earlier per-key cost, split-key parallelism kept",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
+          "title": "Decode attention per-key cost on small heads (follow-up to long-context-collapse): the tiled decode kernel costs more per key than the capacity-buffer kernel it replaced at short contexts on the smallest model, the Qwen2.5-0.5B reading 139 tokens/s at rung 1024 against 295 before, where the E4B is within three percent; the executor's BenchmarkDecodeAttention must first keep its cache device-resident (its per-step host upload of the capacity-sized feeds dominates and scales with the cache), then the kernel's key loop is measured and brought back to the earlier per-key cost, split-key parallelism kept",
+          "status": "open",
+          "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1"
+        }
+      ]
+    },
+    {
+      "id": "device-memory-retention",
+      "title": "Device memory retained across context capacities (found by the long-form ladder 2026-09-04): the gemma-4-E4B grew from 14 GB loaded to 39 GB after rung 32768, every rung's cache retained though each generation released it, so a server that serves growing contexts fills the device; find the holder (the executor's graph executable cache, the runner's retained device caches, or the pool's free lists) with the ladder's stage lines, bound it by bytes, and climb the E4B ladder again as the verify with the device staying near one cache above the model",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Device memory retained across context capacities (found by the long-form ladder 2026-09-04): the gemma-4-E4B grew from 14 GB loaded to 39 GB after rung 32768, every rung's cache retained though each generation released it, so a server that serves growing contexts fills the device; find the holder (the executor's graph executable cache, the runner's retained device caches, or the pool's free lists) with the ladder's stage lines, bound it by bytes, and climb the E4B ladder again as the verify with the device staying near one cache above the model",
           "status": "open",
           "verify": "go test ./internal/longform -count=1"
         }

@@ -13,6 +13,7 @@ const (
 	kernelArgmaxF32
 	kernelArgmaxQ80InputPartialsF32
 	kernelAttentionDecodeF32
+	kernelAttentionDecodeCombineF32
 	kernelAttentionF32
 	kernelAttentionOnlineF32
 	kernelAttentionOnlineFinalizeF32
@@ -214,6 +215,7 @@ var kernelFunctionNames = [...]string{
 	"argmax_f32",
 	"argmax_q8_0_input_partials_f32",
 	"attention_decode_f32",
+	"attention_decode_combine_f32",
 	"attention_f32",
 	"attention_online_f32",
 	"attention_online_finalize_f32",
@@ -413,7 +415,8 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	4,
 	4,
 	3,
-	14,
+	17,
+	5,
 	25,
 	24,
 	6,

@@ -205,7 +205,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 		t.Fatalf("seed source = %s, %v, close=%v", first, err, closeErr)
 	}
 
-	frozen, err := captureClosureEvidence(root, snapshot)
+	frozen, err := captureClosureEvidence(root, "HEAD", snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

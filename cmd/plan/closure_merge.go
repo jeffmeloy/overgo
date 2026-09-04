@@ -20,8 +20,8 @@ type closureEvidenceSnapshot struct {
 	cleanup  func()
 }
 
-func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, error) {
-	source, err := sourceOvergoDB(root, gitSnapshot)
+func captureClosureEvidence(root, gitSource, gitSnapshot string) (closureEvidenceSnapshot, error) {
+	source, err := sourceOvergoDB(root, gitSource, gitSnapshot)
 	if err != nil || source == "" {
 		return closureEvidenceSnapshot{}, err
 	}
@@ -52,12 +52,16 @@ func captureClosureEvidence(root, gitSnapshot string) (closureEvidenceSnapshot, 
 	}, nil
 }
 
-func sourceOvergoDB(root, snapshot string) (string, error) {
+func sourceOvergoDB(root, source, snapshot string) (string, error) {
 	raw, err := gitOutput(root, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
 		return "", err
 	}
-	return sourceOvergoDBFromPorcelain(raw, snapshot, func(candidate string) bool {
+	branchRaw, err := gitOutput(root, "rev-parse", "--symbolic-full-name", source)
+	if err != nil {
+		return "", err
+	}
+	return sourceOvergoDBFromPorcelain(raw, snapshot, strings.TrimSpace(string(branchRaw)), func(candidate string) bool {
 		info, err := os.Stat(candidate)
 		return err == nil && info.IsDir()
 	})
@@ -66,10 +70,15 @@ func sourceOvergoDB(root, snapshot string) (string, error) {
 func sourceOvergoDBFromPorcelain(
 	raw []byte,
 	snapshot string,
+	preferredBranch string,
 	usable func(string) bool,
 ) (string, error) {
-	var match string
-	var worktree, head string
+	type storeCandidate struct {
+		store  string
+		branch string
+	}
+	var candidates []storeCandidate
+	var worktree, head, branch string
 	flush := func() error {
 		if worktree == "" || head != snapshot {
 			return nil
@@ -78,10 +87,7 @@ func sourceOvergoDBFromPorcelain(
 		if !usable(candidate) {
 			return nil
 		}
-		if match != "" {
-			return fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match %s", snapshot)
-		}
-		match = candidate
+		candidates = append(candidates, storeCandidate{store: candidate, branch: branch})
 		return nil
 	}
 	for encoded := range bytes.SplitSeq(raw, []byte("\x00")) {
@@ -103,15 +109,37 @@ func sourceOvergoDBFromPorcelain(
 				if err := flush(); err != nil {
 					return "", err
 				}
-				head = ""
+				head, branch = "", ""
 			}
 			worktree = value
 		case "HEAD":
 			head = value
+		case "branch":
+			branch = value
 		}
 	}
 	if err := flush(); err != nil {
 		return "", err
 	}
-	return match, nil
+	if preferredBranch != "" {
+		var preferred []storeCandidate
+		for _, candidate := range candidates {
+			if candidate.branch == preferredBranch {
+				preferred = append(preferred, candidate)
+			}
+		}
+		if len(preferred) == 1 {
+			return preferred[0].store, nil
+		}
+		if len(preferred) > 1 {
+			return "", fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match branch %s", preferredBranch)
+		}
+	}
+	if len(candidates) > 1 {
+		return "", fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match %s", snapshot)
+	}
+	if len(candidates) == 1 {
+		return candidates[0].store, nil
+	}
+	return "", nil
 }

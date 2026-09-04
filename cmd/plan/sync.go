@@ -59,7 +59,7 @@ func prepareMergeWithProjection(
 			return err
 		}
 		snapshot := strings.TrimSpace(string(sourceRaw))
-		closureSnapshot, err := captureClosureEvidence(root, snapshot)
+		closureSnapshot, err := captureClosureEvidence(root, source, snapshot)
 		if err != nil {
 			return err
 		}

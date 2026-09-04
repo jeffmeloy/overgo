@@ -16,7 +16,7 @@ func TestSourceOvergoDBPorcelainPreservesWorktreeSpaces(t *testing.T) {
 			"HEAD " + target + "\x00" +
 			"detached\x00\x00",
 	)
-	got, err := sourceOvergoDBFromPorcelain(raw, target, func(string) bool { return true })
+	got, err := sourceOvergoDBFromPorcelain(raw, target, "", func(string) bool { return true })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestSourceOvergoDBPorcelainRejectsAmbiguousHead(t *testing.T) {
 		"worktree C:/one\x00HEAD " + target + "\x00\x00" +
 			"worktree C:/two\x00HEAD " + target + "\x00\x00",
 	)
-	if _, err := sourceOvergoDBFromPorcelain(raw, target, func(string) bool { return true }); err == nil ||
+	if _, err := sourceOvergoDBFromPorcelain(raw, target, "", func(string) bool { return true }); err == nil ||
 		!strings.Contains(err.Error(), "multiple OvergoDB worktrees") {
 		t.Fatalf("ambiguous worktree error = %v", err)
 	}
@@ -45,9 +45,25 @@ func TestSourceOvergoDBPorcelainIgnoresWorktreeWithoutStore(t *testing.T) {
 			"worktree C:/two\x00HEAD " + target + "\x00\x00",
 	)
 	want := filepath.Join(filepath.FromSlash("C:/one"), "overgodb-store")
-	got, err := sourceOvergoDBFromPorcelain(raw, target, func(candidate string) bool {
+	got, err := sourceOvergoDBFromPorcelain(raw, target, "", func(candidate string) bool {
 		return candidate == want
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("source store = %q, want %q", got, want)
+	}
+}
+
+func TestSourceOvergoDBPorcelainPrefersNamedSourceBranch(t *testing.T) {
+	const target = "0123456789abcdef0123456789abcdef01234567"
+	raw := []byte(
+		"worktree C:/master\x00HEAD " + target + "\x00branch refs/heads/master\x00\x00" +
+			"worktree C:/peer\x00HEAD " + target + "\x00branch refs/heads/peer\x00\x00",
+	)
+	want := filepath.Join(filepath.FromSlash("C:/master"), "overgodb-store")
+	got, err := sourceOvergoDBFromPorcelain(raw, target, "refs/heads/master", func(string) bool { return true })
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,6 +2,7 @@ package tokenizer
 
 import (
 	"bytes"
+	"container/heap"
 	"errors"
 	"fmt"
 	"strings"
@@ -153,34 +154,70 @@ func splitGemma4Newlines(text string) []string {
 	return result
 }
 
+// applyBPE merges a word's runes by ascending merge rank, the leftmost
+// pair first among equal ranks. Candidate merges wait in a heap keyed
+// by (rank, left position) and the symbols form a linked list, so each
+// merge costs a heap operation instead of a scan of every adjacent
+// pair: a Gemma 4 "word" is a whole line, and a 12,000-character
+// narrative line took two seconds per encode under the pair scan (the
+// MuSR scoring pass encoded each prompt four times per case, eight
+// seconds of tokenization against half a second of model work).
 func (v *Vocab) applyBPE(word string) []string {
 	if v.IgnoreMerges {
 		if _, ok := v.tokenToID[word]; ok {
 			return []string{word}
 		}
 	}
-	symbols := make([]string, 0, utf8.RuneCountInString(word))
+	// The symbol list and bigram queue are the SPM encoder's: a merge
+	// rank becomes a descending score, so the queue's highest-score,
+	// leftmost order is the scan's lowest-rank, leftmost order, and a
+	// bigram whose symbols no longer sum to its recorded size is stale.
+	symbols := make([]spmSymbol, 0, utf8.RuneCountInString(word))
 	for _, symbol := range word {
-		symbols = append(symbols, string(symbol))
+		index := len(symbols)
+		symbols = append(symbols, spmSymbol{previous: index - 1, next: index + 1, text: string(symbol)})
 	}
-	for len(symbols) > 1 {
-		bestIndex := -1
-		bestRank := int(^uint(0) >> 1)
-		for i := 0; i+1 < len(symbols); i++ {
-			rank, ok := v.mergeRank[pair{left: symbols[i], right: symbols[i+1]}]
-			if ok && rank < bestRank {
-				bestIndex = i
-				bestRank = rank
-			}
-		}
-		if bestIndex < 0 {
-			break
-		}
-		symbols[bestIndex] += symbols[bestIndex+1]
-		copy(symbols[bestIndex+1:], symbols[bestIndex+2:])
-		symbols = symbols[:len(symbols)-1]
+	if len(symbols) == 0 {
+		return nil
 	}
-	return symbols
+	symbols[len(symbols)-1].next = -1
+	queue := make(spmQueue, 0, len(symbols))
+	push := func(left, right int) {
+		if left < 0 || right < 0 {
+			return
+		}
+		rank, ok := v.mergeRank[pair{left: symbols[left].text, right: symbols[right].text}]
+		if !ok {
+			return
+		}
+		heap.Push(&queue, spmBigram{
+			left: left, right: right, score: -float32(rank),
+			size: len(symbols[left].text) + len(symbols[right].text),
+		})
+	}
+	for index := 1; index < len(symbols); index++ {
+		push(index-1, index)
+	}
+	for queue.Len() > 0 {
+		bigram := heap.Pop(&queue).(spmBigram)
+		left, right := &symbols[bigram.left], &symbols[bigram.right]
+		if left.text == "" || right.text == "" || len(left.text)+len(right.text) != bigram.size {
+			continue
+		}
+		left.text += right.text
+		right.text = ""
+		left.next = right.next
+		if right.next >= 0 {
+			symbols[right.next].previous = bigram.left
+		}
+		push(left.previous, bigram.left)
+		push(bigram.left, left.next)
+	}
+	result := make([]string, 0, len(symbols))
+	for index := 0; index >= 0; index = symbols[index].next {
+		result = append(result, symbols[index].text)
+	}
+	return result
 }
 
 func (v *Vocab) partitionSpecial(text string, parseSpecial bool) []segment {

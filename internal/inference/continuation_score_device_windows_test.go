@@ -14,7 +14,11 @@ import (
 // and the host-cache path score the same prompt and candidates alike on
 // the hermetic fixture, single-token and multi-token candidates included,
 // within the logit tolerance the continuous-cache parity test holds.
-func TestHermeticCUDAContinuationScoringParity(t *testing.T) {
+// openHermeticScoringRunner opens the hermetic fixture on the device for
+// the scoring tests and fails when it holds no resident device cache,
+// the precondition of the device scoring path.
+func openHermeticScoringRunner(t *testing.T) *Runner {
+	t.Helper()
 	requireIntegration(t)
 	cudatest.Require(t)
 	path := writeHermeticLlamaGGUFWithContext(t, hermeticContext)
@@ -22,10 +26,15 @@ func TestHermeticCUDAContinuationScoringParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer runner.Close()
+	t.Cleanup(func() { _ = runner.Close() })
 	if !runner.hasPreloadedWeights() || !runner.forwardProgram().PersistentDeviceCache() {
 		t.Fatal("fixture runner does not hold a resident device cache")
 	}
+	return runner
+}
+
+func TestHermeticCUDAContinuationScoringParity(t *testing.T) {
+	runner := openHermeticScoringRunner(t)
 	prompt := []tokenizer.TokenID{1, 4, 5}
 	continuations := [][]tokenizer.TokenID{{6}, {7, 4}, {5, 6, 7}, {2}}
 	runner.mu.Lock()

@@ -29,40 +29,40 @@ func (s *chunkSource) at(index int) float64 {
 	return float64(s.chunks[s.chunk][index-s.offset])
 }
 
-func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate int, w *Workspace) (*chunkSource, int, error) {
+func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate int, w *Workspace) (chunkSource, int, error) {
 	if p == nil || ctx == nil || w == nil || w.owner != nil && w.owner != p {
-		return nil, 0, errors.New("audio frontend: incomplete execution")
+		return chunkSource{}, 0, errors.New("audio frontend: incomplete execution")
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, 0, err
+		return chunkSource{}, 0, err
 	}
-	source := &chunkSource{chunks: chunks}
+	source := chunkSource{chunks: chunks}
 	for _, chunk := range chunks {
 		for _, scratch := range [][]float32{w.features, w.waveform, w.joined, w.resampled} {
 			if checked.SlicesOverlap(chunk, scratch[:cap(scratch)]) {
-				return nil, 0, errors.New("audio frontend: input aliases mutable workspace")
+				return chunkSource{}, 0, errors.New("audio frontend: input aliases mutable workspace")
 			}
 		}
 		count, ok := checked.AddInt(source.count, len(chunk))
 		if !ok {
-			return nil, 0, errors.New("audio frontend: input extent overflows")
+			return chunkSource{}, 0, errors.New("audio frontend: input extent overflows")
 		}
 		source.count = count
 		for _, value := range chunk {
 			if !checked.Finite32(value) {
-				return nil, 0, errors.New("audio frontend: non-finite input")
+				return chunkSource{}, 0, errors.New("audio frontend: non-finite input")
 			}
 		}
 		if err := ctx.Err(); err != nil {
-			return nil, 0, err
+			return chunkSource{}, 0, err
 		}
 	}
 	if source.count == 0 || sampleRate <= 0 {
-		return nil, 0, errors.New("audio frontend: empty audio or invalid sample rate")
+		return chunkSource{}, 0, errors.New("audio frontend: empty audio or invalid sample rate")
 	}
 	if sampleRate != p.config.SampleRate {
 		if len(p.config.ResampleTaps) == 0 {
-			return nil, 0, errors.New("audio frontend: sample rate differs and no FIR taps were declared")
+			return chunkSource{}, 0, errors.New("audio frontend: sample rate differs and no FIR taps were declared")
 		}
 		divisor := sampleRate
 		remainder := p.config.SampleRate
@@ -72,17 +72,17 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 		up, down := p.config.SampleRate/divisor, sampleRate/divisor
 		product, ok := checked.MulInt(source.count, up)
 		if !ok || product > math.MaxInt-(down-1) {
-			return nil, 0, errors.New("audio frontend: resampling extent overflows")
+			return chunkSource{}, 0, errors.New("audio frontend: resampling extent overflows")
 		}
 		outCount := (product + down - 1) / down
 		// The resampler also computes an upsampled center plus its half-filter.
 		lastCenter, ok := checked.MulInt(outCount-1, down)
 		if !ok || lastCenter > math.MaxInt-(len(p.config.ResampleTaps)-1)/2 {
-			return nil, 0, errors.New("audio frontend: FIR index overflows")
+			return chunkSource{}, 0, errors.New("audio frontend: FIR index overflows")
 		}
-		if err := p.reserve(p.tableBytes, []int{cap(w.window), cap(w.real), cap(w.imaginary), cap(w.magnitude), cap(w.accum), cap(w.envelope)},
+		if err := p.reserve(p.tableBytes, []int{cap(w.window), cap(w.real), cap(w.imaginary), cap(w.magnitude), cap(w.accum), cap(w.envelope), cap(w.mel)},
 			[]int{cap(w.features), cap(w.waveform), max(cap(w.joined), source.count), max(cap(w.resampled), outCount)}); err != nil {
-			return nil, 0, err
+			return chunkSource{}, 0, err
 		}
 		w.joined = scratch.Resize(w.joined, source.count)
 		var position int
@@ -92,34 +92,35 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 		var err error
 		w.resampled, err = media.ResamplePoly(ctx, w.resampled, w.joined, up, down, p.config.ResampleTaps)
 		if err != nil {
-			return nil, 0, err
+			return chunkSource{}, 0, err
 		}
 		if err := ctx.Err(); err != nil {
-			return nil, 0, err
+			return chunkSource{}, 0, err
 		}
 		for _, value := range w.resampled {
 			if !checked.Finite32(value) {
-				return nil, 0, errors.New("audio frontend: non-finite resampled input")
+				return chunkSource{}, 0, errors.New("audio frontend: non-finite resampled input")
 			}
 		}
-		source = &chunkSource{chunks: [][]float32{w.resampled}, count: len(w.resampled)}
+		w.resampledChunks[0] = w.resampled
+		source = chunkSource{chunks: w.resampledChunks[:], count: len(w.resampled)}
 	}
 	if p.config.Padding == "reflect" && (p.config.PadLeft >= source.count || p.config.PadRight >= source.count) {
-		return nil, 0, errors.New("audio frontend: reflection padding must be shorter than the signal")
+		return chunkSource{}, 0, errors.New("audio frontend: reflection padding must be shorter than the signal")
 	}
 	padded, ok := checked.AddInt(source.count, p.config.PadLeft, p.config.PadRight)
 	if !ok || padded < p.config.FrameSpan {
-		return nil, 0, errors.New("audio frontend: no complete frame or padded extent overflows")
+		return chunkSource{}, 0, errors.New("audio frontend: no complete frame or padded extent overflows")
 	}
 	geometry := p.config.Geometry
 	geometry.WindowSamples = uint64(p.config.FrameSpan)
 	count, err := geometry.FrameCount(uint64(padded))
 	if err != nil {
-		return nil, 0, err
+		return chunkSource{}, 0, err
 	}
 	frames, ok := checked.Int(count)
 	if !ok {
-		return nil, 0, errors.New("audio frontend: frame count overflows")
+		return chunkSource{}, 0, errors.New("audio frontend: frame count overflows")
 	}
 	return source, frames, nil
 }

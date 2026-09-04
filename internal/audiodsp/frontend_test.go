@@ -39,7 +39,7 @@ func TestSpectrumMatchesNumpyRFFT(t *testing.T) {
 	wantReal := [][]float64{{3, -2.414213562373095, 1, .41421356237309515, -1}, {6, -5.121320343559643, 3, -.8786796564403572, 0}, {0, .2928932188134524, -1, 1.7071067811865475, -2}, {-6, 5.121320343559643, -3, .8786796564403572, 0}, {-6, 5.121320343559643, -3, .8786796564403572, 0}}
 	wantImaginary := [][]float64{{0, 0, 0, 0, 0}, {0, .7071067811865476, -1, .7071067811865476, 0}, {0, -2.121320343559643, 3, -2.121320343559643, 0}, {0, -.7071067811865476, 1, -.7071067811865476, 0}, {0, .7071067811865476, -1, .7071067811865476, 0}}
 	for frame := range frames {
-		plan.spectrum(source, frame, &workspace)
+		plan.spectrum(&source, frame, &workspace)
 		for bin := range plan.bins {
 			if math.Abs(workspace.real[bin]-wantReal[frame][bin]) > 1e-14 || math.Abs(workspace.imaginary[bin]-wantImaginary[frame][bin]) > 1e-14 {
 				t.Fatalf("frame %d bin %d=(%.17g,%.17g) want (%.17g,%.17g)", frame, bin, workspace.real[bin], workspace.imaginary[bin], wantReal[frame][bin], wantImaginary[frame][bin])
@@ -55,13 +55,13 @@ func TestProcessIsChunkBoundaryInvariantAndReusesStorage(t *testing.T) {
 	}
 	samples := []float32{1, 2, 3, 4, -1, -2, -3, -4}
 	var whole, split Workspace
-	want, frames, err := plan.Process(t.Context(), [][]float32{samples}, 8, &whole)
+	want, frames, err := plan.Process(t.Context(), [][]float32{samples}, 8, &whole, ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want = append([]float32(nil), want...)
 	for boundary := 1; boundary < len(samples); boundary++ {
-		got, gotFrames, err := plan.Process(t.Context(), [][]float32{samples[:boundary], samples[boundary:]}, 8, &split)
+		got, gotFrames, err := plan.Process(t.Context(), [][]float32{samples[:boundary], samples[boundary:]}, 8, &split, ProcessOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +75,7 @@ func TestProcessIsChunkBoundaryInvariantAndReusesStorage(t *testing.T) {
 		}
 	}
 	first := &split.features[0]
-	if _, _, err := plan.Process(t.Context(), [][]float32{samples[:3], samples[3:]}, 8, &split); err != nil {
+	if _, _, err := plan.Process(t.Context(), [][]float32{samples[:3], samples[3:]}, 8, &split, ProcessOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if first != &split.features[0] {
@@ -129,7 +129,7 @@ func TestNormalizationUsesOnlyDeclaredStatistics(t *testing.T) {
 		t.Fatal(err)
 	}
 	var workspace Workspace
-	got, frames, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 4, 3, 2, 1}}, 8, &workspace)
+	got, frames, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 4, 3, 2, 1}}, 8, &workspace, ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,11 +149,11 @@ func TestFrontendRejectsBorrowedWorkspaceInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	var w Workspace
-	values, _, err := p.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w)
+	values, _, err := p.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w, ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, _, err := p.Process(t.Context(), [][]float32{values[1:]}, 8, &w); err == nil || got != nil {
+	if got, _, err := p.Process(t.Context(), [][]float32{values[1:]}, 8, &w, ProcessOptions{}); err == nil || got != nil {
 		t.Fatal("accepted borrowed output as mutable input")
 	}
 }
@@ -259,7 +259,7 @@ func FuzzFrontend(f *testing.F) {
 		boundary := len(samples) / 2
 		chunks := [][]float32{nil, samples[:boundary], nil, samples[boundary:], nil}
 		var w Workspace
-		values, frames, err := p.Process(t.Context(), chunks, 8, &w)
+		values, frames, err := p.Process(t.Context(), chunks, 8, &w, ProcessOptions{})
 		if err == nil {
 			if len(values) != frames*p.bands {
 				t.Fatal("invalid feature geometry")
@@ -294,7 +294,7 @@ func TestFrontendSharedPlanSeparateWorkspaces(t *testing.T) {
 			t.Parallel()
 			var workspace Workspace
 			if operation == "features" {
-				values, frames, err := plan.Process(t.Context(), [][]float32{samples}, 8, &workspace)
+				values, frames, err := plan.Process(t.Context(), [][]float32{samples}, 8, &workspace, ProcessOptions{})
 				if err != nil || frames != 5 || len(values) != 15 {
 					t.Fatalf("features=%d/%d error=%v", frames, len(values), err)
 				}
@@ -326,7 +326,7 @@ func TestResamplingUsesDeclaredFIRAndTargetGrid(t *testing.T) {
 		t.Fatal(err)
 	}
 	var workspace Workspace
-	_, frames, err := plan.Process(t.Context(), [][]float32{{1}, {2}}, 1, &workspace)
+	_, frames, err := plan.Process(t.Context(), [][]float32{{1}, {2}}, 1, &workspace, ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,25 +369,25 @@ func TestFrontendRefusesImplicitOrUnboundedBehavior(t *testing.T) {
 		t.Fatal(err)
 	}
 	var workspace Workspace
-	if _, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4}}, 7, &workspace); err == nil {
+	if _, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4}}, 7, &workspace, ProcessOptions{}); err == nil {
 		t.Fatal("want sample-rate refusal")
 	}
-	if _, _, err := plan.Process(t.Context(), [][]float32{{1, float32(math.NaN()), 3, 4}}, 8, &workspace); err == nil {
+	if _, _, err := plan.Process(t.Context(), [][]float32{{1, float32(math.NaN()), 3, 4}}, 8, &workspace, ProcessOptions{}); err == nil {
 		t.Fatal("want non-finite refusal")
 	}
 	cancelled, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
-	if _, _, err := plan.Process(cancelled, [][]float32{{1, 2, 3, 4}}, 8, &workspace); err == nil {
+	if _, _, err := plan.Process(cancelled, [][]float32{{1, 2, 3, 4}}, 8, &workspace, ProcessOptions{}); err == nil {
 		t.Fatal("want cancellation")
 	}
 	other, err := NewFrontend(base, 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &workspace); err != nil {
+	if _, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &workspace, ProcessOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := other.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &workspace); err == nil {
+	if _, _, err := other.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &workspace, ProcessOptions{}); err == nil {
 		t.Fatal("want workspace-owner refusal")
 	}
 }
@@ -416,7 +416,7 @@ func TestWorkspaceBudgetRefusesBeforeAllocation(t *testing.T) {
 	}
 	plan.memoryBytes = plan.tableBytes
 	var w Workspace
-	if values, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w); err == nil || values != nil {
+	if values, _, err := plan.Process(t.Context(), [][]float32{{1, 2, 3, 4, 5, 6, 7, 8}}, 8, &w, ProcessOptions{}); err == nil || values != nil {
 		t.Fatal("want workspace budget refusal")
 	}
 	if cap(w.features) != 0 || cap(w.real) != 0 || w.owner != nil {

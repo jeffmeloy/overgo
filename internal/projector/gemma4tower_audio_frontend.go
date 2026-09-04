@@ -84,5 +84,5 @@ func (p *audioFrontendPlan) preprocess(ctx context.Context, samples []float32, s
 	// A workspace per invocation keeps the immutable plan safe for concurrent
 	// requests. The returned feature storage is owned by this invocation.
 	var workspace audiodsp.Workspace
-	return p.frontend.Process(ctx, [][]float32{samples}, sampleRate, &workspace)
+	return p.frontend.Process(ctx, [][]float32{samples}, sampleRate, &workspace, audiodsp.ProcessOptions{})
 }

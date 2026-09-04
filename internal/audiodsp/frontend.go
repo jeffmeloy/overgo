@@ -83,6 +83,31 @@ type Workspace struct {
 	accum, envelope                    []float64
 	features, waveform, resampled      []float32
 	joined                             []float32
+	resampledChunks                    [1][]float32
+	mel                                []float64
+}
+
+// ProcessOptions selects a leading frame count before global transformations
+// and optionally observes borrowed intermediate values. Zero selects all frames.
+// A positive FrameLimit must not exceed the available complete frames.
+type ProcessOptions struct {
+	FrameLimit int
+	Observe    func(FrameTrace) error
+}
+
+// FrameTrace exposes one frame before clipping and normalization. Slices are
+// read-only, valid only during Observe, and must not be retained without copying.
+// Window contains the nonzero window span, excluding Fourier zero padding.
+// Energy is power or magnitude as declared; LogMel precedes global transforms.
+// Observers must not reenter the frontend using the same workspace.
+type FrameTrace struct {
+	Frame     int       `json:"frame"`
+	Window    []float64 `json:"window"`
+	Real      []float64 `json:"real"`
+	Imaginary []float64 `json:"imaginary"`
+	Energy    []float64 `json:"energy"`
+	Mel       []float64 `json:"mel"`
+	LogMel    []float32 `json:"log_mel"`
 }
 
 // NewFrontend validates declared behavior and the byte budget before building
@@ -207,7 +232,7 @@ func (p *Frontend) workspace(w *Workspace, featureCount, sampleCount int, invers
 	if w == nil || w.owner != nil && w.owner != p {
 		return errors.New("audio frontend: missing or differently owned workspace")
 	}
-	doubles := []int{max(cap(w.window), p.windowSize), max(cap(w.real), p.bins), max(cap(w.imaginary), p.bins), max(cap(w.magnitude), p.bins), cap(w.accum), cap(w.envelope)}
+	doubles := []int{max(cap(w.window), p.windowSize), max(cap(w.real), p.bins), max(cap(w.imaginary), p.bins), max(cap(w.magnitude), p.bins), cap(w.accum), cap(w.envelope), cap(w.mel)}
 	singles := []int{max(cap(w.features), featureCount), cap(w.waveform), cap(w.joined), cap(w.resampled)}
 	if inverse {
 		doubles[4], doubles[5], singles[1] = max(cap(w.accum), sampleCount), max(cap(w.envelope), sampleCount), max(cap(w.waveform), sampleCount)
@@ -236,10 +261,19 @@ func (p *Frontend) workspace(w *Workspace, featureCount, sampleCount int, invers
 // required. This is offline chunk assembly, not a live streaming session.
 // Frame count and values do not depend on input chunk boundaries. The result
 // aliases w; errors return no result, but may overwrite scratch from a prior call.
-func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate int, w *Workspace) ([]float32, int, error) {
+func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate int, w *Workspace, options ProcessOptions) ([]float32, int, error) {
+	if options.FrameLimit < 0 {
+		return nil, 0, errors.New("audio frontend: negative frame limit")
+	}
 	source, frames, err := p.prepare(ctx, chunks, sampleRate, w)
 	if err != nil {
 		return nil, 0, err
+	}
+	if options.FrameLimit > frames {
+		return nil, 0, errors.New("audio frontend: requested frames exceed complete frames")
+	}
+	if options.FrameLimit != 0 {
+		frames = options.FrameLimit
 	}
 	count, ok := checked.MulInt(frames, p.bands)
 	if !ok {
@@ -248,11 +282,19 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 	if err := p.workspace(w, count, source.count, false); err != nil {
 		return nil, 0, err
 	}
+	if options.Observe != nil {
+		if err := p.reserve(p.tableBytes,
+			[]int{cap(w.window), cap(w.real), cap(w.imaginary), cap(w.magnitude), cap(w.accum), cap(w.envelope), max(cap(w.mel), p.bands)},
+			[]int{cap(w.features), cap(w.waveform), cap(w.joined), cap(w.resampled)}); err != nil {
+			return nil, 0, err
+		}
+		w.mel = scratch.Resize(w.mel, p.bands)
+	}
 	for frame := range frames {
 		if err := ctx.Err(); err != nil {
 			return nil, 0, err
 		}
-		p.spectrum(source, frame, w)
+		p.spectrum(&source, frame, w)
 		for bin := range p.bins {
 			power := w.real[bin]*w.real[bin] + w.imaginary[bin]*w.imaginary[bin]
 			if p.config.Log.Power {
@@ -266,6 +308,9 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 			for bin, magnitude := range w.magnitude {
 				sum += magnitude * p.filterbank[bin*p.bands+band]
 			}
+			if options.Observe != nil {
+				w.mel[band] = sum
+			}
 			if p.config.Log.GuardMode == "add" {
 				sum += p.config.Log.Guard
 			} else {
@@ -276,6 +321,13 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 				value = math.Log10(sum)
 			}
 			w.features[frame*p.bands+band] = float32(value)
+		}
+		if options.Observe != nil {
+			if err := options.Observe(FrameTrace{Frame: frame, Window: w.window, Real: w.real,
+				Imaginary: w.imaginary, Energy: w.magnitude, Mel: w.mel,
+				LogMel: w.features[frame*p.bands : (frame+1)*p.bands]}); err != nil {
+				return nil, 0, err
+			}
 		}
 	}
 	if err := p.transform(ctx, w.features, frames); err != nil {
@@ -299,7 +351,7 @@ func (p *Frontend) Reconstruct(ctx context.Context, chunks [][]float32, sampleRa
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		p.spectrum(source, frame, w)
+		p.spectrum(&source, frame, w)
 		for index, window := range p.window {
 			sample := frame*p.hop - p.config.PadLeft + p.config.WindowOffset + index
 			if sample < 0 || sample >= source.count {

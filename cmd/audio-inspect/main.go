@@ -5,6 +5,9 @@
 // stream's PCM checksum when present. Other containers fail explicitly.
 // Admission retains channels and sample rate. An explicit -frontend declaration
 // may then process admitted mono samples, including declared FIR resampling.
+// -frame-limit selects frames before global transforms. -trace-frames hashes
+// a bounded leading sequence of borrowed intermediate frames as JSON lines;
+// only its digest and count are retained, not the intermediate arrays.
 // Model execution does not run.
 //
 // Parquet uses the existing local byte-array reader: an explicit, unique leaf
@@ -52,6 +55,8 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	frontendMemory := flags.Uint64("frontend-memory", 0, "required numeric backing-array byte budget with -frontend")
 	chunkSamples := flags.Int("chunk-samples", 0, "required offline chunk size with -frontend; boundaries must not alter results")
 	reconstruct := flags.Bool("reconstruct", false, "with -frontend: also measure standard STFT/inverse reconstruction")
+	frameLimit := flags.Int("frame-limit", 0, "with -frontend: select leading frames before global transforms; zero selects all")
+	traceFrames := flags.Int("trace-frames", 0, "with -frontend: hash this many leading intermediate frame traces as JSON lines")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -63,7 +68,8 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	var frontendID artifact.ID
 	var frontendContent artifact.Content
 	var workspace audiodsp.Workspace
-	if *frontendPath == "" && (*frontendMemory != 0 || *chunkSamples != 0 || *reconstruct) ||
+	if *frameLimit < 0 || *traceFrames < 0 ||
+		*frontendPath == "" && (*frontendMemory != 0 || *chunkSamples != 0 || *reconstruct || *frameLimit != 0 || *traceFrames != 0) ||
 		*frontendPath != "" && (*frontendMemory == 0 || *chunkSamples <= 0) {
 		return errors.New("audio-inspect: frontend requires explicit memory and chunk size; frontend flags require -frontend")
 	}
@@ -210,7 +216,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		if result.Decision.Outcome == recipecontract.AudioAdmissionAccepted {
 			accepted++
 			if frontend != nil {
-				if err := inspectFeatures(ctx, store, encoder, frontend, frontendContent, result, *chunkSamples, *reconstruct, &workspace); err != nil {
+				if err := inspectFeatures(ctx, store, encoder, frontend, frontendContent, result, *chunkSamples, *reconstruct, *frameLimit, *traceFrames, &workspace); err != nil {
 					return err
 				}
 				featured++

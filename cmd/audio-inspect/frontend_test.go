@@ -35,7 +35,7 @@ func TestAudioFrontendCommandPublishesBoundaryInvariantEvidence(t *testing.T) {
 	}
 	var first frontendObservation
 	for chunk := 1; chunk <= len(samples); chunk++ {
-		args := []string{"-repo", filepath.Join(root, "store"), "-input", input, "-policy", paths[0], "-frontend", paths[1], "-frontend-memory", "1048576", "-chunk-samples", strconv.Itoa(chunk), "-reconstruct"}
+		args := []string{"-repo", filepath.Join(root, "store"), "-input", input, "-policy", paths[0], "-frontend", paths[1], "-frontend-memory", "1048576", "-chunk-samples", strconv.Itoa(chunk), "-reconstruct", "-trace-frames", "2", "-frame-limit", "4"}
 		var output bytes.Buffer
 		if err := run(t.Context(), args, &output); err != nil {
 			t.Fatalf("chunk %d: %v", chunk, err)
@@ -44,12 +44,12 @@ func TestAudioFrontendCommandPublishesBoundaryInvariantEvidence(t *testing.T) {
 		if err := json.Unmarshal(bytes.Split(output.Bytes(), []byte{'\n'})[0], &observation); err != nil {
 			t.Fatal(err)
 		}
-		if observation.Frames != 5 || observation.Values != 10 || observation.SourceMaximumError == nil || *observation.SourceMaximumError != 0 || observation.ReconstructionSamples != 8 {
+		if observation.Frames != 4 || observation.Values != 8 || observation.SourceMaximumError == nil || *observation.SourceMaximumError != 0 || observation.ReconstructionSamples != 8 || observation.TraceFrames != 2 || len(observation.TraceSHA256) != 64 || observation.FrameLimit != 4 {
 			t.Fatalf("observation=%+v", observation)
 		}
 		if chunk == 1 {
 			first = observation
-		} else if first.Config != observation.Config || first.FeaturesSHA256 != observation.FeaturesSHA256 || first.ReconstructionSHA256 != observation.ReconstructionSHA256 {
+		} else if first.Config != observation.Config || first.FeaturesSHA256 != observation.FeaturesSHA256 || first.ReconstructionSHA256 != observation.ReconstructionSHA256 || first.TraceSHA256 != observation.TraceSHA256 {
 			t.Fatalf("chunk %d changed evidence", chunk)
 		}
 	}

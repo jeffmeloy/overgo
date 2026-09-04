@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"math"
@@ -22,10 +24,13 @@ type frontendObservation struct {
 	ReconstructionSHA256  string      `json:"reconstruction_sha256,omitzero"`
 	ReconstructionSamples int         `json:"reconstruction_samples,omitzero"`
 	SourceMaximumError    *float64    `json:"source_maximum_error,omitzero"`
+	FrameLimit            int         `json:"frame_limit,omitzero"`
+	TraceFrames           int         `json:"trace_frames,omitzero"`
+	TraceSHA256           string      `json:"trace_sha256,omitzero"`
 }
 
 func inspectFeatures(ctx context.Context, repository artifact.Repository, encoder *json.Encoder, frontend *audiodsp.Frontend, config artifact.Content,
-	inspection dataset.AudioInspection, chunkSamples int, reconstruct bool, workspace *audiodsp.Workspace) error {
+	inspection dataset.AudioInspection, chunkSamples int, reconstruct bool, frameLimit, traceFrames int, workspace *audiodsp.Workspace) error {
 	if inspection.Signal.Format.Channels != 1 {
 		return errors.New("audio-inspect: frontend requires mono input; no implicit downmix")
 	}
@@ -39,11 +44,28 @@ func inspectFeatures(ctx context.Context, repository artifact.Repository, encode
 		chunks = append(chunks, inspection.Samples[start:end])
 		start = end
 	}
-	values, frames, err := frontend.Process(ctx, chunks, sampleRate, workspace)
+	options := audiodsp.ProcessOptions{FrameLimit: frameLimit}
+	digest := sha256.New()
+	if traceFrames != 0 {
+		traceEncoder := json.NewEncoder(digest)
+		options.Observe = func(trace audiodsp.FrameTrace) error {
+			if trace.Frame < traceFrames {
+				return traceEncoder.Encode(trace)
+			}
+			return nil
+		}
+	}
+	values, frames, err := frontend.Process(ctx, chunks, sampleRate, workspace, options)
 	if err != nil {
 		return err
 	}
-	observation := frontendObservation{Admission: inspection.DecisionID, Config: config.Descriptor.ID, FeaturesSHA256: media.SamplesSHA256(values), Frames: frames, Values: len(values)}
+	if traceFrames > frames {
+		return errors.New("audio-inspect: requested trace exceeds selected frames")
+	}
+	observation := frontendObservation{Admission: inspection.DecisionID, Config: config.Descriptor.ID, FeaturesSHA256: media.SamplesSHA256(values), Frames: frames, Values: len(values), FrameLimit: frameLimit}
+	if traceFrames != 0 {
+		observation.TraceFrames, observation.TraceSHA256 = traceFrames, hex.EncodeToString(digest.Sum(nil))
+	}
 	if reconstruct {
 		waveform, err := frontend.Reconstruct(ctx, chunks, sampleRate, workspace)
 		if err != nil {

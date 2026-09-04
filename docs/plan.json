@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "load-forward-decode",
-          "title": "Compose the complete CPU processor and encoder from shared operators, then prove deterministic CTC transcription",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestCPUASRReference$' -count=1",
-          "rationale": "Implement three sequential numerical boundaries: complete processor tensors (delta, stacking, waveform padding and pre-transform frame selection); artifact-loaded encoder layers and logits; greedy CTC IDs and tokenizer text. TestCPUASRReference must invoke every boundary on the pinned real artifact and all four admitted LibriSpeech fixtures, require nonzero case/frame/token counts, reject missing prerequisites rather than skip, and report exact versus tolerance-based comparisons separately. Tiny synthetic math tests localize failures but cannot satisfy artifact acceptance. Reuse audiodsp, safetensors, tokenizer and hostmath/tensor through one concrete speechrecognition call boundary compatible with the existing recipe. Artifact/recipe declarations own tensor roles, shapes, normalization, relative positions, pooling and shared parameters. Add only demonstrated math gaps: bucket bias is not query-dependent position attention, and causal convolution is not symmetric depthwise convolution. Reuse one forward function for inference/training; expose the final hidden features to a caller-owned adapter boundary without retaining encoder traces when the encoder is frozen. Start with one bounded clip and reusable workspace; retain only requested oracle boundaries. Preserve intermediate CTC feedback and tied projection weights. No model-family execution dispatch, second runtime or graph language.",
-          "depends_on": [
-            "asr-reference/sync-load-forward-decode"
-          ],
-          "capabilities": [
-            "asr-artifact-loading",
-            "ctc-inference",
-            "transcript-decoding"
-          ]
-        },
-        {
           "id": "sync-offline-recipe",
           "title": "Reconcile the retained audio baseline before asr-reference/offline-recipe",
           "status": "open",

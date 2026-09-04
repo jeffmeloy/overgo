@@ -38,7 +38,7 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 	}
 	source := chunkSource{chunks: chunks}
 	for _, chunk := range chunks {
-		for _, scratch := range [][]float32{w.features, w.waveform, w.joined, w.resampled} {
+		for _, scratch := range [][]float32{w.features, w.waveform, w.joined, w.resampled, w.sequence} {
 			if checked.SlicesOverlap(chunk, scratch[:cap(scratch)]) {
 				return chunkSource{}, 0, errors.New("audio frontend: input aliases mutable workspace")
 			}
@@ -81,7 +81,7 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 			return chunkSource{}, 0, errors.New("audio frontend: FIR index overflows")
 		}
 		if err := p.reserve(p.tableBytes, []int{cap(w.window), cap(w.real), cap(w.imaginary), cap(w.magnitude), cap(w.accum), cap(w.envelope), cap(w.mel)},
-			[]int{cap(w.features), cap(w.waveform), max(cap(w.joined), source.count), max(cap(w.resampled), outCount)}); err != nil {
+			[]int{cap(w.features), cap(w.waveform), max(cap(w.joined), source.count), max(cap(w.resampled), outCount), cap(w.sequence), cap(w.padding)}); err != nil {
 			return chunkSource{}, 0, err
 		}
 		w.joined = scratch.Resize(w.joined, source.count)

@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "source": {
+    "repository": "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc",
+    "commit": "7e74c6438b7cfb5090cb6a131538f5e8515a7de3"
+  },
+  "dataset": {
+    "name": "LibriSpeech ASR clean",
+    "source": {
+      "repository": "https://huggingface.co/datasets/openslr/librispeech_asr",
+      "commit": "71cacbfb7e2354c4226d01e70d77d5fca3d04ba1"
+    },
+    "split": "clean/validation",
+    "path": "clean/validation/0000.parquet",
+    "artifact": "dataset-shard:sha256:c816e936fed8b83d5e3de28795bff1bcd3b46b3f1a5815bad4395d20186a9770",
+    "bytes": 341833540,
+    "media_type": "application/vnd.apache.parquet"
+  },
+  "capture_sha256": "b2e52f3f6c8ac8256ad71a6ccf66297e129ed1cdf7cb6211f125beb67e182db4",
+  "tensors_sha256": "fd71c122163677bd53aca47f2c90baf859a6b430f02fd8f0616701731158e363",
+  "tensor_count": 88,
+  "runtime": {
+    "python": "3.12.10",
+    "torch": "2.7.0+cpu",
+    "torchaudio": "2.7.0+cpu",
+    "transformers": "5.16.1",
+    "tokenizers": "0.23.2",
+    "device": "cpu",
+    "attention": "eager",
+    "files": {
+      "transformers/models/granite_speech5/feature_extraction_granite_speech5.py": "0fa9692a325ffcf516050688ffaf4ea5519b26b1700e5091f2120fc15bcc8209",
+      "transformers/models/parakeet/tokenization_parakeet.py": "f170422f744bfddd63a994d861a67f90aa0ee7df9d874c2ac8e1fbf0641cecf7",
+      "transformers/models/granite_speech5/modeling_granite_speech5.py": "ceff45c49b8476107aed13e37d79639b937a80111862ee034115d30b67ff3592",
+      "torch/functional.py": "d2aa2593a7df435d15a418742d5fa3968d63c531c3b0a49245d96582fc35e83e",
+      "torchaudio/functional/functional.py": "aa3754de420bcbaf7e8d02f7950d843b5cbf7692c389ffe3029f7d8414499cfa",
+      "torch/lib/torch_cpu.dll": "d568851d4aa9ca369a7d7f499555d3c45ee1ee566a895f4e1e1280bae3125c22",
+      "tokenizers/tokenizers.pyd": "05848a2a85e1466d19242499ed6b8c016a886db79aca020792aa5598ded77ef9"
+    }
+  },
+  "cases": [
+    {
+      "fixture": "2277-149896-0000",
+      "audio": "file:sha256:fead3e0c481f1c637fe6ec8edef42506c7c2d33a3fb7519bfdf5815b31150303",
+      "sample_rate": 16000,
+      "samples": 105440,
+      "frames": [
+        1,
+        330,
+        320
+      ],
+      "text": "he was in a fevered state of mind owing to the blight his wife is action threatened to cast upon his entire future",
+      "wall_ns": 221580300
+    },
+    {
+      "fixture": "2277-149896-0001",
+      "audio": "file:sha256:f9c3371b4d1c6e95e7c01298a26215c2be97bee22c5408885d8d29b6e0e4171c",
+      "sample_rate": 16000,
+      "samples": 114320,
+      "frames": [
+        1,
+        357,
+        320
+      ],
+      "text": "he would have to pay her the money which she would now regularly demand or there would be trouble it did not matter what he did",
+      "wall_ns": 218382300
+    },
+    {
+      "fixture": "2277-149896-0002",
+      "audio": "file:sha256:ade2caad47934462292358ba49acf7f048ced0595615492b4b20866d118bf901",
+      "sample_rate": 16000,
+      "samples": 77360,
+      "frames": [
+        1,
+        242,
+        320
+      ],
+      "text": "hurstwood walked the floor mentally arranging the chief points of his situation",
+      "wall_ns": 195137100
+    },
+    {
+      "fixture": "2277-149896-0003",
+      "audio": "file:sha256:a99595b53e5d48524c2ba4903071f2498b05c25c509f0a78d60dc15ee46a4836",
+      "sample_rate": 16000,
+      "samples": 45440,
+      "frames": [
+        1,
+        142,
+        320
+      ],
+      "text": "he also thought of his managerial position",
+      "wall_ns": 170860500
+    }
+  ]
+}

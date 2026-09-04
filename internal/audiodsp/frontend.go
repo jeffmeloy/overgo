@@ -85,6 +85,8 @@ type Workspace struct {
 	joined                             []float32
 	resampledChunks                    [1][]float32
 	mel                                []float64
+	sequence, padding                  []float32
+	groupedChunks                      [2][]float32
 }
 
 // ProcessOptions selects a leading frame count before global transformations
@@ -228,16 +230,20 @@ func (p *Frontend) reserve(base uint64, doubles, singles []int) error {
 	return nil
 }
 
-func (p *Frontend) workspace(w *Workspace, featureCount, sampleCount int, inverse bool) error {
+func (p *Frontend) reserveWorkspace(w *Workspace, featureCount, sampleCount int, inverse bool, sequenceCount, paddingCount int) error {
 	if w == nil || w.owner != nil && w.owner != p {
 		return errors.New("audio frontend: missing or differently owned workspace")
 	}
 	doubles := []int{max(cap(w.window), p.windowSize), max(cap(w.real), p.bins), max(cap(w.imaginary), p.bins), max(cap(w.magnitude), p.bins), cap(w.accum), cap(w.envelope), cap(w.mel)}
-	singles := []int{max(cap(w.features), featureCount), cap(w.waveform), cap(w.joined), cap(w.resampled)}
+	singles := []int{max(cap(w.features), featureCount), cap(w.waveform), cap(w.joined), cap(w.resampled), max(cap(w.sequence), sequenceCount), max(cap(w.padding), paddingCount)}
 	if inverse {
 		doubles[4], doubles[5], singles[1] = max(cap(w.accum), sampleCount), max(cap(w.envelope), sampleCount), max(cap(w.waveform), sampleCount)
 	}
-	if err := p.reserve(p.tableBytes, doubles, singles); err != nil {
+	return p.reserve(p.tableBytes, doubles, singles)
+}
+
+func (p *Frontend) workspace(w *Workspace, featureCount, sampleCount int, inverse bool) error {
+	if err := p.reserveWorkspace(w, featureCount, sampleCount, inverse, 0, 0); err != nil {
 		return err
 	}
 	w.owner = p
@@ -285,7 +291,7 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 	if options.Observe != nil {
 		if err := p.reserve(p.tableBytes,
 			[]int{cap(w.window), cap(w.real), cap(w.imaginary), cap(w.magnitude), cap(w.accum), cap(w.envelope), max(cap(w.mel), p.bands)},
-			[]int{cap(w.features), cap(w.waveform), cap(w.joined), cap(w.resampled)}); err != nil {
+			[]int{cap(w.features), cap(w.waveform), cap(w.joined), cap(w.resampled), cap(w.sequence), cap(w.padding)}); err != nil {
 			return nil, 0, err
 		}
 		w.mel = scratch.Resize(w.mel, p.bands)

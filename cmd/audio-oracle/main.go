@@ -28,11 +28,17 @@ func run() error {
 	recordPath := flags.String("election", "", "canonical election JSON")
 	modelRoot := flags.String("model-root", "", "local model Git worktree")
 	datasetRoot := flags.String("dataset-root", "", "local dataset Git worktree")
+	capturePath := flags.String("capture", "", "optional source-bound encoder capture JSON")
+	captureSource := flags.String("capture-source", "", "capture script required with -capture")
+	captureTensors := flags.String("capture-tensors", "", "captured Safetensors file required with -capture")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 || *repository == "" || *recordPath == "" || *modelRoot == "" || *datasetRoot == "" {
 		return errors.New("usage: audio-oracle -repo <store> -election <json> -model-root <directory> -dataset-root <directory>")
+	}
+	if (*capturePath == "") != (*captureSource == "") || (*capturePath == "") != (*captureTensors == "") {
+		return errors.New("audio-oracle: capture requires report, source and tensor paths together")
 	}
 	encoded, err := os.ReadFile(*recordPath)
 	if err != nil {
@@ -74,6 +80,9 @@ func run() error {
 		return err
 	}
 	if found && current == election.ID && qualificationFound && qualified == qualification.ID {
+		if err := publishCapture(ctx, store, election, *capturePath, *captureSource, *captureTensors); err != nil {
+			return err
+		}
 		return writeSummary(election, qualification, true)
 	}
 	batch, err := election.Batch("audio/oracle/qualification/" + qualification.ID.DigestHex())
@@ -98,7 +107,22 @@ func run() error {
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		return err
 	}
+	if err := publishCapture(ctx, store, election, *capturePath, *captureSource, *captureTensors); err != nil {
+		return err
+	}
 	return writeSummary(election, qualification, false)
+}
+
+func publishCapture(ctx context.Context, repository artifact.Repository, election audioparity.Election, report, source, tensors string) error {
+	if report == "" {
+		return nil
+	}
+	id, err := audioparity.PublishEncoderCapture(ctx, repository, election, report, source, tensors)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("encoder capture=%s; verified source and tensor identities; Go numerical parity, training and device execution did not run\n", id)
+	return nil
 }
 
 func electionLocations(election audioparity.Election, modelRoot, datasetRoot string) ([]artifact.LocationEvent, error) {

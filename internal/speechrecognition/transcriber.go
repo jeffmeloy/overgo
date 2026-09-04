@@ -19,10 +19,17 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratch"
+	"overgo/internal/strictjson"
 )
 
 // TranscriptionSchema identifies persisted typed transcription output.
 const TranscriptionSchema = "overgo/audio-transcription/v1"
+
+// AudioAdmissionFailure is the stable run-record failure code for audio
+// rejected before model execution.
+const AudioAdmissionFailure = "audio-admission-refused"
+
+var transcriptionContract = artifact.JSONContract(artifact.KindOutput, TranscriptionSchema)
 
 // ErrAudioAdmissionRefused reports deterministic quarantine before inference.
 var ErrAudioAdmissionRefused = errors.New("speech recognition: audio admission refused")
@@ -32,6 +39,8 @@ type RunBinding struct {
 	Key         string
 	CodeCommit  string
 	Environment artifact.ID
+	Dataset     artifact.ID
+	Split       artifact.ID
 }
 
 // TranscriptionWorkspace owns all reusable mutable storage for one caller.
@@ -47,6 +56,7 @@ type TranscriptionWorkspace struct {
 // share when each concurrent caller supplies a distinct workspace.
 type Transcriber struct {
 	repository artifact.Repository
+	model      artifact.ID
 	recipe     recipe.Definition
 	contract   modelrecipe.AudioContractDocument
 	profile    ExecutionProfile
@@ -158,7 +168,7 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 		return nil, err
 	}
 	return &Transcriber{
-		repository: repository, recipe: definition, contract: contract, profile: profile,
+		repository: repository, model: modelID, recipe: definition, contract: contract, profile: profile,
 		frontend: frontend, encoder: encoder, tokenizer: tokenizer,
 	}, nil
 }
@@ -166,7 +176,9 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 // Transcribe admits, decodes, executes, and persists one bounded offline clip.
 // The returned values are the existing public transcription and run contracts.
 func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, workspace *TranscriptionWorkspace, binding RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
-	if transcriber == nil || ctx == nil || workspace == nil || binding.Key == "" {
+	if transcriber == nil || ctx == nil || workspace == nil || binding.Key == "" ||
+		binding.Dataset.Valid() != binding.Split.Valid() ||
+		binding.Dataset.Valid() && (binding.Dataset.Kind() != artifact.KindDataset || binding.Split.Kind() != artifact.KindDatasetShard) {
 		return recipecontract.Transcription{}, runrecord.Run{}, errors.New("speech recognition: invalid transcription execution")
 	}
 	started := time.Now()
@@ -177,12 +189,13 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
 	inputs := uniqueIDs(
+		transcriber.model, binding.Dataset, binding.Split,
 		inspection.Signal.Source.Audio, inspection.Signal.Source.Profile,
 		inspection.SignalID, inspection.PolicyID, inspection.DecisionID,
 	)
 	if inspection.Decision.Outcome != recipecontract.AudioAdmissionAccepted {
 		run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
-			"audio-admission-refused", elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
+			AudioAdmissionFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
 		return recipecontract.Transcription{}, run, errors.Join(ErrAudioAdmissionRefused, runErr)
 	}
 	if inspection.Signal.Format != transcriber.contract.Format {
@@ -222,7 +235,7 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started,
 			completedTranscriptionPhases(decodeDuration, prepareDuration, prefillDuration, elapsedNanoseconds(postStart)), err)
 	}
-	output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, TranscriptionSchema), result)
+	output, err := artifact.JSONContent(transcriptionContract, result)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
@@ -251,6 +264,32 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
 	return result, run, nil
+}
+
+// RequireTranscription loads one canonical persisted transcription output.
+func RequireTranscription(ctx context.Context, reader artifact.Reader, id artifact.ID) (recipecontract.Transcription, error) {
+	var transcription recipecontract.Transcription
+	content, found, err := artifact.ReadContent(ctx, reader, id)
+	if err != nil {
+		return transcription, err
+	}
+	if !found {
+		return transcription, errors.New("speech recognition: transcription output is absent")
+	}
+	if err = transcriptionContract.ValidateContent(content, id); err != nil {
+		return transcription, err
+	}
+	if err = strictjson.DecodeBytes(content.Data, &transcription); err != nil {
+		return recipecontract.Transcription{}, err
+	}
+	if err = transcription.Validate(); err != nil {
+		return recipecontract.Transcription{}, err
+	}
+	canonical, err := artifact.JSONContent(transcriptionContract, transcription)
+	if err != nil || canonical.Descriptor.ID != id {
+		return recipecontract.Transcription{}, errors.Join(errors.New("speech recognition: transcription output is not canonical"), err)
+	}
+	return transcription, nil
 }
 
 func (transcriber *Transcriber) persistRun(ctx context.Context, binding RunBinding, outcome runrecord.Outcome, inputs, outputs []artifact.ID, failure string, measured uint64, phases []runrecord.PhaseMetric) (runrecord.Run, error) {

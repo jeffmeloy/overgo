@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "wer-suite",
-          "title": "Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run 'Test.*Transcription|Test.*WordErrorRate|Test.*CharacterErrorRate'",
-          "rationale": "Separate audio-only prediction from target-bearing scoring. Persist raw predicted transcripts and admission/inference outcomes with exact source, split, model, recipe, code and environment identities through existing output/runrecord owners. Reuse these immutable outputs for WER, CER, grouping and normalization comparisons without invoking inference again; reject identity mismatches and record each scoring protocol independently. Reference text never enters prediction or fixture selection. Report utterance/sample duration counts, failures and silent negative controls. Add one common sequence-edit scoring primitive if no production owner matches, with word and rune tokenization at callers, not two distance implementations. The quality bracket and normalization provenance remain mandatory for training promotion.",
-          "depends_on": [
-            "asr-evaluation/sync-wer-suite"
-          ],
-          "capabilities": [
-            "wer",
-            "cer",
-            "audio-evaluation",
-            "negative-control-evaluation"
-          ]
-        },
-        {
           "id": "sync-resource-suite",
           "title": "Reconcile the retained audio baseline before asr-evaluation/resource-suite",
           "status": "open",

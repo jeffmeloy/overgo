@@ -66,6 +66,7 @@ func run() error {
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
 	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
+	transcriptionManifest := flag.String("transcription-manifest", "", "score stored transcription runs from separate suite and prediction files")
 	importDNA := flag.String("import-dna-corpus", "", "import a bounded slice of every parquet subset under this corpus root and merge the entries into the active benchmark catalog")
 	dnaLimit := flag.Int("dna-limit", 16, "sequences imported per corpus subset for -import-dna-corpus")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
@@ -80,6 +81,12 @@ func run() error {
 			return err
 		}
 		defer pprof.StopCPUProfile()
+	}
+	if path := strings.TrimSpace(*transcriptionManifest); path != "" {
+		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" || *allModels {
+			return errors.New("usage: evaluate -transcription-manifest <manifest.json> [-repo <store>]")
+		}
+		return evaluateTranscriptionManifest(context.Background(), *repository, path)
 	}
 	if root := strings.TrimSpace(*importDNA); root != "" {
 		if flag.NArg() != 0 {

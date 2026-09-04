@@ -123,6 +123,9 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	if result.Text == "" || result.Language != "en" || result.Source.Audio != waveID || run.Outcome != runrecord.OutcomeSucceeded || len(run.Outputs) != 1 {
 		t.Fatalf("transcription = %+v, run = %+v", result, run)
 	}
+	if !slices.Contains(run.Inputs, inventory.Manifest.ID) {
+		t.Fatalf("transcription run does not bind model %s: %+v", inventory.Manifest.ID, run.Inputs)
+	}
 	loadedRun, err := runrecord.RequireExactRun(t.Context(), store, run.ID)
 	if err != nil || loadedRun.ID != run.ID {
 		t.Fatalf("exact run = %+v, %v", loadedRun, err)

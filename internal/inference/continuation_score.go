@@ -44,17 +44,41 @@ func (r *Runner) ScoreContinuationsParsed(
 	if r == nil || r.vocab == nil {
 		return nil, errRunnerNil
 	}
+	if ctx == nil {
+		return nil, errors.New("inference: incomplete continuation scoring request")
+	}
+	promptIDs, continuations, err := r.continuationTokens(prompt, candidates, parseSpecial)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.lockOpen(); err != nil {
+		return nil, err
+	}
+	defer r.mu.Unlock()
+	if r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache() {
+		return r.scoreContinuationsDeviceLocked(ctx, promptIDs, continuations)
+	}
+	return r.scoreContinuationsHostLocked(ctx, promptIDs, continuations)
+}
+
+// continuationTokens encodes a scoring request into the scored context
+// and one continuation per candidate.
+func (r *Runner) continuationTokens(
+	prompt string,
+	candidates []string,
+	parseSpecial bool,
+) ([]tokenizer.TokenID, [][]tokenizer.TokenID, error) {
 	// A choice suite scores two or more candidates against a prompt; a
 	// sequence-scoring suite scores one candidate against the empty
 	// prompt, whose encoding is the tokenizer's BOS context -- the
 	// full-sequence likelihood. Both ride the same path below.
-	if ctx == nil || len(candidates) < 1 {
-		return nil, errors.New("inference: incomplete continuation scoring request")
+	if len(candidates) < 1 {
+		return nil, nil, errors.New("inference: incomplete continuation scoring request")
 	}
 	encoding := tokenizer.EncodeOptions{AddSpecial: true, ParseSpecial: parseSpecial}
 	promptIDs, err := r.vocab.Encode(prompt, encoding)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	bosContext := false
 	if len(promptIDs) == 0 && prompt == "" {
@@ -67,35 +91,35 @@ func (r *Runner) ScoreContinuationsParsed(
 		if r.vocab.BOS >= 0 {
 			promptIDs = []tokenizer.TokenID{r.vocab.BOS}
 		} else if len(candidates) != 1 {
-			return nil, errors.New("inference: a vocabulary without BOS scores one sequence at a time")
+			return nil, nil, errors.New("inference: a vocabulary without BOS scores one sequence at a time")
 		}
 	}
 	continuations := make([][]tokenizer.TokenID, len(candidates))
 	shared := len(promptIDs)
 	for index, candidate := range candidates {
 		if candidate == "" {
-			return nil, errors.New("inference: continuation candidate is empty")
+			return nil, nil, errors.New("inference: continuation candidate is empty")
 		}
 		full, err := r.vocab.Encode(prompt+candidate, encoding)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if bosContext {
 			if len(promptIDs) == 0 {
 				if len(full) < 2 {
-					return nil, errors.New("inference: sequence is too short to score")
+					return nil, nil, errors.New("inference: sequence is too short to score")
 				}
 				promptIDs, continuations[index] = full[:1], full[1:]
 				continue
 			}
 			if len(full) == 0 {
-				return nil, errors.New("inference: continuation candidate produced no tokens")
+				return nil, nil, errors.New("inference: continuation candidate produced no tokens")
 			}
 			continuations[index] = full
 			continue
 		}
 		if len(full) <= len(promptIDs) {
-			return nil, fmt.Errorf("inference: candidate %d adds no token to the prompt", index)
+			return nil, nil, fmt.Errorf("inference: candidate %d adds no token to the prompt", index)
 		}
 		// A candidate may merge its first characters into the prompt's
 		// last token (":" + " (" -> ": ("), so its encoding need not
@@ -109,7 +133,7 @@ func (r *Runner) ScoreContinuationsParsed(
 	}
 	if !bosContext {
 		if shared == 0 {
-			return nil, errors.New("inference: the candidates share no prompt context")
+			return nil, nil, errors.New("inference: the candidates share no prompt context")
 		}
 		promptIDs = promptIDs[:shared]
 		for index := range continuations {
@@ -117,16 +141,9 @@ func (r *Runner) ScoreContinuationsParsed(
 		}
 	}
 	if len(promptIDs) == 0 {
-		return nil, errors.New("inference: continuation prompt produced no tokens")
+		return nil, nil, errors.New("inference: continuation prompt produced no tokens")
 	}
-	if err := r.lockOpen(); err != nil {
-		return nil, err
-	}
-	defer r.mu.Unlock()
-	if r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache() {
-		return r.scoreContinuationsDeviceLocked(ctx, promptIDs, continuations)
-	}
-	return r.scoreContinuationsHostLocked(ctx, promptIDs, continuations)
+	return promptIDs, continuations, nil
 }
 
 // scoreContinuationsHostLocked scores through the host-cache forward: the

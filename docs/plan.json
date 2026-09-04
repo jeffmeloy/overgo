@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "dna-pass",
-          "title": "Record the DNA sequence-scoring suite (128 cases) for Carbon-500M at the current commit and any other model declaring the dna domain",
-          "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Carbon's only quality record is a perplexity from an older commit; the domain-routed suite is its benchmark and must be re-recorded at the kernel-fixed code.",
-          "depends_on": [
-            "benchmark-completion/ifeval-pass"
-          ]
-        },
-        {
           "id": "mmlu-pro-pass",
           "title": "Record MMLU-Pro (12032 cases) for every servable text model under both protocols, smallest first; the 27B runs as its own operator-launched pass with -budget 3h",
           "status": "open",

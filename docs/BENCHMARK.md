@@ -23,7 +23,7 @@ Every suite is scored 0-shot from the store's catalog. The raw-completion protoc
 | Model | Bytes | Prompt tok/s | Decode tok/s | store/bbh (chat-template) | store/bbh (raw-completion) | store/dna (raw-completion) | store/ifeval (chat-template) | store/mmlu (chat-template) | store/mmlu (raw-completion) | store/musr (chat-template) | store/musr (raw-completion) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Qwen2.5-0.5B-f16 | 994065792 | 1.803e+04 | 278.6 | accuracy 0.2277 | accuracy 0.3275 | — | instruction-loose 0.2299 | accuracy 0.03 | accuracy 0.42 | accuracy 0.3876 | accuracy 0.3479 |
-| Carbon-500M-f16-ropefix | 1029821280 | — | — | — | — | perplexity 5969 | — | — | — | — | — |
+| Carbon-500M-f16-ropefix | 1029821280 | — | — | — | — | perplexity 910.3 | — | — | — | — | — |
 | MiniCPM5-1B-f16 | 2166391968 | 2.296e+04 | 259.8 | accuracy 0.4048 | accuracy 0.3626 | — | instruction-loose 0.2184 | accuracy 0 | accuracy 0.34 | accuracy 0.3704 | accuracy 0.414 |
 | Qwen3.5-4B-f16 | 8664046912 | 3211 | 79.65 | accuracy 0.5214 | accuracy 0.5414 | — | instruction-loose 0.7989 | accuracy 0.53 | accuracy 0.55 | accuracy 0.5053 | accuracy 0.422 |
 | Qwen3.5-9B-Q8_0 | 9527502048 | 813.6 | 75.93 | accuracy 0.5233 | accuracy 0.5931 | — | instruction-loose 0.7816 | accuracy 0.61 | accuracy 0.59 | — | accuracy 0.4259 |
@@ -56,7 +56,7 @@ Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Carbon-500M-f
 
 | Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| store/dna (raw-completion) | mean_nll_per_token=8.694<br>perplexity=5969 | — | `10425260c2b6da1a67cf2f49503b701a880ebf27` | 128 | 2m46.261s | 1.299s | `evaluation:sha256:2bd6705892f50c3000e03a086648d0b4e907fd9112b4a5532f18b0f9192892ba` |
+| store/dna (raw-completion) | mean_nll_per_token=6.814<br>perplexity=910.3 | — | `16e567fc92e38fb7b7501ac355d53f03647a58a9` | 128 | 5m55.802s | 2.78s | `evaluation:sha256:7c56d94b523f9cbb2175f9b0213d23bdf5ed3bd0c9e370660ec1286854313d5f` |
 
 Published references for suites without a committed evaluation: store/mmlu accuracy=0.22 (lm-eval mmlu_abstract_algebra 0-shot, HF transformers on the same weights, 100 cases, stderr 0.042; DNA model, English suite not meaningful; C:/Users/jeffm/eval/overgo_carbon500m_benchmark_results/results.json)
 

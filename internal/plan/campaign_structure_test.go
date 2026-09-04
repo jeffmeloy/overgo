@@ -470,9 +470,9 @@ func assertAudioCapabilityCampaign(t *testing.T, document Plan) {
 			wantVerify := "git merge-base --is-ancestor master HEAD && go run ./cmd/plan -status"
 			// The operator deferred master integration for this one CPU row
 			// until the tokenizer and continuation-scoring fixes are verified.
-			if item.ID == "audio-contracts" && sync.ID == "sync-stream-session-contract" &&
-				strings.Contains(document.Doctrine, "The streaming-session step proceeds on audio baseline 1955990c") {
-				wantVerify = "git merge-base --is-ancestor 1955990c HEAD && go run ./cmd/plan -status"
+			if item.ID == "audio-primitives" && sync.ID == "sync-decode-inspect" &&
+				strings.Contains(document.Doctrine, "The decode-inspect step proceeds on audio baseline cda086d8") {
+				wantVerify = "git merge-base --is-ancestor cda086d8 HEAD && go run ./cmd/plan -status"
 			}
 			if sync.Verify != wantVerify {
 				t.Errorf("audio workflow sync %s/%s has verifier %q", item.ID, sync.ID, sync.Verify)

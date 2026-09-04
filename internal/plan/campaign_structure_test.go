@@ -490,6 +490,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"ifeval-chat-shaping/do",
 		"merged-boundary-candidates/do",
 		"quantized-prefill-gemm/do",
+		"quantized-prefill-f16/do",
 		"generation-soak/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",

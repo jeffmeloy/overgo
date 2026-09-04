@@ -81,6 +81,11 @@ const (
 	accuracyModelLoose  = 2e-3
 	accuracyElementwise = 2e-5
 	accuracyQuantized   = 1e-2
+	// accuracyHalfStaged bounds the f16-staged quantized prefill against
+	// the F32 reference: both operands round to eleven significant bits
+	// and the products accumulate in F32; measured 3.1e-3 at worst on
+	// Q8_0 and Q6_K weights of order one over a 512-long inner dimension.
+	accuracyHalfStaged = 5e-3
 )
 
 type graphOutputCheck struct {

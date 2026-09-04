@@ -66,11 +66,14 @@ func TestExecutorQuantizedTensorCoreMulMatMatchesReference(t *testing.T) {
 			tensorCore := func(builder *tensor.Builder) {
 				builder.SetMulMatCompute(tensor.MulMatComputeNativeTensorCore)
 			}
-			// The staged path is exact: F32 weights and SGEMM against the
-			// reference's F32 weights and F32 dot products. Below the floor
-			// the span kernels serve as before; they quantize the activation
-			// to eight bits and are held by their own tests.
-			checkResidentBinaryGraphWithPolicy(t, dataType, leftShape, storage, dequantized, rightValue, build, accuracyQuantKernel, tensorCore)
+			// The staged path rounds the dequantized weight and the
+			// activation to f16 (eleven significant bits each) and
+			// accumulates in F32; against the reference's F32 dot products
+			// it holds the measured half-staged bound on weights of order
+			// one. Below the floor the span kernels serve as before; they
+			// quantize the activation to eight bits and are held by their
+			// own tests.
+			checkResidentBinaryGraphWithPolicy(t, dataType, leftShape, storage, dequantized, rightValue, build, accuracyHalfStaged, tensorCore)
 		})
 	}
 }

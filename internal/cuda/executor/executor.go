@@ -1260,19 +1260,19 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			}
 		}
 		if quantStagedMulMat(node) {
-			// Quantized weights past the column floor prefill through the
-			// F32 weight staging and the exact SGEMM; the reservation is the
-			// bounded weight chunk the half-precision exact path stages.
+			// Quantized weights past the column floor prefill through f16
+			// staging and the tensor-core GEMM; the reservation covers one
+			// weight chunk and the packed activation.
 			inner := node.Inputs[0].Shape.Dims[0]
 			leftRows := node.Inputs[0].Shape.Dims[1]
 			rightRows := node.Inputs[1].Shape.Dims[1]
 			if rightRows >= uint64(quantStagedColumnFloor) {
-				if inner > math.MaxUint64/leftRows/f32ScalarBytes {
+				if inner > math.MaxUint64/max(leftRows, rightRows)/f32ScalarBytes {
 					return nil, errors.New("quantized mul_mat staging size overflows")
 				}
 				compiled.needBlas = true
 				compiled.matmulStagingBytes = max(
-					compiled.matmulStagingBytes, nativeWeightStagingBytes(inner, leftRows),
+					compiled.matmulStagingBytes, quantStagedStagingBytes(inner, leftRows, rightRows),
 				)
 			}
 		}

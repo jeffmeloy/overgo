@@ -562,21 +562,37 @@ func tensorCoreMulMat(node *tensor.Tensor) bool {
 }
 
 // quantStagedKernels: the quantized weight types with a dequantize-rows
-// kernel, the types the served models carry (Q8_0 and the K-quants of
-// the UD mixes); other quantized types keep the span kernels.
+// kernel to f16, the types the served models carry (Q8_0 and the
+// K-quants of the UD mixes); other quantized types keep the span
+// kernels.
 var quantStagedKernels = map[dtype.Type]kernelFunctionID{
-	dtype.Q8_0: kernelDequantRowsQ80F32,
-	dtype.Q4K:  kernelDequantRowsQ4KF32,
-	dtype.Q5K:  kernelDequantRowsQ5KF32,
-	dtype.Q6K:  kernelDequantRowsQ6KF32,
+	dtype.Q8_0: kernelDequantRowsQ80F16,
+	dtype.Q4K:  kernelDequantRowsQ4KF16,
+	dtype.Q5K:  kernelDequantRowsQ5KF16,
+	dtype.Q6K:  kernelDequantRowsQ6KF16,
 }
 
-// quantStagedColumnFloor: prompt columns from which the staged SGEMM
-// path beats the span kernels. The span path reads the 1-byte weight
-// once per eight columns; the staged path reads it once and writes and
-// reads it again as F32, nine bytes per element, so the crossover is
-// near seventy columns.
-const quantStagedColumnFloor = uint32(64)
+// quantStagedColumnFloor: prompt columns from which the staged
+// tensor-core path beats the span kernels. The span path reads the
+// 1-byte weight once per eight columns; the staged path reads it once
+// and writes and reads it again as f16, five bytes per element, so the
+// crossover is near forty columns.
+const quantStagedColumnFloor = uint32(32)
+
+// quantStagedChunkBytes: the f16 weight chunk the staged path
+// dequantizes per GEMM. Wider than the F32 exact path's 32 MiB so the
+// 27B's 22 GB of weights take about a hundred GEMMs per forward rather
+// than seven hundred, each large enough to run the tensor cores near
+// their rate.
+const quantStagedChunkBytes = uint64(256 << 20)
+
+// quantStagedStagingBytes: one f16 weight chunk plus the f16-packed
+// activation.
+func quantStagedStagingBytes(inner, leftRows, rightRows uint64) uint64 {
+	rowBytes := inner * bf16ScalarBytes
+	weight := min(rowBytes*leftRows, max(rowBytes, quantStagedChunkBytes))
+	return weight + inner*rightRows*bf16ScalarBytes
+}
 
 // quantStagedMulMat reports whether a mul_mat node's policy admits the
 // staged path: the native tensor-core policy the inference builder sets,
@@ -595,9 +611,12 @@ func quantStagedMulMat(node *tensor.Tensor) bool {
 	return staged
 }
 
-// launchStagedQuantMatMul dequantizes the weight in row chunks into the
-// F32 staging and runs the exact SGEMM per chunk, the path the
-// half-precision weights take for their exact prefill.
+// launchStagedQuantMatMul packs the activation to f16 at the end of the
+// staging, then dequantizes the weight in row chunks into f16 at its
+// start and runs GEMMEx per chunk with F32 accumulation into the output
+// rows, the tensor-core path the half-precision weights take. The
+// half-precision paths' staged-node memo is cleared because their
+// activation lives at the same start.
 func launchStagedQuantMatMul(
 	state *device.State,
 	functions functionSet,
@@ -609,16 +628,56 @@ func launchStagedQuantMatMul(
 	if blas == nil || blas.staging == 0 {
 		return errors.New("quantized mul_mat staging is unavailable")
 	}
+	if inner > math.MaxInt32 || leftRows > math.MaxInt32 || rightRows > math.MaxInt32 {
+		return errors.New("quantized mul_mat geometry exceeds cuBLAS")
+	}
+	activationElements := uint64(inner) * uint64(rightRows)
+	activationBytes := activationElements * bf16ScalarBytes
+	rowBytes := uint64(inner) * bf16ScalarBytes
+	if activationElements > math.MaxUint32 || blas.stagingBytes < activationBytes+rowBytes {
+		return errors.New("quantized mul_mat input exceeds workspace")
+	}
+	activation := blas.staging + driver.DevicePtr(blas.stagingBytes-activationBytes)
+	activationCount := uint32(activationElements)
+	if err := launch1DABI(
+		state, functions[kernelF32ToF16], activationCount, &right, &activation, &activationCount,
+	); err != nil {
+		return err
+	}
 	blas.stagedNode = nil
-	return launchStagedNativeMatMul(
-		state, blas, inner, leftRows, rightRows, right, output,
-		func(start, _, count uint32) error {
-			return launch1DABI(
-				state, functions[dequantKernel], count,
-				&left, &blas.staging, &inner, &start, &count,
-			)
-		},
-	)
+	capacity := (blas.stagingBytes - activationBytes) / rowBytes
+	for start := uint32(0); start < leftRows; {
+		rows := min(leftRows-start, uint32(min(capacity, uint64(math.MaxUint32))))
+		count64 := uint64(rows) * uint64(inner)
+		if count64 > math.MaxUint32 {
+			return errors.New("quantized mul_mat staging launch overflows")
+		}
+		count := uint32(count64)
+		if err := launch1DABI(
+			state, functions[dequantKernel], count,
+			&left, &blas.staging, &inner, &start, &count,
+		); err != nil {
+			return err
+		}
+		chunkOutput := output + driver.DevicePtr(uint64(start)*f32ScalarBytes)
+		if !traceExternalCall(
+			state, traceTagGEMMEx,
+			uint64(blas.staging), uint64(activation), uint64(chunkOutput),
+			uint64(rows), uint64(rightRows), uint64(inner),
+		) {
+			if err := blas.library.GEMMEx(
+				blas.handle, cublas.OperationTranspose, cublas.OperationNone,
+				int32(rows), int32(rightRows), int32(inner), gemmProductScale,
+				blas.staging, cublas.DataF16, int32(inner),
+				activation, cublas.DataF16, int32(inner), gemmAccumulatorScale,
+				chunkOutput, cublas.DataF32, int32(leftRows), cublas.ComputeF32, cublas.GemmDefault,
+			); err != nil {
+				return err
+			}
+		}
+		start += rows
+	}
+	return nil
 }
 
 func tensorCoreMulMatAttributes(weightType dtype.Type, attributes tensor.Attributes) bool {

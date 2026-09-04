@@ -78,10 +78,10 @@ const (
 	kernelGetRowsQ41F32
 	kernelGetRowsQ4KF32
 	kernelGetRowsQ50F32
-	kernelDequantRowsQ4KF32
-	kernelDequantRowsQ5KF32
-	kernelDequantRowsQ6KF32
-	kernelDequantRowsQ80F32
+	kernelDequantRowsQ4KF16
+	kernelDequantRowsQ5KF16
+	kernelDequantRowsQ6KF16
+	kernelDequantRowsQ80F16
 	kernelGetRowsQ51F32
 	kernelGetRowsQ5KF32
 	kernelGetRowsQ6KF32
@@ -278,10 +278,10 @@ var kernelFunctionNames = [...]string{
 	"get_rows_q4_1_f32",
 	"get_rows_q4_K_f32",
 	"get_rows_q5_0_f32",
-	"dequant_rows_q4_K_f32",
-	"dequant_rows_q5_K_f32",
-	"dequant_rows_q6_K_f32",
-	"dequant_rows_q8_0_f32",
+	"dequant_rows_q4_K_f16",
+	"dequant_rows_q5_K_f16",
+	"dequant_rows_q6_K_f16",
+	"dequant_rows_q8_0_f16",
 	"get_rows_q5_1_f32",
 	"get_rows_q5_K_f32",
 	"get_rows_q6_K_f32",

@@ -1,6 +1,6 @@
 {
   "campaign": "Complete integrated platform validation, then transfer validated audio.cpp behavior into reusable audio primitives and composable ingest-train-evaluate-serve recipes",
-  "doctrine": "Operator override (2026-09-04): work and commit only in overgo_audiocpp; do not merge master or push. Each due sync row reconciles the current committed audio baseline and stored authorities, updates affected remaining rows, and commits through cmd/gate before its paired work row. Record the exact baseline at dispatch; retained baseline d692645c is a minimum ancestor, not permission to chase master. Reconciliation commits and work commits remain separate. Resume master synchronization only on explicit authorization, using cmd/plan -prepare-merge master -plan-projection first-parent-target and its gated merge command. This user-requested plan optimization is documentation-only and does not complete runtime work. Each downloaded reference is a pinned behavioral oracle, never a linked runtime or permanent product dependency. Granite Speech 5.0 470M TurboCTC is the first offline ASR oracle; Nemotron 3.5 ASR native Safetensors is the second, streaming oracle; its incompatible Q8 GGUF remains explicitly rejected. FireRedVAD supplies segmentation evidence. Reuse internal/audiodsp, safetensors, tokenizer, hostmath/tensor, modelrecipe, capabilityruntime, dataset, evaluation, trainingprogram and trainingworkflow before adding owners. Shared execution means operation-named concrete components, even with one recipe consumer, not a new general-purpose graph engine. Model identity, tensor names, geometry, padding, normalization, weight sharing and composition belong in artifact/recipe declarations; no model-family dispatch in mathematical execution. Implement only demonstrated semantic gaps and bind each to a real recipe consumer in the same slice. Preserve one forward implementation for inference and training; checkpoint, optimizer, scheduler, resource and persistence ownership stay with the existing platform. First prove the complete processor tensor, then layer/logit/token/transcript parity, then admitted offline recipe execution and early WER/CER/resource measurements. Static DSP parity is not ASR parity, and transport chunking is not native streaming. The first train-evaluate-publish-serve proof is CPU-only with an explicit frozen-base output adapter and exact stop and resume preserving optimizer, random, scheduler and data-stream state. It includes VAD composition, a pre/post WER bracket, bounded resource measurements and complete OvergoDB lineage, but does not wait for full-encoder gradients, streaming ASR, another architecture, voice expansion or CUDA. Full-encoder training, second-architecture/native streaming, alignment, diarization, voice and generative audio remain open capabilities, not discarded scope. CPU is the numerical authority; CUDA follows measured bottlenecks through kernels/manifest.json. While GPU capacity is occupied, execute eligible CPU work; commit gates may use the GPU when their derived scope requires it. Unsupported or unavailable device execution is never passing evidence. Admission decodes actual samples and quarantines policy-invalid, silent, near-silent, corrupt, clipped or non-finite records. Reference text is isolated from prediction. Pinned LibriSpeech clean is the initial positive corpus. The historically silent AMI materialization remains quarantined until exact source/transformation identity is established; the non-silent original source does not clear it. The historical audio inspection batch-key finding remains open until canonical replay is repaired and verified; isolated-store success is not repair. Use one source-bound golden corpus, independent boundary traces and explicit tolerances across inference, evaluation and training. Reject unsupported behavior rather than silently approximating it. Preserve tied weights, cancellation, memory bounds, deterministic splits, restart state and failure denominators. Measure numerical error, allocations, wall time and host memory before claiming simplification or speed; direct DFT remains a reference, not FFT performance. Prefer caller-owned buffers and single-clip synchronous execution until batching or concurrency removes measured cost. Do not add a second loader, registry, scheduler, dataset cache, optimizer, checkpoint format, service or verifier framework. Retain broad platform benchmarks and recovery drills after the audio proof; they do not gate first CPU capability. Findings outside the audio scope are recorded without expanding it.",
+  "doctrine": "Operator override (2026-09-04): work and commit only in overgo_audiocpp; do not merge master or push. Each due sync row reconciles the current committed audio baseline and stored authorities, updates affected remaining rows, and commits through cmd/gate before its paired work row. Record the exact baseline at dispatch; retained baseline d692645c is a minimum ancestor, not permission to chase master. Reconciliation commits and work commits remain separate. Resume master synchronization only on explicit authorization, using cmd/plan -prepare-merge master -plan-projection first-parent-target and its gated merge command. Each downloaded reference is a pinned behavioral oracle, never a linked runtime or permanent product dependency. Granite Speech 5.0 470M TurboCTC is the first offline ASR oracle; Nemotron 3.5 ASR native Safetensors is the second, streaming oracle; its incompatible Q8 GGUF remains explicitly rejected. FireRedVAD supplies segmentation evidence. Reuse internal/audiodsp, safetensors, tokenizer, hostmath/tensor, modelrecipe, capabilityruntime, dataset, evaluation, trainingprogram and trainingworkflow before adding owners. Shared execution means operation-named concrete components, even with one recipe consumer, not a new general-purpose graph engine. Model identity, tensor names, geometry, padding, normalization, weight sharing and composition belong in artifact/recipe declarations; no model-family dispatch in mathematical execution. Implement only demonstrated semantic gaps and bind each to a real recipe consumer in the same slice. Preserve one forward implementation for inference and training; checkpoint, optimizer, scheduler, resource and persistence ownership stay with the existing platform. First prove the complete processor tensor and layer/logit/token/transcript parity, then admitted offline recipe execution and early WER/CER/resource measurements. Dataset preparation and VAD depend on decoded-audio contracts and their own oracles, not on a completed recognizer. Reuse existing typed results and stored prediction evidence across consumers; performance repetitions still execute the actual recipe. Capability acceptance uses one exact integration entry point with mandatory subchecks, not a broad pattern that can match only a fraction of the promised tests. Static DSP parity is not ASR parity, and transport chunking is not native streaming. The first train-evaluate-publish-serve proof is CPU-only with an identity-initialized linear adapter on final hidden features, a frozen base, and exact stop and resume preserving optimizer, random, scheduler and data-stream state. It includes VAD composition, a pre/post WER bracket, bounded resource measurements and complete OvergoDB lineage, but does not wait for full-encoder gradients, streaming ASR, another architecture, voice expansion or CUDA. Full-encoder training, second-architecture/native streaming, alignment, diarization, voice and generative audio remain open capabilities, not discarded scope. CPU is the numerical authority; CUDA follows measured bottlenecks through kernels/manifest.json. While GPU capacity is occupied, execute eligible CPU work; commit gates may use the GPU when their derived scope requires it. Unsupported or unavailable device execution is never passing evidence. Admission decodes actual samples and quarantines policy-invalid, silent, near-silent, corrupt, clipped or non-finite records. Reference text is isolated from prediction. Pinned LibriSpeech clean is the initial positive corpus. The historically silent AMI materialization remains quarantined until exact source/transformation identity is established; the non-silent original source does not clear it. The historical audio inspection batch-key finding remains open until canonical replay is repaired and verified; isolated-store success is not repair. Use one source-bound golden corpus, independent boundary traces and explicit tolerances across inference, evaluation and training. Reject unsupported behavior rather than silently approximating it. Preserve tied weights, cancellation, memory bounds, deterministic splits, restart state and failure denominators. Measure numerical error, allocations, wall time and host memory before claiming simplification or speed; direct DFT remains a reference, not FFT performance. Prefer caller-owned buffers and single-clip synchronous execution until batching or concurrency removes measured cost. Do not add a second loader, registry, scheduler, dataset cache, optimizer, checkpoint format, service or verifier framework. Each capability extends an existing owner with concrete operations; similarly named but semantically incompatible APIs are not reused by fabricating inputs. Retain broad platform benchmarks and recovery drills after the audio proof; they do not gate first CPU capability. Findings outside the audio scope are recorded without expanding it.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
@@ -12,8 +12,8 @@
           "id": "load-forward-decode",
           "title": "Compose the complete CPU processor and encoder from shared operators, then prove deterministic CTC transcription",
           "status": "open",
-          "verify": "go test ./internal/audioparity ./internal/speechrecognition -run 'TestProcessorParity|TestArtifactLoad|TestForwardParity|TestCTCDecode' -count=1",
-          "rationale": "Use three acceptance boundaries within one implementation slice: complete processor tensor (declared delta, frame stacking, trailing waveform padding and pre-transform frame selection); loaded encoder with per-layer/logit parity; greedy CTC IDs and tokenizer text on pinned audio. Reuse audiodsp, safetensors, tokenizer and hostmath/tensor through a thin concrete speechrecognition orchestrator with an existing recipe-compatible call boundary; no standalone service or new graph language. Recipe data supplies tensor-role bindings, operation order, shapes, normalization, padding, relative-position semantics, pooling and shared parameter identity. Existing additive bucket-bias attention is not query-dependent relative-position attention; causal convolution is not symmetric depthwise convolution. Add only proven gaps to the owning math component, with an independent golden for each. Keep the same forward function for future training, with explicit trainable boundaries and optional trace storage, not a second forward implementation. Start with one bounded clip and reusable workspace; defer batching, caching and fusion until measurement justifies them. Preserve all original checkpoint behavior, including intermediate CTC feedback and tied output projection. No Python runtime dependency or model-specific execution code.",
+          "verify": "go test ./internal/audioparity -run '^TestCPUASRReference$' -count=1",
+          "rationale": "Implement three sequential numerical boundaries: complete processor tensors (delta, stacking, waveform padding and pre-transform frame selection); artifact-loaded encoder layers and logits; greedy CTC IDs and tokenizer text. TestCPUASRReference must invoke every boundary on the pinned real artifact and all four admitted LibriSpeech fixtures, require nonzero case/frame/token counts, reject missing prerequisites rather than skip, and report exact versus tolerance-based comparisons separately. Tiny synthetic math tests localize failures but cannot satisfy artifact acceptance. Reuse audiodsp, safetensors, tokenizer and hostmath/tensor through one concrete speechrecognition call boundary compatible with the existing recipe. Artifact/recipe declarations own tensor roles, shapes, normalization, relative positions, pooling and shared parameters. Add only demonstrated math gaps: bucket bias is not query-dependent position attention, and causal convolution is not symmetric depthwise convolution. Reuse one forward function for inference/training; expose the final hidden features to a caller-owned adapter boundary without retaining encoder traces when the encoder is frozen. Start with one bounded clip and reusable workspace; retain only requested oracle boundaries. Preserve intermediate CTC feedback and tied projection weights. No model-family execution dispatch, second runtime or graph language.",
           "depends_on": [
             "asr-reference/sync-load-forward-decode"
           ],
@@ -28,7 +28,7 @@
           "title": "Reconcile the retained audio baseline before asr-reference/offline-recipe",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-reference/load-forward-decode"
           ],
@@ -43,7 +43,7 @@
           "title": "Bind admitted short-clip CPU transcription to the existing model recipe and artifact lifecycle",
           "status": "open",
           "verify": "go test ./internal/modelrecipe ./internal/speechrecognition -run 'Test.*Transcription.*Recipe|Test.*Lineage'",
-          "rationale": "Integrate the already verified forward path into existing modelrecipe/capabilityruntime execution, without recoding preprocessing, loading or decoding. The first recipe decodes, validates, transcribes and persists bounded mono clips with cancellation, rejection accounting and complete source/model/recipe lineage. It has no VAD or alignment dependency and makes no long-form, timestamp or streaming claim. Segmentation later composes this same recipe. Refuse invalid or non-speech inputs under the declared admission policy; metadata-only admission is insufficient.",
+          "rationale": "Bind the verified forward to existing modelrecipe/capabilityruntime execution and recipecontract.Transcription; use existing artifact/runrecord publication rather than another audio result envelope. Decode, validate, transcribe and persist bounded mono clips with cancellation, failure accounting and exact source/model/recipe lineage. Resolve artifact identity and tensor roles once at load, not per frame or request; reuse immutable loaded weights and caller-owned scratch. API, evaluation and training share this invocation boundary. No VAD, alignment, long-form or streaming requirement enters this first recipe. Segmentation composes it later. Refuse invalid or non-speech inputs under the declared admission policy.",
           "depends_on": [
             "asr-reference/sync-offline-recipe"
           ],
@@ -64,7 +64,7 @@
           "title": "Reconcile the retained audio baseline before asr-evaluation/wer-suite",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-reference/offline-recipe"
           ],
@@ -79,7 +79,7 @@
           "title": "Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
           "status": "open",
           "verify": "go test ./internal/evaluation -run 'Test.*Transcription|Test.*WordErrorRate|Test.*CharacterErrorRate'",
-          "rationale": "The trainer needs a quality bracket whose denominator and normalization are stable. Predictions are produced from audio bytes without reference text entering inference inputs or fixture selection, then compared to separately stored targets. Silent and invalid controls must fail admission or remain non-speech; aggregate WER without admission failures, inference failures and grouped slices can conceal regressions or metadata leakage.",
+          "rationale": "Separate audio-only prediction from target-bearing scoring. Persist raw predicted transcripts and admission/inference outcomes with exact source, split, model, recipe, code and environment identities through existing output/runrecord owners. Reuse these immutable outputs for WER, CER, grouping and normalization comparisons without invoking inference again; reject identity mismatches and record each scoring protocol independently. Reference text never enters prediction or fixture selection. Report utterance/sample duration counts, failures and silent negative controls. Add one common sequence-edit scoring primitive if no production owner matches, with word and rune tokenization at callers, not two distance implementations. The quality bracket and normalization provenance remain mandatory for training promotion.",
           "depends_on": [
             "asr-evaluation/sync-wer-suite"
           ],
@@ -95,7 +95,7 @@
           "title": "Reconcile the retained audio baseline before asr-evaluation/resource-suite",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-reference/offline-recipe",
             "asr-evaluation/wer-suite"
@@ -111,7 +111,7 @@
           "title": "Establish the CPU offline quality and resource baseline on the pinned admitted corpus",
           "status": "open",
           "verify": "go test ./internal/evaluation ./internal/runrecord -run 'Test.*Audio.*Fitness|Test.*Transcription.*Resources'",
-          "rationale": "Run the same short-clip recipe and WER/CER suite with cold load separated from warm inference, wall time, real-time factor, allocation and host-memory measurements, duration and all failure denominators. Reuse evaluation/runrecord and the existing multidimensional fitness owner, not an audio benchmark framework. This is the baseline for the first training proof and must not wait for streaming, another model, voice, full backward or CUDA. First-partial/finalization/backpressure measurements are owned by streaming-transcription; VRAM and device parity are owned by asr-cuda/device-parity. Unmeasured dimensions stay unavailable, not zero or passing.",
+          "rationale": "Instrument the same offline recipe runner used by WER. Separate cold load from warm execution; record wall time, real-time factor, allocations, host memory, duration, quality and failure counts using evaluation/runrecord and existing resource fitness. Stored predictions may be rescored, but timing repetitions must execute the recipe; cached transcripts are not inference throughput. Keep trace capture out of timed runs and verify corresponding output identity or declared numerical tolerance. No separate audio benchmark runner or implicit feature cache. Native streaming latency remains with streaming-transcription; VRAM/device parity remains with asr-cuda/device-parity. Missing dimensions remain unavailable.",
           "depends_on": [
             "asr-evaluation/sync-resource-suite"
           ],
@@ -133,7 +133,7 @@
           "title": "Reconcile the retained audio baseline before asr-serving/transcriptions-route",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-reference/offline-recipe"
           ],
@@ -163,7 +163,7 @@
           "title": "Reconcile the retained audio baseline before asr-serving/streaming-transcription",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "audio-contracts/stream-session-contract",
             "asr-serving/transcriptions-route",
@@ -202,10 +202,10 @@
           "title": "Reconcile the retained audio baseline before asr-training/dataset-materialization",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile the retained audio baseline under doctrine, then gate this paired step without merging or pushing. Dataset registration, decode admission, split assignment and resumable materialization use already verified audio contracts; they do not require a recognizer, predicted transcripts or WER. Training execution still requires forward parity and a quality bracket before promotion.",
           "depends_on": [
-            "asr-reference/offline-recipe",
-            "asr-evaluation/wer-suite"
+            "audio-primitives/intermediate-parity",
+            "oracle-intake/artifact-election"
           ],
           "capabilities": [
             "retained-audio-baseline",
@@ -218,7 +218,7 @@
           "title": "Register pinned LibriSpeech clean and materialize only admitted waveform, transcript and derived-feature records with deterministic splits, resumable stream position, rejection accounting and complete source lineage",
           "status": "open",
           "verify": "go test ./internal/dataset ./internal/trainingdata -run 'Test.*Audio.*Material|Test.*Speech.*Split|Test.*Audio.*Resume|Test.*Audio.*Admission|Test.*Silent.*Reject'",
-          "rationale": "Training begins from the same decoded-signal admission, typed audio and artifact contracts as inference. Split membership, transformations, rejection counts and stream position must survive restart exactly. Identify and hash the historically silent AMI materialization and its transformation before repairing or admitting it. The pinned original AMI source record is non-silent; its measured admission does not clear historical transformed data or establish corpus-wide quality. Reuse existing streaming materialization and split owners. Derived features are optional lineage-bound artifacts, not a mandatory second dataset store; do not cache encoder outputs until frozen parameter identity and a measured reuse benefit justify it. Canonical registration/replay must resolve the existing batch-key finding without changing immutable historical records or using a new key to conceal the mismatch.",
+          "rationale": "Reuse dataset/trainingdata streaming materialization and split owners for admitted audio and separately stored reference transcripts. Register source/shard identities, decode once per materialization pass, and make split membership, rejection counts, transformations and stream position exactly resumable. Do not require predicted text or ASR weights to prepare data. Derived features are optional artifacts keyed by the exact transform, not a mandatory second dataset store. Do not cache frozen-encoder outputs until measured reuse justifies it and the immutable base/adapter boundary is verified. The historical inspection batch-key mismatch must be reproduced and canonically resolved without changing immutable records or disguising it with a new key. Historical AMI materialization remains quarantined; only its own exact source/transformation evidence can clear it, not the valid original source. Pinned LibriSpeech preparation does not require admitting AMI.",
           "depends_on": [
             "asr-training/sync-dataset-materialization"
           ],
@@ -234,7 +234,7 @@
           "title": "Reconcile the retained audio baseline before asr-training/trainable-graph",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-training/dataset-materialization",
             "asr-reference/load-forward-decode"
@@ -247,10 +247,10 @@
         },
         {
           "id": "trainable-graph",
-          "title": "Add shared CTC loss and train an explicit output adapter with the elected base model frozen",
+          "title": "Train one identity-initialized hidden-feature projection with shared CTC loss and the base model frozen",
           "status": "open",
           "verify": "go test ./internal/speechrecognition ./internal/trainingprogram -run 'TestCTCGrad|TestASRAdapterTraining|TestASRFrozenBase|TestASRSharedWeightIdentity' -count=1",
-          "rationale": "Register CTC with the existing trainingprogram objective/compiler and bind the same inference forward through its forward/backward/optimizer phases. Begin with a recipe-declared output adapter whose identity initialization preserves base logits and whose gradients do not traverse the frozen encoder. Reuse existing affine gradients, optimizer, parameter selection and checkpoint owners; add only the missing CTC math and adapter binding, with independent loss/gradient parity, repeated-label/blank/length cases and explicit impossible-alignment policy. The elected output projection is also used for intermediate feedback: do not silently untie it, cache activations that depend on trainable weights, or call tied-head updates frozen-encoder training. Store the adapter and frozen-base identities explicitly and assert base weights unchanged. Full encoder and internal-adapter gradients remain in encoder-backward after the first closed-loop proof.",
+          "rationale": "Use one square linear adapter on the final encoder hidden features, before the existing frozen CTC projection. Derive its width from the loaded hidden tensor and initialize it to identity, with no bias or additional activation required for the first proof. Reuse hostmath linear forward, LinearBackwardInput through the frozen final projection, and LinearWeightGradient for adapter updates; do not retain an encoder backward trace. The mutable matrix is hidden-width squared, not vocabulary-size squared. Bind CTC to trainingprogram and the existing optimizer, parameter-selection and checkpoint owners; include weights, gradients, optimizer workspace and forward buffers in the memory admission. Independently verify identity-logit preservation, CTC loss/gradients, repeated labels, blanks, lengths, impossible-alignment policy and unchanged base bytes. Preserve the shared final/intermediate projection; never untie it or update feedback weights under a frozen-base claim. Existing gated per-layer adapters and two-model bridge fitting have different semantics; do not fabricate side inputs or a second model to force reuse. Store base, adapter, placement and recipe identities. If held-out WER does not improve, report the result and use the planned internal/full-encoder training path rather than adding an unplanned adapter stack.",
           "depends_on": [
             "asr-training/sync-trainable-graph"
           ],
@@ -265,7 +265,7 @@
           "title": "Reconcile the retained audio baseline before asr-training/exact-resume",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-training/trainable-graph"
           ],
@@ -295,7 +295,7 @@
           "title": "Reconcile the retained audio baseline before asr-training/closed-loop-proof",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-training/exact-resume",
             "asr-serving/transcriptions-route",
@@ -312,8 +312,8 @@
           "id": "closed-loop-proof",
           "title": "Prove the CPU audio lifecycle: adapt, resume, evaluate, publish, reload and serve the same recipe",
           "status": "open",
-          "verify": "go test ./internal/trainingworkflow ./internal/evaluation ./internal/server -run 'TestASRCPUClosedLoop' -count=1",
-          "rationale": "Use the pinned admitted dataset and frozen-base adapter through the universal trainer. Compare uninterrupted and resumed trajectories, record pre/post WER and resource fitness, publish the adapter/base/recipe lineage, reload and transcribe through the same API. Include VAD-composed admission and account for every rejected or failed case. The exact TestASRCPUClosedLoop acceptance must execute this real-artifact CPU path with explicit prerequisites and nonzero corpus counts; absent artifacts refuse rather than skip, and mocks or general train-lane success cannot establish this claim. Do not wait for CUDA, full encoder gradients, second-model or voice work. A completed experiment may report no gain; promote only when the recorded quality/resource policy permits it.",
+          "verify": "go test ./internal/audioparity -run '^TestASRCPUClosedLoop$' -count=1",
+          "rationale": "TestASRCPUClosedLoop owns the integration proof using existing trainingworkflow, evaluation and server owners; it is not a new orchestrator. Its mandatory subchecks execute the pinned real-artifact CPU path, a nonempty admitted training/held-out split, nonzero updates, interrupted/uninterrupted trajectory equality, VAD-composed admission, pre/post WER/resource fitness, artifact publication/reload and authenticated HTTP transcription. Each stage binds its predecessor's actual artifact IDs and accounts for failures. Missing prerequisites refuse rather than skip; mocks, cached transcripts, absent subchecks or unrelated train-lane tests cannot satisfy acceptance. Reuse earlier immutable prediction records only when identities match; explicitly rerun training, resume, reload and serving behavior. Do not wait for CUDA, full encoder gradients, second-model or voice work. Record no-gain results honestly; promotion requires the existing quality/resource policy.",
           "depends_on": [
             "asr-training/sync-closed-loop-proof"
           ],
@@ -329,7 +329,7 @@
           "title": "Reconcile the retained audio baseline before asr-training/encoder-backward",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-training/closed-loop-proof"
           ],
@@ -367,9 +367,8 @@
           "title": "Reconcile the retained audio baseline before speech-analysis-expansion/vad",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile the retained audio baseline under doctrine and gate the paired step without merging or pushing. VAD consumes decoded audio, the shared frontend and its own checkpoints/oracle; remove the unrelated ASR WER/resource prerequisite. It remains mandatory before segmented transcription and the first complete CPU lifecycle.",
           "depends_on": [
-            "asr-evaluation/resource-suite",
             "oracle-intake/artifact-compatibility",
             "audio-contracts/stream-session-contract",
             "audio-primitives/intermediate-parity"
@@ -400,7 +399,7 @@
           "title": "Reconcile the retained audio baseline before speech-analysis-expansion/alignment-diarization",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "speech-analysis-expansion/vad",
             "shared-asr-proof/live-model-operations"
@@ -438,7 +437,7 @@
           "title": "Reconcile the retained audio baseline before audio-recipes/validated-transcription",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-reference/offline-recipe",
             "speech-analysis-expansion/vad"
@@ -476,7 +475,7 @@
           "title": "Reconcile the retained audio baseline before shared-asr-proof/second-architecture",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "asr-training/closed-loop-proof",
             "audio-contracts/stream-session-contract"
@@ -508,7 +507,7 @@
           "title": "Reconcile the retained audio baseline before shared-asr-proof/live-model-operations",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "shared-asr-proof/second-architecture",
             "asr-serving/streaming-transcription"
@@ -546,9 +545,9 @@
           "title": "Reconcile the retained audio baseline before audio-generation-expansion/tts-contract-consolidation",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile the retained audio baseline under doctrine and gate the paired step without merging or pushing. The first proven CPU lifecycle supplies the shared contract; migrating existing TTS does not require second-ASR streaming or live multi-model operations.",
           "depends_on": [
-            "shared-asr-proof/live-model-operations"
+            "asr-training/closed-loop-proof"
           ],
           "capabilities": [
             "retained-audio-baseline",
@@ -561,7 +560,7 @@
           "title": "Migrate PocketTTS inference and training onto the shared audio artifacts, sessions, evaluation and lifecycle contracts without regressing its existing compatibility evidence",
           "status": "open",
           "verify": "go test ./internal/speechsynth ./internal/modelrecipe ./internal/evaluation -run 'Test.*Speech|Test.*Audio'",
-          "rationale": "Existing speech synthesis is the first consolidation consumer. The migration deletes displaced TTS-only policy instead of maintaining parallel audio lifecycles.",
+          "rationale": "Migrate the already executable TTS path to the proven audio artifact, admission, session and lifecycle owners; reuse its current model and golden evidence. Delete displaced policy in the same migration and verify inference, training/resume and quality preservation. The migration does not port new synthesis architectures or require a second recognizer. Do not place new voice expansion ahead of the first audio lifecycle.",
           "depends_on": [
             "audio-generation-expansion/sync-tts-contract-consolidation"
           ],
@@ -576,7 +575,7 @@
           "title": "Reconcile the retained audio baseline before audio-generation-expansion/voice-capability",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "audio-generation-expansion/tts-contract-consolidation"
           ],
@@ -606,7 +605,7 @@
           "title": "Reconcile the retained audio baseline before audio-generation-expansion/generative-audio-probe",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "audio-generation-expansion/voice-capability",
             "asr-cuda/device-parity"
@@ -644,7 +643,7 @@
           "title": "Reconcile the retained audio baseline before asr-cuda/profile-and-bind",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "asr-training/closed-loop-proof",
             "asr-evaluation/resource-suite"
@@ -675,7 +674,7 @@
           "title": "Reconcile the retained audio baseline before asr-cuda/device-parity",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "asr-cuda/profile-and-bind",
             "asr-evaluation/resource-suite"
@@ -722,7 +721,7 @@
           "title": "Reconcile the retained audio baseline before benchmark-routing/resource-quality-fitness",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "benchmark-routing/pinned-benchmarks"
           ],
@@ -747,7 +746,7 @@
           "title": "Reconcile the retained audio baseline before benchmark-routing/routing-replay",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
           "depends_on": [
             "benchmark-routing/pinned-benchmarks"
           ],
@@ -779,7 +778,7 @@
           "title": "Reconcile the retained audio baseline before failure-recovery/interruption-drills",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "hermetic-foundation/store-drills",
             "asr-serving/streaming-transcription"
@@ -805,7 +804,7 @@
           "title": "Reconcile the retained audio baseline before failure-recovery/control-plane-drills",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "failure-recovery/interruption-drills"
           ],
@@ -830,7 +829,7 @@
           "title": "Reconcile the retained audio baseline before failure-recovery/gate-recovery-drill",
           "status": "open",
           "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Apply the no-master-merge workflow in doctrine: inspect the current committed audio tree and stored authorities, update affected rows, record the exact baseline and gate this reconciliation before its paired work. Do not merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
           "depends_on": [
             "failure-recovery/interruption-drills"
           ],

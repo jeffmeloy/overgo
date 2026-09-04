@@ -210,6 +210,27 @@ extern "C" __global__ void fp8_to_f32(
     }
 }
 
+// fp8_to_f16: the f16 twin of fp8_to_f32 for the tensor-core prefill of
+// native fp8 weights: e4m3 decoded and scaled per row into half
+// precision, the operand cuBLAS multiplies with F32 accumulation.
+extern "C" __global__ void fp8_to_f16(
+        const unsigned char * input,
+        const float * scale,
+        __half * output,
+        unsigned int inner,
+        unsigned int rows) {
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const float row_scale = scale[row];
+    const unsigned char * weight_row = input + (size_t) row * inner;
+    __half * output_row = output + (size_t) row * inner;
+    for (unsigned int column = threadIdx.x; column < inner; column += blockDim.x) {
+        output_row[column] = __float2half(fp8_e4m3_decode((unsigned int) weight_row[column]) * row_scale);
+    }
+}
+
 extern "C" __global__ void quantize_q8_0_input_f32(
         const float * input,
         unsigned char * output,

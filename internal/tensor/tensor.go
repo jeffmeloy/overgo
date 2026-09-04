@@ -140,7 +140,7 @@ const (
 // kernels serve below it). F32 weights keep the exact arithmetic
 // regardless.
 func nativeTensorCoreApplies(left, right dtype.Type) bool {
-	return (left == dtype.F16 || left == dtype.BF16 || left.IsQuantized()) && right == dtype.F32
+	return (left == dtype.F16 || left == dtype.BF16 || left == dtype.F8E4M3 || left.IsQuantized()) && right == dtype.F32
 }
 
 type MulMatAttributes struct {

@@ -64,7 +64,7 @@ func run() error {
 		<-stopped
 		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), clioptions.Verdict(err))
 		if err != nil {
-			fmt.Print(clioptions.Tail(out, clioptions.DiagnosticTailBytes))
+			fmt.Print(deviceDiagnostic(out, err))
 			if index == 0 {
 				return runrecord.LaneError(runrecord.LaneUnavailable, "cuda-info failed; no passing evidence exists")
 			}
@@ -82,6 +82,16 @@ func run() error {
 
 func splitPaths(csv string) []string {
 	return strings.FieldsFunc(strings.ReplaceAll(csv, "\\", "/"), func(r rune) bool { return r == ',' || unicode.IsSpace(r) })
+}
+
+// deviceDiagnostic renders a failed step's evidence: the diagnostic tail of
+// what it printed, or, when the step printed nothing, the launch error
+// itself, so a process that never started is named rather than mute.
+func deviceDiagnostic(out string, err error) string {
+	if strings.TrimSpace(out) == "" {
+		return "[device] launch: " + err.Error() + "\n"
+	}
+	return clioptions.Tail(out, clioptions.DiagnosticTailBytes)
 }
 
 func deviceHeartbeat(step []string, index, total int, began time.Time, done <-chan struct{}, stopped chan<- struct{}) {

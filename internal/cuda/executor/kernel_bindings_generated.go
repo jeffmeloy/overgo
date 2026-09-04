@@ -47,6 +47,7 @@ const (
 	kernelF32ToBf16
 	kernelF32ToF16
 	kernelFlatSliceF32
+	kernelFp8ToF16
 	kernelFp8ToF32
 	kernelFwhtF32
 	kernelGatedDeltaNetBackwardF32
@@ -247,6 +248,7 @@ var kernelFunctionNames = [...]string{
 	"f32_to_bf16",
 	"f32_to_f16",
 	"flat_slice_f32",
+	"fp8_to_f16",
 	"fp8_to_f32",
 	"fwht_f32",
 	"gated_delta_net_backward_f32",
@@ -446,6 +448,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	3,
 	4,
+	5,
 	5,
 	4,
 	23,

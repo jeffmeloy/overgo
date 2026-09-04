@@ -491,6 +491,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"merged-boundary-candidates/do",
 		"quantized-prefill-gemm/do",
 		"quantized-prefill-f16/do",
+		"fp8-prefill-f16/do",
+		"long-form-verification/do",
 		"generation-soak/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",

@@ -64,7 +64,7 @@
     },
     {
       "source": "kernels/cuda/ops_f32.cu",
-      "sourceSha256": "288a54107cf067599922fbb2f6fbd29b6bd7b80bc7c1ceb5b95a8990fab5b23b",
+      "sourceSha256": "2c10b43455067cb9a2616c8eb53837a0c6c8f7d0cfc0f6270520d830db22f008",
       "sourceDependencies": [
         {
           "path": "kernels/cuda/iq_tables_generated.cuh",
@@ -72,7 +72,7 @@
         }
       ],
       "asset": "internal/cuda/kernel/ops_f32.ptx",
-      "assetSha256": "3e59f8dea5f3fe29189abde30b1b1f64a8bbeec6586fb2eafe97f701c02a71fd",
+      "assetSha256": "ad281e64e719be515ae653a81c175c2010f531c97b630a37350a24f7b87949ce",
       "functions": [
         "activated_gate_f32",
         "activated_gate_q8_0_f32",
@@ -114,6 +114,7 @@
         "f32_to_bf16",
         "f32_to_f16",
         "flat_slice_f32",
+        "fp8_to_f16",
         "fp8_to_f32",
         "fwht_f32",
         "gated_delta_net_backward_f32",
@@ -284,6 +285,7 @@
             "activated_gate_f32",
             "copy_token_offset_f32",
             "embedding_gather_rows_f32",
+            "fp8_to_f16",
             "fp8_to_f32",
             "get_rows_bf16_f32",
             "get_rows_f32",

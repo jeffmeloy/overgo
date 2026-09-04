@@ -4,6 +4,19 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "long-form-verification",
+      "title": "Long-form verification before every suite pass (owner rule 2026-09-04): a Go tool runs each servable text model on a 2000-token prompt and a 256-token greedy generation, records prompt tok/s, decode tok/s and an output degeneration measure (distinct 4-gram ratio and longest repeated span) as evidence, and refuses the suite passes for a model whose long-form rate or output fails its declared floor, so a rate or output problem is found in minutes rather than after hours of recording",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Long-form verification before every suite pass (owner rule 2026-09-04): a Go tool runs each servable text model on a 2000-token prompt and a 256-token greedy generation, records prompt tok/s, decode tok/s and an output degeneration measure (distinct 4-gram ratio and longest repeated span) as evidence, and refuses the suite passes for a model whose long-form rate or output fails its declared floor, so a rate or output problem is found in minutes rather than after hours of recording",
+          "status": "open",
+          "verify": "go test ./internal/longform -count=1"
+        }
+      ]
+    },
+    {
       "id": "benchmark-completion",
       "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
       "status": "open",

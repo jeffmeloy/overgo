@@ -292,6 +292,25 @@ func launchLinearLayout(
 			if blas == nil || blas.staging == 0 {
 				return errors.New("fp8 mul_mat weight workspace is unavailable")
 			}
+			if quantStagedMulMat(node) && rightRows >= quantStagedColumnFloor {
+				// Under the native policy the fp8 rows upconvert to f16 with
+				// the row scale folded and run the tensor-core GEMM, the
+				// path the quantized weights take; the exact F32 staging
+				// below stays for the exact policy.
+				return launchStagedHalfMatMul(
+					state, functions, blas, right, output, inner, leftRows, rightRows,
+					func(start, rows, _ uint32) error {
+						elementOffset := uint64(start) * uint64(inner)
+						source := left + driver.DevicePtr(elementOffset)
+						sourceScale := scale + driver.DevicePtr(uint64(start)*leftNode.Type.AuxiliaryRowBytes())
+						return launchGridABI(
+							state, functions[kernelFp8ToF16],
+							kernel.Grid1D(int(rows)), kernel.DefaultBlock1D(),
+							&source, &sourceScale, &blas.staging, &inner, &rows,
+						)
+					},
+				)
+			}
 			blas.stagedNode = nil
 			return launchStagedNativeMatMul(
 				state, blas, inner, leftRows, rightRows, right, output,
@@ -595,10 +614,9 @@ func quantStagedStagingBytes(inner, leftRows, rightRows uint64) uint64 {
 }
 
 // quantStagedMulMat reports whether a mul_mat node's policy admits the
-// staged path: the native tensor-core policy the inference builder sets,
-// on a weight type with a dequantize kernel. The path is exact (F32
-// staging, SGEMM), so the policy names the throughput intent, not a
-// precision trade.
+// f16-staged tensor-core path: the native tensor-core policy the
+// inference builder sets, on a quantized weight type with a dequantize
+// kernel or on native fp8, whose rows upconvert to f16 the same way.
 func quantStagedMulMat(node *tensor.Tensor) bool {
 	if node == nil || node.Op != tensor.OpMulMat || len(node.Inputs) < 2 {
 		return false
@@ -606,6 +624,9 @@ func quantStagedMulMat(node *tensor.Tensor) bool {
 	mulMat, ok := node.Attrs.(tensor.MulMatAttributes)
 	if !ok || mulMat.Compute != tensor.MulMatComputeNativeTensorCore {
 		return false
+	}
+	if node.Inputs[0].Type == dtype.F8E4M3 {
+		return true
 	}
 	_, staged := quantStagedKernels[node.Inputs[0].Type]
 	return staged
@@ -624,6 +645,29 @@ func launchStagedQuantMatMul(
 	dequantKernel kernelFunctionID,
 	left, right, output driver.DevicePtr,
 	inner, leftRows, rightRows uint32,
+) error {
+	return launchStagedHalfMatMul(
+		state, functions, blas, right, output, inner, leftRows, rightRows,
+		func(start, _, count uint32) error {
+			return launch1DABI(
+				state, functions[dequantKernel], count,
+				&left, &blas.staging, &inner, &start, &count,
+			)
+		},
+	)
+}
+
+// launchStagedHalfMatMul is the f16-staged tensor-core matmul behind
+// launchStagedQuantMatMul with the weight expansion supplied: stage
+// writes `rows` weight rows from `start` (count = rows*inner elements)
+// as f16 at the staging's start.
+func launchStagedHalfMatMul(
+	state *device.State,
+	functions functionSet,
+	blas *blasState,
+	right, output driver.DevicePtr,
+	inner, leftRows, rightRows uint32,
+	stage func(start, rows, count uint32) error,
 ) error {
 	if blas == nil || blas.staging == 0 {
 		return errors.New("quantized mul_mat staging is unavailable")
@@ -652,11 +696,7 @@ func launchStagedQuantMatMul(
 		if count64 > math.MaxUint32 {
 			return errors.New("quantized mul_mat staging launch overflows")
 		}
-		count := uint32(count64)
-		if err := launch1DABI(
-			state, functions[dequantKernel], count,
-			&left, &blas.staging, &inner, &start, &count,
-		); err != nil {
+		if err := stage(start, rows, uint32(count64)); err != nil {
 			return err
 		}
 		chunkOutput := output + driver.DevicePtr(uint64(start)*f32ScalarBytes)

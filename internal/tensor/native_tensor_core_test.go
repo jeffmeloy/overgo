@@ -26,7 +26,7 @@ func TestNativeTensorCorePolicyAppliesOnlyToHalfPrecisionWeights(t *testing.T) {
 		{name: "bf16", weight: dtype.BF16, native: true},
 		{name: "f32", weight: dtype.F32, native: false},
 		{name: "q8_0", weight: dtype.Q8_0, native: true},
-		{name: "fp8", weight: dtype.F8E4M3, native: false},
+		{name: "fp8", weight: dtype.F8E4M3, native: true},
 	}
 	for _, tc := range cases {
 		weight := builder.Input(tc.name, tc.weight, shape)

@@ -1,4 +1,3 @@
-// Package audioparity owns pinned behavioral evidence for external audio oracles.
 package audioparity
 
 import (

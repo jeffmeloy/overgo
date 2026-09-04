@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "artifact-election",
-          "title": "Register Granite Speech 5.0 470M TurboCTC as the first ASR oracle with complete bytes, tokenizer, configuration, reference execution, license and pinned LibriSpeech parity evidence",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run TestFirstASRArtifactElection",
-          "rationale": "The deterministic audio.cpp census pins upstream commit 3497b7cc44753e2c141d8fe60ac42cec433e3281, inventories every native model specification and loader factory, and elects Granite from the available offline ASR implementations without creating an audio.cpp runtime dependency. The installed native Safetensors artifact completed CPU inference on four pinned LibriSpeech fixtures: three strict transcript matches and one contraction-only normalization difference. Registration must bind every model, tokenizer, configuration, license, reference-execution and fixture byte identity; preserve timings, expected and observed transcripts and normalization policy; and state the measurements that would reopen the choice.",
-          "depends_on": [
-            "oracle-intake/sync-artifact-election"
-          ],
-          "capabilities": [
-            "artifact-identity",
-            "model-characterization",
-            "decision-evidence",
-            "granite-speech-oracle"
-          ]
-        },
-        {
           "id": "sync-artifact-compatibility",
           "title": "Merge master and reconcile the plan before: Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
           "status": "open",

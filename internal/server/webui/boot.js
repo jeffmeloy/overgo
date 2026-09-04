@@ -475,11 +475,85 @@
     tabs.splice(0, tabs.length, ...ordered);
   }
 
+  // ---- one loader ----
+  // The shell lists no module by hand. The manifest names each tab's module
+  // (default: the tab id); boot.js loads the shared libraries in order, then
+  // every distinct module, and only then wires the shell. Adding a tab is a
+  // manifest entry plus a file under mod/. Scripts are same-origin, so the
+  // strict CSP holds for dynamically inserted tags as it does for static ones.
+  const libraries = ["/viz.js", "/md.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
+  const loadedScripts = new Set();
+  function loadScript(src) {
+    if (loadedScripts.has(src)) return Promise.resolve(src);
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = false; // insertion order is execution order
+      script.onload = () => { loadedScripts.add(src); resolve(src); };
+      script.onerror = () => reject(new Error("failed to load " + src));
+      document.head.appendChild(script);
+    });
+  }
+  async function loadWorkspaceModules(manifest) {
+    for (const src of libraries) await loadScript(src);
+    const modules = [];
+    for (const declaration of manifest.tabs) {
+      const module = declaration.module || declaration.id;
+      if (!modules.includes(module)) modules.push(module);
+    }
+    await Promise.all(modules.map((module) => loadScript("/mod/" + module + ".js")));
+  }
+
+  // offlineCard: the shell's own landing state when the server does not
+  // answer (no child model behind the swap proxy, or a server still
+  // starting). It probes /health until the server answers, then initialises
+  // the shell in place; the retry control re-probes on demand.
+  let offlineTimer = null;
+  function offlineCard(panels, message) {
+    clear(panels);
+    const dot = el("span", { class: "dot err" });
+    const text = el("span", { text: message });
+    const retry = el("button", { class: "btn alt", text: "probe again" });
+    const card = el("div", { class: "card" },
+      el("p", { class: "tagline", text: "Native GGUF serving and a distribution-free model-analysis workbench. All state lives in the server." }),
+      el("div", { class: "probe" }, dot, text),
+      el("p", { class: "note", style: "margin-top:18px" },
+        "Start it: ", el("span", { class: "mono", text: "go run ./cmd/server -listen 127.0.0.1:8080 <model.gguf>" }),
+        " or launch overgo_gui.bat and pick a model."),
+      el("div", { class: "actions" }, retry));
+    panels.appendChild(el("div", { class: "center", style: "min-height:60vh" }, card));
+    async function probe() {
+      dot.className = "dot scan";
+      try {
+        await api.get("/health");
+        dot.className = "dot ok";
+        text.textContent = "server online, entering…";
+        clearInterval(offlineTimer);
+        offlineTimer = null;
+        initShell();
+      } catch (err) {
+        dot.className = "dot err";
+        text.textContent = "no server at " + location.origin + " (" + friendlyError(err) + ")";
+      }
+    }
+    retry.addEventListener("click", probe);
+    if (offlineTimer == null) offlineTimer = setInterval(probe, 4000);
+  }
+
   async function initShell() {
     const sectionBar = document.getElementById("sections");
     const panels = document.getElementById("panels");
     try {
       workspaceManifest = await api.get("/workspace/manifest");
+    } catch (err) {
+      offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")");
+      return;
+    }
+    clear(panels);
+    clear(sectionBar);
+    sectionButtons.length = 0;
+    try {
+      await loadWorkspaceModules(workspaceManifest);
       bindWorkspaceManifest(workspaceManifest);
     } catch (err) {
       panels.appendChild(errorBanner(friendlyError(err)));
@@ -498,41 +572,50 @@
       }
       sectionBar.appendChild(group);
     }
-    authNoticeEl = el("div", { class: "auth-banner", style: "display:none" },
-      "This server requires an API key — enter it in the field at the top right to load analysis and chat.");
-    document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
+    if (!authNoticeEl) {
+      authNoticeEl = el("div", { class: "auth-banner", style: "display:none" },
+        "This server requires an API key — enter it in the field at the top right to load analysis and chat.");
+      document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
+    }
 
-    const keyInput = document.getElementById("api-key");
-    const keyRemember = document.getElementById("api-key-remember");
-    keyInput.value = getKey();
-    keyRemember.checked = keyWasPersisted;
-    keyRemember.addEventListener("change", () => {
-      setKey(keyInput.value.trim(), keyRemember.checked);
-    });
-    keyInput.addEventListener("change", () => {
-      setKey(keyInput.value.trim(), keyRemember.checked);
-      invalidateModel(); // the cached model was fetched under the old key
-      // Re-mount the active tab so its data reloads under the new key.
-      for (const tab of tabs) {
-        if (tab.onDeactivate) tab.onDeactivate();
-        tab.mounted = false;
-      }
-      const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
-      if (current) activate(current);
-      refreshStatus();
-    });
-    window.addEventListener("hashchange", () => {
-      const id = location.hash.slice(1);
-      if (id && tabs.some((t) => t.id === id)) activate(id);
-    });
+    // The key controls, hash routing and the health re-probe are wired once;
+    // the shell may initialise again after an offline card, and must not
+    // stack a second listener each time.
+    if (!shellWired) {
+      shellWired = true;
+      const keyInput = document.getElementById("api-key");
+      const keyRemember = document.getElementById("api-key-remember");
+      keyInput.value = getKey();
+      keyRemember.checked = keyWasPersisted;
+      keyRemember.addEventListener("change", () => {
+        setKey(keyInput.value.trim(), keyRemember.checked);
+      });
+      keyInput.addEventListener("change", () => {
+        setKey(keyInput.value.trim(), keyRemember.checked);
+        invalidateModel(); // the cached model was fetched under the old key
+        // Re-mount the active tab so its data reloads under the new key.
+        for (const tab of tabs) {
+          if (tab.onDeactivate) tab.onDeactivate();
+          tab.mounted = false;
+        }
+        const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
+        if (current) activate(current);
+        refreshStatus();
+      });
+      window.addEventListener("hashchange", () => {
+        const id = location.hash.slice(1);
+        if (id && tabs.some((t) => t.id === id)) activate(id);
+      });
+      // Re-probe health so a server that drops (or comes back) is reflected in the
+      // status pill instead of showing a stale "online" until the next key change.
+      setInterval(refreshStatus, 10000);
+    }
     const start = location.hash.slice(1);
     activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
     refreshStatus();
     applyCapabilities();
-    // Re-probe health so a server that drops (or comes back) is reflected in the
-    // status pill instead of showing a stale "online" until the next key change.
-    setInterval(refreshStatus, 10000);
   }
+  let shellWired = false;
 
   // boot.js is deferred, so it runs while readyState is "interactive" — before
   // the later deferred module scripts have registered their tabs. DOMContentLoaded

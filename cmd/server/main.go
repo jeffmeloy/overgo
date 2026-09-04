@@ -101,6 +101,7 @@ func run() error {
 	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
+	webuiDir := flag.String("webui-dir", "", "serve the workbench client from this directory with caching disabled (development); empty serves the embedded client")
 	var evaluationSuites []string
 	flag.Func("evaluation-suite", "compiled evaluation suite JSON; repeatable", func(value string) error {
 		value = strings.TrimSpace(value)
@@ -299,6 +300,7 @@ func run() error {
 		Repository:         workspaceStore,
 		HubToken:           os.Getenv("OVERGO_HF_TOKEN"),
 		HubDownloadRoot:    hubRoot,
+		WebUIDir:           *webuiDir,
 		Evaluation:         evaluationWorkspace,
 		AgentEmbedder:      agentRetrieval,
 		AgentReranker:      agentRetrieval,

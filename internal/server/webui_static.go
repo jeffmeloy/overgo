@@ -5,6 +5,7 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 )
@@ -114,7 +115,19 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return
 	}
-	data, err := fs.ReadFile(webuiFS, name)
+	// One shell: the historical workbench address keeps working and serves
+	// the same document, so bookmarks, the launcher and the acceptance lane
+	// need no change.
+	if name == "app.html" {
+		name = "index.html"
+	}
+	assets, cache := fs.FS(webuiFS), "no-cache"
+	if h.config.WebUIDir != "" {
+		// Development: the client is read from disk on every request with
+		// caching off, so an edit shows on reload without a rebuild.
+		assets, cache = os.DirFS(h.config.WebUIDir), "no-store"
+	}
+	data, err := fs.ReadFile(assets, name)
 	if err != nil {
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return
@@ -122,14 +135,15 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 	if contentType, ok := webuiContentTypes[strings.ToLower(path.Ext(name))]; ok {
 		response.Header().Set("Content-Type", contentType)
 	}
-	response.Header().Set("Cache-Control", "no-cache")
+	response.Header().Set("Cache-Control", cache)
 	// The client is fully self-contained (no external hosts) and carries no inline
-	// scripts — index.html's probe lives in probe.js and DOM handlers are attached
-	// via addEventListener — so a strict CSP holds: script from same origin only,
-	// no plugins, no framing. Inline STYLE attributes are used throughout (el()
-	// and SVG), so style keeps 'unsafe-inline' (style injection is far lower risk
-	// than script). This is defense in depth over the markdown renderer's own
-	// DOM-only, scheme-checked output.
+	// scripts — the shell lists one script, boot.js, which loads the libraries
+	// and the manifest's modules from the same origin, and DOM handlers are
+	// attached via addEventListener — so a strict CSP holds: script from same
+	// origin only, no plugins, no framing. Inline STYLE attributes are used
+	// throughout (el() and SVG), so style keeps 'unsafe-inline' (style injection
+	// is far lower risk than script). This is defense in depth over the markdown
+	// renderer's own DOM-only, scheme-checked output.
 	response.Header().Set("Content-Security-Policy", webuiContentSecurityPolicy)
 	response.Header().Set("X-Content-Type-Options", "nosniff")
 	response.Header().Set("Referrer-Policy", "no-referrer")

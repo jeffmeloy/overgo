@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "one-shell",
-          "title": "Collapse the landing page and the workbench shell into one page with one module loader driven by the workspace manifest (a tab is a manifest entry plus a module file; app.html's 30 hand-listed script tags, probe.js and the separate landing card go away), so the front page, the conversation list, the operations strip and every workbench tab share one served-model context, one API-key handling and one hash router; the server gains a development flag that serves the webui assets from disk with caching off so an edit shows on reload without a rebuild; capability gained: the workbench opens beside the conversation without a page change, a model switch updates every open surface at once, and GUI iteration is edit-and-reload; ratchet: a Go test in internal/server counts hand-listed module scripts in the shell (zero) and shells served (one), and only tightens",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestWebUIOneShell' -count=1",
-          "rationale": "Two shells and a hand-maintained script list are the reason chat, generation and analysis cannot share state today; removing them is the smallest change that makes a conversation-first page and the workbench one program.",
-          "depends_on": [
-            "gui-bootstrap/author-plan"
-          ]
-        },
-        {
           "id": "one-composer",
           "title": "One composer and one stream renderer shared by chat, agent sessions and the image, video and speech generation surfaces (chat.js, agent.js, image.js, video.js and speech.js each carry their own prompt box, attachment handling, request assembly, SSE consumption and error banner today); the renderer consumes one typed event vocabulary documented as the server's streaming contract (token, tool_start, tool_end, media, usage, done, error) and renders tool calls as collapsible cards with input, result, status and elapsed time, a thinking indicator while the model works, and errors as rows in the thread rather than banners; capability gained: attachments, modes, stop, token and rate facts, markdown rendering, copy and in-thread tool calls exist on every surface at once, and agent sessions accept multimodal input for free; ratchet: a Go test counts distinct fetch and SSE call sites and total webui JavaScript lines against declared ceilings that only tighten",
           "status": "open",

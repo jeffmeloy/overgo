@@ -58,8 +58,8 @@ func TestCompositionGUIWorkflow(t *testing.T) {
 			t.Errorf("composition GUI missing %q", token)
 		}
 	}
-	shell := serveTestRequest(handler, http.MethodGet, "/app.html", "")
-	if !strings.Contains(shell.Body.String(), "/mod/compositions.js") {
+	shell := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
+	if !strings.Contains(shell.Body.String(), `"id":"compositions"`) {
 		t.Fatal("workbench shell does not load composition module")
 	}
 }

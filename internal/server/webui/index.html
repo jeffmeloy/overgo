@@ -4,32 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>overgo</title>
+<title>overgo · workbench</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<main class="center">
-  <div class="card">
-    <div><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span><span class="sub">analysis</span></div>
-    <p class="tagline">Native GGUF serving and a distribution-free model-analysis workbench &mdash;
-      one thin client over the Go server. All state lives in the server.</p>
-
-    <div class="probe"><span class="dot scan" id="dot"></span><span id="probe-text">probing /health &hellip;</span></div>
-
-    <div class="actions">
-      <a class="btn" id="enter" href="/app.html" style="display:none">enter workbench</a>
-      <button class="btn alt" id="retry" style="display:none">probe again</button>
-    </div>
-
-    <p class="note" id="hint" style="margin-top:18px; display:none">
-      Server not answering. Start it: <span class="mono">go run ./cmd/server -listen 127.0.0.1:8080 &lt;model.gguf&gt;</span>
-    </p>
-
-    <div class="note" style="margin-top:26px; padding-top:16px; border-top:1px solid var(--line-soft);">
-      thin client &middot; <span id="probe-count"></span>
-    </div>
+<div class="shell">
+  <nav class="sidebar">
+    <a class="brand" href="/" style="text-decoration:none"><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span><span class="sub">workbench</span></a>
+    <div id="sections"></div>
+    <div id="tabs" style="display:none"></div>
+    <div class="foot"><span class="note" id="footer-note"></span></div>
+  </nav>
+  <div class="content">
+    <header class="topbar">
+      <span class="pill" id="status-pill">probing…</span>
+      <span class="pill" id="model-pill"></span>
+      <span class="grow"></span>
+      <input class="keyfield" id="api-key" type="password" placeholder="API key (if required)" autocomplete="off" spellcheck="false">
+      <label class="key-remember" title="Keep the key in browser storage; unchecked, it is held in memory for this page only"><input type="checkbox" id="api-key-remember"> remember</label>
+    </header>
+    <aside id="global-operation-shell" class="operation-shell" aria-label="Operations"></aside>
+    <main class="wrap"><div id="panels"></div></main>
   </div>
-</main>
-<script defer src="/probe.js"></script>
+</div>
+
+<!-- One shell, one loader. boot.js fetches /workspace/manifest and loads the
+     shared libraries and every declared tab module itself; adding a tab is a
+     manifest entry plus a file under mod/, never a line here. -->
+<script defer src="/boot.js"></script>
 </body>
 </html>

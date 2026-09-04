@@ -17,9 +17,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		needle      string
 	}{
 		{"/", "text/html; charset=utf-8", "overgo"},
-		{"/index.html", "text/html; charset=utf-8", "probing /health"},
-		{"/probe.js", "text/javascript; charset=utf-8", "window.probe"},
-		{"/app.html", "text/html; charset=utf-8", "workbench"},
+		{"/index.html", "text/html; charset=utf-8", "workbench"},
 		{"/style.css", "text/css; charset=utf-8", "--acc"},
 		{"/boot.js", "text/javascript; charset=utf-8", "window.overgo"},
 		{"/viz.js", "text/javascript; charset=utf-8", "sparkline"},
@@ -82,7 +80,7 @@ func TestEvaluationWorkbenchUsesDeclaredCapabilities(t *testing.T) {
 			t.Errorf("evaluation workbench embeds benchmark %q", benchmark)
 		}
 	}
-	if !strings.Contains(serveTestRequest(handler, http.MethodGet, "/app.html", "").Body.String(), "/mod/evaluations.js") {
+	if !strings.Contains(serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "").Body.String(), `"id":"evaluations"`) {
 		t.Fatal("workbench shell does not load evaluation module")
 	}
 }
@@ -112,7 +110,7 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 			t.Errorf("boot lifecycle missing %q", token)
 		}
 	}
-	if !strings.Contains(get("/app.html"), "/mod/runtime.js") {
+	if !strings.Contains(get("/workspace/manifest"), `"id":"runtime"`) {
 		t.Error("app shell does not load runtime module")
 	}
 }
@@ -480,10 +478,11 @@ func TestWebUIChatMarkdown(t *testing.T) {
 			t.Errorf("chat.js does not use %q", needle)
 		}
 	}
-	// md.js must load before chat.js so overgo.md exists when chat renders.
-	app := get("/app.html")
-	if strings.Index(app, "/md.js") < 0 || strings.Index(app, "/md.js") > strings.Index(app, "/mod/chat.js") {
-		t.Error("app.html must load /md.js before /mod/chat.js")
+	// md.js must load before any module so overgo.md exists when chat renders:
+	// the loader lists it among the libraries it awaits before the modules.
+	boot := get("/boot.js")
+	if strings.Index(boot, `"/md.js"`) < 0 || strings.Index(boot, `"/md.js"`) > strings.Index(boot, "loadWorkspaceModules(") {
+		t.Error("boot.js must list /md.js among the libraries loaded before the modules")
 	}
 }
 

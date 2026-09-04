@@ -17,30 +17,38 @@ import (
 // driver paged, with identical GEMMs running two hundred times slower.
 func TestHermeticCUDAContinuationScoringHoldsDeviceMemory(t *testing.T) {
 	runner := openHermeticScoringRunner(t)
-	prompt := []tokenizer.TokenID{1, 4, 5, 6}
+	// Every prompt length the fixture's context admits, with single- and
+	// multi-token candidates: a pass over a suite sees a new length on
+	// nearly every case, and a candidate past its first token takes the
+	// per-token decode step.
+	tokens := []tokenizer.TokenID{1, 4, 5, 6, 7, 4, 5, 6, 7, 4, 5}
 	continuations := [][]tokenizer.TokenID{{6}, {7, 4}, {5, 6, 7}}
-	score := func() {
+	score := func(length int) {
 		runner.mu.Lock()
 		defer runner.mu.Unlock()
-		if _, err := runner.scoreContinuationsDeviceLocked(t.Context(), prompt, continuations); err != nil {
+		if _, err := runner.scoreContinuationsDeviceLocked(t.Context(), tokens[:length], continuations); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for range 2 {
-		score()
+	cycle := func() {
+		for length := 2; length <= len(tokens); length++ {
+			score(length)
+		}
 	}
+	cycle()
 	warm, err := runner.DeviceMemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	for range 20 {
-		score()
+	for range 4 {
+		cycle()
 	}
 	after, err := runner.DeviceMemoryStats(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.CurrentBytes > warm.CurrentBytes {
-		t.Fatalf("device memory grew by %d bytes over twenty scorings (%d -> %d)", after.CurrentBytes-warm.CurrentBytes, warm.CurrentBytes, after.CurrentBytes)
+	if after.CurrentBytes > warm.CurrentBytes || after.Allocations > warm.Allocations {
+		t.Fatalf("device memory grew over four cycles of every prompt length: %d -> %d bytes, %d -> %d allocations",
+			warm.CurrentBytes, after.CurrentBytes, warm.Allocations, after.Allocations)
 	}
 }

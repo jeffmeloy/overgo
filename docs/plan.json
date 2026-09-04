@@ -9,22 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-resource-suite",
-          "title": "Reconcile the retained audio baseline before asr-evaluation/resource-suite",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
-          "depends_on": [
-            "asr-reference/offline-recipe",
-            "asr-evaluation/wer-suite"
-          ],
-          "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
-          ]
-        },
-        {
           "id": "resource-suite",
           "title": "Establish the CPU offline quality and resource baseline on the pinned admitted corpus",
           "status": "open",

@@ -481,7 +481,7 @@
   // every distinct module, and only then wires the shell. Adding a tab is a
   // manifest entry plus a file under mod/. Scripts are same-origin, so the
   // strict CSP holds for dynamically inserted tags as it does for static ones.
-  const libraries = ["/viz.js", "/md.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
+  const libraries = ["/viz.js", "/md.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
   const loadedScripts = new Set();
   function loadScript(src) {
     if (loadedScripts.has(src)) return Promise.resolve(src);

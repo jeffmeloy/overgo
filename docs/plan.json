@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "one-composer",
-          "title": "One composer and one stream renderer shared by chat, agent sessions and the image, video and speech generation surfaces (chat.js, agent.js, image.js, video.js and speech.js each carry their own prompt box, attachment handling, request assembly, SSE consumption and error banner today); the renderer consumes one typed event vocabulary documented as the server's streaming contract (token, tool_start, tool_end, media, usage, done, error) and renders tool calls as collapsible cards with input, result, status and elapsed time, a thinking indicator while the model works, and errors as rows in the thread rather than banners; capability gained: attachments, modes, stop, token and rate facts, markdown rendering, copy and in-thread tool calls exist on every surface at once, and agent sessions accept multimodal input for free; ratchet: a Go test counts distinct fetch and SSE call sites and total webui JavaScript lines against declared ceilings that only tighten",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestWebUIComposerBudget' -count=1",
-          "rationale": "Five copies of the same request loop are five places a capability must be added; one composer over one event vocabulary is where every later multimodal and agent row lands once.",
-          "depends_on": [
-            "gui-simplify/one-shell"
-          ]
-        },
-        {
           "id": "one-capability-source",
           "title": "One capability document per served model, served with the workspace manifest (tabs, composer modes, accepted media kinds with the media policy's byte and dimension limits, context length, generation defaults) and read by the shell, the composer and the model selector; the client-side capability checks scattered across the model pill, chat.js and the analysis modules retire; capability gained: an attachment or a mode is accepted or refused from the server's declaration before a request is sent, and a new server capability reaches the GUI by declaration alone; ratchet: a Go test asserts every capability decision in the webui reads the one document (zero other capability reads)",
           "status": "open",

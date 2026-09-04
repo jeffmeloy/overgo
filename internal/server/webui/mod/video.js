@@ -1,95 +1,59 @@
 /* Video: native text-to-video through /v1/videos/generations, and
-   reference-guided editing through /v1/videos/edits. Outputs are
-   committed video artifacts played straight from the store. A model
-   without the capability surfaces the server's typed refusal. */
+   reference-guided editing through /v1/videos/edits, over the shared
+   composer and thread. Outputs are committed video artifacts played
+   straight from the store as media cards; the edit surface takes its
+   source video as a composer attachment. A model without the capability
+   surfaces the server's typed refusal as an error row. */
 (function () {
   "use strict";
-
-  function videoCard(el, url, caption) {
-    return el("div", { class: "artifact" },
-      el("video", { src: url, controls: "", style: "max-width:420px" }),
-      el("div", { class: "note", text: caption }));
+  function generationSurface(id, options) {
+    window.overgo.registerTab({
+      id,
+      mount(panel, overgo) {
+        overgo.clear(panel);
+        let controller = null;
+        const thread = overgo.thread(panel);
+        const composer = overgo.composer(panel, {
+          placeholder: options.placeholder,
+          sendLabel: options.sendLabel,
+          accept: options.accept || [],
+          multiple: false,
+          attachLabel: options.attachLabel,
+          onStop: () => { if (controller) controller.abort(); },
+          onSubmit: async (text, attachments) => {
+            if (controller) return;
+            const body = { prompt: text };
+            if (options.source) {
+              if (!attachments.length) {
+                thread.errorRow("pick a source video first");
+                return;
+              }
+              body.source = attachments[0].dataURL;
+            }
+            controller = new AbortController();
+            composer.setBusy(true);
+            thread.add("user", text + (attachments.length ? "\n[video: " + attachments[0].name + "]" : ""));
+            composer.clearInput();
+            composer.clearAttachments();
+            try {
+              const result = await overgo.api.post(options.path, body, { signal: controller.signal });
+              await thread.consume(overgo.streams.media("video", result, text));
+            } catch (err) {
+              thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err));
+            } finally {
+              controller = null;
+              composer.setBusy(false);
+            }
+          },
+        });
+      },
+    });
   }
-
-  window.overgo.registerTab({
-    id: "video-gen",
-    mount(panel, overgo) {
-      const { el, clear } = overgo;
-      clear(panel);
-      const prompt = el("textarea", { class: "text", placeholder: "describe the video to generate" });
-      const status = el("span", { class: "note" });
-      const gallery = el("div", { class: "artifact-gallery" });
-      const errors = el("div");
-      const generate = el("button", { class: "btn" }, "generate");
-      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
-      const run = overgo.runner(generate, cancel, {
-        onCancel: () => { status.textContent = "cancelled"; },
-        onError: (err) => {
-          overgo.clear(errors);
-          errors.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-          status.textContent = "";
-        },
-      });
-      generate.addEventListener("click", () => run(async (signal) => {
-        overgo.clear(errors);
-        status.textContent = "generating…";
-        const result = await overgo.api.post("/v1/videos/generations", { prompt: prompt.value }, { signal });
-        status.textContent = (result.data || []).length + " video(s)";
-        for (const item of result.data || []) gallery.prepend(videoCard(el, item.url, prompt.value));
-      }));
-      panel.append(prompt, el("div", { class: "chat-controls" }, generate, cancel, status), errors, gallery);
-    },
+  generationSurface("video-gen", {
+    path: "/v1/videos/generations", placeholder: "describe the video to generate", sendLabel: "generate",
   });
-
-  window.overgo.registerTab({
-    id: "video-edit",
-    mount(panel, overgo) {
-      const { el, clear } = overgo;
-      clear(panel);
-      const prompt = el("textarea", { class: "text", placeholder: "describe the edit to apply" });
-      const status = el("span", { class: "note" });
-      const gallery = el("div", { class: "artifact-gallery" });
-      const errors = el("div");
-      const sourceHost = el("div", { class: "row" });
-      let sourceDataURL = "";
-      const picker = el("input", { type: "file", style: "display:none", accept: "video/mp4" });
-      const pick = el("button", { class: "btn alt", onclick: () => picker.click() }, "source video");
-      picker.addEventListener("change", () => {
-        const file = picker.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          sourceDataURL = reader.result;
-          sourceHost.replaceChildren(el("video", { src: sourceDataURL, controls: "", style: "max-width:320px" }),
-            el("span", { class: "note", text: file.name }));
-        };
-        reader.readAsDataURL(file);
-        picker.value = "";
-      });
-      const edit = el("button", { class: "btn" }, "edit");
-      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
-      const run = overgo.runner(edit, cancel, {
-        onCancel: () => { status.textContent = "cancelled"; },
-        onError: (err) => {
-          overgo.clear(errors);
-          errors.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-          status.textContent = "";
-        },
-      });
-      edit.addEventListener("click", () => run(async (signal) => {
-        overgo.clear(errors);
-        if (!sourceDataURL) {
-          errors.appendChild(overgo.errorBanner("pick a source video first"));
-          return;
-        }
-        status.textContent = "editing…";
-        const result = await overgo.api.post("/v1/videos/edits",
-          { prompt: prompt.value, source: sourceDataURL }, { signal });
-        status.textContent = (result.data || []).length + " edited video(s)";
-        for (const item of result.data || []) gallery.prepend(videoCard(el, item.url, prompt.value));
-      }));
-      panel.append(prompt, el("div", { class: "chat-controls" }, pick, picker, edit, cancel, status),
-        sourceHost, errors, gallery);
-    },
+  generationSurface("video-edit", {
+    path: "/v1/videos/edits", placeholder: "describe the edit to apply", sendLabel: "edit",
+    accept: ["video/mp4"], attachLabel: "source video", source: true,
   });
 })();

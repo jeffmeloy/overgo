@@ -140,29 +140,53 @@
         } catch (err) { showError(err); }
       });
 
+      // The conversation is the shared thread and composer (composer.js):
+      // the agent's replies arrive complete through /agents/chat and render
+      // through the same event vocabulary the streamed surfaces use, so
+      // attachments, stop, markdown and copy behave here as in Chat.
+      let chatThread = null;
+      let chatComposer = null;
+      let chatController = null;
       function renderChat() {
         const agent = activeAgent();
-        const messages = sessions.get(selected) || [];
-        const transcript = el("div", { class: "card" });
-        transcript.replaceChildren(...messages.map((message) =>
-          el("div", {}, el("span", { class: "tag", text: message.role }), " " + message.content)));
-        const input = el("textarea", { class: "text", rows: "3", placeholder: "Message the selected agent" });
-        const send = el("button", { class: "btn", text: "Send", disabled: !agent || agent.state !== "active" });
-        send.addEventListener("click", async () => {
-          const content = input.value.trim();
-          if (!content) return;
-          messages.push({ role: "user", content });
-          send.disabled = true;
-          try {
-            const result = await api.post("/agents/chat", { agent: selected, messages });
-            const answer = result.choices && result.choices[0] && result.choices[0].message;
-            if (!answer || typeof answer.content !== "string") throw new Error("Agent response omitted visible content");
-            messages.push({ role: "assistant", content: answer.content });
-            sessions.set(selected, messages);
-            renderChat();
-          } catch (err) { showError(err); send.disabled = false; }
-        });
-        conversationHost.replaceChildren(transcript, input, send);
+        if (!chatThread) {
+          chatThread = overgo.thread(conversationHost);
+          chatComposer = overgo.composer(conversationHost, {
+            placeholder: "Message the selected agent",
+            sendLabel: "Send",
+            accept: ["image/png", "image/jpeg", "image/gif", "audio/wav", "video/mp4"],
+            onStop: () => { if (chatController) chatController.abort(); },
+            onSubmit: async (content, attachments) => {
+              if (chatController) return;
+              const parts = chatComposer.attachmentParts();
+              const history = (sessions.get(selected) || []).slice();
+              history.push(parts.length
+                ? { role: "user", content: [{ type: "text", text: content }, ...parts] }
+                : { role: "user", content });
+              chatThread.add("user", attachments.length
+                ? content + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]"
+                : content);
+              chatComposer.clearInput();
+              chatComposer.clearAttachments();
+              chatController = new AbortController();
+              chatComposer.setBusy(true);
+              try {
+                const result = await api.post("/agents/chat", { agent: selected, messages: history }, { signal: chatController.signal });
+                const assistant = chatThread.add("assistant", "");
+                await chatThread.consume(overgo.streams.reply(result), assistant);
+                if (assistant.content) history.push({ role: "assistant", content: assistant.content });
+                sessions.set(selected, history);
+              } catch (err) {
+                chatThread.errorRow(err.name === "AbortError" ? "stopped" : overgo.friendlyError(err));
+              } finally {
+                chatController = null;
+                const current = activeAgent();
+                chatComposer.setBusy(!current || current.state !== "active");
+              }
+            },
+          });
+        }
+        chatComposer.setBusy(!agent || agent.state !== "active");
       }
 
       function renderTools() {

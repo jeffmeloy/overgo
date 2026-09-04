@@ -298,3 +298,18 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .fold > summary { cursor: pointer; list-style: none; }
 .fold > summary::before { content: "\25B8"; display: inline-block; margin-right: 6px; transition: transform 0.12s; }
 .fold[open] > summary::before { transform: rotate(90deg); }
+
+/* ---- composer and thread (composer.js): shared by chat, agent, image,
+   video and speech surfaces ---- */
+.composer { margin-top:10px; }
+.msg.thinking { color:var(--dim); font-style:italic; }
+.msg.error .role { color:var(--err); }
+.msg.error .body { color:var(--err); }
+.msg.media { padding:8px 0; }
+.tool-call { padding:0; margin:8px 0; overflow:hidden; }
+.tool-header { padding:8px 12px; cursor:pointer; user-select:none; align-items:center; gap:8px; }
+.tool-header:hover { background:var(--bg2); }
+.tool-header .arrow { color:var(--dim); width:1em; display:inline-block; }
+.tool-header .tag { margin-left:auto; }
+.tool-body { padding:0 12px 10px; }
+.tool-body pre { margin:4px 0 8px; max-height:280px; overflow:auto; font-size:12px; }

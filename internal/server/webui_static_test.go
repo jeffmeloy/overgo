@@ -472,11 +472,16 @@ func TestWebUIChatMarkdown(t *testing.T) {
 			t.Errorf("md.js missing %q", needle)
 		}
 	}
-	chat := get("/mod/chat.js")
+	// The thread renderer in composer.js owns assistant markdown and copy for
+	// every surface; chat.js reaches it through the shared thread.
+	composer := get("/composer.js")
 	for _, needle := range []string{"overgo.md(", "overgo.copyButton"} {
-		if !strings.Contains(chat, needle) {
-			t.Errorf("chat.js does not use %q", needle)
+		if !strings.Contains(composer, needle) {
+			t.Errorf("composer.js does not use %q", needle)
 		}
+	}
+	if !strings.Contains(get("/mod/chat.js"), "overgo.thread(") {
+		t.Error("chat.js does not render through the shared thread")
 	}
 	// md.js must load before any module so overgo.md exists when chat renders:
 	// the loader lists it among the libraries it awaits before the modules.

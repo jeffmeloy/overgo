@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-wer-suite",
-          "title": "Reconcile the retained audio baseline before asr-evaluation/wer-suite",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
-          "depends_on": [
-            "asr-reference/offline-recipe"
-          ],
-          "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
-          ]
-        },
-        {
           "id": "wer-suite",
           "title": "Add pinned transcription evaluation with audio-only prediction isolation, normalization provenance, WER, CER, utterance counts, duration, admission and inference failure accounting, grouped slices and silent negative controls",
           "status": "open",

@@ -318,6 +318,21 @@ func launchLinearLayout(
 			if uint64(leftRows)*uint64(rightRows) > math.MaxUint32 {
 				return fmt.Errorf("%s mul_mat output element count exceeds uint32", leftNode.Type)
 			}
+			if dequantKernel, staged := quantStagedKernels[leftNode.Type]; staged &&
+				quantStagedMulMat(node) && rightRows >= quantStagedColumnFloor {
+				// Staged prefill for quantized weights: the weight rows are
+				// dequantized chunk-wise into the F32 staging and multiplied
+				// by the exact SGEMM, so the weight is read once per forward.
+				// The span kernels below re-read it once per eight prompt
+				// columns, which held the Q8_0 9B to 812 prompt tok/s and the
+				// Q6_K 27B to 104.
+				if rightNode.Type != dtype.F32 {
+					return fmt.Errorf("%s staged mul_mat has incompatible inputs", leftNode.Type)
+				}
+				return launchStagedQuantMatMul(
+					state, functions, blas, dequantKernel, left, right, output, inner, leftRows, rightRows,
+				)
+			}
 			if inputKernel, fast := q8InputMulMatKernels[leftNode.Type]; fast {
 				if q8Input == nil || q8Input.staging == 0 {
 					return fmt.Errorf("%s mul_mat input workspace is unavailable", leftNode.Type)
@@ -544,6 +559,66 @@ func tensorCoreMulMat(node *tensor.Tensor) bool {
 		return false
 	}
 	return tensorCoreMulMatAttributes(node.Inputs[0].Type, node.Attrs)
+}
+
+// quantStagedKernels: the quantized weight types with a dequantize-rows
+// kernel, the types the served models carry (Q8_0 and the K-quants of
+// the UD mixes); other quantized types keep the span kernels.
+var quantStagedKernels = map[dtype.Type]kernelFunctionID{
+	dtype.Q8_0: kernelDequantRowsQ80F32,
+	dtype.Q4K:  kernelDequantRowsQ4KF32,
+	dtype.Q5K:  kernelDequantRowsQ5KF32,
+	dtype.Q6K:  kernelDequantRowsQ6KF32,
+}
+
+// quantStagedColumnFloor: prompt columns from which the staged SGEMM
+// path beats the span kernels. The span path reads the 1-byte weight
+// once per eight columns; the staged path reads it once and writes and
+// reads it again as F32, nine bytes per element, so the crossover is
+// near seventy columns.
+const quantStagedColumnFloor = uint32(64)
+
+// quantStagedMulMat reports whether a mul_mat node's policy admits the
+// staged path: the native tensor-core policy the inference builder sets,
+// on a weight type with a dequantize kernel. The path is exact (F32
+// staging, SGEMM), so the policy names the throughput intent, not a
+// precision trade.
+func quantStagedMulMat(node *tensor.Tensor) bool {
+	if node == nil || node.Op != tensor.OpMulMat || len(node.Inputs) < 2 {
+		return false
+	}
+	mulMat, ok := node.Attrs.(tensor.MulMatAttributes)
+	if !ok || mulMat.Compute != tensor.MulMatComputeNativeTensorCore {
+		return false
+	}
+	_, staged := quantStagedKernels[node.Inputs[0].Type]
+	return staged
+}
+
+// launchStagedQuantMatMul dequantizes the weight in row chunks into the
+// F32 staging and runs the exact SGEMM per chunk, the path the
+// half-precision weights take for their exact prefill.
+func launchStagedQuantMatMul(
+	state *device.State,
+	functions functionSet,
+	blas *blasState,
+	dequantKernel kernelFunctionID,
+	left, right, output driver.DevicePtr,
+	inner, leftRows, rightRows uint32,
+) error {
+	if blas == nil || blas.staging == 0 {
+		return errors.New("quantized mul_mat staging is unavailable")
+	}
+	blas.stagedNode = nil
+	return launchStagedNativeMatMul(
+		state, blas, inner, leftRows, rightRows, right, output,
+		func(start, _, count uint32) error {
+			return launch1DABI(
+				state, functions[dequantKernel], count,
+				&left, &blas.staging, &inner, &start, &count,
+			)
+		},
+	)
 }
 
 func tensorCoreMulMatAttributes(weightType dtype.Type, attributes tensor.Attributes) bool {

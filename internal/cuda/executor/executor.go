@@ -1259,6 +1259,23 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, stagingBytes)
 			}
 		}
+		if quantStagedMulMat(node) {
+			// Quantized weights past the column floor prefill through the
+			// F32 weight staging and the exact SGEMM; the reservation is the
+			// bounded weight chunk the half-precision exact path stages.
+			inner := node.Inputs[0].Shape.Dims[0]
+			leftRows := node.Inputs[0].Shape.Dims[1]
+			rightRows := node.Inputs[1].Shape.Dims[1]
+			if rightRows >= uint64(quantStagedColumnFloor) {
+				if inner > math.MaxUint64/leftRows/f32ScalarBytes {
+					return nil, errors.New("quantized mul_mat staging size overflows")
+				}
+				compiled.needBlas = true
+				compiled.matmulStagingBytes = max(
+					compiled.matmulStagingBytes, nativeWeightStagingBytes(inner, leftRows),
+				)
+			}
+		}
 		if node.Op == tensor.OpConv2D {
 			attributes, ok := node.Attrs.(tensor.Conv2DAttributes)
 			if ok && !attributes.Depthwise && node.Inputs[0].Type == dtype.F32 &&

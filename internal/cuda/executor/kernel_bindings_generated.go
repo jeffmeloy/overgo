@@ -78,6 +78,10 @@ const (
 	kernelGetRowsQ41F32
 	kernelGetRowsQ4KF32
 	kernelGetRowsQ50F32
+	kernelDequantRowsQ4KF32
+	kernelDequantRowsQ5KF32
+	kernelDequantRowsQ6KF32
+	kernelDequantRowsQ80F32
 	kernelGetRowsQ51F32
 	kernelGetRowsQ5KF32
 	kernelGetRowsQ6KF32
@@ -274,6 +278,10 @@ var kernelFunctionNames = [...]string{
 	"get_rows_q4_1_f32",
 	"get_rows_q4_K_f32",
 	"get_rows_q5_0_f32",
+	"dequant_rows_q4_K_f32",
+	"dequant_rows_q5_K_f32",
+	"dequant_rows_q6_K_f32",
+	"dequant_rows_q8_0_f32",
 	"get_rows_q5_1_f32",
 	"get_rows_q5_K_f32",
 	"get_rows_q6_K_f32",
@@ -448,6 +456,10 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	3,
 	8,
+	5,
+	5,
+	5,
+	5,
 	5,
 	5,
 	5,

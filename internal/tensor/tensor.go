@@ -133,8 +133,14 @@ const (
 
 // nativeTensorCoreApplies reports whether the native tensor-core policy
 // governs a mul_mat with these operand types.
+// nativeTensorCoreApplies: the mul_mat operand types the native
+// tensor-core policy names: half-precision weights, which cuBLAS
+// multiplies in their dtype, and quantized weights, which the executor
+// stages to F32 and multiplies exactly past its column floor (the span
+// kernels serve below it). F32 weights keep the exact arithmetic
+// regardless.
 func nativeTensorCoreApplies(left, right dtype.Type) bool {
-	return (left == dtype.F16 || left == dtype.BF16) && right == dtype.F32
+	return (left == dtype.F16 || left == dtype.BF16 || left.IsQuantized()) && right == dtype.F32
 }
 
 type MulMatAttributes struct {

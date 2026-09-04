@@ -118,17 +118,20 @@ func (r *Runner) continuationTokens(
 			continuations[index] = full
 			continue
 		}
-		if len(full) <= len(promptIDs) {
+		// A candidate may merge its first characters into the prompt's
+		// last token (":" + " (" -> ": (", or ":" + " A" -> ": A" with
+		// no token added at all), so its encoding need not keep the
+		// prompt's tokens as a prefix or be longer than the prompt. The
+		// scored context is the longest token prefix shared by the prompt
+		// and every candidate; the tokens past it, prompt tail included,
+		// are the continuation, the same conditional likelihood lm-eval
+		// and llama.cpp score across such a boundary. A candidate adds
+		// nothing only when its encoding ends inside that shared prefix.
+		prefix := commonTokenPrefix(promptIDs, full)
+		if len(full) <= prefix {
 			return nil, nil, fmt.Errorf("inference: candidate %d adds no token to the prompt", index)
 		}
-		// A candidate may merge its first characters into the prompt's
-		// last token (":" + " (" -> ": ("), so its encoding need not
-		// keep the prompt's tokens as a prefix. The scored context is
-		// the longest token prefix shared by the prompt and every
-		// candidate; the tokens past it, prompt tail included, are the
-		// continuation, the same conditional likelihood lm-eval and
-		// llama.cpp score across such a boundary.
-		shared = min(shared, commonTokenPrefix(promptIDs, full))
+		shared = min(shared, prefix)
 		continuations[index] = full
 	}
 	if !bosContext {

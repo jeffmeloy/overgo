@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "signal-validation-contract",
-          "title": "Define a typed decoded-signal profile and admission decision for schema validity, decode status, duration, channel geometry, finite samples, peak, RMS, silence, clipping, DC offset and policy violations",
-          "status": "open",
-          "verify": "go test ./internal/recipecontract ./internal/artifact ./internal/dataset -run 'Test.*Audio.*SignalProfile|Test.*Audio.*Admission'",
-          "rationale": "The AMI shard demonstrates that valid Parquet, WAV headers, durations and transcripts can still contain unusable signal. Admission and quarantine reasons are durable typed evidence consumed consistently by ingestion, evaluation, training and serving rather than ad hoc thresholds inside a model. Master b732fb37 changes benchmark evidence only, so the existing artifact, recipecontract, and dataset owners remain the implementation targets.",
-          "depends_on": [
-            "audio-contracts/sync-signal-validation-contract"
-          ],
-          "capabilities": [
-            "decoded-signal-profile",
-            "audio-admission-policy",
-            "dataset-quarantine"
-          ]
-        },
-        {
           "id": "sync-stream-session-contract",
           "title": "Merge master and reconcile the plan before: Define bounded audio stream sessions with explicit chunk state, overlap, backpressure, cancellation, finalization, discontinuity and restart semantics",
           "status": "open",

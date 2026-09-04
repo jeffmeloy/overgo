@@ -1,8 +1,230 @@
 {
-  "campaign": "Integrated validation, phase 2: repository cleanup, benchmark completion, modality verification, and close-out",
-  "doctrine": "This campaign continues the capability freeze enforced by structure: docs/plan.json is the sole live execution plan, every commit binds to a plan row through the gate, and the freeze whitelist in internal/plan/campaign_structure_test.go admits only the rows named here, so no new model family, workflow, policy, or optimization mechanism lands while any row is open; the only construction admitted is a fix a drill surfaced, declared under the owner's correct-as-you-go directive, the model regression check the owner ordered on 2026-09-04 (efficient validation against regressions, the model-regression-* rows), and the simplification rows the owner ordered the same day (the simplify-* rows): a simplification row lowers a reviewed ceiling or removes a surface while the regression check and the committed benchmark records hold or improve, so capability improvement by simplification is measured, and a row that lowers a measured capability is refused, not averaged. Owner rules of 2026-09-01/02 govern every row: no task runs for hours unattended -- every evaluate pass carries -budget, models run smallest first with the 27B last, and MATH is excluded from this campaign; a claim-recording run (evaluate -all, benchmark -publish, train) runs only on a clean tree after its code has landed, never inside the gate, whose candidate always reads as dirty; store-reading verifies run under OVERGO_DATA_ROOT; every green output ends with an audit line naming what did NOT run. Lanes report UNAVAILABLE when a device, model, browser, oracle, or toolkit is missing; unavailable is never passing evidence and never a failure of the drill's owner, and a model whose modality has no declared expectation is reported as unverified, not as verified. Rows whose exact invocation depends on execution-time facts (installed model identities, device presence, evidence identities) bind their final verify through plan -setverify before work starts, never through prose. Findings discovered during a row are parked with cmd/finding and scheduled as rows by the close-out item, not absorbed silently. Reports are generated, never hand-written: docs/BENCHMARK.md by cmd/benchmark-report and docs/MEDIA_REPORT.md by cmd/compatibility -update-media, each with a -check that is its row's verify.",
+  "campaign": "Professional operator GUI: a consumer-simple front page over the served model with model selection and live switching, multimodal import and modality-adaptive inference, and the analysis workbench retained behind it",
+  "doctrine": "This campaign lives in the professional_overgo_gui worktree (owner directive 2026-09-04): every row is built, verified and committed there through the plan-bound gate, never in the master worktree, and this lane plan.json never merges (lane merge protocol: first-parent-target projection, retired rows dead on the first-parent chain). The GUI stays a thin client: no build step, no external assets, same-origin content-security policy, embedded in cmd/server, and every panel projects server records and submits bounded actions; state that must survive a reload lives in the server's interaction and run records, never only in the browser. The front page is the product: one conversation surface a first-time user reads without instruction, with the served model, its evidence and its live switch in view, and attachments accepted or refused by the served recipe's declared capabilities, never by a client-side guess. The existing workbench (app.html, its 24 modules, the operations shell, the analysis inspectors) keeps every capability it has today and keeps passing its real-browser acceptance lane at every commit; a workbench capability the front page absorbs is retired from the old shell only after the front page's own acceptance step proves it. Verification is machine-checked: hermetic Go tests over the static routes and the JSON contracts, and go run ./cmd/webui-lane driving a real headless browser for every user-facing behavior; a missing browser, model or device reports UNAVAILABLE, which is never passing evidence. Rows whose exact verify depends on execution-time facts (installed models, browser presence) bind their final verify through plan -setverify before work starts, never through prose. Simplification precedes capability (owner rule 2026-09-04): the gui-simplify rows land before the front page is built on them, each names the capability it gains and the ratchet it lowers, and every ratchet is a Go test with a declared ceiling that only tightens, so capability improvement by simplification is measured on the client the way the clone and structure budgets measure it on the Go tree. Patterns adopted from the go-micro review of 2026-09-04 (the appendix of docs/gui/ANALYSIS.md: typed stream events with tool-call cards, checkpointed run resume, observable memory compaction, the empty state as the getting-started card, the first-run flow as a verified contract, run inspection with a status vocabulary, an API explorer derived from the route table, dev-time asset reload) enter as behaviors and contracts only; no code is copied or imported from that tree, and tool calling stays UTCP through the store's manuals. Design records are written (docs/gui/ANALYSIS.md, the row rationales); reports of evidence are generated. Findings outside a row are parked with cmd/finding and scheduled by the close-out row, not absorbed silently. The rows after gui-closeout (long-context-collapse, gemma-12b-accuracy, benchmark-completion, model-regression-gate, model-regression-baseline, modality-verification, failure-recovery, the simplify-* rows, campaign-closeout) are the master worktree's validation campaign retained at the lane base 9dce4fca because the plan authority protects every identity committed at the protected revision; they are never worked in this lane and drop out at merge.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "gui-simplify",
+      "title": "Capability by simplification (owner rule 2026-09-04): one shell, one composer, one capability source, one route table, each row naming the capability it gains and the ratchet it lowers, landed before the front page is built on them",
+      "status": "open",
+      "steps": [
+        {
+          "id": "one-shell",
+          "title": "Collapse the landing page and the workbench shell into one page with one module loader driven by the workspace manifest (a tab is a manifest entry plus a module file; app.html's 30 hand-listed script tags, probe.js and the separate landing card go away), so the front page, the conversation list, the operations strip and every workbench tab share one served-model context, one API-key handling and one hash router; the server gains a development flag that serves the webui assets from disk with caching off so an edit shows on reload without a rebuild; capability gained: the workbench opens beside the conversation without a page change, a model switch updates every open surface at once, and GUI iteration is edit-and-reload; ratchet: a Go test in internal/server counts hand-listed module scripts in the shell (zero) and shells served (one), and only tightens",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWebUIOneShell' -count=1",
+          "rationale": "Two shells and a hand-maintained script list are the reason chat, generation and analysis cannot share state today; removing them is the smallest change that makes a conversation-first page and the workbench one program.",
+          "depends_on": [
+            "gui-bootstrap/author-plan"
+          ]
+        },
+        {
+          "id": "one-composer",
+          "title": "One composer and one stream renderer shared by chat, agent sessions and the image, video and speech generation surfaces (chat.js, agent.js, image.js, video.js and speech.js each carry their own prompt box, attachment handling, request assembly, SSE consumption and error banner today); the renderer consumes one typed event vocabulary documented as the server's streaming contract (token, tool_start, tool_end, media, usage, done, error) and renders tool calls as collapsible cards with input, result, status and elapsed time, a thinking indicator while the model works, and errors as rows in the thread rather than banners; capability gained: attachments, modes, stop, token and rate facts, markdown rendering, copy and in-thread tool calls exist on every surface at once, and agent sessions accept multimodal input for free; ratchet: a Go test counts distinct fetch and SSE call sites and total webui JavaScript lines against declared ceilings that only tighten",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWebUIComposerBudget' -count=1",
+          "rationale": "Five copies of the same request loop are five places a capability must be added; one composer over one event vocabulary is where every later multimodal and agent row lands once.",
+          "depends_on": [
+            "gui-simplify/one-shell"
+          ]
+        },
+        {
+          "id": "one-capability-source",
+          "title": "One capability document per served model, served with the workspace manifest (tabs, composer modes, accepted media kinds with the media policy's byte and dimension limits, context length, generation defaults) and read by the shell, the composer and the model selector; the client-side capability checks scattered across the model pill, chat.js and the analysis modules retire; capability gained: an attachment or a mode is accepted or refused from the server's declaration before a request is sent, and a new server capability reaches the GUI by declaration alone; ratchet: a Go test asserts every capability decision in the webui reads the one document (zero other capability reads)",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestWorkspaceCapabilityDocument' -count=1",
+          "rationale": "Capability gating already exists for tabs; extending the same declaration to modes and media removes three client-side guesses and is what lets the front page adapt to any served model without code.",
+          "depends_on": [
+            "gui-simplify/one-shell"
+          ]
+        },
+        {
+          "id": "one-route-table",
+          "title": "One GUI route table with one bearer wrapper replaces the hand-written prefix chain in webui_static.go (five repeated authorization blocks), the API manifest's GUI section derives from that table, and an API explorer page renders from the table and the manifest with schema-driven forms (reusing schema_form.js) so every route can be tried from the workbench with its request and response shown; capability gained: every GUI route is enumerated, bearer-consistent, documented and exercisable, and the acceptance lane asserts the whole surface from the table; ratchet: api-manifest -check plus a Go test that the manifest's GUI routes equal the table",
+          "status": "open",
+          "verify": "go run ./cmd/api-manifest -check",
+          "rationale": "Routes added by hand drift from the manifest and from each other; a table the manifest and the explorer both read makes the surface a fact rather than a listing.",
+          "depends_on": [
+            "gui-simplify/one-shell"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-shell",
+      "title": "The front page: one conversation surface, the served model in view, the workbench one click away",
+      "status": "open",
+      "steps": [
+        {
+          "id": "front-page",
+          "title": "The front page (the one shell's default view): a single conversation column with the composer (Enter sends, Shift+Enter newline, attach, stop), streamed assistant turns rendered as markdown with copy, a header that shows the served model's name and its evidence line, a collapsible conversation list, and one Workbench entry that opens the retained workbench tabs beside the conversation; the empty state is the getting-started card: the served model with its evidence and declared capabilities, three starter actions (ask, attach, switch model), and, when nothing is served, a setup card that opens the catalog or the hub download rather than a settings dialog; the page probes /health and explains how to start the server when it is absent",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestFrontPage' -count=1",
+          "rationale": "Today the landing card only probes health and links to a 24-tab shell; a first-time user must know which tab is chat. The front page makes conversation the default, and the empty state carries the whole first-run explanation.",
+          "depends_on": [
+            "gui-bootstrap/author-plan",
+            "gui-simplify/one-shell",
+            "gui-simplify/one-composer",
+            "gui-simplify/one-capability-source",
+            "gui-simplify/one-route-table"
+          ]
+        },
+        {
+          "id": "model-switch",
+          "title": "Model selection and live switching on the front page: the selector lists the store's servable catalog (/catalog/models) with each model's evidence line (benchmark prompt and decode tok/s, latest evaluation scores) and its declared task capabilities, switches the served model live through the swap proxy (/health?swap=) with load progress and the new model's context length and modalities shown on arrival, explains itself when the proxy is absent, and remembers the last chosen model per browser; a stale activation is listed as unservable with the loader's reason, never as a choice",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestFrontPageModelSwitch' -count=1",
+          "rationale": "The pill and the swap proxy already do the work; the front page must make choosing a model as visible as choosing a conversation, with evidence beside each entry.",
+          "depends_on": [
+            "gui-shell/front-page"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-conversations",
+      "title": "Durable conversations owned by the server",
+      "status": "open",
+      "steps": [
+        {
+          "id": "durable-sessions",
+          "title": "The front page lists, resumes, renames and deletes conversations through the server's interaction records (the same records the chat workspace and agent sessions replay from), so a conversation survives a reload, a server restart and a model switch, and every turn shows the model that produced it; an in-flight turn survives too: after a reload or a dropped connection the page reattaches to the turn's run record and receives the remainder of the stream, with completed parts replayed from the record and nothing re-executed; the conversation's generation settings and system prompt live in the record, not the browser; a context meter shows tokens used against the model's declared context, and when the server compacts or shifts context the event is visible in the thread with the compacted summary inspectable; the browser holds no conversation state a re-fetch cannot rebuild",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestFrontPageConversations' -count=1",
+          "rationale": "The README already claims conversations continue across restarts because the interaction record owns the state; the front page must expose that record, resume through it, and make what the server does to the context visible rather than silent.",
+          "depends_on": [
+            "gui-shell/front-page"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-multimodal",
+      "title": "Multimodal import and modality-adaptive inference",
+      "status": "open",
+      "steps": [
+        {
+          "id": "import",
+          "title": "Import by attach, drag-and-drop and paste: images (png, jpeg, gif, webp), audio (wav, and any format the server's media policy decodes), video (mp4, gif), and documents (pdf, plain text, markdown, csv, json) with previews and byte and dimension limits read from the server's media policy before upload; attachments travel as the served protocol's own content parts (image_url, input_audio, input_video, and a document part the server extracts to text) with no side channel; the composer accepts or refuses each attachment from the served recipe's declared capabilities and shows the reason",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestFrontPageImport' -count=1",
+          "rationale": "chat.js already sends attachments as protocol parts; what is missing is discoverability (drop and paste), documents, previews, and refusal by declared capability instead of by server error.",
+          "depends_on": [
+            "gui-shell/model-switch"
+          ]
+        },
+        {
+          "id": "dynamic-inference",
+          "title": "The front page derives its abilities from the served recipe: text chat, vision questions, audio input, image generation, video generation and editing, speech synthesis, embeddings and reranking appear as composer modes only when the active recipe declares them (the capability document), generated images, audio and video render inline in the conversation as media stream events and are saved as artifacts with provenance, and a model switch re-derives the composer without a reload",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestFrontPageModalities' -count=1",
+          "rationale": "The generation workspaces exist as separate tabs (image.js, video.js, speech.js); a user should reach them from the conversation as modes of one composer, gated by evidence, not by tab discovery.",
+          "depends_on": [
+            "gui-multimodal/import"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-workbench",
+      "title": "The analysis, agent and operations capabilities retained, and reached from the conversation",
+      "status": "open",
+      "steps": [
+        {
+          "id": "inspect-turn",
+          "title": "Inspect this turn: from any assistant turn the front page opens the logits, hidden-state and attention inspectors for that exact prompt and completion (the same /analyze endpoints the workbench uses), the model, vocabulary and tensor inspectors for the served model, and the turn's run record (status from one declared vocabulary: running, done, cancelled, timeout, refused, error; timings; the receipt and trace identities) in a side panel that does not leave the conversation; the existing analysis tabs stay intact",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestFrontPageInspect' -count=1",
+          "rationale": "The investigation capability is the workbench's distinguishing feature; today it is disconnected from the conversation that produced the output being investigated, and the run behind a turn is not visible at all.",
+          "depends_on": [
+            "gui-conversations/durable-sessions"
+          ]
+        },
+        {
+          "id": "agent-in-thread",
+          "title": "Agent mode inside the conversation: the user picks an agent definition (the immutable binding of prompt, model configuration, UTCP tools and policies the store holds) and the same thread runs the session through the existing /agents surface; tool calls render inline as the composer's collapsible cards, an action outside the session's standing authority renders as an inline approval card bound to the inbox record with the exact tool identity and arguments (nothing executes on a stale approval), the session's guardrails are visible (step budget and loop limit with what remains), a plan the agent records renders as a live checklist, and a delegated sub-session renders as a nested card with its own receipt; the workbench agent tab stays intact",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestFrontPageAgent' -count=1",
+          "rationale": "Agent sessions, the approvals inbox and the authority maps exist; the front page must let a user run an agent from the same thread they chat in and see every tool call and approval where it happens, with tool calling staying UTCP.",
+          "depends_on": [
+            "gui-simplify/one-composer",
+            "gui-conversations/durable-sessions"
+          ]
+        },
+        {
+          "id": "operations-strip",
+          "title": "Long operations on the front page: model load and switch, generation jobs, evaluations and training sessions show in the operations strip with progress, cancel, the live log tail of the running operation and the durable receipt, reusing operations_shell.js and /operations/evidence; the header carries status dots for the server, the swap proxy and the device (with peak memory) and the approvals inbox count, which opens the inbox",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestFrontPageOperations' -count=1",
+          "rationale": "The operations shell already exists for the workbench; the front page must not hide a running swap or evaluation, or the health of what serves it, from the user who started it.",
+          "depends_on": [
+            "gui-shell/model-switch"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-quality",
+      "title": "Professional finish: accessibility, responsiveness, and a real-browser acceptance lane for the front page",
+      "status": "open",
+      "steps": [
+        {
+          "id": "accessibility-responsive",
+          "title": "Keyboard-only operation of the whole front page (composer, selector, conversation list, inspector), visible focus, reduced-motion respect, light and dark themes from the existing token set, and layouts for desktop, tablet and phone widths driven through the browser lane's viewport emulation",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane",
+          "rationale": "A consumer-simple page that cannot be used from the keyboard or on a narrow window is not simple; the existing lane already emulates viewports.",
+          "depends_on": [
+            "gui-workbench/inspect-turn",
+            "gui-workbench/operations-strip"
+          ]
+        },
+        {
+          "id": "acceptance-lane",
+          "title": "Extend the real-browser acceptance lane to drive the front page end to end against a served model, and make the first-run flow a verified contract: starting from no served model, choose one from the catalog, send the first message and receive a streamed reply, attach an image and receive a grounded reply from a vision-capable model, switch models and see the composer re-derive, open the inspector for a turn, run an agent turn with a tool call, cancel a running operation; the lane is selected by the code manifest for every commit that touches the webui, the existing workbench acceptance steps keep running, and a missing browser or model reports UNAVAILABLE",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane",
+          "rationale": "The campaign's claims are user-facing behaviors; only a real browser proves them, and the first five minutes are the behavior most worth proving on every change.",
+          "depends_on": [
+            "gui-multimodal/dynamic-inference",
+            "gui-workbench/agent-in-thread",
+            "gui-quality/accessibility-responsive"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-docs",
+      "title": "Documentation, launcher and manifest follow the front page",
+      "status": "open",
+      "steps": [
+        {
+          "id": "readme-launcher-manifest",
+          "title": "The README's workbench section describes the front page and the retained workbench as they are, overgo_gui.bat opens the front page, and the API manifest records every route the front page uses (go run ./cmd/api-manifest -update, then -check)",
+          "status": "open",
+          "verify": "go run ./cmd/api-manifest -check",
+          "depends_on": [
+            "gui-quality/acceptance-lane"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-closeout",
+      "title": "Close the campaign and prepare the lane for merge",
+      "status": "open",
+      "steps": [
+        {
+          "id": "closeout",
+          "title": "Dispose every finding parked during the campaign, confirm the workbench acceptance lane and the front-page acceptance lane both pass on the lane head, generate the simplification report (shells, hand-listed scripts, modules, webui JavaScript lines, fetch and SSE call sites, authorization blocks and GUI routes at the fork and at the head, beside the acceptance-lane behaviors proven), and record the merge readiness for the master worktree under the lane merge protocol (the lane plan.json does not merge; the merge commit binds to the target plan)",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "depends_on": [
+            "gui-docs/readme-launcher-manifest"
+          ]
+        }
+      ]
+    },
     {
       "id": "long-context-collapse",
       "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",

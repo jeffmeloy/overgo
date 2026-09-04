@@ -80,6 +80,10 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	// integrated-RSI snapshot binds to the RSI control-plane campaign, and
 	// the validation freeze campaign that replaced it after the RSI rows
 	// completed binds to its own step whitelist below.
+	if strings.Contains(document.Campaign, "Professional operator GUI") {
+		assertProfessionalGUICampaignSnapshot(t, document)
+		return
+	}
 	if strings.Contains(document.Campaign, "Integrated validation") {
 		assertValidationCampaignSnapshot(t, document)
 		return
@@ -423,6 +427,84 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 // so absence is fine and unknown ids are the violation), every retained step
 // carries a non-empty machine-checked verify, and the doctrine keeps the
 // freeze and the audit rules stated.
+// assertProfessionalGUICampaignSnapshot pins the professional GUI lane's
+// structure ratchet (owner directive 2026-09-04): the lane worktree
+// professional_overgo_gui carries this campaign, every row is one of the
+// steps named here with a machine-checked verify, and the doctrine keeps
+// the thin-client, retained-workbench, and UNAVAILABLE rules stated.
+func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
+	t.Helper()
+	wantIDs := []string{
+		"gui-bootstrap/author-plan",
+		// Simplification precedes capability (owner rule 2026-09-04): the
+		// front page is built on one shell, one composer, one capability
+		// source and one route table, each row a measured ratchet.
+		"gui-simplify/one-shell",
+		"gui-simplify/one-composer",
+		"gui-simplify/one-capability-source",
+		"gui-simplify/one-route-table",
+		"gui-shell/front-page",
+		"gui-shell/model-switch",
+		"gui-conversations/durable-sessions",
+		"gui-multimodal/import",
+		"gui-multimodal/dynamic-inference",
+		"gui-workbench/inspect-turn",
+		"gui-workbench/agent-in-thread",
+		"gui-workbench/operations-strip",
+		"gui-quality/accessibility-responsive",
+		"gui-quality/acceptance-lane",
+		"gui-docs/readme-launcher-manifest",
+		"gui-closeout/closeout",
+		// Rows retained from the master plan at the lane base (9dce4fca):
+		// the plan authority protects every identity committed at the
+		// protected revision, so the lane keeps them after its own rows and
+		// never works them here; they belong to the master worktree's
+		// validation campaign and drop out of this lane at merge.
+		"long-context-collapse/do",
+		"gemma-12b-accuracy/do",
+		"benchmark-completion/mmlu-pro-pass",
+		"benchmark-completion/published-comparison",
+		"model-regression-gate/do",
+		"model-regression-baseline/do",
+		"modality-verification/capability-census",
+		"modality-verification/declared-smoke-expectations",
+		"modality-verification/text-and-vision",
+		"modality-verification/image-and-video",
+		"modality-verification/speech-ocr-tabular-forecast",
+		"modality-verification/media-report",
+		"failure-recovery/rollout-plan-author",
+		"failure-recovery/control-plane-drills",
+		"failure-recovery/gate-recovery-drill",
+		"simplify-prefill-paths/do",
+		"simplify-command-surface/do",
+		"simplify-execution-core/do",
+		"simplify-checkpoint-locations/do",
+		"simplify-capability-report/do",
+		"campaign-closeout/closeout",
+	}
+	want := make(map[string]bool, len(wantIDs))
+	for _, id := range wantIDs {
+		want[id] = true
+	}
+	for _, item := range document.Items {
+		for _, step := range item.Steps {
+			id := item.ID + "/" + step.ID
+			if !want[id] {
+				t.Errorf("professional GUI campaign has undeclared step %s; the lane admits only the rows its plan names", id)
+				continue
+			}
+			if strings.TrimSpace(step.Verify) == "" {
+				t.Errorf("professional GUI step %s has no machine-checked verify", id)
+			}
+		}
+	}
+	for _, required := range []string{"thin client", "UNAVAILABLE", "plan -setverify", "professional_overgo_gui", "keeps every capability it has today"} {
+		if !strings.Contains(document.Doctrine, required) {
+			t.Errorf("professional GUI campaign doctrine omits %q", required)
+		}
+	}
+}
+
 func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
 	wantIDs := []string{

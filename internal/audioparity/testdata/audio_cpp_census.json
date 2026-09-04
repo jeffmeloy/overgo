@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "source": {
+    "repository": "https://github.com/0xShug0/audio.cpp",
+    "commit": "3497b7cc44753e2c141d8fe60ac42cec433e3281",
+    "license": {
+      "spdx": "Apache-2.0",
+      "path": "LICENSE",
+      "git_object": "c48e36b06f9f6916969860a58ebbb78bd7e4c63f",
+      "copyright": "Copyright 2026 ShugoAI LLC"
+    },
+    "trees": {
+      "model_specs": "96df6332e7f8139acc9379ea3e73d6f354ca9742",
+      "cmake": "6f6bfee096eb9f458f3d578743137205cef5a161",
+      "framework": "05aa8f637b372e3502ac09c22c9fe354518eaf08",
+      "tests": "3ef0383d49f46e2bb706c4431baccde2598e7b96",
+      "streaming_app": "e2c200dd521b98686711a731234142da7e920e89"
+    }
+  },
+  "model_specs": {
+    "path": "model_specs",
+    "package_count": 189,
+    "categories": {
+      "asr": ["audio8_asr", "citrinet_asr", "fun_asr_nano", "granite5asr", "higgs_audio_stt", "hviske_asr", "kroko_asr", "nemotron_asr", "parakeet_tdt", "qwen3_asr", "sense_asr", "vibevoice_asr", "voxtral_realtime"],
+      "audio_generation": ["ace_step", "heartmula", "midashenglm_gen", "minimax_h3", "minimax_music3", "stable_audio"],
+      "audio_tools": ["audiosr", "bs_roformer", "controlfoley", "htdemucs", "mel_band_roformer", "miocodec", "muscriptor"],
+      "community": ["moss_voicegen"],
+      "speech_analysis": ["mms_forced_aligner", "qwen3_forced_aligner", "sortformer_diar"],
+      "tts": ["audio8_tts", "chatterbox", "confucius4_tts", "dots_tts", "dramabox", "echo_tts", "f5_tts", "firered_audio", "fireredtts3", "fish_audio", "glm_tts", "higgs_audio_tts", "index_tts2", "inflect_v2", "irodori_tts", "magpie_tts", "miotts", "moss_tts_local", "moss_tts_nano", "neutts", "omnivoice", "outetts", "personaplex", "pocket_tts", "qwen3_tts", "soprano_tts", "supertonic", "vibevoice", "vietneu_tts", "voxcpm1", "voxcpm2"],
+      "voice_conversion": ["meanvc2", "rvc", "seed_vc", "vevo2"]
+    },
+    "statuses": {
+      "community": ["audio8_asr", "audio8_tts", "f5_tts", "glm_tts", "inflect_v2", "kroko_asr", "mms_forced_aligner", "moss_voicegen", "outetts", "parakeet_tdt", "sense_asr", "soprano_tts", "vietneu_tts"],
+      "experimental": ["audiosr", "confucius4_tts", "controlfoley", "dramabox", "echo_tts", "firered_audio", "fireredtts3", "midashenglm_gen", "minimax_h3", "minimax_music3", "rvc"],
+      "supported": ["ace_step", "bs_roformer", "chatterbox", "citrinet_asr", "dots_tts", "fish_audio", "granite5asr", "heartmula", "higgs_audio_stt", "higgs_audio_tts", "htdemucs", "hviske_asr", "index_tts2", "irodori_tts", "magpie_tts", "meanvc2", "mel_band_roformer", "miocodec", "miotts", "moss_tts_local", "moss_tts_nano", "muscriptor", "nemotron_asr", "neutts", "omnivoice", "personaplex", "pocket_tts", "qwen3_asr", "qwen3_forced_aligner", "qwen3_tts", "seed_vc", "sortformer_diar", "stable_audio", "supertonic", "vevo2", "vibevoice", "vibevoice_asr", "voxcpm1", "voxcpm2", "voxtral_realtime"],
+      "wip": ["fun_asr_nano"]
+    },
+    "schema_v1": ["audio8_tts", "audiosr", "bs_roformer", "confucius4_tts", "controlfoley", "dots_tts", "dramabox", "echo_tts", "f5_tts", "firered_audio", "fireredtts3", "fun_asr_nano", "glm_tts", "heartmula", "higgs_audio_stt", "htdemucs", "hviske_asr", "inflect_v2", "irodori_tts", "kroko_asr", "magpie_tts", "meanvc2", "mel_band_roformer", "midashenglm_gen", "minimax_h3", "minimax_music3", "mms_forced_aligner", "muscriptor", "neutts", "outetts", "parakeet_tdt", "personaplex", "rvc", "seed_vc", "sense_asr", "soprano_tts", "sortformer_diar", "voxcpm1"],
+    "streaming": ["audio8_tts", "confucius4_tts", "dots_tts", "granite5asr", "higgs_audio_stt", "kroko_asr", "meanvc2", "muscriptor", "nemotron_asr", "neutts", "omnivoice", "parakeet_tdt", "personaplex", "qwen3_asr", "sense_asr", "soprano_tts", "supertonic", "voxcpm1", "voxcpm2", "voxtral_realtime"]
+  },
+  "loaders": {
+    "registry": "CMakeLists.txt",
+    "factories_match_model_specs": true,
+    "families": ["ace_step", "audio8_asr", "audio8_tts", "audiosr", "bs_roformer", "chatterbox", "citrinet_asr", "confucius4_tts", "controlfoley", "dots_tts", "dramabox", "echo_tts", "f5_tts", "firered_audio", "fireredtts3", "fish_audio", "fun_asr_nano", "glm_tts", "granite5asr", "heartmula", "higgs_audio_stt", "higgs_audio_tts", "htdemucs", "hviske_asr", "index_tts2", "inflect_v2", "irodori_tts", "kroko_asr", "magpie_tts", "meanvc2", "mel_band_roformer", "midashenglm_gen", "minimax_h3", "minimax_music3", "miocodec", "miotts", "mms_forced_aligner", "moss_tts_local", "moss_tts_nano", "moss_voicegen", "muscriptor", "nemotron_asr", "neutts", "omnivoice", "outetts", "parakeet_tdt", "personaplex", "pocket_tts", "qwen3_asr", "qwen3_forced_aligner", "qwen3_tts", "rvc", "seed_vc", "sense_asr", "soprano_tts", "sortformer_diar", "stable_audio", "supertonic", "vevo2", "vibevoice", "vibevoice_asr", "vietneu_tts", "voxcpm1", "voxcpm2", "voxtral_realtime"],
+    "additional_builtin_families": ["marblenet_vad", "silero_vad"],
+    "runtime_registry": "src/framework/runtime/registry.cpp"
+  },
+  "surfaces": [
+    {
+      "area": "artifact loading",
+      "paths": ["src/framework/assets/tensor_source.cpp", "src/framework/assets/torch_bin.cpp", "src/framework/io/safetensors.cpp", "src/framework/model_spec/package.cpp"],
+      "capabilities": ["GGUF tensor sources", "Safetensors", "PyTorch zip and bin checkpoints", "native tensor dtypes", "BNB NF4 metadata", "resource bundles", "spec-backed package discovery"],
+      "transfer": "Reuse Overgo GGUF and Safetensors owners; add audio-specific qualification instead of importing the loader framework."
+    },
+    {
+      "area": "audio preprocessing",
+      "paths": ["src/framework/audio/wav_reader.cpp", "src/framework/audio/resampling.cpp", "src/framework/audio/fft.cpp", "src/framework/audio/dsp.cpp", "src/framework/audio/kaldi_fbank.cpp", "src/framework/audio/chunking.cpp", "src/framework/audio/activity.cpp"],
+      "capabilities": ["WAV decode", "sample-rate conversion", "framing and windows", "FFT and inverse FFT", "STFT and inverse STFT", "Kaldi filterbanks", "log-mel features", "normalization", "chunk assembly", "activity analysis"],
+      "transfer": "Port behavior through a canonical decoded-sample contract and preserve intermediate traces."
+    },
+    {
+      "area": "execution graphs",
+      "paths": ["src/framework/core/backend.cpp", "src/framework/runtime/graph_executor.cpp", "src/framework/runtime/graph_optimizer.cpp", "src/framework/runtime/session.cpp", "src/framework/runtime/workspace.cpp", "app/workflow/pipeline.cpp", "app/workflow/execution.cpp"],
+      "capabilities": ["host and accelerator backends", "graph construction and execution", "graph optimization", "workspace ownership", "model sessions", "typed workflow pipelines"],
+      "transfer": "Map operators and state to Overgo tensor, recipe, workflow, and kernel-manifest owners; do not create a second runtime."
+    },
+    {
+      "area": "streaming",
+      "paths": ["include/engine/framework/runtime/session.h", "app/streaming/streaming.cpp", "app/streaming/pcm_source.cpp", "src/framework/modules/streaming_conv_modules.cpp", "src/framework/modules/attention/streaming_frame_attention_cache.cpp"],
+      "capabilities": ["audio chunk ingestion", "partial and final events", "model-declared chunk policy", "stream finalization", "streaming convolution state", "attention cache state", "offline and streaming sessions"],
+      "transfer": "Retain chunk-boundary invariance, cancellation, backpressure, discontinuity, finalization, and bounded state as explicit Overgo contracts."
+    },
+    {
+      "area": "testing",
+      "paths": ["tests/audio", "tests/granite5asr", "tests/nemotron_asr", "tests/parakeet_tdt", "tests/silero_vad", "tests/marblenet_vad", "tests/perf", "tools/streaming/measure_asr_streaming_client.py"],
+      "capabilities": ["audio primitive unit tests", "model parity tests", "streaming ASR measurement", "session and warm-path benchmarks", "VAD coverage", "fixture-backed regression tests"],
+      "transfer": "Capture model-native outputs and intermediate values as pinned goldens, then remove temporary comparison adapters."
+    }
+  ],
+  "training": {
+    "native_training_loop": false,
+    "reusable_evidence": ["forward graph topology", "tensor names and shapes", "preprocessing parameters", "streaming state", "tokenizers and decoders", "oracle outputs and intermediate traces"],
+    "missing_for_overgo": ["backward graphs", "gradient parity", "trainable-parameter selection", "optimizer state", "data-stream checkpointing", "exact training resume"],
+    "decision": "Use audio.cpp only as a forward-behavior oracle. Training remains owned by Overgo's universal trainer."
+  },
+  "known_incomplete": [
+    {"path": "src/models/fun_asr_nano/loader.cpp", "limitation": "The model specification is explicitly classified as wip.", "disposition": "Exclude from the first transferable artifact election."},
+    {"path": "src/community_models/audio8_tts/ar.cpp", "limitation": "The Falcon-H1 path retains a stateless drawback stub and omits the Mamba2 SSM core.", "disposition": "Do not treat loader registration as complete behavioral support."},
+    {"path": "src/models/dots_tts/patch_encoder.cpp", "limitation": "QKV-bias checkpoints are not implemented.", "disposition": "Qualify checkpoint structure before admission."},
+    {"path": "src/models/dots_tts/llm.cpp", "limitation": "Q/K-normalized checkpoints are not implemented.", "disposition": "Reject the unsupported checkpoint variant explicitly."},
+    {"path": "src/models/ace_step/vae_encoder.cpp", "limitation": "Controlled VAE encode noise is not implemented for chunked source audio.", "disposition": "Keep the chunked edit route outside initial capability claims."},
+    {"path": "src/models/ace_step/loader.cpp", "limitation": "The flow-edit diffusion overlay is parsed but not usable.", "disposition": "Do not advertise the parsed option as an executable capability."},
+    {"path": "src/models/vevo2/components.cpp", "limitation": "Reference-path target-prosody prediction is not implemented.", "disposition": "Require an independent executable oracle before transfer."},
+    {"path": "src/models/seed_vc/session.cpp", "limitation": "Some selected graph routes terminate as not implemented.", "disposition": "Elect only a route proven by fixture parity."},
+    {"path": "src/models/omnivoice/audio_tokenizer.cpp", "limitation": "Acoustic frame alignment and the HuBERT stable-layer-norm variant are unsupported.", "disposition": "Bind compatibility to exact configuration and tensor schema."},
+    {"path": "src/framework/modules/attention/scaled_dot_product_attention.cpp", "limitation": "Some scaled-dot-product attention lowerings are unsupported.", "disposition": "Map only measured required operator variants to existing Overgo primitives."}
+  ],
+  "elections": [
+    {"capability": "offline ASR", "family": "granite5asr", "artifact": "Granite Speech 5.0 470M TurboCTC native Safetensors", "reason": "Pinned LibriSpeech forward inference is already validated and the architecture provides a bounded CPU-first path."},
+    {"capability": "streaming ASR", "family": "nemotron_asr", "artifact": "Nemotron 3.5 ASR native Safetensors", "reason": "It is a materially different streaming architecture with validated native execution; its incompatible Q8 GGUF remains rejected."},
+    {"capability": "speech activity segmentation", "family": "external_firered_vad", "artifact": "FireRedVAD offline and streaming checkpoints", "reason": "Both checkpoints agree closely on pinned decoded fixtures and protect downstream evaluation and training admission."}
+  ]
+}

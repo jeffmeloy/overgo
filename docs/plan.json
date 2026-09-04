@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "capability-census",
-          "title": "Create a deterministic audio.cpp census covering source commit, licenses, model specifications, loaders, artifact formats, preprocessing, execution graphs, streaming state, training relevance, tests, and known incomplete implementations",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run TestPinnedOracleCensus",
-          "rationale": "The census prevents model-list breadth from substituting for runnable behavior and makes provenance, unsupported paths, and reusable mechanisms machine-checkable. It imports neutral evidence only and introduces no cross-repository runtime dependency.",
-          "depends_on": [
-            "oracle-intake/sync-capability-census"
-          ],
-          "capabilities": [
-            "audio-oracle-provenance",
-            "license-accounting",
-            "capability-census"
-          ]
-        },
-        {
           "id": "sync-artifact-election",
           "title": "Merge master and reconcile the plan before: Register Granite Speech 5.0 470M TurboCTC as the first ASR oracle with complete bytes, tokenizer, configuration, reference execution, license and pinned LibriSpeech parity evidence",
           "status": "open",

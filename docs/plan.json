@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "task-artifact-contracts",
-          "title": "Add neutral contracts for transcription, timestamped alignment, speech turns, activity segments, converted audio and generated audio while deriving sample rate, channels, encoding, frame geometry, context and state from artifacts",
-          "status": "open",
-          "verify": "go test ./internal/recipe ./internal/recipecontract ./internal/modelrecipe ./internal/artifact",
-          "rationale": "The existing fixed text-to-speech pipeline cannot represent audio-to-text or streaming state. Shared contracts describe behavior and representations without embedding an elected model family or an inference-only shortcut.",
-          "depends_on": [
-            "audio-contracts/sync-task-artifact-contracts"
-          ],
-          "capabilities": [
-            "typed-audio-tasks",
-            "artifact-derived-geometry",
-            "gradient-ready-contracts"
-          ]
-        },
-        {
           "id": "sync-signal-validation-contract",
           "title": "Merge master and reconcile the plan before: Define a typed decoded-signal profile and admission decision for schema validity, decode status, duration, channel geometry, finite samples, peak, RMS, silence, clipping, DC offset and policy violations",
           "status": "open",

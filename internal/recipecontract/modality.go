@@ -69,13 +69,15 @@ func CompileModalitySignature(definition recipe.Definition) (ModalitySignature, 
 
 func semanticModality(task recipe.Task, data recipe.DataKind) (Modality, error) {
 	switch data {
-	case recipe.DataText, recipe.DataTokens, recipe.DataEmbeddings, recipe.DataLogits, recipe.DataPromptConditioning:
+	case recipe.DataText, recipe.DataTokens, recipe.DataEmbeddings, recipe.DataLogits,
+		recipe.DataPromptConditioning, recipe.DataTranscription:
 		return ModalityText, nil
 	case recipe.DataClassConditioning:
 		return ModalityTable, nil
 	case recipe.DataImage:
 		return ModalityImage, nil
-	case recipe.DataAudio:
+	case recipe.DataAudio, recipe.DataTimestampedAlignment, recipe.DataSpeechTurns,
+		recipe.DataActivitySegments, recipe.DataConvertedAudio, recipe.DataGeneratedAudio:
 		return ModalityAudio, nil
 	case recipe.DataVideo:
 		return ModalityVideo, nil

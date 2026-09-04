@@ -40,6 +40,9 @@ func NonNegativeFinite32(value float32) bool { return value >= 0 && Finite32(val
 // NonNegativeFinite64 reports whether value is finite and not negative.
 func NonNegativeFinite64(value float64) bool { return value >= 0 && Finite64(value) }
 
+// UnitInterval64 reports whether value is finite and lies in [0, 1].
+func UnitInterval64(value float64) bool { return value >= 0 && value <= 1 && Finite64(value) }
+
 // AtLeastFinite64 reports whether both operands are finite and value meets the minimum.
 func AtLeastFinite64(value, minimum float64) bool {
 	return Finite64(value) && Finite64(minimum) && value >= minimum

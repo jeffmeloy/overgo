@@ -725,6 +725,7 @@ func mustCatalog() *recipe.Catalog {
 	} {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}
+	modules = append(modules, audioTaskModules()...)
 	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, diffusionImageCapability, routedImageCapability} {
 		modules = append(modules, capability.modules(recipe.TaskImageGen)...)
 	}

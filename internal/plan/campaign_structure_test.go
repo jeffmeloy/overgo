@@ -487,6 +487,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"evaluator-batching/do",
 		"bpe-merge-heap/do",
 		"buffer-pool-classes/do",
+		"ifeval-chat-shaping/do",
 		"generation-soak/do",
 		"docs-pruning/do",
 		"benchmark-completion/bbh-pass",

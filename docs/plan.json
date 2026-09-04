@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "oracle-intake",
-      "title": "Pin the audio.cpp oracle and elect the first transferable artifact",
-      "status": "open",
-      "steps": [
-        {
-          "id": "artifact-compatibility",
-          "title": "Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
-          "status": "open",
-          "verify": "go test ./internal/artifact ./internal/modelrecipe ./internal/audioparity -run 'Test.*Audio.*Qualification|Test.*Audio.*Compatibility|Test.*Incompatible.*GGUF'",
-          "rationale": "A valid GGUF or Safetensors container is not sufficient evidence that a loader can execute it. The qualification report records supported native Granite and Nemotron Safetensors layouts and rejects the downloaded NeMo-Speech Q8 GGUF because its tensor naming and graph layout do not satisfy the audio.cpp-derived recipe; extension-based fallback and silent tensor remapping are prohibited.",
-          "depends_on": [
-            "oracle-intake/sync-artifact-compatibility"
-          ],
-          "capabilities": [
-            "audio-artifact-qualification",
-            "tensor-schema-validation",
-            "explicit-incompatibility"
-          ]
-        }
-      ]
-    },
-    {
       "id": "audio-contracts",
       "title": "Generalize Overgo's typed audio and recipe contracts",
       "status": "open",

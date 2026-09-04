@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/audioparity"
 	"overgo/internal/clioptions"
+	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 )
 
@@ -47,6 +49,17 @@ func run() error {
 	if err := election.VerifyInstalled(ctx, *modelRoot, *datasetRoot); err != nil {
 		return err
 	}
+	inventory, err := modelartifact.FromHFPath(*modelRoot)
+	if err != nil {
+		return err
+	}
+	qualification, err := audioparity.QualifyAudioArtifact(ctx, election, inventory, *modelRoot)
+	if err != nil {
+		return err
+	}
+	if !qualification.Loadable {
+		return fmt.Errorf("audio-oracle: artifact is not loadable: %s", strings.Join(qualification.Refusals, "; "))
+	}
 	store, err := overgodb.Open(*repository)
 	if err != nil {
 		return err
@@ -56,10 +69,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if found && current == election.ID {
-		return writeSummary(election, true)
+	qualified, qualificationFound, err := store.ResolveAlias(ctx, qualification.Alias())
+	if err != nil {
+		return err
 	}
-	batch, err := election.Batch("audio/oracle/election/" + election.ID.DigestHex())
+	if found && current == election.ID && qualificationFound && qualified == qualification.ID {
+		return writeSummary(election, qualification, true)
+	}
+	batch, err := election.Batch("audio/oracle/qualification/" + qualification.ID.DigestHex())
 	if err != nil {
 		return err
 	}
@@ -71,10 +88,17 @@ func run() error {
 		return err
 	}
 	batch.Locations = locations
+	var previousQualification *artifact.ID
+	if qualificationFound {
+		previousQualification = &qualified
+	}
+	if err := qualification.AugmentBatch(&batch, inventory, previousQualification); err != nil {
+		return err
+	}
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		return err
 	}
-	return writeSummary(election, false)
+	return writeSummary(election, qualification, false)
 }
 
 func electionLocations(election audioparity.Election, modelRoot, datasetRoot string) ([]artifact.LocationEvent, error) {
@@ -101,11 +125,11 @@ func electionLocations(election audioparity.Election, modelRoot, datasetRoot str
 	return locations, nil
 }
 
-func writeSummary(election audioparity.Election, existing bool) error {
+func writeSummary(election audioparity.Election, qualification audioparity.AudioArtifactQualification, existing bool) error {
 	summary := election.Summary()
 	fmt.Printf(
-		"audio oracle election=%s model=%s files=%d fixtures=%d standard=%d equivalent=%d cpu_wall_ns=%d existing=%t; audit: every tracked model byte, source commit, corpus shard, transcript, runtime, license, and reopen condition is bound; embedded fixture audio identities were produced by the recorded reference execution\n",
-		election.ID, election.Model.ID, len(election.Files), summary.Fixtures,
+		"audio oracle election=%s qualification=%s model=%s files=%d fixtures=%d standard=%d equivalent=%d cpu_wall_ns=%d existing=%t; audit: every tracked model byte, tensor name and shape, architecture recipe, tokenizer, preprocessing asset, source commit, corpus shard, transcript, runtime, license, and reopen condition is bound\n",
+		election.ID, qualification.ID, election.Model.ID, len(election.Files), summary.Fixtures,
 		summary.StandardMatches, summary.EquivalentMatches, summary.WallNS, existing,
 	)
 	return nil

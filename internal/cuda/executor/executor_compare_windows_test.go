@@ -81,6 +81,11 @@ const (
 	accuracyModelLoose  = 2e-3
 	accuracyElementwise = 2e-5
 	accuracyQuantized   = 1e-2
+	// accuracyHalfStaged bounds the f16-staged quantized prefill against
+	// the F32 reference: both operands round to eleven significant bits
+	// and the products accumulate in F32; measured 3.1e-3 at worst on
+	// Q8_0 and Q6_K weights of order one over a 512-long inner dimension.
+	accuracyHalfStaged = 5e-3
 )
 
 type graphOutputCheck struct {
@@ -302,6 +307,24 @@ func checkResidentBinaryGraph(
 	tolerance float64,
 ) {
 	t.Helper()
+	checkResidentBinaryGraphWithPolicy(t, dataType, leftShape, storage, dequantized, rightValue, build, tolerance, nil)
+}
+
+// checkResidentBinaryGraphWithPolicy is checkResidentBinaryGraph with a
+// hook that configures the CUDA builder before any node exists (a
+// mul_mat compute policy, for one).
+func checkResidentBinaryGraphWithPolicy(
+	t *testing.T,
+	dataType dtype.Type,
+	leftShape tensor.Shape,
+	storage []byte,
+	dequantized []float32,
+	rightValue reference.Value,
+	build func(*tensor.Builder, *tensor.Tensor, *tensor.Tensor) *tensor.Tensor,
+	tolerance float64,
+	configure func(*tensor.Builder),
+) {
+	t.Helper()
 	referenceBuilder := tensor.NewBuilder()
 	referenceLeft := referenceBuilder.Input("left", dtype.F32, leftShape)
 	referenceRight := referenceBuilder.Input("right", dtype.F32, rightValue.Shape)
@@ -317,6 +340,9 @@ func checkResidentBinaryGraph(
 	}
 
 	builder := tensor.NewBuilder()
+	if configure != nil {
+		configure(builder)
+	}
 	left := builder.Input("left", dataType, leftShape)
 	right := builder.Input("right", dtype.F32, rightValue.Shape)
 	output := build(builder, left, right)

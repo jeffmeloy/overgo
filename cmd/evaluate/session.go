@@ -48,6 +48,7 @@ type nativeSession struct {
 	runner   *inference.Runner
 	campaign *evaluation.Campaign
 	model    artifact.ID
+	commit   string
 }
 
 func openEvaluationSession(ctx context.Context, value manifest, request modelRequest) (evaluationSession, error) {
@@ -89,7 +90,7 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		return fail(err)
 	}
 	campaign.WithPrompting(prompting)
-	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model}, nil
+	return &nativeSession{store: store, runner: runner, campaign: campaign, model: identity.Model, commit: value.CodeCommit}, nil
 }
 
 // chatShapedRuntime scores multiple-choice prompts through the model's

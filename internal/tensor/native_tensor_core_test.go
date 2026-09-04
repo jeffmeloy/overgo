@@ -6,9 +6,12 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// The native tensor-core policy binds only half-precision weights against
-// F32 activations; every other mul_mat in the same graph keeps exact
-// arithmetic, so a graph-wide default is safe for a transformer forward.
+// The native tensor-core policy binds half-precision weights against F32
+// activations, which cuBLAS multiplies in their dtype, and quantized
+// weights, which the CUDA executor stages to F32 and multiplies exactly
+// past its column floor; an F32 or fp8 mul_mat in the same graph keeps
+// its exact arithmetic unmarked, so a graph-wide default is safe for a
+// transformer forward.
 func TestNativeTensorCorePolicyAppliesOnlyToHalfPrecisionWeights(t *testing.T) {
 	builder := NewBuilder()
 	builder.SetMulMatCompute(MulMatComputeNativeTensorCore)
@@ -22,8 +25,8 @@ func TestNativeTensorCorePolicyAppliesOnlyToHalfPrecisionWeights(t *testing.T) {
 		{name: "f16", weight: dtype.F16, native: true},
 		{name: "bf16", weight: dtype.BF16, native: true},
 		{name: "f32", weight: dtype.F32, native: false},
-		{name: "q8_0", weight: dtype.Q8_0, native: false},
-		{name: "fp8", weight: dtype.F8E4M3, native: false},
+		{name: "q8_0", weight: dtype.Q8_0, native: true},
+		{name: "fp8", weight: dtype.F8E4M3, native: true},
 	}
 	for _, tc := range cases {
 		weight := builder.Input(tc.name, tc.weight, shape)

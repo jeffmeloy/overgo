@@ -210,6 +210,27 @@ extern "C" __global__ void fp8_to_f32(
     }
 }
 
+// fp8_to_f16: the f16 twin of fp8_to_f32 for the tensor-core prefill of
+// native fp8 weights: e4m3 decoded and scaled per row into half
+// precision, the operand cuBLAS multiplies with F32 accumulation.
+extern "C" __global__ void fp8_to_f16(
+        const unsigned char * input,
+        const float * scale,
+        __half * output,
+        unsigned int inner,
+        unsigned int rows) {
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const float row_scale = scale[row];
+    const unsigned char * weight_row = input + (size_t) row * inner;
+    __half * output_row = output + (size_t) row * inner;
+    for (unsigned int column = threadIdx.x; column < inner; column += blockDim.x) {
+        output_row[column] = __float2half(fp8_e4m3_decode((unsigned int) weight_row[column]) * row_scale);
+    }
+}
+
 extern "C" __global__ void quantize_q8_0_input_f32(
         const float * input,
         unsigned char * output,
@@ -6348,6 +6369,85 @@ __device__ float dequant_q6_K_value(
     return scale *
         (float) scales[scale_base + scale_offset] *
         (float) ((int) quantized - 32);
+}
+
+// dequant_rows_<type>_f16: expand `count` consecutive weight elements
+// starting at row `start_row` into f16, row-major [row][inner], for the
+// tensor-core prefill of quantized weights: the weight is read once per
+// forward and multiplied by cuBLAS's half-precision GEMM with F32
+// accumulation, instead of once per eight prompt columns by the span
+// kernels. The rounding to f16 is bounded in the executor's parity test
+// against the F32 reference.
+extern "C" __global__ void dequant_rows_q8_0_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / Q8_0_BLOCK_WIDTH;
+    const unsigned char * block = weight +
+        ((size_t) row * blocks_per_row + column / Q8_0_BLOCK_WIDTH) * Q8_0_BLOCK_BYTES;
+    const float scale = __half2float(*reinterpret_cast<const __half *>(block));
+    const signed char quantized =
+        *(reinterpret_cast<const signed char *>(block + Q8_0_SCALE_BYTES) + column % Q8_0_BLOCK_WIDTH);
+    output[index] = __float2half(scale * (float) quantized);
+}
+
+extern "C" __global__ void dequant_rows_q4_K_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / 256;
+    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 144;
+    output[index] = __float2half(dequant_q4_K_value(block, column % 256));
+}
+
+extern "C" __global__ void dequant_rows_q5_K_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / 256;
+    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 176;
+    output[index] = __float2half(dequant_q5_K_value(block, column % 256));
+}
+
+extern "C" __global__ void dequant_rows_q6_K_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / 256;
+    const unsigned char * block = weight + ((size_t) row * blocks_per_row + column / 256) * 210;
+    output[index] = __float2half(dequant_q6_K_value(block, column % 256));
 }
 
 extern "C" __global__ void get_rows_q6_K_f32(

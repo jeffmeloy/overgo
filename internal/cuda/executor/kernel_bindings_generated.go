@@ -47,6 +47,7 @@ const (
 	kernelF32ToBf16
 	kernelF32ToF16
 	kernelFlatSliceF32
+	kernelFp8ToF16
 	kernelFp8ToF32
 	kernelFwhtF32
 	kernelGatedDeltaNetBackwardF32
@@ -78,6 +79,10 @@ const (
 	kernelGetRowsQ41F32
 	kernelGetRowsQ4KF32
 	kernelGetRowsQ50F32
+	kernelDequantRowsQ4KF16
+	kernelDequantRowsQ5KF16
+	kernelDequantRowsQ6KF16
+	kernelDequantRowsQ80F16
 	kernelGetRowsQ51F32
 	kernelGetRowsQ5KF32
 	kernelGetRowsQ6KF32
@@ -243,6 +248,7 @@ var kernelFunctionNames = [...]string{
 	"f32_to_bf16",
 	"f32_to_f16",
 	"flat_slice_f32",
+	"fp8_to_f16",
 	"fp8_to_f32",
 	"fwht_f32",
 	"gated_delta_net_backward_f32",
@@ -274,6 +280,10 @@ var kernelFunctionNames = [...]string{
 	"get_rows_q4_1_f32",
 	"get_rows_q4_K_f32",
 	"get_rows_q5_0_f32",
+	"dequant_rows_q4_K_f16",
+	"dequant_rows_q5_K_f16",
+	"dequant_rows_q6_K_f16",
+	"dequant_rows_q8_0_f16",
 	"get_rows_q5_1_f32",
 	"get_rows_q5_K_f32",
 	"get_rows_q6_K_f32",
@@ -439,6 +449,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	4,
 	5,
+	5,
 	4,
 	23,
 	15,
@@ -448,6 +459,10 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	3,
 	3,
 	8,
+	5,
+	5,
+	5,
+	5,
 	5,
 	5,
 	5,

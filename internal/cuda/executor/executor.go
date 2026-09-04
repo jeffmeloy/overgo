@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/bits"
 	"slices"
 	"sort"
 	"sync"
@@ -91,84 +90,6 @@ const (
 const nativeWeightStagingLimitBytes = uint64(32 << 20)
 
 const deviceAllocationAlignment uint64 = 256
-
-type deviceBufferLease struct {
-	pointer driver.DevicePtr
-	size    uint64
-}
-
-type deviceBufferPool struct {
-	free        map[uint64][]driver.DevicePtr
-	allocations []deviceBufferLease
-}
-
-func (p *deviceBufferPool) acquire(state *device.State, size uint64) (deviceBufferLease, error) {
-	bucket, err := deviceBufferBucket(size)
-	if err != nil {
-		return deviceBufferLease{}, err
-	}
-	return p.acquireBucket(state, bucket)
-}
-
-func (p *deviceBufferPool) acquireExact(state *device.State, size uint64) (deviceBufferLease, error) {
-	bucket, ok := checked.Align(size, deviceAllocationAlignment)
-	if !ok || bucket == 0 {
-		return deviceBufferLease{}, errors.New("CUDA buffer size is invalid")
-	}
-	return p.acquireBucket(state, bucket)
-}
-
-func (p *deviceBufferPool) acquireBucket(
-	state *device.State,
-	bucket uint64,
-) (deviceBufferLease, error) {
-	if available := p.free[bucket]; len(available) > 0 {
-		pointer := available[len(available)-1]
-		p.free[bucket] = available[:len(available)-1]
-		return deviceBufferLease{pointer: pointer, size: bucket}, nil
-	}
-	pointer, err := state.Driver.MemAlloc(bucket)
-	if err != nil {
-		return deviceBufferLease{}, err
-	}
-	if p.free == nil {
-		p.free = make(map[uint64][]driver.DevicePtr)
-	}
-	lease := deviceBufferLease{pointer: pointer, size: bucket}
-	p.allocations = append(p.allocations, lease)
-	return lease, nil
-}
-
-func (p *deviceBufferPool) release(lease deviceBufferLease) {
-	if lease.pointer != 0 {
-		p.free[lease.size] = append(p.free[lease.size], lease.pointer)
-	}
-}
-
-func (p *deviceBufferPool) close(state *device.State) error {
-	var errs []error
-	for _, lease := range p.allocations {
-		if err := state.Driver.MemFree(lease.pointer); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	p.free = nil
-	p.allocations = nil
-	return errors.Join(errs...)
-}
-
-func deviceBufferBucket(size uint64) (uint64, error) {
-	if size == 0 {
-		return 0, errors.New("CUDA buffer size is zero")
-	}
-	if size <= deviceAllocationAlignment {
-		return deviceAllocationAlignment, nil
-	}
-	if size > uint64(1)<<63 {
-		return size, nil
-	}
-	return uint64(1) << bits.Len64(size-1), nil
-}
 
 type DeviceValue struct {
 	Pointer       driver.DevicePtr
@@ -1179,6 +1100,23 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 					stagingBytes = nativeWeightStagingBytes(inner, stagingRows)
 				}
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, stagingBytes)
+			}
+		}
+		if quantStagedMulMat(node) {
+			// Quantized weights past the column floor prefill through f16
+			// staging and the tensor-core GEMM; the reservation covers one
+			// weight chunk and the packed activation.
+			inner := node.Inputs[0].Shape.Dims[0]
+			leftRows := node.Inputs[0].Shape.Dims[1]
+			rightRows := node.Inputs[1].Shape.Dims[1]
+			if rightRows >= uint64(quantStagedColumnFloor) {
+				if inner > math.MaxUint64/max(leftRows, rightRows)/f32ScalarBytes {
+					return nil, errors.New("quantized mul_mat staging size overflows")
+				}
+				compiled.needBlas = true
+				compiled.matmulStagingBytes = max(
+					compiled.matmulStagingBytes, quantStagedStagingBytes(inner, leftRows, rightRows),
+				)
 			}
 		}
 		if node.Op == tensor.OpConv2D {

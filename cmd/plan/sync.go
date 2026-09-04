@@ -185,6 +185,9 @@ func prepareMergeWithProjection(
 		); err != nil {
 			return err
 		}
+		if _, err := gitOutput(root, "update-index", "--clear-resolve-undo"); err != nil {
+			return fmt.Errorf("clear resolved merge metadata: %w", err)
+		}
 		if closureSnapshot.store != "" {
 			result, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-import-store", closureSnapshot.store)
 			if err != nil {

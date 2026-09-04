@@ -73,6 +73,7 @@ func main() {
 	bindCensus := flag.Bool("bind-census", false, "bind the campaign baseline to closure/census/latest in OvergoDB")
 	pruneDone := flag.Bool("prune-done", false, "retired: direct plan pruning is refused")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
+	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
@@ -85,7 +86,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{move: *move, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -93,6 +94,7 @@ func main() {
 
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop bool
+	move                                                                             bool
 	frontier                                                                         bool
 	judgeEfficiency                                                                  string
 	pruneDone                                                                        bool
@@ -167,6 +169,11 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
 		}
 		return addItem(".", args[0], c.title, c.before, c.verifyCmd, role)
+	case c.move:
+		if len(args) != 1 {
+			return errors.New("usage: plan -move <item-id> [-before <id>]")
+		}
+		return moveItem(".", args[0], c.before, role)
 	case c.setverify:
 		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
@@ -449,6 +456,71 @@ func addItem(root, id, title, before, verifyCmd, role string) error {
 		fmt.Printf("added item %s (step do); next: %s\n", id, action)
 		return nil
 	})
+}
+
+// moveItem re-ranks an existing item before `before` (or to the top of the
+// plan when empty): the plan is refactored from results and owner input after
+// every landed row (owner directive 2026-09-04), and a re-rank is a plan
+// mutation with the same validation as an injection, not a hand edit.
+func moveItem(root, id, before, role string) error {
+	return withPlanMutation(root, false, func(document plan.Plan) error {
+		updated, err := relocateItem(document, id, before)
+		if err != nil {
+			return err
+		}
+		updatedAuthority, err := resolveCompletionAuthority(root, updated)
+		if err != nil {
+			return err
+		}
+		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+			return err
+		}
+		action, _ := nextAction(updated, role, updatedAuthority)
+		fmt.Printf("moved item %s; next: %s\n", id, action)
+		return nil
+	})
+}
+
+// relocateItem is the pure core of moveItem: returns a plan with the item
+// removed from its position and reinserted before `before` (or at the top
+// when empty). Moving an item before itself is the identity. No I/O.
+func relocateItem(document plan.Plan, id, before string) (plan.Plan, error) {
+	if id == before {
+		return document, nil
+	}
+	from := -1
+	for index, it := range document.Items {
+		if it.ID == id {
+			from = index
+			break
+		}
+	}
+	if from < 0 {
+		return plan.Plan{}, fmt.Errorf("item %q: no such item", id)
+	}
+	item := document.Items[from]
+	rest := make([]plan.Item, 0, len(document.Items))
+	rest = append(rest, document.Items[:from]...)
+	rest = append(rest, document.Items[from+1:]...)
+	pos := 0
+	if before != "" {
+		pos = -1
+		for index, it := range rest {
+			if it.ID == before {
+				pos = index
+				break
+			}
+		}
+		if pos < 0 {
+			return plan.Plan{}, fmt.Errorf("-before %q: no such item", before)
+		}
+	}
+	out := make([]plan.Item, 0, len(document.Items))
+	out = append(out, rest[:pos]...)
+	out = append(out, item)
+	out = append(out, rest[pos:]...)
+	document.Items = out
+	return document, nil
 }
 
 // insertItem is the pure core of addItem: returns a plan with a new open item

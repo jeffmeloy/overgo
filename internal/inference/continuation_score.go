@@ -123,6 +123,23 @@ func (r *Runner) ScoreContinuationsParsed(
 		return nil, err
 	}
 	defer r.mu.Unlock()
+	if r.hasPreloadedWeights() && r.forwardProgram().PersistentDeviceCache() {
+		return r.scoreContinuationsDeviceLocked(ctx, promptIDs, continuations)
+	}
+	return r.scoreContinuationsHostLocked(ctx, promptIDs, continuations)
+}
+
+// scoreContinuationsHostLocked scores through the host-cache forward: the
+// prompt's hidden rows come back to the host, each longer candidate
+// re-enters through a cloned host cache, and the logits of every scored
+// position are read from the returned hidden rows. It serves runners
+// without a resident device cache and is the reference the device path
+// is measured against.
+func (r *Runner) scoreContinuationsHostLocked(
+	ctx context.Context,
+	promptIDs []tokenizer.TokenID,
+	continuations [][]tokenizer.TokenID,
+) ([]sequencescore.Score, error) {
 	hidden, cache, err := r.forwardCachedLocked(ctx, promptIDs, nil)
 	if err != nil {
 		return nil, err
@@ -135,10 +152,15 @@ func (r *Runner) ScoreContinuationsParsed(
 	if err != nil {
 		return nil, err
 	}
+	firstRow := firstLogits.LastRowView().Data
+	firstNormalizer, err := logNormalizer(firstRow)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]sequencescore.Score, len(continuations))
 	for candidateIndex, continuation := range continuations {
 		var score sequencescore.Accumulator
-		value, err := negativeLogProbability(firstLogits.LastRowView().Data, int(continuation[0]))
+		value, err := negativeLogProbabilityNormalized(firstRow, firstNormalizer, int(continuation[0]))
 		if err != nil {
 			return nil, err
 		}
@@ -162,6 +184,78 @@ func (r *Runner) ScoreContinuationsParsed(
 				if err := score.Observe(-value); err != nil {
 					return nil, err
 				}
+			}
+		}
+		result[candidateIndex], err = score.Result()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
+// scoreContinuationsDeviceLocked scores through the resident device cache,
+// the path the generator's prompt evaluation takes: one device forward
+// per prompt whose last-position logits score every candidate's first
+// token, and one device decode step per further candidate token, each
+// step's logits scoring the token after it. Nothing but the final-row
+// logits crosses to the host. The host-cache path (the reference for
+// this one) brought every layer's state back through the host per case:
+// the E4B BBH pass spent half its wall time in stream synchronization
+// with the GPU idle, 2.3 s per case against 19 ms of kernel time.
+func (r *Runner) scoreContinuationsDeviceLocked(
+	ctx context.Context,
+	promptIDs []tokenizer.TokenID,
+	continuations [][]tokenizer.TokenID,
+) ([]sequencescore.Score, error) {
+	_, prompt, err := r.forwardDeviceCachedLocked(ctx, promptIDs, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = prompt.Release(context.Background()) }()
+	if len(prompt.Logits) == 0 {
+		return nil, errors.New("inference: device continuation prompt returned no logits")
+	}
+	firstNormalizer, err := logNormalizer(prompt.Logits)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]sequencescore.Score, len(continuations))
+	for candidateIndex, continuation := range continuations {
+		var score sequencescore.Accumulator
+		value, err := negativeLogProbabilityNormalized(prompt.Logits, firstNormalizer, int(continuation[0]))
+		if err != nil {
+			return nil, err
+		}
+		if err := score.Observe(-value); err != nil {
+			return nil, err
+		}
+		if len(continuation) > 1 {
+			// Each candidate re-enters from the prompt cache; a step past a
+			// shared past writes its own position before reading it, so the
+			// candidates leave nothing for one another to read.
+			cache := prompt
+			for index, token := range continuation[:len(continuation)-1] {
+				_, next, stepErr := r.forwardDeviceCachedLocked(ctx, []tokenizer.TokenID{token}, cache)
+				if cache != prompt {
+					_ = cache.Release(context.Background())
+				}
+				if stepErr != nil {
+					return nil, stepErr
+				}
+				cache = next
+				value, err := negativeLogProbability(cache.Logits, int(continuation[index+1]))
+				if err != nil {
+					_ = cache.Release(context.Background())
+					return nil, err
+				}
+				if err := score.Observe(-value); err != nil {
+					_ = cache.Release(context.Background())
+					return nil, err
+				}
+			}
+			if cache != prompt {
+				_ = cache.Release(context.Background())
 			}
 		}
 		result[candidateIndex], err = score.Result()

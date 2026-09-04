@@ -1,9 +1,6 @@
 /* composer.js: one composer and one stream renderer for every surface that
-   asks the served model for something (chat, agent sessions, image, video
-   and speech). The renderer consumes the server's typed event vocabulary
-   (internal/server/stream_events.go: token, tool_start, tool_end, media,
-   usage, done, error); adapters map each served protocol onto it, so no
-   surface parses a wire format itself. Loaded by boot.js after md.js. */
+   asks the served model for something; the renderer consumes the server's
+   event vocabulary (stream_events.go) through the adapters below. */
 (function () {
   "use strict";
   const overgo = window.overgo;
@@ -11,9 +8,7 @@
 
   // ---- adapters: served protocols to the event vocabulary ----
 
-  // openai: an SSE response of chat-completion chunks. Yields token events
-  // for content deltas, one usage event when the terminal chunk carries the
-  // facts, and done at [DONE] or end of stream.
+  // openai: an SSE response of chat-completion chunks as token, usage and done events.
   async function* openai(response) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -73,11 +68,8 @@
     yield { type: "done" };
   }
 
-  // ---- thread: the stream renderer ----
-  // A thread renders rows in order: user and assistant messages (assistant
-  // text streams, then renders as markdown with a copy control), tool calls
-  // as collapsible cards with input, result, status and elapsed time, media
-  // cards, a thinking indicator while the model works, and errors as rows.
+  // ---- thread: the stream renderer (messages, tool cards, media cards,
+  // a thinking row, error rows) ----
   function thread(host) {
     const log = el("div", { class: "chat-log" });
     host.appendChild(log);

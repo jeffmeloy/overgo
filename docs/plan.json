@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-shell",
-      "title": "The front page: one conversation surface, the served model in view, the workbench one click away",
-      "status": "open",
-      "steps": [
-        {
-          "id": "model-switch",
-          "title": "Model selection and live switching on the front page: the selector lists the store's servable catalog (/catalog/models) with each model's evidence line (benchmark prompt and decode tok/s, latest evaluation scores) and its declared task capabilities, switches the served model live through the swap proxy (/health?swap=) with load progress and the new model's context length and modalities shown on arrival, explains itself when the proxy is absent, and remembers the last chosen model per browser; a stale activation is listed as unservable with the loader's reason, never as a choice",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestFrontPageModelSwitch' -count=1",
-          "rationale": "The pill and the swap proxy already do the work; the front page must make choosing a model as visible as choosing a conversation, with evidence beside each entry.",
-          "depends_on": [
-            "gui-shell/front-page"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-conversations",
       "title": "Durable conversations owned by the server",
       "status": "open",

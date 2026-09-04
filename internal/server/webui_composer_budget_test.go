@@ -16,7 +16,7 @@ const (
 	webuiStreamReaderCeiling = 2    // response.body.getReader(): boot.js SSE events + composer.js openai adapter
 	webuiRawFetchCeiling     = 4    // fetch(: boot.js api client only
 	webuiAPIStreamCeiling    = 2    // api.stream(: chat and speech
-	webuiJavaScriptCeiling   = 4799 // total lines under webui/
+	webuiJavaScriptCeiling   = 4796 // total lines under webui/
 )
 
 func webuiJavaScript(t *testing.T) map[string]string {

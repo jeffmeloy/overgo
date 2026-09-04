@@ -1,8 +1,6 @@
-/* Chat: conversation against the served model through /v1/chat/completions,
-   over the shared composer and thread (composer.js). Attachments ride the
-   served protocol's own content parts: image_url data URLs, input_audio
-   base64 WAV, input_video data URLs -- the same parts any API client sends,
-   no side channel. Sampling defaults come from the server's /props. */
+/* Chat: conversation against the served model through /v1/chat/completions
+   over the shared composer and thread; attachments ride the protocol's own
+   content parts, and defaults come from the capability document. */
 (function () {
   "use strict";
   window.overgo.registerTab({
@@ -37,12 +35,9 @@
           el("span", { class: "note", text: "max tokens" }), maxTokens],
       });
 
-      // The empty conversation is the getting-started card: the served model,
-      // its committed evidence, the modalities and modes its capability
-      // document declares, and three starters.
+      // The empty conversation is the getting-started card.
       const served = overgo.servedModel();
-      const declared = Object.keys(capabilities.modalities || {}).filter((kind) => capabilities.modalities[kind])
-        .concat((capabilities.modes || []).filter((mode) => mode.enabled).map((mode) => mode.label));
+      const declared = Object.keys(capabilities.modalities || {}).filter((kind) => capabilities.modalities[kind]).concat((capabilities.modes || []).filter((mode) => mode.enabled).map((mode) => mode.label));
       const welcome = el("div", { class: "card front-empty" },
         el("h2", { text: capabilities.name || modelID }),
         el("div", { class: "note", text: (served && overgo.evidenceLine(served)) || "no committed evidence yet" }),

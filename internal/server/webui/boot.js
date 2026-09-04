@@ -5,6 +5,7 @@
 (function () {
   "use strict";
   const KEY_STORAGE = "overgo.apiKey";
+  const MODEL_STORAGE = "overgo.model"; // the last model this browser chose to serve
 
   // The key lives in memory for the page session; browser storage is
   // opt-in via the "remember" control so a shared machine never keeps a
@@ -131,9 +132,7 @@
     return el("div", { class: "err-banner", text: message });
   }
 
-  // friendlyError: one place that turns a 401 into the actionable hint every tab
-  // should show, so auth failures read the same everywhere instead of leaking
-  // the raw "missing or invalid bearer token".
+  // friendlyError: a 401 becomes the same actionable hint on every tab.
   function friendlyError(err) {
     if (err && err.status === 401) return "API key required — enter it in the top bar.";
     return String((err && err.message) || err);
@@ -162,20 +161,15 @@
     return (separator < 0 ? "" : id.slice(0, separator) + ":") + hash.slice(0, 10);
   }
 
-  // displayToken: make an empty / whitespace-only / multiline token piece
-  // visible without altering the underlying text. Shared by every tab that shows
-  // token strings (logit lens, hidden states, attention).
+  // displayToken: an empty, whitespace or multiline token piece made visible.
   function displayToken(text) {
     if (text === "" || text == null) return "∅";
     if (/^\s+$/.test(text)) return "␠".repeat(text.length);
     return text.replace(/\n/g, "⏎");
   }
 
-  // runner: manage an exclusive, cancelable async action bound to a run button
-  // and a cancel button. run(task) ignores re-entrant calls, disables run and
-  // reveals cancel while task(signal) is in flight, and dispatches an abort to
-  // onCancel and any other failure to onError. Factored out of the three tabs
-  // that drive a real forward pass so the abort semantics live in one place.
+  // runner: one exclusive, cancelable async action bound to a run and a cancel
+  // button; an abort goes to onCancel, any other failure to onError.
   function runner(runButton, cancelButton, handlers) {
     handlers = handlers || {};
     let controller = null;
@@ -245,10 +239,7 @@
       el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
   }
 
-  // fold wraps content in a collapsible section: a header the user
-  // expands with the disclosure control, closed by default unless open
-  // is passed. Dense pages fold optional sections to their headers so
-  // the primary flow fits without scrolling past unused forms.
+  // fold: a collapsible section, closed unless open is passed.
   function fold(title, open, ...children) {
     const details = el("details", { class: "fold" },
       el("summary", { class: "section-title", text: title }), ...children);
@@ -271,20 +262,19 @@
   // to spell the th cells out.
   function headerRow(labels) { return el("tr", {}, ...labels.map((text) => el("th", { text }))); }
 
-  // evidenceLine: the committed evidence beside a catalog entry, decode
-  // tok/s from the latest benchmark and accuracy per evaluated suite; the
-  // header and the model picker show the same line.
+  // evidenceLine: a catalog entry's committed evidence, shown by the header and the picker alike.
   function evidenceLine(item) {
     const facts = [];
-    if (item.benchmark && item.benchmark.decode_tokens_per_second_p50) facts.push(Math.round(item.benchmark.decode_tokens_per_second_p50) + " tok/s");
+    const benchmark = item.benchmark || {};
+    if (benchmark.prompt_tokens_per_second_p50) facts.push(Math.round(benchmark.prompt_tokens_per_second_p50) + " prompt tok/s");
+    if (benchmark.decode_tokens_per_second_p50) facts.push(Math.round(benchmark.decode_tokens_per_second_p50) + " decode tok/s");
     for (const entry of item.evals || []) {
       if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2));
     }
     return facts.join(" · ");
   }
 
-  // The front page: the shell opens on the conversation with the workbench
-  // folded to a rail; the Workbench control and any other tab unfold it.
+  // The front page: the workbench folds to a rail; the Workbench control or any other tab unfolds it.
   function setFront(on) { document.querySelector(".shell").classList.toggle("front", on); }
   let servedEntry = null;
   function servedModel() { return servedEntry; }
@@ -312,6 +302,17 @@
   // header only highlights the group the active tab belongs to.
   function syncSectionUI() {
     for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection);
+  }
+
+  // remountActive: the active tab reloads under a new key or a newly served model.
+  function remountActive() {
+    for (const tab of tabs) {
+      if (tab.onDeactivate) tab.onDeactivate();
+      tab.mounted = false;
+    }
+    const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
+    if (current) activate(current);
+    refreshStatus();
   }
 
   function activate(id) {
@@ -388,19 +389,28 @@
     modelPill.title = "click to switch the served model";
 
     // swapModel routes one health probe through the swap proxy with the
-    // swap query parameter; the proxy swaps the child to answer it.
-    // Served directly (no proxy) the parameter is ignored and the
-    // unchanged pill says so.
+    // swap query parameter; the proxy swaps the child to answer it, and the
+    // control shows the elapsed time meanwhile. On arrival the capability
+    // document is re-read and the active surface re-mounted, so the composer
+    // re-derives its context, defaults and accepted media without a reload.
+    // Served directly (no proxy) the parameter is ignored and the pill says so.
     async function swapModel(item, name, button) {
       const before = modelPill.textContent;
+      const started = Date.now();
       button.disabled = true;
-      button.textContent = "loading…";
+      const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, 1000);
       try {
         await api.get("/health?swap=" + encodeURIComponent(name));
         invalidateModel();
         await refreshStatus();
         if (modelPill.textContent !== before) {
-          panel.replaceChildren(el("div", { class: "note", text: "now serving " + modelPill.textContent }));
+          try { localStorage.setItem(MODEL_STORAGE, name); } catch (_) { /* storage unavailable */ }
+          workspaceManifest = await api.get("/workspace/manifest");
+          capabilityDocument = workspaceManifest.model || null;
+          remountActive();
+          const elapsed = Math.round((Date.now() - started) / 1000);
+          panel.replaceChildren(el("div", { class: "note", text: "now serving " + modelPill.textContent + " after " + elapsed + "s · " +
+            (capabilityDocument ? "context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
           return;
         }
         const command = 'overgo_gui.bat "' + (item.location || name) + '"';
@@ -412,6 +422,7 @@
       } catch (err) {
         panel.replaceChildren(errorBanner(friendlyError(err)));
       } finally {
+        clearInterval(timer);
         button.disabled = false;
         button.textContent = "serve";
       }
@@ -424,19 +435,32 @@
       panel.textContent = "loading servable models…";
       try {
         const catalog = await api.get("/catalog/models");
-        const servable = (catalog.models || []).filter((item) => item.present && item.recipe && !item.stale);
-        if (!servable.length) {
-          panel.textContent = "no other servable models in the store";
+        // Every activated entry with bytes on disk is listed: a servable one
+        // with its evidence, declared task capabilities and a serve control,
+        // a stale activation with the loader's reason and no control.
+        const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
+        if (!entries.length) {
+          panel.textContent = "no activated models in the store";
           return;
         }
-        panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" }),
-          ...servable.map((item) => {
+        let remembered = "";
+        try { remembered = localStorage.getItem(MODEL_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
+        panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" +
+          (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
+          ...entries.map((item) => {
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
-            const swap = el("button", { class: "btn alt", text: "serve" });
-            swap.addEventListener("click", () => swapModel(item, name, swap));
             const row = el("div", { class: "row" }, el("span", { class: "mono", text: name }));
             const facts = evidenceLine(item);
             if (facts) row.appendChild(el("span", { class: "note", text: facts }));
+            for (const capability of item.capabilities || []) {
+              row.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
+            }
+            if (item.stale) {
+              row.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
+              return row;
+            }
+            const swap = el("button", { class: "btn alt", text: "serve" });
+            swap.addEventListener("click", () => swapModel(item, name, swap));
             row.appendChild(swap);
             return row;
           }));
@@ -498,12 +522,9 @@
     tabs.splice(0, tabs.length, ...ordered);
   }
 
-  // ---- one loader ----
-  // The shell lists no module by hand. The manifest names each tab's module
-  // (default: the tab id); boot.js loads the shared libraries in order, then
-  // every distinct module, and only then wires the shell. Adding a tab is a
-  // manifest entry plus a file under mod/. Scripts are same-origin, so the
-  // strict CSP holds for dynamically inserted tags as it does for static ones.
+  // ---- one loader: the manifest names each tab's module (default: the tab
+  // id); the libraries load in order, then every distinct module, then the
+  // shell wires. Same-origin scripts, so the strict CSP holds. ----
   const libraries = ["/viz.js", "/md.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
   const loadedScripts = new Set();
   function loadScript(src) {
@@ -527,10 +548,8 @@
     await Promise.all(modules.map((module) => loadScript("/mod/" + module + ".js")));
   }
 
-  // offlineCard: the shell's own landing state when the server does not
-  // answer (no child model behind the swap proxy, or a server still
-  // starting). It probes /health until the server answers, then initialises
-  // the shell in place; the retry control re-probes on demand.
+  // offlineCard: the landing state while the server does not answer; it
+  // probes /health until it does, then initialises the shell in place.
   let offlineTimer = null;
   function offlineCard(panels, message) {
     clear(panels);
@@ -559,9 +578,7 @@
     if (offlineTimer == null) offlineTimer = setInterval(probe, 4000);
   }
 
-  // The served model's capability document (identity, context, generation
-  // defaults, modalities, accepted media and limits, composer modes) rides
-  // the manifest; every client capability decision reads capabilities().
+  // The served model's capability document rides the manifest; every client capability decision reads capabilities().
   let capabilityDocument = null;
   function capabilities() { return capabilityDocument; }
   window.overgo.capabilities = capabilities;
@@ -622,14 +639,7 @@
       keyInput.addEventListener("change", () => {
         setKey(keyInput.value.trim(), keyRemember.checked);
         invalidateModel(); // the cached model was fetched under the old key
-        // Re-mount the active tab so its data reloads under the new key.
-        for (const tab of tabs) {
-          if (tab.onDeactivate) tab.onDeactivate();
-          tab.mounted = false;
-        }
-        const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
-        if (current) activate(current);
-        refreshStatus();
+        remountActive();
       });
       window.addEventListener("hashchange", () => {
         const id = location.hash.slice(1);

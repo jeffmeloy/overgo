@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
@@ -67,7 +68,19 @@ func run() error {
 	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
 	importDNA := flag.String("import-dna-corpus", "", "import a bounded slice of every parquet subset under this corpus root and merge the entries into the active benchmark catalog")
 	dnaLimit := flag.Int("dna-limit", 16, "sequences imported per corpus subset for -import-dna-corpus")
+	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
+	if *cpuProfile != "" {
+		profile, err := os.Create(*cpuProfile)
+		if err != nil {
+			return err
+		}
+		defer profile.Close()
+		if err := pprof.StartCPUProfile(profile); err != nil {
+			return err
+		}
+		defer pprof.StopCPUProfile()
+	}
 	if root := strings.TrimSpace(*importDNA); root != "" {
 		if flag.NArg() != 0 {
 			return errors.New("usage: evaluate -import-dna-corpus <root> [-dna-limit N] [-repo <store>]")

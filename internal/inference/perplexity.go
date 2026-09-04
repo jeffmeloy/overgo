@@ -276,10 +276,22 @@ func (r *Runner) logitsBatch(
 }
 
 func negativeLogProbability(logits []float32, target int) (float64, error) {
-	if len(logits) == 0 || target < 0 || target >= len(logits) {
-		return 0, errors.New("invalid logits or target")
+	normalizer, err := logNormalizer(logits)
+	if err != nil {
+		return 0, err
 	}
-	maximum := math.Inf(-1)
+	return negativeLogProbabilityNormalized(logits, normalizer, target)
+}
+
+// logNormalizer is the log of the softmax denominator over one logits
+// row, the term every candidate scored from that row shares: a choice
+// suite reads several candidates off the prompt's final row, and the
+// full-vocabulary pass over the row is paid once for all of them.
+func logNormalizer(logits []float32) (float64, error) {
+	if len(logits) == 0 {
+		return 0, errors.New("invalid logits")
+	}
+	maximum := -math.MaxFloat64
 	for _, value := range logits {
 		converted := float64(value)
 		if math.IsNaN(converted) {
@@ -287,15 +299,24 @@ func negativeLogProbability(logits []float32, target int) (float64, error) {
 		}
 		maximum = max(maximum, converted)
 	}
-	if math.IsInf(maximum, -1) {
-		return 0, errors.New("all logits are negative infinity")
-	}
 	var exponentialSum float64
 	for _, value := range logits {
 		exponentialSum += math.Exp(float64(value) - maximum)
 	}
-	result := maximum + math.Log(exponentialSum) - float64(logits[target])
-	if math.IsNaN(result) || math.IsInf(result, 0) {
+	if !checked.PositiveFinite64(exponentialSum) {
+		return 0, errors.New("logits have no finite probability mass")
+	}
+	return maximum + math.Log(exponentialSum), nil
+}
+
+// negativeLogProbabilityNormalized scores one target against a row whose
+// log normalizer is already known.
+func negativeLogProbabilityNormalized(logits []float32, normalizer float64, target int) (float64, error) {
+	if len(logits) == 0 || target < 0 || target >= len(logits) {
+		return 0, errors.New("invalid logits or target")
+	}
+	result := normalizer - float64(logits[target])
+	if !checked.Finite64(result) {
 		return 0, errors.New("negative log-likelihood is not finite")
 	}
 	return result, nil

@@ -57,10 +57,17 @@ func sourceOvergoDB(root, snapshot string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return sourceOvergoDBFromPorcelain(raw, snapshot)
+	return sourceOvergoDBFromPorcelain(raw, snapshot, func(candidate string) bool {
+		info, err := os.Stat(candidate)
+		return err == nil && info.IsDir()
+	})
 }
 
-func sourceOvergoDBFromPorcelain(raw []byte, snapshot string) (string, error) {
+func sourceOvergoDBFromPorcelain(
+	raw []byte,
+	snapshot string,
+	usable func(string) bool,
+) (string, error) {
 	var match string
 	var worktree, head string
 	flush := func() error {
@@ -68,6 +75,9 @@ func sourceOvergoDBFromPorcelain(raw []byte, snapshot string) (string, error) {
 			return nil
 		}
 		candidate := filepath.Join(filepath.FromSlash(worktree), "overgodb-store")
+		if !usable(candidate) {
+			return nil
+		}
 		if match != "" {
 			return fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match %s", snapshot)
 		}

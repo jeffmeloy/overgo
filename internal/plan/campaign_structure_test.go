@@ -493,6 +493,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"quantized-prefill-f16/do",
 		"fp8-prefill-f16/do",
 		"long-form-verification/do",
+		"readme-2026-09-04/do",
 		"long-context-collapse/do",
 		"decode-attention-per-key-cost/do",
 		"device-memory-retention/do",
@@ -520,6 +521,15 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/speech-ocr-tabular-forecast",
 		"modality-verification/media-report",
 		"failure-recovery/rollout-plan-author",
+		// Owner-directed capability-first replan (2026-09-04): bind
+		// acceptance before device work and keep independent host fixes ready.
+		"validation-readiness/measurement-contract",
+		"validation-replan/do",
+		"validation-readiness/failure-diagnostics",
+		"boundary-hardening/cross-origin",
+		"boundary-hardening/argv-output",
+		"final-model-validation/do",
+		"benchmark-27b/mmlu-pro-pass",
 		"campaign-closeout/closeout",
 	}
 	want := make(map[string]bool, len(wantIDs))

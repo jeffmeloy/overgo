@@ -1063,6 +1063,9 @@ func runGoTests(repo string, packages []string) (string, error) {
 func runGoTestsAdvisory(repo string, packages []string) (testevidence.GoTestReport, error) {
 	out, err := command(repo, "go", append([]string{"test", "-json", "-count=1"}, packages...)...)
 	if err != nil {
+		if failures := testevidence.FailureSummary(out); failures != "" {
+			err = fmt.Errorf("failed tests: %s: %w", failures, err)
+		}
 		return testevidence.GoTestReport{}, err
 	}
 	report, err := testevidence.GoTestJSONReport(out)

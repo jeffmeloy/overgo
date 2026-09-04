@@ -3,7 +3,9 @@
 // WAV admits PCM8/16/24/32, float32/64, G.711 and matching-width extensible
 // subtypes. Native FLAC admits 4..24-bit samples, checking frame CRCs and the
 // stream's PCM checksum when present. Other containers fail explicitly.
-// Channels and sample rate are retained; no resampling or model execution runs.
+// Admission retains channels and sample rate. An explicit -frontend declaration
+// may then process admitted mono samples, including declared FIR resampling.
+// Model execution does not run.
 //
 // Parquet uses the existing local byte-array reader: an explicit, unique leaf
 // and non-null value count, not whole-dataset validation. The policy bounds
@@ -24,6 +26,7 @@ import (
 	"os"
 
 	"overgo/internal/artifact"
+	"overgo/internal/audiodsp"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
@@ -45,12 +48,45 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	column := flags.String("column", "", "Parquet byte-array leaf; empty inspects the complete audio file")
 	limit := flags.Int("limit", 0, "required number of non-null Parquet values to inspect")
 	expectPath := flags.String("expect", "", "optional pinned container and decoded-output expectations")
+	frontendPath := flags.String("frontend", "", "optional declared CPU FrontendConfig JSON; accepted mono input only")
+	frontendMemory := flags.Uint64("frontend-memory", 0, "required numeric backing-array byte budget with -frontend")
+	chunkSamples := flags.Int("chunk-samples", 0, "required offline chunk size with -frontend; boundaries must not alter results")
+	reconstruct := flags.Bool("reconstruct", false, "with -frontend: also measure standard STFT/inverse reconstruction")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 || *repo == "" || (*input == "") == (*inputArtifact == "") || *policyPath == "" ||
 		(*column == "" && *limit != 0) || (*column != "" && *limit <= 0) {
 		return errors.New("usage: audio-inspect -repo <store> (-input <file> | -input-artifact <id>) -policy <json> [-column <leaf> -limit <values>] [-expect <json>]")
+	}
+	var frontend *audiodsp.Frontend
+	var frontendID artifact.ID
+	var frontendContent artifact.Content
+	var workspace audiodsp.Workspace
+	if *frontendPath == "" && (*frontendMemory != 0 || *chunkSamples != 0 || *reconstruct) ||
+		*frontendPath != "" && (*frontendMemory == 0 || *chunkSamples <= 0) {
+		return errors.New("audio-inspect: frontend requires explicit memory and chunk size; frontend flags require -frontend")
+	}
+	if *frontendPath != "" {
+		var config audiodsp.FrontendConfig
+		configFile, err := os.Open(*frontendPath)
+		if err != nil {
+			return err
+		}
+		err = strictjson.DecodeBounded(configFile, artifact.MaxContentBytes, &config)
+		_ = configFile.Close()
+		if err != nil {
+			return err
+		}
+		frontend, err = audiodsp.NewFrontend(config, *frontendMemory)
+		if err != nil {
+			return err
+		}
+		frontendContent, err = artifact.JSONContent(artifact.JSONContract(artifact.KindProfile, "overgo/audio-frontend-config/v1"), config)
+		if err != nil {
+			return err
+		}
+		frontendID = frontendContent.Descriptor.ID
 	}
 	policyFile, err := os.Open(*policyPath)
 	if err != nil {
@@ -155,7 +191,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		return err
 	}
 	encoder := json.NewEncoder(output)
-	var inspected, accepted uint64
+	var inspected, accepted, featured uint64
 	observe := func(index uint64, data []byte) error {
 		result, err := dataset.InspectAudio(ctx, store, data, dataset.AudioPayloadOrigin{
 			Container: id, Column: *column, ValueIndex: index,
@@ -173,6 +209,12 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		inspected++
 		if result.Decision.Outcome == recipecontract.AudioAdmissionAccepted {
 			accepted++
+			if frontend != nil {
+				if err := inspectFeatures(ctx, store, encoder, frontend, frontendContent, result, *chunkSamples, *reconstruct, &workspace); err != nil {
+					return err
+				}
+				featured++
+			}
 		}
 		return encoder.Encode(result)
 	}
@@ -198,8 +240,13 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if expected != nil {
 		verified = inspected
 	}
-	if _, err := fmt.Fprintf(output, "audio-inspect: inspected=%d accepted=%d quarantined=%d verified=%d; decoded CPU samples only; no model inference, training, or GPU execution\n", inspected, accepted, inspected-accepted, verified); err != nil {
+	if _, err := fmt.Fprintf(output, "audio-inspect: inspected=%d accepted=%d quarantined=%d verified=%d; CPU decoding and optional declared DSP; no model inference, training, or GPU execution\n", inspected, accepted, inspected-accepted, verified); err != nil {
 		return err
+	}
+	if frontend != nil {
+		if _, err := fmt.Fprintf(output, "audio-inspect: frontend=%s feature_records=%d reconstruction=%t; CPU direct DFT and offline chunks; no ASR or live-stream claim\n", frontendID, featured, *reconstruct); err != nil {
+			return err
+		}
 	}
 	if *column != "" && inspected != uint64(*limit) {
 		return errors.New("audio-inspect: container has fewer non-null values than requested")

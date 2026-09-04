@@ -3,6 +3,7 @@ package checked
 import (
 	"errors"
 	"math"
+	"unsafe"
 )
 
 func Nonzero[T comparable](value T) bool {
@@ -119,6 +120,24 @@ func Empty[T any](values ...[]T) bool {
 		}
 	}
 	return true
+}
+
+// SlicesOverlap reports shared occupied storage in two typed slices in O(1).
+// Empty and zero-sized-element slices occupy no writable bytes.
+// Callers must pass the complete writable destination extent, not just its
+// current length, when checking a buffer that will be extended to capacity.
+func SlicesOverlap[T any](left, right []T) bool {
+	if len(left) == 0 || len(right) == 0 {
+		return false
+	}
+	// Addresses are compared only; no pointer is manufactured or dereferenced.
+	// Actual Go slice storage guarantees each byte extent is addressable.
+	width := unsafe.Sizeof(left[0])
+	leftStart, rightStart := uintptr(unsafe.Pointer(unsafe.SliceData(left))), uintptr(unsafe.Pointer(unsafe.SliceData(right)))
+	if leftStart <= rightStart {
+		return rightStart-leftStart < uintptr(len(left))*width
+	}
+	return leftStart-rightStart < uintptr(len(right))*width
 }
 
 // Nonempty reports whether value contains at least one element.

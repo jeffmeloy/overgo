@@ -2,9 +2,7 @@ package dataset
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"math"
 
@@ -118,7 +116,7 @@ func InspectAudio(ctx context.Context, repository artifact.Repository, data []by
 		profile.DecodeError = decodeErr.Error()
 	}
 	if status == recipecontract.AudioDecodeComplete {
-		profile.DecodedSHA256 = audioSamplesDigest(audio.Samples)
+		profile.DecodedSHA256 = media.SamplesSHA256(audio.Samples)
 	}
 	formatContent, err := artifact.JSONContent(artifact.JSONContract(artifact.KindProfile, audioDecodeProfileSchema), profile)
 	if err != nil {
@@ -194,14 +192,4 @@ func InspectAudio(ctx context.Context, repository artifact.Repository, data []by
 		result.Samples = audio.Samples
 	}
 	return result, nil
-}
-
-func audioSamplesDigest(samples []float32) string {
-	digest := sha256.New()
-	var word [4]byte
-	for _, sample := range samples {
-		binary.LittleEndian.PutUint32(word[:], math.Float32bits(sample))
-		_, _ = digest.Write(word[:])
-	}
-	return hex.EncodeToString(digest.Sum(nil))
 }

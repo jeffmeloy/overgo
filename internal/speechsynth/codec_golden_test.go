@@ -233,7 +233,10 @@ func TestResamplePolyMatchesSciPy(t *testing.T) {
 		X    []float64 `json:"x"`
 		Y    []float64 `json:"y"`
 	}](t, "g9_resample.json")
-	got := ResamplePoly(f32of(g.X), g.Up, g.Down, g.Taps)
+	got, err := media.ResamplePoly(t.Context(), nil, f32of(g.X), g.Up, g.Down, g.Taps)
+	if err != nil {
+		t.Fatal(err)
+	}
 	const ulp32 = 1.0 / (1 << 23)
 	tol := 4 * ulp32 * math.Sqrt(float64(len(g.Taps)))
 	requireWithin(t, "resample_poly", got, g.Y, tol)

@@ -297,7 +297,7 @@
      "path": "internal/projector/gemma4tower_audio_frontend.go",
      "symbol": "EncodeAudioTrace",
      "role": "source",
-     "identity": "file:sha256:5e6e80ffdb1fc23bf33d060f0751492502f68c39f94d82d66d3cb442a8b02daf"
+     "identity": "file:sha256:56b502a0a102bdcb97a853c6359467b4e090c02ca1070197ec693d37996d9fe6"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",

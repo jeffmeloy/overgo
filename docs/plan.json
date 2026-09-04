@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "dsp-reference",
-          "title": "Implement artifact-derived resampling, framing, windowing, STFT and inverse STFT, filterbanks, log-mel features, normalization and chunk assembly in Go with reusable scratch ownership",
-          "status": "open",
-          "verify": "go test ./internal/audiodsp",
-          "rationale": "These primitives are the reusable substrate for ASR, VAD, speaker encoders, codecs and generative audio. Constants come from artifact declarations or mathematical identities, not family-specific call sites.",
-          "depends_on": [
-            "audio-primitives/sync-dsp-reference"
-          ],
-          "capabilities": [
-            "audio-dsp",
-            "feature-extraction",
-            "buffer-reuse"
-          ]
-        },
-        {
           "id": "sync-intermediate-parity",
           "title": "Merge master and reconcile the plan before: Capture and verify hashed intermediate traces from the pinned oracle at waveform, resample, frame, spectrum, filterbank and normalized-feature boundaries",
           "status": "open",

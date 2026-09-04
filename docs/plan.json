@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "musr-pass",
-          "title": "Record MuSR (756 grouped cases, long narratives) for every servable text model under both protocols with -budget",
-          "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "MuSR prompts run to a thousand tokens; at 6 ms per prompt token the 27B needs about an hour, which is the ceiling for one pass under the owner rule. If the pass exceeds its budget the report records budget-exceeded, not a partial score.",
-          "depends_on": [
-            "benchmark-completion/bbh-pass"
-          ]
-        },
-        {
           "id": "ifeval-pass",
           "title": "Record IFEval (131 exact-vocabulary cases, generative, 256 tokens) for every servable text model through each model's chat template with its declared sampling recorded, greedy decoding",
           "status": "open",

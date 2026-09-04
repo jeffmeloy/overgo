@@ -75,6 +75,26 @@ func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 	if _, err := relocateItem(base, "a", "nope"); err == nil {
 		t.Fatal("unknown -before must be rejected")
 	}
+	// -retitle re-scopes the item and its single "do" step together, and
+	// leaves a multi-step item's steps as they are.
+	single := plan.Plan{Items: []plan.Item{
+		{ID: "one", Title: "old", Status: "open", Steps: []plan.Step{{ID: "do", Title: "old", Status: "open"}}},
+		{ID: "two", Title: "old", Status: "open", Steps: []plan.Step{{ID: "x", Title: "x", Status: "open"}, {ID: "y", Title: "y", Status: "open"}}},
+	}}
+	scoped, err := rescopeItem(single, "one", " new scope ")
+	if err != nil || scoped.Items[0].Title != "new scope" || scoped.Items[0].Steps[0].Title != "new scope" {
+		t.Fatalf("retitle single-step item = %+v, %v", scoped.Items[0], err)
+	}
+	scoped, err = rescopeItem(single, "two", "new scope")
+	if err != nil || scoped.Items[1].Title != "new scope" || scoped.Items[1].Steps[0].Title != "x" {
+		t.Fatalf("retitle multi-step item = %+v, %v", scoped.Items[1], err)
+	}
+	if _, err := rescopeItem(single, "one", "  "); err == nil {
+		t.Fatal("empty title must be rejected")
+	}
+	if _, err := rescopeItem(single, "zz", "t"); err == nil {
+		t.Fatal("unknown item must be rejected")
+	}
 }
 
 // TestPrunedDependencyRequiresGatedCompletion pins the CLI selector as a

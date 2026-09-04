@@ -100,10 +100,4 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 	}, nil
 }
 
-func intsToUint32(values []int) []uint32 {
-	output := make([]uint32, len(values))
-	for index, value := range values {
-		output[index] = uint32(value)
-	}
-	return output
-}
+func intsToUint32(values []int) []uint32 { return dtype.ConvertSlice[uint32](values) }

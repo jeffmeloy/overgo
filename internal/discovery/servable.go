@@ -146,6 +146,20 @@ func presence(
 	return "", false
 }
 
+// WeightsIdentity is the model identity of the weights file at path,
+// the digest a capability claim binds to (catalogs identify manifests;
+// claims identify the bytes they measured, exactly as the benchmark
+// publisher does), through the memo so a file hashed for the listing
+// is not hashed again. A path that does not name present bytes returns
+// an error.
+func WeightsIdentity(path string, memo *Memo) (artifact.ID, error) {
+	identity := identifyLocation(path, artifact.KindModel, map[string]fileIdentity{}, memo)
+	if !identity.present {
+		return artifact.ID{}, fmt.Errorf("discovery: %s does not name present weights", path)
+	}
+	return identity.id, nil
+}
+
 func identifyLocation(path string, kind artifact.Kind, identities map[string]fileIdentity, memo *Memo) fileIdentity {
 	key := path + "\x00" + kind.String()
 	if identity, ok := identities[key]; ok {

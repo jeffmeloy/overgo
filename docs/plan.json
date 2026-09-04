@@ -4,41 +4,28 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "model-regression-fingerprints",
-      "title": "Model regression fingerprints (owner rule 2026-09-04: efficient model validation against regressions, covering time, performance and long context): a Go owner (internal/modelregress, cmd/model-regress) records per servable text model, as committed evidence bound to the model and the code manifest, two shapes: SHORT, one fixed ~160-token prompt with a 64-token greedy continuation (its token ids and the teacher-forced mean nll of that continuation); LONG, a ladder of prompt lengths doubling from 1024 tokens (1024, 2048, 4096, ...) up to the model's declared context length as the committed model-config declaration states it (the 27B's 256k tokens, for example), and further to its declared rope sequence extension (YaRN or the family's declared scaling) when the recipe declares one, each rung with a 256-token greedy generation (token ids, distinct 4-gram ratio, longest repeated span) and a retrieval probe: facts placed at known depths of the prompt that the greedy answer must reproduce, so long-context capability is measured per rung and not only rate; the ladder stops at the deepest rung the device's measured KV capacity and the -budget admit, the deepest rung reached is recorded, and any shortfall against the declaration is reported in the audit line, never as passing; for both shapes the time and performance record: load ms, time to first token p50, prompt tok/s p50, decode tok/s p50, total wall p50 and peak device bytes, each with the run-to-run spread over 3 runs on the short shape and 1 run per rung on the ladder, so the rate and memory curve against context length is itself evidence; and a fixed deterministic sample of suite cases under the raw-completion protocol scored exactly as the capability probe; -check replays every servable model smallest first inside -budget, one model per process, both shapes every time, and refuses a continuation that is not token-identical (printing the first divergent step and the nll delta), a capability sample below its recorded accuracy, a rate below the recorded p50 minus the recorded spread, a time above the recorded p50 plus the recorded spread, or peak device bytes above the recorded value; reuses cmd/benchmark's measurement, internal/sequencescore's teacher-forced scoring, the long-form tool's degeneration measure, the committed model-config declarations for context and sequence extension, the evaluate suites' case sampling and perf-sweep's per-process isolation, no new inference path; a deliberate numerical change re-records the fingerprints in the same commit with every delta quoted in the message, so no regression lands silently and no free tolerance knob exists",
+      "id": "long-context-collapse",
+      "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Model regression fingerprints (owner rule 2026-09-04: efficient model validation against regressions, covering time, performance and long context): a Go owner (internal/modelregress, cmd/model-regress) records per servable text model, as committed evidence bound to the model and the code manifest, two shapes: SHORT, one fixed ~160-token prompt with a 64-token greedy continuation (its token ids and the teacher-forced mean nll of that continuation); LONG, a ladder of prompt lengths doubling from 1024 tokens (1024, 2048, 4096, ...) up to the model's declared context length as the committed model-config declaration states it (the 27B's 256k tokens, for example), and further to its declared rope sequence extension (YaRN or the family's declared scaling) when the recipe declares one, each rung with a 256-token greedy generation (token ids, distinct 4-gram ratio, longest repeated span) and a retrieval probe: facts placed at known depths of the prompt that the greedy answer must reproduce, so long-context capability is measured per rung and not only rate; the ladder stops at the deepest rung the device's measured KV capacity and the -budget admit, the deepest rung reached is recorded, and any shortfall against the declaration is reported in the audit line, never as passing; for both shapes the time and performance record: load ms, time to first token p50, prompt tok/s p50, decode tok/s p50, total wall p50 and peak device bytes, each with the run-to-run spread over 3 runs on the short shape and 1 run per rung on the ladder, so the rate and memory curve against context length is itself evidence; and a fixed deterministic sample of suite cases under the raw-completion protocol scored exactly as the capability probe; -check replays every servable model smallest first inside -budget, one model per process, both shapes every time, and refuses a continuation that is not token-identical (printing the first divergent step and the nll delta), a capability sample below its recorded accuracy, a rate below the recorded p50 minus the recorded spread, a time above the recorded p50 plus the recorded spread, or peak device bytes above the recorded value; reuses cmd/benchmark's measurement, internal/sequencescore's teacher-forced scoring, the long-form tool's degeneration measure, the committed model-config declarations for context and sequence extension, the evaluate suites' case sampling and perf-sweep's per-process isolation, no new inference path; a deliberate numerical change re-records the fingerprints in the same commit with every delta quoted in the message, so no regression lands silently and no free tolerance knob exists",
+          "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
           "status": "open",
-          "verify": "go test ./internal/modelregress -count=1"
+          "verify": "go test ./internal/longform -count=1"
         }
       ]
     },
     {
-      "id": "model-regression-gate",
-      "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects model-regress -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise; inapplicable, never skipped, for commits outside execution code; the fp8 12B measurement of 2026-09-04 (718 to 1646 prompt tok/s, token-identical 48-token greedy continuation) is the reference shape of a passing report",
+      "id": "gemma-12b-accuracy",
+      "title": "Chat-shaped long-form rung (owner rule 2026-09-04: long-form output verification): the raw-continuation NLL of the instruction-tuned gemma-4-12B twins (6.94, 6.97 nat/token against the E4B's 4.21) is the model answering the document instead of continuing it, its greedy output an assistant synthesis of the README, so the raw shape cannot judge a chat model's long-form output; the long-form run adds, for every model that declares a chat template, one chat-shaped generation at the judged rung (the rung's text as the user turn with an instruction to continue it, the model turn opened, thinking off, 256 greedy tokens) and records its text, distinct 4-gram ratio, longest repeated span, decode tok/s and the teacher-forced NLL of the text's own continuation under that framing; the chat-shaped NLL is recorded beside the raw one, the fingerprint compares both, and the floors stay as declared",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects model-regress -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise; inapplicable, never skipped, for commits outside execution code; the fp8 12B measurement of 2026-09-04 (718 to 1646 prompt tok/s, token-identical 48-token greedy continuation) is the reference shape of a passing report",
+          "title": "Chat-shaped long-form rung (owner rule 2026-09-04: long-form output verification): the raw-continuation NLL of the instruction-tuned gemma-4-12B twins (6.94, 6.97 nat/token against the E4B's 4.21) is the model answering the document instead of continuing it, its greedy output an assistant synthesis of the README, so the raw shape cannot judge a chat model's long-form output; the long-form run adds, for every model that declares a chat template, one chat-shaped generation at the judged rung (the rung's text as the user turn with an instruction to continue it, the model turn opened, thinking off, 256 greedy tokens) and records its text, distinct 4-gram ratio, longest repeated span, decode tok/s and the teacher-forced NLL of the text's own continuation under that framing; the chat-shaped NLL is recorded beside the raw one, the fingerprint compares both, and the floors stay as declared",
           "status": "open",
-          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "model-regression-baseline",
-      "title": "Record the regression fingerprints for every servable text model on a clean tree after the owner lands (owner rule 2026-09-04; both shapes, short and long, the time and performance record and the capability sample; smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind model-regress -check as this row's verify through -setverify once the evidence identities exist",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Record the regression fingerprints for every servable text model on a clean tree after the owner lands (owner rule 2026-09-04; both shapes, short and long, the time and performance record and the capability sample; smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind model-regress -check as this row's verify through -setverify once the evidence identities exist",
-          "status": "open",
-          "verify": "go run ./cmd/model-regress -check -repo overgodb-store"
+          "verify": "go test ./internal/longform -count=1"
         }
       ]
     },
@@ -66,6 +53,32 @@
           "depends_on": [
             "benchmark-completion/mmlu-pro-pass"
           ]
+        }
+      ]
+    },
+    {
+      "id": "model-regression-gate",
+      "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects longform -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise, one model per weight type at most; inapplicable, never skipped, for commits outside execution code. The structure-budget test (internal/repoanalysis TestStructureBudgetRatchets, 3 s) runs unconditionally in the gate's test step: it caught the executor.go overrun the fp8 gate missed",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects longform -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise, one model per weight type at most; inapplicable, never skipped, for commits outside execution code. The structure-budget test (internal/repoanalysis TestStructureBudgetRatchets, 3 s) runs unconditionally in the gate's test step: it caught the executor.go overrun the fp8 gate missed",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "model-regression-baseline",
+      "title": "Record the regression fingerprints for every servable text model from the clean evidence worktree (owner rule 2026-09-04; both shapes, smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind longform -check as this row's verify through -setverify once the evidence identities exist",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record the regression fingerprints for every servable text model from the clean evidence worktree (owner rule 2026-09-04; both shapes, smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind longform -check as this row's verify through -setverify once the evidence identities exist",
+          "status": "open",
+          "verify": "go run ./cmd/model-regress -check -repo overgodb-store"
         }
       ]
     },

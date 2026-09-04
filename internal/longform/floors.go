@@ -33,12 +33,36 @@ type Floors struct {
 	// ContextGain bounds from below the short-context NLL minus the
 	// long-context NLL per token of the true continuation.
 	ContextGain float64 `json:"context_gain"`
+	// ShortPromptTokens and ShortOutputTokens are the SHORT fingerprint
+	// shape: a short prompt with a greedy continuation whose token ids
+	// and teacher-forced NLL a later run is compared against.
+	ShortPromptTokens int `json:"short_prompt_tokens"`
+	ShortOutputTokens int `json:"short_output_tokens"`
+	// LadderStart is the first rung of the LONG ladder; rungs double
+	// until the model's declared context length, the corpus, or the rung
+	// budget ends the ladder.
+	LadderStart int `json:"ladder_start"`
+	// RungBudgetSeconds bounds one rung's prefill: the rung whose prefill
+	// runs past it is the ladder's last.
+	RungBudgetSeconds float64 `json:"rung_budget_seconds"`
+	// CheckRungCeiling is the highest rung a regression check climbs to.
+	CheckRungCeiling int `json:"check_rung_ceiling"`
+	// IdenticalTokens is how many leading greedy tokens of every shape a
+	// fresh run must reproduce from the record.
+	IdenticalTokens int `json:"identical_tokens"`
+	// NLLTolerance bounds the per-token NLL movement between a record
+	// and a fresh run of the same shape.
+	NLLTolerance float64 `json:"nll_tolerance"`
+	// RateRegressionFraction bounds a fresh run's rates from below as
+	// this fraction of the record's.
+	RateRegressionFraction float64 `json:"rate_regression_fraction"`
 }
 
 // Declared floors (owner rule 2026-09-04, verification before every
-// suite pass). The prompt length is the long context the suites reach
-// (BBH and MMLU-Pro cases run past 1500 tokens) and the output budget
-// is long enough for a loop to show. Prefill on a 2000-token prompt runs
+// suite pass). The judged prompt length is the ladder's second rung,
+// the long context the suites reach (BBH and MMLU-Pro cases run past
+// 1500 tokens), and the output budget is long enough for a loop to
+// show. Prefill on a 2048-token prompt runs
 // the same GEMMs at better occupancy than the 181-token benchmark
 // prompt and decode at 2000 tokens of context adds one attention read
 // per layer, so half the short-prompt rates is a bound no healthy
@@ -54,26 +78,70 @@ type Floors struct {
 // stayed positive, the model's own decoding behaviour on a list, not a
 // runtime defect, and the suite passes score log-probabilities that a
 // greedy loop does not touch.
+//
+// The regression fingerprint (owner rule 2026-09-04, efficient model
+// validation across time, performance and long context) adds the SHORT
+// shape, 160 prompt tokens with a 64-token continuation, and the LONG
+// ladder from 1024 tokens doubling, each rung bounded to a minute of
+// prefill so the 27B's declared 256k context ends the ladder by budget
+// rather than by hours; a check climbs to 8192. A fresh run must
+// reproduce the record's first 48 greedy tokens per shape, the reference
+// shape of the fp8 12B measurement of 2026-09-04, hold its NLL within
+// 0.02 nat per token, and keep 80% of its rates: a code change that
+// moves any of these moved the model.
 const (
-	declaredPromptTokens        = 2000
-	declaredOutputTokens        = 256
-	declaredRateFraction        = 0.5
-	declaredMinimumOutputTokens = 32
-	declaredScoreTokens         = 128
-	declaredShortContextTokens  = 200
-	declaredContextGain         = -0.25
+	declaredPromptTokens           = 2048
+	declaredOutputTokens           = 256
+	declaredRateFraction           = 0.5
+	declaredMinimumOutputTokens    = 32
+	declaredScoreTokens            = 128
+	declaredShortContextTokens     = 200
+	declaredContextGain            = -0.25
+	declaredShortPromptTokens      = 160
+	declaredShortOutputTokens      = 64
+	declaredLadderStart            = 1024
+	declaredRungBudgetSeconds      = 60
+	declaredCheckRungCeiling       = 8192
+	declaredIdenticalTokens        = 48
+	declaredNLLTolerance           = 0.02
+	declaredRateRegressionFraction = 0.8
 )
 
 // DeclaredFloors returns the floors every long-form run is judged by.
 func DeclaredFloors() Floors {
 	return Floors{
 		PromptTokens: declaredPromptTokens, OutputTokens: declaredOutputTokens,
-		RateFraction:        declaredRateFraction,
-		MinimumOutputTokens: declaredMinimumOutputTokens,
-		ScoreTokens:         declaredScoreTokens,
-		ShortContextTokens:  declaredShortContextTokens,
-		ContextGain:         declaredContextGain,
+		RateFraction:           declaredRateFraction,
+		MinimumOutputTokens:    declaredMinimumOutputTokens,
+		ScoreTokens:            declaredScoreTokens,
+		ShortContextTokens:     declaredShortContextTokens,
+		ContextGain:            declaredContextGain,
+		ShortPromptTokens:      declaredShortPromptTokens,
+		ShortOutputTokens:      declaredShortOutputTokens,
+		LadderStart:            declaredLadderStart,
+		RungBudgetSeconds:      declaredRungBudgetSeconds,
+		CheckRungCeiling:       declaredCheckRungCeiling,
+		IdenticalTokens:        declaredIdenticalTokens,
+		NLLTolerance:           declaredNLLTolerance,
+		RateRegressionFraction: declaredRateRegressionFraction,
 	}
+}
+
+// LadderRungs plans the ladder: rungs from LadderStart doubling while
+// the rung and its scored continuation fit the corpus, the rung and
+// its generation fit the model's declared context length, and the
+// rung does not exceed the ceiling (zero for none). The rung budget is
+// read while climbing, not here.
+func LadderRungs(contextLength uint32, corpusTokens int, floors Floors, ceiling int) []int {
+	var rungs []int
+	room := max(floors.OutputTokens, floors.ScoreTokens)
+	for rung := floors.LadderStart; rung > 0; rung *= 2 {
+		if uint64(rung+room) > uint64(contextLength) || rung+floors.ScoreTokens > corpusTokens || (ceiling > 0 && rung > ceiling) {
+			break
+		}
+		rungs = append(rungs, rung)
+	}
+	return rungs
 }
 
 // ShortRates are the model's short-prompt benchmark rates the long-form

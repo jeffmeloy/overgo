@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "one-capability-source",
-          "title": "One capability document per served model, served with the workspace manifest (tabs, composer modes, accepted media kinds with the media policy's byte and dimension limits, context length, generation defaults) and read by the shell, the composer and the model selector; the client-side capability checks scattered across the model pill, chat.js and the analysis modules retire; capability gained: an attachment or a mode is accepted or refused from the server's declaration before a request is sent, and a new server capability reaches the GUI by declaration alone; ratchet: a Go test asserts every capability decision in the webui reads the one document (zero other capability reads)",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestWorkspaceCapabilityDocument' -count=1",
-          "rationale": "Capability gating already exists for tabs; extending the same declaration to modes and media removes three client-side guesses and is what lets the front page adapt to any served model without code.",
-          "depends_on": [
-            "gui-simplify/one-shell"
-          ]
-        },
-        {
           "id": "one-route-table",
           "title": "One GUI route table with one bearer wrapper replaces the hand-written prefix chain in webui_static.go (five repeated authorization blocks), the API manifest's GUI section derives from that table, and an API explorer page renders from the table and the manifest with schema-driven forms (reusing schema_form.js) so every route can be tried from the workbench with its request and response shown; capability gained: every GUI route is enumerated, bearer-consistent, documented and exercisable, and the acceptance lane asserts the whole surface from the table; ratchet: api-manifest -check plus a Go test that the manifest's GUI routes equal the table",
           "status": "open",

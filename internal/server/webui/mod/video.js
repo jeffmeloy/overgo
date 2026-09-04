@@ -54,6 +54,6 @@
   });
   generationSurface("video-edit", {
     path: "/v1/videos/edits", placeholder: "describe the edit to apply", sendLabel: "edit",
-    accept: ["video/mp4"], attachLabel: "source video", source: true,
+    kinds: ["video"], attachLabel: "source video", source: true,
   });
 })();

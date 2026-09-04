@@ -540,11 +540,19 @@
     if (offlineTimer == null) offlineTimer = setInterval(probe, 4000);
   }
 
+  // The served model's capability document (identity, context, generation
+  // defaults, modalities, accepted media and limits, composer modes) rides
+  // the manifest; every client capability decision reads capabilities().
+  let capabilityDocument = null;
+  function capabilities() { return capabilityDocument; }
+  window.overgo.capabilities = capabilities;
+
   async function initShell() {
     const sectionBar = document.getElementById("sections");
     const panels = document.getElementById("panels");
     try {
       workspaceManifest = await api.get("/workspace/manifest");
+      capabilityDocument = workspaceManifest.model || null;
     } catch (err) {
       offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")");
       return;
@@ -617,13 +625,7 @@
   }
   let shellWired = false;
 
-  // boot.js is deferred, so it runs while readyState is "interactive" — before
-  // the later deferred module scripts have registered their tabs. DOMContentLoaded
-  // fires only after all deferred scripts run, so defer initShell to it unless the
-  // document is already fully loaded.
-  if (document.readyState === "complete") {
-    initShell();
-  } else {
-    document.addEventListener("DOMContentLoaded", initShell);
-  }
+  // boot.js is deferred: the document is parsed, and the loader brings in
+  // every library and module itself, so the shell starts at once.
+  initShell();
 })();

@@ -211,7 +211,7 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 	}
 	chat := get("/mod/chat.js")
 	for _, token := range []string{
-		`api.get("/props")`,
+		"overgo.capabilities(",
 		`api.post("/v1/chat/completions/input_tokens"`,
 		"overgo.api.stream(",
 		"Context ratio",

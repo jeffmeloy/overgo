@@ -102,7 +102,6 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		return
 	}
 	model := api.ModelProperties()
-	samplingConfig := h.defaultSampling
 	result := propertiesResponse{
 		TotalSlots: h.config.MaxConcurrent,
 		ModelAlias: h.config.ModelID,
@@ -138,7 +137,15 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		IsSleeping:       false,
 	}
 	result.DefaultGenerationSettings.NCtx = model.ContextLength
-	result.DefaultGenerationSettings.Params = propertiesSamplingParams{
+	result.DefaultGenerationSettings.Params = h.defaultSamplingParams()
+	writeJSON(response, http.StatusOK, result)
+}
+
+// defaultSamplingParams is the served model's generation defaults as the
+// API and the workspace capability document both publish them.
+func (h *Handler) defaultSamplingParams() propertiesSamplingParams {
+	samplingConfig := h.defaultSampling
+	return propertiesSamplingParams{
 		NPredict:         h.defaultOutputTokens,
 		Seed:             samplingConfig.Seed,
 		Temperature:      samplingConfig.Temperature,
@@ -171,7 +178,6 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		Grammar:          "",
 		Samplers:         slices.Clone(samplingConfig.Samplers),
 	}
-	writeJSON(response, http.StatusOK, result)
 }
 
 type slotStatusItem struct {

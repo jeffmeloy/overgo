@@ -253,7 +253,10 @@
     const input = el("textarea", { class: "text", placeholder: options.placeholder || "message (Enter to send, Shift+Enter for newline)" });
     const attachments = [];
     const attachmentHost = el("div", { class: "row" });
-    const accept = options.accept || [];
+    // Accepted media comes from the capability document, never from a list
+    // typed into a surface; a surface may narrow it to kinds (image, audio, video).
+    const media = (overgo.capabilities() || {}).media || { accept: [] };
+    const accept = (media.accept || []).filter((mime) => !options.kinds || options.kinds.some((kind) => mime.startsWith(kind + "/") || (kind === "video" && mime === "image/gif")));
     const picker = el("input", { type: "file", style: "display:none", multiple: options.multiple !== false, accept: accept.join(",") });
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", style: "display:none" }, "stop");

@@ -71,9 +71,10 @@ type workspaceTab struct {
 }
 
 type workspaceManifestResponse struct {
-	Version  uint16             `json:"version"`
-	Sections []workspaceSection `json:"sections"`
-	Tabs     []workspaceTab     `json:"tabs"`
+	Version  uint16                      `json:"version"`
+	Sections []workspaceSection          `json:"sections"`
+	Tabs     []workspaceTab              `json:"tabs"`
+	Model    *workspaceModelCapabilities `json:"model,omitempty"`
 }
 
 func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.Request) {
@@ -94,6 +95,9 @@ func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.
 		result.Tabs[index] = workspaceTab{
 			ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), Enabled: enabled, Refusal: refusal,
 		}
+	}
+	if document, ok := h.workspaceModelCapabilities(request.Context()); ok {
+		result.Model = &document
 	}
 	writeJSON(response, http.StatusOK, result)
 }
@@ -153,6 +157,10 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = h.agentCoordinator != nil
 	case "repository", "operations":
 		supported = h.repository != nil
+	case "embeddings":
+		supported = slices.Contains(h.modelCapabilities(), "embedding")
+	case "rerank":
+		supported = slices.Contains(h.modelCapabilities(), "rerank")
 	case "evaluation":
 		_, supported = h.generator.(EvaluationWorkspaceAPI)
 	case "automation":

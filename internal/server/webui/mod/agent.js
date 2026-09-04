@@ -154,7 +154,6 @@
           chatComposer = overgo.composer(conversationHost, {
             placeholder: "Message the selected agent",
             sendLabel: "Send",
-            accept: ["image/png", "image/jpeg", "image/gif", "audio/wav", "video/mp4"],
             onStop: () => { if (chatController) chatController.abort(); },
             onSubmit: async (content, attachments) => {
               if (chatController) return;

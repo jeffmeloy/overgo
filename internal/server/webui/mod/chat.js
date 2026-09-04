@@ -11,18 +11,12 @@
       const { el, clear, fmt } = overgo;
       clear(panel);
 
-      let model;
-      let properties;
-      try {
-        [model, properties] = await Promise.all([overgo.modelInfo(), overgo.api.get("/props")]);
-      } catch (err) {
-        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
-      const modelID = model.model.id;
-      const defaults = properties.default_generation_settings;
-      const params = defaults.params;
-      const contextLength = defaults.n_ctx;
+      // Identity, context length and sampling defaults come from the capability document.
+      const capabilities = overgo.capabilities();
+      if (!capabilities) { panel.appendChild(overgo.errorBanner("the served model declares no capabilities yet")); return; }
+      const modelID = capabilities.id;
+      const params = capabilities.generation;
+      const contextLength = capabilities.context_length;
       let controller = null;
 
       const system = el("textarea", { class: "text", placeholder: "system prompt (optional)", style: "min-height:52px" });
@@ -36,7 +30,6 @@
         facts);
       const thread = overgo.thread(panel);
       const composer = overgo.composer(panel, {
-        accept: ["image/png", "image/jpeg", "image/gif", "audio/wav", "video/mp4"],
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },
         controls: [reset,

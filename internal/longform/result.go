@@ -33,6 +33,25 @@ type Measure struct {
 	// Score is the teacher-forced read of the true continuation; zero
 	// ScoreTokens means the run did not score.
 	Score ContextScore `json:"score"`
+	// Execution counts the device work the generation cost per output
+	// token; a rung that collapses shows which resource exploded.
+	Execution Execution `json:"execution"`
+}
+
+// Execution is the device work one generation cost, per output token:
+// kernel launches, stream synchronizations, host-to-device bytes, and
+// graph instantiations and launches.
+type Execution struct {
+	KernelLaunchesPerToken       float64 `json:"kernel_launches_per_token"`
+	SynchronizationsPerToken     float64 `json:"synchronizations_per_token"`
+	HostToDeviceBytesPerToken    float64 `json:"host_to_device_bytes_per_token"`
+	GraphInstantiationsPerToken  float64 `json:"graph_instantiations_per_token"`
+	GraphLaunchesPerToken        float64 `json:"graph_launches_per_token"`
+	DeviceToHostBytesPerToken    float64 `json:"device_to_host_bytes_per_token"`
+	PromptKernelLaunches         uint64  `json:"prompt_kernel_launches"`
+	PromptHostToDeviceBytes      uint64  `json:"prompt_host_to_device_bytes"`
+	PromptGraphInstantiations    uint64  `json:"prompt_graph_instantiations"`
+	PromptStreamSynchronizations uint64  `json:"prompt_stream_synchronizations"`
 }
 
 // Result is the evidence document one run commits: the model, the code
@@ -47,12 +66,19 @@ type Result struct {
 	Commit       string `json:"commit"`
 	// Surface is the inference code surface digest the run measured
 	// (see Surface); the admission keys on it, the commit is provenance.
-	Surface      string     `json:"surface"`
-	PromptSource string     `json:"prompt_source"`
-	Measure      Measure    `json:"measure"`
-	Short        ShortRates `json:"short_prompt_rates"`
-	Floors       Floors     `json:"floors"`
-	Verdict      Verdict    `json:"verdict"`
+	Surface      string `json:"surface"`
+	PromptSource string `json:"prompt_source"`
+	// Measure is the judged rung of the ladder, the one at the floors'
+	// prompt length.
+	Measure Measure    `json:"measure"`
+	Short   ShortRates `json:"short_prompt_rates"`
+	Floors  Floors     `json:"floors"`
+	Verdict Verdict    `json:"verdict"`
+	// Shape is the SHORT fingerprint, Rungs the LONG ladder the run
+	// climbed, LadderStop why it stopped before the last planned rung.
+	Shape      ShortShape `json:"shape"`
+	Rungs      []Rung     `json:"rungs,omitempty"`
+	LadderStop string     `json:"ladder_stop,omitzero"`
 	// PromptTail is the text of the prompt's last tokens, so the output
 	// is read against what it continues.
 	PromptTail string `json:"prompt_tail"`
@@ -129,15 +155,23 @@ func LatestByLocation(ctx context.Context, store *overgodb.Store, limit int) map
 			if json.Unmarshal(content.Data, &result) != nil {
 				return nil
 			}
-			locations, err := store.Locations(ctx, record.Model)
-			if err != nil {
-				return nil
+			// The record is keyed by the weights file the run opened, which
+			// the evidence names, and by every file location the store
+			// registers for the model: a claim bound to a catalog manifest
+			// identity carries a directory location, and the passes look
+			// models up by their weights file.
+			keys := []string{}
+			if result.ModelPath != "" {
+				keys = append(keys, locationKey(result.ModelPath))
 			}
-			for _, location := range locations {
-				if location.Kind != artifact.LocationFile {
-					continue
+			if locations, err := store.Locations(ctx, record.Model); err == nil {
+				for _, location := range locations {
+					if location.Kind == artifact.LocationFile {
+						keys = append(keys, locationKey(location.Value))
+					}
 				}
-				key := locationKey(location.Value)
+			}
+			for _, key := range keys {
 				if _, seen := latest[key]; !seen {
 					latest[key] = Summary{Record: record.ID, Result: result}
 				}

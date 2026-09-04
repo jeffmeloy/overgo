@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
 	"overgo/internal/sampling"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
 
@@ -43,36 +45,138 @@ type ContextScore struct {
 	ContextGain float64 `json:"context_gain"`
 }
 
+// NLL reads the continuation's teacher-forced negative log-likelihood
+// per token under the prompt.
+func NLL(ctx context.Context, runner *inference.Runner, prompt, continuation []tokenizer.TokenID) (float64, error) {
+	if runner == nil {
+		return 0, errors.New("longform: runner is nil")
+	}
+	if len(prompt) == 0 || len(continuation) == 0 {
+		return 0, errors.New("longform: the score needs a prompt and a continuation")
+	}
+	scores, err := runner.ScoreContinuationTokens(ctx, prompt, [][]tokenizer.TokenID{continuation})
+	if err != nil {
+		return 0, err
+	}
+	if len(scores) != 1 || scores[0].Tokens == 0 {
+		return 0, errors.New("longform: the continuation score is incomplete")
+	}
+	return -scores[0].LogProbability / float64(scores[0].Tokens), nil
+}
+
 // Score reads the true continuation's negative log-likelihood per token
 // under the whole prompt and under the prompt's leading token plus its
 // last shortContext-1 tokens.
 func Score(ctx context.Context, runner *inference.Runner, prompt, continuation []tokenizer.TokenID, shortContext int) (ContextScore, error) {
-	if runner == nil {
-		return ContextScore{}, errors.New("longform: runner is nil")
-	}
 	if len(continuation) == 0 || shortContext < 2 || shortContext > len(prompt) {
 		return ContextScore{}, errors.New("longform: the score needs a continuation and a short context inside the prompt")
 	}
-	long, err := runner.ScoreContinuationTokens(ctx, prompt, [][]tokenizer.TokenID{continuation})
+	long, err := NLL(ctx, runner, prompt, continuation)
 	if err != nil {
 		return ContextScore{}, err
 	}
 	shortPrompt := append([]tokenizer.TokenID{prompt[0]}, prompt[len(prompt)-shortContext+1:]...)
-	short, err := runner.ScoreContinuationTokens(ctx, shortPrompt, [][]tokenizer.TokenID{continuation})
+	short, err := NLL(ctx, runner, shortPrompt, continuation)
 	if err != nil {
 		return ContextScore{}, err
 	}
-	if len(long) != 1 || len(short) != 1 || long[0].Tokens == 0 || short[0].Tokens == 0 {
-		return ContextScore{}, errors.New("longform: the continuation scores are incomplete")
-	}
-	score := ContextScore{
-		ScoreTokens:     len(continuation),
-		LongContextNLL:  -long[0].LogProbability / float64(long[0].Tokens),
-		ShortContextNLL: -short[0].LogProbability / float64(short[0].Tokens),
-	}
-	score.ContextGain = score.ShortContextNLL - score.LongContextNLL
-	return score, nil
+	return ContextScore{
+		ScoreTokens: len(continuation), LongContextNLL: long, ShortContextNLL: short, ContextGain: short - long,
+	}, nil
 }
+
+// ShortShape is the SHORT fingerprint: the greedy continuation of a
+// short prompt, by token id, and the teacher-forced NLL of the text's
+// own next tokens under that prompt.
+type ShortShape struct {
+	PromptTokens int     `json:"prompt_tokens"`
+	OutputIDs    []int32 `json:"output_ids"`
+	NLL          float64 `json:"nll"`
+	Measure      Measure `json:"measure"`
+}
+
+// Rung is one rung of the LONG ladder: the measure at that prompt
+// length and the greedy tokens it produced.
+type Rung struct {
+	Measure   Measure `json:"measure"`
+	OutputIDs []int32 `json:"output_ids"`
+}
+
+// Short runs the SHORT shape on the corpus tokens.
+func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.TokenID, floors Floors) (ShortShape, error) {
+	if len(corpus) < floors.ShortPromptTokens+floors.ShortOutputTokens {
+		return ShortShape{}, fmt.Errorf("longform: the corpus holds %d tokens, fewer than the short shape's %d", len(corpus), floors.ShortPromptTokens+floors.ShortOutputTokens)
+	}
+	prompt := corpus[:floors.ShortPromptTokens]
+	continuation := corpus[floors.ShortPromptTokens : floors.ShortPromptTokens+floors.ShortOutputTokens]
+	generation, err := Run(ctx, runner, prompt, floors.ShortOutputTokens)
+	if err != nil {
+		return ShortShape{}, err
+	}
+	nll, err := NLL(ctx, runner, prompt, continuation)
+	if err != nil {
+		return ShortShape{}, err
+	}
+	return ShortShape{
+		PromptTokens: floors.ShortPromptTokens, OutputIDs: tokenIDs(generation.Tokens), NLL: nll, Measure: generation.Measure,
+	}, nil
+}
+
+// Ladder climbs the rungs in order, each a generation and a context
+// score on the corpus prefix of the rung's length; it stops after the
+// rung whose prefill ran past the rung budget, and reports why it
+// stopped when it did not climb every planned rung.
+func Ladder(ctx context.Context, runner *inference.Runner, corpus []tokenizer.TokenID, rungs []int, floors Floors) ([]Rung, string, error) {
+	var climbed []Rung
+	for index, length := range rungs {
+		prompt := corpus[:length]
+		continuation := corpus[length : length+floors.ScoreTokens]
+		generation, err := Run(ctx, runner, prompt, floors.OutputTokens)
+		if err != nil {
+			if index == 0 {
+				return nil, "", err
+			}
+			return climbed, fmt.Sprintf("rung %d: %v", length, err), nil
+		}
+		generation.Measure.Score, err = Score(ctx, runner, prompt, continuation, floors.ShortContextTokens)
+		if err != nil {
+			return climbed, fmt.Sprintf("rung %d score: %v", length, err), nil
+		}
+		climbed = append(climbed, Rung{Measure: generation.Measure, OutputIDs: tokenIDs(generation.Tokens)})
+		if generation.Measure.PromptMilliseconds > floors.RungBudgetSeconds*1000 && index+1 < len(rungs) {
+			return climbed, fmt.Sprintf("rung %d prefill took %.1fs, past the %.0fs rung budget", length,
+				generation.Measure.PromptMilliseconds/1000, floors.RungBudgetSeconds), nil
+		}
+	}
+	return climbed, "", nil
+}
+
+// executionCost splits the device counters read before the run, after
+// the prompt, and after the run into the prompt's own work and the
+// decode's work per output token.
+func executionCost(before, afterPrompt, after driver.ExecutionStats, outputTokens int) Execution {
+	cost := Execution{
+		PromptKernelLaunches:         afterPrompt.KernelLaunches - before.KernelLaunches,
+		PromptHostToDeviceBytes:      afterPrompt.HostToDeviceBytes - before.HostToDeviceBytes,
+		PromptGraphInstantiations:    afterPrompt.GraphInstantiations - before.GraphInstantiations,
+		PromptStreamSynchronizations: afterPrompt.StreamSynchronizations - before.StreamSynchronizations,
+	}
+	if outputTokens == 0 || afterPrompt.KernelLaunches == 0 {
+		return cost
+	}
+	tokens := float64(outputTokens)
+	cost.KernelLaunchesPerToken = float64(after.KernelLaunches-afterPrompt.KernelLaunches) / tokens
+	cost.SynchronizationsPerToken = float64(after.StreamSynchronizations-afterPrompt.StreamSynchronizations) / tokens
+	cost.HostToDeviceBytesPerToken = float64(after.HostToDeviceBytes-afterPrompt.HostToDeviceBytes) / tokens
+	cost.DeviceToHostBytesPerToken = float64(after.DeviceToHostBytes-afterPrompt.DeviceToHostBytes) / tokens
+	cost.GraphInstantiationsPerToken = float64(after.GraphInstantiations-afterPrompt.GraphInstantiations) / tokens
+	cost.GraphLaunchesPerToken = float64(after.GraphLaunches-afterPrompt.GraphLaunches) / tokens
+	return cost
+}
+
+// The evidence records token ids as int32 and the runner speaks
+// tokenizer ids; one typed conversion serves both directions.
+func tokenIDs(tokens []tokenizer.TokenID) []int32 { return dtype.ConvertSlice[int32](tokens) }
 
 // Generation is one greedy run: the tokens it produced, their text, and
 // the measure over them.
@@ -111,10 +215,14 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 		return Generation{}, err
 	}
 	var (
-		evaluation inference.PromptEvaluation
-		tokens     = make([]tokenizer.TokenID, 0, outputTokens)
-		firstToken time.Time
+		evaluation  inference.PromptEvaluation
+		tokens      = make([]tokenizer.TokenID, 0, outputTokens)
+		firstToken  time.Time
+		afterPrompt driver.ExecutionStats
 	)
+	// The device counters are read around the run; a host-resident
+	// runner has none and the counts stay zero.
+	before, _ := runner.DeviceExecutionStats(ctx)
 	started := time.Now()
 	_, _, err = runner.Generate(ctx, "", inference.GenerateOptions{
 		MaxNewTokens:   outputTokens,
@@ -123,6 +231,7 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 		PromptTokenIDs: prompt,
 		OnPromptEvaluated: func(value inference.PromptEvaluation) {
 			evaluation = value
+			afterPrompt, _ = runner.DeviceExecutionStats(ctx)
 		},
 		OnToken: func(event inference.TokenEvent) error {
 			if firstToken.IsZero() {
@@ -136,6 +245,7 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 	if err != nil {
 		return Generation{}, err
 	}
+	after, _ := runner.DeviceExecutionStats(ctx)
 	total := finished.Sub(started)
 	timeToFirst := total
 	if !firstToken.IsZero() {
@@ -155,10 +265,8 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 	if len(tokens) > 1 && decode > 0 {
 		measure.DecodeTokensPerSecond = float64(len(tokens)-1) / decode.Seconds()
 	}
-	ids := make([]int32, len(tokens))
-	for index, token := range tokens {
-		ids[index] = int32(token)
-	}
+	measure.Execution = executionCost(before, afterPrompt, after, len(tokens))
+	ids := tokenIDs(tokens)
 	measure.DistinctFourGramRatio = DistinctNGramRatio(ids, 4)
 	measure.LongestRepeatedSpan = LongestRepeatedSpan(ids)
 	// The text is rendered from the generated tokens alone: the

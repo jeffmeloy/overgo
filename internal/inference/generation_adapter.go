@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"overgo/internal/sampling"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
 )
 
@@ -55,13 +56,7 @@ func (r *Runner) applyGenerationLoRA(options GenerateOptions) (func(), error) {
 	}, nil
 }
 
-func tokenHistory(ids []tokenizer.TokenID) []int {
-	history := make([]int, len(ids))
-	for index, id := range ids {
-		history[index] = int(id)
-	}
-	return history
-}
+func tokenHistory(ids []tokenizer.TokenID) []int { return dtype.ConvertSlice[int](ids) }
 
 func sampleGenerationToken(
 	logits []float32,

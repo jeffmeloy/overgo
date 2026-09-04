@@ -74,6 +74,7 @@ func main() {
 	pruneDone := flag.Bool("prune-done", false, "retired: direct plan pruning is refused")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
+	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
@@ -86,7 +87,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{move: *move, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{move: *move, retitle: *retitle, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -94,7 +95,7 @@ func main() {
 
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop bool
-	move                                                                             bool
+	move, retitle                                                                    bool
 	frontier                                                                         bool
 	judgeEfficiency                                                                  string
 	pruneDone                                                                        bool
@@ -174,6 +175,11 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -move <item-id> [-before <id>]")
 		}
 		return moveItem(".", args[0], c.before, role)
+	case c.retitle:
+		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
+			return errors.New("usage: plan -retitle <item-id> -title <title>")
+		}
+		return retitleItem(".", args[0], c.title, role)
 	case c.setverify:
 		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
@@ -479,6 +485,47 @@ func moveItem(root, id, before, role string) error {
 		fmt.Printf("moved item %s; next: %s\n", id, action)
 		return nil
 	})
+}
+
+// retitleItem re-scopes an open item: its title and, when it carries the
+// single "do" step an injection made, that step's title follow the new
+// scope, so a row refactored from results keeps one text in both places.
+func retitleItem(root, id, title, role string) error {
+	return withPlanMutation(root, false, func(document plan.Plan) error {
+		updated, err := rescopeItem(document, id, title)
+		if err != nil {
+			return err
+		}
+		updatedAuthority, err := resolveCompletionAuthority(root, updated)
+		if err != nil {
+			return err
+		}
+		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+			return err
+		}
+		action, _ := nextAction(updated, role, updatedAuthority)
+		fmt.Printf("retitled item %s; next: %s\n", id, action)
+		return nil
+	})
+}
+
+// rescopeItem is the pure core of retitleItem. No I/O.
+func rescopeItem(document plan.Plan, id, title string) (plan.Plan, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return plan.Plan{}, errors.New("retitle: the title is empty")
+	}
+	for index := range document.Items {
+		if document.Items[index].ID != id {
+			continue
+		}
+		document.Items[index].Title = title
+		if steps := document.Items[index].Steps; len(steps) == 1 && steps[0].ID == "do" {
+			document.Items[index].Steps[0].Title = title
+		}
+		return document, nil
+	}
+	return plan.Plan{}, fmt.Errorf("item %q: no such item", id)
 }
 
 // relocateItem is the pure core of moveItem: returns a plan with the item

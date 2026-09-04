@@ -71,20 +71,11 @@
         for (const slot of data.slots) {
           const timing = slot.timings || null;
           const elapsed = timing ? Number(timing.prompt_ms) + Number(timing.predicted_ms) : null;
-          table.appendChild(el("tr", {},
-            el("td", { class: "mono", text: slot.id }),
-            el("td", { class: "mono", text: present(slot.id_task) }),
-            el("td", {}, el("span", {
-              class: "tag " + (slot.is_processing ? "user_defined" : ""),
-              text: slot.is_processing ? "running" : "idle",
-            })),
-            el("td", { class: "mono", text: present(slot.n_ctx, fmt.grouped) }),
-            el("td", { class: "mono", text: present(slot.n_prompt_tokens_processed, fmt.grouped) }),
-            el("td", { class: "mono", text: present(slot.n_prompt_tokens_cache, fmt.grouped) }),
-            el("td", { class: "mono", text: present(timing && timing.predicted_n, fmt.grouped) }),
-            el("td", { class: "mono", text: present(timing && timing.prompt_per_second, (v) => Number(v).toFixed(2) + " tok/s") }),
-            el("td", { class: "mono", text: present(timing && timing.predicted_per_second, (v) => Number(v).toFixed(2) + " tok/s") }),
-            el("td", { class: "mono", text: present(elapsed, (v) => v.toFixed(2) + " ms") })));
+          table.appendChild(overgo.tableRow([slot.id, present(slot.id_task),
+            el("span", { class: "tag " + (slot.is_processing ? "user_defined" : ""), text: slot.is_processing ? "running" : "idle" }),
+            present(slot.n_ctx, fmt.grouped), present(slot.n_prompt_tokens_processed, fmt.grouped), present(slot.n_prompt_tokens_cache, fmt.grouped),
+            present(timing && timing.predicted_n, fmt.grouped), present(timing && timing.prompt_per_second, (v) => Number(v).toFixed(2) + " tok/s"),
+            present(timing && timing.predicted_per_second, (v) => Number(v).toFixed(2) + " tok/s"), present(elapsed, (v) => v.toFixed(2) + " ms")]));
         }
         slots.replaceChildren(table);
       }

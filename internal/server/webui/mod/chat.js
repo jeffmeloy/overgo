@@ -1,27 +1,28 @@
-/* Chat: conversation against the served model through /v1/chat/completions
-   over the shared composer and thread; attachments ride the protocol's own
-   content parts, and defaults come from the capability document. */
+/* Chat: the conversation the server owns. Every turn is a stored response
+   chained through previous_response_id; the rail's selection resumes a
+   chain from its record, a turn cut off mid-stream reattaches through
+   /interactions/follow, and defaults come from the capability document. */
 (function () {
   "use strict";
+  const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
   window.overgo.registerTab({
     id: "chat",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);
-
-      // Identity, context length and sampling defaults come from the capability document.
       const capabilities = overgo.capabilities();
       if (!capabilities) { panel.appendChild(overgo.errorBanner("the served model declares no capabilities yet")); return; }
       const modelID = capabilities.id;
       const params = capabilities.generation;
       const contextLength = capabilities.context_length;
       let controller = null;
+      let lastResponseID = "";
 
       const system = el("textarea", { class: "text", placeholder: "system prompt (optional)", style: "min-height:52px" });
-      const facts = el("div", { class: "statgrid" });
+      const facts = el("div", { class: "statgrid", "aria-label": "context meter" });
       const temperature = el("input", { class: "keyfield", type: "number", value: params.temperature, style: "width:80px" });
       const maxTokens = el("input", { class: "keyfield", type: "number", value: params.max_tokens, max: contextLength, style: "width:90px" });
-      const reset = el("button", { class: "btn alt", onclick: clearChat }, "clear");
+      const reset = el("button", { class: "btn alt", onclick: () => overgo.openConversation(null) }, "new");
 
       panel.append(
         el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
@@ -57,79 +58,98 @@
             cards.push(overgo.stat("Context ratio", inputTokens + " / " + contextLength));
           }
         }
-        if (usage && usage.completion_tokens != null) {
-          cards.push(overgo.stat("Completion", fmt.grouped(usage.completion_tokens), "tokens"));
-        }
+        if (usage && usage.completion_tokens != null) cards.push(overgo.stat("Completion", fmt.grouped(usage.completion_tokens), "tokens"));
         if (timings) {
           cards.push(overgo.stat("Cached", fmt.grouped(timings.cache_n), "tokens"));
-          if (timings.prompt_n && timings.prompt_ms > 0) {
-            cards.push(overgo.stat("Prefill", Number(timings.prompt_per_second).toFixed(2), "tok/s"));
-          }
-          if (timings.predicted_n && timings.predicted_ms > 0) {
-            cards.push(overgo.stat("Decode", Number(timings.predicted_per_second).toFixed(2), "tok/s"));
-          }
+          if (timings.prompt_n && timings.prompt_ms > 0) cards.push(overgo.stat("Prefill", Number(timings.prompt_per_second).toFixed(2), "tok/s"));
+          if (timings.predicted_n && timings.predicted_ms > 0) cards.push(overgo.stat("Decode", Number(timings.predicted_per_second).toFixed(2), "tok/s"));
           const elapsed = Number(timings.prompt_ms) + Number(timings.predicted_ms);
           if (elapsed > 0) cards.push(overgo.stat("Elapsed", elapsed.toFixed(2), "ms"));
         }
         facts.replaceChildren(...cards);
       }
 
-      function clearChat() {
-        thread.reset();
-        facts.replaceChildren();
+      // The composer's protocol parts become Responses input parts.
+      function responsesInput(text, parts) {
+        const content = [{ type: "input_text", text }];
+        for (const part of parts) {
+          if (part.type === "image_url") content.push({ type: "input_image", image_url: part.image_url.url });
+          else if (part.type === "input_audio") content.push({ type: "input_audio", input_audio: part.input_audio });
+          else if (part.type === "input_video") content.push({ type: "input_video", input_video: part.input_video });
+        }
+        return [{ role: "user", content: parts.length ? content : text }];
       }
 
-      // The request history is the thread's own rows (user and assistant
-      // text), so the served model sees exactly what the thread shows.
-      function requestMessages(text, parts) {
-        const payload = [];
-        if (system.value.trim()) payload.push({ role: "system", content: system.value.trim() });
-        for (const message of thread.messages) {
-          if (message.role === "user" || message.role === "assistant") payload.push({ role: message.role, content: message.content });
+      function streamTurn(path, body, method) {
+        return overgo.api.stream(path, body, { signal: controller.signal, method });
+      }
+
+      // consumeTurn drives one streamed turn: the created id is noted so a reload can reattach, the completion id becomes latest.
+      async function consumeTurn(response, assistant, inputTokens) {
+        let latest = "";
+        async function* noting(events) {
+          for await (const event of events) {
+            if (event.type === "created" || event.type === "done") latest = event.id || latest;
+            if (event.type === "created") { try { localStorage.setItem(INFLIGHT_STORAGE, event.id); } catch (_) { /* storage unavailable */ } }
+            yield event;
+          }
         }
-        payload.push(parts.length
-          ? { role: "user", content: [{ type: "text", text }, ...parts] }
-          : { role: "user", content: text });
-        return payload;
+        const terminal = await thread.consume(noting(overgo.streams.responses(response)), assistant);
+        if (latest) lastResponseID = latest;
+        try { localStorage.removeItem(INFLIGHT_STORAGE); } catch (_) { /* storage unavailable */ }
+        renderFacts(inputTokens, terminal.usage, terminal.timings);
+        overgo.refreshConversations();
       }
 
       async function submit(text, attachments) {
         if (controller) return;
         welcome.remove();
         const parts = composer.attachmentParts();
-        const payload = requestMessages(text, parts);
         composer.clearInput();
-        const attachedNote = attachments.length
-          ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]"
-          : text;
-        thread.add("user", attachedNote);
+        thread.add("user", attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text);
         composer.clearAttachments();
         const assistant = thread.add("assistant", "");
         controller = new AbortController();
         composer.setBusy(true);
         try {
-          const count = await overgo.api.post("/v1/chat/completions/input_tokens", {
-            model: modelID,
-            messages: payload,
-          }, { signal: controller.signal });
-          renderFacts(count.input_tokens, null, null);
-          const request = { model: modelID, messages: payload, stream: true };
+          const request = { model: modelID, input: responsesInput(text, parts), stream: true, store: true };
+          if (lastResponseID) request.previous_response_id = lastResponseID;
+          if (system.value.trim()) request.instructions = system.value.trim();
           if (temperature.value !== "") request.temperature = Number(temperature.value);
-          if (maxTokens.value !== "") request.max_tokens = Number(maxTokens.value);
-          const response = await overgo.api.stream("/v1/chat/completions", request, { signal: controller.signal });
-          const terminal = await thread.consume(overgo.streams.openai(response), assistant);
-          renderFacts(count.input_tokens, terminal.usage, terminal.timings);
+          if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+          const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal });
+          renderFacts(count.input_tokens, null, null);
+          await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count.input_tokens);
         } catch (err) {
           if (err.name === "AbortError") {
             assistant.content += (assistant.content ? "\n" : "") + "[stopped]";
             thread.renderMessage(assistant, false);
-          } else {
-            thread.errorRow(overgo.friendlyError(err));
-          }
+          } else thread.errorRow(overgo.friendlyError(err));
         } finally {
           controller = null;
           composer.setBusy(false);
         }
+      }
+
+      // Resume the rail selection from its record, or reattach to a turn this page was streaming.
+      const selected = overgo.conversation();
+      let inflight = "";
+      try { inflight = localStorage.getItem(INFLIGHT_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
+      if (selected) {
+        try {
+          const chain = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(selected.latest));
+          welcome.remove();
+          for (const message of chain.messages || []) if (message.role === "user" || message.role === "assistant") thread.add(message.role, message.content);
+          lastResponseID = chain.response;
+        } catch (err) { thread.errorRow(overgo.friendlyError(err)); }
+      }
+      if (inflight) {
+        welcome.remove();
+        controller = new AbortController();
+        composer.setBusy(true);
+        try {
+          await consumeTurn(await streamTurn("/interactions/follow?response=" + encodeURIComponent(inflight), null, "GET"), thread.add("assistant", ""), null);
+        } catch (err) { thread.errorRow(overgo.friendlyError(err)); } finally { controller = null; composer.setBusy(false); }
       }
     },
   });

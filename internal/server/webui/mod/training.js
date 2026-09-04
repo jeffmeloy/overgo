@@ -35,14 +35,10 @@
     const detail = overgo.el("div");
     function render() {
       const observation = observations[Number(select.value) || 0];
-      const table = overgo.el("table", { class: "grid" }, overgo.headerRow(["scorer", "chosen", "rejected", "margin"]));
-      for (const row of [
+      const table = overgo.table(["scorer", "chosen", "rejected", "margin"], [
         ["policy", observation.policy_chosen, observation.policy_rejected, observation.policy_margin],
         ["reference", observation.reference_chosen, observation.reference_rejected, observation.reference_margin],
-      ]) {
-        table.appendChild(overgo.el("tr", {}, ...row.map((value, index) =>
-          overgo.el("td", { class: index ? "mono" : "", text: String(value) }))));
-      }
+      ]);
       detail.replaceChildren(
         overgo.el("div", { class: "statgrid" },
           overgo.stat("Relative margin", observation.relative_margin),
@@ -95,15 +91,10 @@
     const rows = (trace) => trace.objective === "grpo" ? trace.grpo : trace.dpo;
     const left = rows(baseline.trace).at(-1);
     const right = rows(current.trace).at(-1);
-    const table = overgo.el("table", { class: "grid" }, overgo.headerRow(["measurement", "baseline", "current"]));
     const fields = current.trace.objective === "grpo" ?
       ["loss", "mean_reward", "reward_dispersion", "gradient_l2", "update_l2"] :
       ["loss", "policy_margin", "reference_margin", "relative_margin", "gradient_l2", "update_l2"];
-    for (const field of fields) {
-      table.appendChild(overgo.el("tr", {}, overgo.el("td", { text: field }),
-        overgo.el("td", { class: "mono", text: String(left[field]) }),
-        overgo.el("td", { class: "mono", text: String(right[field]) })));
-    }
+    const table = overgo.table(["measurement", "baseline", "current"], fields.map((field) => [field, String(left[field]), String(right[field])]));
     return overgo.el("section", { class: "evidence-block" },
       overgo.el("div", { class: "section-title", text: "Checkpoint comparison" }),
       overgo.el("div", { class: "row artifact-links" },
@@ -199,13 +190,10 @@
         for (const run of data.runs) {
           const phases = [...(run.phases || [])].sort((a, b) => b.ms - a.ms).slice(0, 3)
             .map((phase) => phase.phase + " " + phase.ms.toFixed(0) + "ms").join(", ");
-          table.appendChild(el("tr", {},
-            el("td", {}, el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome })),
-            el("td", {}, el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => loadDetail(run.id) })),
-            el("td", { class: "mono", text: (run.code_commit || "").slice(0, 10) || "-" }),
-            el("td", { class: "mono", text: run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "-" }),
-            el("td", { class: "dim", text: phases || "-" }),
-            el("td", { class: "mono", text: run.inputs + "/" + run.outputs })));
+          table.appendChild(overgo.tableRow([el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome }),
+            el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => loadDetail(run.id) }),
+            (run.code_commit || "").slice(0, 10) || "-", run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "-",
+            el("span", { class: "dim", text: phases || "-" }), run.inputs + "/" + run.outputs]));
         }
         host.replaceChildren(table);
       }

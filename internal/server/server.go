@@ -403,6 +403,7 @@ type workbenchWorkspace struct {
 // declares, so no workspace silently reaches the entire handler.
 type Handler struct {
 	config             Config
+	inflight           inflightRegistry
 	started            time.Time
 	requestsTotal      atomic.Uint64
 	requestsActive     atomic.Int64

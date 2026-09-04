@@ -7,6 +7,7 @@ package server
 // adapters in composer.js map each served protocol onto it and the
 // composer budget test holds the two in step.
 const (
+	streamEventCreated   = "created"    // the turn identity, before any text; a page notes it to reattach
 	streamEventToken     = "token"      // a piece of assistant text
 	streamEventToolStart = "tool_start" // a tool call begins: name, arguments
 	streamEventToolEnd   = "tool_end"   // the call returned or was refused: result, error, elapsed
@@ -18,6 +19,6 @@ const (
 
 // streamEventTypes lists the vocabulary in the order the renderer documents it.
 var streamEventTypes = []string{
-	streamEventToken, streamEventToolStart, streamEventToolEnd, streamEventMedia,
+	streamEventCreated, streamEventToken, streamEventToolStart, streamEventToolEnd, streamEventMedia,
 	streamEventUsage, streamEventDone, streamEventError,
 }

@@ -58,43 +58,52 @@
       }));
     },
     async stream(path, body, opts) {
+      const method = (opts && opts.method) || "POST";
       const response = await fetch(path, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(body),
+        method,
+        headers: authHeaders(method === "POST" ? { "Content-Type": "application/json" } : {}),
+        body: method === "POST" ? JSON.stringify(body) : undefined,
         signal: opts && opts.signal,
       });
       if (!response.ok) await readJSON(response);
       return response;
     },
     async events(path, handler, opts) {
-	  const separator = "\n\n";
-	  const eventPrefix = "event: ";
-	  const dataPrefix = "data: ";
       const response = await fetch(path, { headers: authHeaders(), signal: opts && opts.signal });
       if (!response.ok) await readJSON(response);
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffered = "";
-      for (;;) {
-        const chunk = await reader.read();
-        buffered += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
-        let boundary;
-		while ((boundary = buffered.indexOf(separator)) >= 0) {
-          const block = buffered.slice(0, boundary);
-		  buffered = buffered.slice(boundary + separator.length);
-          let event = "message";
-          const data = [];
-          for (const line of block.split("\n")) {
-			if (line.startsWith(eventPrefix)) event = line.slice(eventPrefix.length);
-			else if (line.startsWith(dataPrefix)) data.push(line.slice(dataPrefix.length));
-          }
-          if (data.length) handler(event, JSON.parse(data.join("\n")));
-        }
-        if (chunk.done) return;
-      }
+      for await (const { event, data } of sseEvents(response)) handler(event, data);
     },
   };
+
+  // sseEvents: the one reader of a server-sent event stream; yields each
+  // block's event name and parsed data (the stream adapters and api.events).
+  async function* sseEvents(response) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = "";
+    for (;;) {
+      const chunk = await reader.read();
+      buffered += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
+      let boundary;
+      while ((boundary = buffered.indexOf("\n\n")) >= 0) {
+        const block = buffered.slice(0, boundary);
+        buffered = buffered.slice(boundary + 2);
+        let event = "message";
+        const data = [];
+        for (const line of block.split("\n")) {
+          if (line.startsWith("event: ")) event = line.slice(7);
+          else if (line.startsWith("data: ")) data.push(line.slice(6));
+        }
+        if (!data.length) continue;
+        const joined = data.join("\n");
+        if (joined === "[DONE]") { yield { event: "done", data: null }; continue; }
+        let parsed;
+        try { parsed = JSON.parse(joined); } catch (_) { continue; }
+        yield { event, data: parsed };
+      }
+      if (chunk.done) return;
+    }
+  }
 
   // /analyze/model serves the Model tab and the lens; one cached promise per
   // page load, cleared on rejection and on a key change.
@@ -258,9 +267,13 @@
     });
   }
 
-  // headerRow: one table header row from its labels; every grid table used
-  // to spell the th cells out.
+  // headerRow, tableRow, table: a header row from labels, a row of cells (a
+  // node, or text shown mono after the first column), a grid table from both.
   function headerRow(labels) { return el("tr", {}, ...labels.map((text) => el("th", { text }))); }
+  function tableRow(cells, attrs) {
+    return el("tr", attrs || {}, ...cells.map((cell, index) => cell instanceof Node ? el("td", {}, cell) : el("td", { class: index ? "mono" : "", text: String(cell == null ? "" : cell) })));
+  }
+  function table(headers, rows, cls) { return el("table", { class: "grid " + (cls || "") }, headerRow(headers), ...rows.map((row) => tableRow(row))); }
 
   // evidenceLine: a catalog entry's committed evidence, shown by the header and the picker alike.
   function evidenceLine(item) {
@@ -279,8 +292,45 @@
   let servedEntry = null;
   function servedModel() { return servedEntry; }
 
+  // ---- conversations: chains of stored responses the server lists ----
+  // The rail lists them, opens one into the chat tab, renames or archives
+  // one as a new label record; the browser keeps only the selection.
+  let selectedConversation = null;
+  function conversation() { return selectedConversation; }
+  function openConversation(item) {
+    selectedConversation = item;
+    for (const tab of tabs) { if (tab.id === "chat") tab.mounted = false; }
+    activate("chat");
+  }
+  async function refreshConversations() {
+    const host = document.getElementById("conversation-list");
+    if (!host) return;
+    let listing;
+    try { listing = await api.get("/interactions"); } catch (_) { clear(host); return; }
+    const fresh = el("button", { class: "tab", text: "+ new conversation", onclick: () => openConversation(null) });
+    clear(host);
+    host.appendChild(fresh);
+    for (const item of (listing.conversations || []).filter((entry) => !entry.archived)) {
+      const open = el("button", { class: "tab" + (selectedConversation && selectedConversation.root === item.root ? " active" : ""),
+        text: item.title, title: item.turns + " turn(s)", onclick: () => openConversation(item) });
+      const rename = el("button", { class: "link-button", text: "rename", "aria-label": "rename conversation", onclick: async () => {
+        const title = window.prompt("conversation title", item.title);
+        if (title == null) return;
+        await api.post("/interactions/label", { root: item.root, title, archived: false });
+        refreshConversations();
+      } });
+      const archive = el("button", { class: "link-button", text: "archive", "aria-label": "archive conversation", onclick: async () => {
+        await api.post("/interactions/label", { root: item.root, title: item.title, archived: true });
+        if (selectedConversation && selectedConversation.root === item.root) openConversation(null);
+        refreshConversations();
+      } });
+      host.appendChild(el("div", { class: "conversation" }, open, el("div", { class: "row" }, rename, archive)));
+    }
+  }
+
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, evidenceLine, servedModel,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel,
+    conversation, openConversation, refreshConversations, sseEvents,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
@@ -653,6 +703,7 @@
     activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
     refreshStatus();
     applyCapabilities();
+    refreshConversations();
   }
   let shellWired = false;
 

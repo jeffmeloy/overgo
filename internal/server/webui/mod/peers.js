@@ -78,12 +78,10 @@
         const table = el("table", { class: "grid" }, overgo.headerRow(["label", "state", "capacity", "lease", "authority"]));
         for (const item of inventory.peers || []) {
           const capacity = item.capacity || {};
-          table.appendChild(el("tr", { onclick: () => { selectedPeer = item.peer; renderDetail(); } },
-            el("td", {}, el("button", { class: "link-button", text: item.enrollment.name })),
-            el("td", { text: (item.state && item.state.state) || "unknown" }),
-            el("td", { text: (capacity.tasks || []).join(", ") || "none" }),
-            el("td", { text: capacity.available ? "available" : "unavailable" }),
-            el("td", { text: item.refusal || "eligible" })));
+          table.appendChild(overgo.tableRow([el("button", { class: "link-button", text: item.enrollment.name }),
+            (item.state && item.state.state) || "unknown", (capacity.tasks || []).join(", ") || "none",
+            capacity.available ? "available" : "unavailable", item.refusal || "eligible"],
+            { onclick: () => { selectedPeer = item.peer; renderDetail(); } }));
         }
         if (inventory.truncated) table.appendChild(el("caption", { text: "Projection truncated by server policy" }));
         inventoryHost.replaceChildren(table);
@@ -177,9 +175,8 @@
         const table = el("table", { class: "grid" }, overgo.headerRow(["phase", "outcome", "attempt", "failure / log", "artifacts"]));
         for (const document of evidence.attempts || []) {
           const attempt = document.value;
-          table.appendChild(el("tr", {}, el("td", { text: attempt.phase }), el("td", { text: attempt.outcome }),
-            el("td", { text: String(attempt.attempt) }), el("td", { text: attempt.failure || "completed" }),
-            el("td", {}, ...((attempt.artifacts || []).map(artifactLink)))));
+          table.appendChild(overgo.tableRow([attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed",
+            el("span", {}, ...((attempt.artifacts || []).map(artifactLink)))]));
         }
         evidenceHost.replaceChildren(table);
       }

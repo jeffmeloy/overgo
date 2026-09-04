@@ -8,40 +8,6 @@
 
   // ---- adapters: served protocols to the event vocabulary ----
 
-  // openai: an SSE response of chat-completion chunks as token, usage and done events.
-  async function* openai(response) {
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let usage = null;
-    let timings = null;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop();
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const data = trimmed.slice(5).trim();
-        if (data === "[DONE]") {
-          if (usage || timings) yield { type: "usage", usage, timings };
-          yield { type: "done" };
-          return;
-        }
-        let parsed;
-        try { parsed = JSON.parse(data); } catch (_) { continue; }
-        if (parsed.usage) usage = parsed.usage;
-        if (parsed.timings) timings = parsed.timings;
-        const delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
-        if (delta && delta.content) yield { type: "token", text: delta.content };
-      }
-    }
-    if (usage || timings) yield { type: "usage", usage, timings };
-    yield { type: "done" };
-  }
-
   // reply: a complete (non-streamed) chat response, rendered as one token.
   async function* reply(result) {
     const answer = result && result.choices && result.choices[0] && result.choices[0].message;
@@ -66,6 +32,26 @@
   async function* blob(kind, body, caption) {
     yield { type: "media", kind, url: URL.createObjectURL(body), caption, bytes: body.size, mime: body.type };
     yield { type: "done" };
+  }
+
+  // responses: the Responses API named SSE events (what /interactions/follow replays too): deltas
+  // as tokens, function-call items as tool events, usage+timings at completion, failures as errors.
+  async function* responses(response) {
+    let id = "";
+    for await (const { event, data: parsed } of overgo.sseEvents(response)) {
+      if (!parsed) continue;
+      if (parsed.response && parsed.response.id) id = parsed.response.id;
+      if (event === "response.created") yield { type: "created", id };
+      else if (event === "response.output_text.delta") yield { type: "token", text: parsed.delta || "" };
+      else if (event === "response.output_item.added" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_start", id: parsed.item.id, name: parsed.item.name, arguments: parsed.item.arguments };
+      else if (event === "response.output_item.done" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_end", id: parsed.item.id, name: parsed.item.name, result: parsed.item.arguments };
+      else if (event === "response.failed") yield { type: "error", message: String(parsed.delta || (parsed.error && parsed.error.message) || "the turn failed") };
+      else if (event === "response.completed") {
+        const usage = parsed.response && parsed.response.usage;
+        yield { type: "usage", usage: usage ? { prompt_tokens: usage.input_tokens, completion_tokens: usage.output_tokens } : null, timings: (parsed.response && parsed.response.timings) || null };
+      }
+    }
+    yield { type: "done", id };
   }
 
   // ---- thread: the stream renderer (messages, tool cards, media cards,
@@ -165,9 +151,8 @@
 
     // consume drives one turn from an event source: assistant tokens land in
     // the given message (streamed, then rendered as markdown at done), tool
-    // and media events become cards, usage is returned as the terminal facts.
-    async function consume(events, assistant) {
-      const terminal = {};
+    // consume drives one turn from an event source: tokens land in the message (markdown at done),
+    // tool and media events become cards, usage is returned as the terminal facts.
       const open = new Map();
       thinking(true);
       try {
@@ -205,6 +190,7 @@
               thinking(false);
               errorRow(event.message);
               break;
+            case "created":
             case "done":
               break;
           }
@@ -307,5 +293,5 @@
 
   overgo.thread = thread;
   overgo.composer = composer;
-  overgo.streams = { openai, reply, media, blob };
+  overgo.streams = { reply, media, blob, responses };
 })();

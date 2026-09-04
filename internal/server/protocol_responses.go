@@ -97,6 +97,7 @@ type responsesResponse struct {
 	Output      []responseOutputItem `json:"output"`
 	Status      string               `json:"status"`
 	Usage       responseUsage        `json:"usage"`
+	Timings     *slotStatusTimings   `json:"timings,omitempty"`
 }
 
 func (h *Handler) responses(response http.ResponseWriter, request *http.Request) {
@@ -296,6 +297,21 @@ func (h *Handler) streamResponses(
 	}); err != nil {
 		return
 	}
+	// A stored turn outlives its client: generation detaches from the
+	// request's cancellation, the text so far is held for a page that
+	// reattaches through /interactions/follow, and the interaction is
+	// published whether or not the first stream is still listening.
+	var turnBuffer *inflightTurn
+	if store {
+		turnBuffer = h.inflight.begin(responseID, h.config.MaxStoredResponses)
+		plan.request = request.WithContext(context.WithoutCancel(request.Context()))
+	}
+	detached := func(err error) error {
+		if err != nil && turnBuffer != nil {
+			return nil
+		}
+		return err
+	}
 
 	var output strings.Builder
 	var buffered strings.Builder
@@ -328,6 +344,9 @@ func (h *Handler) streamResponses(
 			textStarted = true
 		}
 		output.WriteString(piece)
+		if turnBuffer != nil {
+			turnBuffer.append(piece)
+		}
 		return writeEvent("response.output_text.delta", responsesStreamEvent{
 			Type: "response.output_text.delta", ItemID: messageID, Delta: piece,
 		})
@@ -434,16 +453,19 @@ func (h *Handler) streamResponses(
 				if streamErr := emitToolPiece(piece); streamErr != nil {
 					return streamErr
 				}
-				return request.Context().Err()
+				return detached(request.Context().Err())
 			}
 			if reasoningSummary {
 				buffered.WriteString(piece)
-				return request.Context().Err()
+				return detached(request.Context().Err())
 			}
-			return emitText(piece)
+			return detached(emitText(piece))
 		},
 	)
 	if err != nil {
+		if turnBuffer != nil {
+			turnBuffer.finish(nil, err.Error())
+		}
 		_ = emitNamedGenerationError(writeEvent, "response.failed", err)
 		return
 	}
@@ -588,11 +610,15 @@ func (h *Handler) streamResponses(
 			InputTokenDetails: responseInputTokenDetails{},
 		},
 	}
+	timings := h.slotStats[plan.session.ID].metrics(true).Timings
+	final.Timings = &timings
 	if store {
 		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage)); err != nil {
+			turnBuffer.finish(nil, err.Error())
 			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
 			return
 		}
+		turnBuffer.finish(final, "")
 	}
 	_ = writeEvent("response.completed", responsesStreamEvent{
 		Type: "response.completed", Response: final,

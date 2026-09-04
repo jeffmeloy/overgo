@@ -4,28 +4,14 @@
   const artifactLink = (overgo, id, label) => overgo.artifactLink(id, label, true);
 
   function metricTable(overgo, metrics) {
-    const table = overgo.el("table", { class: "grid metric-grid" }, overgo.headerRow(["metric", "value", "direction"]));
-    for (const metric of metrics || []) {
-      table.appendChild(overgo.el("tr", {},
-        overgo.el("td", { text: metric.name }),
-        overgo.el("td", { class: "mono", text: String(metric.value) + (metric.unit ? " " + metric.unit : "") }),
-        overgo.el("td", { text: metric.direction || "-" })));
-    }
-    return table;
+    return overgo.table(["metric", "value", "direction"], (metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : ""), metric.direction || "-"]), "metric-grid");
   }
-
   function valueText(value) {
     if (value == null) return "-";
     return typeof value === "object" ? JSON.stringify(value) : String(value);
   }
-
   function recordTable(overgo, values) {
-    const table = overgo.el("table", { class: "grid" }, overgo.headerRow(["field", "value"]));
-    for (const [name, value] of Object.entries(values || {})) {
-      table.appendChild(overgo.el("tr", {},
-        overgo.el("td", { text: name }), overgo.el("td", { class: "mono", text: valueText(value) })));
-    }
-    return table;
+    return overgo.table(["field", "value"], Object.entries(values || {}).map(([name, value]) => [name, valueText(value)]));
   }
 
   window.overgo.registerTab({

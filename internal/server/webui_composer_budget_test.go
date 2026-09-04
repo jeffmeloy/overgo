@@ -13,7 +13,7 @@ import (
 // event vocabulary this package declares. The ceilings below are the
 // measured values when the row landed; they only tighten.
 const (
-	webuiStreamReaderCeiling = 2    // response.body.getReader(): boot.js SSE events + composer.js openai adapter
+	webuiStreamReaderCeiling = 1    // response.body.getReader(): boot.js sseEvents, the one stream reader
 	webuiRawFetchCeiling     = 4    // fetch(: boot.js api client only
 	webuiAPIStreamCeiling    = 2    // api.stream(: chat and speech
 	webuiJavaScriptCeiling   = 4796 // total lines under webui/

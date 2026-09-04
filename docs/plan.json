@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-conversations",
-      "title": "Durable conversations owned by the server",
-      "status": "open",
-      "steps": [
-        {
-          "id": "durable-sessions",
-          "title": "The front page lists, resumes, renames and deletes conversations through the server's interaction records (the same records the chat workspace and agent sessions replay from), so a conversation survives a reload, a server restart and a model switch, and every turn shows the model that produced it; an in-flight turn survives too: after a reload or a dropped connection the page reattaches to the turn's run record and receives the remainder of the stream, with completed parts replayed from the record and nothing re-executed; the conversation's generation settings and system prompt live in the record, not the browser; a context meter shows tokens used against the model's declared context, and when the server compacts or shifts context the event is visible in the thread with the compacted summary inspectable; the browser holds no conversation state a re-fetch cannot rebuild",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestFrontPageConversations' -count=1",
-          "rationale": "The README already claims conversations continue across restarts because the interaction record owns the state; the front page must expose that record, resume through it, and make what the server does to the context visible rather than silent.",
-          "depends_on": [
-            "gui-shell/front-page"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-multimodal",
       "title": "Multimodal import and modality-adaptive inference",
       "status": "open",

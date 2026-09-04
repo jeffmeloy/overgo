@@ -97,18 +97,14 @@
       }
       const jobPoller = overgo.poller(async (signal) => {
         const listed = await overgo.api.get("/hub/downloads", { signal });
-        overgo.clear(jobsBody);
-        for (const job of listed.downloads || []) {
+        jobsBody.replaceChildren(...(listed.downloads || []).map((job) => {
           const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
           const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) :
             job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) :
               el("span", { class: "tag byte", text: progress || "running" });
-          jobsBody.appendChild(el("tr", null,
-            el("td", { class: "mono", text: job.repository }),
-            el("td", null, state),
-            el("td", { class: "mono", text: job.file || (job.state === "failed" ? job.error : "") }),
-            el("td", { class: "mono", text: job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : "") })));
-        }
+          return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""),
+            job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : "")]);
+        }));
       }, 1000);
 
       panel.append(

@@ -24,7 +24,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/md.js", "text/javascript; charset=utf-8", "overgo.md"},
 		{"/workflow.js", "text/javascript; charset=utf-8", "workflowWorkspace"},
 		{"/schema_form.js", "text/javascript; charset=utf-8", "schemaForm"},
-		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
+		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/responses"},
 		{"/mod/agent.js", "text/javascript; charset=utf-8", "/agents/step"},
 		{"/mod/inbox.js", "text/javascript; charset=utf-8", "/operations/inbox"},
 		{"/mod/video.js", "text/javascript; charset=utf-8", "/v1/videos/generations"},
@@ -212,7 +212,7 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 	chat := get("/mod/chat.js")
 	for _, token := range []string{
 		"overgo.capabilities(",
-		`api.post("/v1/chat/completions/input_tokens"`,
+		`api.post("/v1/responses/input_tokens"`,
 		"overgo.api.stream(",
 		"Context ratio",
 		"terminal.usage",

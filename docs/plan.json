@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "ifeval-pass",
-          "title": "Record IFEval (131 exact-vocabulary cases, generative, 256 tokens) for every servable text model through each model's chat template with its declared sampling recorded, greedy decoding",
-          "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Instruction following is only meaningful through the model's own template; the special-token and end-of-turn fixes (d75d3554) make that path correct. Generation is decode-bound and unchanged by the kernel fix, so the budget is set from measured decode rates.",
-          "depends_on": [
-            "benchmark-completion/musr-pass"
-          ]
-        },
-        {
           "id": "dna-pass",
           "title": "Record the DNA sequence-scoring suite (128 cases) for Carbon-500M at the current commit and any other model declaring the dna domain",
           "status": "open",

@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-artifact-compatibility",
-          "title": "Merge master and reconcile the plan before: Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "oracle-intake/artifact-election"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "artifact-compatibility",
           "title": "Add deterministic audio artifact qualification that validates container structure, tensor names and shapes, architecture recipe, tokenizer, preprocessing assets and executable oracle support before a model becomes loadable",
           "status": "open",

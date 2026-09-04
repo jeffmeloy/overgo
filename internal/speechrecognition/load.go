@@ -52,6 +52,16 @@ type Encoder struct {
 	weightBytes, memoryBytes uint64
 }
 
+// InputWidth returns the declared feature width consumed by each frame.
+func (e *Encoder) InputWidth() int {
+	return e.input.in
+}
+
+// VocabularySize returns the number of logits produced for each output frame.
+func (e *Encoder) VocabularySize() int {
+	return e.output.out
+}
+
 type loader struct {
 	source        *safetensors.Source
 	values        map[string][]float32

@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "asr-reference",
-      "title": "Deliver the first native CPU ASR capability",
-      "status": "open",
-      "steps": [
-        {
-          "id": "offline-recipe",
-          "title": "Bind admitted short-clip CPU transcription to the existing model recipe and artifact lifecycle",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/speechrecognition -run 'Test.*Transcription.*Recipe|Test.*Lineage'",
-          "rationale": "Bind the verified forward to existing modelrecipe/capabilityruntime execution and recipecontract.Transcription; use existing artifact/runrecord publication rather than another audio result envelope. Decode, validate, transcribe and persist bounded mono clips with cancellation, failure accounting and exact source/model/recipe lineage. Resolve artifact identity and tensor roles once at load, not per frame or request; reuse immutable loaded weights and caller-owned scratch. API, evaluation and training share this invocation boundary. No VAD, alignment, long-form or streaming requirement enters this first recipe. Segmentation composes it later. Refuse invalid or non-speech inputs under the declared admission policy.",
-          "depends_on": [
-            "asr-reference/sync-offline-recipe"
-          ],
-          "capabilities": [
-            "transcription-recipe",
-            "overgodb-lineage"
-          ]
-        }
-      ]
-    },
-    {
       "id": "asr-evaluation",
       "title": "Make audio quality and resource fitness native evidence",
       "status": "open",

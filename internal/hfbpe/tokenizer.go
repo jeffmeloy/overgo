@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/jsonfile"
@@ -91,6 +92,7 @@ func Load(dir string) (*Tokenizer, error) {
 	}
 	sort.Slice(t.specials, func(i, j int) bool { return len(t.specials[i]) > len(t.specials[j]) })
 	t.buildByteAlphabet()
+	t.buildID2Vocab()
 	return t, nil
 }
 
@@ -184,10 +186,7 @@ func (t *Tokenizer) encodeSentencepiece(seg string) ([]int, error) {
 	return ids, nil
 }
 
-func (t *Tokenizer) ensureID2Vocab() {
-	if t.id2tok != nil {
-		return
-	}
+func (t *Tokenizer) buildID2Vocab() {
 	t.id2tok = make(map[int]string, len(t.vocab))
 	for tok, id := range t.vocab {
 		t.id2tok[id] = tok
@@ -199,11 +198,24 @@ func (t *Tokenizer) ensureID2Vocab() {
 
 // Decode: token ids -> UTF-8 string (specials decode to their literals).
 func (t *Tokenizer) Decode(ids []int) string {
-	t.ensureID2Vocab()
+	decoded, _ := t.decode(ids, false)
+	return decoded
+}
+
+// DecodeStrict rejects unknown IDs and non-UTF-8 output. It is intended for
+// persisted inference results, where silently dropping model output is unsafe.
+func (t *Tokenizer) DecodeStrict(ids []int) (string, error) {
+	return t.decode(ids, true)
+}
+
+func (t *Tokenizer) decode(ids []int, strict bool) (string, error) {
 	var bytes []byte
 	for _, id := range ids {
 		tok, ok := t.id2tok[id]
 		if !ok {
+			if strict {
+				return "", fmt.Errorf("token id %d not in vocab", id)
+			}
 			continue
 		}
 		if _, isSpecial := t.special[tok]; isSpecial {
@@ -226,7 +238,10 @@ func (t *Tokenizer) Decode(ids []int) string {
 			}
 		}
 	}
-	return string(bytes)
+	if strict && !utf8.Valid(bytes) {
+		return "", fmt.Errorf("decoded token sequence is not UTF-8")
+	}
+	return string(bytes), nil
 }
 
 func parseByteFallbackToken(tok string) (byte, bool) {

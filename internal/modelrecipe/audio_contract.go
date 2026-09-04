@@ -1,6 +1,7 @@
 package modelrecipe
 
 import (
+	"context"
 	"errors"
 
 	"overgo/internal/artifact"
@@ -47,6 +48,18 @@ var audioContractCodec = artifact.JSONDocumentCodec(
 	func(value *AudioContractDocument, id artifact.ID) { value.ID = id },
 	func(value AudioContractDocument) AudioContractDocument { return value },
 )
+
+// NewAudioContract identifies one immutable decoded-audio execution contract.
+func NewAudioContract(format recipecontract.AudioFormat, frame recipecontract.AudioFrameGeometry, contextID, stateID artifact.ID) (AudioContractDocument, error) {
+	return audioContractCodec.NewInitial(AudioContractDocument{
+		Format: format, Frame: frame, Context: contextID, State: stateID,
+	})
+}
+
+// RequireAudioContract loads one exact decoded-audio execution contract.
+func RequireAudioContract(ctx context.Context, reader artifact.Reader, id artifact.ID) (AudioContractDocument, error) {
+	return audioContractCodec.RequireExactLineage(ctx, reader, id, AudioContractDocument.Lineage)
+}
 
 // ValidateIdentity verifies the contract's content-derived profile identity.
 func (document AudioContractDocument) ValidateIdentity() error {
@@ -145,4 +158,26 @@ func audioTaskModules() []recipe.Module {
 		})
 	}
 	return modules
+}
+
+// TranscriptionDefinition binds generic host transcription to its exact model,
+// decoded-audio contract, processor declaration, tokenizer, and tensor catalog.
+func TranscriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID artifact.ID) (recipe.Definition, error) {
+	node := recipe.Node{
+		ID: "transcribe", Module: ModuleTranscribeAudio, Placement: recipe.PlacementHost,
+		Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache,
+	}
+	return recipe.NewDefinitionWithDependencies(
+		recipe.TaskTranscription,
+		[]recipe.Dependency{
+			{Role: recipe.DependencyModel, Artifact: modelID},
+			{Role: recipe.DependencyProfile, Artifact: contractID},
+			{Role: recipe.DependencyProcessorProfile, Artifact: processorID},
+			{Role: recipe.DependencyTokenizer, Artifact: tokenizerID},
+			{Role: recipe.DependencyTensorInventory, Artifact: tensorInventoryID},
+		},
+		[]recipe.Node{node}, nil,
+		[]recipe.Input{{Name: "audio", Data: recipe.DataAudio, Target: recipe.Endpoint{Node: node.ID, Port: "audio"}}},
+		[]recipe.Output{{Name: "transcription", Data: recipe.DataTranscription, Source: recipe.Endpoint{Node: node.ID, Port: "transcription"}}},
+	)
 }

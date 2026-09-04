@@ -1,6 +1,7 @@
 package modelrecipe
 
 import (
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -70,6 +71,68 @@ func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 				t.Fatalf("audio module = %+v, %t", module, found)
 			}
 		})
+	}
+}
+
+func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	contract, err := NewAudioContract(
+		recipecontract.AudioFormat{SampleRate: 16_000, Channels: 1, Encoding: "pcm-f32le"},
+		recipecontract.AudioFrameGeometry{WindowSamples: 400, HopSamples: 160, FeatureBins: 80},
+		artifact.ID{}, artifact.ID{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contractContent, err := contract.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := audioParentContent(t, artifact.KindModel, "transcription-model")
+	processor := audioParentContent(t, artifact.KindProfile, "transcription-processor")
+	tokenizer := audioParentContent(t, artifact.KindTokenizer, "transcription-tokenizer")
+	inventory := audioParentContent(t, artifact.KindTensorInventory, "transcription-tensors")
+	dependencies, err := artifact.NewDocumentBatch("fixture/transcription/dependencies",
+		[]artifact.Content{model, contractContent, processor, tokenizer, inventory}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = artifact.CommitBatch(t.Context(), store, dependencies); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := TranscriptionDefinition(model.Descriptor.ID, contract.ID, processor.Descriptor.ID, tokenizer.Descriptor.ID, inventory.Descriptor.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := CompileCapability(definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if program.Definition().ID != definition.ID || len(definition.Nodes) != 1 || definition.Nodes[0].Module != ModuleTranscribeAudio ||
+		definition.Nodes[0].Placement != recipe.PlacementHost || definition.Nodes[0].Session != recipe.SessionCapacity ||
+		definition.Nodes[0].Residency != recipe.ResidencyHostCache {
+		t.Fatalf("compiled transcription program = %+v", program)
+	}
+	if _, _, err = PublishCandidate(t.Context(), store, "fixture/transcription/candidate", definition); err != nil {
+		t.Fatal(err)
+	}
+	parents, err := store.Parents(t.Context(), definition.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dependency := range definition.Dependencies {
+		edge := artifact.Lineage{Child: definition.ID, Parent: dependency.Artifact, Relation: artifact.RelationDependsOn}
+		if !slices.Contains(parents, edge) {
+			t.Fatalf("recipe lineage lacks %+v: %v", edge, parents)
+		}
+	}
+	loaded, err := RequireAudioContract(t.Context(), store, contract.ID)
+	if err != nil || loaded.ID != contract.ID {
+		t.Fatalf("loaded audio contract = %+v, %v", loaded, err)
 	}
 }
 

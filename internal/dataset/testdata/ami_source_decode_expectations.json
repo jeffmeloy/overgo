@@ -1,0 +1,7 @@
+{
+  "container_sha256": "d95920dccc6924c15215239461bf5d1152fe07c9c61add073bd12da26dd602e0",
+  "oracle": "soundfile 0.14.0 / libsndfile 1.2.2; registered AMI ihm/test-00000-of-00004.parquet, first non-null audio.bytes value, eval_ami_en2002a_h00_mee073_0019663_0019800.wav; this original source record is non-silent and is not the historically quarantined materialization",
+  "observations": [
+    {"encoded_sha256":"3ab7c84a5aade1f87e238f0051e8929e570402fde5c19a826156d9a8eca5872f","decoded_sha256":"5a88b476c7aaa13f4110472f1314a8064fb6a74c1dfefb12ba722f88eec89a7e","frames":21920,"format":{"sample_rate":16000,"channels":1,"encoding":"pcm-f32le"},"outcome":"accepted"}
+  ]
+}

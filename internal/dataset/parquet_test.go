@@ -130,4 +130,8 @@ func TestPlainStringsAndColumnSelection(t *testing.T) {
 	if _, _, err := stringColumnLeaf(metadata, "absent"); err == nil {
 		t.Fatal("absent column resolved")
 	}
+	metadata.schema[2].name = "id"
+	if _, _, err := stringColumnLeaf(metadata, "id"); err == nil {
+		t.Fatal("ambiguous byte-array leaf resolved")
+	}
 }

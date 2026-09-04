@@ -23,6 +23,8 @@ const (
 	AudioDecodeCorrupt AudioDecodeStatus = "corrupt"
 	// AudioDecodeTruncated records an incomplete encoded stream.
 	AudioDecodeTruncated AudioDecodeStatus = "truncated"
+	// AudioDecodeResourceLimit records a bounded decoder refusing allocation.
+	AudioDecodeResourceLimit AudioDecodeStatus = "resource-limit"
 )
 
 // DecodedAudioSignalProfile is policy-neutral evidence measured from decoded
@@ -50,7 +52,7 @@ func (profile DecodedAudioSignalProfile) Validate() error {
 		return err
 	}
 	switch profile.DecodeStatus {
-	case AudioDecodeNotAttempted, AudioDecodeComplete, AudioDecodeUnsupported, AudioDecodeCorrupt, AudioDecodeTruncated:
+	case AudioDecodeNotAttempted, AudioDecodeComplete, AudioDecodeUnsupported, AudioDecodeCorrupt, AudioDecodeTruncated, AudioDecodeResourceLimit:
 	default:
 		return errors.New("audio signal: invalid decode state")
 	}

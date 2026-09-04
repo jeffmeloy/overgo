@@ -188,6 +188,10 @@ func moduleLicense(path string) string {
 	switch path {
 	case "github.com/dlclark/regexp2/v2":
 		return "MIT"
+	case "github.com/icza/bitio":
+		return "Apache-2.0"
+	case "github.com/mewkiz/flac", "github.com/mewkiz/pkg", "github.com/mewpkg/term":
+		return "Unlicense"
 	default:
 		return ""
 	}

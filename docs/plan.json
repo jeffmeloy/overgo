@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "asr-evaluation",
-      "title": "Make audio quality and resource fitness native evidence",
-      "status": "open",
-      "steps": [
-        {
-          "id": "resource-suite",
-          "title": "Establish the CPU offline quality and resource baseline on the pinned admitted corpus",
-          "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/runrecord -run 'Test.*Audio.*Fitness|Test.*Transcription.*Resources'",
-          "rationale": "Instrument the same offline recipe runner used by WER. Separate cold load from warm execution; record wall time, real-time factor, allocations, host memory, duration, quality and failure counts using evaluation/runrecord and existing resource fitness. Stored predictions may be rescored, but timing repetitions must execute the recipe; cached transcripts are not inference throughput. Keep trace capture out of timed runs and verify corresponding output identity or declared numerical tolerance. No separate audio benchmark runner or implicit feature cache. Native streaming latency remains with streaming-transcription; VRAM/device parity remains with asr-cuda/device-parity. Missing dimensions remain unavailable.",
-          "depends_on": [
-            "asr-evaluation/sync-resource-suite"
-          ],
-          "capabilities": [
-            "audio-resource-fitness",
-            "real-time-factor",
-            "latency-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "asr-serving",
       "title": "Expose authenticated transcription and streaming through the native server",
       "status": "open",

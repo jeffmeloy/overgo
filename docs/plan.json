@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "bbh-pass",
-          "title": "Record BBH (5761 grouped cases) for every servable text model under both protocols, smallest first, with -budget; the 27B runs last in its own pass",
-          "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "BBH is the suite that cost 13 hours before the kernel fix; measured at 0.2 s per case on the 27B it is a 20-minute pass. Raw completion is the anchor; the template protocol answers by generated letter. Bind the exact evaluate invocation with -setverify before the run and re-bind the report check after it.",
-          "depends_on": [
-            "repo-cleanup/findings-disposition"
-          ]
-        },
-        {
           "id": "musr-pass",
           "title": "Record MuSR (756 grouped cases, long narratives) for every servable text model under both protocols with -budget",
           "status": "open",

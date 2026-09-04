@@ -9,26 +9,11 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-signal-validation-contract",
-          "title": "Merge master and reconcile the plan before: Define a typed decoded-signal profile and admission decision for schema validity, decode status, duration, channel geometry, finite samples, peak, RMS, silence, clipping, DC offset and policy violations",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor master HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Use go run ./cmd/plan -prepare-merge master -plan-projection first-parent-target and finalize any injected merge row with the printed gated merge command. Inspect the resulting repository and its stored authorities, update all affected remaining plan rows, and commit this synchronization row through cmd/gate before implementation begins. The verifier refuses a branch that does not contain the current committed master tip.",
-          "depends_on": [
-            "audio-contracts/task-artifact-contracts"
-          ],
-          "capabilities": [
-            "master-synchronization",
-            "plan-reconciliation",
-            "gated-merge"
-          ]
-        },
-        {
           "id": "signal-validation-contract",
           "title": "Define a typed decoded-signal profile and admission decision for schema validity, decode status, duration, channel geometry, finite samples, peak, RMS, silence, clipping, DC offset and policy violations",
           "status": "open",
           "verify": "go test ./internal/recipecontract ./internal/artifact ./internal/dataset -run 'Test.*Audio.*SignalProfile|Test.*Audio.*Admission'",
-          "rationale": "The AMI shard demonstrates that valid Parquet, WAV headers, durations and transcripts can still contain unusable signal. Admission and quarantine reasons are durable typed evidence consumed consistently by ingestion, evaluation, training and serving rather than ad hoc thresholds inside a model.",
+          "rationale": "The AMI shard demonstrates that valid Parquet, WAV headers, durations and transcripts can still contain unusable signal. Admission and quarantine reasons are durable typed evidence consumed consistently by ingestion, evaluation, training and serving rather than ad hoc thresholds inside a model. Master b732fb37 changes benchmark evidence only, so the existing artifact, recipecontract, and dataset owners remain the implementation targets.",
           "depends_on": [
             "audio-contracts/sync-signal-validation-contract"
           ],

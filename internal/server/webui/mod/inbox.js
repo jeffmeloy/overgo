@@ -10,11 +10,7 @@
       panel.replaceChildren(
         el("div", { class: "section-title", text: "Waiting on you" }), status, listHost);
 
-      function artifactLink(id) {
-        return el("a", {
-          class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
-        });
-      }
+      const artifactLink = overgo.artifactLink;
 
       async function decide(item, action, answer) {
         try {

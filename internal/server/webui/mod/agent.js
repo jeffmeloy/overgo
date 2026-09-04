@@ -81,16 +81,10 @@
         status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
       }
 
-      function artifactLink(id) {
-        return el("a", {
-          class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
-        });
-      }
+      const artifactLink = overgo.artifactLink;
 
       function openOperation(id) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("operation", id);
-        history.pushState({}, "", url);
+        history.pushState({}, "", "?operation=" + encodeURIComponent(id));
         window.dispatchEvent(new PopStateEvent("popstate"));
       }
 

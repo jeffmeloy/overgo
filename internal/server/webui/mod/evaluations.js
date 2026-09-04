@@ -1,12 +1,7 @@
 (function () {
   "use strict";
 
-  function artifactLink(overgo, id, label) {
-    return overgo.el("a", {
-      class: "mono", href: "/artifacts?id=" + encodeURIComponent(id),
-      target: "_blank", rel: "noopener", text: label || overgo.fmt.shortID(id),
-    });
-  }
+  const artifactLink = (overgo, id, label) => overgo.artifactLink(id, label, true);
 
   function metricTable(overgo, metrics) {
     const table = overgo.el("table", { class: "grid metric-grid" });

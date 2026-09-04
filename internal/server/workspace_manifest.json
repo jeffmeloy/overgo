@@ -35,6 +35,7 @@
     {"id": "lens", "label": "Logit lens", "section": "workbench", "capability": "analysis.logits", "module": "analyze_logits"},
     {"id": "states", "label": "Hidden states", "section": "workbench", "capability": "analysis.hidden-states", "module": "analyze_states"},
     {"id": "attention", "label": "Attention", "section": "workbench", "capability": "analysis.attention", "module": "analyze_attention"},
-    {"id": "tensors", "label": "Tensors", "section": "workbench", "capability": "analysis.tensors", "module": "analyze_tensors"}
+    {"id": "tensors", "label": "Tensors", "section": "workbench", "capability": "analysis.tensors", "module": "analyze_tensors"},
+    {"id": "api", "label": "API", "section": "workbench", "capability": "explorer"}
   ]
 }

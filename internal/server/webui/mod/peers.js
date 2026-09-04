@@ -46,12 +46,7 @@
         window.dispatchEvent(new PopStateEvent("popstate"));
       }
 
-      function artifactLink(id) {
-        return el("a", {
-          class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id),
-          target: "_blank", rel: "noopener", text: fmt.shortID(id),
-        });
-      }
+      const artifactLink = overgo.artifactLink;
 
       function renderDetail() {
         const item = (inventory.peers || []).find((peer) => peer.peer === selectedPeer);

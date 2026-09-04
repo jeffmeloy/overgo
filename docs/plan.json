@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-simplify",
-      "title": "Capability by simplification (owner rule 2026-09-04): one shell, one composer, one capability source, one route table, each row naming the capability it gains and the ratchet it lowers, landed before the front page is built on them",
-      "status": "open",
-      "steps": [
-        {
-          "id": "one-route-table",
-          "title": "One GUI route table with one bearer wrapper replaces the hand-written prefix chain in webui_static.go (five repeated authorization blocks), the API manifest's GUI section derives from that table, and an API explorer page renders from the table and the manifest with schema-driven forms (reusing schema_form.js) so every route can be tried from the workbench with its request and response shown; capability gained: every GUI route is enumerated, bearer-consistent, documented and exercisable, and the acceptance lane asserts the whole surface from the table; ratchet: api-manifest -check plus a Go test that the manifest's GUI routes equal the table",
-          "status": "open",
-          "verify": "go run ./cmd/api-manifest -check",
-          "rationale": "Routes added by hand drift from the manifest and from each other; a table the manifest and the explorer both read makes the surface a fact rather than a listing.",
-          "depends_on": [
-            "gui-simplify/one-shell"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-shell",
       "title": "The front page: one conversation surface, the served model in view, the workbench one click away",
       "status": "open",

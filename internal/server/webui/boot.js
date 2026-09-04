@@ -1,8 +1,7 @@
 /* overgo_gui boot: the thin-client core. Defines window.overgo (fetch helpers
-   with bearer injection, a DOM helper, a tab registry) and wires the shell.
-   Analysis modules self-register a tab; nothing here holds state a re-fetch
-   can't rebuild. Classic deferred script so modules registered after it (also
-   deferred) are all present by DOMContentLoaded. */
+   with bearer injection, a DOM helper, a tab registry), loads the libraries
+   and the manifest's modules, and wires the shell; nothing here holds state
+   a re-fetch cannot rebuild. */
 (function () {
   "use strict";
   const KEY_STORAGE = "overgo.apiKey";
@@ -96,10 +95,8 @@
     },
   };
 
-  // /analyze/model is fetched by the shell (capability gating), the Model tab,
-  // and the lens (vocab size). Cache the in-flight/last promise so a page load
-  // hits it once; a rejection clears the cache so a retry after the key is set
-  // refetches, and a key change invalidates it explicitly.
+  // /analyze/model serves the Model tab and the lens; one cached promise per
+  // page load, cleared on rejection and on a key change.
   let modelPromise = null;
   function modelInfo() {
     if (!modelPromise) {
@@ -262,8 +259,16 @@
   const tabs = [];
   function registerTab(tab) { tabs.push(tab); }
 
+  // artifactLink: the one link to a stored artifact (content, or the gallery entry).
+  function artifactLink(id, label, gallery) {
+    return el("a", {
+      class: "mono", href: (gallery ? "/artifacts?id=" : "/artifacts/content?id=") + encodeURIComponent(id),
+      target: "_blank", rel: "noopener", text: label || shortID(id),
+    });
+  }
+
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
@@ -514,12 +519,8 @@
     const dot = el("span", { class: "dot err" });
     const text = el("span", { text: message });
     const retry = el("button", { class: "btn alt", text: "probe again" });
-    const card = el("div", { class: "card" },
-      el("p", { class: "tagline", text: "Native GGUF serving and a distribution-free model-analysis workbench. All state lives in the server." }),
-      el("div", { class: "probe" }, dot, text),
-      el("p", { class: "note", style: "margin-top:18px" },
-        "Start it: ", el("span", { class: "mono", text: "go run ./cmd/server -listen 127.0.0.1:8080 <model.gguf>" }),
-        " or launch overgo_gui.bat and pick a model."),
+    const card = el("div", { class: "card" }, el("div", { class: "probe" }, dot, text),
+      el("p", { class: "note", style: "margin-top:18px", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
       el("div", { class: "actions" }, retry));
     panels.appendChild(el("div", { class: "center", style: "min-height:60vh" }, card));
     async function probe() {

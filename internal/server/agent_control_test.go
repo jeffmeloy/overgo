@@ -234,7 +234,7 @@ func TestAgentWorkspaceNoHiddenReasoning(t *testing.T) {
 	javascript := serveTestRequest(fixture.handler, http.MethodGet, "/mod/agent.js", "").Body.String()
 	for _, expected := range []string{
 		"schemaForm", "/agents/chat", "/agents/step", "/agents/retrieval", "/agents/automation", "/agents/evidence",
-		"/agents/stream", "PopStateEvent", "/artifacts/content",
+		"/agents/stream", "PopStateEvent", "overgo.artifactLink",
 	} {
 		if !strings.Contains(javascript, expected) {
 			t.Errorf("agent GUI lacks %q", expected)

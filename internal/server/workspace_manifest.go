@@ -161,6 +161,8 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = slices.Contains(h.modelCapabilities(), "embedding")
 	case "rerank":
 		supported = slices.Contains(h.modelCapabilities(), "rerank")
+	case "explorer":
+		supported = true
 	case "evaluation":
 		_, supported = h.generator.(EvaluationWorkspaceAPI)
 	case "automation":

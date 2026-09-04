@@ -22,12 +22,7 @@
     window.history[replace ? "replaceState" : "pushState"](null, "", url);
   }
 
-  function artifactLink(id, label) {
-    return el("a", {
-      class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), target: "_blank", rel: "noopener",
-      text: label || fmt.shortID(id),
-    });
-  }
+  const artifactLink = window.overgo.artifactLink;
 
   function operationProgress(status) {
     const progress = status && status.progress || {};

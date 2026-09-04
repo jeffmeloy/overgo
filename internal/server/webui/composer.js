@@ -1,16 +1,9 @@
 /* composer.js: one composer and one stream renderer for every surface that
-   asks the served model for something: chat, agent sessions, and image,
-   video and speech generation. The renderer consumes one typed event
-   vocabulary, the server's streaming contract (internal/server/stream_events.go):
-     token      a piece of assistant text
-     tool_start a tool call begins (name, arguments)
-     tool_end   the call returned or was refused (result, error, elapsed)
-     media      an image, video or audio artifact to show in the thread
-     usage      token counts and timings for the turn
-     done       the turn is complete
-     error      the turn failed; rendered as a row in the thread, not a banner
-   Adapters turn each served protocol into that vocabulary, so a surface
-   never parses a wire format itself. Loaded by boot.js after md.js. */
+   asks the served model for something (chat, agent sessions, image, video
+   and speech). The renderer consumes the server's typed event vocabulary
+   (internal/server/stream_events.go: token, tool_start, tool_end, media,
+   usage, done, error); adapters map each served protocol onto it, so no
+   surface parses a wire format itself. Loaded by boot.js after md.js. */
 (function () {
   "use strict";
   const overgo = window.overgo;
@@ -123,10 +116,7 @@
         thinkingRow = el("div", { class: "msg thinking", text: "thinking…" });
         log.appendChild(thinkingRow);
         scroll();
-      } else if (!on && thinkingRow) {
-        thinkingRow.remove();
-        thinkingRow = null;
-      }
+      } else if (!on && thinkingRow) { thinkingRow.remove(); thinkingRow = null; }
     }
 
     function toolCard(call) {
@@ -234,11 +224,7 @@
       return terminal;
     }
 
-    function reset() {
-      messages.length = 0;
-      clear(log);
-      thinkingRow = null;
-    }
+    function reset() { messages.length = 0; clear(log); thinkingRow = null; }
 
     return { add, consume, toolCard, mediaCard, errorRow, thinking, reset, messages, node: log, renderMessage };
   }

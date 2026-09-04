@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "audio-contracts",
-      "title": "Generalize Overgo's typed audio and recipe contracts",
-      "status": "open",
-      "steps": [
-        {
-          "id": "stream-session-contract",
-          "title": "Define bounded audio stream sessions with explicit chunk state, overlap, backpressure, cancellation, finalization, discontinuity and restart semantics",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./internal/workflowruntime -run Audio",
-          "rationale": "Streaming correctness is a state-machine contract, not repeated offline calls. Ownership must prove bounded goroutine and buffer lifetimes before a network route consumes it.",
-          "depends_on": [
-            "audio-contracts/sync-stream-session-contract"
-          ],
-          "capabilities": [
-            "bounded-streaming",
-            "restart-semantics",
-            "cancellation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "audio-primitives",
       "title": "Port decoded-signal validation and the shared CPU audio frontend with oracle parity",
       "status": "open",
@@ -215,7 +193,7 @@
           "title": "Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
           "status": "open",
           "verify": "go test ./internal/speechanalysis ./internal/audioparity -run 'Test.*FireRedVAD|Test.*VAD.*Offline|Test.*VAD.*Stream|Test.*VAD.*Boundary'",
-          "rationale": "Both downloaded FireRedVAD checkpoints load under the reference runtime. Offline and streaming boundaries closely agree on all four pinned LibriSpeech fixtures. The all-zero AMI negative fixture must produce no speech; it is negative validation evidence, not a transcription-quality sample. The primitive shares the frontend and bounded stream contracts and introduces no second scheduler.",
+          "rationale": "Both downloaded FireRedVAD checkpoints load under the reference runtime. Offline and streaming boundaries closely agree on all four pinned LibriSpeech fixtures. The all-zero AMI negative fixture must produce no speech; it is negative validation evidence, not a transcription-quality sample. The primitive shares the frontend and bounded stream contracts and introduces no second scheduler. Its production streaming path must consume capabilityruntime.OpenAudioStream and retire that exact docs/staged_surface.json declaration in the same commit; reference parity must cover checkpoint/restart and discontinuity boundaries.",
           "depends_on": [
             "speech-analysis-expansion/sync-vad"
           ],

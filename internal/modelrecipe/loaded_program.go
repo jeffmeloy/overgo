@@ -65,7 +65,8 @@ func ResolveActiveGGUF(
 			return fail(err)
 		}
 		if declared && config.Generation != nil {
-			if err := ApplyDeclaredSampling(&loaded.state.Policy, config.Generation.Sampling); err != nil {
+			loaded.state.Policy, err = withDeclaredSampling(loaded.state.Policy, config.Generation.Sampling)
+			if err != nil {
 				return fail(err)
 			}
 		}

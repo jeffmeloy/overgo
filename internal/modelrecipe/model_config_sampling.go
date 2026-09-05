@@ -3,6 +3,7 @@ package modelrecipe
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
@@ -37,17 +38,19 @@ func ResolveModelConfig(ctx context.Context, store overgodb.DocumentReader, mode
 	return found, located, nil
 }
 
-// ApplyDeclaredSampling overlays a model's declared sampling onto both
+// withDeclaredSampling overlays a model's declared sampling onto both
 // request policies: a declared field replaces the catalog value, an
 // undeclared (zero) field leaves it standing, and a checkpoint that
 // declares do_sample=false asks for greedy decoding (temperature zero).
 // The declaration is the model's own recommendation; the catalog policy
-// is the fallback for models that ship none. The overlaid policy is a new
-// document, so it is re-identified from its content: the identity the
-// server validates and records names exactly the bytes in force.
-func ApplyDeclaredSampling(policy *RuntimePolicy, declared *modelartifact.GenerationSampling) error {
-	if policy == nil || declared == nil {
-		return nil
+// is the fallback for models that ship none.
+// The derived policy receives its own content identity; the catalog stays intact.
+func withDeclaredSampling(policy RuntimePolicy, declared *modelartifact.GenerationSampling) (RuntimePolicy, error) {
+	if err := policy.ValidateIdentity(); err != nil {
+		return RuntimePolicy{}, err
+	}
+	if declared == nil {
+		return policy, nil
 	}
 	for _, target := range []*sampling.Policy{&policy.Interactive.Sampling, &policy.Serving.Sampling} {
 		if !declared.DoSample {
@@ -71,10 +74,6 @@ func ApplyDeclaredSampling(policy *RuntimePolicy, declared *modelartifact.Genera
 			target.RepeatPenalty = float32(declared.RepetitionPenalty)
 		}
 	}
-	derived, err := runtimePolicyCodec.New(*policy)
-	if err != nil {
-		return err
-	}
-	*policy = derived
-	return nil
+	policy.Tasks = slices.Clone(policy.Tasks)
+	return runtimePolicyCodec.New(policy)
 }

@@ -107,11 +107,8 @@
         try {
           const comparison = await api.get("/evaluations/compare?left=" + encodeURIComponent(baseline.evaluation) +
             "&right=" + encodeURIComponent(entry.evaluation));
-          const table = el("table", { class: "grid" }, overgo.headerRow(["metric", "baseline", "current", "delta", "result"]));
-          for (const metric of comparison.metrics || []) {
-            table.appendChild(overgo.tableRow([metric.name, String(metric.left), String(metric.right), String(metric.delta),
-              el("span", { text: metric.improved ? "improved" : "not improved" })]));
-          }
+          const table = overgo.table(["metric", "baseline", "current", "delta", "result"], (comparison.metrics || []).map((metric) => [
+            metric.name, String(metric.left), String(metric.right), String(metric.delta), el("span", { text: metric.improved ? "improved" : "not improved" })]));
           detail.replaceChildren(el("div", { class: "section-title", text: "Comparison" }), table);
           baseline = null;
         } catch (err) { detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
@@ -121,14 +118,11 @@
         if (!model.value) return;
         try {
           const entries = await api.get("/evaluations/history?model=" + encodeURIComponent(model.value));
-          const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "commit", "metrics", "run", "actions"]));
-          for (const entry of entries) {
-            table.appendChild(overgo.tableRow([entry.outcome, (entry.code_commit || "").slice(0, 10),
-              el("span", { text: (entry.metrics || []).map((item) => item.name + "=" + item.value + " " + item.direction).join(", ") || "-" }),
-              artifactLink(overgo, entry.run),
-              el("span", { class: "row" }, entry.report ? el("button", { class: "btn alt", text: "Inspect", onclick: () => showReport(entry) }) : null,
-                entry.evaluation ? el("button", { class: "btn alt", text: "Compare", onclick: () => compare(entry) }) : null)]));
-          }
+          const table = overgo.table(["outcome", "commit", "metrics", "run", "actions"], entries.map((entry) => [entry.outcome, (entry.code_commit || "").slice(0, 10),
+            el("span", { text: (entry.metrics || []).map((item) => item.name + "=" + item.value + " " + item.direction).join(", ") || "-" }),
+            artifactLink(overgo, entry.run),
+            el("span", { class: "row" }, entry.report ? el("button", { class: "btn alt", text: "Inspect", onclick: () => showReport(entry) }) : null,
+              entry.evaluation ? el("button", { class: "btn alt", text: "Compare", onclick: () => compare(entry) }) : null)]));
           history.replaceChildren(table);
         } catch (err) { history.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }

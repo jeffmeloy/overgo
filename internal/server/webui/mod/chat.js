@@ -68,7 +68,9 @@
       panel.append(
         el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
         facts);
-      const thread = overgo.thread(panel);
+      // A media output in this thread re-enters the composer as the next
+      // turn's attachment, refused or accepted by the served capability.
+      const thread = overgo.thread(panel, { reuse: (file) => composer.addFile(file) });
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },

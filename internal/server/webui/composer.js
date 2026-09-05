@@ -31,14 +31,10 @@
     yield { type: "done" };
   }
 
-  // outputKind: the media kind a generation task's output is rendered as; the
-  // task vocabulary is the server's (recipe tasks), not a list of models.
-  function outputKind(task) {
-    return task === "speech" ? "audio" : task.startsWith("video") ? "video" : "image";
-  }
-
   // generation: one run of a declared capability through the generic run route:
-  // the operation's outputs land as media events, each an artifact with provenance.
+  // the operation's outputs land as media events, each an artifact with provenance;
+  // the output's media kind follows the server's task vocabulary, not a model list.
+  const outputKind = (task) => task === "speech" ? "audio" : task.startsWith("video") ? "video" : "image";
   async function* generation(selection, text, signal) {
     const { capability, fields } = selection;
     const { input, missing } = overgo.controlValues(fields);
@@ -70,8 +66,10 @@
     yield { type: "done", id };
   }
 
-  // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows) ----
-  function thread(host) {
+  // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows);
+  // options.reuse(file) takes a media output back as the next turn's input. ----
+  function thread(host, options) {
+    const reuse = options && options.reuse;
     const log = el("div", { class: "chat-log" });
     host.appendChild(log);
     const messages = [];
@@ -147,9 +145,17 @@
       const facts = [];
       if (event.mime) facts.push(event.mime);
       if (event.bytes) facts.push(fmt.bytes(event.bytes));
+      // A media output offers itself back as input: its bytes come from the
+      // artifact the store holds and re-enter the composer as its own kind.
+      const again = reuse && event.url ? el("button", { class: "btn alt", text: "use as input", onclick: async () => {
+        try {
+          const body = await overgo.api.blob(event.url);
+          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }));
+        } catch (err) { errorRow(overgo.friendlyError(err)); }
+      } }) : null;
       const card = el("div", { class: "artifact msg media" }, player,
         el("div", { class: "note" }, [event.caption, facts.join(" · ")].filter(Boolean).join(" — "),
-          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null));
+          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again));
       log.appendChild(card);
       scroll();
       return card;

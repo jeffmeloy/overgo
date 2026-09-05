@@ -20,7 +20,7 @@ func TestFrontPageGenerationDeclarations(t *testing.T) {
 	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }
 
 	composer := get("/composer.js")
-	for _, needle := range []string{`"/generation/run"`, `overgo.waitOperation(`, `overgo.controlValues(`, `function outputKind(`, `"/artifacts/content?id="`} {
+	for _, needle := range []string{`"/generation/run"`, `overgo.waitOperation(`, `overgo.controlValues(`, `const outputKind = (task) =>`, `"/artifacts/content?id="`} {
 		if !strings.Contains(composer, needle) {
 			t.Errorf("composer missing %q", needle)
 		}

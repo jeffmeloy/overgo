@@ -158,22 +158,17 @@
           overgo.stat("Observations", data.count),
           overgo.stat("Publish failures", data.publish_failures),
           overgo.stat("Catalog truncated", data.truncated ? "yes" : "no"));
-        const table = el("table", { class: "grid" }, overgo.headerRow(["started", "task", "outcome", "model", "recipe", "duration", "input", "output", "H2D", "D2H"]));
-        for (const item of data.activity) {
-          table.appendChild(overgo.tableRow([el("span", { class: "mono", text: new Date(Number(item.started_unix_ns) / 1e6).toLocaleString() }),
-            el("span", { text: item.task + (item.compatibility ? " / peer" : "") }),
-            el("span", { class: "tag " + (item.outcome === "succeeded" ? "user_defined" : "control"), text: item.outcome }),
-            fmt.shortID(item.model), fmt.shortID(item.recipe), (Number(item.measured_ns) / 1e6).toFixed(2) + " ms",
-            fmt.grouped(item.usage.input_tokens || 0), fmt.grouped(item.usage.output_tokens || 0),
-            fmt.bytes(item.resources.host_to_device_bytes || 0), fmt.bytes(item.resources.device_to_host_bytes || 0)]));
-        }
-        rows.replaceChildren(table);
+        rows.replaceChildren(overgo.table(["started", "task", "outcome", "model", "recipe", "duration", "input", "output", "H2D", "D2H"], data.activity.map((item) => [
+          el("span", { class: "mono", text: new Date(Number(item.started_unix_ns) / 1e6).toLocaleString() }),
+          el("span", { text: item.task + (item.compatibility ? " / peer" : "") }),
+          el("span", { class: "tag " + (item.outcome === "succeeded" ? "user_defined" : "control"), text: item.outcome }),
+          fmt.shortID(item.model), fmt.shortID(item.recipe), (Number(item.measured_ns) / 1e6).toFixed(2) + " ms",
+          fmt.grouped(item.usage.input_tokens || 0), fmt.grouped(item.usage.output_tokens || 0),
+          fmt.bytes(item.resources.host_to_device_bytes || 0), fmt.bytes(item.resources.device_to_host_bytes || 0)])));
 
-		const stageTable = el("table", { class: "grid" }, overgo.headerRow(["stage", "state", "attempt", "operation", "failure"]));
-		for (const stage of data.stages || []) stageTable.appendChild(overgo.tableRow([
+		const stageTable = overgo.table(["stage", "state", "attempt", "operation", "failure"], (data.stages || []).map((stage) => [
 		  stage.node, el("span", { text: stage.state }), stage.attempt, fmt.shortID(stage.operation), el("span", { text: stage.failure || "" })]));
-		const decisionTable = el("table", { class: "grid" }, overgo.headerRow(["answer", "tool", "operation", "request"]));
-		for (const decision of data.decisions || []) decisionTable.appendChild(overgo.tableRow([
+		const decisionTable = overgo.table(["answer", "tool", "operation", "request"], (data.decisions || []).map((decision) => [
 		  decision.answer, el("span", { text: decision.tool }), fmt.shortID(decision.operation), fmt.shortID(decision.request)]));
 		const interactionTable = el("table", { class: "grid" }, overgo.headerRow(["response", "node", "trace", "action"]));
 		for (const interaction of data.interactions || []) interactionTable.appendChild(el("tr", {},

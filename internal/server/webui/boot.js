@@ -76,6 +76,8 @@
       if (!response.ok) await readJSON(response);
       for await (const { event, data } of sseEvents(response)) handler(event, data);
     },
+    // blob: an artifact's bytes (a media output taken back as input).
+    async blob(path, opts) { return (await this.stream(path, null, Object.assign({ method: "GET" }, opts))).blob(); },
   };
 
   // sseEvents: the one reader of a server-sent event stream; yields each

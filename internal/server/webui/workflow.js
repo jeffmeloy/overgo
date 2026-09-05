@@ -13,9 +13,7 @@
       const operations = new Map((latest.get("operation.snapshot") || []).map((item) => [item.id, item]));
       operations.set(value.status.id, value.status);
       latest.set("operation.snapshot", [...operations.values()]);
-    } else {
-      latest.set(name, value);
-    }
+    } else latest.set(name, value);
     for (const subscriber of subscribers) subscriber(name, value);
   }
 

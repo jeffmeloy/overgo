@@ -114,9 +114,7 @@
   // page load, cleared on rejection and on a key change.
   let modelPromise = null;
   function modelInfo() {
-    if (!modelPromise) {
-      modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; });
-    }
+    if (!modelPromise) modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; });
     return modelPromise;
   }
   function invalidateModel() { modelPromise = null; }

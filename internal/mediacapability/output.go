@@ -18,12 +18,25 @@ var encodedWAVContract = artifact.DocumentContract{
 	Kind: artifact.KindOutput, MediaType: media.WAVMediaType, Schema: "overgo.encoded-audio.wav.v1",
 }
 
-// OutputContent turns what an executor produced into the media artifact
-// the store publishes and the page renders: encoded images as PNG, video
-// as GIF, speech as WAV. The output's own type decides; a value outside
-// the catalog's output vocabulary is refused rather than guessed at.
+// textMediaType is the media type of a published text answer.
+const textMediaType = "text/plain; charset=utf-8"
+
+// encodedTextContract is the stored form of a text answer (a question
+// about an image answered): the same output kind the media contracts
+// publish, so the page renders it from the same run.
+var encodedTextContract = artifact.DocumentContract{
+	Kind: artifact.KindOutput, MediaType: textMediaType, Schema: "overgo.text-answer.v1",
+}
+
+// OutputContent turns what an executor produced into the artifact the
+// store publishes and the page renders: encoded images as PNG, video as
+// GIF, speech as WAV, a text answer as plain text. The output's own type
+// decides; a value outside the catalog's output vocabulary is refused
+// rather than guessed at.
 func OutputContent(output any) (artifact.Content, error) {
 	switch value := output.(type) {
+	case string:
+		return encodedTextContract.OwnedContentBytes([]byte(value))
 	case latentimage.EncodedImage:
 		return latentimage.PNGContent(value)
 	case latentvideo.EncodedVideo:

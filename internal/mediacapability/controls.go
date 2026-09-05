@@ -12,6 +12,7 @@ import (
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/recipe"
 	"overgo/internal/speechsynth"
+	"overgo/internal/vqaserve"
 )
 
 // Control is one typed field of a capability's request as a page can
@@ -67,6 +68,7 @@ var requestTypes = map[recipe.ModuleID]any{
 	modelrecipe.ModuleLatentVideoPrepare:     latentvideo.WanRequest{},
 	modelrecipe.ModuleReferenceVideoPrepare:  latentvideo.ReferenceEditRequest{},
 	modelrecipe.ModuleSpeechTokenize:         speechsynth.SynthesisRequest{},
+	modelrecipe.ModuleVQAPrepare:             vqaserve.Request{},
 }
 
 // Controls describes the request the entry module's executor decodes as

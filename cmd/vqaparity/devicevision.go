@@ -24,6 +24,7 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/vqaserve"
 )
 
 // runDeviceVision: device vision-blocks parity + measurement.
@@ -148,7 +149,7 @@ func runDeviceVision(l *campaignContext) error {
 	for layer := 0; layer < spec.Depth; layer++ {
 		w := hostBlocks[layer]
 		in := g.Inputs[layer]
-		if err := firstErr(
+		if err := vqaserve.FirstError(
 			bind(in.Norm1W, w.Norm1Weight), bind(in.Norm1B, w.Norm1Bias),
 			bind(in.QKVW, w.QKVWeight), bind(in.QKVB, w.QKVBias),
 			bind(in.ProjW, w.ProjWeight), bind(in.ProjB, w.ProjBias),

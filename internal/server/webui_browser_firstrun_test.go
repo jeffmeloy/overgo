@@ -352,6 +352,31 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	} else {
 		t.Log("clip-out leg not taken: the store declares no host oscillator video model")
 	}
+	// 12. Ask about an image: with the declared VQA model chosen, the image
+	// card's "use as input" fills the request's image with the card's stored
+	// id, the message body is the question, and the answer lands as the
+	// assistant's text.
+	if generationMode("vqa", "model.vqa-prepare") {
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      const card = [...document.querySelectorAll("#panel-chat .msg.media")].find((card) => card.querySelector("img"));
+      const again = card && [...card.querySelectorAll("button")].find((button) => button.textContent === "use as input");
+      if (!again) return false; again.click(); return true; })()`)
+		settle("image fills the vqa image control", `(() => {
+      const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("image"));
+      const input = field && field.querySelector("input");
+      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .card").length === 0; })()`)
+		say(t, ctx, browser, "What does this image show?")
+		settle("the answer lands as the assistant's text", `!document.querySelector(".composer .btn").disabled &&
+      (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0 &&
+      document.querySelectorAll("#panel-chat .msg.error").length === 0`)
+		var answer string
+		if err := browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("vqa leg: the VQA model answered %q", answer)
+	} else {
+		t.Log("vqa leg not taken: the store declares no VQA model")
+	}
 }
 
 // say types one message into the composer through the browser's input

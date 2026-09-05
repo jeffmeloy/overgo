@@ -108,6 +108,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		{"video-gen", "Video", "workflow.video"},
 		{"video-edit", "Video edit", "workflow.video-edit"},
 		{"speech", "Speech", "workflow.speech"},
+		{"vqa", "Ask about an image", "workflow.vqa"},
 		{"embeddings", "Embeddings", "embeddings"},
 		{"rerank", "Rerank", "rerank"},
 	}

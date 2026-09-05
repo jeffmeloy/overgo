@@ -145,9 +145,7 @@
     const node = svg("svg", { viewBox: "0 0 " + width + " " + height, width: width, height: height });
     const defs = svg("defs", {});
     const grad = svg("linearGradient", { id: gid, x1: "0", y1: "0", x2: "1", y2: "0" });
-    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
-      grad.appendChild(svg("stop", { offset: (t * 100) + "%", "stop-color": ramp(t) }));
-    }
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) grad.appendChild(svg("stop", { offset: (t * 100) + "%", "stop-color": ramp(t) }));
     defs.appendChild(grad);
     node.appendChild(defs);
     node.appendChild(svg("rect", { x: 0, y: 0, width: width, height: barH, rx: 2, fill: "url(#" + gid + ")" }));

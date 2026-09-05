@@ -254,9 +254,7 @@
             parts.push(el("div", {}, "decision ", artifactLink(walk.decision.id),
               " / " + walk.decision.answer + " for " + walk.decision.tool));
           }
-          if (walk.result) {
-            parts.push(el("div", { class: "mono", text: "result " + (walk.result.error ? "ERROR " : "") + walk.result.content }));
-          }
+          if (walk.result) parts.push(el("div", { class: "mono", text: "result " + (walk.result.error ? "ERROR " : "") + walk.result.content }));
           host.replaceChildren(el("div", { class: "card" }, ...parts));
         } catch (err) { showError(err); }
       }

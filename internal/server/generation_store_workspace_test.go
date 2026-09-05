@@ -31,6 +31,15 @@ import (
 // can declare, with no profile and host placement.
 func activatedImageModel(t *testing.T, store *overgodb.Store) artifact.ID {
 	t.Helper()
+	return activateModel(t, store, func(modelID artifact.ID) (recipe.Definition, error) {
+		return modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, modelID, artifact.ID{})
+	})
+}
+
+// activateModel publishes a model with bytes on disk and a verified
+// activation of the definition built over it.
+func activateModel(t *testing.T, store *overgodb.Store, define func(artifact.ID) (recipe.Definition, error)) artifact.ID {
+	t.Helper()
 	ctx := t.Context()
 	payload := []byte("oscillator-weights")
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
@@ -54,7 +63,7 @@ func activatedImageModel(t *testing.T, store *overgodb.Store) artifact.ID {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, manifest.ID, artifact.ID{})
+	definition, err := define(manifest.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

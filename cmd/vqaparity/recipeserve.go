@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,51 +9,12 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/executor"
 	"overgo/internal/dataroot"
-	"overgo/internal/hfbpe"
 	"overgo/internal/overgodb"
-	"overgo/internal/patchtower"
 	"overgo/internal/recipe"
-	"overgo/internal/routedlm"
+	"overgo/internal/vqaserve"
 	"overgo/internal/workflowruntime"
 )
-
-// decodeChain: token ids -> text via the checkpoint tokenizer.
-func decodeChain(modelDir string, ids []int) (string, error) {
-	tok, err := hfbpe.Load(modelDir)
-	if err != nil {
-		return "", err
-	}
-	return tok.Decode(ids), nil
-}
-
-// readEOSTokenIDs: scalar or list generation stop tokens.
-func readEOSTokenIDs(modelDir string) ([]int, error) {
-	raw, err := os.ReadFile(filepath.Join(modelDir, "generation_config.json"))
-	if err != nil {
-		return nil, err
-	}
-	var parsed struct {
-		EOS json.RawMessage `json:"eos_token_id"`
-	}
-	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil, fmt.Errorf("generation_config: %w", err)
-	}
-	if len(parsed.EOS) == 0 {
-		return nil, fmt.Errorf("generation_config: no eos_token_id")
-	}
-	var list []int
-	if err := json.Unmarshal(parsed.EOS, &list); err == nil {
-		return list, nil
-	}
-	var scalar int
-	if err := json.Unmarshal(parsed.EOS, &scalar); err != nil {
-		return nil, fmt.Errorf("generation_config: eos_token_id shape: %w", err)
-	}
-	return []int{scalar}, nil
-}
 
 // openRecipeStore: writable workflow lineage store.
 func openRecipeStore(repo string) (*overgodb.Store, error) {
@@ -69,52 +29,10 @@ func openRecipeStore(repo string) (*overgodb.Store, error) {
 	return overgodb.Open(repository)
 }
 
-type preparedVQA struct {
-	pixels              []float32
-	inputIDs, positions []int
-	eosIDs              []int
-	gridT, gridH, gridW int
-}
-
-func prepareVQA(modelDir string, image []byte, question string) (preparedVQA, error) {
-	pre, err := patchtower.LoadPreprocessConfig(modelDir)
-	if err != nil {
-		return preparedVQA{}, err
-	}
-	tok, err := hfbpe.Load(modelDir)
-	if err != nil {
-		return preparedVQA{}, err
-	}
-	specials, err := routedlm.LoadPromptSpecials(modelDir, promptRoles)
-	if err != nil {
-		return preparedVQA{}, err
-	}
-	rgb, height, width, err := patchtower.DecodeImageBytesRGB(image)
-	if err != nil {
-		return preparedVQA{}, err
-	}
-	pixels, gridT, gridH, gridW, err := patchtower.PreprocessImage(pre, rgb, height, width)
-	if err != nil {
-		return preparedVQA{}, err
-	}
-	inputIDs, err := routedlm.RenderVisionQAPrompt(tok, specials, question, gridH, gridW, pre.MergeSize)
-	if err != nil {
-		return preparedVQA{}, err
-	}
-	eosIDs, err := readEOSTokenIDs(modelDir)
-	if err != nil {
-		return preparedVQA{}, err
-	}
-	return preparedVQA{
-		pixels: pixels, inputIDs: inputIDs, positions: routedlm.ImageMaskPositions(inputIDs, specials),
-		eosIDs: eosIDs, gridT: gridT, gridH: gridH, gridW: gridW,
-	}, nil
-}
-
 type vqaExecution struct {
 	chain  []int
 	text   string
-	result fullResult
+	result vqaserve.Result
 	walls  []workflowruntime.NodeWall
 }
 
@@ -132,51 +50,29 @@ func executeVQAProgram(
 	if err != nil {
 		return vqaExecution{}, err
 	}
+	image, err := vqaserve.ImageContract.ContentBytes(rawImg)
+	if err != nil {
+		return vqaExecution{}, err
+	}
 	var execution vqaExecution
-	var pipelineErr error
-	answer, walls, err := executeVQA(
-		ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), rawImg, question,
-		func(image []byte, question string) (preparedVQA, error) {
-			prepared, prepareErr := prepareVQA(l.modelDir, image, question)
+	answer, walls, err := vqaserve.RunProgram(
+		ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), image, question,
+		func(image []byte, question string) (vqaserve.Prepared, error) {
+			prepared, prepareErr := vqaserve.Prepare(l.modelDir, image, question)
 			if prepareErr == nil {
 				l.Log(fmt.Sprintf("RECIPE serve %s PROCESSOR image=%s grid=[%d,%d,%d] promptLen=%d imageTokens=%d question=%q",
-					tag, filepath.Base(imagePath), prepared.gridT, prepared.gridH, prepared.gridW,
-					len(prepared.inputIDs), len(prepared.positions), question))
+					tag, filepath.Base(imagePath), prepared.GridT, prepared.GridH, prepared.GridW,
+					len(prepared.InputIDs), len(prepared.Positions), question))
 			}
 			return prepared, prepareErr
 		},
-		func(
-			executeContext context.Context,
-			prepared preparedVQA,
-		) (string, error) {
-			pc, openErr := newPrefillContext(
-				l.modelDir, prepared.inputIDs, prepared.positions,
-				prepared.gridT, prepared.gridH, prepared.gridW,
-			)
-			if openErr != nil {
-				return "", openErr
+		func(executeContext context.Context, prepared vqaserve.Prepared) (string, error) {
+			result, text, answerErr := vqaserve.Answer(executeContext, l.modelDir, prepared, vqaserve.Policy.DecodeMaxSteps, l.Log)
+			if answerErr != nil {
+				return "", answerErr
 			}
-			defer pc.src.Close()
-			worker, openErr := device.New(device.DefaultOrdinal())
-			if openErr != nil {
-				return "", fmt.Errorf("recipe serve worker: %w", openErr)
-			}
-			defer worker.Close()
-			exe, openErr := executor.NewWithWorker(worker)
-			if openErr != nil {
-				return "", fmt.Errorf("recipe serve executor: %w", openErr)
-			}
-			defer exe.Close()
-			execution.result, pipelineErr = runFullPipeline(
-				l, executeContext, worker, exe, pc, prepared.pixels,
-				fullOpts{maxSteps: campaignEvidence.DecodeMaxSteps, eosIDs: prepared.eosIDs},
-			)
-			if pipelineErr != nil {
-				return "", pipelineErr
-			}
-			execution.chain = execution.result.generated
-			execution.text, pipelineErr = decodeChain(l.modelDir, execution.chain)
-			return execution.text, pipelineErr
+			execution.result, execution.chain = result, result.Generated
+			return text, nil
 		},
 	)
 	if err != nil {
@@ -186,8 +82,8 @@ func executeVQAProgram(
 	l.Log(fmt.Sprintf("RECIPE serve %s chain=%v", tag, execution.chain))
 	l.Log(fmt.Sprintf("RECIPE serve %s TEXT %q", tag, execution.text))
 	l.Log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token)",
-		tag, execution.result.e2eWall.Round(time.Millisecond), execution.result.decodeWall.Round(time.Millisecond),
-		execution.result.steps, float64(execution.result.decodeWall.Microseconds())/1000.0/float64(max1(execution.result.steps))))
+		tag, execution.result.E2EWall.Round(time.Millisecond), execution.result.DecodeWall.Round(time.Millisecond),
+		execution.result.Steps, float64(execution.result.DecodeWall.Microseconds())/1000.0/float64(max(execution.result.Steps, 1))))
 	return execution, nil
 }
 
@@ -207,7 +103,7 @@ func validateCanonicalVQA(l *campaignContext, execution vqaExecution, tag string
 		return fmt.Errorf("recipe serve answer %q does not start with %q", execution.text, wantPrefix)
 	}
 	l.Log(fmt.Sprintf("RECIPE serve %s EXACT golden-prefix (%d tokens) + phrase; full answer %d tokens, first=%d e2e=%s",
-		tag, len(dg.GeneratedTokens), len(execution.chain), execution.chain[0], execution.result.e2eWall.Round(time.Millisecond)))
+		tag, len(dg.GeneratedTokens), len(execution.chain), execution.chain[0], execution.result.E2EWall.Round(time.Millisecond)))
 	return nil
 }
 
@@ -219,7 +115,7 @@ func runRecipeServe(l *campaignContext, repo, imagePath, question string) error 
 		return err
 	}
 	defer store.Close()
-	modelID, program, err := resolveActiveVQA(ctx, store, l.modelDir)
+	modelID, program, err := vqaserve.ResolveActive(ctx, store, l.modelDir)
 	if err != nil {
 		return err
 	}
@@ -246,15 +142,8 @@ func runRecipeServe(l *campaignContext, repo, imagePath, question string) error 
 		return fmt.Errorf("recipe serve RUN2 answer %q != RUN1 %q", second.text, first.text)
 	}
 	l.Log(fmt.Sprintf("RECIPE serve DETERMINISTIC RUN1==RUN2 chain (%d tokens) e2e1=%s e2e2=%s",
-		len(first.chain), first.result.e2eWall.Round(time.Millisecond), second.result.e2eWall.Round(time.Millisecond)))
+		len(first.chain), first.result.E2EWall.Round(time.Millisecond), second.result.E2EWall.Round(time.Millisecond)))
 	l.Log(fmt.Sprintf("RECIPE serve ANSWER %q", first.text))
 	l.Log("RECIPE serve LANE GREEN (served THROUGH activated recipe " + recipeID + ")")
 	return nil
-}
-
-func max1(n int) int {
-	if n < 1 {
-		return 1
-	}
-	return n
 }

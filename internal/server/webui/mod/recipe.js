@@ -47,9 +47,7 @@
       if (runtime.evidence && runtime.evidence.length) {
         panel.appendChild(el("div", { class: "section-title", text: "Admission evidence" }));
         const evidence = el("div", { class: "row" });
-        for (const id of runtime.evidence) {
-          evidence.appendChild(el("span", { class: "tag", title: id, text: fmt.shortID(id) }));
-        }
+        for (const id of runtime.evidence) evidence.appendChild(el("span", { class: "tag", title: id, text: fmt.shortID(id) }));
         panel.appendChild(evidence);
       }
 	  if (bundles.length) {

@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-vqa-executor",
-      "title": "Answer questions about an image from the page: a VQA capability in the media catalog lifts the parity harness's prepare and answer adapters into an executor for the vqa recipe modules, so the activated RxBrain lists with image and question controls",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Answer questions about an image from the page: a VQA capability in the media catalog lifts the parity harness's prepare and answer adapters into an executor for the vqa recipe modules, so the activated RxBrain lists with image and question controls",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -short -count=1"
-        }
-      ]
-    },
-    {
       "id": "openrouter-relay",
       "title": "Serve OpenRouter models through a declared remote provider: a remote inference recipe declares the endpoint and model ids, a net/http relay speaks the OpenAI-compatible chat completions protocol with streaming, the key comes from OVERGO_OPENROUTER_KEY, a provider without its key lists as refused with that reason, and run records mark remote provenance as non-reproducible",
       "status": "open",

@@ -105,7 +105,7 @@
           value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
         const select = () => {
           generation.capability = declared.find((capability) => capability.recipe === picker.value && !capability.refusal) || null;
-          const typed = generation.capability ? generation.capability.controls.filter((control) => !(control.type === "text" && (control.name === "prompt" || control.name === "text"))) : [];
+          const typed = generation.capability ? generation.capability.controls.filter((control) => control !== overgo.bodyControl(generation.capability.controls)) : [];
           generation.fields = overgo.controlInputs(controlsHost, typed);
         };
         picker.addEventListener("change", select);

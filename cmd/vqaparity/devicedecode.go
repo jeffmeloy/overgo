@@ -26,6 +26,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/vqaserve"
 )
 
 // decodeHarness: host-side decode oracle state (prompt KV from golden
@@ -63,7 +64,7 @@ func loadDecodeHarness(l *campaignContext) (*decodeHarness, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
+	cfg, err := routedlm.LoadConfig(l.modelDir, vqaserve.Binding)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +88,7 @@ func loadDecodeHarness(l *campaignContext) (*decodeHarness, error) {
 		return nil, err
 	}
 	scratch := patchtower.NewMergerScratch(spec)
-	prefill, err := routedlm.PrefillValues(src, cfg, binding, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, imageRows, func(dst []float32, ordinal int) error {
+	prefill, err := routedlm.PrefillValues(src, cfg, vqaserve.Binding, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, imageRows, func(dst []float32, ordinal int) error {
 		patchtower.MergerRowInto(dst, blockLast, ordinal, gridH, gridW, spec, merger, &scratch)
 		return nil
 	})
@@ -108,7 +109,7 @@ func loadDecodeHarness(l *campaignContext) (*decodeHarness, error) {
 		src.Close()
 		return nil, err
 	}
-	terminal, err := routedlm.LoadTerminalWeights(src, cfg, binding)
+	terminal, err := routedlm.LoadTerminalWeights(src, cfg, vqaserve.Binding)
 	if err != nil {
 		src.Close()
 		return nil, err
@@ -117,7 +118,7 @@ func loadDecodeHarness(l *campaignContext) (*decodeHarness, error) {
 	weights := make([]routedlm.LayerWeights, cfg.NumHiddenLayers)
 	resident := make([]*routedlm.ResidentKV, cfg.NumHiddenLayers)
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		w, err := routedlm.LoadLayerWeights(src, cfg, binding, layer)
+		w, err := routedlm.LoadLayerWeights(src, cfg, vqaserve.Binding, layer)
 		if err != nil {
 			src.Close()
 			return nil, err
@@ -150,12 +151,6 @@ func loadDecodeHarness(l *campaignContext) (*decodeHarness, error) {
 		cfg: cfg, src: src, terminal: terminal, weights: weights, resident: resident,
 		segments: segments, decodeMask: decodeMask, promptLen: promptLen, dg: dg, tg: tg,
 	}, nil
-}
-
-// devResident: a persistent device KV buffer pair for one layer.
-type devKV struct {
-	key, value   *executor.DeviceBuffer
-	keyV, valueV executor.DeviceValue
 }
 
 // runDeviceDecode: device 32-layer decode parity + measurement.
@@ -254,7 +249,7 @@ func runDeviceDecode(l *campaignContext) error {
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		w := h.weights[layer]
 		in := g.Inputs[layer]
-		if err := firstErr(
+		if err := vqaserve.FirstError(
 			bindVec(in.InputNorm, w.InputNorm.Text),
 			bindMat(in.Q, w.QKV.QText), bindMat(in.K, w.QKV.KText), bindMat(in.V, w.QKV.VText), bindMat(in.O, w.QKV.OText),
 			bindVec(in.QNorm, w.QKV.QNorm[0]), bindVec(in.KNorm, w.QKV.KNorm[0]),
@@ -284,7 +279,7 @@ func runDeviceDecode(l *campaignContext) error {
 	// ---- device-resident KV: capacity buffers seeded with the prompt K/V -----
 	kvShape := tensor.MustShape(uint64(hd), uint64(kvHeads), uint64(capacity))
 	kvBytes, _ := kvShape.Bytes(dtype.F32)
-	caches := make([]devKV, cfg.NumHiddenLayers)
+	caches := make([]vqaserve.DeviceKV, cfg.NumHiddenLayers)
 	targets := compiled.NewRetainedTargets()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		kb, e := exe.AllocateDeviceBuffer(ctx, kvBytes)
@@ -295,11 +290,11 @@ func runDeviceDecode(l *campaignContext) error {
 		if e != nil {
 			return fmt.Errorf("device decode kv value alloc layer %d: %w", layer, e)
 		}
-		kv := devKV{key: kb, value: vb}
-		if kv.keyV, e = kb.Value(kvShape); e != nil {
+		kv := vqaserve.DeviceKV{Key: kb, Value: vb}
+		if kv.KeyV, e = kb.Value(kvShape); e != nil {
 			return e
 		}
-		if kv.valueV, e = vb.Value(kvShape); e != nil {
+		if kv.ValueV, e = vb.Value(kvShape); e != nil {
 			return e
 		}
 		// Seed prompt rows [0:promptLen). Host resident layout
@@ -307,30 +302,30 @@ func runDeviceDecode(l *campaignContext) error {
 		seedK := h.resident[layer].Keys[:h.promptLen*kvOut]
 		seedV := h.resident[layer].Values[:h.promptLen*kvOut]
 		if e := worker.Do(ctx, func(state *device.State) error {
-			if e := state.Driver.MemcpyHtoD(kv.keyV.Pointer, driver.Bytes(seedK)); e != nil {
+			if e := state.Driver.MemcpyHtoD(kv.KeyV.Pointer, driver.Bytes(seedK)); e != nil {
 				return e
 			}
-			return state.Driver.MemcpyHtoD(kv.valueV.Pointer, driver.Bytes(seedV))
+			return state.Driver.MemcpyHtoD(kv.ValueV.Pointer, driver.Bytes(seedV))
 		}); e != nil {
 			return fmt.Errorf("device decode kv seed layer %d: %w", layer, e)
 		}
 		caches[layer] = kv
-		deviceFeeds[g.Inputs[layer].PastKey] = kv.keyV.Pointer
-		deviceFeeds[g.Inputs[layer].PastValue] = kv.valueV.Pointer
-		if e := targets.Set(g.Nodes[layer].KeyAppend, kv.keyV); e != nil {
+		deviceFeeds[g.Inputs[layer].PastKey] = kv.KeyV.Pointer
+		deviceFeeds[g.Inputs[layer].PastValue] = kv.ValueV.Pointer
+		if e := targets.Set(g.Nodes[layer].KeyAppend, kv.KeyV); e != nil {
 			return fmt.Errorf("device decode kv key target layer %d: %w", layer, e)
 		}
-		if e := targets.Set(g.Nodes[layer].ValueAppend, kv.valueV); e != nil {
+		if e := targets.Set(g.Nodes[layer].ValueAppend, kv.ValueV); e != nil {
 			return fmt.Errorf("device decode kv value target layer %d: %w", layer, e)
 		}
 	}
 	defer func() {
 		for _, kv := range caches {
-			if kv.key != nil {
-				_ = kv.key.Release(ctx)
+			if kv.Key != nil {
+				_ = kv.Key.Release(ctx)
 			}
-			if kv.value != nil {
-				_ = kv.value.Release(ctx)
+			if kv.Value != nil {
+				_ = kv.Value.Release(ctx)
 			}
 		}
 	}()
@@ -393,7 +388,7 @@ func runDeviceDecode(l *campaignContext) error {
 		if golden.Position != tokenPos || golden.TokenIn != tokenID {
 			return fmt.Errorf("step %d golden pos=%d token_in=%d have pos=%d token=%d", step, golden.Position, golden.TokenIn, tokenPos, tokenID)
 		}
-		embedding, err := routedlm.EmbeddingRows(h.src, cfg, binding, []int{tokenID})
+		embedding, err := routedlm.EmbeddingRows(h.src, cfg, vqaserve.Binding, []int{tokenID})
 		if err != nil {
 			return err
 		}
@@ -424,7 +419,7 @@ func runDeviceDecode(l *campaignContext) error {
 		}
 		_ = retained.Release(ctx)
 		devLogits := logitsVal.Data
-		devTop := argmaxF32(devLogits)
+		devTop := vqaserve.ArgmaxF32(devLogits)
 
 		// device-vs-host logits at the golden probe + top indices.
 		probeIDs := slices.Clone(golden.Logits.ProbeIndex)
@@ -461,7 +456,7 @@ func runDeviceDecode(l *campaignContext) error {
 	if err := setStep(finalPos); err != nil {
 		return err
 	}
-	lastEmbed, err := routedlm.EmbeddingRows(h.src, cfg, binding, []int{h.dg.DecodeSteps[steps-1].TokenIn})
+	lastEmbed, err := routedlm.EmbeddingRows(h.src, cfg, vqaserve.Binding, []int{h.dg.DecodeSteps[steps-1].TokenIn})
 	if err != nil {
 		return err
 	}
@@ -488,23 +483,4 @@ func runDeviceDecode(l *campaignContext) error {
 	l.Log(fmt.Sprintf("DEVICE decode REPLAY over %d steps + %d measure iters: graph_launches=%d graph_instantiations=%d graph_updates=%d (single compiled graph, per-step runtime attrs only: rope pos, attn window, cache offset)", steps, budget.Samples+budget.Warmup, dLaunch, dInst, dUpd))
 	l.Log("DEVICE decode LANE GREEN")
 	return nil
-}
-
-func firstErr(errs ...error) error {
-	for _, e := range errs {
-		if e != nil {
-			return e
-		}
-	}
-	return nil
-}
-
-func argmaxF32(v []float32) int {
-	best, bestI := float32(math.Inf(-1)), -1
-	for i, x := range v {
-		if x > best {
-			best, bestI = x, i
-		}
-	}
-	return bestI
 }

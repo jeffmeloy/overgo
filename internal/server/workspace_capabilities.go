@@ -33,6 +33,9 @@ type workspaceMediaLimits struct {
 	MaxMediaBytes     uint64   `json:"max_media_bytes"`
 	MaxImageDimension uint64   `json:"max_image_dimension"`
 	MaxImagePixels    uint64   `json:"max_image_pixels"`
+	// Refusals: why a kind the model does not accept is refused, by kind
+	// (image, audio, video) or by media type.
+	Refusals map[string]string `json:"refusals"`
 }
 
 // workspaceMode: one thing the composer can ask the served model for.
@@ -70,14 +73,28 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 			accept = append(accept, media.MP4MediaType)
 		}
 	}
+	// Documents need no projector: text kinds pass through, PDF is extracted.
+	accept = append(accept, "text/plain", "text/markdown", "text/csv", "application/json", media.PDFMediaType)
+	refusals := map[string]string{}
+	if !image {
+		refusals["image"] = "the served model has no image projector loaded"
+	}
+	if !audio {
+		refusals["audio"] = "the served model has no audio projector loaded"
+	}
+	if !video {
+		refusals["video"] = "video rides the image projector, and none is loaded"
+	} else if h.config.FFmpegPath == "" {
+		refusals[media.MP4MediaType] = "MP4 decoding needs FFmpeg, which is not configured"
+	}
 	document := workspaceModelCapabilities{
 		ID:            h.config.ModelID,
 		Name:          model.Name,
 		ContextLength: model.ContextLength,
 		Generation:    h.defaultSamplingParams(),
-		Modalities:    map[string]bool{"text": true, "image": image, "audio": audio, "video": video},
+		Modalities:    map[string]bool{"text": true, "image": image, "audio": audio, "video": video, "document": true},
 		Media: workspaceMediaLimits{
-			Accept:        dedupeStrings(accept),
+			Accept: dedupeStrings(accept), Refusals: refusals,
 			MaxImageBytes: maxImageBytes, MaxMediaBytes: maxMediaBytes,
 			MaxImageDimension: maxImageDimension, MaxImagePixels: maxImagePixels,
 		},

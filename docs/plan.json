@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "import",
-          "title": "Import by attach, drag-and-drop and paste: images (png, jpeg, gif, webp), audio (wav, and any format the server's media policy decodes), video (mp4, gif), and documents (pdf, plain text, markdown, csv, json) with previews and byte and dimension limits read from the server's media policy before upload; attachments travel as the served protocol's own content parts (image_url, input_audio, input_video, and a document part the server extracts to text) with no side channel; the composer accepts or refuses each attachment from the served recipe's declared capabilities and shows the reason",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestFrontPageImport' -count=1",
-          "rationale": "chat.js already sends attachments as protocol parts; what is missing is discoverability (drop and paste), documents, previews, and refusal by declared capability instead of by server error.",
-          "depends_on": [
-            "gui-shell/model-switch"
-          ]
-        },
-        {
           "id": "dynamic-inference",
           "title": "The front page derives its abilities from the served recipe: text chat, vision questions, audio input, image generation, video generation and editing, speech synthesis, embeddings and reranking appear as composer modes only when the active recipe declares them (the capability document), generated images, audio and video render inline in the conversation as media stream events and are saved as artifacts with provenance, and a model switch re-derives the composer without a reload",
           "status": "open",

@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"overgo/internal/inference"
+	"overgo/internal/media"
 	"overgo/internal/strictjson"
 )
 
@@ -488,6 +489,13 @@ func (h *Handler) parseResponsesFile(ctx context.Context, raw json.RawMessage, l
 	filename, err := validResponseFilename(file.Filename)
 	if err != nil {
 		return "", fmt.Errorf("%s filename: %w", label, err)
+	}
+	if file.MediaType == media.PDFMediaType {
+		text, err := pdfText(file.Data)
+		if err != nil {
+			return "", fmt.Errorf("%s pdf: %w", label, err)
+		}
+		file.Data, file.MediaType = []byte(text), "text/plain"
 	}
 	if !supportedResponseTextType(file.MediaType) {
 		return "", fmt.Errorf("%s media type %q is not textual", label, file.MediaType)

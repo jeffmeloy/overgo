@@ -101,15 +101,11 @@
       function renderInventory() {
         if (!selected && inventory.length) selected = inventory[0].name;
         if (selected && !inventory.some((item) => item.name === selected)) selected = "";
-        const table = el("table", { class: "grid" });
-        table.append(el("tr", {}, el("th", { text: "name" }), el("th", { text: "definition" }),
-          el("th", { text: "state" }), el("th", { text: "authority" }), el("th", { text: "select" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["name", "definition", "state", "authority", "select"]));
         for (const item of inventory) {
           const choose = el("button", { class: "btn alt", text: item.name === selected ? "Selected" : "Open" });
           choose.addEventListener("click", () => { selected = item.name; renderAll(); });
-          table.append(el("tr", {}, el("td", { text: item.name }), el("td", {}, artifactLink(item.definition)),
-            el("td", { text: item.refusal || item.state }), el("td", {}, artifactLink(item.activation)),
-            el("td", {}, choose)));
+          table.append(overgo.tableRow([item.name, artifactLink(item.definition), el("span", { text: item.refusal || item.state }), artifactLink(item.activation), choose]));
         }
         const pause = el("button", { class: "btn alt", text: "Pause", disabled: !selected });
         const resume = el("button", { class: "btn", text: "Resume", disabled: !selected });

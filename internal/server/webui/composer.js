@@ -149,10 +149,9 @@
       return row;
     }
 
-    // consume drives one turn from an event source: assistant tokens land in
-    // the given message (streamed, then rendered as markdown at done), tool
     // consume drives one turn from an event source: tokens land in the message (markdown at done),
     // tool and media events become cards, usage is returned as the terminal facts.
+    async function consume(events, message) {
       const open = new Map();
       thinking(true);
       try {
@@ -207,20 +206,24 @@
     return { add, consume, toolCard, mediaCard, errorRow, thinking, reset, messages, node: log, renderMessage };
   }
 
+  function mediaKind(mime) {
+    return mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : "document";
+  }
+
   // ---- composer: the input surface ----
-  // One prompt box (Enter sends, Shift+Enter newline), attach with the
-  // accepted media kinds the surface declares, an attachment strip with
-  // previews, send and stop, and optional modes. Attachments become the
-  // served protocol's own content parts; there is no side channel.
+  // One prompt box (Enter sends, Shift+Enter newline), attach, drop or paste
+  // the kinds the capability document accepts, an attachment strip with
+  // previews and refusals, send and stop, and optional modes. Attachments
+  // become the served protocol's own content parts; there is no side channel.
   function composer(host, options) {
     options = options || {};
     const input = el("textarea", { class: "text", placeholder: options.placeholder || "message (Enter to send, Shift+Enter for newline)" });
     const attachments = [];
     const attachmentHost = el("div", { class: "row" });
-    // Accepted media comes from the capability document, never from a list
-    // typed into a surface; a surface may narrow it to kinds (image, audio, video).
+    // Accepted media and its bounds come from the capability document, never
+    // from a list typed into a surface; a surface may narrow it to kinds.
     const media = (overgo.capabilities() || {}).media || { accept: [] };
-    const accept = (media.accept || []).filter((mime) => !options.kinds || options.kinds.some((kind) => mime.startsWith(kind + "/") || (kind === "video" && mime === "image/gif")));
+    const accept = (media.accept || []).filter((mime) => !options.kinds || options.kinds.includes(mediaKind(mime)) || (options.kinds.includes("video") && mime === "image/gif"));
     const picker = el("input", { type: "file", style: "display:none", multiple: options.multiple !== false, accept: accept.join(",") });
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", style: "display:none" }, "stop");
@@ -236,35 +239,54 @@
       attachmentHost.replaceChildren(...attachments.map((item, index) => {
         const remove = el("button", { class: "btn alt", text: "×" });
         remove.addEventListener("click", () => { attachments.splice(index, 1); renderAttachments(); });
-        const preview = item.kind === "image"
-          ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-          : item.kind === "video"
-            ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-            : el("span", { class: "tag", text: item.kind });
-        return el("span", { class: "card" }, preview, " " + item.name + " ", remove);
+        const preview = item.refusal ? el("span", { class: "tag control", text: "refused" })
+          : item.kind === "image" ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
+            : item.kind === "video" ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
+              : item.kind === "audio" ? el("audio", { src: item.dataURL, controls: "" })
+                : el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
+        return el("span", { class: "card" + (item.refusal ? " refused" : "") }, preview, " " + item.name + " ",
+          item.refusal ? el("span", { class: "note", text: item.refusal }) : null, remove);
       }));
     }
+    function refusal(file, kind) {
+      const refusals = media.refusals || {};
+      if (!accept.includes(file.type)) return refusals[file.type] || refusals[kind] || "the served model does not accept " + (file.type || "this file");
+      const limit = kind === "image" ? media.max_image_bytes : media.max_media_bytes;
+      return limit && file.size > limit ? "exceeds the " + overgo.fmt.bytes(limit) + " limit" : "";
+    }
     function addFile(file) {
+      const kind = mediaKind(file.type);
+      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: refusal(file, kind) };
+      attachments.push(item);
       const reader = new FileReader();
       reader.onload = () => {
-        const kind = file.type.startsWith("image/") ? "image"
-          : file.type.startsWith("audio/") ? "audio"
-            : file.type.startsWith("video/") ? "video" : "document";
-        attachments.push({ kind, name: file.name, mime: file.type, dataURL: reader.result });
+        item.dataURL = reader.result;
+        if (kind === "image" && !item.refusal) {
+          const probe = new Image();
+          probe.onload = () => {
+            if (probe.width > media.max_image_dimension || probe.height > media.max_image_dimension) item.refusal = "exceeds " + media.max_image_dimension + " pixels on a side";
+            else if (probe.width * probe.height > media.max_image_pixels) item.refusal = "exceeds " + media.max_image_pixels + " pixels";
+            renderAttachments();
+          };
+          probe.src = reader.result;
+        }
         renderAttachments();
       };
       reader.readAsDataURL(file);
     }
-    picker.addEventListener("change", () => {
-      for (const file of picker.files) addFile(file);
-      picker.value = "";
-    });
+    function addFiles(files) { for (const file of files || []) addFile(file); }
+    picker.addEventListener("change", () => { addFiles(picker.files); picker.value = ""; });
+    // Files also arrive by drop anywhere on the composer and by paste into the prompt.
+    element.addEventListener("dragover", (event) => { event.preventDefault(); element.classList.add("drop"); });
+    element.addEventListener("dragleave", () => element.classList.remove("drop"));
+    element.addEventListener("drop", (event) => { event.preventDefault(); element.classList.remove("drop"); addFiles(event.dataTransfer.files); });
+    input.addEventListener("paste", (event) => { if (event.clipboardData.files.length) { event.preventDefault(); addFiles(event.clipboardData.files); } });
     function attachmentParts() {
-      return attachments.map((item) => {
+      return attachments.filter((item) => item.dataURL && !item.refusal).map((item) => {
         if (item.kind === "image") return { type: "image_url", image_url: { url: item.dataURL } };
         if (item.kind === "audio") return { type: "input_audio", input_audio: { data: item.dataURL.split(",").pop(), format: "wav" } };
         if (item.kind === "video") return { type: "input_video", input_video: { data: item.dataURL } };
-        return { type: "text", text: "[document " + item.name + "]" };
+        return { type: "input_file", filename: item.name, file_data: item.dataURL };
       });
     }
     function setBusy(busy) {
@@ -274,7 +296,7 @@
     async function submit() {
       const text = input.value.trim();
       if (!text && !attachments.length) return;
-      if (send.disabled) return;
+      if (send.disabled || attachments.some((item) => item.refusal)) return;
       if (options.onSubmit) await options.onSubmit(text, attachments.slice(), modeSelect ? modeSelect.value : "");
     }
     send.addEventListener("click", submit);

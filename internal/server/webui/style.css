@@ -332,3 +332,5 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .conversations .conversation .row { gap:8px; padding:0 10px 4px; }
 .conversations .conversation .tab { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
 .shell:not(.front) .conversations { display:none; }
+.composer.drop { outline:2px dashed var(--acc); outline-offset:4px; }
+.card.refused { border-color:var(--err); }

@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"overgo/internal/media"
 )
 
 type ResponseFile struct {
@@ -164,7 +166,9 @@ func supportedResponseFileType(mediaType string) bool {
 	return strings.HasPrefix(mediaType, "image/") || supportedResponseTextType(mediaType)
 }
 
+// supportedResponseTextType: the kinds a file part reads as text; a PDF is
+// extracted to text before the model sees it.
 func supportedResponseTextType(mediaType string) bool {
 	return strings.HasPrefix(mediaType, "text/") || mediaType == "application/json" ||
-		mediaType == "application/xml"
+		mediaType == "application/xml" || mediaType == media.PDFMediaType
 }

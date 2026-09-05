@@ -39,11 +39,8 @@
                 title: capability.stale || capability.recipe, text: label,
               }));
             }
-            catalogBody.appendChild(el("tr", null,
-              el("td", { class: "mono", text: fmt.shortID(entry.model) }),
-              el("td", { text: (entry.location || "").split(/[\\/]/).pop() }),
-              capabilities,
-              el("td", null, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" }))));
+            catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }),
+              capabilities, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" })]));
           }
         } catch (err) {
           catalogNote.textContent = overgo.friendlyError(err);
@@ -72,11 +69,8 @@
           searchNote.textContent = results.length ? results.length + " result(s)" : "no results";
           for (const listing of results) {
             const download = el("button", { class: "btn alt", onclick: () => startDownload(listing.id) }, "download");
-            resultsBody.appendChild(el("tr", null,
-              el("td", { class: "mono", text: listing.id }),
-              el("td", { class: "mono", text: fmt.compact(listing.downloads || 0) }),
-              el("td", { class: "mono", text: fmt.compact(listing.likes || 0) }),
-              el("td", null, listing.gated ? el("span", { class: "tag control", text: "gated" }) : download)));
+            resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0),
+              listing.gated ? el("span", { class: "tag control", text: "gated" }) : download]));
           }
         });
       }

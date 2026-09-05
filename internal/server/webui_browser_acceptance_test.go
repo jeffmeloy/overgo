@@ -43,10 +43,18 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer browser.Close()
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form") &&
+	probeCtx, probeCancel := context.WithTimeoutCause(ctx, 30*time.Second, errors.New("webui lane: the shell did not present the automations panel"))
+	defer probeCancel()
+	if err := browser.Eventually(probeCtx, `!!document.querySelector("#panel-automations.active .schema-form") &&
         document.querySelectorAll(".operation-chip").length >= 2`); err != nil {
-		t.Fatal(err)
+		var page string
+		_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, html: document.documentElement.outerHTML.slice(0, 1500)})`, &page)
+		t.Fatalf("%v; page: %s", err, page)
 	}
+
+	// Every library and module parsed and registered: a script that fails to
+	// parse leaves window.overgo without its surface and a window error behind.
+	assertBrowserPredicate(t, ctx, browser, `window.overgo.errors.length === 0 && typeof window.overgo.composer === "function" && typeof window.overgo.thread === "function"`)
 
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       location.hash = "recipe";

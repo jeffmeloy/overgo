@@ -668,7 +668,7 @@
      "contains": "func LoadResponseFilePolicy(",
      "path": "internal/server/resource_policy.go",
      "role": "source",
-     "identity": "file:sha256:115c4a0fccebba8cacf7fe84c19e3853820b300cec4053a534da35a38c74be2d"
+     "identity": "file:sha256:388e297f84db06f76e05aa51f99b8eb504b1b9cad128c235bb7beb4dbb7e5d89"
     },
     {
      "contains": "func TestResponsesInputFileSources(",
@@ -710,7 +710,7 @@
      "contains": "func DecodeEncodedVideo(",
      "path": "internal/media/video.go",
      "role": "source",
-     "identity": "file:sha256:08f2501b8e0f634480204b7758b58fada9160af262021599f8937784f323fd09"
+     "identity": "file:sha256:58e8847a172f216f238ef93ec3b71ba60381c42fb089c816d6337d616ecf9b7b"
     },
     {
      "contains": "func TestChatAndResponsesEncodedVideoProjection(",

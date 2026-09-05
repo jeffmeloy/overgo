@@ -6,10 +6,11 @@
   "use strict";
   const KEY_STORAGE = "overgo.apiKey";
   const MODEL_STORAGE = "overgo.model"; // the last model this browser chose to serve
+  const errors = []; // every window error since boot; the browser lane asserts none
+  window.addEventListener("error", (event) => errors.push(String(event.message)));
 
-  // The key lives in memory for the page session; browser storage is
-  // opt-in via the "remember" control so a shared machine never keeps a
-  // key the operator did not ask it to keep.
+  // The key lives in memory for the page session; browser storage is opt-in via the
+  // "remember" control so a shared machine never keeps a key the operator did not ask it to keep.
   let sessionKey = "";
   try { sessionKey = localStorage.getItem(KEY_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
   const keyWasPersisted = sessionKey !== "";
@@ -330,7 +331,7 @@
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel,
-    conversation, openConversation, refreshConversations, sseEvents,
+    conversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
@@ -348,8 +349,7 @@
     return workspaceManifest.sections.filter((s) => tabs.some((t) => tabSection(t) === s.id));
   }
 
-  // Sidebar navigation shows every section's tabs at once; the active section
-  // header only highlights the group the active tab belongs to.
+  // Sidebar navigation shows every section at once; the active section header highlights the active tab group.
   function syncSectionUI() {
     for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection);
   }
@@ -566,7 +566,7 @@
     const ordered = [];
     for (const declaration of manifest.tabs) {
       const implementation = implementations.get(declaration.id);
-      if (!implementation) continue;
+      if (!implementation) { errors.push("Workspace tab " + declaration.id + " did not register from its module"); continue; }
       ordered.push(Object.assign(implementation, declaration));
     }
     tabs.splice(0, tabs.length, ...ordered);

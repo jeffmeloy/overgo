@@ -76,6 +76,7 @@
           if (part.type === "image_url") content.push({ type: "input_image", image_url: part.image_url.url });
           else if (part.type === "input_audio") content.push({ type: "input_audio", input_audio: part.input_audio });
           else if (part.type === "input_video") content.push({ type: "input_video", input_video: part.input_video });
+          else if (part.type === "input_file") content.push(part);
         }
         return [{ role: "user", content: parts.length ? content : text }];
       }

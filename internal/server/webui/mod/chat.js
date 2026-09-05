@@ -5,6 +5,31 @@
 (function () {
   "use strict";
   const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
+
+  // inspectTurn: the side panel over one assistant turn: its run record (status from the server vocabulary,
+  // timings, identities), then any inspector embedded over its exact prompt and completion or the served model.
+  window.overgo.inspectTurn = async function (responseID) {
+    const overgo = window.overgo;
+    const { el } = overgo;
+    const aside = document.getElementById("inspector");
+    const body = el("div");
+    aside.hidden = false;
+    aside.replaceChildren(el("div", { class: "row" }, el("strong", { text: "Inspect turn" }), el("span", { class: "grow" }),
+      el("button", { class: "btn alt", text: "×", onclick: () => { aside.hidden = true; aside.replaceChildren(); } })), body);
+    let record;
+    try { record = await overgo.api.get("/interactions/inspect?response=" + encodeURIComponent(responseID)); }
+    catch (err) { body.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
+    const cards = [overgo.stat("Status", record.status, record.statuses.join(" · "))];
+    if (record.failure) cards.push(overgo.stat("Failure", record.failure));
+    if (record.timings) cards.push(overgo.stat("Prefill", Number(record.timings.prompt_per_second).toFixed(2), "tok/s"), overgo.stat("Decode", Number(record.timings.predicted_per_second).toFixed(2), "tok/s"));
+    const links = ["model", "recipe", "trace", "receipt", "operation", "run"].filter((name) => record[name]).map((name) => el("span", {}, name + " ", overgo.artifactLink(record[name])));
+    const host = el("div");
+    const seed = { prompt: (record.prompt || "") + (record.completion ? "\n" + record.completion : "") };
+    const inspectors = [["lens", "Logits", seed], ["states", "States", seed], ["attention", "Attention", seed], ["model", "Model"], ["vocab", "Vocabulary"], ["tensors", "Tensors"]];
+    body.append(el("div", { class: "statgrid" }, ...cards), el("div", { class: "row artifact-links" }, ...links),
+      el("div", { class: "row" }, ...inspectors.map(([id, label, given]) => el("button", { class: "btn alt", text: label, onclick: () => overgo.embed(id, host, given) }))), host);
+  };
+
   window.overgo.registerTab({
     id: "chat",
     async mount(panel, overgo) {
@@ -98,6 +123,7 @@
         }
         const terminal = await thread.consume(noting(overgo.streams.responses(response)), assistant);
         if (latest) lastResponseID = latest;
+        if (latest && assistant) { assistant.response = latest; thread.renderMessage(assistant, false); }
         try { localStorage.removeItem(INFLIGHT_STORAGE); } catch (_) { /* storage unavailable */ }
         renderFacts(inputTokens, terminal.usage, terminal.timings);
         overgo.refreshConversations();
@@ -145,7 +171,12 @@
         try {
           const chain = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(selected.latest));
           welcome.remove();
-          for (const message of chain.messages || []) if (message.role === "user" || message.role === "assistant") thread.add(message.role, message.content);
+          for (const message of chain.messages || []) {
+            if (message.role !== "user" && message.role !== "assistant") continue;
+            const shown = thread.add(message.role, message.content);
+            shown.response = message.response;
+            thread.renderMessage(shown, false);
+          }
           lastResponseID = chain.response;
         } catch (err) { thread.errorRow(overgo.friendlyError(err)); }
       }

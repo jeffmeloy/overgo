@@ -334,3 +334,6 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .shell:not(.front) .conversations { display:none; }
 .composer.drop { outline:2px dashed var(--acc); outline-offset:4px; }
 .card.refused { border-color:var(--err); }
+/* ---- inspect this turn: a side panel over the conversation (chat.js inspectTurn) ---- */
+.inspector { position:fixed; top:0; right:0; bottom:0; width:min(620px, 70vw); overflow:auto; background:var(--bg2); border-left:1px solid var(--line); padding:14px; z-index:5; }
+.inspector[hidden] { display:none; }

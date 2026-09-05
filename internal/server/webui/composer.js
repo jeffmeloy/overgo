@@ -78,6 +78,7 @@
       const head = el("div", { class: "role" }, message.role);
       if (message.role === "assistant" && !streaming && message.content) {
         head.appendChild(overgo.copyButton(message.content, "copy"));
+        if (message.response && overgo.inspectTurn) head.appendChild(el("button", { class: "link-button", text: "inspect", onclick: () => overgo.inspectTurn(message.response) }));
       }
       const node = el("div", { class: "msg " + message.role }, head, body);
       if (message.node) message.node.replaceWith(node); else log.appendChild(node);

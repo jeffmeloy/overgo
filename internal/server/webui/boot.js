@@ -331,7 +331,7 @@
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel,
-    conversation, openConversation, refreshConversations, sseEvents, errors,
+    conversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
@@ -393,6 +393,30 @@
     if (first) activate(first.id);
   }
 
+  // embed: a registered tab mounted into another host with a seed (the inspector opens analysis tabs over one turn).
+  function embed(id, host, seed) {
+    const tab = tabs.find((t) => t.id === id);
+    if (!tab) throw new Error("no workspace tab " + id);
+    clear(host);
+    return tab.mount(host, window.overgo, seed);
+  }
+  // analysisSurface: the head every analysis inspector shares: a seeded prompt, labelled fields,
+  // run and cancel over a runner, and the output host; the inspector supplies execute(signal).
+  function analysisSurface(panel, seed, options) {
+    const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
+    prompt.value = (seed && seed.prompt) || options.defaultPrompt;
+    const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
+    const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
+    const out = el("div");
+    panel.append(prompt, el("div", { class: "row", style: "margin:10px 0" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
+      ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
+    const runAction = runner(run, cancel, {
+      onError: (err) => out.replaceChildren(errorBanner(friendlyError(err))),
+      onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
+    });
+    const surface = { prompt, out, execute() { out.replaceChildren(el("div", { class: "note", text: options.busy })); runAction(options.execute); } };
+    return surface;
+  }
   function safeMount(tab) {
     try {
       const result = tab.mount(tab.panel, window.overgo);

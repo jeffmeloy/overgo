@@ -141,6 +141,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/interactions/messages", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).conversationMessages},
 	{Path: "/interactions/label", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).conversationLabel},
 	{Path: "/interactions/follow", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).conversationFollow},
+	{Path: "/interactions/inspect", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).conversationInspect},
 	{Path: "/operations/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).operationEvidence},
 	{Path: "/automations", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).automationWorkspace},
 	{Path: "/automations/definitions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).automationWorkspace},

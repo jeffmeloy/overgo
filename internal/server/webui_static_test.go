@@ -432,7 +432,7 @@ func TestWebUICancel(t *testing.T) {
 	}
 	for _, asset := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
 		body := get(asset)
-		if !strings.Contains(body, "overgo.runner(") {
+		if !strings.Contains(body, "overgo.runner(") && !strings.Contains(body, "overgo.analysisSurface(") {
 			t.Errorf("%s does not use the shared overgo.runner", asset)
 		}
 		if !strings.Contains(body, "{ signal }") {

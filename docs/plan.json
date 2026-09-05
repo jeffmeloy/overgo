@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "inspect-turn",
-          "title": "Inspect this turn: from any assistant turn the front page opens the logits, hidden-state and attention inspectors for that exact prompt and completion (the same /analyze endpoints the workbench uses), the model, vocabulary and tensor inspectors for the served model, and the turn's run record (status from one declared vocabulary: running, done, cancelled, timeout, refused, error; timings; the receipt and trace identities) in a side panel that does not leave the conversation; the existing analysis tabs stay intact",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestFrontPageInspect' -count=1",
-          "rationale": "The investigation capability is the workbench's distinguishing feature; today it is disconnected from the conversation that produced the output being investigated, and the run behind a turn is not visible at all.",
-          "depends_on": [
-            "gui-conversations/durable-sessions"
-          ]
-        },
-        {
           "id": "agent-in-thread",
           "title": "Agent mode inside the conversation: the user picks an agent definition (the immutable binding of prompt, model configuration, UTCP tools and policies the store holds) and the same thread runs the session through the existing /agents surface; tool calls render inline as the composer's collapsible cards, an action outside the session's standing authority renders as an inline approval card bound to the inbox record with the exact tool identity and arguments (nothing executes on a stale approval), the session's guardrails are visible (step budget and loop limit with what remains), a plan the agent records renders as a live checklist, and a delegated sub-session renders as a nested card with its own receipt; the workbench agent tab stays intact",
           "status": "open",

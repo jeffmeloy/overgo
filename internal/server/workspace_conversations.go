@@ -36,9 +36,9 @@ type conversationListResponse struct {
 }
 
 type conversationMessagesResponse struct {
-	Response string                         `json:"response"`
-	Root     string                         `json:"root"`
-	Messages []runrecord.InteractionMessage `json:"messages"`
+	Response string                `json:"response"`
+	Root     string                `json:"root"`
+	Messages []conversationMessage `json:"messages"`
 }
 
 type conversationLabelRequest struct {
@@ -112,22 +112,17 @@ func (h *Handler) conversationMessages(response http.ResponseWriter, request *ht
 		return
 	}
 	responseID := request.URL.Query().Get("response")
-	messages, _, found := h.loadResponseInteraction(request.Context(), responseID)
-	if !found {
+	interaction, found, err := runrecord.ResolveInteraction(request.Context(), h.repository, responseID)
+	if err != nil || !found {
 		writeError(response, http.StatusNotFound, "not_found", "conversation not found")
 		return
 	}
-	interaction, _, _ := runrecord.ResolveInteraction(request.Context(), h.repository, responseID)
 	root := interaction
-	for root.Parent.Valid() {
-		parent, err := runrecord.RequireInteraction(request.Context(), h.repository, root.Parent)
-		if err != nil {
-			break
-		}
+	for parent, ok := h.parentInteraction(request, root); ok; parent, ok = h.parentInteraction(request, root) {
 		root = parent
 	}
 	writeJSON(response, http.StatusOK, conversationMessagesResponse{
-		Response: responseID, Root: root.Response, Messages: interactionMessages(messages),
+		Response: responseID, Root: root.Response, Messages: h.chainMessages(request, interaction),
 	})
 }
 

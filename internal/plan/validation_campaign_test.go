@@ -16,21 +16,23 @@ func optimizedValidationProblems(document Plan) []string {
 		return []string{err.Error()}
 	}
 	prerequisites := map[string][]string{
-		"model-regression-baseline/do":              {"validation-readiness/measurement-contract", "model-regression-baseline/prepare-guard"},
-		"model-regression-baseline/prepare-guard":   {"validation-readiness/measurement-contract"},
-		"model-regression-baseline/full-catalog":    {"model-regression-baseline/do", "gemma-12b-accuracy/do", "modality-verification/media-report", "device-memory-retention/do", "decode-attention-per-key-cost/do"},
-		"device-memory-retention/do":                {"model-regression-gate/do"},
-		"decode-attention-per-key-cost/do":          {"model-regression-gate/do"},
-		"gemma-12b-accuracy/do":                     {"model-regression-gate/do"},
-		"model-regression-gate/do":                  {"model-regression-baseline/do"},
-		"simplify-prefill-paths/do":                 {"model-regression-gate/do", "model-regression-baseline/full-catalog", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
-		"simplify-execution-core/do":                {"simplify-prefill-paths/do"},
-		"final-model-validation/do":                 {"simplify-execution-core/do", "simplify-command-surface/do", "simplify-checkpoint-locations/do", "boundary-hardening/cross-origin", "boundary-hardening/argv-output"},
-		"benchmark-27b/mmlu-pro-pass":               {"benchmark-completion/mmlu-pro-pass"},
-		"benchmark-completion/published-comparison": {"benchmark-27b/mmlu-pro-pass"},
-		"simplify-checkpoint-locations/do":          {"model-regression-gate/do", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
-		"simplify-command-surface/do":               {"model-regression-gate/do", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass", "failure-recovery/control-plane-drills", "failure-recovery/gate-recovery-drill"},
-		"simplify-capability-report/do":             {"final-model-validation/do", "benchmark-completion/published-comparison", "modality-verification/media-report"},
+		"model-regression-baseline/do":                {"validation-readiness/measurement-contract", "model-regression-baseline/prepare-guard", "model-regression-baseline/repair-throughput"},
+		"model-regression-baseline/complete-coverage": {"baseline-repair-order/do", "model-regression-baseline/prepare-guard"},
+		"model-regression-baseline/repair-throughput": {"model-regression-baseline/complete-coverage"},
+		"model-regression-baseline/prepare-guard":     {"validation-readiness/measurement-contract"},
+		"model-regression-baseline/full-catalog":      {"model-regression-baseline/do", "gemma-12b-accuracy/do", "modality-verification/media-report", "device-memory-retention/do", "decode-attention-per-key-cost/do"},
+		"device-memory-retention/do":                  {"model-regression-gate/do"},
+		"decode-attention-per-key-cost/do":            {"model-regression-gate/do"},
+		"gemma-12b-accuracy/do":                       {"model-regression-gate/do"},
+		"model-regression-gate/do":                    {"model-regression-baseline/do"},
+		"simplify-prefill-paths/do":                   {"model-regression-gate/do", "model-regression-baseline/full-catalog", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
+		"simplify-execution-core/do":                  {"simplify-prefill-paths/do"},
+		"final-model-validation/do":                   {"simplify-execution-core/do", "simplify-command-surface/do", "simplify-checkpoint-locations/do", "boundary-hardening/cross-origin", "boundary-hardening/argv-output"},
+		"benchmark-27b/mmlu-pro-pass":                 {"benchmark-completion/mmlu-pro-pass"},
+		"benchmark-completion/published-comparison":   {"benchmark-27b/mmlu-pro-pass"},
+		"simplify-checkpoint-locations/do":            {"model-regression-gate/do", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
+		"simplify-command-surface/do":                 {"model-regression-gate/do", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass", "failure-recovery/control-plane-drills", "failure-recovery/gate-recovery-drill"},
+		"simplify-capability-report/do":               {"final-model-validation/do", "benchmark-completion/published-comparison", "modality-verification/media-report"},
 	}
 	for after, before := range prerequisites {
 		step, retained := retainedCampaignStep(document, after)
@@ -89,6 +91,13 @@ func optimizedValidationProblems(document Plan) []string {
 			}
 		}
 	}
+	for _, repair := range []string{"model-regression-baseline/complete-coverage", "model-regression-baseline/repair-throughput"} {
+		for _, blocked := range []string{"model-regression-baseline/do", "model-regression-gate/do"} {
+			if campaignDependsOn(document, repair, blocked, map[string]bool{}) {
+				problems = append(problems, repair+" cannot wait for the healthy baseline it must repair")
+			}
+		}
+	}
 	slices.Sort(problems)
 	return problems
 }
@@ -109,6 +118,17 @@ func TestOptimizedValidationRejectsUnsafeOrdering(t *testing.T) {
 		target string
 		change func(*Plan)
 	}{
+		{"baseline repair deadlock", "model-regression-baseline/repair-throughput", func(d *Plan) {
+			for i := range d.Items {
+				if d.Items[i].ID == "model-regression-baseline" {
+					for j := range d.Items[i].Steps {
+						if d.Items[i].Steps[j].ID == "repair-throughput" {
+							d.Items[i].Steps[j].DependsOn = append(d.Items[i].Steps[j].DependsOn, "model-regression-gate/do")
+						}
+					}
+				}
+			}
+		}},
 		{"publication bypasses producer", "model-regression-baseline/do", func(d *Plan) {
 			for i := range d.Items {
 				if d.Items[i].ID != "model-regression-baseline" {

@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"context"
+	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -631,7 +633,7 @@ func TestCompletionContractDigestBindsCanonicalItemSnapshot(t *testing.T) {
 	}
 }
 
-func TestCompletionAuthorityReconstructsRepeatedFirstParentTargetMerges(t *testing.T) {
+func TestAudioGateReplayAcceptance(t *testing.T) {
 	initial := Plan{Campaign: "target merges", Doctrine: "first parent owns target", Items: []Item{
 		{ID: "seed", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}}},
 		{ID: "first", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}}},
@@ -890,6 +892,29 @@ func TestCompletionAuthorityReconstructsRepeatedFirstParentTargetMerges(t *testi
 				targetID, resolver.uncached, expectedBoundaries,
 			)
 		}
+		if resolver.revisionLoads != 1 {
+			t.Fatalf("nested immutable parents repeated external revision resolution %d times", resolver.revisionLoads)
+		}
+		known := resolver.transitions[resolved.repository]
+		if len(known) == 0 || resolver.transitionLoads != len(known) {
+			t.Fatalf("reconstructed transitions=%d, distinct immutable transitions=%d", resolver.transitionLoads, len(known))
+		}
+		proofs := resolver.evidenceLoads
+		if proofs != len(resolved.completedReferences) || proofs != len(resolver.evidence) {
+			t.Fatalf("verified completion proofs=%d, distinct completions=%d, retained proofs=%d", proofs, len(resolved.completedReferences), len(resolver.evidence))
+		}
+		if _, err := resolver.resolve(t.Context(), fixture.repository, "HEAD", target, fixture.store); err != nil || resolver.transitionLoads != len(known) {
+			t.Fatalf("repeat replay reconstructed immutable history: loads=%d err=%v", resolver.transitionLoads, err)
+		}
+		if resolver.evidenceLoads != proofs {
+			t.Fatal("repeat replay reverified unchanged completion proofs")
+		}
+		cancelled, cancel := context.WithCancelCause(t.Context())
+		cancel(context.Canceled)
+		if _, err := resolver.resolve(cancelled, fixture.repository, "HEAD", target, fixture.store); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cached resolution ignored cancellation: %v", err)
+		}
+		t.Logf("target=%s verified boundaries=%d reconstructed transitions=%d (one per distinct commit)", targetID, resolver.uncached, resolver.transitionLoads)
 		if !resolved.completed("seed/do") {
 			t.Fatal("first-parent ancestor completion authority was lost")
 		}
@@ -900,6 +925,20 @@ func TestCompletionAuthorityReconstructsRepeatedFirstParentTargetMerges(t *testi
 			t.Fatalf("source retirement %s entered target authority", completedSourceID)
 		}
 		if targetID == "first" {
+			missingRepository := t.TempDir()
+			runGit(t, missingRepository, nil, "init", "-q")
+			if _, err := resolver.transitionPlans(t.Context(), missingRepository, []gitCompletionMessage{{
+				hash: fixture.completionHash, parents: []string{localRevision, incomingRevision}, message: string(message),
+			}}); err == nil {
+				t.Fatal("transition reuse crossed repository identity")
+			}
+			t.Run("cached-history-rewrite-refused", func(t *testing.T) {
+				t.Setenv("GIT_REPLACE_REF_BASE", "refs/alternate-replacements/")
+				if _, err := resolver.resolve(t.Context(), fixture.repository, "HEAD", target, fixture.store); err == nil ||
+					!strings.Contains(err.Error(), "custom replacement-ref namespace") {
+					t.Fatalf("cached authority bypassed history integrity: %v", err)
+				}
+			})
 			dependent := target
 			dependent.Items = slices.Clone(target.Items)
 			secondIndex := slices.IndexFunc(dependent.Items, func(item Item) bool { return item.ID == "second" })
@@ -908,7 +947,7 @@ func TestCompletionAuthorityReconstructsRepeatedFirstParentTargetMerges(t *testi
 			}
 			dependent.Items[secondIndex].Steps = slices.Clone(dependent.Items[secondIndex].Steps)
 			dependent.Items[secondIndex].Steps[0].DependsOn = []string{completedSourceID + "/do"}
-			if _, err := resolveFixture(fixture, dependent, "HEAD"); err == nil ||
+			if _, err := resolver.resolve(t.Context(), fixture.repository, "HEAD", dependent, fixture.store); err == nil ||
 				!strings.Contains(err.Error(), "pruned dependency "+completedSourceID+"/do") {
 				t.Fatalf("source completion satisfied target dependency: %v", err)
 			}
@@ -933,9 +972,12 @@ func TestCompletionAuthorityReconstructsRepeatedFirstParentTargetMerges(t *testi
 			}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := resolveFixture(fixture, target, "HEAD"); err == nil ||
+			if _, err := resolver.resolve(t.Context(), fixture.repository, "HEAD", target, fixture.store); err == nil ||
 				!strings.Contains(err.Error(), "one exact projected merge receipt lineage") {
 				t.Fatalf("late duplicate receipt error = %v", err)
+			}
+			if resolver.evidenceLoads <= proofs {
+				t.Fatal("changed store head reused old completion verification")
 			}
 		}
 	}

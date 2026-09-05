@@ -619,8 +619,23 @@ type completionAuthorityCacheKey struct {
 // exponential in the number of merges even though every proof input is
 // immutable at the captured repository revision and store head.
 type completionAuthorityResolver struct {
-	cache    map[completionAuthorityCacheKey]CompletionAuthority
-	uncached int
+	cache           map[completionAuthorityCacheKey]CompletionAuthority
+	transitions     map[string]map[string]completionTransition
+	evidence        map[completionEvidenceCacheKey]completionEvidence
+	uncached        int
+	transitionLoads int
+	evidenceLoads   int
+	revisionLoads   int
+}
+
+// Completion evidence also depends on the absence of contradictory lineage.
+// Reuse therefore requires the exact store handle and observed journal head,
+// not merely a content ID or Git revision. Nothing persists across admissions.
+type completionEvidenceCacheKey struct {
+	repository string
+	revision   string
+	store      *overgodb.Store
+	coordinate CompletionStoreCoordinate
 }
 
 func (resolver *completionAuthorityResolver) resolve(
@@ -632,6 +647,9 @@ func (resolver *completionAuthorityResolver) resolve(
 	if ctx == nil || store == nil {
 		return CompletionAuthority{}, errors.New("plan: completion authority requires the store")
 	}
+	if err := ctx.Err(); err != nil {
+		return CompletionAuthority{}, err
+	}
 	if err := Validate(document); err != nil {
 		return CompletionAuthority{}, err
 	}
@@ -642,6 +660,30 @@ func (resolver *completionAuthorityResolver) resolve(
 	}
 	repository, revision, err := resolveCompletionRevision(ctx, repository, revision)
 	if err != nil {
+		return CompletionAuthority{}, err
+	}
+	resolver.revisionLoads++
+	authority, err := resolver.resolveRevision(ctx, repository, revision, document, store)
+	if err != nil {
+		return CompletionAuthority{}, err
+	}
+	// Nested parents are exact object IDs read from this verified graph, not
+	// new caller-supplied refs. Recheck mutable history controls at the outer
+	// boundary instead of spawning Git checks for every cached ancestor.
+	if err := gitauthority.RequireCompleteHistory(ctx, repository); err != nil {
+		return CompletionAuthority{}, fmt.Errorf("plan: %w", err)
+	}
+	if head, sequence := store.Head(); head != authority.storeHead || sequence != authority.storeSequence {
+		return CompletionAuthority{}, errors.New("plan: completion authority store moved during resolution")
+	}
+	return authority, nil
+}
+
+func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context, repository, revision string, document Plan, store *overgodb.Store) (CompletionAuthority, error) {
+	if err := ctx.Err(); err != nil {
+		return CompletionAuthority{}, err
+	}
+	if err := Validate(document); err != nil {
 		return CompletionAuthority{}, err
 	}
 	wanted, present, presentItems := completionNeeds(document)
@@ -745,7 +787,7 @@ func (resolver *completionAuthorityResolver) resolve(
 			seenTransition[candidate.commit.hash] = true
 		}
 	}
-	transitions, err := completionTransitionPlans(ctx, repository, transitionCommits)
+	transitions, err := resolver.transitionPlans(ctx, repository, transitionCommits)
 	if err != nil {
 		return CompletionAuthority{}, err
 	}
@@ -753,11 +795,23 @@ func (resolver *completionAuthorityResolver) resolve(
 	for _, candidate := range candidates {
 		transition := transitions[candidate.commit.hash]
 		reference := candidate.trailers.item + "/" + candidate.trailers.step
-		evidence, err := requireCompletionEvidence(
-			ctx, candidate.commit.hash, transition.baseline, transition.child, candidate.trailers, store,
-		)
-		if err != nil {
-			return CompletionAuthority{}, fmt.Errorf("plan: completion %s at %.12s: %w", reference, candidate.commit.hash, err)
+		evidenceKey := completionEvidenceCacheKey{
+			repository: repository, revision: candidate.commit.hash, store: store,
+			coordinate: CompletionStoreCoordinate{Commit: storeHead, Sequence: storeSequence},
+		}
+		evidence, found := resolver.evidence[evidenceKey]
+		if !found {
+			evidence, err = requireCompletionEvidence(
+				ctx, candidate.commit.hash, transition.baseline, transition.child, candidate.trailers, store,
+			)
+			if err != nil {
+				return CompletionAuthority{}, fmt.Errorf("plan: completion %s at %.12s: %w", reference, candidate.commit.hash, err)
+			}
+			if resolver.evidence == nil {
+				resolver.evidence = make(map[completionEvidenceCacheKey]completionEvidence)
+			}
+			resolver.evidence[evidenceKey] = evidence
+			resolver.evidenceLoads++
 		}
 		validatedCompletions[candidate.commit.hash] = true
 		if candidate.trailers.mergeProjection == MergeProjectionFirstParentTarget {
@@ -766,7 +820,7 @@ func (resolver *completionAuthorityResolver) resolve(
 			// graph. Resolve exactly parent[0]; the graph cut in
 			// gitCompletionMessages ensures this recursive proof never follows the
 			// source parent whose store may no longer exist.
-			localBoundary, boundaryErr := resolver.resolve(
+			localBoundary, boundaryErr := resolver.resolveRevision(
 				ctx, repository, candidate.commit.parents[completionLocalParentIndex],
 				transition.local, store,
 			)

@@ -47,21 +47,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-dataset-materialization",
-          "title": "Repair canonical audio-inspection replay without rewriting immutable source evidence",
-          "status": "open",
-          "verify": "go test ./internal/dataset -run '^TestAudioInspectionCanonicalReplayAcceptance$' -count=1 -v",
-          "rationale": "Reproduce the historical inspection batch-key conflict through dataset's existing inspection/publication owner. Repair canonical idempotent replay, prove identical replay has no change and conflicting content refuses, and verify the actual historical identity before closing its finding. A fresh isolated store is only a fixture, not historical repair. Do not clear the quarantined AMI materialization based on a different source.",
-          "depends_on": [
-            "audio-primitives/intermediate-parity",
-            "oracle-intake/artifact-election"
-          ],
-          "capabilities": [
-            "canonical-audio-replay",
-            "immutable-source-identity"
-          ]
-        },
-        {
           "id": "dataset-materialization",
           "title": "Register LibriSpeech and share bounded source traversal between training and evaluation",
           "status": "open",
@@ -376,6 +361,74 @@
             "live-audio-model-switching",
             "multi-request-scheduling",
             "restart-recovery"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gemma-audio-proof",
+      "title": "Prove existing E4B and 12B FP8 audio-conditioned capabilities through shared owners",
+      "status": "open",
+      "steps": [
+        {
+          "id": "artifact-contracts",
+          "title": "Bind both local Gemma audio artifacts and their distinct execution contracts",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestAudioConditionedArtifactAdmissionAcceptance$' -count=1 -v",
+          "rationale": "CPU-only admission work for C:/Users/jeffm/adaptive_new/models/gemma-4-E4B-it and C:/Users/jeffm/adaptive_new/models/gemma-4-12B-it-fp8. Bind exact source, converted checkpoint/projector, tokenizer, processor and existing store evidence identities through modelartifact, modelrecipe and projector owners. E4B declares gemma4_audio; 12B declares gemma4_unified_audio. Preserve architecture, precision and preprocessing differences in declarations. Verify actual required artifacts and dependency closure, wrong-artifact refusal and incomplete-evidence refusal for both models, without claiming CPU numerical execution or GPU parity from an inventory. No model-family runtime branch or parallel model registry.",
+          "depends_on": [
+            "audio-decode-consolidation/do"
+          ],
+          "capabilities": [
+            "audio-conditioned-artifact-admission",
+            "distinct-audio-execution-contracts"
+          ]
+        },
+        {
+          "id": "matched-audio-quality",
+          "title": "Measure transcription and audio understanding separately for both Gemma models",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAudioConditionedQualityAcceptance$' -count=1 -v",
+          "rationale": "Reuse existing E4B audio-tower and 12B audio-to-language parity only where exact artifacts, transforms and execution scopes match. Extend through projector, inference and evaluation owners to complete generated answers on real pinned audio. Require both model denominators, transcript WER/CER under a declared normalization protocol, separate audio-conditioned instruction/question-answer scoring, rejected-input accounting and source/code/environment/run lineage. Reference answers never enter prediction. Compare standalone ASR only on matched transcription cases, not across unlike tasks. First-token equality is not complete-answer quality; do not claim synthesis, native streaming or word timestamps. Coordinate GPU capacity and isolated resource timing; unavailable required execution fails rather than skips.",
+          "depends_on": [
+            "gemma-audio-proof/artifact-contracts",
+            "asr-training/dataset-materialization"
+          ],
+          "capabilities": [
+            "audio-conditioned-transcription",
+            "audio-understanding-quality",
+            "paired-artifact-evidence"
+          ]
+        },
+        {
+          "id": "serving-recovery",
+          "title": "Verify both Gemma audio paths through existing authenticated chat and Responses serving",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/server -run '^TestAudioConditionedServingAcceptance$' -count=1 -v",
+          "rationale": "Execute real audio-conditioned requests for both exact admitted recipes through current Chat Completions and Responses owners, bounded media decoding, projection, generation, operations and cancellation. Assert complete answers, ordered audio/text history, authentication, malformed and oversized input refusal, cancellation, repeat requests and correct model/run attribution after recovery. Do not silently route these models through the standalone transcriber: using /v1/audio/transcriptions requires an explicitly supported recipe consumer and additional end-to-end evidence. No umbrella audio service or duplicate inference/session owner.",
+          "depends_on": [
+            "gemma-audio-proof/matched-audio-quality",
+            "asr-serving/transcriptions-route"
+          ],
+          "capabilities": [
+            "audio-conditioned-http-serving",
+            "multimodal-audio-recovery"
+          ]
+        },
+        {
+          "id": "audio-adaptation",
+          "title": "Verify supported audio-conditioned adaptation and exact resume without conflating model topologies",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAudioConditionedTrainingAcceptance$' -count=1 -v",
+          "rationale": "Reuse the universal trainer, frozen-component adapter, optimizer and checkpoint owners on admitted audio-conditioned training recipes. The existing E4B layer-0 audio-representation test is a lower bound, not full-model training. Require actual audio materialization, nonzero trained parameters, gradient/update evidence, exact optimizer/random/data-stream resume and held-out before/after scoring for supported paths. Retain the current explicit 12B FP8 no-per-layer-input refusal as a mandatory admission test until a supported topology-specific declaration over common operations is implemented and verified; do not label that refusal as successful 12B training. Report model/task/parameter coverage and unknown or unsupported dimensions separately. New shared operations need their real recipe consumer and parity in the same slice; no family-specific executor or optimizer.",
+          "depends_on": [
+            "gemma-audio-proof/matched-audio-quality",
+            "asr-training/exact-resume"
+          ],
+          "capabilities": [
+            "audio-conditioned-adaptation",
+            "training-topology-admission",
+            "exact-audio-training-resume"
           ]
         }
       ]

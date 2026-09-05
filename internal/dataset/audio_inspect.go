@@ -15,6 +15,11 @@ import (
 
 const audioDecodeProfileSchema = "overgo/audio-decode-profile/v1"
 
+// The complete publication envelope includes the immutable source descriptor.
+// Earlier unversioned receipts omitted it; their request hashes must not be
+// reused for this envelope even when all published facts are already present.
+const audioInspectionBatchPrefix = "audio/inspection/v2/"
+
 // AudioPayloadOrigin locates encoded audio within a registered container.
 // ValueIndex is the non-null value ordinal of Column, not a source row number.
 // An empty Column denotes the complete container file; dataset paths embedded
@@ -167,7 +172,7 @@ func InspectAudio(ctx context.Context, repository artifact.Repository, data []by
 	}
 	lineage = append(lineage, artifact.DependencyLineage(measurement.ID, source, formatContent.Descriptor.ID)...)
 	lineage = append(lineage, artifact.DependencyLineage(decision.ID, measurement.ID, admission.ID)...)
-	batch, err := artifact.NewDocumentBatch("audio/inspection/"+decision.ID.DigestHex(),
+	batch, err := artifact.NewDocumentBatch(audioInspectionBatchPrefix+decision.ID.DigestHex(),
 		[]artifact.Content{formatContent, measurementContent, admissionContent, decisionContent}, lineage, nil)
 	if err != nil {
 		return AudioInspection{}, err

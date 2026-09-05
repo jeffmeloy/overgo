@@ -25,23 +25,6 @@
       ]
     },
     {
-      "id": "validation-automation",
-      "title": "Repair measured automation gaps in existing validation owners",
-      "status": "open",
-      "steps": [
-        {
-          "id": "benchmark-protocol",
-          "title": "Make benchmark sampling and device-path claims executable",
-          "status": "open",
-          "verify": "test -f cmd/benchmark/sampling_contract_test.go \u0026\u0026 go test ./cmd/benchmark -run '^TestBenchmarkSamplingContract$' -count=1 \u0026\u0026 go test ./cmd/benchmark -run '^Test(ParseOptionsBounds|SubtractExecutionStats|SummarizeRuns|BenchmarkClaimCommits)$' -count=1",
-          "rationale": "The guard probe exposed that cmd/benchmark constructs Temperature=0 with EOG logit biases and no sampler stages: IsRawGreedy becomes false, categorical sampling can choose a lower logit, and device argmax is disabled. Reproduce this exact configuration in the owning command. Reuse the existing fixed-budget generation option for intended greedy timing, keeping the winning tokens and device path intact; preserve explicitly requested stochastic sampling with an explicit stage contract. Bind CPU sampling/stop/output-denominator assertions, device-path parity through the existing hermetic inference fixture, and publication protocol identity. Record whether evidence used device greedy or host logits; reject claims of equivalence across changed protocols. Preserve historical measurements with their actual scope rather than silently relabeling them. This bounded benchmark repair does not gate independent evaluate quality passes or the accepted longform guard.",
-          "depends_on": [
-            "model-regression-baseline/complete-coverage"
-          ]
-        }
-      ]
-    },
-    {
       "id": "model-regression-gate",
       "title": "Enforce cheap execution-coverage regression checks before device-wide work",
       "status": "open",

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,9 +20,11 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	ctx := t.Context()
 	result := benchmarkResult{
 		ModelName: "fixture-model", DevicePeakBytes: 512,
+		EndOfSequenceIgnored: true, SamplingProtocol: greedyBudgetProtocol,
+		TokensPerSequence: 32, RequestedRuns: 2,
 		Runs: []runMetrics{
-			{Run: 0, PromptTokens: 7, OutputTokens: 32, TotalMilliseconds: 100},
-			{Run: 1, PromptTokens: 7, OutputTokens: 32, TotalMilliseconds: 120},
+			{Run: 0, PromptTokens: 7, OutputTokens: 32, DeviceSelectedTokens: 32, TotalMilliseconds: 100},
+			{Run: 1, PromptTokens: 7, OutputTokens: 32, DeviceSelectedTokens: 32, TotalMilliseconds: 120},
 		},
 	}
 	commit := "0123456789abcdef0123456789abcdef01234567"
@@ -73,8 +76,19 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	if parsed.Model != model || len(parsed.Claims) != 1 || parsed.Claims[0].Evidence[0] != evidence {
 		t.Fatalf("parsed record = %+v", parsed)
 	}
-	if _, found, err := artifact.ReadContent(ctx, store, evidence); err != nil || !found {
+	published, found, err := artifact.ReadContent(ctx, store, evidence)
+	if err != nil || !found {
 		t.Fatalf("evidence content = (%t, %v)", found, err)
+	}
+	var measured benchmarkResult
+	if err := json.Unmarshal(published.Data, &measured); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateBenchmarkResult(measured); err != nil {
+		t.Fatal(err)
+	}
+	if measured.SamplingProtocol != greedyBudgetProtocol || measured.Runs[0].DeviceSelectedTokens != result.TokensPerSequence {
+		t.Fatalf("publication lost sampling or observed selection path: %+v", measured)
 	}
 	locations, err := store.Locations(ctx, model)
 	if err != nil || len(locations) == 0 {

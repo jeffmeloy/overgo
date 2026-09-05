@@ -30,22 +30,10 @@
       "status": "open",
       "steps": [
         {
-          "id": "readmit-controls",
-          "title": "Readmit the two historical controls at the current inference surface",
-          "status": "open",
-          "verify": "test -f cmd/longform/current_guard_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestCurrentGuardControls$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
-          "rationale": "The post-census guard audit reports zero current references across eight text models: the argv boundary repair is inside the compiler-derived inference dependency closure and changed its digest from d3ff45edf061f7a2f8833d9625a6154532e1760fd08878cb89343f46a728341f to d14622f2ff2e3a272d6c031a5de5d38935a9eec09798f4ed4ee26b7d7a69df65. Preserve the six historical Qwen0.5B/E4B records as before references, without relabeling their surface. Publish three isolated fixed-budget repeats per control from clean current code, smallest first, comparing identical corpus/token geometry, NLL, rates and peak/retained memory against the original accepted reference and first new repeat under unchanged floors. Reuse unchanged kernel parity with its recorded scope; repair any reproduced execution failure before proceeding. Bind exact new IDs and current surface in TestCurrentGuardControls. This restores the early guard before acquiring the remaining cohorts; it does not wait for modality execution or simplification.",
-          "depends_on": [
-            "model-regression-baseline/do",
-            "model-regression-gate/coverage-selection",
-            "modality-verification/capability-census"
-          ]
-        },
-        {
           "id": "coverage-acquisition",
           "title": "Complete missing fixed-budget text guard records before enforcement",
           "status": "open",
-          "verify": "test -f cmd/longform/guard_acquisition_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedGuardCatalog$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
+          "verify": "test -f cmd/longform/guard_acquisition_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^(TestAcceptedGuardCatalog|TestCurrentGuardControls|TestAcceptedBaselineEvidence)$' -count=1",
           "rationale": "The accepted census has eight available activated text models plus a separate DNA inference activation. After the two controls are readmitted, acquire the six missing current-surface cohorts: MiniCPM1B, Qwen3.5 4B/9B, the Gemma12B precision twins and quantized27B. These are available models, distinct from the census's six unavailable inactive historical identities. Use longform -guard, the frozen corpus and unchanged floors, smallest first in a clean evidence worktree. Retain the original historical controls and the new three-repeat control cohorts. Older incomplete records and the two MiniCPM measurements exposed to uncertain device contention cannot become isolated guard references. Derive per-run budgets from measured cost and stop/repair failures immediately. This is bounded guard acquisition, not the operator-owned27B MMLU campaign or full modality milestone. Compare raw instruction NLL only with the same model; do not reopen the answered framing issue. Keep first accepted references and all failures, never the fastest sample or weaker floors. Acceptance binds exact immutable records, current recipe/source/corpus, full64-token short and four256-token rung outputs through8192, quality/rate/resource comparisons and the full live text denominator. Repair demonstrated execution defects under the current controls with CPU then CUDA parity before continuing. Final automatic gate enforcement remains blocked until coverage is complete.",
           "depends_on": [
             "model-regression-gate/coverage-selection",

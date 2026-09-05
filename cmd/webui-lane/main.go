@@ -37,7 +37,7 @@ func run() error {
 	}
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   "go",
-		Args:   []string{"test", "./internal/server", "-run", "^TestWebUIBrowserAcceptance$", "-count=1", "-timeout=2m", "-v"},
+		Args:   []string{"test", "./internal/server", "-run", "^TestWebUIBrowser", "-count=1", "-timeout=2m", "-v"},
 		Env:    append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser),
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,

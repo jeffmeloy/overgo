@@ -11,9 +11,8 @@
     return node;
   }
 
-  // sparkline: one straight segment per adjacent measured pair, scaled to
-  // [0, max]. An optional reference value (e.g. ln(vocab) for entropy) is drawn
-  // as a dashed line so the reader sees the ceiling without any curve fitting.
+  // sparkline: one straight segment per adjacent measured pair, scaled to [0, max]; an optional
+  // reference value (ln(vocab) for entropy) is drawn as a dashed ceiling, no curve fitting.
   function sparkline(values, opts) {
     opts = opts || {};
     const height = opts.height || 48;
@@ -161,11 +160,9 @@
     return node;
   }
 
-  // heatmap: an N×N matrix as a grid of colored cells (e.g. a distance matrix or
-  // attention weights). Color encodes magnitude in [min, max] via ramp(). Returns
-  // a wrapper holding the grid plus a color-scale legend; optional opts.rowLabels
-  // / opts.colLabels add axis ticks when the matrix is small enough to stay
-  // legible. Values are shown as-is — no smoothing.
+  // heatmap: an N×N matrix as a grid of colored cells; color encodes magnitude in [min, max] via ramp().
+  // Returns the grid plus a color-scale legend; optional row/col labels add axis ticks when the matrix
+  // is small enough to stay legible. Values are shown as-is, no smoothing.
   function heatmap(matrix, opts) {
     opts = opts || {};
     const n = matrix.length;

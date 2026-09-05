@@ -7,14 +7,19 @@
   const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
 
   // inspectTurn: the side panel over one assistant turn: its run record, then any inspector embedded over it.
+  document.addEventListener("keydown", (event) => { // Escape closes the inspector from anywhere on the page
+    const aside = document.getElementById("inspector");
+    if (event.key === "Escape" && aside && !aside.hidden) { aside.hidden = true; aside.replaceChildren(); }
+  });
   window.overgo.inspectTurn = async function (responseID) {
     const overgo = window.overgo;
     const { el } = overgo;
     const aside = document.getElementById("inspector");
     const body = el("div");
     aside.hidden = false;
-    aside.replaceChildren(el("div", { class: "row" }, el("strong", { text: "Inspect turn" }), el("span", { class: "grow" }),
-      el("button", { class: "btn alt", text: "×", onclick: () => { aside.hidden = true; aside.replaceChildren(); } })), body);
+    const close = el("button", { class: "btn alt", text: "×", "aria-label": "close the inspector", onclick: () => { aside.hidden = true; aside.replaceChildren(); } });
+    aside.replaceChildren(el("div", { class: "row" }, el("strong", { text: "Inspect turn" }), el("span", { class: "grow" }), close), body);
+    close.focus();
     let record;
     try { record = await overgo.api.get("/interactions/inspect?response=" + encodeURIComponent(responseID)); }
     catch (err) { body.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }

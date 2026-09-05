@@ -461,9 +461,8 @@
     }
   }
 
-  // The served model shows on every page as the banner pill; clicking it lists the store's servable
-  // models. Behind the swap proxy choosing one swaps the serving child live: in-flight requests drain,
-  // the chosen model launches, and every page keeps working through the same address.
+  // The served model shows on every page as the banner pill; clicking it lists the servable models, and behind
+  // the swap proxy choosing one swaps the serving child live while every page keeps working.
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
@@ -471,9 +470,8 @@
     modelPill.style.cursor = "pointer";
     modelPill.title = "click to switch the served model";
 
-    // swapModel routes one health probe through the swap proxy with the swap query parameter; the proxy
-    // swaps the child to answer it while the control shows the elapsed time. On arrival the capability
-    // document is re-read and the active surface re-mounted. Served directly, the parameter is ignored.
+    // swapModel routes one health probe through the swap proxy with the swap query parameter; the proxy swaps
+    // the child to answer it, then the capability document is re-read and the active surface re-mounted.
     async function swapModel(item, name, button) {
       const before = modelPill.textContent;
       const started = Date.now();

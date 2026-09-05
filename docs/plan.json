@@ -9,17 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "accessibility-responsive",
-          "title": "Keyboard-only operation of the whole front page (composer, selector, conversation list, inspector), visible focus, reduced-motion respect, light and dark themes from the existing token set, and layouts for desktop, tablet and phone widths driven through the browser lane's viewport emulation",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane",
-          "rationale": "A consumer-simple page that cannot be used from the keyboard or on a narrow window is not simple; the existing lane already emulates viewports.",
-          "depends_on": [
-            "gui-workbench/inspect-turn",
-            "gui-workbench/operations-strip"
-          ]
-        },
-        {
           "id": "acceptance-lane",
           "title": "Extend the real-browser acceptance lane to drive the front page end to end against a served model, and make the first-run flow a verified contract: starting from no served model, choose one from the catalog, send the first message and receive a streamed reply, attach an image and receive a grounded reply from a vision-capable model, switch models and see the composer re-derive, open the inspector for a turn, run an agent turn with a tool call, cancel a running operation; the lane is selected by the code manifest for every commit that touches the webui, the existing workbench acceptance steps keep running, and a missing browser or model reports UNAVAILABLE",
           "status": "open",

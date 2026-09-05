@@ -16,9 +16,13 @@ func optimizedValidationProblems(document Plan) []string {
 		return []string{err.Error()}
 	}
 	prerequisites := map[string][]string{
-		"model-regression-baseline/do":              {"validation-readiness/measurement-contract", "gemma-12b-accuracy/do", "modality-verification/media-report", "device-memory-retention/do", "decode-attention-per-key-cost/do"},
+		"model-regression-baseline/do":              {"validation-readiness/measurement-contract"},
+		"model-regression-baseline/full-catalog":    {"model-regression-baseline/do", "gemma-12b-accuracy/do", "modality-verification/media-report", "device-memory-retention/do", "decode-attention-per-key-cost/do"},
+		"device-memory-retention/do":                {"model-regression-gate/do"},
+		"decode-attention-per-key-cost/do":          {"model-regression-gate/do"},
+		"gemma-12b-accuracy/do":                     {"model-regression-gate/do"},
 		"model-regression-gate/do":                  {"model-regression-baseline/do"},
-		"simplify-prefill-paths/do":                 {"model-regression-gate/do", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
+		"simplify-prefill-paths/do":                 {"model-regression-gate/do", "model-regression-baseline/full-catalog", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
 		"simplify-execution-core/do":                {"simplify-prefill-paths/do"},
 		"final-model-validation/do":                 {"simplify-execution-core/do", "simplify-command-surface/do", "simplify-checkpoint-locations/do", "boundary-hardening/cross-origin", "boundary-hardening/argv-output"},
 		"benchmark-27b/mmlu-pro-pass":               {"benchmark-completion/mmlu-pro-pass"},
@@ -77,6 +81,13 @@ func optimizedValidationProblems(document Plan) []string {
 			problems = append(problems, "independent work serialized: "+pair[0]+" and "+pair[1])
 		}
 	}
+	for _, guard := range []string{"model-regression-baseline/do", "model-regression-gate/do"} {
+		for _, later := range []string{"model-regression-baseline/full-catalog", "modality-verification/media-report", "device-memory-retention/do", "decode-attention-per-key-cost/do", "gemma-12b-accuracy/do"} {
+			if campaignDependsOn(document, guard, later, map[string]bool{}) {
+				problems = append(problems, guard+" must protect rather than wait for "+later)
+			}
+		}
+	}
 	slices.Sort(problems)
 	return problems
 }
@@ -97,6 +108,13 @@ func TestOptimizedValidationRejectsUnsafeOrdering(t *testing.T) {
 		target string
 		change func(*Plan)
 	}{
+		{"guard delayed by media", "model-regression-baseline/do", func(d *Plan) {
+			for i := range d.Items {
+				if d.Items[i].ID == "model-regression-baseline" {
+					d.Items[i].Steps[0].DependsOn = append(d.Items[i].Steps[0].DependsOn, "modality-verification/media-report")
+				}
+			}
+		}},
 		{"benchmark delayed by contract", "benchmark-completion/mmlu-pro-pass", func(d *Plan) {
 			for i := range d.Items {
 				if d.Items[i].ID == "benchmark-completion" {

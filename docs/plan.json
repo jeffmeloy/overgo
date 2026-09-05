@@ -1,8 +1,77 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Owner-directed replanning on 2026-09-04: validate the existing integrated capabilities before simplification, preserving the capability freeze enforced by structure. docs/plan.json is the sole live execution plan. Retain open row identities and gated historical completion references. No new model family, workflow, optimizer or general orchestration framework is admitted. Limit construction to reproduced defects, missing acceptance in existing owners, regression protection and evidence-backed simplification. This edit does not resume automation or clear an operator stop.\n\nDocument order ranks ready work; depends_on is the authority for prerequisites. Publish current-surface long-form admission records and run remaining benchmark and modality evidence now, without waiting for unrelated fixes or simplification. Preserve current-surface evidence as the before picture. Incorrect or unavailable capabilities remain explicit gaps, not passing evidence. A demonstrated defect blocks only affected claims. On an explicit resume, independent work may overlap through existing conflict-checked worktree/resource leases; shared files and exclusive GPU timing require resource coordination, not artificial capability dependencies. One writer owns a plan edit and gates it before any dispatch.\n\nThe existing long-form record already binds corpus-at-commit, floors, model and inference surface. Extend only the missing cross-revision guarantees: identical corpus/token inputs and explicit accepted baseline IDs, plus bounded cancellation in the existing longform command. These additions gate regression-baseline acceptance, not existing benchmark admission or modality runs. Raw instruction-model NLL alone is not an accuracy defect; preserve the observed chat ranking, add the chat-shaped rung and use matched-checkpoint references for published comparisons. Diagnostic regressions must not become accepted baselines.\n\nRetain existing parity tests, longform tests and report checks as useful lower bounds. Before closing a row, use plan -setverify to add its missing quantitative, coverage or runtime assertion to those checks; never replace useful checks with blanket exit-1 placeholders. New fixtures name an exact test and require its file; absent, skipped or zero-matching tests cannot pass. A build or successful listing alone does not establish capability, and report freshness is only a freshness check. Every acceptance names its model/task/case denominator, protocols, evidence identities, thresholds and exclusions. Extend the existing command/test owner only where an assertion is missing. UNAVAILABLE stays visible with a finding/disposition and is never successful capability evidence.\n\nUse scoped host/kernel tests while fixing, a small recipe-derived execution-coverage set for each execution change, then full final verification of invalidated capabilities. Coverage includes operator path, weight type, head geometry, cache policy and modality; one model per weight type is insufficient. Publish an accepted immutable baseline and enforce the regression gate before simplifying. All simplification follows the initial modality report and small-model benchmark pass. Compare quality, throughput and peak/retained memory on identical inputs with declared reference bounds and repeated isolated timing; no aggregate gain hides a required regression. Reuse exact unaffected evidence with recorded independence, rerunning only invalidated slices.\n\nEvery evaluate pass carries an explicit measured -budget. Run small models first; the full 27B MMLU-Pro pass is operator-launched with -budget 3h and must not be started by another row. Keep all 12032 cases and both protocols; incomplete bounded runs remain incomplete. MATH is excluded. Publish evidence only from a clean worktree after implementation lands. Gates read exact accepted evidence for long campaigns rather than launching hours of publication. Store paths resolve the intended canonical store under OVERGO_DATA_ROOT. Extend longform's missing aggregate budget before its full regression-baseline campaign; existing per-rung admission remains usable now.\n\nReproduce findings through cmd/finding with affected claims. Correctness, security, data-loss or invalid-measurement defects interrupt affected work and receive explicit prerequisites; independent validation continues. Preserve historical evidence and checkpoint content identities. Relocation must verify the destination and rollback before retiring the original. Simplification must remove measured maintenance cost while preserving capability. Closeout joins every terminal branch, includes post-change modality revalidation where affected, and cannot clear an explicit user stop.",
+  "doctrine": "Owner-directed replanning on 2026-09-04: validate the existing integrated capabilities before simplification, preserving the capability freeze enforced by structure. docs/plan.json is the sole live execution plan. Retain open row identities and gated historical completion references. No new model family, workflow, optimizer or general orchestration framework is admitted. Limit construction to reproduced defects, missing acceptance in existing owners, regression protection and evidence-backed simplification. The operator explicitly resumed implementation on 2026-09-04: gate this revision first, then execute ready steps through the existing dispatcher. This instruction supersedes the earlier user-stop; future operator stops still take precedence.\n\nDocument order ranks ready work; depends_on is the authority for prerequisites. Publish current-surface long-form admission records and run remaining benchmark and modality evidence now, without waiting for unrelated fixes or simplification. Preserve current-surface evidence as the before picture. Incorrect or unavailable capabilities remain explicit gaps, not passing evidence. A demonstrated defect blocks only affected claims. On an explicit resume, independent work may overlap through existing conflict-checked worktree/resource leases; shared files and exclusive GPU timing require resource coordination, not artificial capability dependencies. One writer owns a plan edit and gates it before any dispatch.\n\nThe existing long-form record already binds corpus-at-commit, floors, model and inference surface. Extend only the missing cross-revision guarantees: identical corpus/token inputs and explicit accepted baseline IDs, plus bounded cancellation in the existing longform command. These additions gate regression-baseline acceptance, not existing benchmark admission or modality runs. Raw instruction-model NLL alone is not an accuracy defect; preserve the observed chat ranking, add the chat-shaped rung and use matched-checkpoint references for published comparisons. Diagnostic regressions must not become accepted baselines.\n\nRetain existing parity tests, longform tests and report checks as useful lower bounds. Before implementing or measuring a dispatched row, use plan -setverify to add its missing quantitative, coverage or runtime assertion to those checks; never replace useful checks with blanket exit-1 placeholders. New fixtures name an exact test and require its file; absent, skipped or zero-matching tests cannot pass. A build or successful listing alone does not establish capability, and report freshness is only a freshness check. Every acceptance names its model/task/case denominator, protocols, evidence identities, thresholds and exclusions. Extend the existing command/test owner only where an assertion is missing. UNAVAILABLE stays visible with a finding/disposition and is never successful capability evidence.\n\nUse scoped host/kernel tests while fixing, a small recipe-derived execution-coverage set for each execution change, then full final verification of invalidated capabilities. Coverage includes operator path, weight type, head geometry, cache policy and modality; one model per weight type is insufficient. Publish a small accepted immutable guard baseline and enforce the regression gate before execution changes. It depends on the minimal stable-input contract, not modalities or the defects it guards. Expand and re-accept the full catalog after fixes and modality evidence; preserve original records and refuse to normalize known failures. All simplification follows the initial modality report and small-model benchmark pass. Compare quality, throughput and peak/retained memory on identical inputs with declared reference bounds and repeated isolated timing; no aggregate gain hides a required regression. Reuse exact unaffected evidence with recorded independence, rerunning only invalidated slices.\n\nEvery evaluate pass carries an explicit measured -budget. Run small models first; the full 27B MMLU-Pro pass is operator-launched with -budget 3h and must not be started by another row. Keep all 12032 cases and both protocols; incomplete bounded runs remain incomplete. MATH is excluded. Publish evidence only from a clean worktree after implementation lands. Gates read exact accepted evidence for long campaigns rather than launching hours of publication. Store paths resolve the intended canonical store under OVERGO_DATA_ROOT. Extend longform's missing aggregate budget before its full regression-baseline campaign; existing per-rung admission remains usable now.\n\nReproduce findings through cmd/finding with affected claims. Correctness, security, data-loss or invalid-measurement defects interrupt affected work and receive explicit prerequisites; independent validation continues. Preserve historical evidence and checkpoint content identities. Relocation must verify the destination and rollback before retiring the original. Simplification must remove measured maintenance cost while preserving capability. Closeout joins every terminal branch, includes post-change modality revalidation where affected, and cannot clear an explicit user stop.\n\nOptimize capability per wall-hour by simplifying existing implementation: remove redundant transfers, copies, cache ownership, branching and duplicate numerical paths before adding mechanisms. Rank admitted changes by measured throughput/memory/reliability gain or recurring maintenance cost removed. Each slice identifies before evidence, behavior retained, mechanism deleted and executable counterexample. Prefer existing generic owners and one derived policy; no extra controllers, compatibility wrappers or parallel report formats. File splitting and command-count reductions alone are not capability gains. Keep unrelated validation off each slice and reuse exact unaffected evidence.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "validation-readiness",
+      "title": "Make measurements repeatable and failures actionable",
+      "status": "open",
+      "steps": [
+        {
+          "id": "measurement-contract",
+          "title": "Bind stable comparison inputs, accepted baseline references and longform cancellation",
+          "status": "open",
+          "verify": "test -f cmd/longform/measurement_contract_test.go \u0026\u0026 go test ./cmd/longform -run '^TestCampaignMeasurementContract$' -count=1",
+          "rationale": "Reuse existing long-form corpus-at-commit, model/surface identity, declared floors and runrecord contracts. Add only cross-revision corpus/token equality and explicit accepted baseline references instead of latest-other-surface selection, and per-model/aggregate cancellation in cmd/longform. Reject changed inputs, self-comparison, missing rungs and an unaccepted/degraded baseline; cancellation preserves completed evidence and reports unfinished coverage. The named fixture exercises these refusals. This row supports regression-baseline acceptance and does not gate current-surface long-form admission, existing benchmark passes or modality checks."
+        },
+        {
+          "id": "failure-diagnostics",
+          "title": "Preserve bounded diagnostics for failed and timed-out test lanes",
+          "status": "open",
+          "verify": "test -f cmd/test-lane/failure_diagnostics_test.go \u0026\u0026 go test ./cmd/test-lane -run '^TestFailureDiagnostics$' -count=1",
+          "rationale": "The repository review saw test-lane report a gate-package failure without its diagnostic. Retain a bounded per-failure output tail, timeout/panic reason and named failing test in cmd/test-lane using existing testevidence parsing. Do not buffer an unbounded transcript or hide missing evidence. Reproduce failed tests, package timeout, malformed output and successful completion in the named hermetic test. This host-only work can overlap GPU work."
+        }
+      ]
+    },
+    {
+      "id": "model-regression-baseline",
+      "title": "Publish an accepted, immutable baseline before simplification",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish a small accepted guard baseline before execution changes",
+          "status": "open",
+          "verify": "go test ./internal/longform -count=1 \u0026\u0026 test -f cmd/longform/accepted_baseline_test.go \u0026\u0026 go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
+          "rationale": "Publish the smallest recipe-derived execution coverage set needed to guard upcoming Qwen/E4B decode and memory changes, with explicit accepted record IDs and stable corpus/token/model/recipe identities. Cover required short/long and cache-boundary rungs, correctness/output and quality floors, rates and retained bytes. Preserve known throughput loss and memory growth as defect targets, never accepted normal behavior. Missing chat and modality evidence remain visible gaps outside this small guard, not prerequisites. The accepted-baseline fixture rejects self-selection, known-bad baselines, changed inputs and missing required evidence. Bind read-only assertions over actual published records before closure. Expand the baseline later without overwriting these original records.",
+          "depends_on": [
+            "validation-readiness/measurement-contract"
+          ]
+        },
+        {
+          "id": "full-catalog",
+          "title": "Expand and re-accept the full baseline before broad simplification",
+          "status": "open",
+          "verify": "go test ./internal/longform -count=1 \u0026\u0026 test -f cmd/longform/accepted_baseline_test.go \u0026\u0026 go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
+          "rationale": "After guarded defect fixes, the chat rung and initial modality evidence, expand the accepted baseline to the available full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under explicit budgets. Preserve unavailable/failed dimensions with dispositions. Compare to initial guard and pre-fix evidence under identical inputs and declared bounds; pin accepted record IDs. Bind the actual catalog denominator and read-only completeness/non-regression assertion through longform before closure. Preserve historical records.",
+          "depends_on": [
+            "model-regression-baseline/do",
+            "device-memory-retention/do",
+            "decode-attention-per-key-cost/do",
+            "gemma-12b-accuracy/do",
+            "modality-verification/media-report"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "model-regression-gate",
+      "title": "Enforce cheap execution-coverage regression checks before device-wide work",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Enforce cheap execution-coverage regression checks before device-wide work",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
+          "rationale": "Use the code/kernel manifest and typed recipe/operator facts to select a small deterministic model set covering affected weight types, operator paths, head geometry, attention/cache policy and modality; weight type alone is insufficient. Minimize measured run cost subject to coverage, and widen scope when independence is unproven. Compare against the accepted immutable baseline. Sequence the quick model check before broader device work under an exclusive timing lease; host-only changes are explicitly inapplicable. Keep structure-budget checking in the cheap gate phase. Negative tests must reject a missing coverage class, stale/mismatched baseline, untested device path and a reproduced throughput/memory/quality regression. Bind an integration assertion proving the real gate selection and rejection path, alongside the host selector tests; use existing CI/protection ownership to prevent required device evidence being replaced by manual-workflow assumptions. Land the small guard before independent execution fixes; do not wait for media-report or full-catalog expansion. Widen accepted references when the full baseline lands.",
+          "depends_on": [
+            "model-regression-baseline/do"
+          ]
+        }
+      ]
+    },
     {
       "id": "benchmark-completion",
       "title": "Complete current-surface benchmarks and matched comparisons",
@@ -13,7 +82,7 @@
           "title": "Complete MMLU-Pro for the smaller text models under both protocols",
           "status": "open",
           "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Retain the completed DNA-pass and long-form-verification authority. First republish only missing/stale passing long-form admission records at the current inference surface, then run the missing fp8/small-model suite records immediately. No future refactor, memory optimization or measurement-contract implementation is a prerequisite. Query committed suite coverage and run only missing or invalidated model/protocol/case records on the current landed execution surface. Preserve the full 12032-case MMLU-Pro denominator and both declared protocols; exclude the 27B from this step and keep MATH excluded. Use measured cost and explicit evaluate -budget for bounded batches, smallest first. Acceptance asserts expected cases, distinct cases, protocol, model/recipe/data/code identities and completed outcomes; a regenerated report with missing cells does not pass.",
+          "rationale": "Retain the completed DNA-pass and long-form-verification authority. First republish only missing/stale passing long-form admission records at the current inference surface, then run the missing fp8/small-model suite records immediately. No future refactor, memory optimization or measurement-contract implementation is a prerequisite. Query committed suite coverage and run only missing or invalidated model/protocol/case records on the current landed execution surface. Preserve the full 12032-case MMLU-Pro denominator and both declared protocols; exclude the 27B from this step and keep MATH excluded. Use measured cost and explicit evaluate -budget for bounded batches, smallest first. Acceptance asserts expected cases, distinct cases, protocol, model/recipe/data/code identities and completed outcomes; a regenerated report with missing cells does not pass. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
           "depends_on": [
             "benchmark-completion/dna-pass",
             "long-form-verification/do"
@@ -24,76 +93,10 @@
           "title": "Publish benchmark results with matched references and complete coverage",
           "status": "open",
           "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Compare all required suite/model/protocol cells with declared references and local lm-eval oracle records. Compare as equivalent only when checkpoint/precision, dataset split/cases, shot count, template, scoring/generation protocol and answer extraction agree; otherwise label the protocol difference, not a performance regression. Preserve the known 100-case MMLU subset label rather than implying full MMLU coverage. Check all campaign-required suites, including prior BBH/MuSR/IFEval/DNA evidence for reuse validity; rerun only invalidated slices. Generate BENCHMARK.md after coverage and outcome assertions. For Gemma same-checkpoint comparisons, build the Gemma-capable llama.cpp revision when required and pin it with precision/template/protocol; missing reference evidence is a labeled comparison gap, not a prerequisite for the regression baseline.",
+          "rationale": "Compare all required suite/model/protocol cells with declared references and local lm-eval oracle records. Compare as equivalent only when checkpoint/precision, dataset split/cases, shot count, template, scoring/generation protocol and answer extraction agree; otherwise label the protocol difference, not a performance regression. Preserve the known 100-case MMLU subset label rather than implying full MMLU coverage. Check all campaign-required suites, including prior BBH/MuSR/IFEval/DNA evidence for reuse validity; rerun only invalidated slices. Generate BENCHMARK.md after coverage and outcome assertions. For Gemma same-checkpoint comparisons, build the Gemma-capable llama.cpp revision when required and pin it with precision/template/protocol; missing reference evidence is a labeled comparison gap, not a prerequisite for the regression baseline. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
           "depends_on": [
             "benchmark-completion/mmlu-pro-pass",
             "benchmark-27b/mmlu-pro-pass"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "modality-verification",
-      "title": "Declare the denominator and validate existing modality capabilities",
-      "status": "open",
-      "steps": [
-        {
-          "id": "capability-census",
-          "title": "Publish the expected model/task inventory and evidence gaps before costly runs",
-          "status": "open",
-          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -verifications",
-          "rationale": "Use discovery and overgodb-query/compatibility to record every registered model, activated task, artifact/recipe identity, availability, evidence tier and staleness. Include absent and stale entries; compare the inventory to registered identities rather than listing only servable successes. Pin this denominator for the campaign; additions/removals need a recorded disposition. Acceptance reads the committed census and asserts complete identity/coverage correspondence, not merely successful query output."
-        },
-        {
-          "id": "declared-smoke-expectations",
-          "title": "Declare useful model-specific smoke oracles without overclaiming benchmark quality",
-          "status": "open",
-          "verify": "go run ./cmd/smoke-lane",
-          "rationale": "Replace nonempty output as a correctness oracle: chat probes use deterministic task assertions, base models use same-checkpoint reference likelihood evidence, and domain/media models use their native expected behavior. A substring check establishes only its narrow smoke claim. Missing declarations stay unverified. Negative fixtures must reject malformed, irrelevant and repeated output that passes the old liveness check. Acceptance verifies declarations for the census and runs a bounded representative smoke sample; preserve the complete modality runs below.",
-          "depends_on": [
-            "modality-verification/capability-census"
-          ]
-        },
-        {
-          "id": "text-and-vision",
-          "title": "Verify chat, embedding, rerank and vision-language activations",
-          "status": "open",
-          "verify": "go run ./cmd/smoke-lane",
-          "rationale": "Run the existing smoke, embedding, rerank, vqaparity and sensenovaparity owners against declared oracles on the current landed execution surface. Reuse exact unaffected committed text evidence; run missing/invalidated cases only. Bind the exact models, tasks, fixtures, budgets and read-only evidence assertion before starting. Missing oracles remain explicit findings, never successful coverage.",
-          "depends_on": [
-            "modality-verification/declared-smoke-expectations"
-          ]
-        },
-        {
-          "id": "image-and-video",
-          "title": "Verify activated image/video generation with exported samples and resource evidence",
-          "status": "open",
-          "verify": "go run ./cmd/composite-generation-lane",
-          "rationale": "Run the existing composite-generation-lane and latentvideo-run paths for Krea, SimpleDiffusion, Wan, LiveEdit and Un-0 only where the census declares activation. Bind native verifier fixtures, sample identities, quality assertions, peak device bytes and bounded phase times. This branch does not depend on text/vision results; serialize only GPU measurement resource use.",
-          "depends_on": [
-            "modality-verification/declared-smoke-expectations"
-          ]
-        },
-        {
-          "id": "speech-ocr-tabular-forecast",
-          "title": "Verify speech, OCR, tabular, forecast and embodied activations",
-          "status": "open",
-          "verify": "go run ./cmd/eval-lane",
-          "rationale": "Use each existing owner for pocket-tts, OCR/SenseNova, tabular, forecast and Hy-Embodied activations found in the census; retain unverified status where no oracle exists. Bind exact owner invocations, budgets and per-task assertions; no generic eval-lane result substitutes for missing task coverage. Independence from other modality branches permits host preparation without waiting on their GPU runs.",
-          "depends_on": [
-            "modality-verification/declared-smoke-expectations"
-          ]
-        },
-        {
-          "id": "media-report",
-          "title": "Generate the complete modality report from verified outcomes and visible gaps",
-          "status": "open",
-          "verify": "go run ./cmd/compatibility -check",
-          "rationale": "Generate docs/MEDIA_REPORT.md through compatibility and link the benchmark report. First assert census-wide evidence identity, task coverage and explicit dispositions; then assert rendered report freshness. Implement a read-only media check in the existing compatibility owner if absent. A current file with missing models does not satisfy this row.",
-          "depends_on": [
-            "modality-verification/text-and-vision",
-            "modality-verification/image-and-video",
-            "modality-verification/speech-ocr-tabular-forecast"
           ]
         }
       ]
@@ -120,23 +123,68 @@
       ]
     },
     {
-      "id": "validation-readiness",
-      "title": "Make measurements repeatable and failures actionable",
+      "id": "modality-verification",
+      "title": "Declare the denominator and validate existing modality capabilities",
       "status": "open",
       "steps": [
         {
-          "id": "measurement-contract",
-          "title": "Bind stable comparison inputs, accepted baseline references and longform cancellation",
+          "id": "capability-census",
+          "title": "Publish the expected model/task inventory and evidence gaps before costly runs",
           "status": "open",
-          "verify": "test -f cmd/longform/measurement_contract_test.go \u0026\u0026 go test ./cmd/longform -run '^TestCampaignMeasurementContract$' -count=1",
-          "rationale": "Reuse existing long-form corpus-at-commit, model/surface identity, declared floors and runrecord contracts. Add only cross-revision corpus/token equality and explicit accepted baseline references instead of latest-other-surface selection, and per-model/aggregate cancellation in cmd/longform. Reject changed inputs, self-comparison, missing rungs and an unaccepted/degraded baseline; cancellation preserves completed evidence and reports unfinished coverage. The named fixture exercises these refusals. This row supports regression-baseline acceptance and does not gate current-surface long-form admission, existing benchmark passes or modality checks."
+          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -verifications",
+          "rationale": "Use discovery and overgodb-query/compatibility to record every registered model, activated task, artifact/recipe identity, availability, evidence tier and staleness. Include absent and stale entries; compare the inventory to registered identities rather than listing only servable successes. Pin this denominator for the campaign; additions/removals need a recorded disposition. Acceptance reads the committed census and asserts complete identity/coverage correspondence, not merely successful query output. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row."
         },
         {
-          "id": "failure-diagnostics",
-          "title": "Preserve bounded diagnostics for failed and timed-out test lanes",
+          "id": "declared-smoke-expectations",
+          "title": "Declare useful model-specific smoke oracles without overclaiming benchmark quality",
           "status": "open",
-          "verify": "test -f cmd/test-lane/failure_diagnostics_test.go \u0026\u0026 go test ./cmd/test-lane -run '^TestFailureDiagnostics$' -count=1",
-          "rationale": "The repository review saw test-lane report a gate-package failure without its diagnostic. Retain a bounded per-failure output tail, timeout/panic reason and named failing test in cmd/test-lane using existing testevidence parsing. Do not buffer an unbounded transcript or hide missing evidence. Reproduce failed tests, package timeout, malformed output and successful completion in the named hermetic test. This host-only work can overlap GPU work."
+          "verify": "go run ./cmd/smoke-lane",
+          "rationale": "Replace nonempty output as a correctness oracle: chat probes use deterministic task assertions, base models use same-checkpoint reference likelihood evidence, and domain/media models use their native expected behavior. A substring check establishes only its narrow smoke claim. Missing declarations stay unverified. Negative fixtures must reject malformed, irrelevant and repeated output that passes the old liveness check. Acceptance verifies declarations for the census and runs a bounded representative smoke sample; preserve the complete modality runs below.",
+          "depends_on": [
+            "modality-verification/capability-census"
+          ]
+        },
+        {
+          "id": "text-and-vision",
+          "title": "Verify chat, embedding, rerank and vision-language activations",
+          "status": "open",
+          "verify": "go run ./cmd/smoke-lane",
+          "rationale": "Run the existing smoke, embedding, rerank, vqaparity and sensenovaparity owners against declared oracles on the current landed execution surface. Reuse exact unaffected committed text evidence; run missing/invalidated cases only. Bind the exact models, tasks, fixtures, budgets and read-only evidence assertion before starting. Missing oracles remain explicit findings, never successful coverage. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
+          "depends_on": [
+            "modality-verification/declared-smoke-expectations"
+          ]
+        },
+        {
+          "id": "image-and-video",
+          "title": "Verify activated image/video generation with exported samples and resource evidence",
+          "status": "open",
+          "verify": "go run ./cmd/composite-generation-lane",
+          "rationale": "Run the existing composite-generation-lane and latentvideo-run paths for Krea, SimpleDiffusion, Wan, LiveEdit and Un-0 only where the census declares activation. Bind native verifier fixtures, sample identities, quality assertions, peak device bytes and bounded phase times. This branch does not depend on text/vision results; serialize only GPU measurement resource use. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
+          "depends_on": [
+            "modality-verification/declared-smoke-expectations"
+          ]
+        },
+        {
+          "id": "speech-ocr-tabular-forecast",
+          "title": "Verify speech, OCR, tabular, forecast and embodied activations",
+          "status": "open",
+          "verify": "go run ./cmd/eval-lane",
+          "rationale": "Use each existing owner for pocket-tts, OCR/SenseNova, tabular, forecast and Hy-Embodied activations found in the census; retain unverified status where no oracle exists. Bind exact owner invocations, budgets and per-task assertions; no generic eval-lane result substitutes for missing task coverage. Independence from other modality branches permits host preparation without waiting on their GPU runs. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
+          "depends_on": [
+            "modality-verification/declared-smoke-expectations"
+          ]
+        },
+        {
+          "id": "media-report",
+          "title": "Generate the complete modality report from verified outcomes and visible gaps",
+          "status": "open",
+          "verify": "go run ./cmd/compatibility -check",
+          "rationale": "Generate docs/MEDIA_REPORT.md through compatibility and link the benchmark report. First assert census-wide evidence identity, task coverage and explicit dispositions; then assert rendered report freshness. Implement a read-only media check in the existing compatibility owner if absent. A current file with missing models does not satisfy this row.",
+          "depends_on": [
+            "modality-verification/text-and-vision",
+            "modality-verification/image-and-video",
+            "modality-verification/speech-ocr-tabular-forecast"
+          ]
         }
       ]
     },
@@ -150,7 +198,10 @@
           "title": "Bound retained device memory across changing context capacities",
           "status": "open",
           "verify": "go test ./internal/longform -count=1",
-          "rationale": "The E4B ladder reportedly grew from 14 GB loaded to 39 GB after rung 32768. Treat graph executables, runner caches and pool free lists as hypotheses; instrument their live/retained byte accounting before changing ownership. Bind a failing repeated grow-shrink-grow context sequence in one long-lived runner/server. After warmup, retained allocation must stay within an explicit byte budget derived from model, maximum live cache, workspace, pool and graph allowances, without cumulative per-cycle growth. Cancellation, errors, release and reload must recover resources; synchronize before comparing counters. Accept with E4B runtime evidence plus host/device ownership tests and unchanged reference outputs, not a report-parser unit test."
+          "rationale": "The E4B ladder reportedly grew from 14 GB loaded to 39 GB after rung 32768. Treat graph executables, runner caches and pool free lists as hypotheses; instrument their live/retained byte accounting before changing ownership. Bind a failing repeated grow-shrink-grow context sequence in one long-lived runner/server. After warmup, retained allocation must stay within an explicit byte budget derived from model, maximum live cache, workspace, pool and graph allowances, without cumulative per-cycle growth. Cancellation, errors, release and reload must recover resources; synchronize before comparing counters. Accept with E4B runtime evidence plus host/device ownership tests and unchanged reference outputs, not a report-parser unit test. Prefer deleting redundant retention and establishing one existing lifetime owner over adding another cache manager or eviction knob.",
+          "depends_on": [
+            "model-regression-gate/do"
+          ]
         }
       ]
     },
@@ -164,7 +215,10 @@
           "title": "Recover small-head decode throughput without losing long-context correctness",
           "status": "open",
           "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1",
-          "rationale": "The reviewed short-context Qwen2.5-0.5B rate fell from 295 to 139 tokens/s while E4B remained within about three percent. First remove capacity-sized host upload from BenchmarkDecodeAttention's timed iteration and keep caches resident; measure allocation/upload separately. Run the actual benchmark with -bench '^BenchmarkDecodeAttention$' and device opt-in, not only -run. Compare repeated isolated before/after runs across short contexts, 4096 boundaries, tile boundaries, long contexts and representative head geometries. Keep split-key correctness, NLL and memory guarantees; recover the measured short-context gap within predeclared noise bounds without trading away larger-context throughput. Bind both kernel parity and end-to-end Qwen/E4B assertions."
+          "rationale": "The reviewed short-context Qwen2.5-0.5B rate fell from 295 to 139 tokens/s while E4B remained within about three percent. First remove capacity-sized host upload from BenchmarkDecodeAttention's timed iteration and keep caches resident; measure allocation/upload separately. Run the actual benchmark with -bench '^BenchmarkDecodeAttention$' and device opt-in, not only -run. Compare repeated isolated before/after runs across short contexts, 4096 boundaries, tile boundaries, long contexts and representative head geometries. Keep split-key correctness, NLL and memory guarantees; recover the measured short-context gap within predeclared noise bounds without trading away larger-context throughput. Bind both kernel parity and end-to-end Qwen/E4B assertions. Remove capacity-wide work and redundant transfers before introducing another dispatch policy; retain one shared path wherever parity permits.",
+          "depends_on": [
+            "model-regression-gate/do"
+          ]
         }
       ]
     },
@@ -178,44 +232,9 @@
           "title": "Add the chat-shaped long-form rung for the Gemma 12B twins",
           "status": "open",
           "verify": "go test ./internal/longform -count=1",
-          "rationale": "Preserve the measured raw NLLs (6.94 and 6.97 for the 12B twins versus E4B 4.21) and the existing finding that instruction framing explains the raw ranking while chat scores rank correctly. Extend longform with the declared chat template, thinking disabled, 256 greedy output tokens, chat continuation NLL, text/token IDs, distinct 4-gram/repeated-span diagnostics and rates. Retain raw continuation alongside chat. Verify both precision variants and the small control. A Gemma-capable llama.cpp reference belongs to published-comparison, not this rung or baseline admission unless new same-checkpoint evidence establishes a runtime defect."
-        }
-      ]
-    },
-    {
-      "id": "model-regression-baseline",
-      "title": "Publish an accepted, immutable baseline before simplification",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Publish an accepted, immutable baseline before simplification",
-          "status": "open",
-          "verify": "go test ./internal/longform -count=1 \u0026\u0026 test -f cmd/longform/accepted_baseline_test.go \u0026\u0026 go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
-          "rationale": "After the measured decode/memory fixes and chat rung, publish an accepted before-simplification baseline from a clean implementation worktree. Use the census, both prompt shapes, required context ladder, rates and peak/retained memory for every servable text model, smallest first and 27B last within explicit longform budgets. Keep unavailable entries and unresolved failures visible; diagnostic records are not accepted baselines. Pin exact accepted record IDs and identical corpus/token/model/recipe identities. Add the named accepted-baseline fixture to the existing longform owner, rejecting degraded/self-selected/missing/mismatched records, then bind a read-only check of the published catalog evidence before closure. This baseline does not hold up current benchmark or modality measurements; those establish the initial picture independently.",
+          "rationale": "Preserve the measured raw NLLs (6.94 and 6.97 for the 12B twins versus E4B 4.21) and the existing finding that instruction framing explains the raw ranking while chat scores rank correctly. Extend longform with the declared chat template, thinking disabled, 256 greedy output tokens, chat continuation NLL, text/token IDs, distinct 4-gram/repeated-span diagnostics and rates. Retain raw continuation alongside chat. Verify both precision variants and the small control. A Gemma-capable llama.cpp reference belongs to published-comparison, not this rung or baseline admission unless new same-checkpoint evidence establishes a runtime defect.",
           "depends_on": [
-            "validation-readiness/measurement-contract",
-            "gemma-12b-accuracy/do",
-            "modality-verification/media-report",
-            "device-memory-retention/do",
-            "decode-attention-per-key-cost/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "model-regression-gate",
-      "title": "Enforce cheap execution-coverage regression checks before device-wide work",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Enforce cheap execution-coverage regression checks before device-wide work",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
-          "rationale": "Use the code/kernel manifest and typed recipe/operator facts to select a small deterministic model set covering affected weight types, operator paths, head geometry, attention/cache policy and modality; weight type alone is insufficient. Minimize measured run cost subject to coverage, and widen scope when independence is unproven. Compare against the accepted immutable baseline. Sequence the quick model check before broader device work under an exclusive timing lease; host-only changes are explicitly inapplicable. Keep structure-budget checking in the cheap gate phase. Negative tests must reject a missing coverage class, stale/mismatched baseline, untested device path and a reproduced throughput/memory/quality regression. Bind an integration assertion proving the real gate selection and rejection path, alongside the host selector tests; use existing CI/protection ownership to prevent required device evidence being replaced by manual-workflow assumptions.",
-          "depends_on": [
-            "model-regression-baseline/do"
+            "model-regression-gate/do"
           ]
         }
       ]
@@ -265,7 +284,8 @@
           "depends_on": [
             "model-regression-gate/do",
             "modality-verification/media-report",
-            "benchmark-completion/mmlu-pro-pass"
+            "benchmark-completion/mmlu-pro-pass",
+            "model-regression-baseline/full-catalog"
           ]
         }
       ]
@@ -279,29 +299,10 @@
           "id": "do",
           "title": "Remove costly execution duplication behind the regression gate",
           "status": "open",
-          "verify": "go run ./cmd/clone-census -summary -max-excess 10012",
-          "rationale": "After prefill policy settles, lower reviewed duplicate-excess and file-size exceptions in CUDA/inference where a common implementation reduces maintenance work. Retire executor.go's standing 2400-line exception by cohesive ownership decomposition, not arbitrary file splitting. Bind measured starting/new ceilings before work; every slice passes scoped kernel/model regression. Exact output IDs apply only to deterministic paths; numerical and timing bounds are predeclared from reference evidence and repeat noise. The full-catalog checkpoint follows this row, avoiding a full benchmark campaign after every refactor.",
+          "verify": "go run ./cmd/clone-census -summary -max-excess 9963",
+          "rationale": "The committed duplicate-excess ceiling is 9964; 9963 is its first strictly lower integer, not permission to grow to the stale 10012. Select a real duplicated CUDA/inference mechanism by measured cost, bind its removal and the resulting lower ceiling before implementation, and lower docs/clone_baseline.json through clone-census -update-baseline after verification. Preserve affected kernel/model behavior against the accepted baseline. Remove redundant ownership, wrappers or policy; arbitrary file splits do not qualify. Retire the executor size exception only through cohesive simplification with lower measured cost. Every slice passes scoped regression; final full validation follows.",
           "depends_on": [
             "simplify-prefill-paths/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "simplify-checkpoint-locations",
-      "title": "Remove dependence on retired checkpoint paths with reversible relocation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove dependence on retired checkpoint paths with reversible relocation",
-          "status": "open",
-          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable",
-          "rationale": "After initial validation and the regression gate, relocate live checkpoints from adaptive_new under overgo/models through the existing location owner. First inventory identity, bytes, all live references and destination capacity; verify a staged destination before switching store locators. Keep the original until hash/size, recipe/servable identity, baseline lookup by content ID, bounded load/inference and rollback all pass. Do not rewrite historical evidence or delete original bytes prematurely. Regenerate current reports/fixtures, and assert every expected model remains present and no live reference requires the retired root. A successful -servable listing alone does not prove no model vanished.",
-          "depends_on": [
-            "model-regression-gate/do",
-            "modality-verification/media-report",
-            "benchmark-completion/mmlu-pro-pass"
           ]
         }
       ]
@@ -316,13 +317,32 @@
           "title": "Consolidate measured command duplication after validation consumers finish",
           "status": "open",
           "verify": "go run ./cmd/preflight",
-          "rationale": "Inventory actual overlapping wrappers rather than assume a fixed command count. Fold probe/lane/parity entrypoints into typed subcommands only where ownership/maintenance cost falls; preserve every behavior, flag contract, exit code and evidence path. Keep plan, gate, loop and hook commands. Atomically update plan verifiers, CI, scripts, API manifest and docs with an old-to-new invocation map; no later row may reference a removed command. Keep README's transport descriptions aligned with registered adapters. Validate all migrated invocation contracts plus representative real dispatch and record the reduced command/duplication ceilings. Avoid rerunning expensive model suites when an exact implementation-independence proof permits evidence reuse.",
+          "rationale": "Inventory actual overlapping wrappers rather than assume a fixed command count. Fold probe/lane/parity entrypoints into typed subcommands only where ownership/maintenance cost falls; preserve every behavior, flag contract, exit code and evidence path. Keep plan, gate, loop and hook commands. Atomically update plan verifiers, CI, scripts, API manifest and docs with an old-to-new invocation map; no later row may reference a removed command. Keep README's transport descriptions aligned with registered adapters. Validate all migrated invocation contracts plus representative real dispatch and record the reduced command/duplication ceilings. Avoid rerunning expensive model suites when an exact implementation-independence proof permits evidence reuse. Consolidate only shared responsibilities whose callers can migrate atomically with lower measured maintenance cost; distinct responsibilities remain separate. Command-count reduction alone is not acceptance.",
           "depends_on": [
             "model-regression-gate/do",
             "modality-verification/media-report",
             "benchmark-completion/mmlu-pro-pass",
             "failure-recovery/control-plane-drills",
             "failure-recovery/gate-recovery-drill"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "simplify-checkpoint-locations",
+      "title": "Remove dependence on retired checkpoint paths with reversible relocation",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Remove dependence on retired checkpoint paths with reversible relocation",
+          "status": "open",
+          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable",
+          "rationale": "After initial validation and the regression gate, relocate live checkpoints from adaptive_new under overgo/models through the existing location owner. First inventory identity, bytes, all live references and destination capacity; verify a staged destination before switching store locators. Keep the original until hash/size, recipe/servable identity, baseline lookup by content ID, bounded load/inference and rollback all pass. Do not rewrite historical evidence or delete original bytes prematurely. Regenerate current reports/fixtures, and assert every expected model remains present and no live reference requires the retired root. A successful -servable listing alone does not prove no model vanished. Remove stale locator duplication first. Move checkpoint bytes only where an active dependency on the retired location remains and relocation removes demonstrated operational cost; directory neatness alone is not a capability gain.",
+          "depends_on": [
+            "model-regression-gate/do",
+            "modality-verification/media-report",
+            "benchmark-completion/mmlu-pro-pass"
           ]
         }
       ]
@@ -359,7 +379,7 @@
           "title": "Complete the operator-launched 27B MMLU-Pro pass",
           "status": "open",
           "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Only the operator launches this full-model benchmark with -budget 3h after smaller-model validation. Estimate each protocol's cost from evidence; checkpoint/resume exact remaining cases within separate bounded launches if both protocols do not fit one budget. Preserve full coverage and input identity; do not silently truncate to fit. This row's gate reads completed evidence and never starts the expensive pass. Other host and modality preparation does not wait for this run.",
+          "rationale": "Only the operator launches this full-model benchmark with -budget 3h after smaller-model validation. Estimate each protocol's cost from evidence; checkpoint/resume exact remaining cases within separate bounded launches if both protocols do not fit one budget. Preserve full coverage and input identity; do not silently truncate to fit. This row's gate reads completed evidence and never starts the expensive pass. Other host and modality preparation does not wait for this run. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
           "depends_on": [
             "benchmark-completion/mmlu-pro-pass"
           ]
@@ -376,7 +396,7 @@
           "title": "Publish capability preserved or improved per unit of mechanism removed",
           "status": "open",
           "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Generate the final comparison through existing report owners using the fixed accepted before-baseline and exact after evidence. Show quality/correctness, prefill/decode curves, peak/retained VRAM, budget/coverage and recovery results beside duplicate-excess, command packages, production lines, exceptions and measured validation cost. Include every expected capability and every unresolved/unavailable disposition; never average away a required regression. After command/location changes, refresh reports and run only invalidated smoke/dispatch checks; reuse expensive settled-execution evidence with explicit identity/independence proof. Acceptance verifies outcome/coverage/identity before file freshness.",
+          "rationale": "Generate the final comparison through existing report owners using the fixed accepted before-baseline and exact after evidence. Show quality/correctness, prefill/decode curves, peak/retained VRAM, budget/coverage and recovery results beside duplicate-excess, command packages, production lines, exceptions and measured validation cost. Include every expected capability and every unresolved/unavailable disposition; never average away a required regression. After command/location changes, refresh reports and run only invalidated smoke/dispatch checks; reuse expensive settled-execution evidence with explicit identity/independence proof. Acceptance verifies outcome/coverage/identity before file freshness. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
           "depends_on": [
             "final-model-validation/do",
             "benchmark-completion/published-comparison",
@@ -403,7 +423,8 @@
             "boundary-hardening/argv-output",
             "failure-recovery/control-plane-drills",
             "failure-recovery/gate-recovery-drill",
-            "validation-replan/do"
+            "validation-replan/do",
+            "capability-simplification-replan/do"
           ]
         }
       ]

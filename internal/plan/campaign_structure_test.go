@@ -525,6 +525,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		// acceptance before device work and keep independent host fixes ready.
 		"validation-readiness/measurement-contract",
 		"validation-replan/do",
+		"capability-simplification-replan/do",
+		"model-regression-baseline/full-catalog",
 		"validation-readiness/failure-diagnostics",
 		"boundary-hardening/cross-origin",
 		"boundary-hardening/argv-output",

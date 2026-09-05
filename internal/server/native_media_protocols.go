@@ -160,6 +160,7 @@ func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusInternalServerError, "invalid_output", "speech output is not an audio artifact")
 		return
 	}
+	response.Header().Set("X-Overgo-Artifact", status.Outputs[0].String()) // the audio artifact, for provenance
 	response.Header().Set("Content-Type", descriptor.MediaType)
 	response.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(response, reader)

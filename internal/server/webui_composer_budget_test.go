@@ -60,7 +60,7 @@ func TestWebUIComposerBudget(t *testing.T) {
 	// Every surface that talks to the served model uses the shared pieces.
 	for _, module := range []string{"mod/chat.js", "mod/agent.js", "mod/image.js", "mod/video.js", "mod/speech.js"} {
 		source := sources[module]
-		if !strings.Contains(source, "overgo.composer(") || !strings.Contains(source, "overgo.thread(") {
+		if !strings.Contains(source, "overgo.generationTab(") && (!strings.Contains(source, "overgo.composer(") || !strings.Contains(source, "overgo.thread(")) {
 			t.Errorf("%s does not use the shared composer and thread", module)
 		}
 		if strings.Contains(source, "getReader()") || strings.Contains(source, "FileReader") {

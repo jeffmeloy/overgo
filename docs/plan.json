@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-multimodal",
-      "title": "Multimodal import and modality-adaptive inference",
-      "status": "open",
-      "steps": [
-        {
-          "id": "dynamic-inference",
-          "title": "The front page derives its abilities from the served recipe: text chat, vision questions, audio input, image generation, video generation and editing, speech synthesis, embeddings and reranking appear as composer modes only when the active recipe declares them (the capability document), generated images, audio and video render inline in the conversation as media stream events and are saved as artifacts with provenance, and a model switch re-derives the composer without a reload",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestFrontPageModalities' -count=1",
-          "rationale": "The generation workspaces exist as separate tabs (image.js, video.js, speech.js); a user should reach them from the conversation as modes of one composer, gated by evidence, not by tab discovery.",
-          "depends_on": [
-            "gui-multimodal/import"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-workbench",
       "title": "The analysis, agent and operations capabilities retained, and reached from the conversation",
       "status": "open",

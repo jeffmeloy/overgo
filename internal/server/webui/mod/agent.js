@@ -152,9 +152,7 @@
               history.push(parts.length
                 ? { role: "user", content: [{ type: "text", text: content }, ...parts] }
                 : { role: "user", content });
-              chatThread.add("user", attachments.length
-                ? content + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]"
-                : content);
+              chatThread.add("user", overgo.userLine(content, attachments));
               chatComposer.clearInput();
               chatComposer.clearAttachments();
               chatController = new AbortController();

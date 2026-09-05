@@ -20,17 +20,20 @@
     yield { type: "done" };
   }
 
+  // artifactOf: the artifact identity an artifact content URL names, for provenance.
+  function artifactOf(url) { return new URL(url, location.origin).searchParams.get("id") || ""; }
+
   // media: a generation result whose data[] carries artifact URLs.
   async function* media(kind, result, caption) {
     for (const item of (result && result.data) || []) {
-      yield { type: "media", kind, url: item.url, caption };
+      yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url) };
     }
     yield { type: "done" };
   }
 
-  // blob: a raw media body (speech synthesis) as one media event.
-  async function* blob(kind, body, caption) {
-    yield { type: "media", kind, url: URL.createObjectURL(body), caption, bytes: body.size, mime: body.type };
+  // blob: a raw media body (speech synthesis) as one media event, with the artifact it was stored as.
+  async function* blob(kind, body, caption, artifact) {
+    yield { type: "media", kind, url: URL.createObjectURL(body), caption, bytes: body.size, mime: body.type, artifact };
     yield { type: "done" };
   }
 
@@ -135,7 +138,8 @@
       if (event.mime) facts.push(event.mime);
       if (event.bytes) facts.push(fmt.bytes(event.bytes));
       const card = el("div", { class: "artifact msg media" }, player,
-        el("div", { class: "note", text: [event.caption, facts.join(" · ")].filter(Boolean).join(" — ") }));
+        el("div", { class: "note" }, [event.caption, facts.join(" · ")].filter(Boolean).join(" — "),
+          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null));
       log.appendChild(card);
       scroll();
       return card;
@@ -228,8 +232,8 @@
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", style: "display:none" }, "stop");
     const attach = accept.length ? el("button", { class: "btn alt", onclick: () => picker.click() }, options.attachLabel || "attach") : null;
-    const modeSelect = options.modes && options.modes.length
-      ? el("select", { class: "text", style: "width:auto" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label })))
+    const modeSelect = options.modes && options.modes.length > 1
+      ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label })))
       : null;
     const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, ...(options.controls || []));
     const element = el("div", { class: "composer" }, input, attachmentHost, controls);
@@ -313,7 +317,82 @@
     };
   }
 
+  // userLine: the user's turn as the thread shows it, attachments named.
+  function userLine(text, attachments) {
+    return attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text;
+  }
+
+  // generate: one request per composer mode beyond chat, answered in the event
+  // vocabulary; the front page's modes and the generation tabs share it.
+  async function* generate(mode, text, parts, signal) {
+    const api = overgo.api;
+    if (mode === "image-gen") { yield* media("image", await api.post("/v1/images/generations", { prompt: text }, { signal }), text); return; }
+    if (mode === "video-gen") { yield* media("video", await api.post("/v1/videos/generations", { prompt: text }, { signal }), text); return; }
+    if (mode === "video-edit") {
+      const source = parts.find((part) => part.type === "input_video");
+      if (!source) { yield { type: "error", message: "attach the source video first" }; return; }
+      yield* media("video", await api.post("/v1/videos/edits", { prompt: text, source: source.input_video.data }, { signal }), text);
+      return;
+    }
+    if (mode === "speech") {
+      const response = await api.stream("/v1/audio/speech", { input: text }, { signal });
+      yield* blob("audio", await response.blob(), text, response.headers.get("X-Overgo-Artifact") || "");
+      return;
+    }
+    if (mode === "embeddings") {
+      const result = await api.post("/v1/embeddings", { input: text }, { signal });
+      const vector = ((result.data || [])[0] || {}).embedding || [];
+      const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
+      yield { type: "token", text: "embedding · " + vector.length + " dimensions · norm " + norm.toFixed(4) + "\n\n`[" + vector.slice(0, 8).map((value) => Number(value).toFixed(4)).join(", ") + (vector.length > 8 ? ", …" : "") + "]`" };
+      yield { type: "usage", usage: result.usage || null, timings: null };
+      yield { type: "done" };
+      return;
+    }
+    if (mode === "rerank") {
+      const [query, ...documents] = text.split("\n").map((line) => line.trim()).filter(Boolean);
+      const result = await api.post("/v1/rerank", { query, documents, return_text: true }, { signal });
+      const rows = (result.results || []).map((item, rank) => "| " + (rank + 1) + " | " + Number(item.relevance_score != null ? item.relevance_score : item.score).toFixed(4) + " | " + (item.text || documents[item.index] || "") + " |");
+      yield { type: "token", text: "| rank | score | document |\n|---|---|---|\n" + rows.join("\n") };
+      yield { type: "usage", usage: result.usage || null, timings: null };
+      yield { type: "done" };
+      return;
+    }
+    yield { type: "error", message: "the served model declares no mode " + mode };
+  }
+
+  // generationTab: a workbench tab that is one composer mode over its own thread.
+  function generationTab(id, mode, options) {
+    overgo.registerTab({
+      id,
+      mount(panel) {
+        clear(panel);
+        let controller = null;
+        const thread = overgo.thread(panel);
+        const composer = overgo.composer(panel, Object.assign({
+          onStop: () => { if (controller) controller.abort(); },
+          onSubmit: async (text, attachments) => {
+            if (controller) return;
+            controller = new AbortController();
+            composer.setBusy(true);
+            thread.add("user", userLine(text, attachments));
+            const parts = composer.attachmentParts();
+            composer.clearInput();
+            composer.clearAttachments();
+            try {
+              await thread.consume(generate(mode, text, parts, controller.signal));
+            } catch (err) {
+              thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err));
+            } finally { controller = null; composer.setBusy(false); }
+          },
+        }, options));
+      },
+    });
+  }
+
   overgo.thread = thread;
   overgo.composer = composer;
   overgo.streams = { reply, media, blob, responses };
+  overgo.userLine = userLine;
+  overgo.generate = generate;
+  overgo.generationTab = generationTab;
 })();

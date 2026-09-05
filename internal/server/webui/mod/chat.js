@@ -31,6 +31,7 @@
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },
+        modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe's abilities, nothing assumed
         controls: [reset,
           el("span", { class: "note", text: "temp" }), temperature,
           el("span", { class: "note", text: "max tokens" }), maxTokens],
@@ -102,17 +103,21 @@
         overgo.refreshConversations();
       }
 
-      async function submit(text, attachments) {
+      async function submit(text, attachments, mode) {
         if (controller) return;
         welcome.remove();
         const parts = composer.attachmentParts();
         composer.clearInput();
-        thread.add("user", attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text);
+        thread.add("user", overgo.userLine(text, attachments));
         composer.clearAttachments();
-        const assistant = thread.add("assistant", "");
         controller = new AbortController();
         composer.setBusy(true);
+        let assistant = null;
         try {
+          // A mode beyond chat is one generation over the shared dispatch; its
+          // media lands in this thread as artifacts with their provenance.
+          if (mode && mode !== "chat") { await thread.consume(overgo.generate(mode, text, parts, controller.signal)); return; }
+          assistant = thread.add("assistant", "");
           const request = { model: modelID, input: responsesInput(text, parts), stream: true, store: true };
           if (lastResponseID) request.previous_response_id = lastResponseID;
           if (system.value.trim()) request.instructions = system.value.trim();
@@ -122,10 +127,10 @@
           renderFacts(count.input_tokens, null, null);
           await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count.input_tokens);
         } catch (err) {
-          if (err.name === "AbortError") {
+          if (err.name === "AbortError" && assistant) {
             assistant.content += (assistant.content ? "\n" : "") + "[stopped]";
             thread.renderMessage(assistant, false);
-          } else thread.errorRow(overgo.friendlyError(err));
+          } else thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err));
         } finally {
           controller = null;
           composer.setBusy(false);

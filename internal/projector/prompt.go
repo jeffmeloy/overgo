@@ -641,10 +641,14 @@ func compileGemma4ImagePrompt(r *Gemma4Runner) compiledImagePromptProgram {
 }
 
 func compileGemma4ImageProgram(r gemmaPromptSource) compiledImagePromptProgram {
+	var attentionBlocks func([]int, []imagePromptItem) []AttentionBlock
+	if r.attention {
+		attentionBlocks = imagePromptBlocks
+	}
 	compile := func(history bool) imagePromptPlan {
 		return imagePromptPlan{
 			Family: "Gemma 4", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-			AddSpecial: history, EmbeddingWidth: r.width, AttentionBlocks: imagePromptBlocks,
+			AddSpecial: history, EmbeddingWidth: r.width, AttentionBlocks: attentionBlocks,
 			Render: func(text []string, items []imagePromptItem) string {
 				var prompt strings.Builder
 				if !history {
@@ -702,13 +706,17 @@ func compileGemma4MediaPrompt(r *Gemma4Runner) compiledMediaPromptProgram {
 }
 
 func compileGemma4MediaProgram(r gemmaPromptSource) compiledMediaPromptProgram {
+	var attentionBlocks func([]int, int) []AttentionBlock
+	if r.attention {
+		attentionBlocks = mediaPromptAttentionBlocks
+	}
 	history := mixedMediaPromptPlan{
 		Family: "Gemma 4", AddSpecial: true, EmbeddingWidth: r.width, PromptLabel: "Gemma 4 media history",
 		Render: renderMixedMediaHistory,
 		Kinds: map[MediaKind]mixedMediaKindPlan{
 			MediaImage: {
 				Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-				Open: "<|image>", Close: "<image|>", Attention: true,
+				Open: "<|image>", Close: "<image|>", Attention: r.attention,
 				Encode: func(ctx context.Context, input MediaInput) (imagePromptItem, error) {
 					output, err := r.image(ctx, input.Image)
 					if err != nil {
@@ -758,7 +766,7 @@ func compileGemma4MediaProgram(r gemmaPromptSource) compiledMediaPromptProgram {
 				PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
 			},
 			Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
-			AttentionBlocks: mediaPromptAttentionBlocks,
+			AttentionBlocks: attentionBlocks,
 		})
 	}
 	return compiledMediaPromptProgram{

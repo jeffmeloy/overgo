@@ -356,7 +356,7 @@ func gemma4AudioMask(
 		for offset := range contextSize {
 			globalKey := start + offset - spec.ContextLeft + tensor.SingletonExtent
 			if globalQuery >= sequence || globalKey < tensor.FirstOffset || globalKey >= sequence ||
-				globalKey < globalQuery-spec.ContextLeft+tensor.SingletonExtent || globalKey > globalQuery+spec.ContextRight {
+				globalKey <= globalQuery-spec.ContextLeft+tensor.SingletonExtent || globalKey > globalQuery && globalKey >= globalQuery+spec.ContextRight {
 				values[query*contextSize+offset] = -1e9
 			}
 		}

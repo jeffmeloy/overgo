@@ -640,7 +640,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		}
 		embeddingSkip = activation
 	}
-	perLayerInputs, err := r.preparePerLayerInputs(ctx, activation, rows)
+	perLayerInputs, err := r.preparePerLayerInputs(ctx, activation, rows, projected)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

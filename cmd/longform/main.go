@@ -24,6 +24,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
@@ -88,7 +89,7 @@ func main() {
 func parseOptions(args []string) (options, error) {
 	flags := flag.NewFlagSet("longform", flag.ContinueOnError)
 	var result options
-	flags.StringVar(&result.Repository, "repo", "overgodb-store", "OvergoDB root: the servable listing, the short-prompt benchmark records, and the evidence landing")
+	flags.StringVar(&result.Repository, "repo", "", "OvergoDB root; empty resolves through OVERGO_DATA_ROOT, local-models.json, or the repository root default")
 	flags.StringVar(&result.Root, "root", ".", "repository root: the verifying commit, the inference surface, and the corpus are read from it, so a profiler that changes the working directory still runs the tool")
 	flags.IntVar(&result.Device, "device", 0, "CUDA device ordinal")
 	flags.BoolVar(&result.Publish, "publish", false, "commit each result as long-form evidence with a verification claim (requires a clean worktree)")
@@ -131,8 +132,14 @@ func parseOptions(args []string) (options, error) {
 	if result.Publish && (result.Check || result.ValidateBaselines) || result.Check && result.ValidateBaselines {
 		return options{}, errors.New("longform: -publish, -check and -validate-baselines are separate modes")
 	}
-	if strings.TrimSpace(result.Repository) == "" {
-		return options{}, errors.New("longform: -repo is required")
+	if result.Repository == "" {
+		roots, err := dataroot.Resolve(result.Root)
+		if err != nil {
+			return options{}, err
+		}
+		result.Repository = roots.Store
+	} else if strings.TrimSpace(result.Repository) == "" {
+		return options{}, errors.New("longform: -repo cannot be whitespace")
 	}
 	return result, nil
 }
@@ -259,15 +266,19 @@ func run(args []string, output io.Writer) error {
 	}
 	// Publishing binds the evidence to the verifying commit; a dry run
 	// still names the commit it ran on when the tree is clean.
+	sourceStart := time.Now()
 	commit, commitErr := runrecord.VerifyingCommit(options.Root)
 	if options.Publish && commitErr != nil {
 		return commitErr
 	}
 	surface, err := longform.Surface(ctx, options.Root)
+	fmt.Fprintf(output, "long-form source resolution: %s\n", time.Since(sourceStart))
 	if err != nil {
 		return err
 	}
+	catalogStart := time.Now()
 	targets, err := listTargets(ctx, options.Repository, options.Models)
+	fmt.Fprintf(output, "long-form catalog resolution: %s; no models loaded or measured during setup\n", time.Since(catalogStart))
 	if err != nil {
 		return err
 	}

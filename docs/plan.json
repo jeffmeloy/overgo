@@ -9,18 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Publish a small accepted guard baseline before execution changes",
-          "status": "open",
-          "verify": "go test ./internal/longform -count=1 \u0026\u0026 test -f cmd/longform/accepted_baseline_test.go \u0026\u0026 go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
-          "rationale": "Publish the smallest recipe-derived execution coverage set needed to guard upcoming Qwen/E4B decode and memory changes through the existing longform -guard producer and read-only -validate-baselines owner. Pin accepted record IDs, fixed-budget protocol, corpus SHA256, token/model/recipe/program/device/surface identities; require one 64-output short measurement and four 256-output rungs through 8192 per model, including peak/retained allocation. Reuse the committed guard corpus, not an easier prompt. The measured 3a75f6fb model walls were 20.5 seconds for Qwen and 66.8 seconds for E4B; derive bounded isolated repeated runs from those observations, recording startup separately. Require original rate/quality floors and allocation non-regression; retain the failed Qwen and natural-EOS E4B records as counterexamples, never healthy references. Automate exact-ID positive and negative acceptance, missing/duplicate model coverage, protocol mismatch, incomplete output, self-selection and known-bad refusal through the existing owner. Read-only record validation must never launch models or imply fresh performance measurement. Missing chat and modality evidence remain explicit exclusions. Expand the baseline later without overwriting these original records.",
-          "depends_on": [
-            "validation-readiness/measurement-contract",
-            "model-regression-baseline/prepare-guard",
-            "model-regression-baseline/repair-throughput"
-          ]
-        },
-        {
           "id": "full-catalog",
           "title": "Expand and re-accept the full baseline before broad simplification",
           "status": "open",
@@ -47,6 +35,16 @@
           "status": "open",
           "verify": "test -f internal/gate/scope_efficiency_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateScopePreservesAffectedCoverage$' -count=1 \u0026\u0026 go test ./internal/gate -run '^Test(GateScopeSnapshot|NonGoOwnershipGateScope|EnvironmentBoundRetry|PhaseCacheIgnoresUnownedPlanChanges)$' -count=1",
           "rationale": "The 630e1deb plan/test-only gate took 900.8 seconds and executed one direct plus 125 dependent packages. Extend the existing import/input graph and environment-bound evidence reuse, not a scheduler or second cache. Distinguish test-only changes from production changes: always test the changed owner; propagate production changes through the reverse dependency cone. Preserve dependencies on embedded/non-Go assets, plan/compatibility authority, test imports, deleted/renamed paths and assembled harness boundaries; uncertainty remains conservative. Bind executable counterexamples before narrowing scope, including source/toolchain/environment invalidation and stale-evidence refusal. Compare selected coverage and measured wall against the existing algorithm on the incident and production/data mutations; report packages executed, reused and excluded with reasons. Only claim saved cost after a real gated run proves it. Host-only and independent of the modality and operator benchmark campaigns. Keep this one scope-selection change; retain gate recovery semantics unchanged."
+        },
+        {
+          "id": "guard-admission-efficiency",
+          "title": "Limit explicit guard admission to its selected model inputs",
+          "status": "open",
+          "verify": "go test ./cmd/longform -run '^Test(GuardEvidenceContract|LongformRepositoryResolution)$' -count=1 \u0026\u0026 test -f cmd/longform/selection_efficiency_test.go \u0026\u0026 go test ./cmd/longform -run '^TestSelectedGuardAdmissionScope$' -count=1",
+          "rationale": "Baseline acceptance exposed a repeated setup tax: source resolution took 0.260 seconds and catalog resolution 27.925 seconds in the bounded probe; a cold immutable-worktree repeat exceeded the original one-minute admission budget. Exact historical record assertions take about 2.5 seconds. The current listTargets enumerates presence for the full servable catalog and reads benchmark history even for explicit read-only baseline admission. Reuse discovery/modelrecipe selection and identity owners to inspect only selected model components, active bindings and exact records. Preserve full-catalog semantics for -all, actual selected-byte hashing/stat validation, stale recipe refusal, missing/duplicate/foreign record refusal, corpus/protocol/denominator assertions and read-only execution. Do not add a second catalog, cache or inference path, and do not substitute recorded identities for selected bytes. Bind a counterexample proving an unrelated model cannot trigger file hashing or benchmark-history reads during selected guard admission; retain failures for changed selected bytes and active bindings. Measure cold and warm source/catalog walls separately on the same two selected models before and after; keep existing quality, performance and allocation floors unchanged. The temporary two-minute read-only admission budget is based on the observed one-minute overrun, not a model-performance relaxation.",
+          "depends_on": [
+            "model-regression-baseline/do"
+          ]
         },
         {
           "id": "benchmark-protocol",
@@ -426,6 +424,7 @@
             "simplify-capability-report/do",
             "validation-readiness/failure-diagnostics",
             "validation-automation/gate-scope-efficiency",
+            "validation-automation/guard-admission-efficiency",
             "validation-automation/benchmark-protocol",
             "boundary-hardening/cross-origin",
             "boundary-hardening/argv-output",

@@ -533,6 +533,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"model-regression-baseline/repair-throughput",
 		"validation-readiness/failure-diagnostics",
 		"validation-automation/gate-scope-efficiency",
+		"validation-automation/guard-admission-efficiency",
 		"validation-automation/benchmark-protocol",
 		"boundary-hardening/cross-origin",
 		"boundary-hardening/argv-output",

@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,12 +16,156 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/longform"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
+	"overgo/internal/testevidence"
 )
+
+// TestAcceptedBaselineEvidence reads immutable measurements, never the latest
+// record or a newly generated self-reference. It establishes the historical
+// guard; -validate-baselines separately requires current-surface admission.
+func TestAcceptedBaselineEvidence(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
+	if os.Getenv(dataroot.Env) == "" {
+		t.Skip("integration: set OVERGO_DATA_ROOT to validate the exact stored guard records; no measurement runs")
+	}
+	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(roots.Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	const acceptedSurface = "d3ff45edf061f7a2f8833d9625a6154532e1760fd08878cb89343f46a728341f"
+	const acceptedCommit = "e4b9d1e6b1b46626f1b934a7360db76c960277ce"
+	fixtures := []struct {
+		name, before, refused string
+		after                 [3]string // Three sequential isolated samples; first is reference, never best-run selection.
+	}{
+		{
+			name:    "Qwen capacity session",
+			before:  "evidence:sha256:8fe6efde3661a9f24a481002fbd5696536e52f782e00580e0ab6d991d3b06e39",
+			refused: "evidence:sha256:1c61e2821f010632b9b7a99b05261d7ccad9649929a9bfbc1a923d4430bfd8e7",
+			after: [3]string{
+				"evidence:sha256:0190b70b93219859525aff79e925f30ccc8b6be5647cb36eba2838ca56bef2c8",
+				"evidence:sha256:7475932433954855147a950a1aff5db66006d18225266cdae90dd5c1fd4cf81b",
+				"evidence:sha256:2a0f7c99ed9d4c8d4dfeca916c494b371c3cf413bfa5f20acfbb21248856c445",
+			},
+		},
+		{
+			name:    "E4B request session",
+			before:  "evidence:sha256:2da44cefe6b7db08e49315acf50b727421fb2fe212197ee4cba16db680bcdd43",
+			refused: "evidence:sha256:83a69ff733e8cd2f52388bb94e28eb870fdd8642e10b189a37923c24b15a0d2a",
+			after: [3]string{
+				"evidence:sha256:3d6b27ffaf0fa747799b64f85eda10e5261cf09465c0457652e0a2d4f422e928",
+				"evidence:sha256:a7804c9c52b752a5b3b80979b741d1662fd3baf8f18733517c1923d3593472ca",
+				"evidence:sha256:3497b3b65674f032badd1df1f2395c0dd3c166981d66bed7c5e242455c28eff8",
+			},
+		},
+	}
+	seen := make(map[artifact.ID]bool)
+	var selected []target
+	var ids []string
+	for _, fixture := range fixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			before := measuredGuardRecord(t, store, fixture.before)
+			refused := measuredGuardRecord(t, store, fixture.refused)
+			if err := validateGuard(refused.Result); err == nil {
+				t.Fatal("original failed or incomplete measurement accepted")
+			}
+			if !before.Result.Verdict.Passed {
+				if _, err := longform.ReadBaseline(t.Context(), store, before.Record); err == nil {
+					t.Fatal("failed pre-fix measurement accepted as a healthy baseline")
+				}
+			}
+			var first longform.Result
+			for index, text := range fixture.after {
+				id, err := artifact.ParseID(text)
+				if err != nil || seen[id] || id == before.Record || id == refused.Record {
+					t.Fatalf("invalid, duplicate or self-selected record %s: %v", text, err)
+				}
+				seen[id] = true
+				accepted, err := longform.ReadBaseline(t.Context(), store, id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				fresh := accepted.Result
+				if fresh.Surface != acceptedSurface || fresh.Commit != acceptedCommit {
+					t.Fatal("record does not identify the committed measured implementation")
+				}
+				if err := validateGuard(fresh); err != nil {
+					t.Fatal(err)
+				}
+				if v := longform.Compare(before.Result, fresh, longform.DeclaredFloors(), fresh.Floors.CheckRungCeiling); !v.Passed {
+					t.Fatalf("pre-fix comparison: %s", v)
+				}
+				if index > 0 {
+					if v := longform.Compare(first, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !v.Passed {
+						t.Fatalf("repeat comparison: %s", v)
+					}
+				} else {
+					first = fresh
+					selected = append(selected, target{weights: fresh.Inputs.Model, entry: discovery.Entry{Model: fresh.Program.Model, Recipe: fresh.Program.Recipe}})
+					ids = append(ids, text)
+				}
+				t.Logf("record=%s judged_decode=%.1f short=1 rungs=%d; tokens, NLL, rates and allocation non-growth checked", id, fresh.Measure.DecodeTokensPerSecond, len(fresh.Rungs))
+			}
+		})
+	}
+	if len(selected) != len(fixtures) {
+		t.Fatal("missing model from the declared guard denominator")
+	}
+	opts := options{Repository: roots.Store, Corpus: "testdata/guard-corpus.txt", ValidateBaselines: true, Baselines: ids}
+	if err := bindBaselines(t.Context(), opts, selected); err != nil {
+		t.Fatal(err)
+	}
+	var output strings.Builder
+	if err := validateSelectedBaselines(&output, selected, acceptedSurface); err != nil {
+		t.Fatal(err)
+	}
+	t.Log(output.String())
+	t.Logf("historical guard audit: models=%d repeated_records=%d; chat, full catalog, modalities and fresh performance excluded", len(selected), len(seen))
+}
+
+// Failed records are diagnostic counterexamples only. ReadBaseline remains the
+// authority for every accepted reference; this reader cannot promote a failure.
+func measuredGuardRecord(t *testing.T, store *overgodb.Store, text string) longform.Summary {
+	t.Helper()
+	id, err := artifact.ParseID(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, found, err := artifact.ReadContent(t.Context(), store, id)
+	if err != nil || !found {
+		t.Fatalf("counterexample %s absent: %v", id, err)
+	}
+	record, err := runrecord.ParseModelVerification(content.Data)
+	if err != nil || record.ID != id || len(record.Claims) != 1 || record.Claims[0].Capability != longform.Capability || len(record.Claims[0].Evidence) != 1 {
+		t.Fatalf("invalid measurement record %s: %v", id, err)
+	}
+	content, found, err = artifact.ReadContent(t.Context(), store, record.Claims[0].Evidence[0])
+	if err != nil || !found {
+		t.Fatalf("measurement body absent: %v", err)
+	}
+	var result longform.Result
+	if err := json.Unmarshal(content.Data, &result); err != nil {
+		t.Fatal(err)
+	}
+	claim, _, body, err := longform.Claim(result)
+	if err != nil || body != record.Claims[0].Evidence[0] || !reflect.DeepEqual(claim, record.Claims[0]) || result.Inputs.Model != record.Model {
+		t.Fatalf("counterexample provenance differs: %v", err)
+	}
+	return longform.Summary{Record: id, Result: result}
+}
 
 func guardResult(t *testing.T) longform.Result {
 	t.Helper()

@@ -5,13 +5,19 @@
 // journey needs a browser, the built server binary and a servable model
 // with bytes on disk in the store; a missing prerequisite reports
 // UNAVAILABLE for that leg instead of failing what it cannot observe.
+// With -report the lane also writes the campaign's simplification report:
+// the client census at the fork beside the head and the behaviours the
+// lane proved (gui-closeout/closeout).
 package main
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -32,9 +38,49 @@ func main() {
 }
 
 func run() error {
+	flags := flag.NewFlagSet("webui-lane", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	report := flags.String("report", "", "write the simplification report (fork census beside head census, behaviours proven) to this path")
+	fork := flags.String("fork", "", "tree measured as the campaign's fork for -report: a checkout or extracted slice holding internal/server/webui and docs/api_manifest.json")
+	forkLabel := flags.String("fork-label", "", "the fork tree's commit, naming it in the report")
+	headLabel := flags.String("head-label", "", "this tree's commit, naming it in the report")
+	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 || (*report != "") != (*fork != "") {
+		return errors.New("usage: webui-lane [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
+	}
+	var captured bytes.Buffer
+	stdout := io.Writer(os.Stdout)
+	if *report != "" {
+		stdout = io.MultiWriter(os.Stdout, &captured)
+	}
+	if err := runLane(stdout); err != nil {
+		return err
+	}
+	if *report == "" {
+		return nil
+	}
+	before, err := webuilane.MeasureTree(*fork, *forkLabel)
+	if err != nil {
+		return err
+	}
+	after, err := webuilane.MeasureTree(".", *headLabel)
+	if err != nil {
+		return err
+	}
+	proven, unobserved := webuilane.LaneObservations(captured.String())
+	text := webuilane.SimplificationReport(before, after, proven, unobserved)
+	if err := clioptions.WriteOutputFile(*report, []byte(text)); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "webui lane: report written to %s\n", *report)
+	return nil
+}
+
+// runLane runs the browser self-check and the acceptance tests, writing
+// the lane's observations to stdout.
+func runLane(stdout io.Writer) error {
 	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
-		fmt.Printf("webui lane: UNAVAILABLE no browser: %v\n", err)
+		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE no browser: %v\n", err)
 		return nil
 	}
 	probe, err := webuilane.Open(context.Background(), browser, "data:text/html,<title>overgo-webui-lane</title>")
@@ -55,7 +101,7 @@ func run() error {
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser)
 	journey, unavailable := firstRunEnvironment(context.Background())
 	if unavailable != "" {
-		fmt.Printf("webui lane: UNAVAILABLE first-run journey: %s\n", unavailable)
+		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE first-run journey: %s\n", unavailable)
 	} else {
 		env = append(env, journey...)
 	}
@@ -63,7 +109,7 @@ func run() error {
 		Path:   "go",
 		Args:   []string{"test", "./internal/server", "-run", "^TestWebUIBrowser", "-count=1", "-timeout=6m", "-v"},
 		Env:    env,
-		Stdout: os.Stdout,
+		Stdout: stdout,
 		Stderr: os.Stderr,
 	})
 	if err != nil {
@@ -72,7 +118,7 @@ func run() error {
 	if receipt.ExitCode != 0 {
 		return fmt.Errorf("webui lane: acceptance exited %d", receipt.ExitCode)
 	}
-	fmt.Printf("webui lane: PASS browser=%s\n", browser)
+	fmt.Fprintf(stdout, "webui lane: PASS browser=%s\n", browser)
 	return nil
 }
 

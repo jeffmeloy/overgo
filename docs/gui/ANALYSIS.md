@@ -161,3 +161,52 @@ Not adopted: server-rendered Go templates (Overgo's client is a thin static
 client over JSON, which the acceptance lane already drives), the multi-user
 auth pages (single operator, bearer key), MCP and A2A gateways (UTCP is the
 tool contract), and paid tools.
+
+## Closeout and merge readiness (2026-09-05)
+
+The campaign's rows landed on the lane branch `professional_overgo_gui`
+(fork from master at `0c1a9170`; merge-base with master `9dce4fca`; at
+closeout the lane is 17 commits ahead of master and 7 behind). The
+simplification report is [SIMPLIFICATION.md](SIMPLIFICATION.md), generated
+by `go run ./cmd/webui-lane -report` from the fork's tree and the head's:
+the client census at both, beside the behaviours the acceptance lane proved.
+
+Both acceptance lanes pass on the lane head: the workbench acceptance steps,
+the front page's keyboard, motion, colour and width contract, and the
+first-run journey against a served model through the real swap proxy
+(Qwen2.5-0.5B served, the image leg proven as the declared refusal, the
+switch through the picker taken to the next servable model). The gate's
+webui-lane check runs the same lane for every web UI change.
+
+Every finding parked during the campaign carries a disposition. Three are
+deferred with their closure path recorded: agent mode in the conversation
+has no loop bound, plan checklist or delegated cards (no server record
+declares them); the journey's vision leg proves the refusal branch only (no
+servable vision-capable model in the store); the gate's test phase once
+failed on a Windows process-start status from a nested `go test` spawn under
+parallel load (both tests pass alone; the relaunched gate passed).
+
+Merge protocol for the master worktree (see the lane merge protocol):
+
+- The lane's `docs/plan.json` never merges: master's plan wins (resolve with
+  `--ours`); the merge commit binds to a master plan row.
+- Merge with `git merge --no-ff --no-commit professional_overgo_gui`, then
+  `go run ./cmd/gate -merge -plan <item>/<step> -message-file <f>`. Without a
+  prepared common ancestor use `-plan-projection first-parent-target
+  -merge-source-store C:/Users/jeffm/professional_overgo_gui/overgodb-store`.
+- Import the lane's closure store before gating
+  (`closure-scan -import-store C:/Users/jeffm/professional_overgo_gui/overgodb-store`),
+  then self-import; publish the modern-Go census last
+  (`modern-census -publish-census`); rebuild `bin/gate.exe` after the merge,
+  since the repoanalysis authority tables changed (the cmd/recipe process
+  allowance and its entry-authority exception were removed when the intake
+  steps moved to `internal/modelintake`).
+- What master absorbs: `internal/modelintake` (extracted from cmd/recipe),
+  the `/library/register` and `/library/validate` routes with their workspace
+  audit allowance, the internal/server internal-imports budget at 41, the
+  API manifest, SBOM, modern-Go baseline and census, the front page and its
+  composer, the lane packages `internal/webuilane` and `cmd/webui-lane`, and
+  the gate's webui-lane check.
+- Verification after the merge: `go build ./...`,
+  `go test ./internal/server -run 'TestWebUI|TestFrontPage' -count=1`, and
+  `go run ./cmd/webui-lane` against a store holding a servable model.

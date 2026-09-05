@@ -25,79 +25,6 @@
       ]
     },
     {
-      "id": "boundary-hardening",
-      "title": "Close the two execution-boundary defects found in review",
-      "status": "open",
-      "steps": [
-        {
-          "id": "argv-output",
-          "title": "Bound argv stdout during collection and terminate overflowed process trees",
-          "status": "open",
-          "verify": "test -f internal/agenttool/output_limit_test.go \u0026\u0026 go test ./internal/agenttool -run '^TestArgvOutputLimit$' -count=1",
-          "rationale": "Reproduce output exceeding artifact.MaxContentBytes before process exit. Replace the unbounded buffer at the argv transport with a bounded collector; overflow cancels the supervised process tree, drains/closes pipes safely and returns a typed failure rather than success or a partial JSON result. Test a finite flood and a continuing writer under a short fixture deadline, bounded retained bytes, descendant termination and failure receipt propagation; retain valid UTF-8/JSON behavior. Add the named fixture to agenttool and reuse processcontrol lifecycle tests."
-        }
-      ]
-    },
-    {
-      "id": "model-regression-gate",
-      "title": "Enforce cheap execution-coverage regression checks before device-wide work",
-      "status": "open",
-      "steps": [
-        {
-          "id": "coverage-acquisition",
-          "title": "Complete missing fixed-budget text guard records before enforcement",
-          "status": "open",
-          "verify": "test -f cmd/longform/guard_acquisition_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedGuardCatalog$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
-          "rationale": "The measured 2026-09-05 census has eight servable text models and only two accepted fixed-budget guards. The six others have older passing long-form records but no full short/rung fingerprints, so they cannot be promoted by relabeling. Use the existing longform -guard owner, frozen corpus and unchanged floors to acquire only missing current-surface records, smallest first, in a clean evidence worktree. Retain the existing three repeats for Qwen0.5B and E4B. Capture repeated isolated records for missing MiniCPM1B, Qwen3.5 4B/9B, the Gemma12B precision twins and quantized27B; derive per-run budgets from measured cost and stop/repair failures immediately. This is bounded guard acquisition, not the operator-owned27B MMLU campaign or full modality milestone. Raw instruction NLL is compared with the same model and does not reopen the answered instruction-framing issue. Keep first accepted references and all failures; never select the fastest sample or lower floors. Acceptance binds exact immutable records, current recipe/source/corpus, full64-token short and four256-token rung outputs through8192, quality/rate/resource comparisons and the full live text denominator. If a runtime defect requires repair to admit its guard, keep its failed record, bind CPU then CUDA parity, and repair that affected path under the existing accepted guard before continuing. Final automatic gate enforcement remains blocked until coverage is complete.",
-          "depends_on": [
-            "model-regression-gate/coverage-selection"
-          ]
-        },
-        {
-          "id": "do",
-          "title": "Enforce cheap execution-coverage regression checks before device-wide work",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
-          "rationale": "Use the code/kernel manifest and typed recipe/operator facts to select a small deterministic model set covering affected weight types, operator paths, head geometry, attention/cache policy and modality; weight type alone is insufficient. Minimize measured run cost subject to coverage, and widen scope when independence is unproven. Compare against the accepted immutable baseline. Sequence the quick model check before broader device work under an exclusive timing lease; host-only changes are explicitly inapplicable. Keep structure-budget checking in the cheap gate phase. Negative tests must reject a missing coverage class, stale/mismatched baseline, untested device path and a reproduced throughput/memory/quality regression. Bind an integration assertion proving the real gate selection and rejection path, alongside the host selector tests; use existing CI/protection ownership to prevent required device evidence being replaced by manual-workflow assumptions. Land the small guard before independent execution fixes; do not wait for media-report or full-catalog expansion. Widen accepted references when the full baseline lands.",
-          "depends_on": [
-            "model-regression-baseline/do",
-            "model-regression-gate/coverage-selection",
-            "model-regression-gate/coverage-acquisition"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "benchmark-completion",
-      "title": "Complete current-surface benchmarks and matched comparisons",
-      "status": "open",
-      "steps": [
-        {
-          "id": "mmlu-pro-pass",
-          "title": "Complete MMLU-Pro for the smaller text models under both protocols",
-          "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Retain the completed DNA-pass and long-form-verification authority. First republish only missing/stale passing long-form admission records at the current inference surface, then run the missing fp8/small-model suite records immediately. No future refactor, memory optimization or measurement-contract implementation is a prerequisite. Query committed suite coverage and run only missing or invalidated model/protocol/case records on the current landed execution surface. Preserve the full 12032-case MMLU-Pro denominator and both declared protocols; exclude the 27B from this step and keep MATH excluded. Use measured cost and explicit evaluate -budget for bounded batches, smallest first. Acceptance asserts expected cases, distinct cases, protocol, model/recipe/data/code identities and completed outcomes; a regenerated report with missing cells does not pass. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
-          "depends_on": [
-            "benchmark-completion/dna-pass",
-            "long-form-verification/do"
-          ]
-        },
-        {
-          "id": "published-comparison",
-          "title": "Publish benchmark results with matched references and complete coverage",
-          "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "Compare all required suite/model/protocol cells with declared references and local lm-eval oracle records. Compare as equivalent only when checkpoint/precision, dataset split/cases, shot count, template, scoring/generation protocol and answer extraction agree; otherwise label the protocol difference, not a performance regression. Preserve the known 100-case MMLU subset label rather than implying full MMLU coverage. Check all campaign-required suites, including prior BBH/MuSR/IFEval/DNA evidence for reuse validity; rerun only invalidated slices. Generate BENCHMARK.md after coverage and outcome assertions. For Gemma same-checkpoint comparisons, build the Gemma-capable llama.cpp revision when required and pin it with precision/template/protocol; missing reference evidence is a labeled comparison gap, not a prerequisite for the regression baseline. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
-          "depends_on": [
-            "benchmark-completion/mmlu-pro-pass",
-            "benchmark-27b/mmlu-pro-pass",
-            "validation-automation/benchmark-protocol"
-          ]
-        }
-      ]
-    },
-    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
       "status": "open",
@@ -159,6 +86,65 @@
             "modality-verification/text-and-vision",
             "modality-verification/image-and-video",
             "modality-verification/speech-ocr-tabular-forecast"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "model-regression-gate",
+      "title": "Enforce cheap execution-coverage regression checks before device-wide work",
+      "status": "open",
+      "steps": [
+        {
+          "id": "coverage-acquisition",
+          "title": "Complete missing fixed-budget text guard records before enforcement",
+          "status": "open",
+          "verify": "test -f cmd/longform/guard_acquisition_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedGuardCatalog$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
+          "rationale": "The measured 2026-09-05 census has eight servable text models and only two accepted fixed-budget guards. The six others have older passing long-form records but no full short/rung fingerprints, so they cannot be promoted by relabeling. Use the existing longform -guard owner, frozen corpus and unchanged floors to acquire only missing current-surface records, smallest first, in a clean evidence worktree. Retain the existing three repeats for Qwen0.5B and E4B. Capture repeated isolated records for missing MiniCPM1B, Qwen3.5 4B/9B, the Gemma12B precision twins and quantized27B; derive per-run budgets from measured cost and stop/repair failures immediately. This is bounded guard acquisition, not the operator-owned27B MMLU campaign or full modality milestone. Raw instruction NLL is compared with the same model and does not reopen the answered instruction-framing issue. Keep first accepted references and all failures; never select the fastest sample or lower floors. Acceptance binds exact immutable records, current recipe/source/corpus, full64-token short and four256-token rung outputs through8192, quality/rate/resource comparisons and the full live text denominator. If a runtime defect requires repair to admit its guard, keep its failed record, bind CPU then CUDA parity, and repair that affected path under the existing accepted guard before continuing. Final automatic gate enforcement remains blocked until coverage is complete.",
+          "depends_on": [
+            "model-regression-gate/coverage-selection"
+          ]
+        },
+        {
+          "id": "do",
+          "title": "Enforce cheap execution-coverage regression checks before device-wide work",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
+          "rationale": "Use the code/kernel manifest and typed recipe/operator facts to select a small deterministic model set covering affected weight types, operator paths, head geometry, attention/cache policy and modality; weight type alone is insufficient. Minimize measured run cost subject to coverage, and widen scope when independence is unproven. Compare against the accepted immutable baseline. Sequence the quick model check before broader device work under an exclusive timing lease; host-only changes are explicitly inapplicable. Keep structure-budget checking in the cheap gate phase. Negative tests must reject a missing coverage class, stale/mismatched baseline, untested device path and a reproduced throughput/memory/quality regression. Bind an integration assertion proving the real gate selection and rejection path, alongside the host selector tests; use existing CI/protection ownership to prevent required device evidence being replaced by manual-workflow assumptions. Land the small guard before independent execution fixes; do not wait for media-report or full-catalog expansion. Widen accepted references when the full baseline lands.",
+          "depends_on": [
+            "model-regression-baseline/do",
+            "model-regression-gate/coverage-selection",
+            "model-regression-gate/coverage-acquisition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "benchmark-completion",
+      "title": "Complete current-surface benchmarks and matched comparisons",
+      "status": "open",
+      "steps": [
+        {
+          "id": "mmlu-pro-pass",
+          "title": "Complete MMLU-Pro for the smaller text models under both protocols",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "Retain the completed DNA-pass and long-form-verification authority. First republish only missing/stale passing long-form admission records at the current inference surface, then run the missing fp8/small-model suite records immediately. No future refactor, memory optimization or measurement-contract implementation is a prerequisite. Query committed suite coverage and run only missing or invalidated model/protocol/case records on the current landed execution surface. Preserve the full 12032-case MMLU-Pro denominator and both declared protocols; exclude the 27B from this step and keep MATH excluded. Use measured cost and explicit evaluate -budget for bounded batches, smallest first. Acceptance asserts expected cases, distinct cases, protocol, model/recipe/data/code identities and completed outcomes; a regenerated report with missing cells does not pass. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
+          "depends_on": [
+            "benchmark-completion/dna-pass",
+            "long-form-verification/do"
+          ]
+        },
+        {
+          "id": "published-comparison",
+          "title": "Publish benchmark results with matched references and complete coverage",
+          "status": "open",
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "Compare all required suite/model/protocol cells with declared references and local lm-eval oracle records. Compare as equivalent only when checkpoint/precision, dataset split/cases, shot count, template, scoring/generation protocol and answer extraction agree; otherwise label the protocol difference, not a performance regression. Preserve the known 100-case MMLU subset label rather than implying full MMLU coverage. Check all campaign-required suites, including prior BBH/MuSR/IFEval/DNA evidence for reuse validity; rerun only invalidated slices. Generate BENCHMARK.md after coverage and outcome assertions. For Gemma same-checkpoint comparisons, build the Gemma-capable llama.cpp revision when required and pin it with precision/template/protocol; missing reference evidence is a labeled comparison gap, not a prerequisite for the regression baseline. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
+          "depends_on": [
+            "benchmark-completion/mmlu-pro-pass",
+            "benchmark-27b/mmlu-pro-pass",
+            "validation-automation/benchmark-protocol"
           ]
         }
       ]

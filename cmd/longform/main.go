@@ -21,6 +21,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
@@ -39,6 +40,18 @@ const catalogLimit = 256
 // keeps as text beside the output it continues.
 const promptTailTokens = 48
 
+// The ladder climbs while the predicted device use after the next rung
+// stays under nine tenths of the device: the runtime keeps the pool's
+// eighth and the driver its own share above that.
+const (
+	deviceFitNumerator   = uint64(9)
+	deviceFitDenominator = uint64(10)
+)
+
+// deviceTotalBytes is the device's memory, read once at start; zero
+// leaves the ladder unbounded by memory.
+var deviceTotalBytes uint64
+
 // corpusBytesPerToken sizes the text read for the ladder: the
 // tokenizers in the catalog average under four bytes per token on the
 // repository's text, so six bytes per token reads enough for the
@@ -47,6 +60,7 @@ const corpusBytesPerToken = 6
 
 type options struct {
 	Repository   string
+	Root         string
 	Device       int
 	Publish      bool
 	All          bool
@@ -66,6 +80,7 @@ func parseOptions(args []string) (options, error) {
 	flags := flag.NewFlagSet("longform", flag.ContinueOnError)
 	var result options
 	flags.StringVar(&result.Repository, "repo", "overgodb-store", "OvergoDB root: the servable listing, the short-prompt benchmark records, and the evidence landing")
+	flags.StringVar(&result.Root, "root", ".", "repository root: the verifying commit, the inference surface, and the corpus are read from it, so a profiler that changes the working directory still runs the tool")
 	flags.IntVar(&result.Device, "device", 0, "CUDA device ordinal")
 	flags.BoolVar(&result.Publish, "publish", false, "commit each result as long-form evidence with a verification claim (requires a clean worktree)")
 	flags.BoolVar(&result.All, "all", false, "run every servable text model, smallest first")
@@ -189,11 +204,11 @@ func run(args []string, output io.Writer) error {
 	}
 	// Publishing binds the evidence to the verifying commit; a dry run
 	// still names the commit it ran on when the tree is clean.
-	commit, commitErr := runrecord.VerifyingCommit(".")
+	commit, commitErr := runrecord.VerifyingCommit(options.Root)
 	if options.Publish && commitErr != nil {
 		return commitErr
 	}
-	surface, err := longform.Surface(ctx, ".")
+	surface, err := longform.Surface(ctx, options.Root)
 	if err != nil {
 		return err
 	}
@@ -205,6 +220,14 @@ func run(args []string, output io.Writer) error {
 	ceiling := 0
 	if options.Check {
 		ceiling = floors.CheckRungCeiling
+	}
+	if cuda, err := driver.Open(); err == nil {
+		if err := cuda.Init(); err == nil {
+			if info, err := cuda.DeviceInfo(options.Device); err == nil {
+				deviceTotalBytes = info.TotalMemoryBytes
+			}
+		}
+		cuda.Close()
 	}
 	var failures []error
 	for index, target := range targets {
@@ -221,7 +244,7 @@ func run(args []string, output io.Writer) error {
 				continue
 			}
 		}
-		result, err := measure(ctx, options, target, commit, surface, floors, ceiling)
+		result, err := measure(ctx, output, options, target, commit, surface, floors, ceiling)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", name, err))
 			fmt.Fprintf(output, "  ERROR %v\n", err)
@@ -253,7 +276,7 @@ func run(args []string, output io.Writer) error {
 // measure loads one model, runs the SHORT shape and the ladder, and
 // closes it before anything else touches the store: the runner holds
 // the device and the store's reader for the whole run.
-func measure(ctx context.Context, options options, target target, commit, surface string, floors longform.Floors, ceiling int) (longform.Result, error) {
+func measure(ctx context.Context, output io.Writer, options options, target target, commit, surface string, floors longform.Floors, ceiling int) (longform.Result, error) {
 	runner, err := clioptions.OpenRunner(ctx, options.Repository, target.entry.Location, clioptions.BuildOpenOptions(options.Device, nil, 1))
 	if err != nil {
 		return longform.Result{}, err
@@ -264,7 +287,7 @@ func measure(ctx context.Context, options options, target target, commit, surfac
 	if ceiling > 0 {
 		highest = min(highest, ceiling)
 	}
-	text, err := longform.Corpus(".", corpusBytesPerToken*(highest+floors.ScoreTokens))
+	text, err := longform.Corpus(options.Root, corpusBytesPerToken*(highest+floors.ScoreTokens))
 	if err != nil {
 		return longform.Result{}, err
 	}
@@ -276,14 +299,48 @@ func measure(ctx context.Context, options options, target target, commit, surfac
 	if len(rungs) == 0 {
 		return longform.Result{}, fmt.Errorf("longform: no ladder rung fits a context of %d tokens and a corpus of %d", properties.ContextLength, len(corpus))
 	}
+	// Each stage reports as it completes, with the device memory it left
+	// allocated, so a run that stalls or grows names its stage.
+	stage := func(name string) {
+		memory, err := runner.DeviceMemoryStats(ctx)
+		if err != nil {
+			fmt.Fprintf(output, "  stage %s (device memory unread: %v)\n", name, err)
+			return
+		}
+		fmt.Fprintf(output, "  stage %s: device %d MiB (peak %d MiB)\n", name, memory.CurrentBytes>>20, memory.PeakBytes>>20)
+	}
+	stage(fmt.Sprintf("loaded, %d corpus tokens, rungs %v", len(corpus), rungs))
 	if err := longform.Warm(ctx, runner, corpus[:rungs[0]]); err != nil {
 		return longform.Result{}, err
 	}
+	stage("warm")
 	shape, err := longform.Short(ctx, runner, corpus, floors)
 	if err != nil {
 		return longform.Result{}, err
 	}
-	climbed, stop, err := longform.Ladder(ctx, runner, corpus, rungs, floors)
+	stage("short")
+	// A rung doubles the cache the last rung added; the ladder stops
+	// when that growth would not fit the device's memory, since a rung
+	// past it thrashed the E4B at its 65536 rung with the device full.
+	previous := uint64(0)
+	climbed, stop, err := longform.Ladder(ctx, runner, corpus, rungs, floors, func(rung longform.Rung) string {
+		measure := rung.Measure
+		stage(fmt.Sprintf("rung %d: prompt %.1f tok/s, decode %.1f tok/s, gain %.3f", measure.PromptTokens,
+			measure.PromptTokensPerSecond, measure.DecodeTokensPerSecond, measure.Score.ContextGain))
+		memory, err := runner.DeviceMemoryStats(ctx)
+		if err != nil || deviceTotalBytes == 0 {
+			return ""
+		}
+		growth := uint64(0)
+		if previous != 0 && memory.CurrentBytes > previous {
+			growth = memory.CurrentBytes - previous
+		}
+		previous = memory.CurrentBytes
+		if next := memory.CurrentBytes + 2*growth; next > deviceTotalBytes/deviceFitDenominator*deviceFitNumerator {
+			return fmt.Sprintf("the device holds %d MiB of %d and the next rung would take it to %d", memory.CurrentBytes>>20, deviceTotalBytes>>20, next>>20)
+		}
+		return ""
+	})
 	if err != nil {
 		return longform.Result{}, err
 	}

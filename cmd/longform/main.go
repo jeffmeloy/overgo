@@ -67,6 +67,9 @@ type options struct {
 	Check             bool
 	Guard             bool
 	ValidateBaselines bool
+	GuardCoverage     bool
+	GuardSelect       bool
+	PathsFile         string
 	OutputPrefix      int
 	Models            []string
 	Corpus            string
@@ -97,6 +100,9 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.Check, "check", false, "measure a fresh ladder against explicit -baseline records on the fixed -corpus; exit 1 on a regression")
 	flags.BoolVar(&result.Guard, "guard", false, "continue past sampled EOG to measure full output budgets on the same greedy device path; require complete recipe-bound quality, rate and allocation evidence through the regression ceiling")
 	flags.BoolVar(&result.ValidateBaselines, "validate-baselines", false, "read-only acceptance of explicit current-surface guard records; does not load models or measure CUDA")
+	flags.BoolVar(&result.GuardCoverage, "guard-coverage", false, "report exact selected text-model execution facts and explicit baseline gaps as JSON; read-only, incomplete coverage exits nonzero")
+	flags.BoolVar(&result.GuardSelect, "guard-select", false, "derive required text-model checks from changed paths and explicit accepted records; read-only, missing coverage refuses")
+	flags.StringVar(&result.PathsFile, "paths-file", "", "with -guard-select: newline-separated repository-relative changed paths")
 	flags.IntVar(&result.OutputPrefix, "show", 240, "characters of the judged generation to print")
 	flags.StringVar(&result.Corpus, "corpus", "", "fixed UTF-8 corpus file; required for -check")
 	flags.StringVar(&result.ExportCorpus, "export-corpus", "", "write a new fixed corpus file from this repository, without measuring models")
@@ -109,7 +115,7 @@ func parseOptions(args []string) (options, error) {
 	}
 	result.Models = flags.Args()
 	if result.ExportCorpus != "" {
-		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Guard || result.ValidateBaselines || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
+		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Guard || result.ValidateBaselines || result.GuardCoverage || result.GuardSelect || result.PathsFile != "" || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
 			return options{}, errors.New("longform: -export-corpus requires positive -corpus-bytes and no measurement options")
 		}
 		return result, nil
@@ -117,10 +123,10 @@ func parseOptions(args []string) (options, error) {
 	if result.CorpusBytes != 0 || result.Budget <= 0 || result.ModelBudget < 0 {
 		return options{}, errors.New("longform: measurement requires positive -budget; -model-budget cannot be negative")
 	}
-	if (result.Check || result.ValidateBaselines) && (result.Corpus == "" || len(result.Baselines) == 0) {
+	if (result.Check || result.ValidateBaselines || result.GuardCoverage || result.GuardSelect) && (result.Corpus == "" || len(result.Baselines) == 0) {
 		return options{}, errors.New("longform: -check and -validate-baselines require a fixed -corpus and explicit -baseline records")
 	}
-	if !result.Check && !result.ValidateBaselines && len(result.Baselines) != 0 {
+	if !result.Check && !result.ValidateBaselines && !result.GuardCoverage && !result.GuardSelect && len(result.Baselines) != 0 {
 		return options{}, errors.New("longform: -baseline requires -check or -validate-baselines")
 	}
 	if result.Guard && result.Corpus == "" {
@@ -131,6 +137,13 @@ func parseOptions(args []string) (options, error) {
 	}
 	if result.Publish && (result.Check || result.ValidateBaselines) || result.Check && result.ValidateBaselines {
 		return options{}, errors.New("longform: -publish, -check and -validate-baselines are separate modes")
+	}
+	if result.GuardCoverage && (result.Publish || result.Check || result.ValidateBaselines || result.Guard) {
+		return options{}, errors.New("longform: -guard-coverage is a separate read-only mode")
+	}
+	if result.GuardSelect && (!result.All || result.PathsFile == "" || result.Publish || result.Check || result.ValidateBaselines || result.Guard || result.GuardCoverage) ||
+		!result.GuardSelect && result.PathsFile != "" {
+		return options{}, errors.New("longform: -guard-select requires -all and -paths-file, and is separate from measurement and admission modes")
 	}
 	if result.Repository == "" {
 		roots, err := dataroot.Resolve(result.Root)
@@ -158,20 +171,31 @@ type target struct {
 // listTargets reads everything the run needs from the store before any
 // model loads: the servable text models (a declared domain without text
 // excludes a model; undeclared models are text), their sizes, the
-// latest short-prompt benchmark per location. Baselines are resolved separately
-// by exact record identity before a comparison starts.
-func listTargets(ctx context.Context, repository string, requested []string) ([]target, error) {
-	store, err := overgodb.OpenReadOnly(repository)
+// latest short-prompt benchmark per location for measurement. Read-only guard
+// admission needs only selected bytes and active recipes; its measured rates
+// come from separately resolved exact baseline records.
+func listTargets(ctx context.Context, options options) ([]target, error) {
+	store, err := overgodb.OpenReadOnly(options.Repository)
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
+	return readTargets(ctx, store, options, func() map[string]evaluation.BenchmarkSummary {
+		return evaluation.LatestEvidence(ctx, store, map[artifact.ID]string{}, 0).BenchmarksByLocation
+	})
+}
+
+func readTargets(ctx context.Context, store *overgodb.Store, options options, readBenchmarks func() map[string]evaluation.BenchmarkSummary) ([]target, error) {
+	requested := options.Models
 	memo := discovery.LoadMemo(ctx, store)
-	entries, err := discovery.ServableWithMemo(ctx, store, catalogLimit, memo)
+	entries, err := discovery.ServableWithMemo(ctx, store, catalogLimit, memo, requested...)
 	if err != nil {
 		return nil, err
 	}
-	benchmarks := evaluation.LatestEvidence(ctx, store, map[artifact.ID]string{}, 0).BenchmarksByLocation
+	var benchmarks map[string]evaluation.BenchmarkSummary
+	if !options.ValidateBaselines && !options.GuardCoverage && !options.GuardSelect {
+		benchmarks = readBenchmarks()
+	}
 	wanted := make(map[string]bool, len(requested))
 	for _, path := range requested {
 		wanted[longform.Key(path)] = true
@@ -267,20 +291,48 @@ func run(args []string, output io.Writer) error {
 	// Publishing binds the evidence to the verifying commit; a dry run
 	// still names the commit it ran on when the tree is clean.
 	sourceStart := time.Now()
+	diagnostics := output
+	if options.GuardCoverage || options.GuardSelect {
+		diagnostics = os.Stderr
+	}
 	commit, commitErr := runrecord.VerifyingCommit(options.Root)
 	if options.Publish && commitErr != nil {
 		return commitErr
 	}
 	surface, err := longform.Surface(ctx, options.Root)
-	fmt.Fprintf(output, "long-form source resolution: %s\n", time.Since(sourceStart))
+	fmt.Fprintf(diagnostics, "long-form source resolution: %s\n", time.Since(sourceStart))
 	if err != nil {
 		return err
 	}
+	selectionReason := ""
+	if options.GuardSelect {
+		paths, err := readGuardPaths(options.PathsFile)
+		if err != nil {
+			return err
+		}
+		affected, reason, err := longform.Affected(ctx, options.Root, paths)
+		if err != nil {
+			return err
+		}
+		selectionReason = reason
+		if !affected {
+			return clioptions.WritePrettyJSON(output, guardSelection{Surface: surface, Status: "inapplicable", Reason: reason,
+				Exclusions: "no catalog or benchmark history read; no model measurements, GPU tests or modality validation"})
+		}
+	}
 	catalogStart := time.Now()
-	targets, err := listTargets(ctx, options.Repository, options.Models)
-	fmt.Fprintf(output, "long-form catalog resolution: %s; no models loaded or measured during setup\n", time.Since(catalogStart))
+	targets, err := listTargets(ctx, options)
+	fmt.Fprintf(diagnostics, "long-form catalog resolution: %s; no models loaded or measured during setup\n", time.Since(catalogStart))
 	if err != nil {
 		return err
+	}
+	if options.GuardCoverage {
+		return reportGuardCoverage(ctx, output, options, targets, surface)
+	}
+	if options.GuardSelect {
+		coverage, coverageErr := loadGuardCoverage(ctx, options, targets, surface)
+		selection, selectionErr := selectGuardChecks(coverage, selectionReason, coverageErr)
+		return errors.Join(selectionErr, clioptions.WritePrettyJSON(output, selection))
 	}
 	if options.Check || options.ValidateBaselines {
 		if err := bindBaselines(ctx, options, targets); err != nil {

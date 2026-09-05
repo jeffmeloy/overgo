@@ -18,8 +18,8 @@ type deviceBufferLease struct {
 // deviceBufferPool keeps released device buffers in free lists keyed by
 // size class for reuse. Capacity requests round up to a size class so
 // requests that differ by a few tokens share a list, and the free lists
-// together hold at most a share of the device's memory: a fresh
-// allocation trims them largest-first before it asks the driver. Before
+// together hold at most a share of the device's memory: allocation and
+// release trim them largest-first. Before
 // both, a scoring pass whose every prompt had a new length left one set
 // of exact-size cache pages per length in the lists and filled a 49 GB
 // device within thirty seconds.
@@ -122,11 +122,11 @@ func (p *deviceBufferPool) trim(state *device.State, incoming uint64) error {
 		}
 		pointers := p.free[largest]
 		pointer := pointers[len(pointers)-1]
-		p.free[largest] = pointers[:len(pointers)-1]
-		p.freeBytes -= largest
 		if err := state.Driver.MemFree(pointer); err != nil {
 			return err
 		}
+		p.free[largest] = pointers[:len(pointers)-1]
+		p.freeBytes -= largest
 		p.allocations = slices.DeleteFunc(p.allocations, func(lease deviceBufferLease) bool {
 			return lease.pointer == pointer
 		})
@@ -134,11 +134,14 @@ func (p *deviceBufferPool) trim(state *device.State, incoming uint64) error {
 	return nil
 }
 
-func (p *deviceBufferPool) release(lease deviceBufferLease) {
-	if lease.pointer != 0 {
-		p.free[lease.size] = append(p.free[lease.size], lease.pointer)
-		p.freeBytes += lease.size
+func (p *deviceBufferPool) release(state *device.State, leases ...deviceBufferLease) error {
+	for _, lease := range leases {
+		if lease.pointer != 0 {
+			p.free[lease.size] = append(p.free[lease.size], lease.pointer)
+			p.freeBytes += lease.size
+		}
 	}
+	return p.trim(state, 0)
 }
 
 func (p *deviceBufferPool) close(state *device.State) error {

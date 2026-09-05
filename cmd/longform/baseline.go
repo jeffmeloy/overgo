@@ -36,35 +36,47 @@ func readCorpus(options options, limit int) (string, error) {
 }
 
 func bindBaselines(ctx context.Context, options options, targets []target) error {
-	corpus, err := readCorpus(options, 0)
+	selected, err := readBaselines(ctx, options)
 	if err != nil {
 		return err
+	}
+	return bindSelectedBaselines(options, targets, selected)
+}
+
+func readBaselines(ctx context.Context, options options) (map[artifact.ID]longform.Summary, error) {
+	corpus, err := readCorpus(options, 0)
+	if err != nil {
+		return nil, err
 	}
 	digest := sha256.Sum256([]byte(corpus))
 	store, err := overgodb.OpenReadOnly(options.Repository)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer store.Close()
 	selected := make(map[artifact.ID]longform.Summary)
 	for _, text := range options.Baselines {
 		id, err := artifact.ParseID(text)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		baseline, err := longform.ReadBaseline(ctx, store, id)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if baseline.Result.Inputs.CorpusDigest != hex.EncodeToString(digest[:]) || baseline.Result.Floors != longform.DeclaredFloors() {
-			return errors.New("longform: baseline corpus or floors differ from this experiment")
+			return nil, errors.New("longform: baseline corpus or floors differ from this experiment")
 		}
 		model := baseline.Result.Inputs.Model
 		if _, duplicate := selected[model]; duplicate {
-			return fmt.Errorf("longform: multiple baselines for %s", model)
+			return nil, fmt.Errorf("longform: multiple baselines for %s", model)
 		}
 		selected[model] = baseline
 	}
+	return selected, nil
+}
+
+func bindSelectedBaselines(options options, targets []target, selected map[artifact.ID]longform.Summary) error {
 	for index := range targets {
 		baseline, found := selected[targets[index].weights]
 		if !found {

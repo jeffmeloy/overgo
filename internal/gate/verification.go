@@ -30,7 +30,6 @@ import (
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
-	"overgo/internal/testscope"
 )
 
 func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck.Check {
@@ -914,41 +913,23 @@ func (g *gateContext) stepBuild() (bool, error) {
 	return false, err
 }
 
-// stepTest derives scope from the import graph: the packages owning changed
-// files plus every package whose transitive deps include one. A hand-listed
-// impact table is a process magic; the graph is the derivation.
+// stepTest follows the compiled import graph for production changes and keeps
+// test-only edits with their owner. Selection and evidence reuse share one input graph.
 func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
-	changed, err := g.directChangedPackages()
+	scope, err := g.deriveTestScope()
 	if err != nil {
 		return false, err
 	}
-	if len(changed) == 0 {
-		g.audit = append(g.audit, "tests skipped: no Go package owns a source or embedded asset in -paths")
+	if len(scope.direct)+len(scope.dependent) == 0 {
+		g.audit = append(g.audit, "tests skipped: no Go package owns a compiler or repository input in -paths")
 		return true, nil
 	}
-	out, err := command(g.repo, "go", "list", "-f", "{{.ImportPath}} {{join .Deps \",\"}}", "./...")
-	if err != nil {
-		return false, err
-	}
-	var direct, dependent []string
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		importPath, deps, _ := strings.Cut(line, " ")
-		if changed[importPath] {
-			direct = append(direct, importPath)
-			continue
-		}
-		for _, dep := range strings.Split(deps, ",") {
-			if changed[dep] {
-				dependent = append(dependent, importPath)
-				break
-			}
-		}
-	}
+	direct, dependent := scope.direct, scope.dependent
 	snapshot, err := g.sourceSnapshot()
 	if err != nil {
 		return false, err
 	}
-	boundaryCoverage, err := automationcheck.AgentHarnessBoundaryCoverage(snapshot, g.paths)
+	boundaryCoverage, err := automationcheck.AgentHarnessBoundaryCoverage(snapshot, scope.productionPaths)
 	if err != nil {
 		return false, err
 	}
@@ -964,6 +945,10 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 	g.audit = append(g.audit, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
+	g.audit = append(g.audit, fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
+	if len(scope.unresolved) != 0 {
+		g.audit = append(g.audit, "test scope widened for global or unresolved Go inputs: "+strings.Join(scope.unresolved, ","))
+	}
 	inputGraph, err := g.inputGraph()
 	if err != nil {
 		return false, err
@@ -1041,22 +1026,6 @@ func (g *gateContext) packageCacheAudit(reused, executed int) {
 	if reused+executed > 0 {
 		g.audit = append(g.audit, fmt.Sprintf("package test evidence: %d reused + %d executed", reused, executed))
 	}
-}
-
-func (g *gateContext) directChangedPackages() (map[string]bool, error) {
-	out, err := command(g.repo, "go", "list", "-json", "./...")
-	if err != nil {
-		return nil, fmt.Errorf("derive Go ownership: %w", err)
-	}
-	packages, err := testscope.DecodePackages(strings.NewReader(out))
-	if err != nil {
-		return nil, err
-	}
-	changed := map[string]bool{}
-	for _, importPath := range testscope.DirectPackages(g.repo, g.paths, packages) {
-		changed[importPath] = true
-	}
-	return changed, nil
 }
 
 func runGoTests(ctx context.Context, repo string, packages []string, short bool) (testevidence.GoTestReport, error) {

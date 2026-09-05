@@ -3,7 +3,6 @@ package testscope
 import (
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -11,9 +10,9 @@ func TestNonGoOwnership(t *testing.T) {
 	repo := filepath.Join("root", "repo")
 	packages := []Package{
 		{
-			ImportPath: "overgo/internal/model",
-			Dir:        filepath.Join(repo, "internal", "model"),
-			EmbedFiles: []string{"architecture_profiles.json"},
+			ImportPath:      "overgo/internal/model",
+			Dir:             filepath.Join(repo, "internal", "model"),
+			ProductionFiles: []string{"architecture_profiles.json"},
 		},
 		{
 			ImportPath:     "overgo/internal/server",
@@ -22,7 +21,7 @@ func TestNonGoOwnership(t *testing.T) {
 		},
 	}
 	want := []string{"overgo/internal/model", "overgo/internal/server"}
-	got := DirectPackages(repo, []string{
+	got, production := DirectPackages(repo, []string{
 		"internal/model/architecture_profiles.json",
 		"internal/server/testdata/request.json",
 		"docs/plan.json",
@@ -30,16 +29,7 @@ func TestNonGoOwnership(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("DirectPackages() = %v, want %v", got, want)
 	}
-}
-
-func TestDecodePackages(t *testing.T) {
-	raw := strings.NewReader(`{"ImportPath":"overgo/a","Dir":"/repo/a","EmbedFiles":["x.json"]}
-{"ImportPath":"overgo/b","Dir":"/repo/b"}`)
-	packages, err := DecodePackages(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(packages) != 2 || packages[0].EmbedFiles[0] != "x.json" {
-		t.Fatalf("unexpected packages: %#v", packages)
+	if !reflect.DeepEqual(production, want[:1]) {
+		t.Fatalf("production = %v, want %v", production, want[:1])
 	}
 }

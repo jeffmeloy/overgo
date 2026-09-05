@@ -60,6 +60,9 @@ type runMetrics struct {
 	PromptTokens             int     `json:"prompt_tokens"`
 	CachedPromptTokens       int     `json:"cached_prompt_tokens"`
 	OutputTokens             int     `json:"output_tokens"`
+	HostLogitTokens          int     `json:"host_logit_tokens"`
+	DeviceSelectedTokens     int     `json:"device_selected_tokens"`
+	DeviceTopKTokens         int     `json:"device_top_k_tokens"`
 	PromptMilliseconds       float64 `json:"prompt_ms"`
 	PromptTokensPerSecond    float64 `json:"prompt_tokens_per_second"`
 	TTFTMilliseconds         float64 `json:"ttft_ms"`
@@ -101,25 +104,30 @@ type benchmarkResult struct {
 	ParameterCount uint64                 `json:"parameter_count"`
 	ModelBytes     uint64                 `json:"model_bytes"`
 	Residency      recipe.ResidencyPolicy `json:"residency"`
-	// EndOfSequenceIgnored records that every run decoded the declared
-	// token budget with end-of-generation tokens banned.
-	EndOfSequenceIgnored   bool              `json:"end_of_sequence_ignored"`
-	CachePrompt            bool              `json:"cache_prompt"`
-	BatchSequences         int               `json:"batch_sequences"`
-	Speculative            bool              `json:"speculative"`
-	Temperature            float64           `json:"temperature"`
-	TopK                   int               `json:"top_k"`
-	DeviceTopK             bool              `json:"device_top_k"`
-	Device                 driver.DeviceInfo `json:"device"`
-	LoadMilliseconds       float64           `json:"load_ms"`
-	HostHeapBeforeBytes    uint64            `json:"host_heap_before_bytes"`
-	HostHeapAfterLoadBytes uint64            `json:"host_heap_after_load_bytes"`
-	HostHeapAfterRunsBytes uint64            `json:"host_heap_after_runs_bytes"`
-	DeviceAfterLoadBytes   uint64            `json:"device_after_load_bytes"`
-	DeviceAfterRunsBytes   uint64            `json:"device_after_runs_bytes"`
-	DevicePeakBytes        uint64            `json:"device_peak_bytes"`
-	Runs                   []runMetrics      `json:"runs"`
-	Summary                summaryMetrics    `json:"summary"`
+	// EndOfSequenceIgnored records continuation past EOG. SamplingProtocol
+	// distinguishes this from historical results that banned EOG winners.
+	EndOfSequenceIgnored   bool                    `json:"end_of_sequence_ignored"`
+	SamplingProtocol       string                  `json:"sampling_protocol"`
+	SamplerOrder           []sampling.SamplerStage `json:"sampler_order"`
+	Prompt                 string                  `json:"prompt"`
+	TokensPerSequence      int                     `json:"tokens_per_sequence"`
+	RequestedRuns          int                     `json:"requested_runs"`
+	CachePrompt            bool                    `json:"cache_prompt"`
+	BatchSequences         int                     `json:"batch_sequences"`
+	Speculative            bool                    `json:"speculative"`
+	Temperature            float64                 `json:"temperature"`
+	TopK                   int                     `json:"top_k"`
+	DeviceTopK             bool                    `json:"device_top_k"`
+	Device                 driver.DeviceInfo       `json:"device"`
+	LoadMilliseconds       float64                 `json:"load_ms"`
+	HostHeapBeforeBytes    uint64                  `json:"host_heap_before_bytes"`
+	HostHeapAfterLoadBytes uint64                  `json:"host_heap_after_load_bytes"`
+	HostHeapAfterRunsBytes uint64                  `json:"host_heap_after_runs_bytes"`
+	DeviceAfterLoadBytes   uint64                  `json:"device_after_load_bytes"`
+	DeviceAfterRunsBytes   uint64                  `json:"device_after_runs_bytes"`
+	DevicePeakBytes        uint64                  `json:"device_peak_bytes"`
+	Runs                   []runMetrics            `json:"runs"`
+	Summary                summaryMetrics          `json:"summary"`
 }
 
 func main() {
@@ -170,6 +178,9 @@ func parseOptions(args []string) (options, error) {
 	if result.BatchSequences > 0 && result.CachePrompt {
 		return options{}, errors.New("benchmark: -cache-prompt is unavailable in continuous-batch mode")
 	}
+	if result.BatchSequences > 0 && result.Speculative {
+		return options{}, errors.New("benchmark: speculative decoding is unavailable in continuous-batch mode")
+	}
 	if result.Temperature < 0 || result.TopK < 0 {
 		return options{}, errors.New("benchmark: temperature and top-K must be non-negative")
 	}
@@ -178,6 +189,9 @@ func parseOptions(args []string) (options, error) {
 	}
 	if result.Publish && result.Repository == "" {
 		return options{}, errors.New("benchmark: -publish requires -repo so the evidence has a store to land in")
+	}
+	if _, err := benchmarkSampler(result); err != nil {
+		return options{}, fmt.Errorf("benchmark sampling: %w", err)
 	}
 	return result, nil
 }
@@ -236,13 +250,7 @@ func run(args []string) error {
 		if options.BatchSequences > 0 {
 			return executeContinuousBatch(context.Background(), runner, options, promptIDs, index)
 		}
-		// A benchmark measures its declared token budget: every recognized
-		// end-of-generation token is banned so a model that would answer
-		// the prompt in one token still decodes the budget.
-		sampler, samplerErr := sampling.New(sampling.Config{
-			Temperature: float32(options.Temperature), TopK: options.TopK,
-			LogitBiases: endOfGenerationBans(runner),
-		})
+		generation, samplerErr := benchmarkGenerationOptions(options)
 		if samplerErr != nil {
 			return runMetrics{}, samplerErr
 		}
@@ -254,25 +262,21 @@ func run(args []string) error {
 		firstToken := time.Time{}
 		promptEvaluation := inference.PromptEvaluation{}
 		outputTokens := 0
-		_, _, generationErr := runner.Generate(context.Background(), options.Prompt, inference.GenerateOptions{
-			MaxNewTokens: options.Tokens,
-			Sampler:      sampler,
-			// benchmark OnToken only counts; logits omission is acceptable
-			DeviceGreedy:      options.Temperature == 0,
-			SpeculativeDecode: options.Speculative,
-			ContextShift:      options.ContextShift,
-			CachePrompt:       options.CachePrompt,
-			OnPromptEvaluated: func(evaluation inference.PromptEvaluation) {
-				promptEvaluation = evaluation
-			},
-			OnToken: func(inference.TokenEvent) error {
-				outputTokens++
-				if firstToken.IsZero() {
-					firstToken = time.Now()
-				}
-				return nil
-			},
-		})
+		hostLogitTokens, deviceSelectedTokens := 0, 0
+		generation.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) { promptEvaluation = evaluation }
+		generation.OnToken = func(event inference.TokenEvent) error {
+			outputTokens++
+			if len(event.Logits) == 0 {
+				deviceSelectedTokens++
+			} else {
+				hostLogitTokens++
+			}
+			if firstToken.IsZero() {
+				firstToken = time.Now()
+			}
+			return nil
+		}
+		_, _, generationErr := runner.Generate(context.Background(), options.Prompt, generation)
 		finished := time.Now()
 		if generationErr != nil {
 			return runMetrics{}, generationErr
@@ -293,6 +297,8 @@ func run(args []string) error {
 			PromptTokens:           len(promptIDs),
 			CachedPromptTokens:     promptEvaluation.Cached,
 			OutputTokens:           outputTokens,
+			HostLogitTokens:        hostLogitTokens,
+			DeviceSelectedTokens:   deviceSelectedTokens,
 			PromptMilliseconds:     float64(promptEvaluation.Duration) / float64(time.Millisecond),
 			TTFTMilliseconds:       float64(ttft) / float64(time.Millisecond),
 			TotalMilliseconds:      float64(total) / float64(time.Millisecond),
@@ -355,6 +361,12 @@ func run(args []string) error {
 		ModelBytes:             properties.ModelSize,
 		Residency:              runner.Residency(),
 		EndOfSequenceIgnored:   true,
+		SamplingProtocol:       benchmarkProtocol(options.Temperature),
+		SamplerOrder:           benchmarkSamplingConfig(options).Samplers,
+		Prompt:                 options.Prompt,
+		TokensPerSequence:      options.Tokens,
+		RequestedRuns:          options.Runs,
+		Speculative:            options.Speculative,
 		CachePrompt:            options.CachePrompt,
 		BatchSequences:         options.BatchSequences,
 		Temperature:            options.Temperature,
@@ -370,6 +382,9 @@ func run(args []string) error {
 		DevicePeakBytes:        deviceAfterRuns.PeakBytes,
 		Runs:                   runs,
 		Summary:                summarizeRuns(runs),
+	}
+	if err := validateBenchmarkResult(result); err != nil {
+		return err
 	}
 	if err := clioptions.WritePrettyJSON(os.Stdout, result); err != nil {
 		return err
@@ -438,7 +453,7 @@ func executeContinuousBatch(
 	if err != nil {
 		return runMetrics{}, err
 	}
-	sampler, err := sampling.New(sampling.Config{Temperature: float32(options.Temperature), TopK: options.TopK})
+	sampler, err := benchmarkSampler(options)
 	if err != nil {
 		return runMetrics{}, err
 	}
@@ -458,21 +473,30 @@ func executeContinuousBatch(
 		id, sampleErr := sampler.Sample(output.Logits)
 		return tokenizer.TokenID(id), sampleErr
 	}
-	firstToken := time.Now()
-	outputTokens := len(outputs)
-	for generated := 1; generated < options.Tokens; generated++ {
+	firstToken := time.Time{}
+	outputTokens := 0
+	for generated := range options.Tokens {
+		if len(outputs) != len(inputs) {
+			return runMetrics{}, errors.New("benchmark: incomplete batch output")
+		}
 		for sequence, output := range outputs {
 			token, selectErr := selected(output)
 			if selectErr != nil {
 				return runMetrics{}, selectErr
 			}
 			inputs[sequence].Tokens = []tokenizer.TokenID{token}
+			outputTokens++
+		}
+		if firstToken.IsZero() {
+			firstToken = time.Now()
+		}
+		if generated+1 == options.Tokens {
+			break
 		}
 		outputs, err = step(ctx, inputs)
 		if err != nil {
 			return runMetrics{}, err
 		}
-		outputTokens += len(outputs)
 	}
 	finished := time.Now()
 	afterExecution, err := runner.DeviceExecutionStats(ctx)
@@ -497,6 +521,14 @@ func executeContinuousBatch(
 		DeviceMemsets: execution.DeviceMemsets, DeviceMemsetBytes: execution.DeviceMemsetBytes,
 		GraphInstantiations: execution.GraphInstantiations,
 		GraphUpdates:        execution.GraphUpdates, GraphLaunches: execution.GraphLaunches,
+	}
+	switch {
+	case deviceGreedy:
+		metrics.DeviceSelectedTokens = outputTokens
+	case options.DeviceTopK:
+		metrics.DeviceTopKTokens = outputTokens
+	default:
+		metrics.HostLogitTokens = outputTokens
 	}
 	if ttft > 0 {
 		metrics.PromptTokensPerSecond = float64(promptTokens) / ttft.Seconds()
@@ -539,18 +571,6 @@ func summarizeRuns(runs []runMetrics) summaryMetrics {
 		DecodeTokensPerSecondP50:   median(decode),
 		EndToEndTokensPerSecondP50: median(endToEnd),
 	}
-}
-
-// endOfGenerationBans biases every recognized end-of-generation token out
-// of the sampler, the generate command's ignore-eos, so a run measures the
-// declared token budget rather than the model's choice to stop.
-func endOfGenerationBans(runner *inference.Runner) []sampling.LogitBias {
-	tokens := runner.SamplingEOGTokens()
-	bans := make([]sampling.LogitBias, 0, len(tokens))
-	for _, token := range tokens {
-		bans = append(bans, sampling.LogitBias{Token: int(token), Bias: sampling.BannedLogit()})
-	}
-	return bans
 }
 
 func median(sorted []float64) float64 {

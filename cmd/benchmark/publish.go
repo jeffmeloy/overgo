@@ -59,6 +59,9 @@ func publishBenchmarkEvidence(ctx context.Context, options options, result bench
 // tokens count generated output, and the peak device footprint rides
 // along so the claim answers capacity questions without the document.
 func benchmarkClaim(result benchmarkResult, commit string) (runrecord.CapabilityClaim, []byte, artifact.ID, error) {
+	if err := validateBenchmarkResult(result); err != nil {
+		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, err
+	}
 	evidenceData, err := json.Marshal(result)
 	if err != nil {
 		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, err

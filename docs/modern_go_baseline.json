@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "921198935098f0663d7e2ed79736802a240a2314f956ce56f2e6ba6dca80b218",
+  "source_identity": "6ad3de1614118684788bf8ff52c31ad5e7781a425928d9898c99f0857ef54f65",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 2800,
-    "typed_files": 2736
+    "inspected_files": 2819,
+    "typed_files": 2755
   },
   "guidelines": [
     {
@@ -385,17 +385,6 @@
       "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
-    },
-    {
-      "guideline": "strings_split_seq",
-      "path": "internal/gate/verification.go",
-      "symbol": "stepTest",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./internal/gate -count=1",
-      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 2
     },
     {
       "guideline": "strings_split_seq",
@@ -5172,5 +5161,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "94b9465d423d9dbc330bef52af253b3b1d4bfc6d89f98d480520fdfdc66a62c3"
+  "exceptions_sha256": "e2402054cac6e8f5ab1afced38b8a47b803afa782d883761da84250c85db83e6"
 }

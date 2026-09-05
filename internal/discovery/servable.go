@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -38,16 +40,28 @@ func Servable(ctx context.Context, store *overgodb.Store, limit int) ([]Entry, e
 
 // ServableWithMemo is Servable with digest reuse for interactive callers: a
 // nil memo hashes every file fresh, exactly as Servable always has.
-func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, memo *Memo) ([]Entry, error) {
+// Explicit locations filter recorded component metadata before any file hashing
+// or active-recipe resolution. An empty selection retains full-catalog discovery.
+func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, memo *Memo, selectedLocations ...string) ([]Entry, error) {
 	result, err := store.Query(ctx, overgodb.Query{
 		Kind: artifact.KindModel, MaxResults: limit, Projection: overgodb.ProjectManifests,
 	})
 	if err != nil {
 		return nil, err
 	}
+	if result.Truncated {
+		return nil, fmt.Errorf("discovery: model catalog exceeds listing bound %d", limit)
+	}
 	var entries []Entry
 	identities := map[string]fileIdentity{}
 	for _, manifest := range result.Manifests {
+		selected, err := matchesSelectedLocation(ctx, store, manifest, selectedLocations)
+		if err != nil {
+			return nil, err
+		}
+		if !selected {
+			continue
+		}
 		declared, err := modelrecipe.HasActiveRecipe(ctx, store, manifest.ID, recipe.TaskInference)
 		if err != nil {
 			return nil, err
@@ -84,6 +98,29 @@ func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, mem
 		entries = append(entries, entry)
 	}
 	return entries, nil
+}
+
+func matchesSelectedLocation(ctx context.Context, store artifact.Reader, manifest artifact.Manifest, selected []string) (bool, error) {
+	if len(selected) == 0 {
+		return true, nil
+	}
+	for _, component := range manifest.Components {
+		locations, err := store.Locations(ctx, component.Artifact)
+		if err != nil {
+			return false, err
+		}
+		for _, location := range locations {
+			if location.Kind != artifact.LocationFile {
+				continue
+			}
+			for _, path := range selected {
+				if strings.EqualFold(filepath.ToSlash(filepath.Clean(location.Value)), filepath.ToSlash(filepath.Clean(path))) {
+					return true, nil
+				}
+			}
+		}
+	}
+	return false, nil
 }
 
 type fileIdentity struct {

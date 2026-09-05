@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"slices"
 	"strconv"
@@ -560,6 +561,16 @@ func (h *Handler) decodeJSONWithLimit(
 	target any,
 	limit int64,
 ) bool {
+	// Retain header-less non-browser API calls. Browser JSON requests must
+	// declare their media type; explicit non-JSON types are never decoded.
+	contentTypes := request.Header.Values("Content-Type")
+	if len(contentTypes) != 0 || request.Header.Get("Origin") != "" || request.Header.Get("Sec-Fetch-Site") != "" {
+		mediaType, _, err := mime.ParseMediaType(request.Header.Get("Content-Type"))
+		if len(contentTypes) != 1 || err != nil || mediaType != "application/json" {
+			writeError(response, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
+			return false
+		}
+	}
 	request.Body = http.MaxBytesReader(response, request.Body, limit)
 	if err := strictjson.Decode(request.Body, target); err != nil {
 		writeInvalidRequestMessage(response, "invalid JSON request: "+err.Error())

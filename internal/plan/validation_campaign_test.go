@@ -16,6 +16,7 @@ func optimizedValidationProblems(document Plan) []string {
 		return []string{err.Error()}
 	}
 	prerequisites := map[string][]string{
+		"modality-verification/capability-census":     {"modality-verification/capability-census-owner"},
 		"model-regression-baseline/do":                {"validation-readiness/measurement-contract", "model-regression-baseline/prepare-guard", "model-regression-baseline/repair-throughput"},
 		"model-regression-baseline/complete-coverage": {"baseline-repair-order/do", "model-regression-baseline/prepare-guard"},
 		"model-regression-baseline/repair-throughput": {"model-regression-baseline/complete-coverage"},
@@ -25,6 +26,12 @@ func optimizedValidationProblems(document Plan) []string {
 		"decode-attention-per-key-cost/do":            {"model-regression-gate/do"},
 		"gemma-12b-accuracy/do":                       {"model-regression-gate/do"},
 		"model-regression-gate/do":                    {"model-regression-baseline/do"},
+		"model-regression-gate/coverage-inventory":    {"model-regression-baseline/do"},
+		"model-regression-gate/coverage-selection":    {"model-regression-gate/coverage-inventory"},
+		"model-regression-gate/coverage-acquisition":  {"model-regression-gate/coverage-selection", "model-regression-gate/readmit-controls", "model-regression-gate/readmit-pool-controls"},
+		"model-regression-gate/readmit-controls":      {"model-regression-baseline/do", "model-regression-gate/coverage-selection", "modality-verification/capability-census"},
+		"model-regression-gate/repair-pool-release":   {"model-regression-gate/readmit-controls"},
+		"model-regression-gate/readmit-pool-controls": {"model-regression-gate/repair-pool-release"},
 		"simplify-prefill-paths/do":                   {"model-regression-gate/do", "model-regression-baseline/full-catalog", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
 		"simplify-execution-core/do":                  {"simplify-prefill-paths/do"},
 		"final-model-validation/do":                   {"simplify-execution-core/do", "simplify-command-surface/do", "simplify-checkpoint-locations/do", "boundary-hardening/cross-origin", "boundary-hardening/argv-output"},

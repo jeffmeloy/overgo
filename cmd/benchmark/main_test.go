@@ -32,6 +32,10 @@ func TestParseOptionsBounds(t *testing.T) {
 		{"-host-cache", "-native-quant", "model.gguf", "hello"},
 		{"-batch-sequences", "-1", "model.gguf", "hello"},
 		{"-batch-sequences", "1", "-cache-prompt", "model.gguf", "hello"},
+		{"-batch-sequences", "1", "-speculative", "model.gguf", "hello"},
+		{"-temperature", "NaN", "model.gguf", "hello"},
+		{"-temperature", "+Inf", "model.gguf", "hello"},
+		{"-temperature", "1e100", "model.gguf", "hello"},
 	} {
 		if _, err := parseOptions(args); err == nil {
 			t.Fatalf("arguments %v were accepted", args)

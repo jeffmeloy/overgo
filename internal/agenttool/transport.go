@@ -191,13 +191,18 @@ func (adapter *httpAdapter) invoke(ctx context.Context, manual Manual, arguments
 }
 
 func (argvAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
-	var stdout bytes.Buffer
-	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+	bounded, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	stdout := argvOutput{cancel: func() { cancel(&OutputLimitError{RetainedBytes: artifact.MaxContentBytes}) }}
+	receipt, err := processcontrol.Run(bounded, processcontrol.Command{
 		Path:   manual.Transport.Program,
 		Args:   manual.Transport.Args,
 		Stdin:  bytes.NewReader(arguments),
 		Stdout: &stdout,
 	})
+	if stdout.overflow {
+		return nil, &OutputLimitError{Receipt: receipt, RetainedBytes: len(stdout.data)}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("agent tool: %q exited: %w", manual.Name, err)
 	}
@@ -206,11 +211,51 @@ func (argvAdapter) invoke(ctx context.Context, manual Manual, arguments json.Raw
 	}
 	// Argv tools speak text; the result is the stdout text as one JSON
 	// string so every transport returns strict JSON to the loop.
-	encoded, err := json.Marshal(strings.TrimRight(stdout.String(), "\r\n"))
+	encoded, err := json.Marshal(strings.TrimRight(string(stdout.data), "\r\n"))
 	if err != nil {
 		return nil, err
 	}
 	return encoded, nil
+}
+
+// OutputLimitError reports an argv stdout overflow after the supervised tree
+// and output pipes have reached their terminal state. No partial result is
+// returned; Receipt retains the actual process outcome.
+type OutputLimitError struct {
+	Receipt       processcontrol.Receipt
+	RetainedBytes int
+}
+
+// Error describes the overflow bound and recorded tree termination.
+func (err *OutputLimitError) Error() string {
+	return fmt.Sprintf("argv stdout exceeds %d bytes (retained %d; tree terminated=%t)", artifact.MaxContentBytes, err.RetainedBytes, err.Receipt.TreeTerminated)
+}
+
+// argvOutput retains at most the artifact bound, including backing capacity.
+// Only the stdout drain writes it; Run joins that drain before it is inspected.
+type argvOutput struct {
+	data     []byte
+	cancel   context.CancelFunc
+	overflow bool
+}
+
+// Write retains a bounded prefix and cancels on overflow while allowing drain.
+func (output *argvOutput) Write(data []byte) (int, error) {
+	retained := min(len(data), artifact.MaxContentBytes-len(output.data))
+	needed := len(output.data) + retained
+	if needed > cap(output.data) {
+		capacity := min(artifact.MaxContentBytes, max(needed, cap(output.data)+cap(output.data)))
+		grown := make([]byte, len(output.data), capacity)
+		copy(grown, output.data)
+		output.data = grown
+	}
+	output.data = append(output.data, data[:retained]...)
+	if retained < len(data) && !output.overflow {
+		output.overflow = true
+		output.cancel()
+	}
+	// Keep draining after cancellation so the supervisor can join both pipes.
+	return len(data), nil
 }
 
 const (

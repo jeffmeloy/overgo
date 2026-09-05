@@ -159,3 +159,10 @@ func generateText(
 	}
 	return result, nil
 }
+
+// Record generates one case greedily and returns what the model produced:
+// the prompt token count, the generated token count and the text, the facts
+// a fresh model's first golden is recorded from (modelintake).
+func Record(ctx context.Context, generator Generator, name, prompt string, maxTokens int) (ExactResult, error) {
+	return generateText(ctx, generator, name, prompt, maxTokens)
+}

@@ -316,17 +316,14 @@
     for (const item of (listing.conversations || []).filter((entry) => !entry.archived)) {
       const open = el("button", { class: "tab" + (selectedConversation && selectedConversation.root === item.root ? " active" : ""),
         text: item.title, title: item.turns + " turn(s)", onclick: () => openConversation(item) });
-      const rename = el("button", { class: "link-button", text: "rename", "aria-label": "rename conversation", onclick: async () => {
-        const title = window.prompt("conversation title", item.title);
-        if (title == null) return;
-        await api.post("/interactions/label", { root: item.root, title, archived: false });
+      const label = async (patch) => {
+        await api.post("/interactions/label", { root: item.root, title: item.title, archived: false, ...patch });
+        if (patch.archived && selectedConversation && selectedConversation.root === item.root) openConversation(null);
         refreshConversations();
-      } });
-      const archive = el("button", { class: "link-button", text: "archive", "aria-label": "archive conversation", onclick: async () => {
-        await api.post("/interactions/label", { root: item.root, title: item.title, archived: true });
-        if (selectedConversation && selectedConversation.root === item.root) openConversation(null);
-        refreshConversations();
-      } });
+      };
+      const rename = el("button", { class: "link-button", text: "rename", "aria-label": "rename conversation",
+        onclick: () => { const title = window.prompt("conversation title", item.title); if (title != null) label({ title }); } });
+      const archive = el("button", { class: "link-button", text: "archive", "aria-label": "archive conversation", onclick: () => label({ archived: true }) });
       host.appendChild(el("div", { class: "conversation" }, open, el("div", { class: "row" }, rename, archive)));
     }
   }

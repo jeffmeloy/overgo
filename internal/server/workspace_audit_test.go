@@ -71,6 +71,7 @@ var workspaceFileAllowances = map[string][]string{
 	"serving_observation.go":      {"serving"},
 	"tool_execution.go":           {"operator"},
 	"workspace_capabilities.go":   {"serving"},
+	"library_workspace.go":        {"operator"},
 	"workspace_manifest.go":       {"agent", "serving"},
 }
 

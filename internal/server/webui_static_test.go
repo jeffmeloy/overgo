@@ -126,7 +126,7 @@ func TestWorkflowStageGUI(t *testing.T) {
 
 func TestToolDecisionGUI(t *testing.T) {
 	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, token := range []string{"/operations/decision", "item.recovery", "Grant ", "decline"} {
+	for _, token := range []string{"overgo.decideOperation(", "item.recovery", "Grant ", "decline"} {
 		if !strings.Contains(runtime, token) {
 			t.Errorf("tool decision GUI missing %q", token)
 		}

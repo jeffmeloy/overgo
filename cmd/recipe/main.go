@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -19,12 +18,11 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
-	"overgo/internal/model"
 	"overgo/internal/modelartifact"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/runrecord"
 )
 
 func main() {
@@ -338,7 +336,7 @@ func prepareCapability(
 
 func verifyCapability(repository, path string, task recipe.Task, capability capability, input string) error {
 	ctx := context.Background()
-	revision, err := cleanGoRevision()
+	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
 		return err
 	}
@@ -378,7 +376,7 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 			measured = envelope
 		}
 	}
-	verification, err := publishMeasuredVerification(
+	verification, err := modelintake.PublishMeasuredVerification(
 		ctx, store, definition, revision, time.Since(started), "host", "go", "candidate output validated", measured,
 	)
 	if err != nil {
@@ -392,141 +390,6 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 		result["output"] = output
 	}
 	return json.NewEncoder(os.Stdout).Encode(result)
-}
-
-func publishCapabilityVerification(
-	ctx context.Context,
-	store artifact.Repository,
-	definition recipe.Definition,
-	revision string,
-	wall time.Duration,
-	device, backend, evidence string,
-) (modelrecipe.Verification, error) {
-	return publishMeasuredVerification(
-		ctx, store, definition, revision, wall, device, backend, evidence, capabilityruntime.Measured{},
-	)
-}
-
-// publishMeasuredVerification records a successful candidate execution
-// together with its measured decomposition: per-node phase walls become
-// gate steps (and thereby run phases), and the peak device bytes enter
-// the execution step's evidence.
-func publishMeasuredVerification(
-	ctx context.Context,
-	store artifact.Repository,
-	definition recipe.Definition,
-	revision string,
-	wall time.Duration,
-	device, backend, evidence string,
-	measured capabilityruntime.Measured,
-) (modelrecipe.Verification, error) {
-	return publishCapabilityResult(
-		ctx, store, definition, revision, wall, device, backend, evidence,
-		runrecord.OutcomeSucceeded, "", measured,
-	)
-}
-
-func publishCapabilityFailure(
-	ctx context.Context,
-	store artifact.Repository,
-	definition recipe.Definition,
-	revision string,
-	wall time.Duration,
-	device, backend, evidence, failure string,
-) (modelrecipe.Verification, error) {
-	return publishCapabilityResult(
-		ctx, store, definition, revision, wall, device, backend, evidence,
-		runrecord.OutcomeFailed, failure, capabilityruntime.Measured{},
-	)
-}
-
-// mediaNodePhase maps recipe node identifiers onto the run phase
-// vocabulary; nodes outside the vocabulary carry no phase step and
-// remain inside the total wall.
-func mediaNodePhase(node recipe.NodeID) (runrecord.Phase, bool) {
-	switch node {
-	case "prepare":
-		return runrecord.PhasePrepare, true
-	case "integrate":
-		return runrecord.PhaseIntegrate, true
-	case "decode":
-		return runrecord.PhaseDecode, true
-	case "generate":
-		return runrecord.PhaseGenerate, true
-	case "tokenize":
-		return runrecord.PhaseTokenize, true
-	}
-	return "", false
-}
-
-func publishCapabilityResult(
-	ctx context.Context,
-	store artifact.Repository,
-	definition recipe.Definition,
-	revision string,
-	wall time.Duration,
-	device, backend, evidence string,
-	outcome runrecord.Outcome,
-	failure string,
-	measured capabilityruntime.Measured,
-) (modelrecipe.Verification, error) {
-	environment, err := runrecord.CurrentEnvironment(device, backend)
-	if err != nil {
-		return modelrecipe.Verification{}, err
-	}
-	duration := uint64(max(wall.Nanoseconds(), 1))
-	stepOutcome := runrecord.StepSucceeded
-	if outcome == runrecord.OutcomeFailed {
-		stepOutcome = runrecord.StepFailed
-	}
-	if measured.PeakDeviceBytes > 0 {
-		evidence = fmt.Sprintf("%s; peak_device_bytes=%d", evidence, measured.PeakDeviceBytes)
-	}
-	steps := []runrecord.GateStep{{
-		Name: "candidate-execution", Phase: runrecord.PhaseTest,
-		Outcome: stepOutcome, DurationNS: duration, Evidence: evidence,
-	}}
-	for _, node := range measured.Phases {
-		phase, ok := mediaNodePhase(node.Node)
-		if !ok || node.WallNS == 0 {
-			continue
-		}
-		steps = append(steps, runrecord.GateStep{
-			Name: "node-" + string(node.Node), Phase: phase,
-			Outcome: stepOutcome, DurationNS: node.WallNS,
-		})
-	}
-	record, err := runrecord.NewGateRecord(
-		definition.ID, environment.ID, revision,
-		outcome, failure, duration, steps,
-	)
-	if err != nil {
-		return modelrecipe.Verification{}, err
-	}
-	batch, err := record.Batch("recipe/verification/" + definition.ID.String() + "/" + record.Result.ID.String())
-	if err != nil {
-		return modelrecipe.Verification{}, err
-	}
-	environmentContent, err := environment.Content()
-	if err != nil {
-		return modelrecipe.Verification{}, err
-	}
-	batch.Contents = append(batch.Contents, environmentContent)
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
-		return modelrecipe.Verification{}, err
-	}
-	return modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}, nil
-}
-
-func cleanGoRevision() (string, error) {
-	status, err := exec.Command("git", "status", "--porcelain", "--untracked-files=all", "--", "*.go").Output()
-	if err != nil {
-		return "", fmt.Errorf("recipe verifier source status: %w", err)
-	}
-	if strings.TrimSpace(string(status)) != "" {
-		return "", errors.New("recipe verifier requires committed Go source")
-	}
-	return runrecord.HeadCommit(".")
 }
 
 func executeCapability(
@@ -606,95 +469,22 @@ func executeCapability(
 	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
 }
 
-// sessionOverride: operator-pinned decode session; nil defers to the
-// plan-derived choice.
-type sessionOverride struct {
-	set   bool
-	value modelrecipe.DecodeSessionPolicy
-}
-
-type inferenceCandidate struct {
-	inventory  modelartifact.Inventory
-	resolved   modelrecipe.ResolvedModelDefinition
-	definition recipe.Definition
-}
-
-func prepareInferenceCandidate(
-	ctx context.Context,
-	store artifact.Reader,
-	path string,
-	override sessionOverride,
-	residency recipe.ResidencyPolicy,
-) (inferenceCandidate, error) {
-	file, err := gguf.Open(path)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	spec, err := model.ReadSpec(file)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	profileDocument, err := modelrecipe.ResolveRegisteredArchitectureProfile(ctx, store, spec.Architecture)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	document, err := modelrecipe.NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	resolved, err := document.Resolve(profileDocument, inventory.TensorInventory)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	weights, err := model.ReadWeights(file, spec)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	modelPlan, err := model.CompileModelPlanWithProfile(spec, weights, profileDocument.Policy)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	session := modelrecipe.DecodeSessionCapacity
-	if !modelPlan.SupportsCapacityCache() {
-		session = modelrecipe.DecodeSessionRequest
-	}
-	if override.set {
-		if override.value == modelrecipe.DecodeSessionCapacity && !modelPlan.SupportsCapacityCache() {
-			return inferenceCandidate{}, errors.New("recipe: -session capacity is unsupported by this model's compiled plan")
-		}
-		session = override.value
-	}
-	definition, err := modelrecipe.InferenceWithModelDefinition(
-		inventory.Manifest.ID, resolved.Profile.ID, resolved.Document.ID, recipe.PlacementHybrid,
-		session, residency,
-	)
-	if err != nil {
-		return inferenceCandidate{}, err
-	}
-	return inferenceCandidate{inventory: inventory, resolved: resolved, definition: definition}, nil
-}
-
-func parseSessionOverride(text string) (sessionOverride, error) {
+func parseSessionOverride(text string) (modelintake.SessionOverride, error) {
 	switch strings.ToLower(strings.TrimSpace(text)) {
 	case "", "auto":
-		return sessionOverride{}, nil
+		return modelintake.SessionOverride{}, nil
 	case "request":
-		return sessionOverride{set: true, value: modelrecipe.DecodeSessionRequest}, nil
+		return modelintake.SessionOverride{Set: true, Value: modelrecipe.DecodeSessionRequest}, nil
 	case "capacity":
-		return sessionOverride{set: true, value: modelrecipe.DecodeSessionCapacity}, nil
+		return modelintake.SessionOverride{Set: true, Value: modelrecipe.DecodeSessionCapacity}, nil
 	default:
-		return sessionOverride{}, fmt.Errorf("unknown -session %q (auto|request|capacity)", text)
+		return modelintake.SessionOverride{}, fmt.Errorf("unknown -session %q (auto|request|capacity)", text)
 	}
 }
 
 func activate(
 	repository, path, reason string,
-	override sessionOverride,
+	override modelintake.SessionOverride,
 	residency recipe.ResidencyPolicy,
 	verification modelrecipe.Verification,
 ) error {
@@ -704,29 +494,29 @@ func activate(
 		return err
 	}
 	defer store.Close()
-	candidate, err := prepareInferenceCandidate(ctx, store, path, override, residency)
+	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}
-	modelID := candidate.inventory.Manifest.ID
+	modelID := candidate.Inventory.Manifest.ID
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, candidate.inventory, candidate.resolved,
+		ctx, store, candidate.Inventory, candidate.Resolved,
 	); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
 	if err := modelrecipe.ActivateCapability(
-		ctx, store, candidate.definition, verification, recipe.EvidenceVerified, reason,
+		ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, reason,
 	); err != nil {
 		return err
 	}
 	fmt.Printf("activated %s\n  model      %s\n  definition %s\n  recipe     %s\n  reason     %s\n",
-		path, modelID, candidate.resolved.Document.ID, candidate.definition.ID, reason)
+		path, modelID, candidate.Resolved.Document.ID, candidate.Definition.ID, reason)
 	return nil
 }
 
 func retire(
 	repository, path, reason string,
-	override sessionOverride,
+	override modelintake.SessionOverride,
 	residency recipe.ResidencyPolicy,
 	verification modelrecipe.Verification,
 ) error {
@@ -736,16 +526,16 @@ func retire(
 		return err
 	}
 	defer store.Close()
-	candidate, err := prepareInferenceCandidate(ctx, store, path, override, residency)
+	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}
 	if err := modelrecipe.RetireActiveCapability(
-		ctx, store, candidate.definition, verification, reason,
+		ctx, store, candidate.Definition, verification, reason,
 	); err != nil {
 		return err
 	}
-	fmt.Printf("retired %s\n  model  %s\n  reason %s\n", path, candidate.inventory.Manifest.ID, reason)
+	fmt.Printf("retired %s\n  model  %s\n  reason %s\n", path, candidate.Inventory.Manifest.ID, reason)
 	return nil
 }
 

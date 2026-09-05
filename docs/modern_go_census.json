@@ -3,14 +3,14 @@
   "doc": "Source-bound Go 1.26 guideline closure. Exact sites and owned exception oracles remain in the ratchet authority.",
   "target_go": "1.26",
   "build_context": "windows/amd64",
-  "source_identity": "d92edad1fbabeeee9283f398815e072d83990f99c5b2e7e45680f321d91008d8",
+  "source_identity": "2382c29c9f49c7912d04edf510eecc405b55c014c083894ac5a0c8b2980cfeba",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
   "exceptions_sha256": "ac299cb70797e6f505a59fd79019269cc613aa9410f50089ab3187b65179669d",
   "applicable": 48,
   "measured": 48,
   "candidates": 509,
-  "adopted": 7871,
+  "adopted": 7920,
   "exception_groups": 450,
   "excepted_candidates": 509,
   "unresolved": 0,
@@ -54,7 +54,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 2061,
+      "adopted": 2067,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -65,7 +65,7 @@
       "risk": "wire",
       "measured": true,
       "candidates": 2,
-      "adopted": 702,
+      "adopted": 719,
       "excepted": 2,
       "unresolved": 0,
       "disposition": "exact-expiring-exceptions"
@@ -87,7 +87,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 13,
-      "adopted": 22,
+      "adopted": 23,
       "excepted": 13,
       "unresolved": 0,
       "disposition": "exact-expiring-exceptions"
@@ -197,7 +197,7 @@
       "risk": "numerical",
       "measured": true,
       "candidates": 0,
-      "adopted": 778,
+      "adopted": 780,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -219,7 +219,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 422,
+      "adopted": 432,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -230,7 +230,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 10,
+      "adopted": 11,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -252,7 +252,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 239,
-      "adopted": 260,
+      "adopted": 261,
       "excepted": 239,
       "unresolved": 0,
       "disposition": "exact-expiring-exceptions"
@@ -263,7 +263,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 223,
+      "adopted": 224,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -318,7 +318,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 1367,
+      "adopted": 1369,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -395,7 +395,7 @@
       "risk": "concurrency",
       "measured": true,
       "candidates": 11,
-      "adopted": 4,
+      "adopted": 8,
       "excepted": 11,
       "unresolved": 0,
       "disposition": "exact-expiring-exceptions"
@@ -428,7 +428,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 23,
+      "adopted": 21,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -439,7 +439,7 @@
       "risk": "behavioral",
       "measured": true,
       "candidates": 0,
-      "adopted": 634,
+      "adopted": 637,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -516,7 +516,7 @@
       "risk": "behavioral",
       "measured": true,
       "candidates": 0,
-      "adopted": 276,
+      "adopted": 277,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -538,7 +538,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 224,
+      "adopted": 226,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"

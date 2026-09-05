@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -19,7 +20,7 @@ func retireOrphan(repository, modelID string, task recipe.Task, reason string) e
 	if err != nil {
 		return errors.Join(errors.New("retire-orphan takes the model artifact ID, not a path"), err)
 	}
-	revision, err := cleanGoRevision()
+	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
 		return err
 	}

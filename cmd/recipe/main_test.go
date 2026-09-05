@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -59,7 +60,7 @@ func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/recipe-verifier/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := publishCapabilityVerification(
+	verification, err := modelintake.PublishVerification(
 		ctx, store, definition, "0123456789abcdef0123456789abcdef01234567", time.Millisecond,
 		"host", "go", "fixture output validated",
 	)

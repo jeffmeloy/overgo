@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -19,10 +20,10 @@ import (
 
 func verifyInference(
 	repository, path, input string,
-	override sessionOverride,
+	override modelintake.SessionOverride,
 	residency recipe.ResidencyPolicy,
 ) error {
-	revision, err := cleanGoRevision()
+	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
 		return err
 	}
@@ -40,7 +41,7 @@ func verifyInference(
 		return err
 	}
 	defer store.Close()
-	candidate, err := prepareInferenceCandidate(ctx, store, path, override, residency)
+	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}
@@ -49,8 +50,8 @@ func verifyInference(
 		return err
 	}
 	evaluationPlan, err := evaluation.BindExact(exactPlan, evaluation.ExactAuthorities{
-		ModelDefinition: candidate.resolved.Document.ID,
-		RuntimeRecipe:   candidate.definition.ID,
+		ModelDefinition: candidate.Resolved.Document.ID,
+		RuntimeRecipe:   candidate.Definition.ID,
 		CodeCommit:      revision,
 		Environment:     environment.ID,
 		Execution:       evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
@@ -59,20 +60,20 @@ func verifyInference(
 		return fmt.Errorf("recipe: bind inference evaluation: %w", err)
 	}
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, candidate.inventory, candidate.resolved,
+		ctx, store, candidate.Inventory, candidate.Resolved,
 	); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	if _, published, err := modelrecipe.Status(ctx, store, candidate.definition.ID); err != nil {
+	if _, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID); err != nil {
 		return err
 	} else if !published {
 		if _, _, err := modelrecipe.PublishCandidate(
-			ctx, store, "recipe/candidate/"+candidate.definition.ID.String(), candidate.definition,
+			ctx, store, "recipe/candidate/"+candidate.Definition.ID.String(), candidate.Definition,
 		); err != nil {
 			return err
 		}
 	}
-	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.definition, candidate.resolved)
+	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
 	if err != nil {
 		return err
 	}
@@ -89,8 +90,8 @@ func verifyInference(
 		if len(evidence) > 1900 {
 			evidence = evidence[:1900]
 		}
-		verification, publishErr := publishCapabilityFailure(
-			ctx, store, candidate.definition, revision, time.Since(started),
+		verification, publishErr := modelintake.PublishFailure(
+			ctx, store, candidate.Definition, revision, time.Since(started),
 			"cuda:0", "cuda", "contract=exact; "+evidence, "exact-mismatch",
 		)
 		if publishErr != nil {
@@ -98,7 +99,7 @@ func verifyInference(
 		}
 		if encodeErr := json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"error": failure.Error(), "gate_id": verification.Gate.String(),
-			"outcome": "failed", "recipe_id": candidate.definition.ID.String(),
+			"outcome": "failed", "recipe_id": candidate.Definition.ID.String(),
 			"run_id": verification.Run.String(),
 		}); encodeErr != nil {
 			return errors.Join(failure, encodeErr)
@@ -106,14 +107,14 @@ func verifyInference(
 		return fmt.Errorf("recipe: exact inference evaluation: %w", failure)
 	}
 	evidence := fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", evaluationPlan.Identity(), reportID, len(suite.Cases))
-	verification, err := publishCapabilityVerification(
-		ctx, store, candidate.definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
+	verification, err := modelintake.PublishVerification(
+		ctx, store, candidate.Definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
 	)
 	if err != nil {
 		return err
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
-		"gate_id": verification.Gate.String(), "recipe_id": candidate.definition.ID.String(),
+		"gate_id": verification.Gate.String(), "recipe_id": candidate.Definition.ID.String(),
 		"run_id": verification.Run.String(), "report_id": reportID.String(),
 	})
 }

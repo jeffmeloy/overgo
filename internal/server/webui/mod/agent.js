@@ -223,12 +223,8 @@
 
       function renderAutomations() {
         const agent = activeAgent();
-        const select = el("select", { class: "text" });
-        for (const item of (agent && agent.automations) || []) {
-          select.append(el("option", { value: item.id, text: item.name }));
-        }
-        const key = el("input", { class: "text", placeholder: "idempotency key" });
-        const destination = el("input", { class: "text", placeholder: "approved destination" });
+        const select = el("select", { class: "text" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
+        const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", placeholder }));
         const inputs = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON inputs" });
         const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });
         run.addEventListener("click", async () => {
@@ -244,8 +240,7 @@
         automationHost.replaceChildren(el("div", { class: "row" }, select, key, destination, run), inputs);
       }
 
-      // renderProvenance expands one step's full evidence walk: interaction, manual identity, receipt chain
-      // from completed back to admitted, committed decision and result, every link an artifact.
+      // renderProvenance expands one step's evidence walk: interaction, manual, receipts, decision, result.
       async function renderProvenance(host, session, step) {
         try {
           const walk = await api.get("/agent/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);

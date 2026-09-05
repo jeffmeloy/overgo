@@ -129,10 +129,7 @@
     }
 
     function mediaCard(event) {
-      let player;
-      if (event.kind === "image") player = el("a", { href: event.url, target: "_blank" }, el("img", { src: event.url, alt: event.caption || "" }));
-      else if (event.kind === "video") player = el("video", { src: event.url, controls: "", style: "max-width:420px" });
-      else player = el("audio", { controls: "", src: event.url });
+      const player = mediaPlayer(event.kind, event.url, event.caption);
       const facts = [];
       if (event.mime) facts.push(event.mime);
       if (event.bytes) facts.push(fmt.bytes(event.bytes));
@@ -208,6 +205,13 @@
     function reset() { messages.length = 0; clear(log); thinkingRow = null; }
 
     return { add, consume, toolCard, mediaCard, errorRow, thinking, reset, messages, node: log, renderMessage };
+  }
+
+  // mediaPlayer: the element that shows a media artifact as what it is (image, video, audio).
+  function mediaPlayer(kind, url, caption) {
+    if (kind === "image") return el("a", { href: url, target: "_blank" }, el("img", { src: url, alt: caption || "" }));
+    if (kind === "video") return el("video", { src: url, controls: "", style: "max-width:420px" });
+    return el("audio", { controls: "", src: url });
   }
 
   function mediaKind(mime) {
@@ -453,4 +457,6 @@
   overgo.generate = generate;
   overgo.generationTab = generationTab;
   overgo.toolStep = toolStep;
+  overgo.mediaPlayer = mediaPlayer;
+  overgo.mediaKind = mediaKind;
 })();

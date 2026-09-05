@@ -453,6 +453,7 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"gui-workbench/operations-strip",
 		"gui-quality/accessibility-responsive",
 		"gui-quality/acceptance-lane",
+		"gui-library/do",
 		"gui-docs/readme-launcher-manifest",
 		"gui-closeout/closeout",
 		// Rows retained from the master plan at the lane base (9dce4fca):

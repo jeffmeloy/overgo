@@ -57,9 +57,8 @@
         for (const capability of selectedCapabilities()) {
           const input = el("input", { type: "checkbox", value: capability.suite.plan });
           fields.set(capability.suite.plan, input);
-          table.appendChild(el("tr", {}, el("td", {}, input), el("td", { text: capability.suite.kind }),
-            el("td", { text: capability.suite.source }), el("td", { class: "mono", text: String(capability.suite.cases) }),
-            el("td", {}, artifactLink(overgo, capability.suite.plan))));
+          table.appendChild(overgo.tableRow([input, el("span", { text: capability.suite.kind }), el("span", { text: capability.suite.source }),
+            String(capability.suite.cases), artifactLink(overgo, capability.suite.plan)]));
         }
         matrix.replaceChildren(table);
       }
@@ -112,9 +111,8 @@
             "&right=" + encodeURIComponent(entry.evaluation));
           const table = el("table", { class: "grid" }, overgo.headerRow(["metric", "baseline", "current", "delta", "result"]));
           for (const metric of comparison.metrics || []) {
-            table.appendChild(el("tr", {}, el("td", { text: metric.name }),
-              el("td", { class: "mono", text: String(metric.left) }), el("td", { class: "mono", text: String(metric.right) }),
-              el("td", { class: "mono", text: String(metric.delta) }), el("td", { text: metric.improved ? "improved" : "not improved" })));
+            table.appendChild(overgo.tableRow([metric.name, String(metric.left), String(metric.right), String(metric.delta),
+              el("span", { text: metric.improved ? "improved" : "not improved" })]));
           }
           detail.replaceChildren(el("div", { class: "section-title", text: "Comparison" }), table);
           baseline = null;
@@ -129,12 +127,11 @@
           const entries = await api.get("/evaluations/history?model=" + encodeURIComponent(model.value));
           const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "commit", "metrics", "run", "actions"]));
           for (const entry of entries) {
-            table.appendChild(el("tr", {}, el("td", { text: entry.outcome }),
-              el("td", { class: "mono", text: (entry.code_commit || "").slice(0, 10) }),
-              el("td", { text: (entry.metrics || []).map((item) => item.name + "=" + item.value + " " + item.direction).join(", ") || "-" }),
-              el("td", {}, artifactLink(overgo, entry.run)),
-              el("td", { class: "row" }, entry.report ? el("button", { class: "btn alt", text: "Inspect", onclick: () => showReport(entry) }) : null,
-                entry.evaluation ? el("button", { class: "btn alt", text: "Compare", onclick: () => compare(entry) }) : null)));
+            table.appendChild(overgo.tableRow([entry.outcome, (entry.code_commit || "").slice(0, 10),
+              el("span", { text: (entry.metrics || []).map((item) => item.name + "=" + item.value + " " + item.direction).join(", ") || "-" }),
+              artifactLink(overgo, entry.run),
+              el("span", { class: "row" }, entry.report ? el("button", { class: "btn alt", text: "Inspect", onclick: () => showReport(entry) }) : null,
+                entry.evaluation ? el("button", { class: "btn alt", text: "Compare", onclick: () => compare(entry) }) : null)]));
           }
           history.replaceChildren(table);
         } catch (err) {

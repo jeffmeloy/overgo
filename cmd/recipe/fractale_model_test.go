@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -58,7 +59,7 @@ func TestFractaleRecipeActivation(t *testing.T) {
 	if generation.Text != reference || len(generation.Tokens) != 8 {
 		t.Fatalf("generation = %q/%v", generation.Text, generation.Tokens)
 	}
-	verification, err := publishCapabilityVerification(
+	verification, err := modelintake.PublishVerification(
 		ctx, store, definition, "0123456789abcdef0123456789abcdef01234567", time.Millisecond,
 		"host", "go", "real Fractale generation matched adaptive_new reference",
 	)

@@ -29,15 +29,9 @@
           catalogNote.textContent = parts.length ? parts.join(" · ") :
             "No activated models yet — download one below, then activate it with cmd/reverify.";
           for (const entry of models) {
-            const capabilities = el("td");
-            for (const capability of entry.capabilities || []) {
-              const label = capability.stale ? capability.task + " · stale" :
-                capability.task + (capability.tier ? " · " + capability.tier : "");
-              capabilities.appendChild(el("span", {
-                class: "tag", style: "margin-right:4px",
-                title: capability.stale || capability.recipe, text: label,
-              }));
-            }
+            const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
+              class: "tag", style: "margin-right:4px", title: capability.stale || capability.recipe,
+              text: capability.task + (capability.stale ? " · stale" : capability.tier ? " · " + capability.tier : "") })));
             catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }),
               capabilities, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" })]));
           }
@@ -88,6 +82,41 @@
           jobsNote.textContent = overgo.friendlyError(err);
         }
       }
+      // ---- the lifecycle after a download: register once the download succeeded, validate once the
+      // store holds the registration; a model validates as an operation the strip shows, a dataset by preview ----
+      const lifecycles = new Map();
+      function lifecycle(job) {
+        if (!lifecycles.has(job.id)) lifecycles.set(job.id, { host: el("span"), registered: null });
+        const stage = lifecycles.get(job.id);
+        const name = job.repository.split("/").pop();
+        const cell = el("span", { class: "row" });
+        if (job.state !== "succeeded") return cell;
+        const report = (node) => { stage.host.replaceChildren(node); };
+        const register = el("button", { class: "btn alt", text: stage.registered ? "registered" : "register", disabled: !!stage.registered, onclick: async () => {
+          try {
+            stage.registered = await overgo.api.post("/library/register", job.kind === "datasets"
+              ? { kind: "dataset", name, directory: job.destination }
+              : { kind: "model", path: job.destination });
+            report(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset)));
+            jobPoller.start();
+          } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+        } });
+        const validate = el("button", { class: "btn", text: "validate", disabled: !stage.registered, onclick: async () => {
+          try {
+            if (job.kind === "datasets") {
+              const preview = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
+              report(el("span", { class: "note", text: "validated: " + (preview.rows || []).length + " row previewed" }));
+            } else {
+              const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path });
+              report(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts"));
+              history.pushState({}, "", "?operation=" + encodeURIComponent(admitted.operation));
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }
+          } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+        } });
+        cell.append(register, validate, stage.host);
+        return cell;
+      }
       const jobPoller = overgo.poller(async (signal) => {
         const listed = await overgo.api.get("/hub/downloads", { signal });
         jobsBody.replaceChildren(...(listed.downloads || []).map((job) => {
@@ -96,7 +125,7 @@
             job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) :
               el("span", { class: "tag byte", text: progress || "running" });
           return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""),
-            job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : "")]);
+            job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
         }));
       }, 1000);
 
@@ -109,7 +138,7 @@
         el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
         el("div", { class: "section-title", text: "Downloads" }),
         jobsNote,
-        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress"])), jobsBody));
+        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), jobsBody));
 
       refreshCatalog();
       this.onActivate = () => jobPoller.start();

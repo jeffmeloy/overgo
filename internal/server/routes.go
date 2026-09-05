@@ -124,6 +124,8 @@ var routeCatalog = []routeDescriptor{
 	// stay public.
 	{Path: "/hub/search", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).hubSearch},
 	{Path: "/hub/downloads", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost, http.MethodDelete}, Handler: (*Handler).hubDownloads},
+	{Path: "/library/register", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryRegister},
+	{Path: "/library/validate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryValidate},
 	{Path: "/agent/tools", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentTools},
 	{Path: "/agent/step", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentStep},
 	{Path: "/agent/approval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentApprovalPreview},

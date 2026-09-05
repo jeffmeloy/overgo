@@ -156,7 +156,6 @@ var processPrimitiveAllowances = []authorityAllowance{
 	{File: "internal/gate/gate.go", Count: threeAuthoritySites},
 	{File: "cmd/loophook/main.go", Count: sixAuthoritySites},
 	{File: "cmd/plan/sync.go", Count: threeAuthoritySites},
-	{File: "cmd/recipe/main.go", Count: oneAuthoritySite},
 	{File: "cmd/release/main.go", Count: fiveAuthoritySites},
 	{File: "cmd/reverify/main.go", Count: twoAuthoritySites},
 	{File: "cmd/sbom/main.go", Count: oneAuthoritySite},

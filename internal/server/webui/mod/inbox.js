@@ -12,31 +12,22 @@
 
       const artifactLink = overgo.artifactLink;
 
+      // A decision rides the strip's binding path (operations_shell.js): it names the request advertised now.
       async function decide(item, action, answer) {
         try {
-          await api.post("/operations/decision", {
-            operation: item.operation, tool: action.code, answer,
-          });
+          await overgo.decideOperation(item.operation, action.code, answer);
           status.textContent = answer + " recorded for " + fmt.shortID(item.operation);
           await refresh();
-        } catch (err) {
-          status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
       function renderItem(item) {
-        const actions = (item.actions || []).map((action) => {
-          const grant = el("button", { class: "btn", text: "Grant " + action.code });
-          const decline = el("button", { class: "btn alt", text: "Decline" });
-          grant.addEventListener("click", () => decide(item, action, "grant"));
-          decline.addEventListener("click", () => decide(item, action, "decline"));
-          return el("div", { class: "row" },
-            el("span", { class: "mono", text: action.summary || action.code }), grant, decline);
-        });
-        const prior = item.prior_decision
-          ? el("div", { class: "note" }, "prior decision ", artifactLink(item.prior_decision.id),
-            " / " + item.prior_decision.answer + " / " + item.prior_decision.tool)
-          : null;
+        const actions = (item.actions || []).map((action) => el("div", { class: "row" },
+          el("span", { class: "mono", text: action.summary || action.code }),
+          el("button", { class: "btn", text: "Grant " + action.code, onclick: () => decide(item, action, "grant") }),
+          el("button", { class: "btn alt", text: "Decline", onclick: () => decide(item, action, "decline") })));
+        const prior = item.prior_decision ? el("div", { class: "note" }, "prior decision ", artifactLink(item.prior_decision.id),
+          " / " + item.prior_decision.answer + " / " + item.prior_decision.tool) : null;
         return el("div", { class: "card" },
           el("div", {}, el("span", { class: "tag tag-danger", text: "waiting" }),
             " operation ", artifactLink(item.operation), " / " + item.task),
@@ -47,16 +38,9 @@
 
       async function refresh() {
         try {
-          const inbox = await api.get("/operations/inbox");
-          const waiting = inbox.waiting || [];
-          if (!waiting.length) {
-            listHost.replaceChildren(el("div", { class: "note", text: "Nothing is waiting on an operator decision." }));
-            return;
-          }
-          listHost.replaceChildren(...waiting.map(renderItem));
-        } catch (err) {
-          status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+          const waiting = (await api.get("/operations/inbox")).waiting || [];
+          listHost.replaceChildren(...(waiting.length ? waiting.map(renderItem) : [el("div", { class: "note", text: "Nothing is waiting on an operator decision." })]));
+        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
       await refresh();

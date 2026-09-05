@@ -33,7 +33,7 @@ func contractResult(t *testing.T, name string) longform.Result {
 		PromptTokensPerSecond: 2000, DecodeTokensPerSecond: 90,
 		PromptMilliseconds: 1000, DecodeMilliseconds: 3000,
 		Score: longform.ContextScore{ScoreTokens: floors.ScoreTokens, LongContextNLL: 1.1, ShortContextNLL: 1.5, ContextGain: 0.4}}
-	result := longform.Result{Inputs: longform.BindInputs(model, "fixed corpus", []tokenizer.TokenID{1, 2, 3}),
+	result := longform.Result{Inputs: longform.BindInputs(model, "fixed corpus", []tokenizer.TokenID{1, 2, 3}, longform.RawContinuation),
 		ModelPath: filepath.Join(t.TempDir(), name+".gguf"), ModelName: name,
 		Commit: strings.Repeat("a", 40), Surface: strings.Repeat("b", 64), Floors: floors,
 		Measure: measure, Short: longform.ShortRates{PromptTokensPerSecond: 3000, DecodeTokensPerSecond: 100},

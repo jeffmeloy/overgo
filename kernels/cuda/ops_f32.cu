@@ -4110,14 +4110,39 @@ extern "C" __global__ void attention_decode_f32(
         }
         const float tile_sum = block_sum_f32(local_sum, partial);
         running_sum = running_sum * correction + tile_sum;
-        for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+        // As in llama.cpp fattn-vec, independent thread groups accumulate
+        // disjoint keys for the same value channels, then combine. Derive
+        // groups from the live channel count: narrow heads no longer leave
+        // most threads idle through the serial key walk. The completed
+        // softmax reduction's scratch holds the partials, adding no storage.
+        for (unsigned int channel_first = 0; channel_first < value_width; channel_first += blockDim.x) {
+            const unsigned int value_lanes = min(value_width - channel_first, blockDim.x);
+            const unsigned int value_groups = blockDim.x / value_lanes;
+            const unsigned int group = threadIdx.x / value_lanes;
+            const unsigned int channel = channel_first + threadIdx.x % value_lanes;
             float weighted = 0.0f;
-            for (unsigned int token = tile_first; token < tile_end; ++token) {
-                const unsigned int value_offset =
-                    ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
-                weighted += scores[token - tile_first] * value[value_offset + channel];
+            if (group < value_groups) {
+                for (unsigned int token = tile_first + group; token < tile_end; token += value_groups) {
+                    const unsigned int value_offset =
+                        ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
+                    weighted += scores[token - tile_first] * value[value_offset + channel];
+                }
             }
-            accumulator[channel] = accumulator[channel] * correction + weighted;
+            if (value_groups > 1) {
+                partial[threadIdx.x] = weighted;
+                __syncthreads();
+                if (threadIdx.x < value_lanes) {
+                    for (unsigned int other = 1; other < value_groups; ++other) {
+                        weighted += partial[other * value_lanes + threadIdx.x];
+                    }
+                }
+                // Every group has finished reading before the next chunk
+                // or softmax tile can reuse the same scratch.
+                __syncthreads();
+            }
+            if (threadIdx.x < value_lanes) {
+                accumulator[channel_first + threadIdx.x] = accumulator[channel_first + threadIdx.x] * correction + weighted;
+            }
         }
         running_maximum = maximum;
         // The next tile overwrites the scores every thread just read.

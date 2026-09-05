@@ -774,7 +774,12 @@ coverage. Legacy admission records remain usable; regression baselines require
 bound inputs. Add `-guard` when publishing or checking the small regression
 baseline: it caps the ladder at the declared check ceiling and requires every
 planned rung, recipe/device identity, quality fingerprints, and owned allocation
-measurements. Peak allocation is cumulative since model open; retained allocation
+measurement. It retains sampled end-of-generation tokens and continues on the
+same greedy device path to measure all 64 short and 256 long output tokens, with
+protocol identity `guard-continuation/fixed-budget/v1`. Runs without `-guard` retain natural stopping
+under `raw-continuation/v1`; comparisons refuse different protocols. The frozen
+small-guard corpus is [guard-corpus.txt](cmd/longform/testdata/guard-corpus.txt).
+Peak allocation is cumulative since model open; retained allocation
 is sampled after generation and scoring. Neither includes other processes or
 untracked driver allocations. Checks reject growth above the selected record's
 peak or retained bytes. `-validate-baselines -corpus <file> -baseline <record-id>`

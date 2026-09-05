@@ -29,7 +29,8 @@ func optimizedValidationProblems(document Plan) []string {
 		"simplify-execution-core/do":                  {"simplify-prefill-paths/do"},
 		"final-model-validation/do":                   {"simplify-execution-core/do", "simplify-command-surface/do", "simplify-checkpoint-locations/do", "boundary-hardening/cross-origin", "boundary-hardening/argv-output"},
 		"benchmark-27b/mmlu-pro-pass":                 {"benchmark-completion/mmlu-pro-pass"},
-		"benchmark-completion/published-comparison":   {"benchmark-27b/mmlu-pro-pass"},
+		"benchmark-completion/published-comparison":   {"benchmark-27b/mmlu-pro-pass", "validation-automation/benchmark-protocol"},
+		"validation-automation/benchmark-protocol":    {"model-regression-baseline/complete-coverage"},
 		"simplify-checkpoint-locations/do":            {"model-regression-gate/do", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
 		"simplify-command-surface/do":                 {"model-regression-gate/do", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass", "failure-recovery/control-plane-drills", "failure-recovery/gate-recovery-drill"},
 		"simplify-capability-report/do":               {"final-model-validation/do", "benchmark-completion/published-comparison", "modality-verification/media-report"},
@@ -65,11 +66,21 @@ func optimizedValidationProblems(document Plan) []string {
 			}
 		}
 	}
-	for _, host := range []string{"boundary-hardening/cross-origin", "boundary-hardening/argv-output", "validation-readiness/failure-diagnostics", "failure-recovery/rollout-plan-author", "failure-recovery/gate-recovery-drill", "modality-verification/capability-census"} {
+	for _, host := range []string{"boundary-hardening/cross-origin", "boundary-hardening/argv-output", "validation-readiness/failure-diagnostics", "validation-automation/gate-scope-efficiency", "validation-automation/benchmark-protocol", "failure-recovery/rollout-plan-author", "failure-recovery/gate-recovery-drill", "modality-verification/capability-census"} {
 		for _, benchmark := range []string{"benchmark-completion/mmlu-pro-pass", "benchmark-27b/mmlu-pro-pass", "benchmark-completion/published-comparison"} {
 			if campaignDependsOn(document, host, benchmark, map[string]bool{}) {
 				problems = append(problems, host+" unnecessarily waits for "+benchmark)
 			}
+		}
+	}
+	for _, automation := range []string{"validation-automation/gate-scope-efficiency", "validation-automation/benchmark-protocol"} {
+		for _, delayed := range []string{"model-regression-baseline/do", "modality-verification/media-report"} {
+			if campaignDependsOn(document, automation, delayed, map[string]bool{}) {
+				problems = append(problems, automation+" unnecessarily waits for "+delayed)
+			}
+		}
+		if campaignDependsOn(document, "benchmark-completion/mmlu-pro-pass", automation, map[string]bool{}) {
+			problems = append(problems, "independent quality pass waits for "+automation)
 		}
 	}
 	for _, initial := range []string{"benchmark-completion/mmlu-pro-pass", "modality-verification/text-and-vision", "modality-verification/image-and-video", "modality-verification/speech-ocr-tabular-forecast"} {
@@ -118,6 +129,20 @@ func TestOptimizedValidationRejectsUnsafeOrdering(t *testing.T) {
 		target string
 		change func(*Plan)
 	}{
+		{"automation delayed by model campaign", "validation-automation/gate-scope-efficiency", func(d *Plan) {
+			for i := range d.Items {
+				if d.Items[i].ID == "validation-automation" {
+					d.Items[i].Steps[0].DependsOn = []string{"model-regression-baseline/do"}
+				}
+			}
+		}},
+		{"quality delayed by unrelated automation", "benchmark-completion/mmlu-pro-pass", func(d *Plan) {
+			for i := range d.Items {
+				if d.Items[i].ID == "benchmark-completion" {
+					d.Items[i].Steps[0].DependsOn = append(d.Items[i].Steps[0].DependsOn, "validation-automation/gate-scope-efficiency")
+				}
+			}
+		}},
 		{"baseline repair deadlock", "model-regression-baseline/repair-throughput", func(d *Plan) {
 			for i := range d.Items {
 				if d.Items[i].ID == "model-regression-baseline" {

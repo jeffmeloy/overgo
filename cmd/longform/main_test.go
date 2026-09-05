@@ -1,9 +1,12 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/longform"
 )
 
@@ -12,6 +15,7 @@ import (
 // its report reads the short shape, every rung, the judged verdict, the
 // prompt tail, and the head of the output.
 func TestOptionsAndReport(t *testing.T) {
+	t.Setenv(dataroot.Env, "")
 	if _, err := parseOptions(nil); err == nil {
 		t.Fatal("no target accepted")
 	}
@@ -55,5 +59,31 @@ func TestOptionsAndReport(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("report lacks %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestLongformRepositoryResolution(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(dataroot.Env, root)
+	parse := func(args ...string) (options, error) {
+		return parseOptions(append(args, "-budget", "1m", "model.gguf"))
+	}
+	resolved, err := parse()
+	if err != nil || resolved.Repository != filepath.Join(root, "overgodb-store") {
+		t.Fatalf("canonical data root: %+v, %v", resolved, err)
+	}
+	t.Setenv(dataroot.Env, filepath.Join(root, "missing"))
+	if _, err := parse(); err == nil {
+		t.Fatal("invalid canonical data root accepted")
+	}
+	if explicit, err := parse("-repo", root); err != nil || explicit.Repository != root {
+		t.Fatalf("explicit repository lost authority: %+v, %v", explicit, err)
+	}
+	t.Setenv(dataroot.Env, "")
+	if err := os.WriteFile(filepath.Join(root, dataroot.ConfigFile), []byte(`{"store":"local-store"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if local, err := parse("-root", root); err != nil || local.Repository != filepath.Join(root, "local-store") {
+		t.Fatalf("repository-local data root: %+v, %v", local, err)
 	}
 }

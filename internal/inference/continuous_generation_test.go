@@ -148,6 +148,81 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 	}
 }
 
+func TestGenerationFixedBudgetPreservesGreedyAndExplicitStops(t *testing.T) {
+	callbackError := errors.New("callback stopped measurement")
+	for _, test := range []struct {
+		name             string
+		continueAfterEOG bool
+		stopSequence     bool
+		stopCallback     bool
+		failCallback     bool
+		wantTokens       int
+	}{
+		{name: "natural EOS", wantTokens: 1},
+		{name: "full budget", continueAfterEOG: true, wantTokens: 4},
+		{name: "explicit sequence", continueAfterEOG: true, stopSequence: true, wantTokens: 2},
+		{name: "explicit callback", continueAfterEOG: true, stopCallback: true, wantTokens: 1},
+		{name: "callback error", continueAfterEOG: true, failCallback: true, wantTokens: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancelCause := context.WithCancelCause(t.Context())
+			cancel := func() { cancelCause(context.Canceled) }
+			defer cancel()
+			runner := fixtureRunner(model.Spec{CommonSpec: model.CommonSpec{Architecture: "qwen35"}}, model.Weights{})
+			runner.vocab = &tokenizer.Vocab{Tokens: []tokenizer.Token{
+				{Text: "z", Type: tokenizer.TokenNormal}, {Text: "a", Type: tokenizer.TokenNormal}, {Text: "p", Type: tokenizer.TokenNormal},
+			}, EOS: 1, EOT: tokenizer.NullToken, EOM: tokenizer.NullToken}
+			batch := &fakeContinuousBatch{}
+			generator := &ContinuousGenerator{runner: runner, batch: batch,
+				options: ContinuousGeneratorOptions{MaxSequences: 1}, ctx: ctx, cancel: cancel,
+				submit: make(chan continuousGenerateRequest, 1), done: make(chan struct{})}
+			go generator.run()
+			t.Cleanup(func() {
+				if err := generator.Close(context.WithoutCancel(t.Context())); err != nil {
+					t.Error(err)
+				}
+			})
+			sampler, err := sampling.New(sampling.Config{Temperature: 0})
+			if err != nil {
+				t.Fatal(err)
+			}
+			observed := 0
+			options := GenerateOptions{MaxNewTokens: 4, Sampler: sampler, DeviceGreedy: true,
+				ContinueAfterEOG: test.continueAfterEOG, PromptTokenIDs: []tokenizer.TokenID{2},
+				OnToken: func(event TokenEvent) error {
+					observed++
+					if event.ID != 1 {
+						t.Errorf("greedy winner changed: %d", event.ID)
+					}
+					if test.failCallback {
+						return callbackError
+					}
+					return nil
+				}}
+			if test.stopSequence {
+				options.StopSequences = []string{"aa"}
+			}
+			if test.stopCallback {
+				options.ShouldStop = func(TokenEvent) bool { return true }
+			}
+			ids, _, err := generator.Generate(t.Context(), "", options)
+			if test.failCallback {
+				if !errors.Is(err, callbackError) {
+					t.Fatalf("callback error lost: %v", err)
+				}
+			} else if err != nil || len(ids) != test.wantTokens+len(options.PromptTokenIDs) {
+				t.Fatalf("generation tokens=%v err=%v", ids, err)
+			}
+			batch.mu.Lock()
+			greedy := batch.greedy
+			batch.mu.Unlock()
+			if observed != test.wantTokens || greedy != test.wantTokens {
+				t.Fatalf("output/greedy steps=%d/%d want=%d", observed, greedy, test.wantTokens)
+			}
+		})
+	}
+}
+
 func TestContinuousGeneratorRejectsUncompiledRequestPolicy(t *testing.T) {
 	generator := &ContinuousGenerator{runner: &Runner{}}
 	if _, _, err := generator.Generate(t.Context(), "fixture", GenerateOptions{CachePrompt: true}); err == nil {

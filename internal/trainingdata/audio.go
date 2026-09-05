@@ -5,23 +5,29 @@ import (
 	"errors"
 
 	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 	"overgo/internal/media"
 	"overgo/internal/recipecontract"
 )
 
-// AudioProcessor decodes one mono WAV into normalized samples.
-func AudioProcessor(role ValueRole) Processor {
-	return func(_ context.Context, record RawRecord) (Example, error) {
+// AudioProcessor decodes one mono WAV or FLAC within the caller's scalar-sample
+// budget. It preserves source rate and sample values; it does not normalize.
+func AudioProcessor(role ValueRole, maximumSamples uint64) Processor {
+	return func(ctx context.Context, record RawRecord) (Example, error) {
 		if !validRole(role) {
 			return Example{}, errors.New("training data: invalid audio role")
 		}
-		samples, sampleRate, err := media.DecodeWAV(record.Data)
+		audio, _, err := media.DecodeAudio(ctx, record.Data, maximumSamples)
 		if err != nil {
 			return Example{}, err
 		}
+		sampleRate, fits := checked.Int(audio.Format.SampleRate)
+		if audio.Format.Channels != 1 || !fits || len(audio.Samples) == 0 {
+			return Example{}, errors.New("training data: audio requires nonempty mono samples and a representable rate")
+		}
 		return Example{ID: record.ID, Group: record.Group, Values: []Value{{
 			Role: role, Modality: recipecontract.ModalityAudio, Encoding: EncodingFloat32LE,
-			Shape: []int{len(samples)}, SampleRate: sampleRate, Data: binaryschema.LittleEndian.Float32s(samples),
+			Shape: []int{len(audio.Samples)}, SampleRate: sampleRate, Data: binaryschema.LittleEndian.Float32s(audio.Samples),
 		}}}, nil
 	}
 }

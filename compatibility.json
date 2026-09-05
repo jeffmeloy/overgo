@@ -197,13 +197,13 @@
      "contains": "func AudioProcessor(",
      "path": "internal/trainingdata/audio.go",
      "role": "source",
-     "identity": "file:sha256:86e945a5fc1d2addfd0a855e303ada389cf877e4dc7409b035324b9413984aab"
+     "identity": "file:sha256:8f5e3cc0a48cb8eab1b47df28981c470407a313de70d6daf904db69f8b110781"
     },
     {
      "contains": "func TestMultimodalTrainingMatrix(",
      "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:68b323ce836aba9b58a1ac24c5475b17cd2f1080b70e997e6f8ad2d89697296e"
+     "identity": "evidence:sha256:ada2b086d779301688d607807192ac3ecee2ea0c35ac617e611dde1ec4de7566"
     }
    ],
    "id": "repodb-multimodal-training-objective-matrix",
@@ -246,7 +246,7 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980"
+     "identity": "file:sha256:57c821aec32ccbf28d010bcaa4d99e53e747cbfe1bc663f4369711ed9433d4c3"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
@@ -752,7 +752,7 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980"
+     "identity": "file:sha256:57c821aec32ccbf28d010bcaa4d99e53e747cbfe1bc663f4369711ed9433d4c3"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
@@ -1022,7 +1022,7 @@
      "contains": "func TestPocketTTSProductionParity(",
      "path": "internal/adaptiveparity/pocket_tts_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:7c7749e15a802fa55c3712aadd66a9fbe0ac6e2cc232ef17a2c059adaff67439"
+     "identity": "evidence:sha256:459afae0c5876437d2acdff817db7fb29092110d2dcb96b0d62ab882fdb41b03"
     }
    ],
    "id": "pocket-tts-production-oracle",

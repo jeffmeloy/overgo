@@ -172,13 +172,14 @@ func TestSpeakE2EProducesReferenceAudio(t *testing.T) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: reference wav absent; e2e audio parity NOT verified: %v", err)
 	}
-	refPCM, refRate, err := media.DecodeWAV(raw)
+	refAudio, _, err := media.DecodeAudio(t.Context(), raw, uint64(len(raw)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if refRate != m.Codec.SampleRate {
-		t.Fatalf("reference wav rate %d != codec %d", refRate, m.Codec.SampleRate)
+	if refAudio.Format.SampleRate != uint64(m.Codec.SampleRate) || refAudio.Format.Channels != 1 {
+		t.Fatalf("reference wav format %+v != mono codec %d Hz", refAudio.Format, m.Codec.SampleRate)
 	}
+	refPCM := refAudio.Samples
 	if len(refPCM) != len(pcm) {
 		t.Fatalf("reference wav %d samples != generated %d", len(refPCM), len(pcm))
 	}

@@ -36,22 +36,8 @@ func DecodeFloat32LE(data []byte) ([]float32, error) {
 	return samples, nil
 }
 
-func DecodeWAV(data []byte) ([]float32, int, error) {
-	// Each WAV scalar consumes at least one encoded byte. Retain the mono
-	// contract used by existing model frontends; the shared decoder preserves
-	// interleaved channels for inspection without silently mixing them.
-	audio, err := decodeWAV(data, uint64(len(data)))
-	if err != nil {
-		return nil, 0, err
-	}
-	if audio.Format.Channels != 1 {
-		return nil, 0, fmt.Errorf("media: WAV has %d channels; want mono", audio.Format.Channels)
-	}
-	return audio.Samples, int(audio.Format.SampleRate), nil
-}
-
 // EncodeWAVPCM16 encodes mono samples (clipped to [-1, 1]) as a 16-bit PCM
-// RIFF/WAVE byte slice — the inverse of DecodeWAV's PCM16 arm.
+// RIFF/WAVE byte slice, readable through DecodeAudio.
 func EncodeWAVPCM16(samples []float32, sampleRate int) ([]byte, error) {
 	if sampleRate <= 0 {
 		return nil, fmt.Errorf("media: WAV sample rate %d", sampleRate)

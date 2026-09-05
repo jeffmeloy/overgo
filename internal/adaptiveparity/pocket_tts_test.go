@@ -156,13 +156,13 @@ func TestPocketTTSProductionParity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		decoded, rate, err := media.DecodeWAV(encoded)
+		decoded, _, err := media.DecodeAudio(t.Context(), encoded, uint64(len(pcm)))
 		if err != nil {
 			t.Fatal(err)
 		}
-		requireMonoAudio(t, speechsynth.Audio{PCM: decoded, SampleRate: rate, Channels: 1})
-		if len(decoded) != len(pcm) {
-			t.Fatalf("WAV samples = %d, want %d", len(decoded), len(pcm))
+		requireMonoAudio(t, speechsynth.Audio{PCM: decoded.Samples, SampleRate: int(decoded.Format.SampleRate), Channels: int(decoded.Format.Channels)})
+		if len(decoded.Samples) != len(pcm) {
+			t.Fatalf("WAV samples = %d, want %d", len(decoded.Samples), len(pcm))
 		}
 		stopSampling()
 		var final runtime.MemStats
@@ -173,7 +173,7 @@ func TestPocketTTSProductionParity(t *testing.T) {
 			t.Fatalf("peak heap %d exceeds %d", peakBytes, pocketHeapLimit)
 		}
 		t.Logf("Pocket-TTS production parity: cold load %s; warm synth median %s; peak heap %.3fGiB; %d samples @ %dHz mono; max %.6g; rms %.6g",
-			coldWall, walls[1], float64(peakBytes)/(1<<30), len(pcm), rate, maxDiff, rms)
+			coldWall, walls[1], float64(peakBytes)/(1<<30), len(pcm), decoded.Format.SampleRate, maxDiff, rms)
 	})
 }
 

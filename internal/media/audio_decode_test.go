@@ -105,9 +105,6 @@ func TestAudioDecodeRejectsMalformedWAV(t *testing.T) {
 			}
 		})
 	}
-	if _, _, err := DecodeWAV(wavFixture(1, 16, 2, []byte{0, 64, 0, 64})); err == nil {
-		t.Fatal("mono frontend accepted stereo")
-	}
 }
 
 func TestAudioDecodeFLACIntegrity(t *testing.T) {

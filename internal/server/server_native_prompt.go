@@ -109,7 +109,7 @@ func (h *Handler) parseNativeMultimodalPrompt(ctx context.Context, raw json.RawM
 			if h.config.AudioProjector == nil {
 				return nativePrompt{}, errors.New("audio data provided, but the server has no audio projector")
 			}
-			audio, err := decodeNativeAudioData(encoded)
+			audio, err := decodeNativeAudioData(ctx, encoded)
 			if err != nil {
 				return nativePrompt{}, fmt.Errorf("multimodal_data audio %d: %w", index, err)
 			}
@@ -170,7 +170,7 @@ func (h *Handler) parseNativeMultimodalPrompt(ctx context.Context, raw json.RawM
 	}, nil
 }
 
-func decodeNativeAudioData(encoded string) ([]float32, error) {
+func decodeNativeAudioData(ctx context.Context, encoded string) ([]float32, error) {
 	header, payload, ok := strings.Cut(encoded, ",")
 	if !ok || !strings.HasPrefix(header, "data:audio/") || !strings.HasSuffix(header, ";base64") {
 		return nil, errors.New("multimodal_data audio must use a base64 data URI")
@@ -185,24 +185,32 @@ func decodeNativeAudioData(encoded string) ([]float32, error) {
 	if len(decoded) > maxMediaBytes {
 		return nil, errors.New("multimodal_data audio exceeds decoded media limit")
 	}
-	return decodeNativeAudioBytes(decoded)
+	return decodeNativeAudioBytes(ctx, decoded)
 }
 
-func decodeNativeAudioBytes(decoded []byte) ([]float32, error) {
+func decodeNativeAudioBytes(ctx context.Context, decoded []byte) ([]float32, error) {
 	if len(decoded) == 0 {
 		return nil, errors.New("multimodal_data audio is empty")
 	}
 	if len(decoded) > maxMediaBytes {
 		return nil, errors.New("multimodal_data audio exceeds decoded media limit")
 	}
-	samples, sampleRate, err := media.DecodeWAV(decoded)
+	if !bytes.HasPrefix(decoded, []byte("RIFF")) {
+		return nil, errors.New("multimodal_data audio must contain RIFF/WAVE audio")
+	}
+	// Every supported WAV scalar consumes at least one encoded byte; the
+	// existing encoded-media bound therefore also bounds scalar expansion.
+	audio, _, err := media.DecodeAudio(ctx, decoded, uint64(len(decoded)))
 	if err != nil {
 		return nil, fmt.Errorf("multimodal_data audio: %w", err)
 	}
-	if sampleRate != 16000 {
-		return nil, fmt.Errorf("multimodal_data audio sample rate %d Hz; want 16000 Hz", sampleRate)
+	if audio.Format.Channels != 1 {
+		return nil, errors.New("multimodal_data audio requires mono samples")
 	}
-	return samples, nil
+	if audio.Format.SampleRate != 16000 {
+		return nil, fmt.Errorf("multimodal_data audio sample rate %d Hz; want 16000 Hz", audio.Format.SampleRate)
+	}
+	return audio.Samples, nil
 }
 
 func (h *Handler) resolveAudioData(ctx context.Context, source, format string) ([]float32, int, error) {
@@ -214,17 +222,17 @@ func (h *Handler) resolveAudioData(ctx context.Context, source, format string) (
 		if err != nil {
 			return nil, 0, err
 		}
-		samples, err := decodeNativeAudioBytes(data)
+		samples, err := decodeNativeAudioBytes(ctx, data)
 		return samples, len(data), err
 	}
 	if !strings.EqualFold(format, "wav") {
 		return nil, 0, errors.New("input_audio.format must be wav")
 	}
 	if strings.HasPrefix(source, "data:audio/") {
-		samples, err := decodeNativeAudioData(source)
+		samples, err := decodeNativeAudioData(ctx, source)
 		return samples, encodedMediaSize(source), err
 	}
-	samples, err := decodeNativeAudioData("data:audio/wav;base64," + source)
+	samples, err := decodeNativeAudioData(ctx, "data:audio/wav;base64,"+source)
 	return samples, base64.StdEncoding.DecodedLen(len(source)), err
 }
 

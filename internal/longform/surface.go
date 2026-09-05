@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -111,9 +112,26 @@ func computeSurface(ctx context.Context, root string) (string, error) {
 // resolution so the surface follows the imports rather than a list
 // that would go stale.
 func surfaceDirectories(ctx context.Context, root string) ([]string, error) {
-	// Standard-library packages carry no module; the template leaves
-	// their module column empty and the filter drops them.
-	arguments := append([]string{"list", "-deps", "-f", "{{if .Module}}{{.Module.Path}}{{end}}\t{{.Dir}}"}, surfaceRoots...)
+	packages, err := surfacePackages(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	var directories []string
+	for _, pkg := range packages {
+		directories = append(directories, pkg.Dir)
+	}
+	slices.Sort(directories)
+	return slices.Compact(directories), nil
+}
+
+type surfacePackage struct {
+	Dir        string
+	EmbedFiles []string
+	Module     *struct{ Path string }
+}
+
+func surfacePackages(ctx context.Context, root string) ([]surfacePackage, error) {
+	arguments := append([]string{"list", "-deps", "-json"}, surfaceRoots...)
 	var stdout, stderr bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path: "go", Args: arguments, Dir: root, Env: os.Environ(), Stdout: &stdout, Stderr: &stderr,
@@ -128,19 +146,24 @@ func surfaceDirectories(ctx context.Context, root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var directories []string
-	for line := range strings.SplitSeq(strings.TrimSpace(stdout.String()), "\n") {
-		module, directory, found := strings.Cut(line, "\t")
-		if !found || module != modulePath {
+	var packages []surfacePackage
+	decoder := json.NewDecoder(&stdout)
+	for {
+		var pkg surfacePackage
+		if err := decoder.Decode(&pkg); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		if pkg.Module == nil || pkg.Module.Path != modulePath {
 			continue
 		}
-		directories = append(directories, directory)
+		packages = append(packages, pkg)
 	}
-	if len(directories) == 0 {
+	if len(packages) == 0 {
 		return nil, errors.New("longform: the inference surface lists no module-local package")
 	}
-	slices.Sort(directories)
-	return slices.Compact(directories), nil
+	return packages, nil
 }
 
 // modulePath reads the module path from the root's go.mod.

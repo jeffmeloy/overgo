@@ -27,6 +27,7 @@ func optimizedValidationProblems(document Plan) []string {
 		"model-regression-gate/do":                    {"model-regression-baseline/do"},
 		"model-regression-gate/coverage-inventory":    {"model-regression-baseline/do"},
 		"model-regression-gate/coverage-selection":    {"model-regression-gate/coverage-inventory"},
+		"model-regression-gate/coverage-acquisition":  {"model-regression-gate/coverage-selection"},
 		"simplify-prefill-paths/do":                   {"model-regression-gate/do", "model-regression-baseline/full-catalog", "modality-verification/media-report", "benchmark-completion/mmlu-pro-pass"},
 		"simplify-execution-core/do":                  {"simplify-prefill-paths/do"},
 		"final-model-validation/do":                   {"simplify-execution-core/do", "simplify-command-surface/do", "simplify-checkpoint-locations/do", "boundary-hardening/cross-origin", "boundary-hardening/argv-output"},

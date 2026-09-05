@@ -50,16 +50,24 @@ type guardCoverageReport struct {
 type resolveGuardFacts func(target) (recipe.Definition, modelrecipe.ResolvedModelDefinition, error)
 
 func reportGuardCoverage(ctx context.Context, output io.Writer, options options, targets []target, surface string) error {
+	report, err := loadGuardCoverage(ctx, options, targets, surface)
+	if writeErr := clioptions.WritePrettyJSON(output, report); writeErr != nil {
+		return errors.Join(err, writeErr)
+	}
+	return err
+}
+
+func loadGuardCoverage(ctx context.Context, options options, targets []target, surface string) (guardCoverageReport, error) {
 	baselines, err := readBaselines(ctx, options)
 	if err != nil {
-		return err
+		return guardCoverageReport{}, err
 	}
 	store, err := overgodb.OpenReadOnly(options.Repository)
 	if err != nil {
-		return err
+		return guardCoverageReport{}, err
 	}
 	defer store.Close()
-	report, err := inspectGuardCoverage(targets, baselines, surface, func(target target) (recipe.Definition, modelrecipe.ResolvedModelDefinition, error) {
+	return inspectGuardCoverage(targets, baselines, surface, func(target target) (recipe.Definition, modelrecipe.ResolvedModelDefinition, error) {
 		active, found, err := modelrecipe.ActiveRecord(ctx, store, target.entry.Model, recipe.TaskInference)
 		if err != nil || !found || active.Definition.ID != target.entry.Recipe {
 			return recipe.Definition{}, modelrecipe.ResolvedModelDefinition{}, errors.Join(errors.New("active recipe changed or is absent"), err)
@@ -71,10 +79,6 @@ func reportGuardCoverage(ctx context.Context, output io.Writer, options options,
 		resolved, err := modelrecipe.ResolveModelDefinition(ctx, store, id)
 		return active.Definition, resolved, err
 	})
-	if writeErr := clioptions.WritePrettyJSON(output, report); writeErr != nil {
-		return errors.Join(err, writeErr)
-	}
-	return err
 }
 
 func inspectGuardCoverage(targets []target, baselines map[artifact.ID]longform.Summary, surface string, resolve resolveGuardFacts) (guardCoverageReport, error) {

@@ -41,20 +41,20 @@ func TestCurrentGuardControls(t *testing.T) {
 	}{
 		{
 			name:       "Qwen capacity session",
-			historical: "evidence:sha256:0190b70b93219859525aff79e925f30ccc8b6be5647cb36eba2838ca56bef2c8",
+			historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
 			repeats: [3]string{
-				"evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
-				"evidence:sha256:c672001f407f6025292e19885227dc51c9e0ff9228a6e839b2dfa205ddb1a7c7",
-				"evidence:sha256:cd5fe11911f9f07daf8afd32cab656551b0534be5ee1e726f77c8638a39db4d3",
+				"evidence:sha256:14c8126978a28677c330fdda7a1eb80d4c103ed312f08c3546e54d47b31dbb36",
+				"evidence:sha256:ec2dd785dcbb0212b458a419e8dc13724341a2ae19f435ca3deca12bbbb10bb7",
+				"evidence:sha256:6de760ae212837fb2ed28c65c104284f25c6af9466d14ae1d75a6e1518c1a67e",
 			},
 		},
 		{
 			name:       "E4B request session",
-			historical: "evidence:sha256:3d6b27ffaf0fa747799b64f85eda10e5261cf09465c0457652e0a2d4f422e928",
+			historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a",
 			repeats: [3]string{
-				"evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a",
-				"evidence:sha256:8f3fbbfa4ea87c39d9b0c246a16053aa39b6cc9f40faae8fdad2e840980ac6ad",
-				"evidence:sha256:c62797260111a90da085b14c77f72303742751ca3f2fdaffac1149ee93baa22b",
+				"evidence:sha256:691583cd94967c89162c90b5c9cb5ef9463c892e5c060d77c5eeccb2ddbbe3b0",
+				"evidence:sha256:b6e7ae4ae005fc650babfa7eb5e530a59a10abc540b407bacb95fc689a6ebc63",
+				"evidence:sha256:467b065ec9bc86f2bd938bff6d88c0f1079bc2e2e3a003f9a0ba11bd61fea356",
 			},
 		},
 	}
@@ -78,7 +78,7 @@ func TestCurrentGuardControls(t *testing.T) {
 					t.Fatal(err)
 				}
 				fresh := accepted.Result
-				if fresh.Surface != surface || fresh.Commit != "2b8737ac4f2bc42533f7c19e19bbf94c36b36aff" {
+				if fresh.Surface != surface || fresh.Commit != "519a2690db1a39e16b6e3254b7556c56dbc549ea" {
 					t.Fatal("control does not identify the current inference surface and clean measured producer")
 				}
 				if err := validateGuard(fresh); err != nil {

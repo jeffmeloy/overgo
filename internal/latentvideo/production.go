@@ -316,9 +316,17 @@ type SourceVideo struct {
 	Width    int       `json:"width"`
 }
 
+// ReferenceEditRequest carries the reference edit in one of two forms: the
+// compiled condition with decoded source pixels, or the clip form a page
+// composes (a prompt, a seed and the source clip's artifact id), which the
+// video capability resolves through the declared edit policy and the base
+// model's text pipeline before the runtime sees it.
 type ReferenceEditRequest struct {
-	Condition ReferenceEditCondition `json:"condition"`
-	Source    SourceVideo            `json:"source"`
+	Condition      ReferenceEditCondition `json:"condition,omitzero"`
+	Source         SourceVideo            `json:"source,omitzero"`
+	Prompt         string                 `json:"prompt,omitzero"`
+	Seed           int64                  `json:"seed,omitzero"`
+	SourceArtifact string                 `json:"source_artifact,omitzero"`
 }
 
 func ValidateReferenceEditRequest(request ReferenceEditRequest) error {

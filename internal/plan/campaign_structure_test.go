@@ -467,6 +467,7 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"merge-519a2690db1a/do",
 		"video-from-prompt/do",
 		"merge-cd5ce9e66609/do",
+		"video-edit-from-clip/do",
 		// Rows retained from the master plan at the lane base (9dce4fca):
 		// the plan authority protects every identity committed at the
 		// protected revision, so the lane keeps them after its own rows and

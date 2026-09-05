@@ -58,6 +58,7 @@ func TestCurrentGuardControls(t *testing.T) {
 			},
 		},
 	}
+	requireStoreLineage(t, store, fixtures[0].historical)
 	seen := make(map[artifact.ID]bool)
 	opts := options{Root: filepath.Join("..", ".."), Repository: roots.Store, Corpus: "testdata/guard-corpus.txt", ValidateBaselines: true}
 	for _, fixture := range fixtures {

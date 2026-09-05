@@ -1,0 +1,14 @@
+[
+  {
+    "checkpoint": "ar-forcing_002000.pt",
+    "frames_per_chunk": 3,
+    "local_attention_frames": 21,
+    "denoising_timesteps": [1000, 750, 500, 250],
+    "num_inference_steps": 1000,
+    "shift": 5,
+    "sigma_min": 0,
+    "sigma_max": 1,
+    "extra_one_step": true,
+    "context_timestep": 0
+  }
+]

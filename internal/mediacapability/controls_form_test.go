@@ -7,11 +7,11 @@ import (
 	"overgo/internal/modelrecipe"
 )
 
-// TestControlsDeclareTheWanPromptForm pins the page form of the Wan
-// request: its prompts, seed and generation parameters are typed controls,
-// its optional tensors and noise plan are omitted rather than refused, and
-// LiveEdit's required condition still refuses until its request is
-// assembled from a source clip.
+// TestControlsDeclareTheWanPromptForm pins the page forms of the video
+// requests: Wan's prompts, seed and generation parameters are typed
+// controls with its optional tensors and noise plan omitted rather than
+// refused, and LiveEdit declares its prompt, seed and source clip artifact
+// with its compiled condition and decoded source omitted.
 func TestControlsDeclareTheWanPromptForm(t *testing.T) {
 	controls, refusal := Controls(modelrecipe.ModuleLatentVideoPrepare, "")
 	if refusal != "" {
@@ -35,7 +35,15 @@ func TestControlsDeclareTheWanPromptForm(t *testing.T) {
 			t.Errorf("optional tensor field %s is listed as a control", name)
 		}
 	}
-	if _, refusal := Controls(modelrecipe.ModuleReferenceVideoPrepare, ""); !strings.Contains(refusal, "condition") {
+	edit, refusal := Controls(modelrecipe.ModuleReferenceVideoPrepare, "")
+	if refusal != "" {
 		t.Fatalf("LiveEdit refusal = %q", refusal)
+	}
+	names := make([]string, 0, len(edit))
+	for _, control := range edit {
+		names = append(names, control.Name+":"+control.Type)
+	}
+	if joined := strings.Join(names, ","); joined != "prompt:text,seed:integer,source_artifact:text" {
+		t.Fatalf("LiveEdit controls = %s", joined)
 	}
 }

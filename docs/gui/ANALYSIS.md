@@ -247,8 +247,15 @@ What the rows established, each a record rather than a statement:
   a seed are typed controls, the runtime derives the conditioning contexts
   through the model's own umT5 encoder and the noise plan from the seed on
   its device, and a generation parameter left blank takes the profile's
-  value; LiveEdit still lists with the reason no page can type its source
-  clip and condition. The capability runtime replays an
+  value. LiveEdit runs from the clip form (`internal/latentvideo/edit_form.go`):
+  a prompt, a seed and a source clip's artifact id, resolved by the video
+  capability before the mapped session director into the compiled
+  condition (the declared edit schedule in `edit_profiles.json`, the text
+  context through the Wan text pipeline, flow sigmas for its timesteps)
+  and the planar source video decoded from the clip's GIF; a clip whose
+  latent frames the schedule cannot chunk is refused with the admissible
+  counts. The page fills the artifact id by hand until the media-reference
+  control lands. The capability runtime replays an
   identical request from its recorded artifact, so media output types
   decode their own recorded content. The VQA activation has no executor in
   the catalog and is a parked finding.

@@ -485,7 +485,12 @@ derived from the server, not from client configuration:
   negative prompt and a seed, and its runtime derives the conditioning
   contexts through the model's own text encoder and the noise plan from the
   seed on the device, with every generation parameter left blank taken from
-  the model's profile. The run goes through the generic run
+  the model's profile. LiveEdit takes a prompt, a seed and the artifact id
+  of a source clip: the capability decodes the clip's GIF into the planar
+  source video, derives the text context through the base model's text
+  pipeline, and compiles the condition from the declared edit schedule
+  (chunking, denoising timesteps, flow sigmas), refusing a clip whose
+  latent frames the schedule cannot chunk. The run goes through the generic run
   route as an operation the strip shows, and its outputs land in the thread
   as media artifacts (PNG, GIF, WAV) with their provenance.
 - **Media back in.** Every media card offers "use as input": the artifact's

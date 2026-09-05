@@ -50,7 +50,7 @@ func videoCapability() Capability {
 			}, nil
 		},
 	)
-	edit := sessionExecutor(editDirector, editErr)
+	edit := resolveEditForm(sessionExecutor(editDirector, editErr))
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.VideoRequest, *oscillatorimage.Model, oscillatorimage.EncodedVideo](
 		"video-gen", oscillatorimage.ValidateVideoRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ oscillatorimage.VideoRequest) (*oscillatorimage.Model, error) {

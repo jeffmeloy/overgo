@@ -5,7 +5,6 @@ package latentvideo
 import (
 	"context"
 	"errors"
-	"path/filepath"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -183,7 +182,7 @@ func LoadLiveEditRuntime(ctx context.Context, store artifact.Reader, path string
 	if err != nil {
 		return nil, err
 	}
-	wanDirectory := filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B")
+	wanDirectory, editCheckpoint := LiveEditArtifacts(path)
 	base, err := LoadDenoiserConfig(wanDirectory, profile.Policy)
 	if err != nil {
 		return nil, err
@@ -191,7 +190,7 @@ func LoadLiveEditRuntime(ctx context.Context, store artifact.Reader, path string
 	source := request.Source
 	condition := request.Condition
 	runtime, err := NewReferenceEditRuntime(ReferenceEditRuntimeConfig{
-		WanDirectory: wanDirectory, EditCheckpoint: filepath.Join(path, "ar-forcing_002000.pt"),
+		WanDirectory: wanDirectory, EditCheckpoint: editCheckpoint,
 		Policy: profile.Policy, LatentStats: profile.LatentStats,
 		Source:         SourceVideoShape{Channels: source.Channels, Frames: source.Frames, Height: source.Height, Width: source.Width},
 		FramesPerChunk: condition.FramesPerChunk, LocalAttentionFrames: condition.LocalAttention,

@@ -6,8 +6,7 @@
   "use strict";
   const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
 
-  // inspectTurn: the side panel over one assistant turn: its run record (status from the server vocabulary,
-  // timings, identities), then any inspector embedded over its exact prompt and completion or the served model.
+  // inspectTurn: the side panel over one assistant turn: its run record, then any inspector embedded over it.
   window.overgo.inspectTurn = async function (responseID) {
     const overgo = window.overgo;
     const { el } = overgo;
@@ -43,6 +42,19 @@
       let controller = null;
       let lastResponseID = "";
 
+      // Agent mode: the active agent definitions the store holds. A turn in
+      // this mode runs the same thread through /agents/chat, and the shared
+      // tool-step surface (composer.js) runs the session's tool steps inline.
+      let agents = [];
+      let tools = [];
+      try { agents = (await overgo.api.get("/agents")).filter((item) => item.state === "active"); } catch (_) { /* no agent runtime */ }
+      if (agents.length) tools = (await overgo.api.get("/agent/tools")).tools || [];
+      const agentPicker = el("select", { class: "text", style: "width:auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
+      const agentHost = el("div", { class: "agent-session" });
+      agentHost.hidden = true;
+      const agentSession = "front-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      const histories = new Map();
+
       const system = el("textarea", { class: "text", placeholder: "system prompt (optional)", style: "min-height:52px" });
       const facts = el("div", { class: "statgrid", "aria-label": "context meter" });
       const temperature = el("input", { class: "keyfield", type: "number", value: params.temperature, style: "width:80px" });
@@ -56,11 +68,21 @@
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },
-        modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe's abilities, nothing assumed
+        modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
+        onMode: (mode) => { agentHost.hidden = mode !== "agent"; },
         controls: [reset,
           el("span", { class: "note", text: "temp" }), temperature,
           el("span", { class: "note", text: "max tokens" }), maxTokens],
       });
+      panel.insertBefore(agentHost, composer.element);
+      const toolSurface = agents.length ? overgo.toolStep(agentHost, {
+        agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker],
+        onError: (err) => thread.errorRow(overgo.friendlyError(err)),
+      }) : null;
+      if (toolSurface) {
+        toolSurface.setAgent(agents[0], tools);
+        agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools));
+      }
 
       // The empty conversation is the getting-started card.
       const served = overgo.servedModel();
@@ -142,6 +164,15 @@
         try {
           // A mode beyond chat is one generation over the shared dispatch; its
           // media lands in this thread as artifacts with their provenance.
+          if (mode === "agent") {
+            const history = (histories.get(agentPicker.value) || []).concat([{ role: "user", content: parts.length ? [{ type: "text", text }, ...parts] : text }]);
+            const result = await overgo.api.post("/agents/chat", { agent: agentPicker.value, messages: history }, { signal: controller.signal });
+            assistant = thread.add("assistant", "");
+            await thread.consume(overgo.streams.reply(result), assistant);
+            if (assistant.content) history.push({ role: "assistant", content: assistant.content });
+            histories.set(agentPicker.value, history);
+            return;
+          }
           if (mode && mode !== "chat") { await thread.consume(overgo.generate(mode, text, parts, controller.signal)); return; }
           assistant = thread.add("assistant", "");
           const request = { model: modelID, input: responsesInput(text, parts), stream: true, store: true };

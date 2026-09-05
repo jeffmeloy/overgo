@@ -271,6 +271,8 @@
   // headerRow, tableRow, table: a header row from labels, a row of cells (a
   // node, or text shown mono after the first column), a grid table from both.
   function headerRow(labels) { return el("tr", {}, ...labels.map((text) => el("th", { text }))); }
+  // reporter: a host's error reporter, the shape every module spells as showError.
+  function reporter(host) { return (err) => host.replaceChildren(errorBanner(friendlyError(err))); }
   function tableRow(cells, attrs) {
     return el("tr", attrs || {}, ...cells.map((cell, index) => cell instanceof Node ? el("td", {}, cell) : el("td", { class: index ? "mono" : "", text: String(cell == null ? "" : cell) })));
   }
@@ -293,9 +295,8 @@
   let servedEntry = null;
   function servedModel() { return servedEntry; }
 
-  // ---- conversations: chains of stored responses the server lists ----
-  // The rail lists them, opens one into the chat tab, renames or archives
-  // one as a new label record; the browser keeps only the selection.
+  // ---- conversations: chains of stored responses the server lists; the rail lists them, opens one into
+  // the chat tab, renames or archives one as a new label record; the browser keeps only the selection ----
   let selectedConversation = null;
   function conversation() { return selectedConversation; }
   function openConversation(item) {
@@ -331,15 +332,14 @@
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel,
-    conversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface,
+    conversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
   };
 
-  // ---- shell wiring (runs after all deferred module scripts registered) ----
-  // The server manifest owns navigation order, labels, and capability refusal.
-  // Modules register only their implementation under a stable tab id.
+  // ---- shell wiring (runs after all deferred module scripts registered): the server manifest owns
+  // navigation order, labels and capability refusal; modules register only their implementation. ----
   let workspaceManifest = null;
   let activeSection = null;
   const sectionButtons = [];
@@ -450,11 +450,9 @@
     }
   }
 
-  // The served model shows on every page as the banner pill; clicking
-  // it lists the store's servable models. Behind the swap proxy
-  // (overgo_gui.bat launches it) choosing one swaps the serving child
-  // live: in-flight requests drain, the chosen model launches, and
-  // every page keeps working through the same address.
+  // The served model shows on every page as the banner pill; clicking it lists the store's servable
+  // models. Behind the swap proxy choosing one swaps the serving child live: in-flight requests drain,
+  // the chosen model launches, and every page keeps working through the same address.
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
@@ -462,12 +460,9 @@
     modelPill.style.cursor = "pointer";
     modelPill.title = "click to switch the served model";
 
-    // swapModel routes one health probe through the swap proxy with the
-    // swap query parameter; the proxy swaps the child to answer it, and the
-    // control shows the elapsed time meanwhile. On arrival the capability
-    // document is re-read and the active surface re-mounted, so the composer
-    // re-derives its context, defaults and accepted media without a reload.
-    // Served directly (no proxy) the parameter is ignored and the pill says so.
+    // swapModel routes one health probe through the swap proxy with the swap query parameter; the proxy
+    // swaps the child to answer it while the control shows the elapsed time. On arrival the capability
+    // document is re-read and the active surface re-mounted. Served directly, the parameter is ignored.
     async function swapModel(item, name, button) {
       const before = modelPill.textContent;
       const started = Date.now();
@@ -509,9 +504,8 @@
       panel.textContent = "loading servable models…";
       try {
         const catalog = await api.get("/catalog/models");
-        // Every activated entry with bytes on disk is listed: a servable one
-        // with its evidence, declared task capabilities and a serve control,
-        // a stale activation with the loader's reason and no control.
+        // Every activated entry with bytes on disk is listed: a servable one with its evidence, declared
+        // task capabilities and a serve control; a stale activation with the loader's reason and no control.
         const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
         if (!entries.length) {
           panel.textContent = "no activated models in the store";
@@ -549,9 +543,8 @@
   // Refusal is server-owned and travels with the same manifest as navigation.
   let authNoticeEl = null;
 
-  // When /analyze/model answers 401 the whole analysis surface is locked behind
-  // the key; surface one banner + highlight the field instead of letting each
-  // tab fail on its own with a raw bearer-token error.
+  // When /analyze/model answers 401 the whole analysis surface is locked behind the key: one banner and
+  // a highlighted field instead of every tab failing on its own with a raw bearer-token error.
   function showAuthNotice(show) {
     if (authNoticeEl) authNoticeEl.style.display = show ? "" : "none";
     const key = document.getElementById("api-key");
@@ -565,9 +558,8 @@
   function applyCapabilities() {
     for (const tab of tabs) {
       const ok = tabSupported(tab);
-      // A capability this model does not serve HIDES its tab instead of
-      // greying it out: the nav shows what works here, and the manifest
-      // still carries every refusal for API clients that ask.
+      // A capability this model does not serve HIDES its tab: the nav shows what works here, and the
+      // manifest still carries every refusal for API clients that ask.
       tab.button.style.display = ok ? "" : "none";
       tab.button.disabled = !ok;
       tab.button.title = ok ? "" : tab.refusal;
@@ -596,9 +588,8 @@
     tabs.splice(0, tabs.length, ...ordered);
   }
 
-  // ---- one loader: the manifest names each tab's module (default: the tab
-  // id); the libraries load in order, then every distinct module, then the
-  // shell wires. Same-origin scripts, so the strict CSP holds. ----
+  // ---- one loader: the manifest names each tab's module (default: the tab id); the libraries load in
+  // order, then every distinct module, then the shell wires. Same-origin scripts, so the strict CSP holds. ----
   const libraries = ["/viz.js", "/md.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
   const loadedScripts = new Set();
   function loadScript(src) {
@@ -696,9 +687,8 @@
       document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
     }
 
-    // The key controls, hash routing and the health re-probe are wired once;
-    // the shell may initialise again after an offline card, and must not
-    // stack a second listener each time.
+    // The key controls, hash routing and the health re-probe are wired once; the shell may initialise
+    // again after an offline card and must not stack a second listener.
     if (!shellWired) {
       shellWired = true;
       document.getElementById("workbench-toggle").addEventListener("click", () =>

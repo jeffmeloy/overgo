@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"slices"
 
 	"overgo/internal/media"
 )
@@ -114,6 +115,15 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		enabled, refusal := h.workspaceCapability(ctx, mode.capability)
 		document.Modes = append(document.Modes, workspaceMode{ID: mode.id, Label: mode.label, Enabled: enabled, Refusal: refusal})
 	}
+	// Agent mode is declared with the rest: enabled when an active agent
+	// definition exists, refused with the reason otherwise.
+	agentMode := workspaceMode{ID: "agent", Label: "Agent", Refusal: "no active agent definition"}
+	if h.repository != nil {
+		if agents, err := h.agentInventory(ctx); err == nil && slices.ContainsFunc(agents, func(entry AgentInventoryEntry) bool { return entry.State == "active" }) {
+			agentMode.Enabled, agentMode.Refusal = true, ""
+		}
+	}
+	document.Modes = append(document.Modes, agentMode)
 	return document, true
 }
 

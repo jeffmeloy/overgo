@@ -116,20 +116,12 @@
       });
 
       function placementRequest(value) {
-        const peers = (value.peer_candidates || []).map((line) => {
-          const parts = line.split(/\s+/);
-          return { peer: parts[0], compatibility: parts[1] };
-        });
+        const policyFields = ["minimum_replicas", "maximum_replicas", "target_concurrency", "concurrency_per_replica",
+          "maximum_measured_ns", "maximum_device_bytes", "allow_local", "allow_peers"];
         return {
-          model: value.model, task: value.task, now_unix_ns: 0,
-          local_observation: value.local_observation,
-          policy: {
-            minimum_replicas: value.minimum_replicas, maximum_replicas: value.maximum_replicas,
-            target_concurrency: value.target_concurrency, concurrency_per_replica: value.concurrency_per_replica,
-            maximum_measured_ns: value.maximum_measured_ns, maximum_device_bytes: value.maximum_device_bytes,
-            allow_local: value.allow_local, allow_peers: value.allow_peers,
-          },
-          peers,
+          model: value.model, task: value.task, now_unix_ns: 0, local_observation: value.local_observation,
+          policy: Object.fromEntries(policyFields.map((field) => [field, value[field]])),
+          peers: (value.peer_candidates || []).map((line) => { const parts = line.split(/\s+/); return { peer: parts[0], compatibility: parts[1] }; }),
         };
       }
 

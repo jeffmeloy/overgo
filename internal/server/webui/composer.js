@@ -37,8 +37,7 @@
     yield { type: "done" };
   }
 
-  // responses: the Responses API named SSE events (what /interactions/follow replays too): deltas
-  // as tokens, function-call items as tool events, usage+timings at completion, failures as errors.
+  // responses: the Responses API SSE events (follow replays them too): deltas, function-call items, usage, failures.
   async function* responses(response) {
     let id = "";
     for await (const { event, data: parsed } of overgo.sseEvents(response)) {
@@ -57,8 +56,7 @@
     yield { type: "done", id };
   }
 
-  // ---- thread: the stream renderer (messages, tool cards, media cards,
-  // a thinking row, error rows) ----
+  // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows) ----
   function thread(host) {
     const log = el("div", { class: "chat-log" });
     host.appendChild(log);
@@ -306,6 +304,7 @@
     }
     send.addEventListener("click", submit);
     stop.addEventListener("click", () => { if (options.onStop) options.onStop(); });
+    if (modeSelect && options.onMode) modeSelect.addEventListener("change", () => options.onMode(modeSelect.value));
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); }
     });
@@ -361,6 +360,64 @@
     yield { type: "error", message: "the served model declares no mode " + mode };
   }
 
+  // toolStep: the manual tool-step surface the agent tab and the front page share: pick an allowed tool and
+  // its exact arguments, review what a grant binds (manual identity, argument bytes, any committed decision),
+  // execute an inspection or approve a mutation bound to the previewed operation identity, watch steps against
+  // the bound; results are the thread's tool cards and a refusal re-renders the decision.
+  function toolStep(host, options) {
+    const api = overgo.api;
+    const select = el("select", { class: "text" });
+    const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
+    const decisionHost = el("div");
+    const guard = el("span", { class: "note", "aria-label": "guardrails" });
+    const review = el("button", { class: "btn alt", text: "Review decision" });
+    const execute = el("button", { class: "btn alt", text: "Execute inspection" });
+    const approve = el("button", { class: "btn", text: "Approve and execute", disabled: true });
+    let previewed = null;
+    function setAgent(agent, tools) {
+      const allowed = new Set((agent && agent.tools) || []);
+      select.replaceChildren(...tools.filter((item) => allowed.has(item.manual)).map((tool) => el("option", { value: tool.name, text: tool.name + " / " + tool.effect })));
+      review.disabled = execute.disabled = !agent;
+    }
+    function body() { return { agent: options.agent(), session: options.session(), tool: select.value, arguments: JSON.parse(args.value || "{}") }; }
+    function renderDecision(preview) {
+      previewed = preview;
+      const rows = [
+        el("div", {}, el("span", { class: preview.effect === "mutation" ? "tag tag-danger" : "tag", text: preview.effect }), " ", preview.tool, " / manual ", overgo.artifactLink(preview.manual)),
+        el("div", { class: "mono", text: "grant binds: " + preview.arguments.join(" ") + " / operation " + preview.operation }),
+      ];
+      if (!preview.decision) rows.push(el("div", { class: "note", text: preview.effect === "mutation" ? "No committed decision yet: approving records a durable grant for exactly these bytes." : "Inspections are effect-free and need no decision." }));
+      else if (preview.binds) rows.push(el("div", {}, el("span", { class: "tag", text: preview.decision.answer }), " committed decision ", overgo.artifactLink(preview.decision.id), " binds these exact facts"));
+      else rows.push(el("div", {}, el("span", { class: "tag tag-danger", text: "does not bind" }), " committed decision ", overgo.artifactLink(preview.decision.id), " (" + preview.decision.answer + ")"),
+        el("div", { class: "mono", text: "approved: " + preview.decision.arguments.join(" ") }), el("div", { class: "mono", text: "proposed: " + preview.arguments.join(" ") }));
+      decisionHost.replaceChildren(el("div", { class: "card approval" }, ...rows));
+      approve.disabled = preview.effect !== "mutation";
+      execute.disabled = preview.effect === "mutation";
+    }
+    async function preview() { renderDecision(await api.post("/agents/approval", body())); }
+    async function step(approving) {
+      const request = body();
+      if (approving) request.approval = previewed && previewed.operation;
+      const card = options.thread().toolCard({ name: request.tool, arguments: request.arguments });
+      try {
+        const result = await api.post("/agents/step", request);
+        card.end(result.result);
+        guard.textContent = "steps " + result.steps + " / " + result.bound + " · " + (result.bound - result.steps) + " remaining";
+        decisionHost.replaceChildren();
+        previewed = null;
+        if (options.onStep) options.onStep(result);
+      } catch (err) {
+        card.end({ error: overgo.friendlyError(err) });
+        try { await preview(); } catch (_) { /* the refusal stands on its own */ }
+      }
+    }
+    review.addEventListener("click", () => preview().catch(options.onError));
+    execute.addEventListener("click", () => step(false));
+    approve.addEventListener("click", () => step(true));
+    host.append(el("div", { class: "row" }, select, review, execute, approve, guard, ...(options.controls || [])), args, decisionHost);
+    return { setAgent, guard };
+  }
+
   // generationTab: a workbench tab that is one composer mode over its own thread.
   function generationTab(id, mode, options) {
     overgo.registerTab({
@@ -396,4 +453,5 @@
   overgo.userLine = userLine;
   overgo.generate = generate;
   overgo.generationTab = generationTab;
+  overgo.toolStep = toolStep;
 })();

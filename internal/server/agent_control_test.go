@@ -233,7 +233,7 @@ func TestAgentWorkspaceNoHiddenReasoning(t *testing.T) {
 	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil))
 	javascript := serveTestRequest(fixture.handler, http.MethodGet, "/mod/agent.js", "").Body.String()
 	for _, expected := range []string{
-		"schemaForm", "/agents/chat", "/agents/step", "/agents/retrieval", "/agents/automation", "/agents/evidence",
+		"schemaForm", "/agents/chat", "overgo.toolStep(", "/agents/retrieval", "/agents/automation", "/agents/evidence",
 		"/agents/stream", "PopStateEvent", "overgo.artifactLink",
 	} {
 		if !strings.Contains(javascript, expected) {

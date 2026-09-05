@@ -154,7 +154,7 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{
-		"session": session.ID, "steps": session.Steps, "inspected": session.Inspection.Valid(),
+		"session": session.ID, "steps": session.Steps, "bound": h.config.MaxStoredResponses, "inspected": session.Inspection.Valid(),
 		"interaction": idText(session.Interaction), "result": result,
 	})
 }
@@ -270,7 +270,7 @@ func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.R
 			continue
 		}
 		sessions = append(sessions, map[string]any{
-			"id": id, "steps": session.Steps, "inspected": session.Inspection.Valid(),
+			"id": id, "steps": session.Steps, "bound": h.config.MaxStoredResponses, "inspected": session.Inspection.Valid(),
 			"interaction": idText(session.Interaction),
 		})
 	}

@@ -9,17 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "agent-in-thread",
-          "title": "Agent mode inside the conversation: the user picks an agent definition (the immutable binding of prompt, model configuration, UTCP tools and policies the store holds) and the same thread runs the session through the existing /agents surface; tool calls render inline as the composer's collapsible cards, an action outside the session's standing authority renders as an inline approval card bound to the inbox record with the exact tool identity and arguments (nothing executes on a stale approval), the session's guardrails are visible (step budget and loop limit with what remains), a plan the agent records renders as a live checklist, and a delegated sub-session renders as a nested card with its own receipt; the workbench agent tab stays intact",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestFrontPageAgent' -count=1",
-          "rationale": "Agent sessions, the approvals inbox and the authority maps exist; the front page must let a user run an agent from the same thread they chat in and see every tool call and approval where it happens, with tool calling staying UTCP.",
-          "depends_on": [
-            "gui-simplify/one-composer",
-            "gui-conversations/durable-sessions"
-          ]
-        },
-        {
           "id": "operations-strip",
           "title": "Long operations on the front page: model load and switch, generation jobs, evaluations and training sessions show in the operations strip with progress, cancel, the live log tail of the running operation and the durable receipt, reusing operations_shell.js and /operations/evidence; the header carries status dots for the server, the swap proxy and the device (with peak memory) and the approvals inbox count, which opens the inbox",
           "status": "open",

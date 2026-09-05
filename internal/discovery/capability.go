@@ -34,29 +34,43 @@ type CatalogEntry struct {
 // across all tasks -- the full serving surface, where Servable is the
 // inference slice. Aliases drive enumeration so capability-activated
 // models (speech, forecast, tabular, projection) appear beside chat
-// models without any per-model knowledge. The truncated result reports
-// when the bounded alias listing could not carry every activation: a
-// clipped catalog must say so rather than read as complete.
+// models without any per-model knowledge. Every activation alias is read:
+// the alias projection is paged to its end, because one bounded page
+// shares its budget with the recipe artifacts and a store holding more
+// recipes than the page hid activations (the 27B's inference activation
+// fell outside the first page while its projection activation stayed
+// in). limit bounds the catalog entries; the truncated result reports
+// when more models are activated than the bound carries, so a clipped
+// catalog says so rather than reading as complete.
 func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo) ([]CatalogEntry, bool, error) {
-	result, err := store.Query(ctx, overgodb.Query{
-		Kind: artifact.KindRecipe, MaxResults: limit, Projection: overgodb.ProjectAliases,
-	})
-	if err != nil {
-		return nil, false, err
-	}
+	query := overgodb.Query{Kind: artifact.KindRecipe, MaxResults: limit, Projection: overgodb.ProjectAliases}
 	tasksByModel := map[artifact.ID][]recipe.Task{}
-	for _, alias := range result.Aliases {
-		model, task, ok := modelrecipe.ParseActiveAlias(alias.Name)
-		if !ok {
-			continue
+	for {
+		result, err := store.Query(ctx, query)
+		if err != nil {
+			return nil, false, err
 		}
-		tasksByModel[model] = append(tasksByModel[model], task)
+		for _, alias := range result.Aliases {
+			model, task, ok := modelrecipe.ParseActiveAlias(alias.Name)
+			if !ok {
+				continue
+			}
+			tasksByModel[model] = append(tasksByModel[model], task)
+		}
+		if result.Next == nil {
+			break
+		}
+		query.Cursor = result.Next
 	}
 	models := make([]artifact.ID, 0, len(tasksByModel))
 	for model := range tasksByModel {
 		models = append(models, model)
 	}
 	sort.Slice(models, func(i, j int) bool { return models[i].String() < models[j].String() })
+	truncated := len(models) > limit
+	if truncated {
+		models = models[:limit]
+	}
 	entries := make([]CatalogEntry, 0, len(models))
 	identities := map[string]fileIdentity{}
 	for _, model := range models {
@@ -108,5 +122,5 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		}
 		entries = append(entries, entry)
 	}
-	return entries, result.Truncated, nil
+	return entries, truncated, nil
 }

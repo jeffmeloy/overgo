@@ -4,6 +4,71 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "gui-register-projectors",
+      "title": "The Library registers a projector for a model: take the projector file from the hub download or a local path, register the projection candidate, validate and activate it through the same operation flow as a model; Qwen3.8-27B, gemma-4-12B-it and Qwen3.5-4B hold projection activations with bytes on disk in the lane store",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The Library registers a projector for a model: take the projector file from the hub download or a local path, register the projection candidate, validate and activate it through the same operation flow as a model; Qwen3.8-27B, gemma-4-12B-it and Qwen3.5-4B hold projection activations with bytes on disk in the lane store",
+          "status": "open",
+          "verify": "test \"$(go run ./cmd/overgodb-query -repo C:/Users/jeffm/professional_overgo_gui/overgodb-store -kind recipe -limit 3000 | grep -c recipe.active.projection)\" -ge 3 \u0026\u0026 go test ./internal/server -run '^TestFrontPageLibraryProjector$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-generation-declarations",
+      "title": "Every generation mode renders from its capability declaration: controls and media inputs come from the generation capabilities, attachments bind to the declared inputs (image edit, video edit, VQA), the client carries no per-mode payload, and a native VQA route serves the vqa activation as text",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every generation mode renders from its capability declaration: controls and media inputs come from the generation capabilities, attachments bind to the declared inputs (image edit, video edit, VQA), the client carries no per-mode payload, and a native VQA route serves the vqa activation as text",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestFrontPageGenerationDeclarations$|^TestNativeVQA' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-media-roundtrip",
+      "title": "Every media output offers use-as-input: the artifact re-attaches to the next turn as its modality, so an image out feeds VQA or an edit, a clip out feeds a video edit, and a speech clip feeds audio input",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Every media output offers use-as-input: the artifact re-attaches to the next turn as its modality, so an image out feeds VQA or an edit, a clip out feeds a video edit, and a speech clip feeds audio input",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestFrontPageMediaRoundtrip$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gui-journey-modalities",
+      "title": "The first-run journey proves modalities in and out: an image to a multimodal model answered grounded, an image out, a speech clip out and a VQA answer, each on the smallest model that declares it, chosen by the lane from the store",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "The first-run journey proves modalities in and out: an image to a multimodal model answered grounded, an image out, a speech clip out and a VQA answer, each on the smallest model that declares it, chosen by the lane from the store",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane"
+        }
+      ]
+    },
+    {
+      "id": "gui-multimodal-closeout",
+      "title": "Close the multimodal rows: the simplification report regenerated, README and manifest follow the modalities, the deferred vision and VQA findings closed, merge readiness updated",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Close the multimodal rows: the simplification report regenerated, README and manifest follow the modalities, the deferred vision and VQA findings closed, merge readiness updated",
+          "status": "open",
+          "verify": "go run ./cmd/api-manifest -check"
+        }
+      ]
+    },
+    {
       "id": "long-context-collapse",
       "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
       "status": "open",

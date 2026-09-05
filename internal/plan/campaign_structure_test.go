@@ -456,6 +456,12 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"gui-library/do",
 		"gui-docs/readme-launcher-manifest",
 		"gui-closeout/closeout",
+		"gui-serve-projectors/do",
+		"gui-register-projectors/do",
+		"gui-generation-declarations/do",
+		"gui-media-roundtrip/do",
+		"gui-journey-modalities/do",
+		"gui-multimodal-closeout/do",
 		// Rows retained from the master plan at the lane base (9dce4fca):
 		// the plan authority protects every identity committed at the
 		// protected revision, so the lane keeps them after its own rows and

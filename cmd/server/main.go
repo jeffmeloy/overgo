@@ -16,6 +16,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
@@ -241,8 +242,11 @@ func run() error {
 			evaluationWorkspace = nil
 		}
 	}
+	// The projector comes from the command line or from the store: with no
+	// -mmproj, the model's active projection recipe names the projector
+	// bytes, so every launcher serves the modalities the store declares.
 	var vision, audio projector.Session
-	if *projectorPath != "" {
+	{
 		repository, repositoryErr := modelFlags.RepositoryPath()
 		if repositoryErr != nil {
 			return repositoryErr
@@ -251,16 +255,31 @@ func run() error {
 		if openErr != nil {
 			return fmt.Errorf("open model recipe repository: %w", openErr)
 		}
-		vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), *projectorPath, projector.OpenOptions{
-			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
-		})
+		resolved := *projectorPath
+		if resolved == "" {
+			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, runner.ModelID(), discovery.LoadMemo(shutdownContext, store))
+			if resolveErr != nil {
+				return errors.Join(fmt.Errorf("resolve declared projector: %w", resolveErr), store.Close())
+			}
+			if ok {
+				resolved = declared
+				log.Printf("serving the declared projector %s", resolved)
+			}
+		}
+		if resolved != "" {
+			vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), resolved, projector.OpenOptions{
+				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
+			})
+		}
 		err = errors.Join(err, store.Close())
 		if err != nil {
 			return fmt.Errorf("open multimodal projector: %w", err)
 		}
-		defer vision.Close()
-		if vision.Capabilities().Audio {
-			audio = vision
+		if vision != nil {
+			defer vision.Close()
+			if vision.Capabilities().Audio {
+				audio = vision
+			}
 		}
 	}
 	var mediaPolicy *llamaserver.RemoteMediaPolicy

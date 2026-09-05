@@ -542,9 +542,7 @@
             row.appendChild(swap);
             return row;
           }));
-      } catch (err) {
-        panel.textContent = friendlyError(err);
-      }
+      } catch (err) { panel.textContent = friendlyError(err); }
     });
   }
   wireModelPicker();

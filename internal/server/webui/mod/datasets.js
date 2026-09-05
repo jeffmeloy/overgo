@@ -45,9 +45,7 @@
                 el("span", { class: "tag", text: value.role + " / " + value.modality }),
                 value.text ? el("pre", { class: "preview-text", text: value.text }) :
                   el("span", { class: "note", text: value.encoding + " / " + value.bytes + " bytes" }))))));
-        } catch (err) {
-          preview.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { preview.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
       function render() {

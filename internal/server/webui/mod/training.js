@@ -159,9 +159,7 @@
               overgo.stat("Outputs", (run.outputs || []).length)),
             el("div", { class: "row" }, artifactLink(overgo, run.id), pin), evidence);
           if (record) renderTrace(overgo, evidence, record, baseline && baseline.run !== record.run ? baseline : null);
-        } catch (err) {
-          detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
       function outcomeClass(outcome) {

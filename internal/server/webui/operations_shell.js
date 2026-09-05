@@ -60,9 +60,7 @@
   async function cancelOperation(host, id) {
     try {
       await api.post("/operations/cancel", { id });
-    } catch (err) {
-      renderDetailError(host, err);
-    }
+    } catch (err) { renderDetailError(host, err); }
   }
 
   // decide records one operator decision bound to the approval request the operation advertises now.
@@ -78,9 +76,7 @@
     try {
       await decide(id, tool, answer);
       await loadDetail(host, id);
-    } catch (err) {
-      renderDetailError(host, err);
-    }
+    } catch (err) { renderDetailError(host, err); }
   }
 
   function renderDetailError(host, err) {

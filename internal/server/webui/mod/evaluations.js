@@ -94,9 +94,7 @@
             metricTable(overgo, entry.metrics),
             ...failures.map((failure) => recordTable(overgo, failure.observation)),
             ...observations.map((observation) => recordTable(overgo, observation)));
-        } catch (err) {
-          detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
       let baseline = null;
@@ -116,9 +114,7 @@
           }
           detail.replaceChildren(el("div", { class: "section-title", text: "Comparison" }), table);
           baseline = null;
-        } catch (err) {
-          detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
       async function loadHistory() {
@@ -134,9 +130,7 @@
                 entry.evaluation ? el("button", { class: "btn alt", text: "Compare", onclick: () => compare(entry) }) : null)]));
           }
           history.replaceChildren(table);
-        } catch (err) {
-          history.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { history.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
       let operation = null;

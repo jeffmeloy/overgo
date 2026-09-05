@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-register-projectors",
-      "title": "The Library registers a projector for a model: take the projector file from the hub download or a local path, register the projection candidate, validate and activate it through the same operation flow as a model; Qwen3.8-27B, gemma-4-12B-it and Qwen3.5-4B hold projection activations with bytes on disk in the lane store",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The Library registers a projector for a model: take the projector file from the hub download or a local path, register the projection candidate, validate and activate it through the same operation flow as a model; Qwen3.8-27B, gemma-4-12B-it and Qwen3.5-4B hold projection activations with bytes on disk in the lane store",
-          "status": "open",
-          "verify": "test \"$(go run ./cmd/overgodb-query -repo C:/Users/jeffm/professional_overgo_gui/overgodb-store -kind recipe -limit 3000 | grep -c recipe.active.projection)\" -ge 3 \u0026\u0026 go test ./internal/server -run '^TestFrontPageLibraryProjector$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "gui-generation-declarations",
       "title": "Every generation mode renders from its capability declaration: controls and media inputs come from the generation capabilities, attachments bind to the declared inputs (image edit, video edit, VQA), the client carries no per-mode payload, and a native VQA route serves the vqa activation as text",
       "status": "open",

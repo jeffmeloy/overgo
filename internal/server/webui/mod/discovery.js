@@ -35,9 +35,7 @@
             catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }),
               capabilities, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" })]));
           }
-        } catch (err) {
-          catalogNote.textContent = overgo.friendlyError(err);
-        }
+        } catch (err) { catalogNote.textContent = overgo.friendlyError(err); }
       }
 
       // ---- hub search ----
@@ -72,15 +70,14 @@
 
       // ---- downloads ----
       const jobsBody = el("tbody");
+      const localBody = el("tbody");
       const jobsNote = el("div", { class: "note" });
       async function startDownload(repository) {
         jobsNote.textContent = "starting " + repository + "…";
         try {
           await overgo.api.post("/hub/downloads", { kind: kind.value, repository: repository, revision: "", directory: "" });
           jobsNote.textContent = "";
-        } catch (err) {
-          jobsNote.textContent = overgo.friendlyError(err);
-        }
+        } catch (err) { jobsNote.textContent = overgo.friendlyError(err); }
       }
       // ---- the lifecycle after a download: register once the download succeeded, validate once the
       // store holds the registration; a model validates as an operation the strip shows, a dataset by preview ----
@@ -96,8 +93,9 @@
           try {
             stage.registered = await overgo.api.post("/library/register", job.kind === "datasets"
               ? { kind: "dataset", name, directory: job.destination }
-              : { kind: "model", path: job.destination });
-            report(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset)));
+              : { kind: "model", path: job.destination, projector: job.projector || "" });
+            report(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset),
+              stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : ""));
             jobPoller.start();
           } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
         } });
@@ -107,8 +105,8 @@
               const preview = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
               report(el("span", { class: "note", text: "validated: " + (preview.rows || []).length + " row previewed" }));
             } else {
-              const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path });
-              report(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts"));
+              const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path, projector: stage.registered.projector || "" });
+              report(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts" + (admitted.projector ? " · projector" : "")));
               history.pushState({}, "", "?operation=" + encodeURIComponent(admitted.operation));
               window.dispatchEvent(new PopStateEvent("popstate"));
             }
@@ -138,7 +136,18 @@
         el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
         el("div", { class: "section-title", text: "Downloads" }),
         jobsNote,
-        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), jobsBody));
+        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), localBody, jobsBody));
+
+      // ---- a local model: a GGUF (or its directory) already on disk, with its projector, rides the same lifecycle ----
+      const localModel = el("input", { class: "text", placeholder: "model GGUF or directory on disk" });
+      const localProjector = el("input", { class: "text", placeholder: "projector GGUF (optional)" });
+      const localButton = el("button", { class: "btn alt", text: "register a local model", onclick: () => {
+        const path = localModel.value.trim();
+        if (!path) return;
+        const job = { id: "local:" + path, kind: "models", state: "succeeded", repository: path, destination: path, projector: localProjector.value.trim() };
+        localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag user_defined", text: "local" }), job.projector, "", lifecycle(job)]));
+      } });
+      jobsNote.after(el("div", { class: "row" }, localModel, localProjector, localButton));
 
       refreshCatalog();
       this.onActivate = () => jobPoller.start();

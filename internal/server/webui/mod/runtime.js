@@ -43,9 +43,7 @@
       try {
         const info = await overgo.modelInfo();
         identity.textContent = info.model.name || info.model.id || "";
-      } catch (err) {
-        error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-      }
+      } catch (err) { error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
 
       function render(data) {
         error.replaceChildren();
@@ -130,9 +128,7 @@
 			(dag.edges || []).map((edge) => edge.from + " → " + edge.to).join("   "));
 		  dagHost.replaceChildren(
 			el("div", { class: "section-title", text: "Workflow " + fmt.shortID(operation) }), nodes, edges);
-		} catch (err) {
-		  error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-		}
+		} catch (err) { error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
 	  }
 
 	  function renderOperations() {
@@ -195,9 +191,7 @@
 				replay.replaceChildren(
 				  ...(inline.length ? [el("div", { class: "row" }, ...inline)] : []),
 				  el("pre", { class: "mono", text: JSON.stringify(value, null, 2) }));
-			  } catch (err) {
-				replay.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-			  }
+			  } catch (err) { replay.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
 			} }))));
 		workflow.replaceChildren(
 		  overgo.fold("Workflow stages", false, stageTable),

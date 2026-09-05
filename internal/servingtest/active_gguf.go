@@ -91,25 +91,5 @@ func PublishActiveGGUFWithPolicy(
 	if err != nil {
 		return err
 	}
-	if _, _, err := modelrecipe.PublishCandidate(ctx, store, prefix+"/candidate", definition); err != nil {
-		return err
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, prefix+"/validated", definition, recipe.StatusValidated, nil, nil,
-	); err != nil {
-		return err
-	}
-	verification, err := modelrecipetest.PublishVerification(
-		ctx, store, prefix+"/verification", definition.ID,
-	)
-	if err != nil {
-		return err
-	}
-	if _, _, err := modelrecipe.ActivateVerified(
-		ctx, store, prefix+"/active", definition, verification,
-		recipe.EvidenceVerified, "serving fixture activation", nil, nil,
-	); err != nil {
-		return err
-	}
-	return nil
+	return modelrecipetest.PublishActivation(ctx, store, prefix, definition)
 }

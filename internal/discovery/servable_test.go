@@ -100,45 +100,18 @@ func TestServableReportsStaleActivationsWithoutFailing(t *testing.T) {
 	}
 }
 
-// publishVerifiedActivation walks the trusted lifecycle: candidate,
-// validated, verified run evidence, then activation -- the activation
-// ActiveRecord accepts.
 func publishVerifiedActivation(t *testing.T, store *overgodb.Store, modelID artifact.ID, suffix string) {
 	t.Helper()
-	ctx := t.Context()
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "discovery-profile-"+suffix)
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "discovery-definition-"+suffix)
-	if _, err := store.Commit(ctx, artifact.Batch{
-		Key:       "fixture/discovery/verified-facts/" + suffix,
-		Artifacts: []artifact.Descriptor{{ID: profile}, {ID: definitionID}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	definition, err := modelrecipe.InferenceWithModelDefinition(
-		modelID, profile, definitionID, recipe.PlacementHost,
-		modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference,
-	)
+	testutil.PublishArtifact(t, store, profile)
+	testutil.PublishArtifact(t, store, definitionID)
+	definition, err := modelrecipe.InferenceWithModelDefinition(modelID, profile, definitionID,
+		recipe.PlacementHost, modelrecipe.DecodeSessionRequest, recipe.ResidencyHostReference)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/discovery/verified-candidate/"+suffix, definition); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := modelrecipe.Transition(
-		ctx, store, "fixture/discovery/verified-validated/"+suffix, definition, recipe.StatusValidated, nil, nil,
-	); err != nil {
-		t.Fatal(err)
-	}
-	verification, err := modelrecipetest.PublishVerification(
-		ctx, store, "fixture/discovery/verified-evidence/"+suffix, definition.ID,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := modelrecipe.ActivateVerified(
-		ctx, store, "fixture/discovery/verified-active/"+suffix, definition, verification,
-		recipe.EvidenceVerified, "discovery fixture activation", nil, nil,
-	); err != nil {
+	if err := modelrecipetest.PublishActivation(t.Context(), store, "fixture/discovery/"+suffix, definition); err != nil {
 		t.Fatal(err)
 	}
 }

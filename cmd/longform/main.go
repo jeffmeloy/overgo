@@ -158,20 +158,31 @@ type target struct {
 // listTargets reads everything the run needs from the store before any
 // model loads: the servable text models (a declared domain without text
 // excludes a model; undeclared models are text), their sizes, the
-// latest short-prompt benchmark per location. Baselines are resolved separately
-// by exact record identity before a comparison starts.
-func listTargets(ctx context.Context, repository string, requested []string) ([]target, error) {
-	store, err := overgodb.OpenReadOnly(repository)
+// latest short-prompt benchmark per location for measurement. Read-only guard
+// admission needs only selected bytes and active recipes; its measured rates
+// come from separately resolved exact baseline records.
+func listTargets(ctx context.Context, options options) ([]target, error) {
+	store, err := overgodb.OpenReadOnly(options.Repository)
 	if err != nil {
 		return nil, err
 	}
 	defer store.Close()
+	return readTargets(ctx, store, options, func() map[string]evaluation.BenchmarkSummary {
+		return evaluation.LatestEvidence(ctx, store, map[artifact.ID]string{}, 0).BenchmarksByLocation
+	})
+}
+
+func readTargets(ctx context.Context, store *overgodb.Store, options options, readBenchmarks func() map[string]evaluation.BenchmarkSummary) ([]target, error) {
+	requested := options.Models
 	memo := discovery.LoadMemo(ctx, store)
-	entries, err := discovery.ServableWithMemo(ctx, store, catalogLimit, memo)
+	entries, err := discovery.ServableWithMemo(ctx, store, catalogLimit, memo, requested...)
 	if err != nil {
 		return nil, err
 	}
-	benchmarks := evaluation.LatestEvidence(ctx, store, map[artifact.ID]string{}, 0).BenchmarksByLocation
+	var benchmarks map[string]evaluation.BenchmarkSummary
+	if !options.ValidateBaselines {
+		benchmarks = readBenchmarks()
+	}
 	wanted := make(map[string]bool, len(requested))
 	for _, path := range requested {
 		wanted[longform.Key(path)] = true
@@ -277,7 +288,7 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	catalogStart := time.Now()
-	targets, err := listTargets(ctx, options.Repository, options.Models)
+	targets, err := listTargets(ctx, options)
 	fmt.Fprintf(output, "long-form catalog resolution: %s; no models loaded or measured during setup\n", time.Since(catalogStart))
 	if err != nil {
 		return err

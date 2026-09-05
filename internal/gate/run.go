@@ -236,7 +236,7 @@ func Run(options Options) error {
 			}
 			g.mergeSourceStore = registered
 		}
-		staged, err := gitLines(repo, "diff", "--cached", "--name-only")
+		staged, err := stagedPaths(repo)
 		if err != nil {
 			return err
 		}

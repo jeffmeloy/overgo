@@ -13,13 +13,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/mediacapability"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
 )
 
 func TestProjectionVerificationRequiresExecution(t *testing.T) {
-	err := verifyCapability(t.TempDir(), "unused", recipe.TaskProjection, capability{}, "")
+	err := verifyCapability(t.TempDir(), "unused", recipe.TaskProjection, mediacapability.Capability{}, "")
 	if err == nil || !strings.Contains(err.Error(), "executor") {
 		t.Fatalf("compile-only projection reached verification: %v", err)
 	}

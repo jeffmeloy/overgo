@@ -43,10 +43,18 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer browser.Close()
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form") &&
+	probeCtx, probeCancel := context.WithTimeoutCause(ctx, 30*time.Second, errors.New("webui lane: the shell did not present the automations panel"))
+	defer probeCancel()
+	if err := browser.Eventually(probeCtx, `!!document.querySelector("#panel-automations.active .schema-form") &&
         document.querySelectorAll(".operation-chip").length >= 2`); err != nil {
-		t.Fatal(err)
+		var page string
+		_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, html: document.documentElement.outerHTML.slice(0, 1500)})`, &page)
+		t.Fatalf("%v; page: %s", err, page)
 	}
+
+	// Every library and module parsed and registered: a script that fails to
+	// parse leaves window.overgo without its surface and a window error behind.
+	assertBrowserPredicate(t, ctx, browser, `window.overgo.errors.length === 0 && typeof window.overgo.composer === "function" && typeof window.overgo.thread === "function"`)
 
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       location.hash = "recipe";
@@ -231,5 +239,97 @@ func assertBrowserPredicate(t *testing.T, ctx context.Context, browser *webuilan
 	var accepted bool
 	if err := browser.Evaluate(ctx, expression, &accepted); err != nil || !accepted {
 		t.Fatalf("browser predicate refused: %s: %v", strings.TrimSpace(expression), err)
+	}
+}
+
+// TestWebUIBrowserFrontPage drives the front page in a real browser
+// (professional GUI campaign, gui-quality/accessibility-responsive): every
+// control a keyboard user needs is a native focusable element, a real Tab
+// key press moves focus on with a visible ring, the inspector lands focus
+// on its close control and Escape closes it, the reduced-motion preference
+// stops transitions, the light and dark schemes come from the token set,
+// and the layout holds without horizontal overflow at desktop, tablet and
+// phone widths.
+func TestWebUIBrowserFrontPage(t *testing.T) {
+	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
+		return
+	}
+	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
+	defer handler.Close()
+	httpServer := httptest.NewServer(handler)
+	defer httpServer.Close()
+	ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("webui lane: the front page did not settle"))
+	defer cancel()
+	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer browser.Close()
+	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .composer textarea") && window.overgo.errors.length === 0`); err != nil {
+		var page string
+		_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, text: document.body.innerText.slice(0, 600)})`, &page)
+		t.Fatalf("%v; page: %s", err, page)
+	}
+	// The conversation rail renders after its own request, so the check waits for every control.
+	if err := browser.Eventually(ctx, `["#workbench-toggle", "#model-pill", ".composer textarea", ".composer .btn", "#inbox-count", "#conversation-list button"]
+      .every((selector) => { const node = document.querySelector(selector); return !!node && node.tabIndex >= 0 && ["BUTTON", "TEXTAREA", "SELECT", "INPUT", "A"].includes(node.tagName); })`); err != nil {
+		t.Fatal(err)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer textarea").focus(); return document.activeElement.tagName === "TEXTAREA"; })()`)
+	pressKey(t, ctx, browser, "Tab", 9)
+	assertBrowserPredicate(t, ctx, browser, `document.activeElement !== document.body && document.activeElement.tagName !== "TEXTAREA" &&
+      getComputedStyle(document.activeElement).outlineStyle !== "none" && parseFloat(getComputedStyle(document.activeElement).outlineWidth) > 0`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { window.overgo.inspectTurn("resp_missing"); return true; })()`)
+	if err := browser.Eventually(ctx, `!document.querySelector("#inspector").hidden && document.activeElement.getAttribute("aria-label") === "close the inspector"`); err != nil {
+		t.Fatal(err)
+	}
+	pressKey(t, ctx, browser, "Escape", 27)
+	if err := browser.Eventually(ctx, `document.querySelector("#inspector").hidden`); err != nil {
+		t.Fatal(err)
+	}
+	emulateMedia(t, ctx, browser, "prefers-reduced-motion", "reduce")
+	assertBrowserPredicate(t, ctx, browser, `matchMedia("(prefers-reduced-motion: reduce)").matches && parseFloat(getComputedStyle(document.querySelector("#server-dot")).transitionDuration) < 0.001`)
+	for scheme, background := range map[string]string{"light": "rgb(244, 246, 250)", "dark": "rgb(10, 13, 19)"} {
+		emulateMedia(t, ctx, browser, "prefers-color-scheme", scheme)
+		if err := browser.Eventually(ctx, `matchMedia("(prefers-color-scheme: `+scheme+`)").matches && getComputedStyle(document.body).backgroundColor === "`+background+`"`); err != nil {
+			t.Fatalf("scheme %s: %v", scheme, err)
+		}
+	}
+	for _, width := range []int{1280, 820, 390} {
+		if err := browser.SetViewport(ctx, width, 900); err != nil {
+			t.Fatal(err)
+		}
+		if err := browser.Eventually(ctx, `document.documentElement.scrollWidth <= innerWidth &&
+        document.querySelector(".composer textarea").getBoundingClientRect().right <= innerWidth &&
+        document.querySelector(".topbar").getBoundingClientRect().right <= innerWidth`); err != nil {
+			t.Fatalf("width %d: %v", width, err)
+		}
+	}
+}
+
+// pressKey sends one real key press through the browser's input domain, so
+// focus-visible and default key handling behave as they do for a person.
+func pressKey(t *testing.T, ctx context.Context, browser *webuilane.Browser, key string, code int) {
+	t.Helper()
+	for _, kind := range []string{"keyDown", "keyUp"} {
+		if err := browser.Call(ctx, "Input.dispatchKeyEvent", map[string]any{
+			"type": kind, "key": key, "code": key, "windowsVirtualKeyCode": code, "nativeVirtualKeyCode": code,
+		}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// emulateMedia sets one media feature the page's stylesheet responds to.
+func emulateMedia(t *testing.T, ctx context.Context, browser *webuilane.Browser, name, value string) {
+	t.Helper()
+	if err := browser.Call(ctx, "Emulation.setEmulatedMedia", map[string]any{
+		"features": []map[string]string{{"name": name, "value": value}},
+	}, nil); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -298,3 +298,57 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .fold > summary { cursor: pointer; list-style: none; }
 .fold > summary::before { content: "\25B8"; display: inline-block; margin-right: 6px; transition: transform 0.12s; }
 .fold[open] > summary::before { transform: rotate(90deg); }
+
+/* ---- composer and thread (composer.js): shared by chat, agent, image,
+   video and speech surfaces ---- */
+.composer { margin-top:10px; }
+.msg.thinking { color:var(--dim); font-style:italic; }
+.msg.error .role { color:var(--err); }
+.msg.error .body { color:var(--err); }
+.msg.media { padding:8px 0; }
+.tool-call { padding:0; margin:8px 0; overflow:hidden; }
+.tool-header { padding:8px 12px; cursor:pointer; user-select:none; align-items:center; gap:8px; }
+.tool-header:hover { background:var(--bg2); }
+.tool-header .arrow { color:var(--dim); width:1em; display:inline-block; }
+.tool-header .tag { margin-left:auto; }
+.tool-body { padding:0 12px 10px; }
+.tool-body pre { margin:4px 0 8px; max-height:280px; overflow:auto; font-size:12px; }
+
+/* ---- front page: the conversation first, the workbench one click away ---- */
+.shell.front .sidebar .nav-group { display:none; }
+.shell.front .sidebar { width:200px; }
+.shell.front .wrap { max-width:900px; margin:0 auto; }
+#workbench-toggle { margin:6px 10px 12px; width:calc(100% - 20px); }
+.shell:not(.front) #workbench-toggle { opacity:.7; }
+#model-evidence { max-width:46ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.front-empty { margin:40px auto 24px; max-width:560px; text-align:center; }
+.front-empty h2 { font:600 20px var(--font); margin:0 0 6px; }
+.front-empty .starters { display:flex; gap:10px; justify-content:center; margin-top:18px; flex-wrap:wrap; }
+.front-empty .tag { margin:2px; }
+
+/* ---- conversation rail (front page) ---- */
+.conversations { margin:4px 0 10px; }
+.conversations .conversation { margin:2px 0; }
+.conversations .conversation .row { gap:8px; padding:0 10px 4px; }
+.conversations .conversation .tab { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+.shell:not(.front) .conversations { display:none; }
+.composer.drop { outline:2px dashed var(--acc); outline-offset:4px; }
+.card.refused { border-color:var(--err); }
+/* ---- inspect this turn: a side panel over the conversation (chat.js inspectTurn) ---- */
+.inspector { position:fixed; top:0; right:0; bottom:0; width:min(620px, 70vw); overflow:auto; background:var(--bg2); border-left:1px solid var(--line); padding:14px; z-index:5; }
+.inspector[hidden] { display:none; }
+/* ---- header status dots and the approvals count (boot.js refreshStatus, operations_shell.js) ---- */
+.dots { display:inline-flex; gap:5px; align-items:center; }
+.dot { width:9px; height:9px; border-radius:50%; background:var(--line); display:inline-block; }
+.dot.ok { background:var(--ok); } .dot.off { background:var(--faint); } .dot.err { background:var(--err); }
+#inbox-count { cursor:pointer; color:var(--amber); }
+/* ---- accessibility and phone widths (gui-quality/accessibility-responsive) ---- */
+button.pill { font:inherit; cursor:pointer; }
+@media (max-width: 520px) {
+  .topbar { flex-wrap:wrap; gap:6px; padding:8px 10px; }
+  #model-evidence, .sidebar .sub { display:none; }
+  .wrap { padding:10px 10px 40px; }
+  .statgrid { grid-template-columns:1fr 1fr; }
+  .inspector { width:100vw; }
+  .front-empty { margin:16px auto; }
+}

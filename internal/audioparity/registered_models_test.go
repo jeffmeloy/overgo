@@ -23,6 +23,13 @@ func TestCanonicalAudioModelRegistration(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := cmp.Or(os.Getenv("OVERGO_DATA_ROOT"), testutil.RepoRoot(t))
+	storeRoot := filepath.Join(root, "overgodb-store")
+	// The audio reference store, when named (as the CPU acceptance door
+	// reads it), carries the registrations and stands beside its own data
+	// root; a lane store forked before them cannot check the exact records.
+	if reference := os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"); reference != "" {
+		storeRoot, root = reference, filepath.Dir(reference)
+	}
 	empty, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +40,7 @@ func TestCanonicalAudioModelRegistration(t *testing.T) {
 	if err := empty.Close(); err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
+	store, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

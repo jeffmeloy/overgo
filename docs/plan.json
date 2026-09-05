@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-worktree-integration",
-      "title": "Integrate the GUI lane and retain one model-validation plan",
-      "status": "open",
-      "steps": [
-        {
-          "id": "merge",
-          "title": "Merge the landed GUI implementation after the E4B producer",
-          "status": "open",
-          "verify": "go test ./internal/modelrecipe -run '^TestDeclaredSamplingPreservesPolicyIdentity$' -count=1 \u0026\u0026 go test ./cmd/recipe -run '^TestProjectionVerificationRequiresExecution$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestWorkspaceCapabilityDocument$' -count=1",
-          "rationale": "Explicit owner request 2026-09-05: after the current producer commit merge the GUI lane into master, update this plan and continue; the GUI lane owns HTTP work. The supplied path C:/Users/jeffm/professional/_overgo/_gui is absent; git's registered worktree is C:/Users/jeffm/professional_overgo_gui on professional_overgo_gui. Integrate a pinned landed source head, preserving its uncommitted work and master as the live validation-plan authority. Use the existing first-parent-target merge gate and source-store provenance. Reuse the lane's modelintake, media catalog, projector discovery and route consolidation; do not introduce competing CLI/HTTP owners. Resolve the overlapping policy-identity repair once, retain invalid-input nonmutation and reduced API surface, and preserve execution-required projection acceptance. The lane's projector-load verification is a lower bound, not full model-quality acceptance; keep missing execution obligations visible. Before merging bind the exact source commit, review persistence/authentication/concurrency/gate-policy changes, and tighten this verify to exact nonvacuous owner tests plus the scope-derived merge gate. Refresh generated authorities without importing weaker clone/structure limits or source-lane completion claims. Following integration, reuse the existing 18-request E4B draft across native/Chat/Responses on the merged surface; the GUI lane handles HTTP defects while master fixes numerical and admission defects and publishes full-model dataset/resource evidence. Do not merge or edit audio/VAE development state as part of this intake.",
-          "depends_on": [
-            "modality-verification/e4b-serving-admission"
-          ]
-        }
-      ]
-    },
-    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
       "status": "open",

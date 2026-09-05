@@ -43,9 +43,7 @@
         try {
           await overgo.api.post("/compositions/activate", { recipe });
           await load();
-        } catch (err) {
-          status.textContent = overgo.friendlyError(err);
-        }
+        } catch (err) { status.textContent = overgo.friendlyError(err); }
       }
 
       async function generate(item, output) {
@@ -56,9 +54,7 @@
           });
           output.textContent = "recipe " + fmt.shortID(value.recipe) + " · plan " + fmt.shortID(value.plan) + " · output " + fmt.shortID(value.output);
           status.textContent = "promoted generation resolved";
-        } catch (err) {
-          status.textContent = overgo.friendlyError(err);
-        }
+        } catch (err) { status.textContent = overgo.friendlyError(err); }
       }
 
       function render(item) {
@@ -113,9 +109,7 @@
           status.textContent = data.compositions.length + " composition recipes";
           host.replaceChildren(...data.compositions.map(render));
           if (!data.compositions.length) host.appendChild(el("div", { class: "note", text: "No composition recipes are published." }));
-        } catch (err) {
-          host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
       refresh.onclick = load;
       await load();

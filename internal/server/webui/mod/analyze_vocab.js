@@ -52,16 +52,8 @@
         prev.disabled = offset === 0;
         next.disabled = last >= data.matched;
 
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {},
-          el("th", { text: "id" }), el("th", { text: "token" }), el("th", { text: "type" }), el("th", { text: "score" })));
-        for (const token of data.tokens) {
-          table.appendChild(el("tr", {},
-            el("td", { class: "mono", text: String(token.id) }),
-            el("td", { class: "mono", text: token.text === "" ? "∅" : token.text }),
-            el("td", {}, el("span", { class: "tag " + token.type, text: token.type })),
-            el("td", { class: "mono", text: token.score ? token.score.toFixed(4) : "0" })));
-        }
+        const table = overgo.table(["id", "token", "type", "score"], data.tokens.map((token) => [String(token.id),
+          token.text === "" ? "∅" : token.text, el("span", { class: "tag " + token.type, text: token.type }), token.score ? token.score.toFixed(4) : "0"]));
         host.replaceChildren(table);
       }
 

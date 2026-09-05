@@ -273,7 +273,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:69d6fa0dbdda30b4cfc0d3801b0451bf9ecdb6d4de46e6556209537890d7ed94"
+     "identity": "evidence:sha256:32618ecee3337b348ff4a159ee21518bb496cd06982722b0e8897df4370061eb"
     }
    ],
    "id": "bounded-server-media",
@@ -689,7 +689,7 @@
      "contains": "func LoadResponseFilePolicy(",
      "path": "internal/server/resource_policy.go",
      "role": "source",
-     "identity": "file:sha256:115c4a0fccebba8cacf7fe84c19e3853820b300cec4053a534da35a38c74be2d"
+     "identity": "file:sha256:388e297f84db06f76e05aa51f99b8eb504b1b9cad128c235bb7beb4dbb7e5d89"
     },
     {
      "contains": "func TestResponsesInputFileSources(",
@@ -731,7 +731,7 @@
      "contains": "func DecodeEncodedVideo(",
      "path": "internal/media/video.go",
      "role": "source",
-     "identity": "file:sha256:08f2501b8e0f634480204b7758b58fada9160af262021599f8937784f323fd09"
+     "identity": "file:sha256:58e8847a172f216f238ef93ec3b71ba60381c42fb089c816d6337d616ecf9b7b"
     },
     {
      "contains": "func TestChatAndResponsesEncodedVideoProjection(",
@@ -752,7 +752,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:05e8cff5c57809075b8d1c3837d730cc8174688f4ce3eb4f13c075122c59ab44"
+     "identity": "file:sha256:02870ac7c150df10561e3b74c4c085cb6bfa76bdbb5faf133c54f57d06974985"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -905,7 +905,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:05e8cff5c57809075b8d1c3837d730cc8174688f4ce3eb4f13c075122c59ab44"
+     "identity": "file:sha256:02870ac7c150df10561e3b74c4c085cb6bfa76bdbb5faf133c54f57d06974985"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -1132,9 +1132,9 @@
     },
     {
      "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",
-     "path": "cmd/recipe/image_cuda_windows.go",
+     "path": "internal/mediacapability/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:b69c0ca28741b3f1e27e86219148cbeb9107b4a24f13b32a1783bcf027c41cb3"
+     "identity": "file:sha256:c1d915e76ccfb5123a843366d88e6f20f88baac3873b051cf28923ccd8c9f682"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

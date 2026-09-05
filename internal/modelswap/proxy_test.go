@@ -153,3 +153,25 @@ func TestModelSwapProxy(t *testing.T) {
 		t.Fatalf("self-echo response = %s", echoBody)
 	}
 }
+
+// TestModelSwapProxyNamesItself pins the response header every proxied
+// answer carries, the fact the shell reads to show its swap-proxy status.
+func TestModelSwapProxyNamesItself(t *testing.T) {
+	launcher := &upstreamLauncher{}
+	supervisor, err := New(launcher, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Close()
+	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"alpha": {Name: "alpha", Location: "alpha.gguf"}}}
+	front := httptest.NewServer(proxy)
+	defer front.Close()
+	answer, err := http.Get(front.URL + "/health?swap=alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	answer.Body.Close()
+	if answer.Header.Get("X-Overgo-Swap-Proxy") != "alpha" {
+		t.Fatalf("proxied answer header = %q", answer.Header.Get("X-Overgo-Swap-Proxy"))
+	}
+}

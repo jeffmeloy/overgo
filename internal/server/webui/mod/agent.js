@@ -14,10 +14,8 @@
       const retrievalHost = el("div");
       const automationHost = el("div");
       const evidenceHost = el("div");
-      // The page leads with the task: pick an agent and chat. Creating
-      // one is a fold with three plain fields; every operator panel --
-      // manual tool steps, the full definition editor, retrieval,
-      // automations, observables -- lives behind Advanced folds.
+      // The page leads with the task: pick an agent and chat; creating one is a fold with three plain
+      // fields, and every operator panel lives behind Advanced folds.
       panel.replaceChildren(
         el("div", { class: "section-title", text: "Agents" }), status,
         overgo.fold("Your agents", true, inventoryHost),
@@ -38,15 +36,10 @@
       let selected = "";
       let tools = [];
       const sessions = new Map();
-      // One session per page visit, named automatically: nobody types a
-      // session identity to talk to an agent. The Advanced panel can
-      // still override it.
+      // One session per page visit, named automatically; the Advanced panel can still override it.
       const autoSession = "chat-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
 
-      // The creation surface is everything a person needs: a name,
-      // plain instructions, and tool checkboxes. Every identity -- the
-      // prompt artifact, the served recipe, the exact manuals, the
-      // default policy -- derives server-side at /agents/create.
+      // The creation surface: a name, plain instructions, tool checkboxes; every identity derives at /agents/create.
       function renderCreate() {
         const name = el("input", { class: "text", placeholder: "agent name (lowercase)" });
         const instructions = el("textarea", { class: "text", rows: "3", placeholder: "what should this agent do?" });
@@ -77,20 +70,12 @@
         return inventory.find((item) => item.name === selected);
       }
 
-      function showError(err) {
-        status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-      }
+      const showError = overgo.reporter(status);
 
-      function artifactLink(id) {
-        return el("a", {
-          class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
-        });
-      }
+      const artifactLink = overgo.artifactLink;
 
       function openOperation(id) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("operation", id);
-        history.pushState({}, "", url);
+        history.pushState({}, "", "?operation=" + encodeURIComponent(id));
         window.dispatchEvent(new PopStateEvent("popstate"));
       }
 
@@ -107,16 +92,9 @@
       function renderInventory() {
         if (!selected && inventory.length) selected = inventory[0].name;
         if (selected && !inventory.some((item) => item.name === selected)) selected = "";
-        const table = el("table", { class: "grid" });
-        table.append(el("tr", {}, el("th", { text: "name" }), el("th", { text: "definition" }),
-          el("th", { text: "state" }), el("th", { text: "authority" }), el("th", { text: "select" })));
-        for (const item of inventory) {
-          const choose = el("button", { class: "btn alt", text: item.name === selected ? "Selected" : "Open" });
-          choose.addEventListener("click", () => { selected = item.name; renderAll(); });
-          table.append(el("tr", {}, el("td", { text: item.name }), el("td", {}, artifactLink(item.definition)),
-            el("td", { text: item.refusal || item.state }), el("td", {}, artifactLink(item.activation)),
-            el("td", {}, choose)));
-        }
+        const table = overgo.table(["name", "definition", "state", "authority", "select"], inventory.map((item) => [
+          item.name, artifactLink(item.definition), el("span", { text: item.refusal || item.state }), artifactLink(item.activation),
+          el("button", { class: "btn alt", text: item.name === selected ? "Selected" : "Open", onclick: () => { selected = item.name; renderAll(); } })]));
         const pause = el("button", { class: "btn alt", text: "Pause", disabled: !selected });
         const resume = el("button", { class: "btn", text: "Resume", disabled: !selected });
         pause.addEventListener("click", () => transition("paused"));
@@ -140,137 +118,90 @@
         } catch (err) { showError(err); }
       });
 
+      // The conversation is the shared thread and composer: replies arrive complete through /agents/chat
+      // and render through the same event vocabulary, so attachments, stop, markdown and copy match Chat.
+      let chatThread = null;
+      let chatComposer = null;
+      let chatController = null;
       function renderChat() {
         const agent = activeAgent();
-        const messages = sessions.get(selected) || [];
-        const transcript = el("div", { class: "card" });
-        transcript.replaceChildren(...messages.map((message) =>
-          el("div", {}, el("span", { class: "tag", text: message.role }), " " + message.content)));
-        const input = el("textarea", { class: "text", rows: "3", placeholder: "Message the selected agent" });
-        const send = el("button", { class: "btn", text: "Send", disabled: !agent || agent.state !== "active" });
-        send.addEventListener("click", async () => {
-          const content = input.value.trim();
-          if (!content) return;
-          messages.push({ role: "user", content });
-          send.disabled = true;
-          try {
-            const result = await api.post("/agents/chat", { agent: selected, messages });
-            const answer = result.choices && result.choices[0] && result.choices[0].message;
-            if (!answer || typeof answer.content !== "string") throw new Error("Agent response omitted visible content");
-            messages.push({ role: "assistant", content: answer.content });
-            sessions.set(selected, messages);
-            renderChat();
-          } catch (err) { showError(err); send.disabled = false; }
-        });
-        conversationHost.replaceChildren(transcript, input, send);
+        if (!chatThread) {
+          chatThread = overgo.thread(conversationHost);
+          chatComposer = overgo.composer(conversationHost, {
+            placeholder: "Message the selected agent",
+            sendLabel: "Send",
+            onStop: () => { if (chatController) chatController.abort(); },
+            onSubmit: async (content, attachments) => {
+              if (chatController) return;
+              const parts = chatComposer.attachmentParts();
+              const history = (sessions.get(selected) || []).slice();
+              history.push(parts.length
+                ? { role: "user", content: [{ type: "text", text: content }, ...parts] }
+                : { role: "user", content });
+              chatThread.add("user", overgo.userLine(content, attachments));
+              chatComposer.clearInput();
+              chatComposer.clearAttachments();
+              chatController = new AbortController();
+              chatComposer.setBusy(true);
+              try {
+                const result = await api.post("/agents/chat", { agent: selected, messages: history }, { signal: chatController.signal });
+                const assistant = chatThread.add("assistant", "");
+                await chatThread.consume(overgo.streams.reply(result), assistant);
+                if (assistant.content) history.push({ role: "assistant", content: assistant.content });
+                sessions.set(selected, history);
+              } catch (err) {
+                chatThread.errorRow(err.name === "AbortError" ? "stopped" : overgo.friendlyError(err));
+              } finally {
+                chatController = null;
+                const current = activeAgent();
+                chatComposer.setBusy(!current || current.state !== "active");
+              }
+            },
+          });
+        }
+        chatComposer.setBusy(!agent || agent.state !== "active");
       }
 
+      // The manual tool-step surface is the shared one; this tab adds the session box and session list.
+      let toolSurface = null;
       function renderTools() {
-        const agent = activeAgent();
-        const allowed = new Set((agent && agent.tools) || []);
-        const select = el("select", { class: "text" });
-        for (const tool of tools.filter((item) => allowed.has(item.manual))) {
-          select.append(el("option", { value: tool.name, text: tool.name + " / " + tool.effect }));
-        }
-        const session = el("input", { class: "text", placeholder: "session identity", value: autoSession });
-        const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
-        const decisionHost = el("div");
-        const review = el("button", { class: "btn alt", text: "Review decision", disabled: !agent });
-        const execute = el("button", { class: "btn alt", text: "Execute inspection", disabled: !agent });
-        const approve = el("button", { class: "btn", text: "Approve and execute", disabled: true });
-
-        // The decision surface: what a grant would BIND -- the manual's
-        // immutable identity and the exact argument bytes -- beside any
-        // committed decision, with the approved-vs-proposed diff when the
-        // committed decision binds different facts.
-        function renderDecision(preview) {
-          const effectTag = el("span", {
-            class: preview.effect === "mutation" ? "tag tag-danger" : "tag", text: preview.effect,
+        if (!toolSurface) {
+          const session = el("input", { class: "text", placeholder: "session identity", value: autoSession });
+          const sessionListHost = el("div");
+          const listSessions = el("button", { class: "btn alt", text: "Sessions" });
+          // The session list: every durable session with its steps against the bound, resumable by one click.
+          listSessions.addEventListener("click", async () => {
+            try {
+              const listing = await api.get("/agent/sessions");
+              sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
+                const resume = el("button", { class: "btn alt", text: "Resume" });
+                resume.addEventListener("click", () => {
+                  session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id;
+                  renderEvidence(session.value);
+                });
+                return el("div", { class: "card" },
+                  el("span", { class: "mono", text: item.id }),
+                  " steps " + item.steps + " / " + item.bound + (item.inspected ? " / inspected " : " / uninspected "),
+                  artifactLink(item.interaction), " ", resume);
+              }));
+            } catch (err) { showError(err); }
           });
-          const rows = [
-            el("div", {}, effectTag, " ", preview.tool, " / manual ", artifactLink(preview.manual)),
-            el("div", { class: "mono", text: "grant binds: " + preview.arguments.join(" ") }),
-          ];
-          if (!preview.decision) {
-            rows.push(el("div", { class: "note", text: preview.effect === "mutation"
-              ? "No committed decision yet: approving records a durable grant for exactly these bytes."
-              : "Inspections are effect-free and need no decision." }));
-          } else if (preview.binds) {
-            rows.push(el("div", {}, el("span", { class: "tag", text: preview.decision.answer }),
-              " committed decision ", artifactLink(preview.decision.id), " binds these exact facts"));
-          } else {
-            rows.push(el("div", {}, el("span", { class: "tag tag-danger", text: "does not bind" }),
-              " committed decision ", artifactLink(preview.decision.id), " (" + preview.decision.answer + ")"),
-              el("div", { class: "mono", text: "approved: " + preview.decision.arguments.join(" ") }),
-              el("div", { class: "mono", text: "proposed: " + preview.arguments.join(" ") }));
-          }
-          decisionHost.replaceChildren(el("div", { class: "card" }, ...rows));
-          approve.disabled = preview.effect !== "mutation";
-          execute.disabled = preview.effect === "mutation";
+          toolSurface = overgo.toolStep(toolsHost, {
+            agent: () => selected, session: () => session.value.trim(), thread: () => chatThread,
+            controls: [session, listSessions], onError: showError,
+            onStep: (result) => {
+              status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction);
+              renderEvidence(session.value.trim());
+            },
+          });
+          toolsHost.appendChild(sessionListHost);
         }
-
-        async function preview() {
-          const body = {
-            agent: selected, session: session.value.trim(), tool: select.value,
-            arguments: JSON.parse(args.value || "{}"),
-          };
-          return api.post("/agents/approval", body);
-        }
-
-        review.addEventListener("click", async () => {
-          try { renderDecision(await preview()); } catch (err) { showError(err); }
-        });
-
-        async function step(approveFlag) {
-          try {
-            const result = await api.post("/agents/step", {
-              agent: selected, session: session.value.trim(), tool: select.value,
-              arguments: JSON.parse(args.value || "{}"), approve: approveFlag,
-            });
-            status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction);
-            decisionHost.replaceChildren();
-            await renderEvidence(session.value.trim());
-          } catch (err) {
-            showError(err);
-            // A binding refusal re-renders the diff so the operator sees
-            // what the committed decision actually covers.
-            try { renderDecision(await preview()); } catch (previewErr) { void previewErr; }
-          }
-        }
-        execute.addEventListener("click", () => step(false));
-        approve.addEventListener("click", () => step(true));
-
-        const sessionListHost = el("div");
-        const listSessions = el("button", { class: "btn alt", text: "Sessions" });
-        // The session list is the ledger's memory: every durable session
-        // with its recorded steps against the bound and its inspection
-        // state, resumable by one click into the session box.
-        listSessions.addEventListener("click", async () => {
-          try {
-            const listing = await api.get("/agent/sessions");
-            sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
-              const resume = el("button", { class: "btn alt", text: "Resume" });
-              resume.addEventListener("click", () => {
-                session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id;
-                renderEvidence(session.value);
-              });
-              return el("div", { class: "card" },
-                el("span", { class: "mono", text: item.id }),
-                " steps " + item.steps + (item.inspected ? " / inspected " : " / uninspected "),
-                artifactLink(item.interaction), " ", resume);
-            }));
-          } catch (err) { showError(err); }
-        });
-        toolsHost.replaceChildren(
-          el("div", { class: "row" }, session, select, review, execute, approve, listSessions),
-          args, decisionHost, sessionListHost);
+        toolSurface.setAgent(activeAgent(), tools);
       }
 
       function renderRetrieval() {
-        const projection = el("input", { class: "text", placeholder: "retrieval projection identity" });
-        const policy = el("input", { class: "text", placeholder: "rerank policy identity" });
-        const query = el("input", { class: "text", placeholder: "retrieval query" });
-        const limit = el("input", { class: "text", type: "number", min: "1", placeholder: "result limit" });
+        const [projection, policy, query, limit] = ["retrieval projection identity", "rerank policy identity", "retrieval query", "result limit"]
+          .map((placeholder) => el("input", { class: "text", placeholder }));
         const results = el("div");
         const search = el("button", { class: "btn", text: "Search", disabled: !selected });
         search.addEventListener("click", async () => {
@@ -289,12 +220,8 @@
 
       function renderAutomations() {
         const agent = activeAgent();
-        const select = el("select", { class: "text" });
-        for (const item of (agent && agent.automations) || []) {
-          select.append(el("option", { value: item.id, text: item.name }));
-        }
-        const key = el("input", { class: "text", placeholder: "idempotency key" });
-        const destination = el("input", { class: "text", placeholder: "approved destination" });
+        const select = el("select", { class: "text" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
+        const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", placeholder }));
         const inputs = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON inputs" });
         const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });
         run.addEventListener("click", async () => {
@@ -310,10 +237,7 @@
         automationHost.replaceChildren(el("div", { class: "row" }, select, key, destination, run), inputs);
       }
 
-      // renderProvenance expands one step's full evidence walk: the
-      // interaction, the exact manual identity, the receipt chain from
-      // completed back to admitted, the committed decision, and the
-      // result -- every link an artifact the operator can open.
+      // renderProvenance expands one step's evidence walk: interaction, manual, receipts, decision, result.
       async function renderProvenance(host, session, step) {
         try {
           const walk = await api.get("/agent/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);

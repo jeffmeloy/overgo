@@ -72,6 +72,7 @@ func TestAcceptedBaselineEvidence(t *testing.T) {
 			},
 		},
 	}
+	requireStoreLineage(t, store, fixtures[0].before)
 	seen := make(map[artifact.ID]bool)
 	var selected []target
 	var ids []string

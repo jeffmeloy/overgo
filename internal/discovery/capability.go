@@ -62,14 +62,23 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 			return nil, false, fmt.Errorf("capability catalog: invalid task %q", task)
 		}
 	}
-	result, err := store.Query(ctx, overgodb.Query{
-		Kind: artifact.KindRecipe, MaxResults: limit, Projection: overgodb.ProjectAliases,
-	})
-	if err != nil {
-		return nil, false, err
-	}
-	if includeInactive && result.Truncated {
-		return nil, true, nil
+	// The alias projection is paged to its end: one bounded page shares its
+	// budget with the recipe artifacts, so a store holding more recipes
+	// than the page hid activations (the 27B's inference activation fell
+	// outside the first page while its projection activation stayed in).
+	// limit bounds the catalog entries, never the activations read.
+	query := overgodb.Query{Kind: artifact.KindRecipe, MaxResults: limit, Projection: overgodb.ProjectAliases}
+	var aliases []overgodb.AliasView
+	for {
+		result, err := store.Query(ctx, query)
+		if err != nil {
+			return nil, false, err
+		}
+		aliases = append(aliases, result.Aliases...)
+		if result.Next == nil {
+			break
+		}
+		query.Cursor = result.Next
 	}
 	tasksByModel := map[artifact.ID]map[recipe.Task]artifact.ID{}
 	if includeInactive {
@@ -83,7 +92,7 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 			tasksByModel[descriptor.ID] = map[recipe.Task]artifact.ID{}
 		}
 	}
-	for _, alias := range result.Aliases {
+	for _, alias := range aliases {
 		model, task, ok := modelrecipe.ParseActiveAlias(alias.Name)
 		if !ok {
 			continue
@@ -101,6 +110,15 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 	}
 	models := slices.Collect(maps.Keys(tasksByModel))
 	slices.SortFunc(models, artifact.CompareID)
+	// The entry bound alone decides truncation, and a registered census
+	// refuses a clipped denominator rather than reading as complete.
+	truncated := len(models) > limit
+	if truncated {
+		if includeInactive {
+			return nil, true, nil
+		}
+		models = models[:limit]
+	}
 	entries := make([]CatalogEntry, 0, len(models))
 	identities := map[string]fileIdentity{}
 	for _, model := range models {
@@ -152,5 +170,5 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		}
 		entries = append(entries, entry)
 	}
-	return entries, result.Truncated, nil
+	return entries, truncated, nil
 }

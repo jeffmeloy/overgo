@@ -252,18 +252,26 @@ func (s *GIFEncoder) Finish() (EncodedVideo, error) {
 	}, nil
 }
 
-// WanRequest carries compiled text conditioning and sampling state.
+// WanRequest carries text conditioning and sampling state in one of two
+// forms. The tensor form names compiled contexts and a noise plan; the
+// prompt form names a prompt (and optionally a negative prompt and a seed)
+// and leaves any generation parameter at zero for the profile's generation
+// policy, so a page composes it from typed controls and the runtime
+// resolves the rest through the model's own text pipeline.
 type WanRequest struct {
-	Frames        int                       `json:"frames"`
-	Width         int                       `json:"width"`
-	Height        int                       `json:"height"`
-	Steps         int                       `json:"steps"`
-	Shift         float64                   `json:"shift"`
-	GuideScale    float64                   `json:"guide_scale"`
-	CondContext   []float32                 `json:"cond_context"`
-	UncondContext []float32                 `json:"uncond_context"`
-	InitialSample []float32                 `json:"initial_sample,omitempty"`
-	Noise         sampling.CounterNoisePlan `json:"noise"`
+	Frames         int                       `json:"frames"`
+	Width          int                       `json:"width"`
+	Height         int                       `json:"height"`
+	Steps          int                       `json:"steps"`
+	Shift          float64                   `json:"shift"`
+	GuideScale     float64                   `json:"guide_scale"`
+	Prompt         string                    `json:"prompt,omitzero"`
+	NegativePrompt string                    `json:"negative_prompt,omitzero"`
+	Seed           uint64                    `json:"seed,omitzero"`
+	CondContext    []float32                 `json:"cond_context,omitempty"`
+	UncondContext  []float32                 `json:"uncond_context,omitempty"`
+	InitialSample  []float32                 `json:"initial_sample,omitempty"`
+	Noise          sampling.CounterNoisePlan `json:"noise,omitzero"`
 }
 
 func ValidateWanRequest(request WanRequest) error {
@@ -282,7 +290,9 @@ func ValidateWanRequest(request WanRequest) error {
 	return nil
 }
 
-// SessionKey identifies reusable resident state for the request.
+// SessionKey identifies reusable resident state for the request; a
+// prompt-form request that leaves its geometry to the profile keys the
+// profile's default geometry under the zero extents it names.
 func (request WanRequest) SessionKey() (string, error) {
 	return fmt.Sprintf("wan:%dx%dx%d", request.Frames, request.Height, request.Width), nil
 }
@@ -306,9 +316,17 @@ type SourceVideo struct {
 	Width    int       `json:"width"`
 }
 
+// ReferenceEditRequest carries the reference edit in one of two forms: the
+// compiled condition with decoded source pixels, or the clip form a page
+// composes (a prompt, a seed and the source clip's artifact id), which the
+// video capability resolves through the declared edit policy and the base
+// model's text pipeline before the runtime sees it.
 type ReferenceEditRequest struct {
-	Condition ReferenceEditCondition `json:"condition"`
-	Source    SourceVideo            `json:"source"`
+	Condition      ReferenceEditCondition `json:"condition,omitzero"`
+	Source         SourceVideo            `json:"source,omitzero"`
+	Prompt         string                 `json:"prompt,omitzero"`
+	Seed           int64                  `json:"seed,omitzero"`
+	SourceArtifact string                 `json:"source_artifact,omitzero"`
 }
 
 func ValidateReferenceEditRequest(request ReferenceEditRequest) error {
@@ -376,7 +394,7 @@ type referenceEditFeatures struct{ video EncodedVideo }
 func registerWanRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generate func(context.Context, WanRequest) (EncodedVideo, error)) error {
 	if err := workflowruntime.RegisterScalarStage(runtime, modelrecipe.ModuleLatentVideoPrepare, modelID,
 		func(request WanRequest) (wanPlan, error) {
-			return wanPlan{request: request}, ValidateWanRequest(request)
+			return wanPlan{request: request}, ValidateWanRequestForm(request)
 		}, nil); err != nil {
 		return err
 	}

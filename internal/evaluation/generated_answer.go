@@ -162,7 +162,7 @@ func EvaluateGeneratedAnswer(
 	correct := 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
-		result, err := generateText(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+		result, err := Record(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 		if err != nil {
 			return GeneratedAnswerReport{}, err
 		}

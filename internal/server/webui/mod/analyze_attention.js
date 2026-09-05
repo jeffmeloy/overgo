@@ -2,50 +2,30 @@
    exact per-head causal attention weights softmax(scale·Q·Kᵀ), recomputed on the
    host from tensors captured at the attention-op boundary. No CUDA kernel change.
 
-   The weights are the model's own normalized attention — genuine probabilities
-   in [0,1] — so the heatmap uses a fixed 0..1 color scale (not an inferred
-   range). This makes no distribution or shape assumption: it reports the
-   softmax the model itself computes. Pick a head to inspect; row i (query token)
-   shows how position i distributes attention over keys 0..i (causal). */
+   The weights are the model's own normalized attention, genuine probabilities in [0,1], so the heatmap
+   uses a fixed 0..1 color scale. Row i (query token) shows how position i attends over keys 0..i. */
 (function () {
   "use strict";
   window.overgo.registerTab({
     id: "attention",
-    async mount(panel, overgo) {
+    async mount(panel, overgo, seed) {
       const { el, clear, displayToken } = overgo;
       clear(panel);
 
-      const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
-      prompt.value = "The quick brown fox jumps over the lazy dog";
       const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
       const maxPos = el("input", { class: "keyfield", type: "number", value: "32", min: "2", max: "48", style: "width:80px" });
-      const run = el("button", { class: "btn", onclick: execute }, "capture");
-      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
-      panel.append(
-        prompt,
-        el("div", { class: "row", style: "margin:10px 0" },
-          el("span", { class: "note", text: "layer" }), layer,
-          el("span", { class: "note", text: "max tokens" }), maxPos,
-          run, cancel),
-        el("div", { class: "note", text: "Exact softmax(scale·Q·Kᵀ) per head, recomputed on the host from captured query/key. Weights are causal (row i attends to keys 0..i) and sum to 1." }));
-      const out = el("div");
-      panel.appendChild(out);
-
       let current = null; // last response, kept so the head selector can redraw.
-      const runAction = overgo.runner(run, cancel, {
-        onError: (err) => out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))),
-        onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
-      });
-
-      function execute() {
-        out.replaceChildren(el("div", { class: "note", text: "capturing…" }));
-        runAction(async (signal) => {
+      const { prompt, out } = overgo.analysisSurface(panel, seed, {
+        defaultPrompt: "The quick brown fox jumps over the lazy dog", runLabel: "capture", busy: "capturing…",
+        fields: [["layer", layer], ["max tokens", maxPos]],
+        note: "Exact softmax(scale·Q·Kᵀ) per head, recomputed on the host from captured query/key. Weights are causal (row i attends to keys 0..i) and sum to 1.",
+        execute: async (signal) => {
           const request = { prompt: prompt.value, max_positions: Number(maxPos.value) || 32 };
           if (layer.value !== "") request.layer = Number(layer.value);
           current = await overgo.api.post("/analyze/attention", request, { signal });
           render();
-        });
-      }
+        },
+      });
 
       function render() {
         const data = current;

@@ -15,10 +15,9 @@ import (
 
 var normalizeEscapedWidthWhitespace = tokenizer.NormalizeEscapedWidthWhitespace
 
-// referenceEncoderPolicy: the two published-config facts the checkpoint
-// cannot carry (T5-family relative_attention_max_distance and
-// layer_norm_epsilon); geometry derives from tensor shapes.
-var referenceEncoderPolicy = EncoderConfig{RelativeMaxDistance: 128, NormEps: 1e-6}
+// referenceEncoderPolicy: the production encoder facts, under the name the
+// encoder tests have always used.
+var referenceEncoderPolicy = ReferenceEncoderConfig
 
 func arithmeticFloat32Sequence(start, step float64, n int) []float32 {
 	out := make([]float32, n)

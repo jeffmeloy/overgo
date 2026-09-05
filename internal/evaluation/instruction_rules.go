@@ -199,7 +199,7 @@ func EvaluateInstructionRules(
 			}
 			prompt = framed
 		}
-		result, err := generateText(ctx, generator, testCase.Name, prompt, testCase.MaxTokens)
+		result, err := Record(ctx, generator, testCase.Name, prompt, testCase.MaxTokens)
 		if err != nil {
 			return InstructionRulesReport{}, err
 		}

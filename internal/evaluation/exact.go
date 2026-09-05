@@ -109,7 +109,7 @@ func (p ExactPlan) contents() ([]artifact.Content, error) {
 // (EvaluateExactSharded) is its only driver — the unsharded loop it
 // displaced is deleted, not kept as a second authority.
 func evaluateExactCase(ctx context.Context, generator Generator, testCase ExactCase) (ExactResult, error) {
-	result, err := generateText(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+	result, err := Record(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 	if err != nil {
 		return ExactResult{}, err
 	}
@@ -124,7 +124,9 @@ func evaluateExactCase(ctx context.Context, generator Generator, testCase ExactC
 	return result, nil
 }
 
-func generateText(
+// Record generates one case greedily and returns its complete text and token
+// counts. Exact replay and model intake share this execution path.
+func Record(
 	ctx context.Context,
 	generator Generator,
 	name, prompt string,

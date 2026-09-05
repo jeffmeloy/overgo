@@ -47,6 +47,7 @@ var workspaceFileAllowances = map[string][]string{
 	"evaluation_workspace.go":        {"operator"},
 	"generation_workspace.go":        {"operator", "serving"},
 	"hub_workspace.go":               {"hub", "workbench"},
+	"library_workspace.go":           {"operator"},
 	"native_media_protocols.go":      {"operator", "serving"},
 	"native_audio_transcriptions.go": {"serving"},
 	"operation_evidence.go":          {"operator"},
@@ -71,6 +72,7 @@ var workspaceFileAllowances = map[string][]string{
 	"server_native_types.go":         {"serving"},
 	"serving_observation.go":         {"serving"},
 	"tool_execution.go":              {"operator"},
+	"workspace_capabilities.go":      {"serving"},
 	"workspace_manifest.go":          {"agent", "serving"},
 }
 

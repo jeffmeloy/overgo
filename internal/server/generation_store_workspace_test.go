@@ -1,0 +1,209 @@
+package server
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/dataroot"
+	"overgo/internal/latentimage"
+	"overgo/internal/media"
+	"overgo/internal/mediacapability"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
+	"overgo/internal/operation"
+	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
+	"overgo/internal/testevidence"
+	"overgo/internal/testutil"
+)
+
+// activatedImageModel publishes a model with bytes on disk and a verified
+// oscillator image activation: the smallest generation recipe the store
+// can declare, with no profile and host placement.
+func activatedImageModel(t *testing.T, store *overgodb.Store) artifact.ID {
+	t.Helper()
+	ctx := t.Context()
+	payload := []byte("oscillator-weights")
+	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
+	location := filepath.Join(t.TempDir(), "model.safetensors")
+	if err := os.WriteFile(location, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+		Role: artifact.ComponentWeights, Name: "weights", Artifact: weights,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key:       "fixture/generation/model",
+		Artifacts: []artifact.Descriptor{{ID: weights, Size: uint64(len(payload))}},
+		Manifests: []artifact.Manifest{manifest},
+		Locations: []artifact.LocationEvent{{Location: artifact.Location{
+			Artifact: weights, Kind: artifact.LocationFile, Value: location,
+		}, Action: artifact.LocationAdd}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, manifest.ID, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/generation/candidate", definition); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.Transition(ctx, store, "fixture/generation/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/generation/evidence", definition.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.ActivateVerified(ctx, store, "fixture/generation/active", definition, verification,
+		recipe.EvidenceVerified, "generation workspace fixture", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	return manifest.ID
+}
+
+// tinyPNG is a valid one-pixel RGB PNG as an executor would encode it.
+func tinyPNG(t *testing.T) latentimage.EncodedImage {
+	t.Helper()
+	canvas := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	canvas.Set(0, 0, color.RGBA{R: 255, A: 255})
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, canvas); err != nil {
+		t.Fatal(err)
+	}
+	return latentimage.EncodedImage{Data: buffer.Bytes(), MediaType: media.PNGMediaType, Channels: media.RGBChannels, Height: 2, Width: 2, Maximum: 1}
+}
+
+type recordingReporter struct{ published bool }
+
+func (r *recordingReporter) OperationID() artifact.ID { return artifact.ID{} }
+func (r *recordingReporter) Progress(uint64, *uint64) {}
+func (r *recordingReporter) Metric(operation.Metric)  {}
+func (r *recordingReporter) Attempt(artifact.ID)      {}
+func (r *recordingReporter) Publishing()              { r.published = true }
+
+// TestGenerationWorkspaceListsAndRunsStoreActivations pins the workspace
+// over a store: the activation lists with the controls its request type
+// declares, the run reaches the catalog's executor with the model bytes,
+// and the output comes back as a PNG artifact behind a run record.
+func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := activatedImageModel(t, store)
+	var executedPath, executedInput string
+	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
+		Execute: func(_ context.Context, _ artifact.Repository, path string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
+			executedPath, executedInput = path, raw
+			return tinyPNG(t), nil
+		},
+	}}
+	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
+	if err != nil || len(capabilities) != 1 {
+		t.Fatalf("capabilities = %+v, %v", capabilities, err)
+	}
+	capability := capabilities[0]
+	if capability.Task != recipe.TaskImageGen || capability.Model != modelID || capability.Refusal != "" || capability.Name != "model.safetensors" {
+		t.Fatalf("capability = %+v", capability)
+	}
+	names := map[string]string{}
+	for _, control := range capability.Controls {
+		names[control.Name] = string(control.Type)
+	}
+	if names["class"] != "integer" || names["seed"] != "integer" {
+		t.Fatalf("controls = %v", names)
+	}
+	if err := validateWorkflowCapabilities(capabilities); err != nil {
+		t.Fatal(err)
+	}
+	if training, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining); err != nil || training != nil {
+		t.Fatalf("training kind answered %+v, %v", training, err)
+	}
+
+	reporter := &recordingReporter{}
+	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, capability.Recipe, json.RawMessage(`{"class":1,"seed":7}`), reporter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reporter.published || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 1 {
+		t.Fatalf("completion = %+v published=%v", completion, reporter.published)
+	}
+	// Media executors read a repository directory: the one holding the file
+	// the catalog resolved.
+	if executedPath != filepath.Dir(capability.Location) || !strings.HasSuffix(capability.Location, "model.safetensors") || executedInput != `{"class":1,"seed":7}` {
+		t.Fatalf("executor saw path %q input %q for %q", executedPath, executedInput, capability.Location)
+	}
+	descriptor, found, err := store.Artifact(ctx, completion.Outputs[0])
+	if err != nil || !found || descriptor.MediaType != media.PNGMediaType {
+		t.Fatalf("output artifact = %+v found=%v err=%v", descriptor, found, err)
+	}
+	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskSpeech, capability.Recipe, json.RawMessage(`{}`), reporter); err == nil {
+		t.Fatal("a recipe ran under a task it does not serve")
+	}
+}
+
+// TestGenerationWorkspaceServesStoreMedia lists the lane store's media
+// activations through the real catalog and generates one image with the
+// cheapest of them, the host oscillator, publishing it as a PNG artifact.
+func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip + ": generating from store models is integration")
+	}
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		t.Skipf("store media UNAVAILABLE: %v", err)
+	}
+	store, err := overgodb.Open(roots.Store)
+	if err != nil {
+		t.Skipf("store media UNAVAILABLE: %v", err)
+	}
+	defer store.Close()
+	ctx := t.Context()
+	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), 256)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oscillator *WorkflowCapability
+	tasks := map[recipe.Task]int{}
+	for index, capability := range capabilities {
+		tasks[capability.Task]++
+		t.Logf("capability %s %s controls=%d refusal=%q", capability.Task, capability.Name, len(capability.Controls), capability.Refusal)
+		if capability.Task == recipe.TaskImageGen && len(capability.Stages) > 0 && capability.Stages[0].Module.ID == modelrecipe.ModuleOscillatorImagePrepare {
+			oscillator = &capabilities[index]
+		}
+	}
+	if oscillator == nil {
+		t.Skip("store media UNAVAILABLE: the store activates no oscillator image model")
+	}
+	if tasks[recipe.TaskSpeech] == 0 || tasks[recipe.TaskVideoGen] == 0 {
+		t.Errorf("the store's speech and video activations are not listed: %v", tasks)
+	}
+	reporter := &recordingReporter{}
+	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424242}`), reporter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor, found, err := store.Artifact(ctx, completion.Outputs[0])
+	if err != nil || !found || descriptor.MediaType != media.PNGMediaType {
+		t.Fatalf("output artifact = %+v found=%v err=%v", descriptor, found, err)
+	}
+	t.Logf("generated %s from %s: %d bytes", descriptor.ID, oscillator.Name, descriptor.Size)
+}

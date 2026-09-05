@@ -32,6 +32,9 @@ type WorkflowControl struct {
 	Name     string              `json:"name"`
 	Type     WorkflowControlType `json:"type"`
 	Required bool                `json:"required,omitzero"`
+	// Choices are the values the model's artifact exports for the field;
+	// a page offers them instead of a free input.
+	Choices []string `json:"choices,omitempty"`
 }
 
 type WorkflowCapability struct {
@@ -41,6 +44,14 @@ type WorkflowCapability struct {
 	Inputs   []recipe.Input    `json:"inputs,omitempty"`
 	Outputs  []recipe.Output   `json:"outputs"`
 	Controls []WorkflowControl `json:"controls"`
+	// Model and Name identify the activated model behind a store-derived
+	// capability, so a task served by several models lists each of them;
+	// Refusal names why the page cannot run this one (its request carries
+	// what no page can type), and such a capability is listed, not run.
+	Model    artifact.ID `json:"model,omitzero"`
+	Name     string      `json:"name,omitzero"`
+	Location string      `json:"location,omitzero"`
+	Refusal  string      `json:"refusal,omitzero"`
 	// model is projected from the compiled recipe by native workspace owners.
 	// It must not be inferred from an unrelated co-hosted text runner.
 	model artifact.ID
@@ -204,15 +215,17 @@ func (h *Handler) submitWorkflow(
 }
 
 func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
-	seen := make(map[recipe.Task]bool, len(capabilities))
+	// A task is served by every model activated for it, so the recipe is
+	// the identity; a task listed twice under one recipe is the fault.
+	seen := make(map[artifact.ID]bool, len(capabilities))
 	for _, capability := range capabilities {
 		if !capability.Task.Valid() || capability.Recipe.Kind() != artifact.KindRecipe || len(capability.Stages) == 0 {
 			return errors.New("workflow workspace: invalid runtime capability")
 		}
-		if seen[capability.Task] {
-			return fmt.Errorf("workflow workspace: duplicate task %q", capability.Task)
+		if seen[capability.Recipe] {
+			return fmt.Errorf("workflow workspace: duplicate capability %s for %q", capability.Recipe, capability.Task)
 		}
-		seen[capability.Task] = true
+		seen[capability.Recipe] = true
 		fields := make(map[string]bool, len(capability.Controls))
 		for _, control := range capability.Controls {
 			if control.Name == "" || !control.Type.valid() || fields[control.Name] {

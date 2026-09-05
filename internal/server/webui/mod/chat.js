@@ -1,121 +1,134 @@
+/* Chat: the conversation the server owns. Every turn is a stored response
+   chained through previous_response_id; the rail's selection resumes a
+   chain from its record, a turn cut off mid-stream reattaches through
+   /interactions/follow, and defaults come from the capability document. */
 (function () {
   "use strict";
+  const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
+
+  // inspectTurn: the side panel over one assistant turn: its run record, then any inspector embedded over it.
+  document.addEventListener("keydown", (event) => { // Escape closes the inspector from anywhere on the page
+    const aside = document.getElementById("inspector");
+    if (event.key === "Escape" && aside && !aside.hidden) { aside.hidden = true; aside.replaceChildren(); }
+  });
+  window.overgo.inspectTurn = async function (responseID) {
+    const overgo = window.overgo;
+    const { el } = overgo;
+    const aside = document.getElementById("inspector");
+    const body = el("div");
+    aside.hidden = false;
+    const close = el("button", { class: "btn alt", text: "×", "aria-label": "close the inspector", onclick: () => { aside.hidden = true; aside.replaceChildren(); } });
+    aside.replaceChildren(el("div", { class: "row" }, el("strong", { text: "Inspect turn" }), el("span", { class: "grow" }), close), body);
+    close.focus();
+    let record;
+    try { record = await overgo.api.get("/interactions/inspect?response=" + encodeURIComponent(responseID)); }
+    catch (err) { body.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
+    const cards = [overgo.stat("Status", record.status, record.statuses.join(" · "))];
+    if (record.failure) cards.push(overgo.stat("Failure", record.failure));
+    if (record.timings) cards.push(overgo.stat("Prefill", Number(record.timings.prompt_per_second).toFixed(2), "tok/s"), overgo.stat("Decode", Number(record.timings.predicted_per_second).toFixed(2), "tok/s"));
+    const links = ["model", "recipe", "trace", "receipt", "operation", "run"].filter((name) => record[name]).map((name) => el("span", {}, name + " ", overgo.artifactLink(record[name])));
+    const host = el("div");
+    const seed = { prompt: (record.prompt || "") + (record.completion ? "\n" + record.completion : "") };
+    const inspectors = [["lens", "Logits", seed], ["states", "States", seed], ["attention", "Attention", seed], ["model", "Model"], ["vocab", "Vocabulary"], ["tensors", "Tensors"]];
+    body.append(el("div", { class: "statgrid" }, ...cards), el("div", { class: "row artifact-links" }, ...links),
+      el("div", { class: "row" }, ...inspectors.map(([id, label, given]) => el("button", { class: "btn alt", text: label, onclick: () => overgo.embed(id, host, given) }))), host);
+  };
+
   window.overgo.registerTab({
     id: "chat",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);
-
-      let model;
-      let properties;
-      try {
-        [model, properties] = await Promise.all([overgo.modelInfo(), overgo.api.get("/props")]);
-      } catch (err) {
-        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
-      const modelID = model.model.id;
-      const defaults = properties.default_generation_settings;
-      const params = defaults.params;
-      const contextLength = defaults.n_ctx;
-      const messages = [];
+      const capabilities = overgo.capabilities();
+      if (!capabilities) { panel.appendChild(overgo.errorBanner("the served model declares no capabilities yet")); return; }
+      const modelID = capabilities.id;
+      const params = capabilities.generation;
+      const contextLength = capabilities.context_length;
       let controller = null;
+      let lastResponseID = "";
+
+      // Agent mode: the active definitions the store holds; a turn runs the same thread through /agents/chat
+      // and the shared tool-step surface runs the session's tool steps inline.
+      let agents = [];
+      let tools = [];
+      try { agents = (await overgo.api.get("/agents")).filter((item) => item.state === "active"); } catch (_) { /* no agent runtime */ }
+      if (agents.length) tools = (await overgo.api.get("/agent/tools")).tools || [];
+      const agentPicker = el("select", { class: "text", style: "width:auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
+      const agentHost = el("div", { class: "agent-session" });
+      agentHost.hidden = true;
+      const agentSession = "front-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      const histories = new Map();
 
       const system = el("textarea", { class: "text", placeholder: "system prompt (optional)", style: "min-height:52px" });
-      const log = el("div", { class: "chat-log" });
-      const facts = el("div", { class: "statgrid" });
-      const input = el("textarea", { class: "text", placeholder: "message (Enter to send, Shift+Enter for newline)" });
+      const facts = el("div", { class: "statgrid", "aria-label": "context meter" });
       const temperature = el("input", { class: "keyfield", type: "number", value: params.temperature, style: "width:80px" });
       const maxTokens = el("input", { class: "keyfield", type: "number", value: params.max_tokens, max: contextLength, style: "width:90px" });
-      const send = el("button", { class: "btn", onclick: submit }, "send");
-      const stop = el("button", { class: "btn alt", onclick: abort, style: "display:none" }, "stop");
-      const reset = el("button", { class: "btn alt", onclick: clearChat }, "clear");
-
-      // Attachments ride the served protocol's own content parts:
-      // image_url data URLs, input_audio base64 WAV, input_video data
-      // URLs -- the same parts any API client sends, no side channel.
-      const attachments = [];
-      const attachmentHost = el("div", { class: "row" });
-      const picker = el("input", {
-        type: "file", style: "display:none", multiple: true,
-        accept: "image/png,image/jpeg,image/gif,audio/wav,video/mp4",
-      });
-      const attach = el("button", { class: "btn alt", onclick: () => picker.click() }, "attach");
-      picker.addEventListener("change", () => {
-        for (const file of picker.files) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const kind = file.type.startsWith("image/") ? "image"
-              : file.type.startsWith("audio/") ? "audio" : "video";
-            attachments.push({ kind, name: file.name, dataURL: reader.result });
-            renderAttachments();
-          };
-          reader.readAsDataURL(file);
-        }
-        picker.value = "";
-      });
-
-      function renderAttachments() {
-        attachmentHost.replaceChildren(...attachments.map((item, index) => {
-          const remove = el("button", { class: "btn alt", text: "×" });
-          remove.addEventListener("click", () => { attachments.splice(index, 1); renderAttachments(); });
-          const preview = item.kind === "image"
-            ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-            : el("span", { class: "tag", text: item.kind });
-          return el("span", { class: "card" }, preview, " " + item.name + " ", remove);
-        }));
-      }
-
-      function attachmentParts() {
-        return attachments.map((item) => {
-          if (item.kind === "image") {
-            return { type: "image_url", image_url: { url: item.dataURL } };
-          }
-          if (item.kind === "audio") {
-            return { type: "input_audio", input_audio: { data: item.dataURL.split(",").pop(), format: "wav" } };
-          }
-          return { type: "input_video", input_video: { data: item.dataURL } };
-        });
-      }
+      const reset = el("button", { class: "btn alt", onclick: () => overgo.openConversation(null) }, "new");
 
       panel.append(
         el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
-        facts,
-        log,
-        input,
-        attachmentHost,
-        el("div", { class: "chat-controls" },
-          send, stop, reset, attach, picker,
+        facts);
+      // A media output in this thread re-enters the composer as the next
+      // turn's attachment, refused or accepted by the served capability.
+      const thread = overgo.thread(panel, { reuse: (file) => composer.addFile(file) });
+      const composer = overgo.composer(panel, {
+        onSubmit: submit,
+        onStop: () => { if (controller) controller.abort(); },
+        modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
+        onMode: (mode) => { agentHost.hidden = mode !== "agent"; renderMode(mode); },
+        controls: [reset,
           el("span", { class: "note", text: "temp" }), temperature,
-          el("span", { class: "note", text: "max tokens" }), maxTokens));
-
-      input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); }
+          el("span", { class: "note", text: "max tokens" }), maxTokens],
       });
+      panel.insertBefore(agentHost, composer.element);
 
-      function messageNode(message, streaming) {
-        const body = el("div", { class: "body" });
-        if (message.role === "assistant" && !streaming && message.content) {
-          body.appendChild(overgo.md(message.content));
-        } else {
-          body.appendChild(document.createTextNode(message.content));
-          if (streaming) body.appendChild(el("span", { class: "cursor", text: "|" }));
-        }
-        const head = el("div", { class: "role" }, message.role);
-        if (message.role === "assistant" && !streaming && message.content) {
-          head.appendChild(overgo.copyButton(message.content, "copy"));
-        }
-        return el("div", { class: "msg " + message.role }, head, body);
+      // A generation mode renders what its capability declares: the models
+      // activated for the task (a refused one says why) and the request's
+      // controls, read from the generation capabilities, never from a list
+      // typed here; the message body feeds the declared text control.
+      const generation = { capabilities: null, capability: null, fields: new Map() };
+      async function renderMode(mode) {
+        generation.capability = null;
+        composer.modeHost.replaceChildren();
+        if (!mode || mode === "chat" || mode === "agent") return;
+        try {
+          if (!generation.capabilities) generation.capabilities = await overgo.api.get("/generation/capabilities");
+        } catch (err) { composer.modeHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
+        const declared = generation.capabilities.filter((capability) => capability.task === mode);
+        if (!declared.length) return;
+        const controlsHost = el("span", { class: "row" });
+        const picker = el("select", { class: "text", style: "width:auto", "aria-label": "generation model" }, ...declared.map((capability) => el("option", {
+          value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
+        const select = () => {
+          generation.capability = declared.find((capability) => capability.recipe === picker.value && !capability.refusal) || null;
+          const typed = generation.capability ? generation.capability.controls.filter((control) => !(control.type === "text" && (control.name === "prompt" || control.name === "text"))) : [];
+          generation.fields = overgo.controlInputs(controlsHost, typed);
+        };
+        picker.addEventListener("change", select);
+        composer.modeHost.append(picker, controlsHost);
+        select();
+      }
+      const toolSurface = agents.length ? overgo.toolStep(agentHost, {
+        agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker],
+        onError: (err) => thread.errorRow(overgo.friendlyError(err)),
+      }) : null;
+      if (toolSurface) {
+        toolSurface.setAgent(agents[0], tools);
+        agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools));
       }
 
-      function renderLog(streamingCursor) {
-        clear(log);
-        messages.forEach((message, index) => {
-          const streaming = streamingCursor && index === messages.length - 1 && message.role === "assistant";
-          log.appendChild(messageNode(message, streaming));
-        });
-        log.scrollTop = log.scrollHeight;
-      }
+      // The empty conversation is the getting-started card.
+      const served = overgo.servedModel();
+      const declared = Object.keys(capabilities.modalities || {}).filter((kind) => capabilities.modalities[kind]).concat((capabilities.modes || []).filter((mode) => mode.enabled).map((mode) => mode.label));
+      const welcome = el("div", { class: "card front-empty" },
+        el("h2", { text: capabilities.name || modelID }),
+        el("div", { class: "note", text: (served && overgo.evidenceLine(served)) || "no committed evidence yet" }),
+        el("div", null, ...declared.map((label) => el("span", { class: "tag", text: label }))),
+        el("div", { class: "starters" },
+          el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() }),
+          el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
+          el("button", { class: "btn alt", text: "Switch model", onclick: () => document.getElementById("model-pill").click() })));
+      panel.insertBefore(welcome, thread.node);
 
       function renderFacts(inputTokens, usage, timings) {
         const cards = [];
@@ -126,115 +139,122 @@
             cards.push(overgo.stat("Context ratio", inputTokens + " / " + contextLength));
           }
         }
-        if (usage && usage.completion_tokens != null) {
-          cards.push(overgo.stat("Completion", fmt.grouped(usage.completion_tokens), "tokens"));
-        }
+        if (usage && usage.completion_tokens != null) cards.push(overgo.stat("Completion", fmt.grouped(usage.completion_tokens), "tokens"));
         if (timings) {
           cards.push(overgo.stat("Cached", fmt.grouped(timings.cache_n), "tokens"));
-          if (timings.prompt_n && timings.prompt_ms > 0) {
-            cards.push(overgo.stat("Prefill", Number(timings.prompt_per_second).toFixed(2), "tok/s"));
-          }
-          if (timings.predicted_n && timings.predicted_ms > 0) {
-            cards.push(overgo.stat("Decode", Number(timings.predicted_per_second).toFixed(2), "tok/s"));
-          }
+          if (timings.prompt_n && timings.prompt_ms > 0) cards.push(overgo.stat("Prefill", Number(timings.prompt_per_second).toFixed(2), "tok/s"));
+          if (timings.predicted_n && timings.predicted_ms > 0) cards.push(overgo.stat("Decode", Number(timings.predicted_per_second).toFixed(2), "tok/s"));
           const elapsed = Number(timings.prompt_ms) + Number(timings.predicted_ms);
           if (elapsed > 0) cards.push(overgo.stat("Elapsed", elapsed.toFixed(2), "ms"));
         }
         facts.replaceChildren(...cards);
       }
 
-      function clearChat() {
-        messages.length = 0;
-        renderLog(false);
-        facts.replaceChildren();
+      // The composer's protocol parts become Responses input parts.
+      function responsesInput(text, parts) {
+        const content = [{ type: "input_text", text }];
+        for (const part of parts) {
+          if (part.type === "image_url") content.push({ type: "input_image", image_url: part.image_url.url });
+          else if (part.type === "input_audio") content.push({ type: "input_audio", input_audio: part.input_audio });
+          else if (part.type === "input_video") content.push({ type: "input_video", input_video: part.input_video });
+          else if (part.type === "input_file") content.push(part);
+        }
+        return [{ role: "user", content: parts.length ? content : text }];
       }
 
-      function abort() {
-        if (controller) controller.abort();
+      function streamTurn(path, body, method) {
+        return overgo.api.stream(path, body, { signal: controller.signal, method });
       }
 
-      function requestMessages(text) {
-        const payload = [];
-        if (system.value.trim()) payload.push({ role: "system", content: system.value.trim() });
-        const parts = attachmentParts();
-        const user = parts.length
-          ? { role: "user", content: [{ type: "text", text }, ...parts] }
-          : { role: "user", content: text };
-        payload.push(...messages, user);
-        return payload;
-      }
-
-      async function submit() {
-        const text = input.value.trim();
-        if (!text || controller) return;
-        const payload = requestMessages(text);
-        input.value = "";
-        const attachedNote = attachments.length
-          ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]"
-          : text;
-        messages.push({ role: "user", content: attachedNote });
-        attachments.length = 0;
-        renderAttachments();
-        const assistant = { role: "assistant", content: "" };
-        messages.push(assistant);
-        renderLog(true);
-
-        controller = new AbortController();
-        send.disabled = true;
-        stop.style.display = "";
-        try {
-          const count = await overgo.api.post("/v1/chat/completions/input_tokens", {
-            model: modelID,
-            messages: payload,
-          }, { signal: controller.signal });
-          renderFacts(count.input_tokens, null, null);
-          const request = { model: modelID, messages: payload, stream: true };
-          if (temperature.value !== "") request.temperature = Number(temperature.value);
-          if (maxTokens.value !== "") request.max_tokens = Number(maxTokens.value);
-          const terminal = await consume(await overgo.api.stream(
-            "/v1/chat/completions", request, { signal: controller.signal }), assistant);
-          renderFacts(count.input_tokens, terminal.usage, terminal.timings);
-        } catch (err) {
-          if (err.name === "AbortError") {
-            assistant.content += (assistant.content ? "\n" : "") + "[stopped]";
-          } else {
-            assistant.content = "Error: " + overgo.friendlyError(err);
+      // consumeTurn drives one streamed turn: the created id is noted so a reload can reattach, the completion id becomes latest.
+      async function consumeTurn(response, assistant, inputTokens) {
+        let latest = "";
+        async function* noting(events) {
+          for await (const event of events) {
+            if (event.type === "created" || event.type === "done") latest = event.id || latest;
+            if (event.type === "created") { try { localStorage.setItem(INFLIGHT_STORAGE, event.id); } catch (_) { /* storage unavailable */ } }
+            yield event;
           }
+        }
+        const terminal = await thread.consume(noting(overgo.streams.responses(response)), assistant);
+        if (latest) lastResponseID = latest;
+        if (latest && assistant) { assistant.response = latest; thread.renderMessage(assistant, false); }
+        try { localStorage.removeItem(INFLIGHT_STORAGE); } catch (_) { /* storage unavailable */ }
+        renderFacts(inputTokens, terminal.usage, terminal.timings);
+        overgo.refreshConversations();
+      }
+
+      async function submit(text, attachments, mode) {
+        if (controller) return;
+        welcome.remove();
+        const parts = composer.attachmentParts();
+        composer.clearInput();
+        thread.add("user", overgo.userLine(text, attachments));
+        composer.clearAttachments();
+        controller = new AbortController();
+        composer.setBusy(true);
+        let assistant = null;
+        try {
+          // A mode beyond chat is one generation over the shared dispatch; its
+          // media lands in this thread as artifacts with their provenance.
+          if (mode === "agent") {
+            const history = (histories.get(agentPicker.value) || []).concat([{ role: "user", content: parts.length ? [{ type: "text", text }, ...parts] : text }]);
+            const result = await overgo.api.post("/agents/chat", { agent: agentPicker.value, messages: history }, { signal: controller.signal });
+            assistant = thread.add("assistant", "");
+            await thread.consume(overgo.streams.reply(result), assistant);
+            if (assistant.content) history.push({ role: "assistant", content: assistant.content });
+            histories.set(agentPicker.value, history);
+            return;
+          }
+          if (mode && mode !== "chat") {
+            const selection = generation.capability ? { capability: generation.capability, fields: generation.fields } : null;
+            await thread.consume(overgo.generate(mode, text, parts, controller.signal, selection));
+            return;
+          }
+          assistant = thread.add("assistant", "");
+          const request = { model: modelID, input: responsesInput(text, parts), stream: true, store: true };
+          if (lastResponseID) request.previous_response_id = lastResponseID;
+          if (system.value.trim()) request.instructions = system.value.trim();
+          if (temperature.value !== "") request.temperature = Number(temperature.value);
+          if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+          const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal });
+          renderFacts(count.input_tokens, null, null);
+          await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count.input_tokens);
+        } catch (err) {
+          if (err.name === "AbortError" && assistant) {
+            assistant.content += (assistant.content ? "\n" : "") + "[stopped]";
+            thread.renderMessage(assistant, false);
+          } else thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err));
         } finally {
           controller = null;
-          send.disabled = false;
-          stop.style.display = "none";
-          renderLog(false);
+          composer.setBusy(false);
         }
       }
 
-      async function consume(response, assistant) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        const terminal = {};
-        let buffer = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) return terminal;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop();
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data:")) continue;
-            const data = trimmed.slice(5).trim();
-            if (data === "[DONE]") return terminal;
-            let parsed;
-            try { parsed = JSON.parse(data); } catch (_) { continue; }
-            if (parsed.usage) terminal.usage = parsed.usage;
-            if (parsed.timings) terminal.timings = parsed.timings;
-            const delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
-            if (delta && delta.content) {
-              assistant.content += delta.content;
-              renderLog(true);
-            }
+      // Resume the rail selection from its record, or reattach to a turn this page was streaming.
+      const selected = overgo.conversation();
+      let inflight = "";
+      try { inflight = localStorage.getItem(INFLIGHT_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
+      if (selected) {
+        try {
+          const chain = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(selected.latest));
+          welcome.remove();
+          for (const message of chain.messages || []) {
+            if (message.role !== "user" && message.role !== "assistant") continue;
+            const shown = thread.add(message.role, message.content);
+            shown.response = message.response;
+            thread.renderMessage(shown, false);
           }
-        }
+          lastResponseID = chain.response;
+        } catch (err) { thread.errorRow(overgo.friendlyError(err)); }
+      }
+      if (inflight) {
+        welcome.remove();
+        controller = new AbortController();
+        composer.setBusy(true);
+        try {
+          await consumeTurn(await streamTurn("/interactions/follow?response=" + encodeURIComponent(inflight), null, "GET"), thread.add("assistant", ""), null);
+        } catch (err) { thread.errorRow(overgo.friendlyError(err)); } finally { controller = null; composer.setBusy(false); }
       }
     },
   });

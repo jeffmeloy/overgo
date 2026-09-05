@@ -247,11 +247,17 @@ type Config struct {
 	HubEndpoint     string
 	HubToken        string
 	HubDownloadRoot string
-	Environment     runrecord.Environment
-	Evaluation      EvaluationWorkspaceAPI
-	Analysis        AnalysisPolicy
-	AgentEmbedder   dataset.AgentEmbeddingProvider
-	AgentReranker   dataset.AgentRerankProvider
+	// WebUIDir serves the workbench client from this directory instead of the
+	// embedded copy, with caching disabled; development only, empty in production.
+	WebUIDir      string
+	Environment   runrecord.Environment
+	Evaluation    EvaluationWorkspaceAPI
+	Analysis      AnalysisPolicy
+	AgentEmbedder dataset.AgentEmbeddingProvider
+	AgentReranker dataset.AgentRerankProvider
+	// LibraryIntake is the model intake the library routes drive, assembled
+	// by the launcher; absent, those routes answer that they need it.
+	LibraryIntake LibraryIntake
 }
 
 type slotRuntimeStats struct {
@@ -402,6 +408,7 @@ type workbenchWorkspace struct {
 // declares, so no workspace silently reaches the entire handler.
 type Handler struct {
 	config             Config
+	inflight           inflightRegistry
 	started            time.Time
 	requestsTotal      atomic.Uint64
 	requestsActive     atomic.Int64

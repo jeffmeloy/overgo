@@ -16,6 +16,9 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/discovery"
+	"overgo/internal/libraryintake"
+	"overgo/internal/mediacapability"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
@@ -30,6 +33,9 @@ const (
 	serverIdleTimeout       = 2 * time.Minute
 	serverShutdownTimeout   = 30 * time.Second
 	serverMaxHeaderBytes    = 1 << 20
+
+	// generationCatalogLimit bounds the activated models the generation workspace lists.
+	generationCatalogLimit = 256
 
 	defaultAnalysisTensorSamples = 4096
 	defaultAnalysisTensorBytes   = 64 << 20
@@ -102,6 +108,7 @@ func run() error {
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
 	transcriptionPolicyPath := flag.String("transcription-policy", "", "strict JSON policy for an additional CPU transcription workflow; empty disables")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
+	webuiDir := flag.String("webui-dir", "", "serve the workbench client from this directory with caching disabled (development); empty serves the embedded client")
 	var evaluationSuites []string
 	flag.Func("evaluation-suite", "compiled evaluation suite JSON; repeatable", func(value string) error {
 		value = strings.TrimSpace(value)
@@ -225,6 +232,12 @@ func run() error {
 		}
 		workflowWorkspaces = append(workflowWorkspaces, workspace)
 	}
+	// Generation rides the store alone: every active media recipe with
+	// bytes on disk is a capability of any server opened over the store.
+	if workspaceStore != nil {
+		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore,
+			llamaserver.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), generationCatalogLimit))
+	}
 	if len(workflowWorkspaces) > 0 {
 		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workflowWorkspaces}
 	}
@@ -264,8 +277,11 @@ func run() error {
 			evaluationWorkspace = nil
 		}
 	}
+	// The projector comes from the command line or from the store: with no
+	// -mmproj, the model's active projection recipe names the projector
+	// bytes, so every launcher serves the modalities the store declares.
 	var vision, audio projector.Session
-	if *projectorPath != "" {
+	{
 		repository, repositoryErr := modelFlags.RepositoryPath()
 		if repositoryErr != nil {
 			return repositoryErr
@@ -274,16 +290,31 @@ func run() error {
 		if openErr != nil {
 			return fmt.Errorf("open model recipe repository: %w", openErr)
 		}
-		vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), *projectorPath, projector.OpenOptions{
-			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
-		})
+		resolved := *projectorPath
+		if resolved == "" {
+			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, runner.ModelID(), discovery.LoadMemo(shutdownContext, store))
+			if resolveErr != nil {
+				return errors.Join(fmt.Errorf("resolve declared projector: %w", resolveErr), store.Close())
+			}
+			if ok {
+				resolved = declared
+				log.Printf("serving the declared projector %s", resolved)
+			}
+		}
+		if resolved != "" {
+			vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), resolved, projector.OpenOptions{
+				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
+			})
+		}
 		err = errors.Join(err, store.Close())
 		if err != nil {
 			return fmt.Errorf("open multimodal projector: %w", err)
 		}
-		defer vision.Close()
-		if vision.Capabilities().Audio {
-			audio = vision
+		if vision != nil {
+			defer vision.Close()
+			if vision.Capabilities().Audio {
+				audio = vision
+			}
 		}
 	}
 	var mediaPolicy *llamaserver.RemoteMediaPolicy
@@ -323,9 +354,11 @@ func run() error {
 		Repository:         workspaceStore,
 		HubToken:           os.Getenv("OVERGO_HF_TOKEN"),
 		HubDownloadRoot:    hubRoot,
+		WebUIDir:           *webuiDir,
 		Evaluation:         evaluationWorkspace,
 		AgentEmbedder:      agentRetrieval,
 		AgentReranker:      agentRetrieval,
+		LibraryIntake:      llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate},
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,
 			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,

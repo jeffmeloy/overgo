@@ -19,35 +19,23 @@
           const catalog = await overgo.api.get("/catalog/models");
           overgo.clear(catalogBody);
           const models = catalog.models || [];
-          const coverage = catalog.coverage || {};
-          const parts = [];
-          if (models.length) parts.push(models.length + " activated model(s)");
-          const profiles = coverage.profiles || {};
-          if (profiles.registered) parts.push("profiles " + profiles.published + "/" + profiles.registered);
-          const datasets = coverage.datasets || {};
-          if (datasets.registered) parts.push("datasets " + datasets.available + "/" + datasets.registered + " on disk");
-          if (catalog.truncated) parts.push("listing truncated — not every activation is shown");
+          const { profiles = {}, datasets = {} } = catalog.coverage || {};
+          const parts = [
+            models.length && models.length + " activated model(s)",
+            profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
+            datasets.registered && "datasets " + datasets.available + "/" + datasets.registered + " on disk",
+            catalog.truncated && "listing truncated — not every activation is shown",
+          ].filter(Boolean);
           catalogNote.textContent = parts.length ? parts.join(" · ") :
             "No activated models yet — download one below, then activate it with cmd/reverify.";
           for (const entry of models) {
-            const capabilities = el("td");
-            for (const capability of entry.capabilities || []) {
-              const label = capability.stale ? capability.task + " · stale" :
-                capability.task + (capability.tier ? " · " + capability.tier : "");
-              capabilities.appendChild(el("span", {
-                class: "tag", style: "margin-right:4px",
-                title: capability.stale || capability.recipe, text: label,
-              }));
-            }
-            catalogBody.appendChild(el("tr", null,
-              el("td", { class: "mono", text: fmt.shortID(entry.model) }),
-              el("td", { text: (entry.location || "").split(/[\\/]/).pop() }),
-              capabilities,
-              el("td", null, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" }))));
+            const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
+              class: "tag", style: "margin-right:4px", title: capability.stale || capability.recipe,
+              text: capability.task + (capability.stale ? " · stale" : capability.tier ? " · " + capability.tier : "") })));
+            catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }),
+              capabilities, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" })]));
           }
-        } catch (err) {
-          catalogNote.textContent = overgo.friendlyError(err);
-        }
+        } catch (err) { catalogNote.textContent = overgo.friendlyError(err); }
       }
 
       // ---- hub search ----
@@ -72,11 +60,8 @@
           searchNote.textContent = results.length ? results.length + " result(s)" : "no results";
           for (const listing of results) {
             const download = el("button", { class: "btn alt", onclick: () => startDownload(listing.id) }, "download");
-            resultsBody.appendChild(el("tr", null,
-              el("td", { class: "mono", text: listing.id }),
-              el("td", { class: "mono", text: fmt.compact(listing.downloads || 0) }),
-              el("td", { class: "mono", text: fmt.compact(listing.likes || 0) }),
-              el("td", null, listing.gated ? el("span", { class: "tag control", text: "gated" }) : download)));
+            resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0),
+              listing.gated ? el("span", { class: "tag control", text: "gated" }) : download]));
           }
         });
       }
@@ -85,51 +70,84 @@
 
       // ---- downloads ----
       const jobsBody = el("tbody");
+      const localBody = el("tbody");
       const jobsNote = el("div", { class: "note" });
       async function startDownload(repository) {
         jobsNote.textContent = "starting " + repository + "…";
         try {
           await overgo.api.post("/hub/downloads", { kind: kind.value, repository: repository, revision: "", directory: "" });
           jobsNote.textContent = "";
-        } catch (err) {
-          jobsNote.textContent = overgo.friendlyError(err);
-        }
+        } catch (err) { jobsNote.textContent = overgo.friendlyError(err); }
+      }
+      // ---- the lifecycle after a download: register once the download succeeded, validate once the
+      // store holds the registration; a model validates as an operation the strip shows, a dataset by preview ----
+      const lifecycles = new Map();
+      function lifecycle(job) {
+        if (!lifecycles.has(job.id)) lifecycles.set(job.id, { host: el("span"), registered: null });
+        const stage = lifecycles.get(job.id);
+        const name = job.repository.split("/").pop();
+        const cell = el("span", { class: "row" });
+        if (job.state !== "succeeded") return cell;
+        const report = (node) => { stage.host.replaceChildren(node); };
+        const register = el("button", { class: "btn alt", text: stage.registered ? "registered" : "register", disabled: !!stage.registered, onclick: async () => {
+          try {
+            stage.registered = await overgo.api.post("/library/register", job.kind === "datasets"
+              ? { kind: "dataset", name, directory: job.destination }
+              : { kind: "model", path: job.destination, projector: job.projector || "" });
+            report(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset),
+              stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : ""));
+            jobPoller.start();
+          } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+        } });
+        const validate = el("button", { class: "btn", text: "validate", disabled: !stage.registered, onclick: async () => {
+          try {
+            if (job.kind === "datasets") {
+              const preview = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
+              report(el("span", { class: "note", text: "validated: " + (preview.rows || []).length + " row previewed" }));
+            } else {
+              const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path, projector: stage.registered.projector || "" });
+              report(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts" + (admitted.projector ? " · projector" : "")));
+              history.pushState({}, "", "?operation=" + encodeURIComponent(admitted.operation));
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }
+          } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+        } });
+        cell.append(register, validate, stage.host);
+        return cell;
       }
       const jobPoller = overgo.poller(async (signal) => {
         const listed = await overgo.api.get("/hub/downloads", { signal });
-        overgo.clear(jobsBody);
-        for (const job of listed.downloads || []) {
+        jobsBody.replaceChildren(...(listed.downloads || []).map((job) => {
           const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
           const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) :
             job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) :
               el("span", { class: "tag byte", text: progress || "running" });
-          jobsBody.appendChild(el("tr", null,
-            el("td", { class: "mono", text: job.repository }),
-            el("td", null, state),
-            el("td", { class: "mono", text: job.file || (job.state === "failed" ? job.error : "") }),
-            el("td", { class: "mono", text: job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : "") })));
-        }
+          return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""),
+            job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
+        }));
       }, 1000);
 
       panel.append(
         el("div", { class: "section-title", text: "Local models" }),
         catalogNote,
-        el("table", { class: "grid" },
-          el("thead", null, el("tr", null,
-            el("th", { text: "model" }), el("th", { text: "file" }), el("th", { text: "capabilities" }), el("th", { text: "" }))),
-          catalogBody),
+        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["model", "file", "capabilities", ""])), catalogBody),
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
-        el("table", { class: "grid" },
-          el("thead", null, el("tr", null,
-            el("th", { text: "repository" }), el("th", { text: "downloads" }), el("th", { text: "likes" }), el("th", { text: "" }))),
-          resultsBody),
+        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
         el("div", { class: "section-title", text: "Downloads" }),
         jobsNote,
-        el("table", { class: "grid" },
-          el("thead", null, el("tr", null,
-            el("th", { text: "repository" }), el("th", { text: "state" }), el("th", { text: "file" }), el("th", { text: "progress" }))),
-          jobsBody));
+        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), localBody, jobsBody));
+
+      // ---- a local model: a GGUF (or its directory) already on disk, with its projector, rides the same lifecycle ----
+      const localModel = el("input", { class: "text", placeholder: "model GGUF or directory on disk" });
+      const localProjector = el("input", { class: "text", placeholder: "projector GGUF (optional)" });
+      const localButton = el("button", { class: "btn alt", text: "register a local model", onclick: () => {
+        const path = localModel.value.trim();
+        if (!path) return;
+        const job = { id: "local:" + path, kind: "models", state: "succeeded", repository: path, destination: path, projector: localProjector.value.trim() };
+        localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag user_defined", text: "local" }), job.projector, "", lifecycle(job)]));
+      } });
+      jobsNote.after(el("div", { class: "row" }, localModel, localProjector, localButton));
 
       refreshCatalog();
       this.onActivate = () => jobPoller.start();

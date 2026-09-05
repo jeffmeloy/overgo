@@ -8,6 +8,8 @@ import (
 )
 
 const (
+	// WAVMediaType names RIFF/WAVE audio, the form synthesized speech is published in.
+	WAVMediaType          = "audio/wav"
 	wavPCM                = 1
 	wavIEEEFloat          = 3
 	bitsPerByte           = 8

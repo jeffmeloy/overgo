@@ -18,6 +18,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/mediacapability"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -28,10 +30,10 @@ import (
 
 func verifyInference(
 	repository, path, input string,
-	override sessionOverride,
+	override modelintake.SessionOverride,
 	residency recipe.ResidencyPolicy,
 ) error {
-	revision, err := cleanGoRevision()
+	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
 		return err
 	}
@@ -49,25 +51,25 @@ func verifyInference(
 		return err
 	}
 	defer store.Close()
-	candidate, err := prepareInferenceCandidate(ctx, store, path, override, residency)
+	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}
 	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, candidate.inventory, candidate.resolved,
+		ctx, store, candidate.Inventory, candidate.Resolved,
 	); err != nil {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
-	if _, published, err := modelrecipe.Status(ctx, store, candidate.definition.ID); err != nil {
+	if _, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID); err != nil {
 		return err
 	} else if !published {
 		if _, _, err := modelrecipe.PublishCandidate(
-			ctx, store, "recipe/candidate/"+candidate.definition.ID.String(), candidate.definition,
+			ctx, store, "recipe/candidate/"+candidate.Definition.ID.String(), candidate.Definition,
 		); err != nil {
 			return err
 		}
 	}
-	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.definition, candidate.resolved)
+	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
 	if err != nil {
 		return err
 	}
@@ -75,7 +77,7 @@ func verifyInference(
 	if err != nil {
 		return err
 	}
-	return verifyExactRuntime(ctx, store, candidate.definition, revision, suite, exactPlan, candidate.resolved.Document.ID, runner)
+	return verifyExactRuntime(ctx, store, candidate.Definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runner)
 }
 
 // Projection cases carry exact source identities inside the existing exact suite.
@@ -231,7 +233,7 @@ func (runtime *projectedExactRuntime) Generate(ctx context.Context, raw string, 
 }
 
 func verifyProjection(repository, path, projectorPath, input string) error {
-	revision, err := cleanGoRevision()
+	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
 		return err
 	}
@@ -249,7 +251,7 @@ func verifyProjection(repository, path, projectorPath, input string) error {
 		return err
 	}
 	defer store.Close()
-	_, definition, err := prepareCapability(ctx, store, path, recipe.TaskProjection, projectionCapability(projectorPath))
+	_, definition, err := prepareCapability(ctx, store, path, recipe.TaskProjection, mediacapability.Projection(projectorPath))
 	if err != nil {
 		return err
 	}
@@ -323,7 +325,7 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 		if len(evidence) > 1900 {
 			evidence = evidence[:1900]
 		}
-		verification, publishErr := publishCapabilityFailure(
+		verification, publishErr := modelintake.PublishFailure(
 			ctx, store, definition, revision, time.Since(started),
 			"cuda:0", "cuda", "contract=exact; "+evidence, "exact-mismatch",
 		)
@@ -340,7 +342,7 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 		return fmt.Errorf("recipe: exact generation evaluation: %w", failure)
 	}
 	evidence := fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", evaluationPlan.Identity(), reportID, len(suite.Cases))
-	verification, err := publishCapabilityVerification(
+	verification, err := modelintake.PublishVerification(
 		ctx, store, definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
 	)
 	if err != nil {

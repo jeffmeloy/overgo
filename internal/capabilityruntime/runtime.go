@@ -100,8 +100,16 @@ func Execute[Output any](
 	return value, err
 }
 
+// ContentDecoder is an output type that rebuilds itself from its recorded
+// artifact: a request the store already answered replays from the
+// recorded document, and a media output (PNG, GIF, WAV) is not JSON.
+type ContentDecoder interface {
+	DecodeContent(artifact.Content) error
+}
+
 // singleOutput unwraps the program's one output datum into its typed
-// value, decoding recorded content when the value is not resident.
+// value, decoding recorded content when the value is not resident: JSON
+// documents by decoding, media documents through the type's own decoder.
 func singleOutput[Output any](definition recipe.Definition, result workflowruntime.Result) (Output, error) {
 	var zero Output
 	output := definition.Outputs[0]
@@ -114,6 +122,11 @@ func singleOutput[Output any](definition recipe.Definition, result workflowrunti
 		return value, nil
 	}
 	if datum.Content != nil {
+		if decoder, ok := any(&zero).(ContentDecoder); ok {
+			if err := decoder.DecodeContent(*datum.Content); err == nil {
+				return zero, nil
+			}
+		}
 		if err := strictjson.DecodeBytes(datum.Content.Data, &zero); err == nil {
 			return zero, nil
 		}

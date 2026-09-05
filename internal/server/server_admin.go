@@ -103,7 +103,6 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		return
 	}
 	model := api.ModelProperties()
-	samplingConfig := h.defaultSampling
 	result := propertiesResponse{
 		TotalSlots: h.config.MaxConcurrent,
 		ModelAlias: h.config.ModelID,
@@ -139,7 +138,15 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		IsSleeping:       false,
 	}
 	result.DefaultGenerationSettings.NCtx = model.ContextLength
-	result.DefaultGenerationSettings.Params = propertiesSamplingParams{
+	result.DefaultGenerationSettings.Params = h.defaultSamplingParams()
+	writeJSON(response, http.StatusOK, result)
+}
+
+// defaultSamplingParams is the served model's generation defaults as the
+// API and the workspace capability document both publish them.
+func (h *Handler) defaultSamplingParams() propertiesSamplingParams {
+	samplingConfig := h.defaultSampling
+	return propertiesSamplingParams{
 		NPredict:         h.defaultOutputTokens,
 		Seed:             samplingConfig.Seed,
 		Temperature:      samplingConfig.Temperature,
@@ -172,7 +179,6 @@ func (h *Handler) properties(response http.ResponseWriter, request *http.Request
 		Grammar:          "",
 		Samplers:         slices.Clone(samplingConfig.Samplers),
 	}
-	writeJSON(response, http.StatusOK, result)
 }
 
 type slotStatusItem struct {
@@ -844,9 +850,15 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 	})
 }
 
+// health answers the public liveness probe with the served model and, when
+// the generator runs on a device, its current and peak memory for the
+// shell's device status dot.
 func (h *Handler) health(response http.ResponseWriter, request *http.Request) {
-	writeJSON(response, http.StatusOK, map[string]any{
-		"status": "ok",
-		"model":  h.config.ModelID,
-	})
+	payload := map[string]any{"status": "ok", "model": h.config.ModelID}
+	if api, ok := h.generator.(DeviceMemoryAPI); ok {
+		if stats, err := api.DeviceMemoryStats(request.Context()); err == nil {
+			payload["device"] = map[string]uint64{"current_bytes": stats.CurrentBytes, "peak_bytes": stats.PeakBytes}
+		}
+	}
+	writeJSON(response, http.StatusOK, payload)
 }

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
@@ -36,6 +38,9 @@ type Measure struct {
 	// Execution counts the device work the generation cost per output
 	// token; a rung that collapses shows which resource exploded.
 	Execution Execution `json:"execution"`
+	// Memory is library-owned allocation accounting after generation and scoring.
+	// PeakBytes is cumulative since model open, not total physical device usage.
+	Memory driver.MemoryStats `json:"memory,omitzero"`
 }
 
 // Execution is the device work one generation cost, per output token:
@@ -59,15 +64,18 @@ type Execution struct {
 // was bounded against, the floors, the verdict, and the output text so
 // a failed verdict can be read.
 type Result struct {
-	Inputs        Inputs `json:"inputs,omitzero"`
-	BudgetNS      int64  `json:"budget_ns,omitzero"`
-	ModelBudgetNS int64  `json:"model_budget_ns,omitzero"`
-	WallNS        int64  `json:"wall_ns,omitzero"`
-	ModelPath     string `json:"model_path"`
-	ModelName     string `json:"model_name"`
-	Architecture  string `json:"architecture"`
-	FileType      string `json:"file_type"`
-	Commit        string `json:"commit"`
+	Program       modelrecipe.ProgramIdentity `json:"program,omitzero"`
+	Device        driver.DeviceInfo           `json:"device,omitzero"`
+	ContextLength uint32                      `json:"context_length,omitzero"`
+	Inputs        Inputs                      `json:"inputs,omitzero"`
+	BudgetNS      int64                       `json:"budget_ns,omitzero"`
+	ModelBudgetNS int64                       `json:"model_budget_ns,omitzero"`
+	WallNS        int64                       `json:"wall_ns,omitzero"`
+	ModelPath     string                      `json:"model_path"`
+	ModelName     string                      `json:"model_name"`
+	Architecture  string                      `json:"architecture"`
+	FileType      string                      `json:"file_type"`
+	Commit        string                      `json:"commit"`
 	// Surface is the inference code surface digest the run measured
 	// (see Surface); the admission keys on it, the commit is provenance.
 	Surface      string `json:"surface"`

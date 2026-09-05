@@ -14,7 +14,7 @@ func TestGateRejectsSkippedCapabilityTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runGoTests(repo, []string{"./internal/testevidence/testdata/skipfixture"}); err == nil {
+	if _, err := runGoTests(t.Context(), repo, []string{"./internal/testevidence/testdata/skipfixture"}, true); err == nil {
 		t.Fatal("skipped capability test passed gate evidence")
 	}
 }
@@ -27,7 +27,7 @@ func TestGateAcceptsPassingCapabilityTest(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(repo, "go.mod")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runGoTests(repo, []string{"./internal/testevidence"}); err != nil {
+	if _, err := runGoTests(t.Context(), repo, []string{"./internal/testevidence"}, true); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -37,7 +37,7 @@ func TestGateReportsUnchangedImporterSkipWithoutCreditingIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := runGoTestsAdvisory(repo, []string{"./internal/testevidence/testdata/skipfixture"})
+	report, err := runGoTests(t.Context(), repo, []string{"./internal/testevidence/testdata/skipfixture"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestGateNamesFailureBeforeDiagnosticTail(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, "failure_test.go"), []byte(source), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runGoTestsAdvisory(repo, []string{"."}); err == nil || !strings.Contains(err.Error(), "failed tests: failurefixture: TestEarlyFailure") {
+	if _, err := runGoTests(t.Context(), repo, []string{"."}, false); err == nil || !strings.Contains(err.Error(), "failurefixture: TestEarlyFailure") {
 		t.Fatalf("early failure identity was lost: %v", err)
 	}
 }

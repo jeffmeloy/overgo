@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "7766d9d412f382f425051ff0858ea5f27e28e732fc4071de7f72c6e90ae74a05",
+  "source_identity": "5cab863d44d08bbd6b4d3177fe26bfa63287fda39eb11626b141568b1bf0c403",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 2785,
-    "typed_files": 2721
+    "inspected_files": 2791,
+    "typed_files": 2727
   },
   "guidelines": [
     {
@@ -1460,17 +1460,6 @@
       "owner": "overgo/cmd/server",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
       "oracle": "go test ./cmd/server -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
-      "path": "cmd/test-lane/main.go",
-      "symbol": "run",
-      "owner": "overgo/cmd/test-lane",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./cmd/test-lane -count=1",
       "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -5183,5 +5172,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "2eaf2f15b28f3d48356f7405d70b88cb30c788f343e5444611b84bb9bb6b6ae7"
+  "exceptions_sha256": "94b9465d423d9dbc330bef52af253b3b1d4bfc6d89f98d480520fdfdc66a62c3"
 }

@@ -25,6 +25,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
+	"overgo/internal/processcontrol"
 	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
@@ -44,7 +45,13 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
 		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
-		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
+		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), {
+			Descriptor: automationcheck.Descriptor{Name: "test", Phase: runrecord.PhaseTest, Always: true},
+			Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
+				skipped, err := g.stepTest(ctx)
+				return skipped, "", err
+			},
+		},
 		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 	dependencies := map[string][]string{
@@ -910,7 +917,7 @@ func (g *gateContext) stepBuild() (bool, error) {
 // stepTest derives scope from the import graph: the packages owning changed
 // files plus every package whose transitive deps include one. A hand-listed
 // impact table is a process magic; the graph is the derivation.
-func (g *gateContext) stepTest() (bool, error) {
+func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	changed, err := g.directChangedPackages()
 	if err != nil {
 		return false, err
@@ -970,7 +977,7 @@ func (g *gateContext) stepTest() (bool, error) {
 		return false, err
 	}
 	if len(directPending) > 0 {
-		if _, err := runGoTests(g.repo, directPending); err != nil {
+		if _, err := runGoTests(ctx, g.repo, directPending, true); err != nil {
 			return false, err
 		}
 		if err := g.recordPackagePasses(directPending, "short", directInputs); err != nil {
@@ -991,7 +998,7 @@ func (g *gateContext) stepTest() (bool, error) {
 	}
 	report := testevidence.GoTestReport{}
 	if len(dependentPending) > 0 {
-		report, err = runGoTestsAdvisory(g.repo, dependentPending)
+		report, err = runGoTests(ctx, g.repo, dependentPending, false)
 	}
 	if err != nil {
 		return false, err
@@ -1052,28 +1059,19 @@ func (g *gateContext) directChangedPackages() (map[string]bool, error) {
 	return changed, nil
 }
 
-func runGoTests(repo string, packages []string) (string, error) {
-	out, err := command(repo, "go", append([]string{"test", "-short", "-json", "-count=1"}, packages...)...)
-	if err != nil {
-		return out, err
+func runGoTests(ctx context.Context, repo string, packages []string, short bool) (testevidence.GoTestReport, error) {
+	args := []string{"test", "-json", "-count=1"}
+	if short {
+		args = append(args, "-short")
 	}
-	if err := testevidence.GoTestJSONShort(out); err != nil {
-		return out, fmt.Errorf("impacted tests vacuous: %w", err)
+	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
+		Path: "go", Args: append(args, packages...), Dir: repo,
+	}, short, clioptions.DiagnosticTailBytes)
+	if short || len(report.Failed)+len(report.Unfinished) > 0 {
+		err = errors.Join(err, testevidence.RequireComplete(report))
 	}
-	return out, nil
-}
-
-func runGoTestsAdvisory(repo string, packages []string) (testevidence.GoTestReport, error) {
-	out, err := command(repo, "go", append([]string{"test", "-json", "-count=1"}, packages...)...)
 	if err != nil {
-		if failures := testevidence.FailureSummary(out); failures != "" {
-			err = fmt.Errorf("failed tests: %s: %w", failures, err)
-		}
-		return testevidence.GoTestReport{}, err
-	}
-	report, err := testevidence.GoTestJSONReport(out)
-	if err != nil {
-		return testevidence.GoTestReport{}, fmt.Errorf("dependent test evidence: %w", err)
+		return report, fmt.Errorf("go test evidence: %w\n%s", err, strings.Join(report.Diagnostics, "\n"))
 	}
 	return report, nil
 }

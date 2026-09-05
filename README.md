@@ -748,7 +748,15 @@ Freeze regression input with `longform -export-corpus <file> -corpus-bytes
 cost; optional `-model-budget` bounds each model within the total. Cancellation
 between runtime operations preserves earlier publications and reports unfinished
 coverage. Legacy admission records remain usable; regression baselines require
-bound inputs.
+bound inputs. Add `-guard` when publishing or checking the small regression
+baseline: it caps the ladder at the declared check ceiling and requires every
+planned rung, recipe/device identity, quality fingerprints, and owned allocation
+measurements. Peak allocation is cumulative since model open; retained allocation
+is sampled after generation and scoring. Neither includes other processes or
+untracked driver allocations. Checks reject growth above the selected record's
+peak or retained bytes. `-validate-baselines -corpus <file> -baseline <record-id>`
+with explicit model paths audits current-surface guard records without loading
+models; it does not establish fresh performance or parity evidence.
 
 ## References
 

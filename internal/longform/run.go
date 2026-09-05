@@ -117,6 +117,10 @@ func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.Tok
 	if err != nil {
 		return ShortShape{}, err
 	}
+	generation.Measure.Memory, err = runner.DeviceMemoryStats(ctx)
+	if err != nil {
+		return ShortShape{}, fmt.Errorf("short allocation accounting: %w", err)
+	}
 	return ShortShape{
 		PromptTokens: floors.ShortPromptTokens, OutputIDs: tokenIDs(generation.Tokens), NLL: nll, Measure: generation.Measure,
 	}, nil
@@ -141,6 +145,10 @@ func Ladder(ctx context.Context, runner *inference.Runner, corpus []tokenizer.To
 		generation.Measure.Score, err = Score(ctx, runner, prompt, continuation, floors.ShortContextTokens)
 		if err != nil {
 			return climbed, fmt.Sprintf("rung %d score: %v", length, err), nil
+		}
+		generation.Measure.Memory, err = runner.DeviceMemoryStats(ctx)
+		if err != nil {
+			return climbed, "", fmt.Errorf("rung %d allocation accounting: %w", length, err)
 		}
 		climbed = append(climbed, Rung{Measure: generation.Measure, OutputIDs: tokenIDs(generation.Tokens)})
 		// The caller reads each rung as it lands and may end the ladder

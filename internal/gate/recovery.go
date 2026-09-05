@@ -693,16 +693,8 @@ func requireExactRecoveredGitStateExceptHead(repo string, intent gateCommitInten
 	} else if !matches {
 		return errors.New("gate: plan moved before interrupted-state recovery completed")
 	}
-	for _, name := range gitOperationMarkers {
-		path, err := gitMetadataPath(repo, name)
-		if err != nil {
-			return err
-		}
-		if _, err := os.Stat(path); err == nil {
-			return fmt.Errorf("gate: Git operation %s appeared during interrupted-state recovery", name)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
+	if err := requireNoGitOperation(repo, "gate: Git operation %s appeared during interrupted-state recovery"); err != nil {
+		return err
 	}
 	files, err := gateMergeMetadataFiles(repo, intent.Merge)
 	if err != nil {
@@ -789,16 +781,8 @@ func requireRecoverableGitState(repo string, intent gateCommitIntent, head strin
 		!bytes.Equal(indexBytes, intent.IndexRestore) {
 		return errors.New("gate: Git index moved beyond the write-ahead states; automatic recovery refused")
 	}
-	for _, name := range gitOperationMarkers {
-		path, err := gitMetadataPath(repo, name)
-		if err != nil {
-			return err
-		}
-		if _, err := os.Stat(path); err == nil {
-			return fmt.Errorf("gate: Git operation %s appeared after the interrupted commit", name)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
+	if err := requireNoGitOperation(repo, "gate: Git operation %s appeared after the interrupted commit"); err != nil {
+		return err
 	}
 	files, err := gateMergeMetadataFiles(repo, intent.Merge)
 	if err != nil {

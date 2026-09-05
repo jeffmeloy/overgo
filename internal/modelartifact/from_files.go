@@ -26,8 +26,8 @@ type FileSpec struct {
 // artifacts whose directory layout no repository walker owns (e.g. a
 // multi-sub-model directory holding one safetensors file per head).
 // Safetensors weights get tensor facts namespaced "<name>/<tensor>" so
-// heads with identical tensor names stay distinct; pytorch-zip weights
-// (.pth/.pt) are content-hashed components without fact extraction.
+// heads with identical tensor names stay distinct. PyTorch ZIP weights
+// (.pth/.pt, including .tar-suffixed checkpoint names) use the same namespaces.
 func FromFiles(directory string, specs []FileSpec) (inventory Inventory, err error) {
 	if directory == "" || len(specs) == 0 {
 		return Inventory{}, errors.New("model artifact: file inventory requires a directory and components")
@@ -155,10 +155,9 @@ func fileContract(role artifact.ComponentRole, path string) (artifact.Kind, stri
 	case artifact.ComponentConfig, artifact.ComponentShardIndex:
 		return artifact.KindFile, jsonMediaType
 	case artifact.ComponentWeights, artifact.ComponentWeightsShard:
-		// Media type follows the container: safetensors gets tensor-fact
-		// extraction; pytorch-zip (.pth/.pt) is a tensor set whose facts
-		// are not parsed here (internal/pytorchzip owns that reader).
-		switch strings.ToLower(filepath.Ext(path)) {
+		// PyTorch convention also uses .pth.tar for ZIP checkpoints. The
+		// selected reader validates the actual container and tensor metadata.
+		switch filepath.Ext(strings.TrimSuffix(strings.ToLower(path), ".tar")) {
 		case ".pth", ".pt":
 			return artifact.KindTensorSet, pytorchZipMediaType
 		}

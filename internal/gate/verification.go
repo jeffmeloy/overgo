@@ -36,6 +36,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	generated := automationcheck.GeneratedChecks(g.repo, command)
 	device := automationcheck.DeviceCheck(g.repo, g.paths, devicePackages, command)
 	published := automationcheck.PublishedCheck(g.repo, command)
+	webui := automationcheck.WebUICheck(g.repo, command)
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
@@ -45,14 +46,14 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
-		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
+		device, webui, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 	dependencies := map[string][]string{
 		"scope": {"protection"}, "architecture": {"scope"}, "profile": {"architecture"}, "fmt": {"profile"}, "style": {"fmt"},
 		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
 		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "modern-go": {"magics"}, "acceptance": {"modern-go"},
 		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
-		"device": {"test"}, "commit": {"test", "device"},
+		"device": {"test"}, automationcheck.WebUICheckName: {"test"}, "commit": {"test", "device", automationcheck.WebUICheckName},
 	}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]

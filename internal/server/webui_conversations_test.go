@@ -18,6 +18,11 @@ import (
 func TestFrontPageConversations(t *testing.T) {
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
+	// The page counts with the exact request it streams: stream, store and sampling fields included.
+	counted := serveTestRequest(handler, http.MethodPost, "/v1/responses/input_tokens", `{"input":"hello there world","stream":true,"store":true,"temperature":0.2,"max_output_tokens":8}`)
+	if counted.Code != http.StatusOK || !strings.Contains(counted.Body.String(), `"input_tokens"`) {
+		t.Fatalf("count status = %d body=%s", counted.Code, counted.Body.String())
+	}
 	first := serveTestRequest(handler, http.MethodPost, "/v1/responses", `{"input":"hello there world","max_output_tokens":1}`)
 	if first.Code != http.StatusOK {
 		t.Fatalf("first response status = %d body=%s", first.Code, first.Body.String())

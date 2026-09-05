@@ -154,7 +154,8 @@
 
     // consume drives one turn from an event source: tokens land in the message (markdown at done),
     // tool and media events become cards, usage is returned as the terminal facts.
-    async function consume(events, message) {
+    async function consume(events, assistant) {
+      const terminal = {};
       const open = new Map();
       thinking(true);
       try {

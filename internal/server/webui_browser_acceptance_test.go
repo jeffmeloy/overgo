@@ -274,8 +274,11 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 		_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, text: document.body.innerText.slice(0, 600)})`, &page)
 		t.Fatalf("%v; page: %s", err, page)
 	}
-	assertBrowserPredicate(t, ctx, browser, `["#workbench-toggle", "#model-pill", ".composer textarea", ".composer .btn", "#inbox-count", "#conversation-list button"]
-      .every((selector) => { const node = document.querySelector(selector); return !!node && node.tabIndex >= 0 && ["BUTTON", "TEXTAREA", "SELECT", "INPUT", "A"].includes(node.tagName); })`)
+	// The conversation rail renders after its own request, so the check waits for every control.
+	if err := browser.Eventually(ctx, `["#workbench-toggle", "#model-pill", ".composer textarea", ".composer .btn", "#inbox-count", "#conversation-list button"]
+      .every((selector) => { const node = document.querySelector(selector); return !!node && node.tabIndex >= 0 && ["BUTTON", "TEXTAREA", "SELECT", "INPUT", "A"].includes(node.tagName); })`); err != nil {
+		t.Fatal(err)
+	}
 	assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer textarea").focus(); return document.activeElement.tagName === "TEXTAREA"; })()`)
 	pressKey(t, ctx, browser, "Tab", 9)
 	assertBrowserPredicate(t, ctx, browser, `document.activeElement !== document.body && document.activeElement.tagName !== "TEXTAREA" &&

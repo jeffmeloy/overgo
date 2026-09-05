@@ -12,7 +12,6 @@ import (
 	"overgo/internal/agentloop"
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
@@ -57,20 +56,14 @@ func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
 		return
 	}
-	result, err := h.repository.Query(request.Context(), overgodb.Query{
-		Kind: artifact.KindRecipe, MaxResults: h.config.MaxStoredResponses, Projection: overgodb.ProjectAliases,
-	})
+	names, err := h.aliasNamesUnder(request.Context(), artifact.KindRecipe, agenttool.RegisteredAliasPrefix)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
 		return
 	}
-	tools := make([]agentToolView, 0, len(result.Aliases))
+	tools := make([]agentToolView, 0, len(names))
 	registered := 0
-	for _, alias := range result.Aliases {
-		name, ok := strings.CutPrefix(alias.Name, agenttool.RegisteredAliasPrefix)
-		if !ok {
-			continue
-		}
+	for _, name := range names {
 		registered++
 		manual, err := agenttool.ResolveRegisteredManual(request.Context(), h.repository, name)
 		if err != nil {
@@ -238,19 +231,13 @@ func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.R
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
 		return
 	}
-	result, err := h.repository.Query(request.Context(), overgodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: h.config.MaxStoredResponses, Projection: overgodb.ProjectAliases,
-	})
+	names, err := h.aliasNamesUnder(request.Context(), artifact.KindEvidence, runrecord.InteractionResponseAliasRoot)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
 		return
 	}
 	steps := map[string]int{}
-	for _, alias := range result.Aliases {
-		name, ok := strings.CutPrefix(alias.Name, runrecord.InteractionResponseAliasRoot)
-		if !ok {
-			continue
-		}
+	for _, name := range names {
 		base, stepText, ok := strings.Cut(name, "-step-")
 		if !ok {
 			continue

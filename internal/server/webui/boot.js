@@ -297,8 +297,7 @@
   let servedEntry = null;
   function servedModel() { return servedEntry; }
 
-  // ---- conversations: chains of stored responses the server lists; the rail lists them, opens one into
-  // the chat tab, renames or archives one as a new label record; the browser keeps only the selection ----
+  // ---- conversations: the server lists stored-response chains; the rail opens, renames or archives one ----
   let selectedConversation = null;
   function conversation() { return selectedConversation; }
   function openConversation(item) {
@@ -340,8 +339,7 @@
     fmt: { grouped, bytes, compact, shortID },
   };
 
-  // ---- shell wiring (runs after all deferred module scripts registered): the server manifest owns
-  // navigation order, labels and capability refusal; modules register only their implementation. ----
+  // ---- shell wiring: the server manifest owns navigation order, labels and refusal; modules register only ----
   let workspaceManifest = null;
   let activeSection = null;
   const sectionButtons = [];
@@ -356,8 +354,10 @@
     for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection);
   }
 
-  // remountActive: the active tab reloads under a new key or a newly served model.
-  function remountActive() {
+  // remountActive: the active tab reloads under a new key, a newly served model or a
+  // changed store, from the capability document re-read for it.
+  async function remountActive() {
+    try { workspaceManifest = await api.get("/workspace/manifest"); capabilityDocument = workspaceManifest.model || null; } catch (_) { /* the shell stays on what it has */ }
     for (const tab of tabs) {
       if (tab.onDeactivate) tab.onDeactivate();
       tab.mounted = false;
@@ -402,8 +402,7 @@
     clear(host);
     return tab.mount(host, window.overgo, seed);
   }
-  // analysisSurface: the head every analysis inspector shares: a seeded prompt, labelled fields,
-  // run and cancel over a runner, and the output host; the inspector supplies execute(signal).
+  // analysisSurface: the shared inspector head (seeded prompt, labelled fields, run/cancel, output host).
   function analysisSurface(panel, seed, options) {
     const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
     prompt.value = (seed && seed.prompt) || options.defaultPrompt;

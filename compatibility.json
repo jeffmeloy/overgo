@@ -731,7 +731,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:75f69820e9fd852f8e725754b2cea4e2987451968398948b2e61198f8361e25e"
+     "identity": "file:sha256:02870ac7c150df10561e3b74c4c085cb6bfa76bdbb5faf133c54f57d06974985"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -884,7 +884,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:75f69820e9fd852f8e725754b2cea4e2987451968398948b2e61198f8361e25e"
+     "identity": "file:sha256:02870ac7c150df10561e3b74c4c085cb6bfa76bdbb5faf133c54f57d06974985"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

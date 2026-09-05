@@ -4,25 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-quality",
-      "title": "Professional finish: accessibility, responsiveness, and a real-browser acceptance lane for the front page",
-      "status": "open",
-      "steps": [
-        {
-          "id": "acceptance-lane",
-          "title": "Extend the real-browser acceptance lane to drive the front page end to end against a served model, and make the first-run flow a verified contract: starting from no served model, choose one from the catalog, send the first message and receive a streamed reply, attach an image and receive a grounded reply from a vision-capable model, switch models and see the composer re-derive, open the inspector for a turn, run an agent turn with a tool call, cancel a running operation; the lane is selected by the code manifest for every commit that touches the webui, the existing workbench acceptance steps keep running, and a missing browser or model reports UNAVAILABLE",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane",
-          "rationale": "The campaign's claims are user-facing behaviors; only a real browser proves them, and the first five minutes are the behavior most worth proving on every change.",
-          "depends_on": [
-            "gui-multimodal/dynamic-inference",
-            "gui-workbench/agent-in-thread",
-            "gui-quality/accessibility-responsive"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-docs",
       "title": "Documentation, launcher and manifest follow the front page",
       "status": "open",

@@ -65,7 +65,9 @@ func ResolveActiveGGUF(
 			return fail(err)
 		}
 		if declared && config.Generation != nil {
-			ApplyDeclaredSampling(&loaded.state.Policy, config.Generation.Sampling)
+			if err := ApplyDeclaredSampling(&loaded.state.Policy, config.Generation.Sampling); err != nil {
+				return fail(err)
+			}
 		}
 	}
 	definitionID, ok := definition.PrimaryDependency(recipe.DependencyDefinition)

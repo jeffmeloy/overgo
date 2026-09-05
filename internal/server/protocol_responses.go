@@ -20,17 +20,6 @@ import (
 	"overgo/internal/artifact"
 )
 
-type responsesTokenCountRequest struct {
-	Model              string                    `json:"model"`
-	Instructions       string                    `json:"instructions"`
-	Input              json.RawMessage           `json:"input"`
-	PreviousResponseID string                    `json:"previous_response_id"`
-	Tools              json.RawMessage           `json:"tools"`
-	ToolChoice         json.RawMessage           `json:"tool_choice"`
-	ParallelTools      *bool                     `json:"parallel_tool_calls"`
-	Reasoning          *responsesReasoningConfig `json:"reasoning"`
-}
-
 type responsesRequest struct {
 	Model              string                    `json:"model"`
 	Instructions       string                    `json:"instructions"`
@@ -630,7 +619,9 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	if !ok {
 		return
 	}
-	var body responsesTokenCountRequest
+	// The count takes the same request the turn will stream, so a page counts
+	// with the exact body it sends; generation-only fields are ignored here.
+	var body responsesRequest
 	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}

@@ -189,6 +189,11 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		))
 	}
 	impact := automationcheck.OwnershipImpact(definitions, surface)
+	// The shell's assets are not Go symbols: a changed web UI path triggers
+	// the browser lane that the symbol closure could not select.
+	if automationcheck.WebUIPaths(g.paths) {
+		impact = impact.Trigger(automationcheck.WebUIImpact, automationcheck.WebUICheckName)
+	}
 	g.selection = automationcheck.MeasureSelection(definitions, impact)
 	g.selectionID = surface.Identity
 	checks, err := automationcheck.Plan(definitions, impact)

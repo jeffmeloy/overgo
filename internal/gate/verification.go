@@ -962,10 +962,9 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	if len(directPending) > 0 {
-		if _, err := runGoTests(ctx, g.repo, directPending, true); err != nil {
-			return false, err
-		}
-		if err := g.recordPackagePasses(directPending, "short", directInputs); err != nil {
+		report, runErr := runGoTests(ctx, g.repo, directPending, true)
+		if err := errors.Join(runErr, g.recordPackagePasses(report, directPending, "short", directInputs)); err != nil {
+			g.packageCacheAudit(directReused, len(directPending))
 			return false, err
 		}
 	}
@@ -984,20 +983,16 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	report := testevidence.GoTestReport{}
 	if len(dependentPending) > 0 {
 		report, err = runGoTests(ctx, g.repo, dependentPending, false)
-	}
-	if err != nil {
-		return false, err
+		err = errors.Join(err, g.recordPackagePasses(report, dependentPending, "complete", dependentInputs))
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.audit = append(g.audit, fmt.Sprintf(
 			"dependent fixture evidence not credited: %d skipped, %d unavailable",
 			len(report.Skipped), len(report.Unavailable),
 		))
-	} else if err := g.recordPackagePasses(dependentPending, "complete", dependentInputs); err != nil {
-		return false, err
 	}
 	g.packageCacheAudit(directReused+dependentReused, len(directPending)+len(dependentPending))
-	return false, nil
+	return false, err
 }
 
 func (g *gateContext) packageCachePartition(packages []string, mode string, inputs map[string]artifact.ID) ([]string, int, error) {

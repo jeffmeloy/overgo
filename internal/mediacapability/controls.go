@@ -86,6 +86,11 @@ func Controls(entry recipe.ModuleID, directory string) ([]Control, string) {
 	return controls, ""
 }
 
+// describe derives the page's controls from the request's exported JSON
+// fields. A scalar field is a typed control; a field the page cannot type
+// (a tensor, a plan) is omitted when the request marks it optional, since
+// the runtime resolves it from the typed fields, and refuses the whole
+// request when it is required.
 func describe(request reflect.Type) ([]Control, string) {
 	var controls []Control
 	for index := range request.NumField() {
@@ -107,6 +112,9 @@ func describe(request reflect.Type) ([]Control, string) {
 		case reflect.Bool:
 			control.Type = ControlBoolean
 		default:
+			if optional {
+				continue
+			}
 			return nil, fmt.Sprintf("field %s needs %s the page cannot type", name, field.Type.Kind())
 		}
 		controls = append(controls, control)

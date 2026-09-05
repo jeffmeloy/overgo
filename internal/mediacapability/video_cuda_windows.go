@@ -18,7 +18,7 @@ import (
 func videoCapability() Capability {
 	wanDirector, wanErr := capabilityruntime.NewModelSessionDirector[latentvideo.WanRequest, *latentvideo.WanRuntime, latentvideo.EncodedVideo](
 		"video-gen", imageDevice, imageSessionCapacity,
-		latentvideo.ValidateWanRequest,
+		latentvideo.ValidateWanRequestForm,
 		func(ctx context.Context, store artifact.Repository, path string, program recipe.Program, request latentvideo.WanRequest) (*latentvideo.WanRuntime, error) {
 			return latentvideo.LoadWanRuntime(ctx, store, path, program, request)
 		},

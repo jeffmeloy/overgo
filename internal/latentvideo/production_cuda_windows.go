@@ -13,15 +13,28 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/media"
 	"overgo/internal/recipe"
+	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/workflowruntime"
 )
 
-// WanRuntime retains one generator across compatible requests.
+// WanRuntime retains one generator across compatible requests, the text
+// pipeline that resolves a prompt-form request, the device occupancy its
+// noise plans compile against, and the last prompt pair's contexts.
 type WanRuntime struct {
 	generator *Generator
 	profile   Profile
+	text      TextConditioningSpec
+	occupancy editNoiseStream
+	memo      wanConditioning
 	runs      int
+}
+
+// wanConditioning memoizes the contexts of one prompt pair, so a replayed
+// or repeated request does not stream the encoder again.
+type wanConditioning struct {
+	prompt, negative string
+	cond, uncond     []float32
 }
 
 func LoadWanRuntime(ctx context.Context, store artifact.Reader, path string, program recipe.Program, request WanRequest) (*WanRuntime, error) {
@@ -29,27 +42,68 @@ func LoadWanRuntime(ctx context.Context, store artifact.Reader, path string, pro
 	if err != nil {
 		return nil, err
 	}
+	request = request.withGeneration(profile.Generation)
 	storage := dtype.BF16
 	if !checked.Equal(profile.Precision.MatmulWeights, dtype.BF16.String()) {
 		return nil, errors.New("latent video: unsupported production precision")
 	}
+	ordinal := device.DefaultOrdinal()
 	generator, err := NewGenerator(GeneratorConfig{
 		ModelDirectory: path, Policy: profile.Policy, LatentStats: profile.LatentStats,
 		Frames: request.Frames, Width: request.Width, Height: request.Height,
 		Precision: DenoiserPrecision{
 			MatmulWeights: storage, RoundAttentionStorage: profile.Precision.RoundAttentionStorage,
-		}, DeviceOrdinal: device.DefaultOrdinal(),
+		}, DeviceOrdinal: ordinal,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &WanRuntime{generator: generator, profile: profile}, nil
+	config, err := LoadDenoiserConfig(path, profile.Policy)
+	if err != nil {
+		return nil, errors.Join(err, generator.Close())
+	}
+	occupancy, err := newEditNoiseStream(0, ordinal)
+	if err != nil {
+		return nil, errors.Join(err, generator.Close())
+	}
+	return &WanRuntime{
+		generator: generator, profile: profile,
+		text: WanTextConditioningSpec(path, config.TextLen), occupancy: occupancy,
+	}, nil
+}
+
+// resolve completes a request against the resident runtime: the profile's
+// generation policy fills omitted parameters, a prompt-form request gains
+// its contexts from the text pipeline and its noise plan from the seed on
+// this device, and the result is the complete request the generator runs.
+func (r *WanRuntime) resolve(request WanRequest) (WanRequest, error) {
+	request = request.withGeneration(r.profile.Generation)
+	if !request.PromptForm() {
+		return request, ValidateWanRequest(request)
+	}
+	if r.memo.cond == nil || r.memo.prompt != request.Prompt || r.memo.negative != request.NegativePrompt {
+		cond, uncond, err := promptContexts(r.text, request)
+		if err != nil {
+			return WanRequest{}, err
+		}
+		r.memo = wanConditioning{prompt: request.Prompt, negative: request.NegativePrompt, cond: cond, uncond: uncond}
+	}
+	request.CondContext, request.UncondContext = r.memo.cond, r.memo.uncond
+	plan, _, err := sampling.CompileCounterNoisePlan(
+		request.Seed, 0, r.generator.Geometry().Elements(), r.occupancy.smCount, r.occupancy.threadsPerSM,
+	)
+	if err != nil {
+		return WanRequest{}, err
+	}
+	request.Noise = plan
+	return request, ValidateWanRequest(request)
 }
 
 func (r *WanRuntime) Reset(_ context.Context, request WanRequest) error {
 	if r == nil || r.generator == nil {
 		return errors.New("latent video: Wan runtime is closed")
 	}
+	request = request.withGeneration(r.profile.Generation)
 	geometry := r.generator.Geometry()
 	volume, err := media.DownsampledVolume(request.Frames, request.Height, request.Width, r.profile.Policy.VAEStride)
 	if err != nil {
@@ -68,6 +122,10 @@ func (r *WanRuntime) Reset(_ context.Context, request WanRequest) error {
 }
 
 func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedVideo, error) {
+	request, err := r.resolve(request)
+	if err != nil {
+		return EncodedVideo{}, err
+	}
 	sink, err := NewGIFEncoder(r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err

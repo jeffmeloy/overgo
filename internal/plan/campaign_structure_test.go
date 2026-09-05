@@ -465,6 +465,7 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"gui-journey-modalities/do",
 		"gui-multimodal-closeout/do",
 		"merge-519a2690db1a/do",
+		"video-from-prompt/do",
 		// Rows retained from the master plan at the lane base (9dce4fca):
 		// the plan authority protects every identity committed at the
 		// protected revision, so the lane keeps them after its own rows and

@@ -242,8 +242,13 @@ What the rows established, each a record rather than a statement:
   lists every active media recipe with the controls its request type
   declares (`internal/mediacapability`, the catalog extracted from
   cmd/recipe) and executes through the same executors, publishing PNG, GIF
-  and WAV artifacts behind run records. Wan and LiveEdit list with the
-  reason no page can type their requests. The capability runtime replays an
+  and WAV artifacts behind run records. Wan runs from the page's prompt
+  form (`internal/latentvideo/wan_form.go`): a prompt, a negative prompt and
+  a seed are typed controls, the runtime derives the conditioning contexts
+  through the model's own umT5 encoder and the noise plan from the seed on
+  its device, and a generation parameter left blank takes the profile's
+  value; LiveEdit still lists with the reason no page can type its source
+  clip and condition. The capability runtime replays an
   identical request from its recorded artifact, so media output types
   decode their own recorded content. The VQA activation has no executor in
   the catalog and is a parked finding.

@@ -480,7 +480,12 @@ derived from the server, not from client configuration:
   model activated for the task is offered by name, a model whose request
   no page can type is listed with the reason, and the request's own fields
   render as controls, with the choices a model's artifact exports (a speech
-  model's voices) offered as a select. The run goes through the generic run
+  model's voices) offered as a select. A request field the runtime resolves
+  from the typed ones is omitted rather than refused: Wan takes a prompt, a
+  negative prompt and a seed, and its runtime derives the conditioning
+  contexts through the model's own text encoder and the noise plan from the
+  seed on the device, with every generation parameter left blank taken from
+  the model's profile. The run goes through the generic run
   route as an operation the strip shows, and its outputs land in the thread
   as media artifacts (PNG, GIF, WAV) with their provenance.
 - **Media back in.** Every media card offers "use as input": the artifact's

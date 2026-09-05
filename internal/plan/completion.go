@@ -76,23 +76,6 @@ var legacyCompletionTrailerKeys = [...]string{
 	completionCodeManifestTrailer,
 }
 
-// CompletionCommitMessage appends the one canonical completion-trailer block
-// used by both the gate writer and the authority reader. Reserved trailers in
-// the operator message and multiline verifiers are refused so Git never has
-// two competing interpretations of what completed.
-func CompletionCommitMessage(
-	operatorMessage []byte,
-	preAdvance Plan,
-	item, step string,
-	manifest, codeManifest, preparation artifact.ID,
-	preparationCommit artifact.CommitID,
-) ([]byte, error) {
-	return CompletionCommitMessageWithMergeAuthority(
-		operatorMessage, preAdvance, item, step, manifest, codeManifest, preparation,
-		preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
-	)
-}
-
 // CompletionCommitMessageWithMergeAuthority binds the one typed projected
 // merge receipt required by FirstParentTarget. Semantic union carries no
 // receipt; target projection without a receipt is refused rather than inferred.
@@ -321,22 +304,6 @@ func VerifyCompletionCommitMessageWithMergeAuthority(
 	return verifyCompletionSnapshot(preAdvance, trailers)
 }
 
-// VerifyProspectiveCompletionTransition applies the history reader's exact
-// transition policy before a gate publishes success. Parents must be the
-// actual Git parent plan snapshots; a two-parent completion also supplies its
-// actual merge-base plan. The prepared message must snapshot preAdvance, keep
-// every baseline identity, and produce child by advancing exactly one row.
-func VerifyProspectiveCompletionTransition(
-	parents []Plan,
-	mergeBase *Plan,
-	preAdvance, child Plan,
-	message string,
-) error {
-	return VerifyProspectiveCompletionTransitionWithProjection(
-		parents, mergeBase, preAdvance, child, message, MergeProjectionSemanticUnion,
-	)
-}
-
 // VerifyProspectiveCompletionTransitionWithProjection applies the selected,
 // explicitly message-bound merge projection before the commit is published.
 func VerifyProspectiveCompletionTransitionWithProjection(
@@ -370,22 +337,6 @@ func VerifyProspectiveCompletionTransitionWithProjection(
 		return errors.New("plan: prospective completion merge projection differs from its canonical message")
 	}
 	return verifyPreparedCompletionTransition(baseline, preAdvance, child, trailers)
-}
-
-// VerifyProspectiveMergeAuthority proves that a merged projection is safe to
-// stage using completion authority derived from the exact two parent
-// revisions in the same repository and authority store. It deliberately does
-// not manufacture a new authority: the eventual gate must resolve both actual
-// parents again while holding its commit transaction.
-func VerifyProspectiveMergeAuthority(
-	repository, localRevision, incomingRevision string,
-	local, incoming, merged Plan,
-	localAuthority, incomingAuthority CompletionAuthority,
-) error {
-	return VerifyProspectiveMergeAuthorityWithProjection(
-		repository, localRevision, incomingRevision, local, incoming, merged,
-		localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
-	)
 }
 
 // VerifyProspectiveMergeAuthorityWithProjection proves both parents and their
@@ -1390,7 +1341,7 @@ func requireCompletionEvidence(
 		if trailers.verify != parentStep.Verify {
 			return completionEvidence{}, errors.New("verify trailer differs from the parent plan step")
 		}
-		expected, err = advanceHistoricalPlan(baseline, trailers.item, trailers.step)
+		expected, err = advancePlan(baseline, trailers.item, trailers.step, false)
 		if err != nil {
 			return completionEvidence{}, fmt.Errorf("derive exact completion transition: %w", err)
 		}
@@ -1764,36 +1715,6 @@ func readGitCompletionObject(reader *bufio.Reader, requested, objectType string)
 		return nil, fmt.Errorf("plan: Git %s for %.12s lacks its separator", objectType, requested)
 	}
 	return data, nil
-}
-
-// advanceHistoricalPlan applies the same row transition as Advance without
-// reinterpreting dependency syntax from an older plan schema. The exact child
-// comparison below remains the authority for what the commit changed.
-func advanceHistoricalPlan(document Plan, itemID, stepID string) (Plan, error) {
-	document.Items = slices.Clone(document.Items)
-	for itemIndex := range document.Items {
-		if document.Items[itemIndex].ID != itemID {
-			continue
-		}
-		document.Items[itemIndex].Steps = slices.Clone(document.Items[itemIndex].Steps)
-		for stepIndex := range document.Items[itemIndex].Steps {
-			if document.Items[itemIndex].Steps[stepIndex].ID != stepID {
-				continue
-			}
-			if document.Items[itemIndex].Steps[stepIndex].Status != StatusOpen {
-				return Plan{}, fmt.Errorf("step %q in %q is not open", stepID, itemID)
-			}
-			document.Items[itemIndex].Steps = slices.Delete(
-				document.Items[itemIndex].Steps, stepIndex, stepIndex+1,
-			)
-			if len(document.Items[itemIndex].Steps) == 0 {
-				document.Items = slices.Delete(document.Items, itemIndex, itemIndex+1)
-			}
-			return document, nil
-		}
-		return Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
-	}
-	return Plan{}, fmt.Errorf("item %q not found", itemID)
 }
 
 func requireCompletionAcceptance(gate runrecord.GateResult, reference, verify string) error {

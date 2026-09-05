@@ -594,6 +594,14 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"benchmark-completion/published-comparison",
 		"modality-verification/capability-census",
 		"modality-verification/capability-census-owner",
+		"modality-verification/e4b-all-modalities",
+		"modality-verification/e4b-serving-repair",
+		"modality-verification/e4b-serving-admission",
+		"gui-worktree-integration/merge",
+		"audio-worktree-integration/register-models",
+		// Accept or remove the staged API from the explicitly authorized audio intake.
+		"modality-verification/native-audio-streaming-intake",
+		"model-validation-batching/do",
 		"modality-verification/declared-smoke-expectations",
 		"modality-verification/text-and-vision",
 		"modality-verification/image-and-video",
@@ -614,6 +622,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-automation/gate-scope-efficiency",
 		"validation-automation/guard-admission-efficiency",
 		"validation-automation/benchmark-protocol",
+		"validation-batch-control/batch-promotion",
 		"boundary-hardening/cross-origin",
 		"boundary-hardening/argv-output",
 		"final-model-validation/do",
@@ -624,7 +633,15 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	for _, id := range wantIDs {
 		want[id] = true
 	}
+	mergeRows := 0
 	for _, item := range document.Items {
+		if strings.HasPrefix(item.ID, "merge-") {
+			mergeRows++
+			if !preparedMergeBoundary(item) {
+				t.Errorf("invalid prepared merge boundary %+v", item)
+			}
+			continue
+		}
 		for _, step := range item.Steps {
 			id := item.ID + "/" + step.ID
 			if !want[id] {
@@ -636,11 +653,23 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 			}
 		}
 	}
+	if mergeRows > 1 {
+		t.Errorf("validation campaign has %d prepared merge boundaries, want at most one", mergeRows)
+	}
 	for _, required := range []string{"capability freeze enforced by structure", "UNAVAILABLE", "plan -setverify"} {
 		if !strings.Contains(document.Doctrine, required) {
 			t.Errorf("validation campaign doctrine omits %q", required)
 		}
 	}
+}
+
+// The gate separately proves the exact parent and prunes this temporary row.
+// Campaign closeout therefore cannot depend on it without changing the target plan.
+func preparedMergeBoundary(item Item) bool {
+	revision, found := strings.CutPrefix(item.ID, "merge-")
+	return found && len(revision) == 12 && strings.Trim(revision, "0123456789abcdef") == "" &&
+		item.Status == StatusOpen && len(item.Steps) == 1 && item.Steps[0].ID == "do" &&
+		item.Steps[0].Status == StatusOpen && item.Steps[0].Verify == "go run ./cmd/compatibility -check"
 }
 
 func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
@@ -725,10 +754,7 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 		}
 		if strings.HasPrefix(item.ID, "merge-") {
 			mergeRows++
-			revision := strings.TrimPrefix(item.ID, "merge-")
-			if len(revision) != 12 || strings.Trim(revision, "0123456789abcdef") != "" ||
-				item.Status != StatusOpen || len(item.Steps) != 1 || item.Steps[0].ID != "do" ||
-				item.Steps[0].Status != StatusOpen || item.Steps[0].Verify != "go run ./cmd/compatibility -check" {
+			if !preparedMergeBoundary(item) {
 				t.Errorf("invalid prepared merge boundary %+v", item)
 			}
 			continue

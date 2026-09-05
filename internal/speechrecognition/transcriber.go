@@ -84,18 +84,6 @@ func LoadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	return loadTranscriber(ctx, repository, definition, memoryBytes)
 }
 
-// LoadActiveTranscriber resolves the verified active recipe for one model.
-func LoadActiveTranscriber(ctx context.Context, repository artifact.Repository, modelID artifact.ID, memoryBytes uint64) (*Transcriber, error) {
-	if ctx == nil || repository == nil {
-		return nil, errors.New("speech recognition: invalid active transcriber load")
-	}
-	activation, _, err := modelrecipe.ResolveActiveCapability(ctx, repository, modelID, recipe.TaskTranscription)
-	if err != nil {
-		return nil, err
-	}
-	return loadTranscriber(ctx, repository, activation.Definition, memoryBytes)
-}
-
 func loadTranscriber(ctx context.Context, repository artifact.Repository, definition recipe.Definition, memoryBytes uint64) (*Transcriber, error) {
 	if definition.Task != recipe.TaskTranscription {
 		return nil, errors.New("speech recognition: recipe is not transcription")

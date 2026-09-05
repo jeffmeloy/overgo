@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -67,7 +66,7 @@ func PublishEncoderCapture(ctx context.Context, repository artifact.Repository, 
 	if err := ctx.Err(); err != nil {
 		return artifact.ID{}, err
 	}
-	data, err := readCaptureFile(reportPath)
+	data, err := artifact.ReadContentFile(reportPath)
 	if err != nil {
 		return artifact.ID{}, err
 	}
@@ -78,7 +77,7 @@ func PublishEncoderCapture(ctx context.Context, repository artifact.Repository, 
 	if err = capture.validate(election); err != nil {
 		return artifact.ID{}, err
 	}
-	source, err := readCaptureFile(sourcePath)
+	source, err := artifact.ReadContentFile(sourcePath)
 	if err != nil {
 		return artifact.ID{}, err
 	}
@@ -143,28 +142,4 @@ func PublishEncoderCapture(ctx context.Context, repository artifact.Repository, 
 		return artifact.ID{}, err
 	}
 	return golden.Descriptor.ID, nil
-}
-
-func readCaptureFile(path string) ([]byte, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > artifact.MaxContentBytes {
-		return nil, errors.New("audio capture: invalid document size")
-	}
-	// The decoder and source publication both reject growth beyond this bound.
-	data, err := io.ReadAll(io.LimitReader(file, artifact.MaxContentBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(data) == 0 || len(data) > artifact.MaxContentBytes {
-		return nil, errors.New("audio capture: document changed beyond size bound")
-	}
-	return data, nil
 }

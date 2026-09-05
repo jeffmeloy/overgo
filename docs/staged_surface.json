@@ -5,8 +5,8 @@
     {
       "package": "overgo/internal/capabilityruntime",
       "name": "OpenAudioStream",
-      "reason": "Bounded chunk, cancellation and restart contracts are verified before model integration. The streaming FireRedVAD step must consume this opener through the existing model-session lease owner and remove this declaration; these tests do not establish native model streaming parity.",
-      "retire_with": "speech-analysis-expansion/vad"
+      "reason": "Bounded chunk, cancellation and restart contracts precede the audio campaign's native recognizer integration. Retire this declaration when the verified native-state consumer lands; session contract tests alone do not establish native streaming parity.",
+      "retire_with": "asr-serving/sync-streaming-transcription"
     },
     {
       "package": "overgo/internal/testutil",

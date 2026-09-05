@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/strictjson"
 )
 
@@ -17,12 +18,13 @@ const (
 //go:embed preprocess_profiles.json
 var mediaPreprocessCatalogJSON []byte
 
-// MediaPreprocessProfile defines recipe-bound raster policy.
+// MediaPreprocessProfile defines recipe-bound raster and audio policy.
 type MediaPreprocessProfile struct {
-	ID      artifact.ID      `json:"-"`
-	Version uint16           `json:"version"`
-	Image   MediaPixelBudget `json:"image"`
-	Video   MediaPixelBudget `json:"video"`
+	ID                         artifact.ID      `json:"-"`
+	Version                    uint16           `json:"version"`
+	Image                      MediaPixelBudget `json:"image"`
+	Video                      MediaPixelBudget `json:"video"`
+	AudioAttentionRopeFreqBase float32          `json:"audio_attention_rope_freq_base,omitzero"`
 }
 
 type mediaPreprocessCatalogEntry struct {
@@ -36,6 +38,14 @@ var mediaPreprocessProfileCodec = artifact.JSONDocumentCodec(
 	func(profile *MediaPreprocessProfile) error {
 		if profile.Version != artifact.InitialDocumentVersion {
 			return errors.New("projector: invalid media preprocess profile version")
+		}
+		if profile.AudioAttentionRopeFreqBase != 0 {
+			if !checked.PositiveFinite32(profile.AudioAttentionRopeFreqBase) {
+				return errors.New("projector: invalid audio attention frequency base")
+			}
+			if profile.Image == (MediaPixelBudget{}) && profile.Video == (MediaPixelBudget{}) {
+				return nil // Raster geometry is already declared by the tower artifact.
+			}
 		}
 		if err := profile.Image.validate(); err != nil {
 			return err

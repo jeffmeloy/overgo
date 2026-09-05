@@ -346,7 +346,7 @@ var projectorCatalog = []projectorDescriptor{
 	describeCatalogProjector(gemma4VisionTowerProjectorType, "Gemma 4 tower", nil, ReadGemma4TowerSpec, validateGemma4TowerCatalog,
 		func(file *gguf.File, spec Gemma4TowerSpec, cuda *projectorCUDA) *Gemma4TowerRunner {
 			return &Gemma4TowerRunner{projectorResources: projectorResources{file: file, cuda: cuda}, spec: spec, audioPlan: newAudioFrontendPlan(spec.Audio)}
-		}, nil),
+		}, promptPrograms(compileGemma4TowerImagePrompt, compileGemma4TowerMediaPrompt), recipe.DataImage, recipe.DataAudio, recipe.DataVideo),
 }
 
 func OpenAs[T Projector](ctx context.Context, path string, options OpenOptions) (T, error) {
@@ -447,6 +447,15 @@ func openAs[T Projector](
 				return nil, err
 			}
 			options.MediaPreprocess = profile
+		}
+		if options.MediaPreprocess == nil {
+			profile, found, err := catalogMediaPreprocessProfile(descriptor.kind)
+			if err != nil {
+				return nil, err
+			}
+			if found {
+				options.MediaPreprocess = &profile
+			}
 		}
 		return descriptor.open(ctx, file, options)
 	})
@@ -628,10 +637,14 @@ func compileQwen2VLMediaPrompt(r *Qwen2VLRunner) compiledMediaPromptProgram {
 }
 
 func compileGemma4ImagePrompt(r *Gemma4Runner) compiledImagePromptProgram {
+	return compileGemma4ImageProgram(gemma4PromptSource(r))
+}
+
+func compileGemma4ImageProgram(r gemmaPromptSource) compiledImagePromptProgram {
 	compile := func(history bool) imagePromptPlan {
 		return imagePromptPlan{
 			Family: "Gemma 4", Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-			AddSpecial: history, EmbeddingWidth: r.spec.Hidden, AttentionBlocks: imagePromptBlocks,
+			AddSpecial: history, EmbeddingWidth: r.width, AttentionBlocks: imagePromptBlocks,
 			Render: func(text []string, items []imagePromptItem) string {
 				var prompt strings.Builder
 				if !history {
@@ -649,7 +662,7 @@ func compileGemma4ImagePrompt(r *Gemma4Runner) compiledImagePromptProgram {
 					prompt.WriteString(text[len(text)-1])
 				} else {
 					prompt.WriteString(strings.TrimSpace(text[len(text)-1]))
-					prompt.WriteString("<turn|>\n<|turn>model\n<|channel>thought\n<channel|>")
+					prompt.WriteString("<turn|>\n<|turn>model\n" + r.assistant)
 				}
 				return prompt.String()
 			},
@@ -659,7 +672,7 @@ func compileGemma4ImagePrompt(r *Gemma4Runner) compiledImagePromptProgram {
 		Default: compile(false),
 		History: compile(true),
 		Encode: func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-			output, err := r.EncodeImage(ctx, source)
+			output, err := r.image(ctx, source)
 			if err != nil {
 				return imagePromptItem{}, err
 			}
@@ -685,15 +698,19 @@ func compileGemma4ImagePrompt(r *Gemma4Runner) compiledImagePromptProgram {
 }
 
 func compileGemma4MediaPrompt(r *Gemma4Runner) compiledMediaPromptProgram {
+	return compileGemma4MediaProgram(gemma4PromptSource(r))
+}
+
+func compileGemma4MediaProgram(r gemmaPromptSource) compiledMediaPromptProgram {
 	history := mixedMediaPromptPlan{
-		Family: "Gemma 4", AddSpecial: true, EmbeddingWidth: r.spec.Hidden, PromptLabel: "Gemma 4 media history",
+		Family: "Gemma 4", AddSpecial: true, EmbeddingWidth: r.width, PromptLabel: "Gemma 4 media history",
 		Render: renderMixedMediaHistory,
 		Kinds: map[MediaKind]mixedMediaKindPlan{
 			MediaImage: {
 				Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
 				Open: "<|image>", Close: "<image|>", Attention: true,
 				Encode: func(ctx context.Context, input MediaInput) (imagePromptItem, error) {
-					output, err := r.EncodeImage(ctx, input.Image)
+					output, err := r.image(ctx, input.Image)
 					if err != nil {
 						return imagePromptItem{}, err
 					}
@@ -704,7 +721,7 @@ func compileGemma4MediaPrompt(r *Gemma4Runner) compiledMediaPromptProgram {
 				Placeholder: "<|audio|>", PlaceholderLabel: "Gemma 4 audio placeholder",
 				Open: "<|audio>", Close: "<audio|>",
 				Encode: func(ctx context.Context, input MediaInput) (imagePromptItem, error) {
-					output, err := r.EncodeAudio(ctx, input.Audio)
+					output, err := r.audio(ctx, input.Audio)
 					if err != nil {
 						return imagePromptItem{}, err
 					}
@@ -730,13 +747,13 @@ func compileGemma4MediaPrompt(r *Gemma4Runner) compiledMediaPromptProgram {
 		if !checked.PositiveFinite64(fps) {
 			return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
 		}
-		output, err := r.EncodeVideoFrames(ctx, frames)
+		output, err := r.video(ctx, frames)
 		if err != nil {
 			return MultimodalPrompt{}, err
 		}
 		return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
 			mediaPromptRunPlan: mediaPromptRunPlan{
-				Prompt: Gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps), Placeholder: "<|video|>",
+				Prompt: gemma4VideoPromptText(afterVideo, output.Frames, output.TokensPerFrame, fps, r.assistant), Placeholder: "<|video|>",
 				Runs: output.Frames, TokensPerRun: output.TokensPerFrame,
 				PromptLabel: "Gemma 4 video prompt", PlaceholderLabel: "Gemma 4 video placeholder", RunsLabel: "Gemma 4 video prompt",
 			},
@@ -761,34 +778,39 @@ func compileGemma4MediaPrompt(r *Gemma4Runner) compiledMediaPromptProgram {
 			if strings.TrimSpace(beforeAudio) != "" {
 				return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires audio before user text")
 			}
-			output, err := r.EncodeAudio(ctx, samples)
+			output, err := r.audio(ctx, samples)
 			if err != nil {
 				return MultimodalPrompt{}, err
 			}
 			audioTokens := int(output.Embeddings.Shape.Dims[tensor.SingletonExtent])
 			return executeProjectedPromptPlan(tokenizer, projectedPromptPlan{
 				mediaPromptRunPlan: mediaPromptRunPlan{
-					Prompt: Gemma4AudioPromptText(afterAudio, audioTokens), Placeholder: "<|audio|>",
+					Prompt: gemma4AudioPromptText(afterAudio, audioTokens, r.assistant), Placeholder: "<|audio|>",
 					Runs: tensor.SingletonExtent, TokensPerRun: audioTokens,
 					PromptLabel: "Gemma 4 audio prompt", PlaceholderLabel: "Gemma 4 audio placeholder", RunsLabel: "Gemma 4 audio prompt",
 				},
 				Embeddings: output.Embeddings.Data, EmbeddingWidth: int(output.Embeddings.Shape.Dims[tensor.FirstOffset]),
 			})
 		},
-		AudioSampleRate: func() (int, error) {
-			spec, err := r.AudioSpec()
-			return spec.SampleRate, err
-		},
+		AudioSampleRate: r.sampleRate,
 	}
 }
 
 func Gemma4AudioPromptText(question string, audioTokens int) string {
+	return gemma4AudioPromptText(question, audioTokens, gemma4ClosedThought)
+}
+
+func gemma4AudioPromptText(question string, audioTokens int, assistant string) string {
 	return "<bos><|turn>user\n<|audio>" + strings.Repeat("<|audio|>", audioTokens) +
 		"<audio|>" + strings.TrimSpace(question) +
-		"<turn|>\n<|turn>model\n<|channel>thought\n<channel|>"
+		"<turn|>\n<|turn>model\n" + assistant
 }
 
 func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps float64) string {
+	return gemma4VideoPromptText(question, frames, tokensPerFrame, fps, gemma4ClosedThought)
+}
+
+func gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps float64, assistant string) string {
 	var prompt strings.Builder
 	prompt.WriteString("<bos><|turn>user\n")
 	for frame := range frames {
@@ -802,7 +824,7 @@ func Gemma4VideoPromptText(question string, frames, tokensPerFrame int, fps floa
 		prompt.WriteString("<image|>")
 	}
 	prompt.WriteString(strings.TrimSpace(question))
-	prompt.WriteString("<turn|>\n<|turn>model\n<|channel>thought\n<channel|>")
+	prompt.WriteString("<turn|>\n<|turn>model\n" + assistant)
 	return prompt.String()
 }
 

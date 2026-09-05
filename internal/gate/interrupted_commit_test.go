@@ -951,9 +951,9 @@ func TestRecoverInterruptedMergeRestoresExactPendingMerge(t *testing.T) {
 	intent.Tree = finalIndex.Tree
 	intent.IndexBefore, intent.IndexAfter, intent.IndexRestore = mergeIndex.Data, finalIndex.Data, mergeRestore.Data
 	intent.IndexMode = uint32(mergeIndex.Mode.Perm())
-	message, err := plan.CompletionCommitMessage(
+	message, err := plan.CompletionCommitMessageWithMergeAuthority(
 		[]byte("Complete interrupted merge"), document, "ratchet", "merge",
-		recipe, candidate, preparation.ID, preparationCommit,
+		recipe, candidate, preparation.ID, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1680,9 +1680,9 @@ func newInterruptedCommitFixtureWithHook(t *testing.T, commitMessageHook []byte,
 		t.Fatal(err)
 	}
 	recipe := manifest.ID
-	message, err := plan.CompletionCommitMessage(
+	message, err := plan.CompletionCommitMessageWithMergeAuthority(
 		[]byte("Complete interrupted gate"), document, "ratchet", "recover",
-		recipe, codeManifest, preparation.ID, preparationCommit,
+		recipe, codeManifest, preparation.ID, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)

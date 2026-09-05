@@ -3,10 +3,37 @@ package artifact
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"slices"
 )
 
 const MaxContentBytes = 64 << 20
+
+// ReadContentFile reads a nonempty regular file within the inline content bound.
+// The publisher still owns content identity and schema validation.
+func ReadContentFile(path string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > MaxContentBytes {
+		return nil, errors.New("artifact: invalid content file size or mode")
+	}
+	data, err := io.ReadAll(io.LimitReader(file, MaxContentBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 || len(data) > MaxContentBytes {
+		return nil, errors.New("artifact: content file changed beyond size bound")
+	}
+	return data, nil
+}
 
 // Content defines bounded inline content-addressed document.
 type Content struct {

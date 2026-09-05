@@ -1,0 +1,78 @@
+[
+  {
+    "directory": "granite-speech-5.0-470m-turboctc",
+    "license": {
+      "artifact": "file:sha256:4953938517b4d2e25313f1b6853f4f8cec6e64ac629beacba91008ef6f2fe280",
+      "path": "README.md",
+      "media_type": "text/markdown",
+      "spdx": "Apache-2.0"
+    },
+    "model": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+    "source_commit": "7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
+    "source_repository": "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc",
+    "tensor_inventory": "tensor-inventory:sha256:816aa9a286ff3840fa35c32c6962afe105cbde95c02f48118cf7e918a2524ca5"
+  },
+  {
+    "directory": "nemotron-3.5-asr-streaming-0.6b",
+    "license": {
+      "artifact": "file:sha256:8792ca70314761b122abbc22f212d1a10b7efa10c2b34cf7491f0fe4e0d36bf8",
+      "path": "README.md",
+      "media_type": "text/markdown",
+      "spdx": "LicenseRef-OpenMDW-1.1"
+    },
+    "model": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+    "source_commit": "1c8deaecc64b91f034d73e08dd8b64625eb3395d",
+    "source_repository": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b",
+    "tensor_inventory": "tensor-inventory:sha256:29b89ebefa907898a60d5666fb05d2aa8ea1f5ca0d277f22e920674ed513fbbd"
+  },
+  {
+    "components": [
+      {
+        "Path": "VAD/model.pth.tar",
+        "Name": "weights",
+        "Role": "weights"
+      },
+      {
+        "Path": "VAD/cmvn.ark",
+        "Name": "cmvn",
+        "Role": "preprocessor"
+      }
+    ],
+    "directory": "FireRedVAD",
+    "license": {
+      "artifact": "file:sha256:dce9e4bb46fd329b2b4f3506854bd2e50afba9442ad3f66723a0807e543652c0",
+      "path": "README.md",
+      "media_type": "text/markdown",
+      "spdx": "Apache-2.0"
+    },
+    "model": "model:sha256:f8b932cdc72a739cb65d0d99e81c6f9c761372d7df26ca970b6a084e4e55b19d",
+    "source_commit": "7990aaccc6b7aec1e527743bd30201f2c4a03b8c",
+    "source_repository": "https://huggingface.co/FireRedTeam/FireRedVAD",
+    "tensor_inventory": "tensor-inventory:sha256:aff0dccd835e0f50fc74fbc3bb4f78a595991ce3719742844741cbb42a73b2a9"
+  },
+  {
+    "components": [
+      {
+        "Path": "Stream-VAD/model.pth.tar",
+        "Name": "weights",
+        "Role": "weights"
+      },
+      {
+        "Path": "Stream-VAD/cmvn.ark",
+        "Name": "cmvn",
+        "Role": "preprocessor"
+      }
+    ],
+    "directory": "FireRedVAD",
+    "license": {
+      "artifact": "file:sha256:dce9e4bb46fd329b2b4f3506854bd2e50afba9442ad3f66723a0807e543652c0",
+      "path": "README.md",
+      "media_type": "text/markdown",
+      "spdx": "Apache-2.0"
+    },
+    "model": "model:sha256:04e117c24c7749e8a71a8d5ee92492265f6c38cb069f42c3a727bc50fc06fb61",
+    "source_commit": "7990aaccc6b7aec1e527743bd30201f2c4a03b8c",
+    "source_repository": "https://huggingface.co/FireRedTeam/FireRedVAD",
+    "tensor_inventory": "tensor-inventory:sha256:e5c12cd38e79dc31265e7b991c8c35fba738d928984ba654f0fdc3dc34788579"
+  }
+]

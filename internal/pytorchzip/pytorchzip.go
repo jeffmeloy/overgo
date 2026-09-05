@@ -65,6 +65,8 @@ func ReadCatalog(filename string) (Catalog, error) {
 const (
 	maxPickleBytes    = 1 << 20
 	scratchChunkBytes = 1 << 20
+	// CPython v3.12.11 Lib/pickle.py defines NEWOBJ as byte 0x81.
+	pickleNewObject = 0x81
 )
 
 // ParseCatalog: one pickle walk.
@@ -217,6 +219,17 @@ func (p *pickleTensorParser) parse() error {
 			p.push(false)
 		case 0x88: // NEWTRUE
 			p.push(true)
+		case pickleNewObject: // NEWOBJ: class and constructor-argument tuple.
+			// CPython Lib/pickle.py load_newobj defines the stack contract.
+			// Checkpoints use an empty argparse.Namespace for saved config;
+			// represent its metadata without invoking Python constructors.
+			args, class := p.pop(), p.pop()
+			tuple, tupleOK := args.([]pickleValue)
+			global, classOK := class.(pickleGlobal)
+			if !tupleOK || len(tuple) != 0 || !classOK || global.module != "argparse" || global.name != "Namespace" {
+				return fmt.Errorf("pytorchzip pickle: unsupported NEWOBJ metadata object")
+			}
+			p.push(pickleDict{})
 		case 'R': // REDUCE
 			args := p.pop()
 			fn := p.pop()

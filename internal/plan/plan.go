@@ -373,17 +373,28 @@ func normalizedRole(role string) string {
 // in Git through the gate's structured trailers, not as retained rows.
 // An item whose last step completes leaves the plan with it.
 func Advance(d Plan, itemID, stepID string) (Plan, error) {
+	advanced, err := advancePlan(d, itemID, stepID, stepID == ".")
+	if err != nil {
+		return Plan{}, err
+	}
+	return advanced, Validate(advanced)
+}
+
+// advancePlan owns row mutation for live and historical plans. Historical
+// evidence selects an exact step and leaves schema validation to its reader;
+// only the live API accepts the whole-item shortcut.
+func advancePlan(d Plan, itemID, stepID string, wholeItem bool) (Plan, error) {
 	d.Items = slices.Clone(d.Items)
 	for itemIndex := range d.Items {
 		if d.Items[itemIndex].ID != itemID {
 			continue
 		}
-		if stepID == "." {
+		if wholeItem {
 			if len(d.Items[itemIndex].Steps) != 0 {
 				return Plan{}, fmt.Errorf("item %q has steps", itemID)
 			}
 			d.Items = slices.Delete(d.Items, itemIndex, itemIndex+1)
-			return d, Validate(d)
+			return d, nil
 		}
 		d.Items[itemIndex].Steps = slices.Clone(d.Items[itemIndex].Steps)
 		for stepIndex := range d.Items[itemIndex].Steps {
@@ -397,7 +408,7 @@ func Advance(d Plan, itemID, stepID string) (Plan, error) {
 			if len(d.Items[itemIndex].Steps) == 0 {
 				d.Items = slices.Delete(d.Items, itemIndex, itemIndex+1)
 			}
-			return d, Validate(d)
+			return d, nil
 		}
 		return Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
 	}

@@ -55,8 +55,8 @@ func TestFirstParentTargetProspectiveTransitionLeavesIncomingWorkSourceOwned(t *
 	if slices.ContainsFunc(child.Items, func(item Item) bool { return item.ID == "incoming-only" }) {
 		t.Fatal("incoming-only work leaked into the target plan")
 	}
-	if err := VerifyProspectiveCompletionTransition(
-		[]Plan{local, incoming}, &base, local, child, string(message),
+	if err := VerifyProspectiveCompletionTransitionWithProjection(
+		[]Plan{local, incoming}, &base, local, child, string(message), MergeProjectionSemanticUnion,
 	); err == nil {
 		t.Fatal("explicit target trailer was silently interpreted as semantic union")
 	}
@@ -126,12 +126,12 @@ func TestFirstParentTargetTrailerIsCanonicalAndMergeOnly(t *testing.T) {
 	if _, _, err := parseCompletionTrailers(invalid); err == nil || !strings.Contains(err.Error(), "invalid value") {
 		t.Fatalf("invalid target projection error = %v", err)
 	}
-	if _, err := CompletionCommitMessage(
+	if _, err := CompletionCommitMessageWithMergeAuthority(
 		[]byte("operator\n\n"+completionMergeProjectionTrailer+": first-parent-target"),
 		document, "root", "do",
 		testutil.ArtifactID(t, artifact.KindRecipe, "reserved-manifest"),
 		testutil.ArtifactID(t, artifact.KindProfile, "reserved-code-manifest"),
-		testutil.ArtifactID(t, artifact.KindEvidence, "reserved-preparation"), artifact.CommitID{1},
+		testutil.ArtifactID(t, artifact.KindEvidence, "reserved-preparation"), artifact.CommitID{1}, MergeProjectionSemanticUnion, artifact.ID{},
 	); err == nil || !strings.Contains(err.Error(), "reserved trailer") {
 		t.Fatalf("operator target trailer error = %v", err)
 	}
@@ -157,9 +157,9 @@ func TestFirstParentTargetProspectiveAuthorityKeepsIncomingRowsOffTarget(t *test
 	); err != nil {
 		t.Fatalf("incoming-only source row was required on target: %v", err)
 	}
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		repository, localRevision, incomingRevision, local, incoming, local,
-		localAuthority, incomingAuthority,
+		localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
 	); err == nil {
 		t.Fatal("semantic union stopped requiring the incoming parent identity")
 	}
@@ -383,9 +383,9 @@ func TestFirstParentTargetReconcilesEquivalentIndependentCompletion(t *testing.T
 	}
 	sourceCodeManifest := testutil.ArtifactID(t, artifact.KindProfile, "duplicate-source-code")
 	sourceManifest := completionManifestPlan(t, sourceCodeManifest, sourcePreparation.TreeKey).ID
-	sourceMessage, err := CompletionCommitMessage(
+	sourceMessage, err := CompletionCommitMessageWithMergeAuthority(
 		[]byte("independently complete duplicate"), initial, "duplicate", "done",
-		sourceManifest, sourceCodeManifest, sourcePreparation.ID, sourcePreparationCommit,
+		sourceManifest, sourceCodeManifest, sourcePreparation.ID, sourcePreparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -585,9 +585,9 @@ func TestFirstParentTargetReconcilesEquivalentIndependentCompletion(t *testing.T
 	// explicit receipt-backed first-parent path.
 	strictLocal, strictIncoming := localAuthority, incomingAuthority
 	strictIncoming.protectionSeeds = maps.Clone(strictLocal.protectionSeeds)
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		fixture.repository, localCompletion, incomingCompletion, localPlan, localPlan, localPlan,
-		strictLocal, strictIncoming,
+		strictLocal, strictIncoming, MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "ambiguous completion authority") {
 		t.Fatalf("semantic-union duplicate error = %v", err)
 	}
@@ -713,9 +713,9 @@ func TestAudioGateReplayAcceptance(t *testing.T) {
 		}
 		sourceCodeManifest := testutil.ArtifactID(t, artifact.KindProfile, "source-code-"+targetID)
 		sourceManifest := completionManifestPlan(t, sourceCodeManifest, sourcePreparation.TreeKey).ID
-		sourceMessage, err := CompletionCommitMessage(
+		sourceMessage, err := CompletionCommitMessageWithMergeAuthority(
 			[]byte("complete source-owned row"), incoming, completedSourceID, "do",
-			sourceManifest, sourceCodeManifest, sourcePreparation.ID, sourcePreparationCommit,
+			sourceManifest, sourceCodeManifest, sourcePreparation.ID, sourcePreparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 		)
 		if err != nil {
 			t.Fatal(err)

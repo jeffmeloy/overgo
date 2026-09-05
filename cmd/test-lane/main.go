@@ -4,19 +4,28 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
+	"os/signal"
 	"strings"
 
+	"overgo/internal/clioptions"
+	"overgo/internal/processcontrol"
 	"overgo/internal/testevidence"
 )
 
-type testRunner func(packages []string) (string, error)
+type testRunner func(packages []string) (testevidence.GoTestReport, error)
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, runGoTest))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	code := run(os.Args[1:], os.Stdout, os.Stderr, func(packages []string) (testevidence.GoTestReport, error) {
+		return runGoTest(ctx, packages)
+	})
+	stop()
+	os.Exit(code)
 }
 
 func run(args []string, stdout, stderr io.Writer, runner testRunner) int {
@@ -30,10 +39,10 @@ func run(args []string, stdout, stderr io.Writer, runner testRunner) int {
 			return 2
 		}
 	}
-	out, runErr := runner(packages)
-	report, evidenceErr := testevidence.GoTestJSONShortReport(out)
-	if evidenceErr == nil {
-		evidenceErr = testevidence.RequireComplete(report)
+	report, runErr := runner(packages)
+	evidenceErr := testevidence.RequireComplete(report)
+	if evidenceErr == nil && report.PassedPackages+report.NoTestPackages == 0 {
+		evidenceErr = errors.New("no completed test packages")
 	}
 	if runErr != nil || evidenceErr != nil {
 		if runErr != nil {
@@ -44,6 +53,12 @@ func run(args []string, stdout, stderr io.Writer, runner testRunner) int {
 		}
 		for _, failed := range report.Failed {
 			fmt.Fprintf(stderr, "test-lane: failed: %s\n", failed)
+		}
+		for _, unfinished := range report.Unfinished {
+			fmt.Fprintf(stderr, "test-lane: unfinished: %s\n", unfinished)
+		}
+		for _, diagnostic := range report.Diagnostics {
+			fmt.Fprintf(stderr, "test-lane: diagnostic: %s\n", diagnostic)
 		}
 		for _, skipped := range report.Skipped {
 			fmt.Fprintf(stderr, "test-lane: unclassified skip: %s\n", skipped)
@@ -60,8 +75,7 @@ func run(args []string, stdout, stderr io.Writer, runner testRunner) int {
 	return 0
 }
 
-func runGoTest(packages []string) (string, error) {
+func runGoTest(ctx context.Context, packages []string) (testevidence.GoTestReport, error) {
 	args := append([]string{"test", "-short", "-json", "-count=1"}, packages...)
-	out, err := exec.Command("go", args...).CombinedOutput()
-	return string(out), err
+	return testevidence.RunGoTestCommand(ctx, processcontrol.Command{Path: "go", Args: args}, true, clioptions.DiagnosticTailBytes)
 }

@@ -157,6 +157,24 @@ func PublishVerification(
 	return modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}, nil
 }
 
+// PublishActivation provisions a fixture through the real candidate,
+// validation, evidence and activation lifecycle, without model loading.
+func PublishActivation(ctx context.Context, store artifact.Repository, key string, definition recipe.Definition) error {
+	if _, _, err := modelrecipe.PublishCandidate(ctx, store, key+"/candidate", definition); err != nil {
+		return err
+	}
+	if _, _, err := modelrecipe.Transition(ctx, store, key+"/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
+		return err
+	}
+	verification, err := PublishVerification(ctx, store, key+"/verification", definition.ID)
+	if err != nil {
+		return err
+	}
+	_, _, err = modelrecipe.ActivateVerified(ctx, store, key+"/active", definition, verification,
+		recipe.EvidenceVerified, "serving fixture activation", nil, nil)
+	return err
+}
+
 func NewCapability(t testing.TB, name string, task recipe.Task) Capability {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())

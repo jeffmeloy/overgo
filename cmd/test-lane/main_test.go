@@ -19,8 +19,8 @@ func TestCIRequiredEvidenceCommand(t *testing.T) {
 		testevidence.ShortIntegrationSkip+"\n",
 	)
 	var stdout, stderr bytes.Buffer
-	code := run([]string{"./..."}, &stdout, &stderr, func([]string) (string, error) {
-		return events, nil
+	code := run([]string{"./..."}, &stdout, &stderr, func([]string) (testevidence.GoTestReport, error) {
+		return testevidence.GoTestJSONShortReport(events)
 	})
 	if code != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), "tests=1 classified_short_skips=1") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
@@ -28,8 +28,9 @@ func TestCIRequiredEvidenceCommand(t *testing.T) {
 
 	stdout.Reset()
 	stderr.Reset()
-	code = run(nil, &stdout, &stderr, func([]string) (string, error) {
-		return "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n", errors.New("exit status 1")
+	code = run(nil, &stdout, &stderr, func([]string) (testevidence.GoTestReport, error) {
+		report, err := testevidence.GoTestJSONShortReport("{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n")
+		return report, errors.Join(err, errors.New("exit status 1"))
 	})
 	if code == 0 || !strings.Contains(stderr.String(), "evidence rejected") {
 		t.Fatalf("incomplete evidence was accepted: code=%d stderr=%q", code, stderr.String())

@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "678361ff1aacbea00e258d16631d32d452810b6dda80fcfac477435d184c7d68",
+  "source_identity": "6b36d3f7ad72d3bbabc6b93c85a2d5601ce42c90689ac5d2604438685e39f1d9",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 2764,
-    "typed_files": 2700
+    "inspected_files": 2795,
+    "typed_files": 2731
   },
   "guidelines": [
     {
@@ -311,11 +311,33 @@
     },
     {
       "guideline": "strings_split_seq",
-      "path": "internal/gate/verification.go",
-      "symbol": "changedGoPathsAtRevision",
-      "owner": "overgo/internal/gate",
+      "path": "cmd/generate/main.go",
+      "symbol": "run",
+      "owner": "overgo/cmd/generate",
       "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./internal/gate -count=1",
+      "oracle": "go test ./cmd/generate -count=1",
+      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
+      "expires": "2027-08-30",
+      "candidate_ceiling": 1
+    },
+    {
+      "guideline": "strings_split_seq",
+      "path": "cmd/kernel-bindings/main.go",
+      "symbol": "kernelIdentifier",
+      "owner": "overgo/cmd/kernel-bindings",
+      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
+      "oracle": "go test ./cmd/kernel-bindings -count=1",
+      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
+      "expires": "2027-08-30",
+      "candidate_ceiling": 1
+    },
+    {
+      "guideline": "strings_split_seq",
+      "path": "cmd/training-objective/main.go",
+      "symbol": "promoteObjective",
+      "owner": "overgo/cmd/training-objective",
+      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
+      "oracle": "go test ./cmd/training-objective -count=1",
       "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
       "expires": "2027-08-30",
       "candidate_ceiling": 1
@@ -356,43 +378,10 @@
     {
       "guideline": "strings_split_seq",
       "path": "internal/gate/verification.go",
-      "symbol": "stepTest",
+      "symbol": "changedGoPathsAtRevision",
       "owner": "overgo/internal/gate",
       "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
       "oracle": "go test ./internal/gate -count=1",
-      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
-      "expires": "2027-08-30",
-      "candidate_ceiling": 2
-    },
-    {
-      "guideline": "strings_split_seq",
-      "path": "cmd/generate/main.go",
-      "symbol": "run",
-      "owner": "overgo/cmd/generate",
-      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./cmd/generate -count=1",
-      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
-      "expires": "2027-08-30",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "strings_split_seq",
-      "path": "cmd/kernel-bindings/main.go",
-      "symbol": "kernelIdentifier",
-      "owner": "overgo/cmd/kernel-bindings",
-      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./cmd/kernel-bindings -count=1",
-      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
-      "expires": "2027-08-30",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "strings_split_seq",
-      "path": "cmd/training-objective/main.go",
-      "symbol": "promoteObjective",
-      "owner": "overgo/cmd/training-objective",
-      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./cmd/training-objective -count=1",
       "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
       "expires": "2027-08-30",
       "candidate_ceiling": 1
@@ -415,17 +404,6 @@
       "owner": "overgo/cmd/compatibility",
       "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
       "oracle": "go test ./cmd/compatibility -count=1",
-      "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
-      "expires": "2027-08-30",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "maps_keys_values_iter",
-      "path": "internal/gate/package_cache.go",
-      "symbol": "dependentDirectories",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./internal/gate -count=1",
       "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
       "expires": "2027-08-30",
       "candidate_ceiling": 1
@@ -630,11 +608,11 @@
     },
     {
       "guideline": "maps_keys_values_iter",
-      "path": "internal/discovery/capability.go",
-      "symbol": "CapabilityCatalog",
-      "owner": "overgo/internal/discovery",
+      "path": "internal/gate/package_cache.go",
+      "symbol": "dependentDirectories",
+      "owner": "overgo/internal/gate",
       "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./internal/discovery -count=1",
+      "oracle": "go test ./internal/gate -count=1",
       "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
       "expires": "2027-08-30",
       "candidate_ceiling": 1
@@ -1015,17 +993,6 @@
     },
     {
       "guideline": "slices_sorted",
-      "path": "internal/gate/package_cache.go",
-      "symbol": "dependentDirectories",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
-      "oracle": "go test ./internal/gate -count=1",
-      "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
-      "expires": "2027-08-30",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sorted",
       "path": "cmd/overgodb-query/main.go",
       "symbol": "writeComponents",
       "owner": "overgo/cmd/overgodb-query",
@@ -1141,6 +1108,17 @@
       "owner": "overgo/internal/cuda/executor",
       "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
       "oracle": "go test ./internal/cuda/executor -count=1",
+      "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
+      "expires": "2027-08-30",
+      "candidate_ceiling": 1
+    },
+    {
+      "guideline": "slices_sorted",
+      "path": "internal/gate/package_cache.go",
+      "symbol": "dependentDirectories",
+      "owner": "overgo/internal/gate",
+      "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
+      "oracle": "go test ./internal/gate -count=1",
       "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
       "expires": "2027-08-30",
       "candidate_ceiling": 1
@@ -1471,17 +1449,6 @@
       "owner": "overgo/cmd/server",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
       "oracle": "go test ./cmd/server -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-08-30",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
-      "path": "cmd/test-lane/main.go",
-      "symbol": "run",
-      "owner": "overgo/cmd/test-lane",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./cmd/test-lane -count=1",
       "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
       "expires": "2027-08-30",
       "candidate_ceiling": 1
@@ -3047,17 +3014,6 @@
       "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
       "expires": "2027-08-30",
       "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/discovery/capability.go",
-      "symbol": "CapabilityCatalog",
-      "owner": "overgo/internal/discovery",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/discovery -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-08-30",
-      "candidate_ceiling": 2
     },
     {
       "guideline": "slices_sort_func",
@@ -5205,5 +5161,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "ac299cb70797e6f505a59fd79019269cc613aa9410f50089ab3187b65179669d"
+  "exceptions_sha256": "9c52b2fc4c136041b2bdc37d33d5163cc045560f55a837af488c20f2a726e587"
 }

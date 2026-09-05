@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/cuda/driver"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
@@ -36,6 +38,9 @@ type Measure struct {
 	// Execution counts the device work the generation cost per output
 	// token; a rung that collapses shows which resource exploded.
 	Execution Execution `json:"execution"`
+	// Memory is library-owned allocation accounting after generation and scoring.
+	// PeakBytes is cumulative since model open, not total physical device usage.
+	Memory driver.MemoryStats `json:"memory,omitzero"`
 }
 
 // Execution is the device work one generation cost, per output token:
@@ -59,11 +64,18 @@ type Execution struct {
 // was bounded against, the floors, the verdict, and the output text so
 // a failed verdict can be read.
 type Result struct {
-	ModelPath    string `json:"model_path"`
-	ModelName    string `json:"model_name"`
-	Architecture string `json:"architecture"`
-	FileType     string `json:"file_type"`
-	Commit       string `json:"commit"`
+	Program       modelrecipe.ProgramIdentity `json:"program,omitzero"`
+	Device        driver.DeviceInfo           `json:"device,omitzero"`
+	ContextLength uint32                      `json:"context_length,omitzero"`
+	Inputs        Inputs                      `json:"inputs,omitzero"`
+	BudgetNS      int64                       `json:"budget_ns,omitzero"`
+	ModelBudgetNS int64                       `json:"model_budget_ns,omitzero"`
+	WallNS        int64                       `json:"wall_ns,omitzero"`
+	ModelPath     string                      `json:"model_path"`
+	ModelName     string                      `json:"model_name"`
+	Architecture  string                      `json:"architecture"`
+	FileType      string                      `json:"file_type"`
+	Commit        string                      `json:"commit"`
 	// Surface is the inference code surface digest the run measured
 	// (see Surface); the admission keys on it, the commit is provenance.
 	Surface      string `json:"surface"`
@@ -92,9 +104,52 @@ type Summary struct {
 	Result Result
 }
 
+// ReadBaseline resolves an explicit passing record and verifies its checkpoint binding.
+// Legacy admission records remain readable but cannot establish input-safe regression evidence.
+func ReadBaseline(ctx context.Context, store *overgodb.Store, id artifact.ID) (Summary, error) {
+	content, found, err := artifact.ReadContent(ctx, store, id)
+	if err != nil {
+		return Summary{}, err
+	}
+	if !found {
+		return Summary{}, fmt.Errorf("longform: baseline %s is absent", id)
+	}
+	record, err := runrecord.ParseModelVerification(content.Data)
+	if err != nil {
+		return Summary{}, err
+	}
+	if record.ID != id {
+		return Summary{}, errors.New("longform: baseline record identity differs")
+	}
+	for _, claim := range record.Claims {
+		if claim.Capability != Capability || len(claim.Evidence) != 1 {
+			continue
+		}
+		content, found, err := artifact.ReadContent(ctx, store, claim.Evidence[0])
+		if err != nil {
+			return Summary{}, err
+		}
+		if !found {
+			return Summary{}, errors.New("longform: baseline measurement is absent")
+		}
+		var result Result
+		if err := json.Unmarshal(content.Data, &result); err != nil {
+			return Summary{}, err
+		}
+		if !result.Inputs.valid() || result.Inputs.Model != record.Model || result.Commit != claim.Commit || result.Surface == "" {
+			return Summary{}, errors.New("longform: baseline lacks matching model, input or provenance identity")
+		}
+		if !result.Verdict.Passed || len(result.Verdict.Reasons) != 0 || len(result.Rungs) == 0 || len(result.Shape.OutputIDs) == 0 {
+			return Summary{}, errors.New("longform: baseline is failed or incomplete")
+		}
+		return Summary{Record: id, Result: result}, nil
+	}
+	return Summary{}, errors.New("longform: baseline has no long-form measurement")
+}
+
 // Claim shapes the result into one capability-measured claim over its
 // own committed evidence bytes: the context is the prompt length and the
-// wall is the prompt and decode time the run measured.
+// wall covers the complete model measurement; legacy records use judged-rung time.
 func Claim(result Result) (runrecord.CapabilityClaim, []byte, artifact.ID, error) {
 	evidenceData, err := json.Marshal(result)
 	if err != nil {
@@ -105,6 +160,9 @@ func Claim(result Result) (runrecord.CapabilityClaim, []byte, artifact.ID, error
 		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, err
 	}
 	wall := time.Duration((result.Measure.PromptMilliseconds + result.Measure.DecodeMilliseconds) * float64(time.Millisecond))
+	if result.WallNS > 0 {
+		wall = time.Duration(result.WallNS)
+	}
 	return runrecord.CapabilityClaim{
 		Capability: Capability, Tier: runrecord.TierCapabilityMeasured, Commit: result.Commit,
 		ContextTokens: uint64(result.Measure.PromptTokens),
@@ -206,7 +264,7 @@ var ErrRefused = errors.New("long-form verification refuses the suite pass")
 // record must exist, must have run on the same surface, and must have
 // passed its floors. The message names the run that lifts the refusal.
 func Admit(ctx context.Context, store *overgodb.Store, location, surface string) error {
-	rerun := fmt.Sprintf("run: go run ./cmd/longform -publish %q", location)
+	rerun := fmt.Sprintf("run: go run ./cmd/longform -publish -budget <measured-duration> %q", location)
 	summary, found := Latest(ctx, store, location)
 	switch {
 	case !found:

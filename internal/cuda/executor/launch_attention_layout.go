@@ -182,6 +182,53 @@ func blasAttentionTiles(keyWidth, queryTokens, keyValueTokens uint32) (uint32, u
 	return chunk, keyChunk
 }
 
+// Split-key decode geometry: a decode block walks at most
+// attentionDecodeSplitSpan keys of the cache capacity, up to
+// attentionDecodeMaxSplits blocks per head, so a 16k cache runs 8
+// blocks per head instead of one while a 2k cache keeps one block and
+// no combine; each split leaves its maximum and sum
+// (attentionDecodeMetaFloats) and its unnormalized output for the
+// combine kernel. On the 0.5B the split took rung 8192 from 46 to 185
+// tokens/s and rung 16384 from 24 to 113.
+const (
+	attentionDecodeSplitSpan  = uint32(2048)
+	attentionDecodeMaxSplits  = uint32(16)
+	attentionDecodeMetaFloats = uint64(2)
+)
+
+// decodeSplits: blocks per head for a cache of the capacity.
+func decodeSplits(keyCapacityTokens uint32) uint32 {
+	splits := (keyCapacityTokens + attentionDecodeSplitSpan - 1) / attentionDecodeSplitSpan
+	return max(1, min(splits, attentionDecodeMaxSplits))
+}
+
+// decodePartialBytes: compile-time staging reservation for the split
+// partials of a single-query causal attention node; the score staging
+// the strided-batched path reserves holds them, one stream at a time.
+func decodePartialBytes(node *tensor.Tensor) (uint64, bool) {
+	attributes, ok := node.Attrs.(tensor.AttentionAttributes)
+	if !ok || !attributes.Causal || len(node.Inputs) < 3 {
+		return 0, false
+	}
+	queryNode, keyNode, valueNode := node.Inputs[0], node.Inputs[1], node.Inputs[2]
+	if queryNode.Shape.Rank < 3 || keyNode.Shape.Rank < 3 || queryNode.Shape.Dims[2] != 1 {
+		return 0, false
+	}
+	rows := queryNode.Shape.Dims[1]
+	if queryNode.Shape.Rank == 4 {
+		rows *= queryNode.Shape.Dims[3]
+	}
+	capacity, err := uint32Checked(keyNode.Shape.Dims[2], "attention capacity")
+	if err != nil {
+		return 0, false
+	}
+	splits := decodeSplits(capacity)
+	if splits == 1 {
+		return 0, false
+	}
+	return rows * uint64(splits) * (valueNode.Shape.Dims[0] + attentionDecodeMetaFloats) * 4, true
+}
+
 // blasAttentionScoreBytes: compile-time score staging reservation for
 // OpAttention nodes the strided-batched SGEMM path will accept.
 func blasAttentionScoreBytes(node *tensor.Tensor) (uint64, bool) {
@@ -488,30 +535,62 @@ func launchAttentionLayout(
 			attentionDecodeSharedLimit   = uint64(48 * 1024)
 			attentionDecodePartialFloats = uint64(attentionDecodeThreads)
 			f32Bytes                     = uint64(4)
+			// attentionDecodeTileTokens: keys one tile of the decode kernel
+			// scores in shared memory; with the partials it stays under the
+			// launch limit, and the kernel walks the capacity tile by tile.
+			attentionDecodeTileTokens = uint32(8192)
 		)
-		// shared memory sized to capacity; logical KV count is device-resident
+		// logical KV count is device-resident; shared memory sized to one tile
 		tokenCountPointer := pointers.attribute
 		hasTokenCount := tokenCountPointer != 0
-		sharedBytes := (uint64(keyCapacityTokens) + attentionDecodePartialFloats) * f32Bytes
+		tileTokens := min(keyCapacityTokens, attentionDecodeTileTokens)
+		// one tile of scores, the block's partials, and the running output
+		sharedBytes := (uint64(tileTokens) + attentionDecodePartialFloats + uint64(valueWidth)) * f32Bytes
+		// The keys are split across blocks so a long cache fills the device
+		// (one block per head walked 16k keys on 14 of the SMs); the split
+		// partials combine through the score staging when it holds them,
+		// and a graph without that staging decodes in one block per head.
+		splits := decodeSplits(keyCapacityTokens)
+		rows := uint64(queryHeads) * uint64(sequences)
+		partialBytes := rows * uint64(splits) * (uint64(valueWidth) + attentionDecodeMetaFloats) * f32Bytes
+		if splits > 1 && (blas == nil || blas.scores == 0 || partialBytes > blas.scoreBytes) {
+			splits = 1
+		}
+		var partials driver.DevicePtr
+		if splits > 1 {
+			partials = blas.scores
+		}
 		// The decode kernel owns every single-query causal step, including a
 		// causal sliding window and a softcap: the online kernel serves those
 		// only through one thread per block walking the keys, which cost the
-		// gemma-4 sliding layers 1.3 ms per layer at a 250-token context.
+		// gemma-4 sliding layers 1.3 ms per layer at a 250-token context, and
+		// the batched GEMM path below reads the whole capacity as keys, so a
+		// step the kernel cannot serve is refused rather than computed wrong.
 		if queryTokens == 1 && causal != 0 && queryStart+1 == keyValueTokens &&
 			relativeBias == 0 && sinks == 0 && blockIDs == 0 && keyBias == 0 &&
-			maxALiBiBias == 0 && symmetricWindow == uint32(windowModeNone) && hasTokenCount &&
-			sharedBytes <= attentionDecodeSharedLimit {
-			blocks := uint64(queryHeads) * uint64(sequences)
+			maxALiBiBias == 0 && symmetricWindow == uint32(windowModeNone) && hasTokenCount {
+			if sharedBytes > attentionDecodeSharedLimit {
+				return fmt.Errorf("decode attention tile of %d keys needs %d bytes of shared memory, past the %d limit", tileTokens, sharedBytes, attentionDecodeSharedLimit)
+			}
+			blocks := rows * uint64(splits)
 			if blocks > math.MaxUint32 {
 				return errors.New("decode attention launch size exceeds uint32")
 			}
-			return launchGridSharedABI(
+			if err := launchGridSharedABI(
 				state, functions[kernelAttentionDecodeF32],
 				driver.Dim3{X: uint32(blocks), Y: 1, Z: 1},
 				driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1}, uint32(sharedBytes),
 				&query, &key, &value, &output, &keyWidth, &valueWidth,
 				&queryHeads, &keyValueHeads, &tokenCountPointer, &keyCapacityTokens,
-				&sequences, &scale, &window, &softcap,
+				&sequences, &scale, &window, &softcap, &tileTokens, &splits, &partials,
+			); err != nil || splits == 1 {
+				return err
+			}
+			rowCount := uint32(rows)
+			return launchGridABI(
+				state, functions[kernelAttentionDecodeCombineF32],
+				driver.Dim3{X: rowCount, Y: 1, Z: 1}, driver.Dim3{X: attentionDecodeThreads, Y: 1, Z: 1},
+				&partials, &output, &valueWidth, &splits, &rowCount,
 			)
 		}
 		// Strided-batched SGEMM path: exact F32 gemm+softmax+gemm with the

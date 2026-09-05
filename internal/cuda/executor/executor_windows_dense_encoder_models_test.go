@@ -595,6 +595,48 @@ func TestExecutorWindowedDecodeAttentionMatchesReference(t *testing.T) {
 	}
 }
 
+// TestExecutorDecodeAttentionPastTheTileMatchesReference: a decode
+// step over a cache past the kernel's tile, with and without a window
+// and a softcap, holds parity through the tiled online softmax; the
+// capacity-sized shared buffer it replaces put every step past 12k
+// keys on the batched GEMM path, which read the whole capacity.
+func TestExecutorDecodeAttentionPastTheTileMatchesReference(t *testing.T) {
+	const (
+		width      = 4
+		queryHeads = 2
+		keyHeads   = 1
+		capacity   = 20000
+		active     = 16500
+	)
+	for _, window := range []uint32{0, 3, 10000} {
+		for _, softcap := range []float32{0, 1.5} {
+			builder := tensor.NewBuilder()
+			builder.SetCacheAppendPlan(tensor.CacheAppendPlan{CapacityTokens: capacity, ActiveTokens: active})
+			query := builder.Input("query", dtype.F32, tensor.MustShape(width, queryHeads, 1))
+			pastKey := builder.Input("past_key", dtype.F32, tensor.MustShape(width, keyHeads, capacity))
+			newKey := builder.Input("new_key", dtype.F32, tensor.MustShape(width, keyHeads, 1))
+			pastValue := builder.Input("past_value", dtype.F32, tensor.MustShape(width, keyHeads, capacity))
+			newValue := builder.Input("new_value", dtype.F32, tensor.MustShape(width, keyHeads, 1))
+			key := builder.AppendCache(pastKey, newKey, 2)
+			value := builder.AppendCache(pastValue, newValue, 2)
+			output := builder.AttentionWithOptions(query, key, value, tensor.AttentionOptions{
+				Scale: 0.5, Softcap: softcap, Causal: true, QueryStart: active, Window: window,
+			})
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			feeds := map[*tensor.Tensor]reference.Value{
+				query:     patternedValue(query.Shape, 1, 0.2, 0),
+				pastKey:   patternedValue(pastKey.Shape, 2, 0.15, 0),
+				newKey:    patternedValue(newKey.Shape, 3, 0.15, 0),
+				pastValue: patternedValue(pastValue.Shape, 4, 0.2, 0),
+				newValue:  patternedValue(newValue.Shape, 5, 0.2, 0),
+			}
+			checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: 3e-5})
+		}
+	}
+}
+
 func TestExecutorNonCausalAttentionMatchesReference(t *testing.T) {
 	builder := tensor.NewBuilder()
 	query := builder.Input("query", dtype.F32, tensor.MustShape(4, 2, 3))

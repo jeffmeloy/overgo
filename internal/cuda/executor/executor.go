@@ -197,19 +197,15 @@ func ReleaseDeviceBuffers(ctx context.Context, buffers ...*DeviceBuffer) error {
 	if executor.closed || executor.worker == nil {
 		return errors.New("CUDA executor is closed")
 	}
-	if err := executor.worker.Do(ctx, func(*device.State) error {
-		for _, lease := range leases {
-			executor.resources.buffers.release(lease)
+	return executor.worker.Do(ctx, func(state *device.State) error {
+		// Ownership transfers when this callback runs, even if trimming a
+		// returned allocation fails. A canceled submission retains ownership.
+		for _, buffer := range owners {
+			buffer.released = true
+			buffer.lease = deviceBufferLease{}
 		}
-		return nil
-	}); err != nil {
-		return err
-	}
-	for _, buffer := range owners {
-		buffer.released = true
-		buffer.lease = deviceBufferLease{}
-	}
-	return nil
+		return executor.resources.buffers.release(state, leases...)
+	})
 }
 
 type DeviceCopySegment struct {
@@ -310,10 +306,7 @@ func (r *RetainedOutputs) Release(ctx context.Context) error {
 			releaseErr = errors.New("CUDA executor is closed")
 		} else {
 			releaseErr = r.executor.worker.Do(ctx, func(state *device.State) error {
-				for _, lease := range r.leases {
-					r.executor.resources.buffers.release(lease)
-				}
-				return nil
+				return r.executor.resources.buffers.release(state, r.leases...)
 			})
 		}
 		r.executor.mu.RUnlock()
@@ -349,11 +342,9 @@ func (e *Executor) CopyDeviceValues(
 	leases := make([]deviceBufferLease, 0, len(copies))
 	err := e.worker.Do(ctx, func(state *device.State) error {
 		fail := func(cause error) error {
-			for _, lease := range leases {
-				e.resources.buffers.release(lease)
-			}
+			releaseErr := e.resources.buffers.release(state, leases...)
 			leases = nil
-			return cause
+			return errors.Join(cause, releaseErr)
 		}
 		for index, copySpec := range copies {
 			expected, shapeErr := copySpec.Shape.Bytes(copySpec.Storage)
@@ -1162,6 +1153,10 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.needBlas = true
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 		}
+		if bytes, ok := decodePartialBytes(node); ok {
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
+		}
 	}
 	plannerExcluded := compiled.skipped
 	if externalOutputs {
@@ -1685,18 +1680,14 @@ func execute(
 	}
 	retained := false
 	defer func() {
-		if retained {
+		if retained && err == nil {
 			return
 		}
-		for _, lease := range retainedLeases {
-			buffers.release(lease)
-		}
+		err = errors.Join(err, buffers.release(state, retainedLeases...))
 	}()
 	inputLeases := make([]deviceBufferLease, 0)
 	defer func() {
-		for _, lease := range inputLeases {
-			buffers.release(lease)
-		}
+		err = errors.Join(err, buffers.release(state, inputLeases...))
 	}()
 	for nodeIndex, frame := range compiled.nodes {
 		node := compiled.order[nodeIndex]
@@ -1851,9 +1842,7 @@ func execute(
 	attributePointers := prepareAttributePointers(&scratch.attributePointers, len(compiled.order))
 	auxiliaryLeases := make([]deviceBufferLease, 0)
 	defer func() {
-		for _, lease := range auxiliaryLeases {
-			buffers.release(lease)
-		}
+		err = errors.Join(err, buffers.release(state, auxiliaryLeases...))
 	}()
 	if compiled.attributeWords > 0 {
 		if cap(scratch.attributeWords) < compiled.attributeWords {

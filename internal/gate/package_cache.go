@@ -22,6 +22,7 @@ type goModuleInput struct {
 type goPackageInput struct {
 	ImportPath      string
 	ForTest         string
+	Match           []string
 	Dir             string
 	Standard        bool
 	Module          *goModuleInput
@@ -47,10 +48,17 @@ type goPackageInput struct {
 }
 
 type packageInputGraph struct {
-	root  string
-	nodes []goPackageInput
-	byID  map[string][]int
+	root          string
+	nodes         []goPackageInput
+	byID          map[string][]int
+	resourceFiles map[string][]string
 }
+
+// Presence tags frame the v2 cache input grammar independently of file bytes.
+const (
+	packageInputAbsent byte = iota
+	packageInputPresent
+)
 
 func loadPackageInputGraph(root string) (packageInputGraph, error) {
 	out, err := command(root, "go", "list", "-deps", "-test", "-json", "./...")
@@ -70,7 +78,49 @@ func loadPackageInputGraph(root string) (packageInputGraph, error) {
 		graph.nodes = append(graph.nodes, node)
 		graph.byID[node.ImportPath] = append(graph.byID[node.ImportPath], index)
 	}
+	paths, err := gitLines(root, "ls-files", "-co", "--exclude-standard")
+	if err != nil {
+		return packageInputGraph{}, fmt.Errorf("derive repository inputs: %w", err)
+	}
+	graph.bindResourceFiles(paths)
 	return graph, nil
+}
+
+// bindResourceFiles attaches undeclared repository assets to their nearest
+// package. Compiler-declared inputs retain their production/test classification.
+// This same ownership feeds selection and cache identity; ignored external data
+// is outside the immutable source candidate and is not treated as source evidence.
+func (graph *packageInputGraph) bindResourceFiles(paths []string) {
+	if graph.resourceFiles == nil {
+		graph.resourceFiles = map[string][]string{}
+	}
+	compiled := map[string]bool{}
+	var directories []string
+	for _, node := range graph.nodes {
+		if len(node.Match) == 0 || node.ForTest != "" {
+			continue
+		}
+		directories = append(directories, node.Dir)
+		for _, name := range node.files() {
+			compiled[filepath.Join(node.Dir, filepath.FromSlash(name))] = true
+		}
+	}
+	for _, name := range paths {
+		absolute := filepath.Join(graph.root, filepath.FromSlash(name))
+		if strings.EqualFold(filepath.Ext(name), ".go") || compiled[absolute] {
+			continue
+		}
+		owner := ""
+		for _, directory := range directories {
+			relative, err := filepath.Rel(directory, absolute)
+			if err == nil && relative != ".." && !filepath.IsAbs(relative) && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && len(directory) > len(owner) {
+				owner = directory
+			}
+		}
+		if owner != "" && !slices.Contains(graph.resourceFiles[owner], absolute) {
+			graph.resourceFiles[owner] = append(graph.resourceFiles[owner], absolute)
+		}
+	}
 }
 
 // dependentDirectories returns every repository package that is or transitively
@@ -168,6 +218,9 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 		for _, name := range node.files() {
 			files[filepath.Join(node.Dir, filepath.FromSlash(name))] = true
 		}
+		for _, path := range graph.resourceFiles[node.Dir] {
+			files[path] = true
+		}
 		if node.Module != nil && node.Module.GoMod != "" {
 			files[node.Module.GoMod] = true
 		}
@@ -186,29 +239,42 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 	}
 	slices.Sort(paths)
 	hasher := sha256.New()
+	hasher.Write([]byte("go-test-inputs/v2\x00"))
 	hasher.Write([]byte(target))
 	hasher.Write([]byte("\x00"))
 	for _, path := range paths {
 		content, err := os.ReadFile(path)
+		hasher.Write([]byte(filepath.ToSlash(path)))
+		hasher.Write([]byte("\x00"))
+		if errors.Is(err, os.ErrNotExist) {
+			hasher.Write([]byte{packageInputAbsent})
+			continue
+		}
 		if err != nil {
 			return artifact.ID{}, fmt.Errorf("package input identity %s: %w", target, err)
 		}
-		hasher.Write([]byte(filepath.ToSlash(path)))
-		hasher.Write([]byte("\x00"))
-		hasher.Write(content)
-		hasher.Write([]byte("\x00"))
+		hasher.Write([]byte{packageInputPresent})
+		digest := sha256.Sum256(content)
+		hasher.Write(digest[:]) // Fixed-width framing prevents cross-file ambiguity.
 	}
 	return artifact.IdentifyBytes(artifact.KindEvidence, hasher.Sum(nil))
 }
 
-func (node goPackageInput) files() []string {
+func (node goPackageInput) productionFiles() []string {
 	var files []string
 	for _, group := range [][]string{
 		node.GoFiles, node.CgoFiles, node.CFiles, node.CXXFiles, node.MFiles,
 		node.HFiles, node.FFiles, node.SFiles, node.SwigFiles, node.SwigCXXFiles,
-		node.SysoFiles, node.EmbedFiles, node.TestGoFiles, node.XTestGoFiles,
-		node.TestEmbedFiles, node.XTestEmbedFiles,
+		node.SysoFiles, node.EmbedFiles,
 	} {
+		files = append(files, group...)
+	}
+	return files
+}
+
+func (node goPackageInput) files() []string {
+	files := node.productionFiles()
+	for _, group := range [][]string{node.TestGoFiles, node.XTestGoFiles, node.TestEmbedFiles, node.XTestEmbedFiles} {
 		files = append(files, group...)
 	}
 	return files

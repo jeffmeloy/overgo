@@ -1,3 +1,5 @@
+// Command compatibility validates compatibility claims and publishes model,
+// training, media and complete capability-census evidence.
 package main
 
 import (
@@ -115,6 +117,8 @@ func run() error {
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	updateModels := flag.Bool("update-models", false, "write the nested model compatibility report joined against the store")
 	updateMedia := flag.Bool("update-media", false, "write the media capability report from store activations and verification claims")
+	publishCensus := flag.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
+	checkCensus := flag.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
 	exportSamples := flag.Bool("export-samples", false, "export healthy media activations' verifier-run outputs as decodable files under docs/media_samples")
 	modelsRepo := flag.String("models-repo", "overgodb-store", "OvergoDB store for -update-models prototype resolution")
 	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
@@ -129,6 +133,12 @@ func run() error {
 	claimContext := flag.Uint64("context", 0, "claim: context tokens (requires -wall)")
 	claimPeak := flag.Uint64("peak", 0, "claim: peak device bytes (requires -wall)")
 	flag.Parse()
+	if *publishCensus || *checkCensus != "" {
+		if flag.NArg() != 0 || *publishCensus && *checkCensus != "" || *check || *update || *refresh || *checkTraining || *updateTraining || *updateModels || *updateMedia || *exportSamples || *claimFlag || *recordVerification != "" {
+			return errors.New("usage: compatibility [-publish-census|-check-census <id>] [-models-repo <overgodb>]")
+		}
+		return runCapabilityCensus(*modelsRepo, *publishCensus, *checkCensus, os.Stdout)
+	}
 	if *checkTraining || *updateTraining {
 		if len(flag.Args()) != len([]string(nil)) || *checkTraining && *updateTraining || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
 			return errors.New("usage: compatibility [-check-training|-update-training]")

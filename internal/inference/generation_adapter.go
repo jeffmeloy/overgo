@@ -97,6 +97,6 @@ func (r *Runner) deliverGenerationToken(
 	}
 	generatedText.WriteString(event.Piece)
 	return options.ShouldStop != nil && options.ShouldStop(*event) ||
-		r.vocab.IsEOG(event.ID) ||
+		!options.ContinueAfterEOG && r.vocab.IsEOG(event.ID) ||
 		matchesStopSequence(generatedText.String(), options.StopSequences), nil
 }

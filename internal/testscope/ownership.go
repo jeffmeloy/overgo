@@ -2,77 +2,59 @@
 package testscope
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 )
 
-// Package is the subset of `go list -json` metadata needed to map changed
-// source and embedded asset files to their compiler-recognized owners.
+// Package binds compiler metadata and undeclared repository resources to a Go owner.
 type Package struct {
 	ImportPath      string
 	Dir             string
-	EmbedFiles      []string
+	ProductionFiles []string
 	TestEmbedFiles  []string
 	XTestEmbedFiles []string
+	// ResourceFiles are repository inputs without a compiler declaration.
+	// Their owning package remains production-affected until independence is known.
+	ResourceFiles []string
 }
 
-// DecodePackages decodes the concatenated JSON objects emitted by go list.
-func DecodePackages(r io.Reader) ([]Package, error) {
-	decoder := json.NewDecoder(r)
-	var packages []Package
-	for {
-		var pkg Package
-		if err := decoder.Decode(&pkg); err != nil {
-			if errors.Is(err, io.EOF) {
-				return packages, nil
-			}
-			return nil, fmt.Errorf("decode go list package: %w", err)
-		}
-		packages = append(packages, pkg)
-	}
-}
-
-// DirectPackages returns packages directly owning changed Go files or changed
-// files selected by a go:embed directive. EmbedFiles is resolved by go list,
-// so this policy follows compiler metadata instead of a parallel path table.
-func DirectPackages(repo string, changed []string, packages []Package) []string {
+// DirectPackages returns packages directly owning changed source or resource
+// files, and the subset whose production inputs changed. Metadata must include
+// native compiler inputs and resolved test embeds from go list -test.
+// A test source embedded in production remains a production input.
+func DirectPackages(repo string, changed []string, packages []Package) (direct, production []string) {
 	owners := map[string]bool{}
 	for _, name := range changed {
 		absolute := filepath.Join(repo, filepath.FromSlash(name))
 		for _, pkg := range packages {
 			if strings.EqualFold(filepath.Ext(name), ".go") && samePath(filepath.Dir(absolute), pkg.Dir) {
-				owners[pkg.ImportPath] = true
-				continue
+				owners[pkg.ImportPath] = owners[pkg.ImportPath] || !strings.HasSuffix(name, "_test.go")
 			}
-			for _, embedded := range packageEmbedFiles(pkg) {
-				if samePath(absolute, filepath.Join(pkg.Dir, filepath.FromSlash(embedded))) {
-					owners[pkg.ImportPath] = true
-					break
+			for _, group := range []struct {
+				files      []string
+				production bool
+			}{{pkg.ProductionFiles, true}, {pkg.TestEmbedFiles, false}, {pkg.XTestEmbedFiles, false}, {pkg.ResourceFiles, true}} {
+				for _, embedded := range group.files {
+					if samePath(absolute, filepath.Join(pkg.Dir, filepath.FromSlash(embedded))) {
+						owners[pkg.ImportPath] = owners[pkg.ImportPath] || group.production
+					}
 				}
 			}
 		}
 	}
-	out := make([]string, 0, len(owners))
-	for owner := range owners {
+	for owner, changedProduction := range owners {
 		if owner != "" {
-			out = append(out, owner)
+			direct = append(direct, owner)
+			if changedProduction {
+				production = append(production, owner)
+			}
 		}
 	}
-	slices.Sort(out)
-	return out
-}
-
-func packageEmbedFiles(pkg Package) []string {
-	files := make([]string, 0, len(pkg.EmbedFiles)+len(pkg.TestEmbedFiles)+len(pkg.XTestEmbedFiles))
-	files = append(files, pkg.EmbedFiles...)
-	files = append(files, pkg.TestEmbedFiles...)
-	return append(files, pkg.XTestEmbedFiles...)
+	slices.Sort(direct)
+	slices.Sort(production)
+	return direct, production
 }
 
 func samePath(a, b string) bool {

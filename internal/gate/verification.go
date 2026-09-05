@@ -25,11 +25,11 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
+	"overgo/internal/processcontrol"
 	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
-	"overgo/internal/testscope"
 )
 
 func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck.Check {
@@ -45,7 +45,13 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
 		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
-		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), gateCheck("test", runrecord.PhaseTest, g.stepTest),
+		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), {
+			Descriptor: automationcheck.Descriptor{Name: "test", Phase: runrecord.PhaseTest, Always: true},
+			Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
+				skipped, err := g.stepTest(ctx)
+				return skipped, "", err
+			},
+		},
 		device, webui, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 	dependencies := map[string][]string{
@@ -905,41 +911,23 @@ func (g *gateContext) stepBuild() (bool, error) {
 	return false, err
 }
 
-// stepTest derives scope from the import graph: the packages owning changed
-// files plus every package whose transitive deps include one. A hand-listed
-// impact table is a process magic; the graph is the derivation.
-func (g *gateContext) stepTest() (bool, error) {
-	changed, err := g.directChangedPackages()
+// stepTest follows the compiled import graph for production changes and keeps
+// test-only edits with their owner. Selection and evidence reuse share one input graph.
+func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
+	scope, err := g.deriveTestScope()
 	if err != nil {
 		return false, err
 	}
-	if len(changed) == 0 {
-		g.audit = append(g.audit, "tests skipped: no Go package owns a source or embedded asset in -paths")
+	if len(scope.direct)+len(scope.dependent) == 0 {
+		g.audit = append(g.audit, "tests skipped: no Go package owns a compiler or repository input in -paths")
 		return true, nil
 	}
-	out, err := command(g.repo, "go", "list", "-f", "{{.ImportPath}} {{join .Deps \",\"}}", "./...")
-	if err != nil {
-		return false, err
-	}
-	var direct, dependent []string
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		importPath, deps, _ := strings.Cut(line, " ")
-		if changed[importPath] {
-			direct = append(direct, importPath)
-			continue
-		}
-		for _, dep := range strings.Split(deps, ",") {
-			if changed[dep] {
-				dependent = append(dependent, importPath)
-				break
-			}
-		}
-	}
+	direct, dependent := scope.direct, scope.dependent
 	snapshot, err := g.sourceSnapshot()
 	if err != nil {
 		return false, err
 	}
-	boundaryCoverage, err := automationcheck.AgentHarnessBoundaryCoverage(snapshot, g.paths)
+	boundaryCoverage, err := automationcheck.AgentHarnessBoundaryCoverage(snapshot, scope.productionPaths)
 	if err != nil {
 		return false, err
 	}
@@ -955,6 +943,10 @@ func (g *gateContext) stepTest() (bool, error) {
 		return true, nil
 	}
 	g.audit = append(g.audit, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
+	g.audit = append(g.audit, fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
+	if len(scope.unresolved) != 0 {
+		g.audit = append(g.audit, "test scope widened for global or unresolved Go inputs: "+strings.Join(scope.unresolved, ","))
+	}
 	inputGraph, err := g.inputGraph()
 	if err != nil {
 		return false, err
@@ -968,7 +960,7 @@ func (g *gateContext) stepTest() (bool, error) {
 		return false, err
 	}
 	if len(directPending) > 0 {
-		if _, err := runGoTests(g.repo, directPending); err != nil {
+		if _, err := runGoTests(ctx, g.repo, directPending, true); err != nil {
 			return false, err
 		}
 		if err := g.recordPackagePasses(directPending, "short", directInputs); err != nil {
@@ -989,7 +981,7 @@ func (g *gateContext) stepTest() (bool, error) {
 	}
 	report := testevidence.GoTestReport{}
 	if len(dependentPending) > 0 {
-		report, err = runGoTestsAdvisory(g.repo, dependentPending)
+		report, err = runGoTests(ctx, g.repo, dependentPending, false)
 	}
 	if err != nil {
 		return false, err
@@ -1034,41 +1026,19 @@ func (g *gateContext) packageCacheAudit(reused, executed int) {
 	}
 }
 
-func (g *gateContext) directChangedPackages() (map[string]bool, error) {
-	out, err := command(g.repo, "go", "list", "-json", "./...")
+func runGoTests(ctx context.Context, repo string, packages []string, short bool) (testevidence.GoTestReport, error) {
+	args := []string{"test", "-json", "-count=1"}
+	if short {
+		args = append(args, "-short")
+	}
+	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
+		Path: "go", Args: append(args, packages...), Dir: repo,
+	}, short, clioptions.DiagnosticTailBytes)
+	if short || len(report.Failed)+len(report.Unfinished) > 0 {
+		err = errors.Join(err, testevidence.RequireComplete(report))
+	}
 	if err != nil {
-		return nil, fmt.Errorf("derive Go ownership: %w", err)
-	}
-	packages, err := testscope.DecodePackages(strings.NewReader(out))
-	if err != nil {
-		return nil, err
-	}
-	changed := map[string]bool{}
-	for _, importPath := range testscope.DirectPackages(g.repo, g.paths, packages) {
-		changed[importPath] = true
-	}
-	return changed, nil
-}
-
-func runGoTests(repo string, packages []string) (string, error) {
-	out, err := command(repo, "go", append([]string{"test", "-short", "-json", "-count=1"}, packages...)...)
-	if err != nil {
-		return out, err
-	}
-	if err := testevidence.GoTestJSONShort(out); err != nil {
-		return out, fmt.Errorf("impacted tests vacuous: %w", err)
-	}
-	return out, nil
-}
-
-func runGoTestsAdvisory(repo string, packages []string) (testevidence.GoTestReport, error) {
-	out, err := command(repo, "go", append([]string{"test", "-json", "-count=1"}, packages...)...)
-	if err != nil {
-		return testevidence.GoTestReport{}, err
-	}
-	report, err := testevidence.GoTestJSONReport(out)
-	if err != nil {
-		return testevidence.GoTestReport{}, fmt.Errorf("dependent test evidence: %w", err)
+		return report, fmt.Errorf("go test evidence: %w\n%s", err, strings.Join(report.Diagnostics, "\n"))
 	}
 	return report, nil
 }

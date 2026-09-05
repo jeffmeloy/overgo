@@ -118,7 +118,7 @@ Overgo already combines the following components in one codebase:
 | Workflow control | Typed dependency graphs, bounded admission, resource placement, scheduled execution, restart recovery, and remote peers |
 | Mutation safety | Exact tool identity, persistent executable policy, inspection before mutation, argument-bound approval, and a durable receipt before a side effect |
 | Reproducibility | Content identities, provenance, run records, stage receipts, checkpoints, exact resume checks, and versioned activation |
-| Verification | Plan-driven gates with manifest-derived check selection, structural source analysis, host/device comparisons, model-specific evidence, and compatibility records |
+| Verification | Plan-driven gates with manifest-derived check selection, structural source analysis, host/device comparisons, model-specific evidence, long-form fingerprints across context lengths, and compatibility records |
 | Benchmarks and evaluation | Store-derived benchmark catalogs, native lm_eval-family suites, per-model prompt templates, domain-routed evaluation, and measured capability claims |
 | Human-directed work | External workbench for goals, chat and media, agent sessions, model and data operations, measurement review, intervention, and rollback |
 | RSI steering | Typed falsifiable proposals through deterministic admission, consumed by the driver under budget, saturation, and operator-stop conditions; shared with human-directed work |
@@ -146,6 +146,10 @@ the artifacts and environments for which verification evidence exists.
 - Buffered and streaming generation, stop sequences, grammar-constrained
   sampling, JSON Schema grammar compilation, log probabilities, prompt-state
   reuse, context shifting, and supported speculative decoding paths.
+- Decode attention that walks the key cache in tiles with an online softmax
+  and splits the keys across blocks per head, so a decode step keeps one
+  launch shape at any cache capacity; a step the kernel cannot serve is
+  refused rather than computed on the whole capacity.
 - Runtime LoRA scale control, multimodal prompt projection, concurrent request
   admission, continuous multi-request scheduling, model properties, device
   statistics, and live model replacement through the model-swap proxy.
@@ -309,6 +313,14 @@ The same trainer is used across dense decoders, encoders, mixture-of-experts mod
 - Per-model prompt templates, evaluation-domain declarations, group-safe data
   splits, resource measurements, failure records, comparison reports, and
   campaign history.
+- Long-form verification before suite passes. Context rungs double from 1024
+  until the declared context, corpus, per-rung budget or device memory ends the
+  climb. Records include greedy token IDs, rates, per-token device work,
+  repetition, and continuation likelihood under long and short contexts.
+  Evidence binds weights and inference surface; `evaluate -all` requires a
+  passing current-surface record. `longform -check` always measures again,
+  comparing explicit baseline IDs on identical checkpoint, corpus, tokenization,
+  raw-continuation protocol and declared floors.
 - Capability-gap derivation, grounded retrieval replay, candidate attribution,
   evidence coverage checks, route selection, and counterfactual replay of
   alternative routing rules.
@@ -596,17 +608,18 @@ approvals, rollback) enters through the same bounded interface the RSI
 path uses. Nothing is reachable from the browser that is not equally
 reachable, and equally checked, from the deterministic control plane.
 
-## Tool calling: UTCP, not MCP
+## Tool calling: typed manuals and native transports
 
-Agent tool calling follows the UTCP philosophy: describe each tool once, in a
-typed manual, and invoke it over its own native transport — no
-protocol-translation server sits between the agent and the tool, and there is
-deliberately no MCP bridge in the tree.
+Agent tool calling follows the UTCP philosophy: describe each tool once in a
+typed manual and invoke its declared transport. The executor includes adapters
+for built-in Go functions, HTTP, argv processes, HTTP JSON streams, and MCP over
+HTTP. MCP support is an invocation adapter for registered tools; it does not
+bypass the shared policy, approval, or receipt boundary.
 
 A manual is a store document (`overgo/agent-tool-manual/v1`) declaring the
 tool's name, its **effect class** — `inspection` reads state, `mutation`
 changes it and is permitted only after a prior inspection — its typed arguments, and its
-transport binding: a built-in Go function or an http-json-stream endpoint.
+transport binding, including the endpoint or executable and protocol details.
 Manuals are published to OvergoDB under registered aliases; orchestration
 resolves tools from the store, never from code alone, so an unregistered tool
 is not callable and a mutation without a durable receipt does not execute.
@@ -636,6 +649,7 @@ varies by capability.
 | Bounded and recoverable workflow execution | Implemented |
 | Durable authorization and mutation receipts | Implemented |
 | Independent host, CUDA, integration, and model verification lanes | Implemented; artifact coverage varies |
+| Long-context verification of installed models | Implemented: the ladder climbs to 32768 tokens on the gemma-4-E4B and 16384 on the Qwen2.5-0.5B with rates, device work, degeneration measures, and context gain recorded per rung; its first climb found and fixed a decode collapse past 8192 tokens; per-key cost on small heads and memory retention across capacities remain open rows |
 | Verification derived from exact code manifests, fail-closed on unproven independence | Implemented |
 | Exact training checkpoints and fail-closed resume | Implemented for supported training paths |
 | Agent and automation lifecycle management | Implemented |
@@ -739,6 +753,15 @@ steering submit goals through the same bounded interface, and deterministic
 policy retains admission, evaluation, activation, rollback, resource budgets,
 saturation detection, and stop conditions.
 
+The current campaign validates existing capabilities before simplifying their
+implementation. Benchmarks and modality checks establish the current picture;
+an accepted baseline and a regression gate protect subsequent changes. The RSI
+goal is a repeatable gain on a fixed external task under the same resource
+budget, with a matched baseline, an ablation of the proposed change, and a
+tested rollback. More mechanisms or successful gate runs alone do not establish
+that gain. Unattended operation and improvement of the proposing model's own
+cognition remain separate claims requiring their own evidence.
+
 ## Scope
 
 Overgo includes a broad model-engineering runtime because an RSI harness must
@@ -792,6 +815,45 @@ go run ./cmd/race-lane
 ```
 
 An unavailable model or device is not counted as a successful verification.
+
+A benchmark suite pass over the installed models is admitted by a long-form
+record on the current inference code surface, so the records are published
+first, then the pass runs, then the report is regenerated from the store:
+
+```bash
+go run ./cmd/longform -repo overgodb-store -all -publish -budget 3h
+go run ./cmd/evaluate -all -repo overgodb-store -family mmlu-pro -budget 3h
+go run ./cmd/evaluate -all -repo overgodb-store -family mmlu-pro -chat-protocol -budget 3h
+go run ./cmd/benchmark-report -update
+```
+
+Publishing binds evidence to a clean worktree at its commit; a detached
+worktree at the same commit keeps the main tree editable while a pass runs.
+These full-catalog examples are operator-launched and include any servable
+27B model. Each protocol has its own explicit budget; a budget-exceeded record
+is incomplete coverage. The plan separates smaller-model work from the full
+27B pass and keeps MATH excluded.
+
+Freeze regression input with `longform -export-corpus <file> -corpus-bytes
+<required-bytes>`; publish and check with that same `-corpus <file>`. Repeat
+`-baseline <record-id>` for each checked model. Choose `-budget` from measured
+cost; optional `-model-budget` bounds each model within the total. Cancellation
+between runtime operations preserves earlier publications and reports unfinished
+coverage. Legacy admission records remain usable; regression baselines require
+bound inputs. Add `-guard` when publishing or checking the small regression
+baseline: it caps the ladder at the declared check ceiling and requires every
+planned rung, recipe/device identity, quality fingerprints, and owned allocation
+measurement. It retains sampled end-of-generation tokens and continues on the
+same greedy device path to measure all 64 short and 256 long output tokens, with
+protocol identity `guard-continuation/fixed-budget/v1`. Runs without `-guard` retain natural stopping
+under `raw-continuation/v1`; comparisons refuse different protocols. The frozen
+small-guard corpus is [guard-corpus.txt](cmd/longform/testdata/guard-corpus.txt).
+Peak allocation is cumulative since model open; retained allocation
+is sampled after generation and scoring. Neither includes other processes or
+untracked driver allocations. Checks reject growth above the selected record's
+peak or retained bytes. `-validate-baselines -corpus <file> -baseline <record-id>`
+with explicit model paths audits current-surface guard records without loading
+models; it does not establish fresh performance or parity evidence.
 
 ## References
 

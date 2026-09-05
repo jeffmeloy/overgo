@@ -4007,6 +4007,15 @@ extern "C" __global__ void attention_f32(
 // query at position key_value_tokens-1 reads the last `window` keys, derived
 // from the device token count so a windowed layer replays the same launch
 // too. softcap > 0 applies the tanh score cap before the softmax.
+// The keys are walked in tiles of tile_tokens with an online softmax:
+// each tile's scores live in shared memory, the running maximum and sum
+// are rescaled when a tile raises the maximum, and the value
+// accumulation is rescaled with them, so the launch's shared memory is
+// one tile and the block's partials rather than the cache capacity. The
+// capacity-sized buffer put every decode past the 48 KB launch limit,
+// 12k keys, on the batched GEMM path at a hundred launches per token
+// with a graph instantiated every third token, and that path read the
+// whole capacity as keys.
 extern "C" __global__ void attention_decode_f32(
         const float * query,
         const float * key,
@@ -4021,53 +4030,170 @@ extern "C" __global__ void attention_decode_f32(
         unsigned int sequences,
         float scale,
         unsigned int window,
-        float softcap) {
-    const unsigned int row = blockIdx.x;
+        float softcap,
+        unsigned int tile_tokens,
+        unsigned int splits,
+        float * partials) {
+    // splits blocks share one (sequence, head) row, each walking its
+    // slice of the keys; with one split the block writes the output,
+    // with more it leaves its maximum, sum, and unnormalized output for
+    // attention_decode_combine_f32.
+    const unsigned int row = blockIdx.x / splits;
+    const unsigned int split = blockIdx.x % splits;
     const unsigned int query_head = row % query_heads;
     const unsigned int sequence = row / query_heads;
     if (sequence >= sequences) {
         return;
     }
     const unsigned int key_value_tokens = key_value_token_count[0];
-    const unsigned int key_first = window > 0 && key_value_tokens > window ? key_value_tokens - window : 0;
+    const unsigned int window_first = window > 0 && key_value_tokens > window ? key_value_tokens - window : 0;
+    const unsigned int span = (key_value_tokens - window_first + splits - 1) / splits;
+    const unsigned int key_first = window_first + split * span;
+    const unsigned int key_last = min(key_value_tokens, key_first + span);
+    float * partial_row = partials + (row * splits + split) * (value_width + 2);
+    if (key_first >= key_last) {
+        // An empty slice contributes nothing: a minimal maximum weighs
+        // it to zero in the combine.
+        if (threadIdx.x == 0) {
+            partial_row[0] = -3.402823466e+38F;
+            partial_row[1] = 0.0f;
+        }
+        for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+            partial_row[2 + channel] = 0.0f;
+        }
+        return;
+    }
     const unsigned int group_size = query_heads / key_value_heads;
     const unsigned int key_value_head = query_head / group_size;
     const unsigned int query_offset =
         (sequence * query_heads + query_head) * key_width;
     extern __shared__ float shared[];
     float * scores = shared;
-    float * partial = shared + key_value_stride;
-    float local_maximum = -3.402823466e+38F;
-    for (unsigned int token = key_first + threadIdx.x; token < key_value_tokens; token += blockDim.x) {
-        const unsigned int key_offset =
-            ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * key_width;
-        float dot = 0.0f;
-        for (unsigned int channel = 0; channel < key_width; ++channel) {
-            dot += query[query_offset + channel] * key[key_offset + channel];
-        }
-        float score = dot * scale;
-        if (softcap > 0.0f) {
-            score = softcap * tanhf(score / softcap);
-        }
-        scores[token] = score;
-        local_maximum = fmaxf(local_maximum, score);
-    }
-    const float maximum = block_max_f32(local_maximum, partial);
-    float local_sum = 0.0f;
-    for (unsigned int token = key_first + threadIdx.x; token < key_value_tokens; token += blockDim.x) {
-        const float probability = expf(scores[token] - maximum);
-        scores[token] = probability;
-        local_sum += probability;
-    }
-    const float sum = block_sum_f32(local_sum, partial);
+    float * partial = shared + tile_tokens;
+    // The running output lives in shared memory, one float per value
+    // channel, so the value pass keeps the one-channel-per-thread loop
+    // whose loads coalesce across the block.
+    float * accumulator = partial + blockDim.x;
     for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
-        float weighted = 0.0f;
-        for (unsigned int token = key_first; token < key_value_tokens; ++token) {
-            const unsigned int value_offset =
-                ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
-            weighted += scores[token] * value[value_offset + channel];
+        accumulator[channel] = 0.0f;
+    }
+    float running_maximum = -3.402823466e+38F;
+    float running_sum = 0.0f;
+    for (unsigned int tile_first = key_first; tile_first < key_last; tile_first += tile_tokens) {
+        const unsigned int tile_end = min(key_last, tile_first + tile_tokens);
+        float local_maximum = -3.402823466e+38F;
+        for (unsigned int token = tile_first + threadIdx.x; token < tile_end; token += blockDim.x) {
+            const unsigned int key_offset =
+                ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * key_width;
+            float dot = 0.0f;
+            for (unsigned int channel = 0; channel < key_width; ++channel) {
+                dot += query[query_offset + channel] * key[key_offset + channel];
+            }
+            float score = dot * scale;
+            if (softcap > 0.0f) {
+                score = softcap * tanhf(score / softcap);
+            }
+            scores[token - tile_first] = score;
+            local_maximum = fmaxf(local_maximum, score);
         }
-        output[(sequence * query_heads + query_head) * value_width + channel] = weighted / sum;
+        const float tile_maximum = block_max_f32(local_maximum, partial);
+        // Every thread has read the tile maximum before the partials are
+        // reused by the sum below.
+        __syncthreads();
+        const float maximum = fmaxf(running_maximum, tile_maximum);
+        const float correction = expf(running_maximum - maximum);
+        float local_sum = 0.0f;
+        for (unsigned int token = tile_first + threadIdx.x; token < tile_end; token += blockDim.x) {
+            const float probability = expf(scores[token - tile_first] - maximum);
+            scores[token - tile_first] = probability;
+            local_sum += probability;
+        }
+        const float tile_sum = block_sum_f32(local_sum, partial);
+        running_sum = running_sum * correction + tile_sum;
+        // As in llama.cpp fattn-vec, independent thread groups accumulate
+        // disjoint keys for the same value channels, then combine. Derive
+        // groups from the live channel count: narrow heads no longer leave
+        // most threads idle through the serial key walk. The completed
+        // softmax reduction's scratch holds the partials, adding no storage.
+        for (unsigned int channel_first = 0; channel_first < value_width; channel_first += blockDim.x) {
+            const unsigned int value_lanes = min(value_width - channel_first, blockDim.x);
+            const unsigned int value_groups = blockDim.x / value_lanes;
+            const unsigned int group = threadIdx.x / value_lanes;
+            const unsigned int channel = channel_first + threadIdx.x % value_lanes;
+            float weighted = 0.0f;
+            if (group < value_groups) {
+                for (unsigned int token = tile_first + group; token < tile_end; token += value_groups) {
+                    const unsigned int value_offset =
+                        ((sequence * key_value_stride + token) * key_value_heads + key_value_head) * value_width;
+                    weighted += scores[token - tile_first] * value[value_offset + channel];
+                }
+            }
+            if (value_groups > 1) {
+                partial[threadIdx.x] = weighted;
+                __syncthreads();
+                if (threadIdx.x < value_lanes) {
+                    for (unsigned int other = 1; other < value_groups; ++other) {
+                        weighted += partial[other * value_lanes + threadIdx.x];
+                    }
+                }
+                // Every group has finished reading before the next chunk
+                // or softmax tile can reuse the same scratch.
+                __syncthreads();
+            }
+            if (threadIdx.x < value_lanes) {
+                accumulator[channel_first + threadIdx.x] = accumulator[channel_first + threadIdx.x] * correction + weighted;
+            }
+        }
+        running_maximum = maximum;
+        // The next tile overwrites the scores every thread just read.
+        __syncthreads();
+    }
+    if (splits == 1) {
+        for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+            output[(sequence * query_heads + query_head) * value_width + channel] = accumulator[channel] / running_sum;
+        }
+        return;
+    }
+    if (threadIdx.x == 0) {
+        partial_row[0] = running_maximum;
+        partial_row[1] = running_sum;
+    }
+    for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+        partial_row[2 + channel] = accumulator[channel];
+    }
+}
+
+// attention_decode_combine_f32: one block per (sequence, head) row folds
+// the split partials of attention_decode_f32 into the output, each split
+// weighted by the exponential of its maximum against the row maximum
+// (the flash-attention combine of the llama.cpp lineage).
+extern "C" __global__ void attention_decode_combine_f32(
+        const float * partials,
+        float * output,
+        unsigned int value_width,
+        unsigned int splits,
+        unsigned int rows) {
+    const unsigned int row = blockIdx.x;
+    if (row >= rows) {
+        return;
+    }
+    const float * partial_rows = partials + row * splits * (value_width + 2);
+    float maximum = -3.402823466e+38F;
+    for (unsigned int split = 0; split < splits; ++split) {
+        maximum = fmaxf(maximum, partial_rows[split * (value_width + 2)]);
+    }
+    float denominator = 0.0f;
+    for (unsigned int split = 0; split < splits; ++split) {
+        const float * partial_row = partial_rows + split * (value_width + 2);
+        denominator += expf(partial_row[0] - maximum) * partial_row[1];
+    }
+    for (unsigned int channel = threadIdx.x; channel < value_width; channel += blockDim.x) {
+        float numerator = 0.0f;
+        for (unsigned int split = 0; split < splits; ++split) {
+            const float * partial_row = partial_rows + split * (value_width + 2);
+            numerator += expf(partial_row[0] - maximum) * partial_row[2 + channel];
+        }
+        output[row * value_width + channel] = numerator / denominator;
     }
 }
 

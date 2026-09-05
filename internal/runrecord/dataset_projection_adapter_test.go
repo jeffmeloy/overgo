@@ -211,8 +211,8 @@ func TestInteractionArcProjectionPreservesAtomicEvidence(t *testing.T) {
 		t.Fatalf("verified interaction arc projection = (%s, %d, %v)", stored.ID, len(storedArcs), err)
 	}
 	for _, entry := range stored.Arcs {
-		if _, reader, found, openErr := store.OpenContent(t.Context(), entry.Arc); openErr != nil || !found || reader == nil {
-			t.Fatalf("arc evidence %s is not resolvable: found=%v err=%v", entry.Arc, found, openErr)
+		if content, found, readErr := artifact.ReadContent(t.Context(), store, entry.Arc); readErr != nil || !found || len(content.Data) == 0 {
+			t.Fatalf("arc evidence %s is not readable: found=%v err=%v", entry.Arc, found, readErr)
 		}
 	}
 

@@ -30,12 +30,12 @@ func TestNonGoOwnershipGateScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := gateContext{repo: repo, paths: []string{"internal/model/architecture_profiles.json"}}
-	owners, err := g.directChangedPackages()
+	scope, err := g.deriveTestScope()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !owners["overgo/internal/model"] {
-		t.Fatalf("embedded architecture catalog owner missing: %v", owners)
+	if !slices.Contains(scope.direct, "overgo/internal/model") {
+		t.Fatalf("embedded architecture catalog owner missing: %v", scope.direct)
 	}
 	if _, err := os.Stat(filepath.Join(repo, "internal", "model", "architecture_profiles.json")); err != nil {
 		t.Fatal(err)

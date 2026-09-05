@@ -30,13 +30,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "gate-scope-efficiency",
-          "title": "Reduce repeated gate work while preserving affected coverage",
-          "status": "open",
-          "verify": "test -f internal/gate/scope_efficiency_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateScopePreservesAffectedCoverage$' -count=1 \u0026\u0026 go test ./internal/gate -run '^Test(GateScopeSnapshot|NonGoOwnershipGateScope|EnvironmentBoundRetry|PhaseCacheIgnoresUnownedPlanChanges)$' -count=1",
-          "rationale": "The 630e1deb plan/test-only gate took 900.8 seconds and executed one direct plus 125 dependent packages. Extend the existing import/input graph and environment-bound evidence reuse, not a scheduler or second cache. Distinguish test-only changes from production changes: always test the changed owner; propagate production changes through the reverse dependency cone. Preserve dependencies on embedded/non-Go assets, plan/compatibility authority, test imports, deleted/renamed paths and assembled harness boundaries; uncertainty remains conservative. Bind executable counterexamples before narrowing scope, including source/toolchain/environment invalidation and stale-evidence refusal. Compare selected coverage and measured wall against the existing algorithm on the incident and production/data mutations; report packages executed, reused and excluded with reasons. Only claim saved cost after a real gated run proves it. Host-only and independent of the modality and operator benchmark campaigns. Keep this one scope-selection change; retain gate recovery semantics unchanged."
-        },
-        {
           "id": "guard-admission-efficiency",
           "title": "Limit explicit guard admission to its selected model inputs",
           "status": "open",

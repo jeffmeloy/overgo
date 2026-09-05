@@ -72,6 +72,7 @@ type Gemma4TowerSpec struct {
 
 type Gemma4TowerRunner struct {
 	projectorResources
+	mediaPreprocessOwner
 	spec      Gemma4TowerSpec
 	audioPlan *audioFrontendPlan
 }

@@ -466,6 +466,7 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"gui-multimodal-closeout/do",
 		"merge-519a2690db1a/do",
 		"video-from-prompt/do",
+		"merge-cd5ce9e66609/do",
 		// Rows retained from the master plan at the lane base (9dce4fca):
 		// the plan authority protects every identity committed at the
 		// protected revision, so the lane keeps them after its own rows and
@@ -616,6 +617,10 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"benchmark-completion/published-comparison",
 		"modality-verification/capability-census",
 		"modality-verification/capability-census-owner",
+		"modality-verification/e4b-all-modalities",
+		"modality-verification/e4b-serving-repair",
+		"audio-worktree-integration/register-models",
+		"model-validation-batching/do",
 		"modality-verification/declared-smoke-expectations",
 		"modality-verification/text-and-vision",
 		"modality-verification/image-and-video",
@@ -636,6 +641,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-automation/gate-scope-efficiency",
 		"validation-automation/guard-admission-efficiency",
 		"validation-automation/benchmark-protocol",
+		"validation-batch-control/batch-promotion",
 		"boundary-hardening/cross-origin",
 		"boundary-hardening/argv-output",
 		"final-model-validation/do",

@@ -38,6 +38,14 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The census binds the producer's store lineage: its document and the
+	// checkpoint it names exist only there. A lane store that never carried
+	// the document cannot check the census, and says so rather than failing.
+	if found, err := store.HasContent(t.Context(), id); err != nil {
+		t.Fatal(err)
+	} else if !found {
+		t.Skip("integration: the bound producer census document is absent from this store; only the producer's store lineage carries it")
+	}
 	value, err := capabilityCensusCodec.Require(t.Context(), store, id)
 	if err != nil {
 		t.Fatal(err)

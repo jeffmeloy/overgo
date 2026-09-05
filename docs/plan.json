@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "repair-throughput",
-          "title": "Repair the reproduced Qwen decode failure that prevents a healthy baseline",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1 \u0026\u0026 test -f internal/cuda/executor/decode_guard_regression_test.go \u0026\u0026 go test ./internal/cuda/executor -run '^TestDecodeGuardRegression$' -count=1",
-          "rationale": "Qwen record evidence:sha256:1c61e2821f010632b9b7a99b05261d7ccad9649929a9bfbc1a923d4430bfd8e7 at 3a75f6fb reproduces 141.3 tok/s at the judged 2048 rung below the unchanged 166.5 floor; finding evidence:sha256:9527e9f2740cc17e13aeacda5ff6836021b7536fa214b35c2fbb404ce99e1ddd. This narrowly scoped prerequisite repairs the demonstrated defect needed to establish a healthy guard; it does not admit broad simplification or close the later full decode campaign. First publish identical-input new-protocol Qwen/E4B before records from the committed coverage producer. Keep failed records as counterexamples, never healthy references. Reuse adaptive/llama and existing executor implementations; correct capacity-sized host uploads in the benchmark before timing resident attention. Bind the named fixture to CPU-reference/device parity and a measured counterexample for short-head work, run isolated before/after benchmarks, and preserve split-key long-context behavior. Gate the repair implementation before clean-tree model publication; the following do step must prove original rate floors, token/NLL parity and non-growing allocation bounds on repeated runs. Stop enlarging the repair once the baseline blocker is corrected; retain comprehensive geometry/long-context optimization in decode-attention-per-key-cost/do.",
-          "depends_on": [
-            "model-regression-baseline/complete-coverage"
-          ]
-        },
-        {
           "id": "do",
           "title": "Publish a small accepted guard baseline before execution changes",
           "status": "open",

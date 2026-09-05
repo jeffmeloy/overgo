@@ -421,7 +421,7 @@ func requireImprovementEndpoint(
 	if err != nil || evaluationRecipe.Model != trajectory.Model {
 		return improvementEndpointAuthority{}, errors.Join(err, errors.New("evaluation: evaluation recipe differs from trajectory model"))
 	}
-	if err := requireImprovementModelDefinition(ctx, reader, evidence.ModelDefinition, trajectory.Model); err != nil {
+	if err := requireEvaluationModelDefinition(ctx, reader, evidence.ModelDefinition, trajectory.Model); err != nil {
 		return improvementEndpointAuthority{}, err
 	}
 	if err := requireImprovementDatasetSplit(ctx, reader, evidence.Dataset, evidence.Split); err != nil {
@@ -451,14 +451,14 @@ func requireImprovementEndpoint(
 	}, nil
 }
 
-func requireImprovementModelDefinition(
+func requireEvaluationModelDefinition(
 	ctx context.Context,
 	reader artifact.Reader,
 	definitionID, modelID artifact.ID,
 ) error {
 	definition, err := modelrecipe.ResolveModelDefinition(ctx, reader, definitionID)
 	if err != nil || definition.Document.Model != modelID {
-		return errors.Join(err, errors.New("evaluation: model definition differs from trajectory model"))
+		return errors.Join(err, errors.New("evaluation: model definition differs from evaluated model"))
 	}
 	return nil
 }

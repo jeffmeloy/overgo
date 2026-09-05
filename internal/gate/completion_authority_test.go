@@ -77,8 +77,8 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected, err := plan.CompletionCommitMessage(
-		[]byte("subject\n"), document, "item", "step", manifest, codeManifest, preparation, preparationCommit,
+	expected, err := plan.CompletionCommitMessageWithMergeAuthority(
+		[]byte("subject\n"), document, "item", "step", manifest, codeManifest, preparation, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -86,8 +86,8 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 	if string(completion) != string(expected) {
 		t.Fatal("gate completion message differs from the canonical pre-advance message")
 	}
-	mutatedExpected, err := plan.CompletionCommitMessage(
-		[]byte("subject\n"), mutated, "item", "step", manifest, codeManifest, preparation, preparationCommit,
+	mutatedExpected, err := plan.CompletionCommitMessageWithMergeAuthority(
+		[]byte("subject\n"), mutated, "item", "step", manifest, codeManifest, preparation, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -396,9 +396,9 @@ func TestProspectiveGateCompletionRejectsUnrelatedPlanDeletion(t *testing.T) {
 	recipe := testutil.ArtifactID(t, artifact.KindRecipe, "prospective-recipe")
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "prospective-profile")
 	preparation := testutil.ArtifactID(t, artifact.KindEvidence, "prospective-preparation")
-	message, err := plan.CompletionCommitMessage(
+	message, err := plan.CompletionCommitMessageWithMergeAuthority(
 		[]byte("prospective completion"), preAdvance, "complete", "do", recipe, profile, preparation,
-		artifact.CommitID{1},
+		artifact.CommitID{1}, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -454,9 +454,9 @@ func TestProspectiveGateCompletionRejectsAmbiguousMergeBase(t *testing.T) {
 	recipe := testutil.ArtifactID(t, artifact.KindRecipe, "ambiguous-recipe")
 	profile := testutil.ArtifactID(t, artifact.KindProfile, "ambiguous-profile")
 	preparation := testutil.ArtifactID(t, artifact.KindEvidence, "ambiguous-preparation")
-	message, err := plan.CompletionCommitMessage(
+	message, err := plan.CompletionCommitMessageWithMergeAuthority(
 		[]byte("ambiguous completion"), document, "complete", "do", recipe, profile, preparation,
-		artifact.CommitID{1},
+		artifact.CommitID{1}, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -586,12 +586,12 @@ func TestProspectiveGateCompletionRejectsCrossParentIdentityReuse(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	message, err := plan.CompletionCommitMessage(
+	message, err := plan.CompletionCommitMessageWithMergeAuthority(
 		[]byte("complete merge"), preAdvance, "merge", "do",
 		testutil.ArtifactID(t, artifact.KindRecipe, "cross-parent merge recipe"),
 		testutil.ArtifactID(t, artifact.KindProfile, "cross-parent merge profile"),
 		testutil.ArtifactID(t, artifact.KindEvidence, "cross-parent merge preparation"),
-		artifact.CommitID{1},
+		artifact.CommitID{1}, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -660,9 +660,9 @@ func completeGateRowForMergeAuthority(
 	if err != nil {
 		t.Fatal(err)
 	}
-	message, err := plan.CompletionCommitMessage(
+	message, err := plan.CompletionCommitMessageWithMergeAuthority(
 		[]byte("complete reusable identity"), document, item, step,
-		manifest.ID, candidate, preparation.ID, preparationCommit,
+		manifest.ID, candidate, preparation.ID, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)

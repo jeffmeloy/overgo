@@ -199,3 +199,103 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 		t.Fatalf("restored inference stale = %q, want trusted", stale)
 	}
 }
+
+// TestCapabilityCatalogForTasksSkipsUnselectedPresence requires a
+// task-specific lane to hash only models it can consume. Large inference and
+// generation artifacts must not delay a training matrix before being
+// discarded by its caller.
+func TestCapabilityCatalogForTasksSkipsUnselectedPresence(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	forecastModel, forecastLocation := publishCatalogCapability(t, store, "forecast", recipe.TaskForecast)
+	tabularModel, tabularLocation := publishCatalogCapability(t, store, "tabular", recipe.TaskTabular)
+	memo := NewMemo()
+	entries, truncated, err := CapabilityCatalogForTasks(ctx, store, 100, memo, recipe.TaskTabular)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if truncated {
+		t.Fatal("task-scoped catalog reported truncation inside its bound")
+	}
+	if len(entries) != 1 || entries[0].Model != tabularModel || len(entries[0].Capabilities) != 1 ||
+		entries[0].Capabilities[0].Task != recipe.TaskTabular {
+		t.Fatalf("entries = %+v, want only model %s tabular", entries, tabularModel)
+	}
+	if !entries[0].Present || entries[0].Location != tabularLocation {
+		t.Fatalf("tabular entry = %+v, want present bytes at %s", entries[0], tabularLocation)
+	}
+	if _, ok := memo.entries[forecastLocation+"\x00"+artifact.KindTensorSet.String()]; ok {
+		t.Fatalf("task-scoped catalog hashed unrelated model %s at %s", forecastModel, forecastLocation)
+	}
+	if len(memo.entries) != 1 {
+		t.Fatalf("memoized identities = %d, want only the selected tabular model", len(memo.entries))
+	}
+	if _, ok := memo.entries[tabularLocation+"\x00"+artifact.KindTensorSet.String()]; !ok {
+		t.Fatalf("task-scoped catalog did not hash selected model %s at %s", tabularModel, tabularLocation)
+	}
+	if _, _, err := CapabilityCatalogForTasks(ctx, store, 100, memo, recipe.Task("invalid")); err == nil {
+		t.Fatal("task-scoped catalog accepted an invalid task")
+	}
+}
+
+func publishCatalogCapability(
+	t *testing.T,
+	store *overgodb.Store,
+	name string,
+	task recipe.Task,
+) (artifact.ID, string) {
+	t.Helper()
+	ctx := t.Context()
+	payload := []byte("capability-catalog-" + name + "-weights")
+	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
+	location := filepath.Join(t.TempDir(), name+".bin")
+	if err := os.WriteFile(location, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+		Role: artifact.ComponentWeights, Name: "weights", Artifact: component,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key:       "fixture/discovery/task-catalog/" + name + "/facts",
+		Artifacts: []artifact.Descriptor{{ID: component, Size: uint64(len(payload))}},
+		Manifests: []artifact.Manifest{manifest},
+		Locations: []artifact.LocationEvent{{Location: artifact.Location{
+			Artifact: component, Kind: artifact.LocationFile, Value: location,
+		}, Action: artifact.LocationAdd}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := modelrecipe.CapabilityDefinition(task, manifest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/discovery/task-catalog/"+name+"/candidate", definition); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.Transition(
+		ctx, store, "fixture/discovery/task-catalog/"+name+"/validated", definition, recipe.StatusValidated, nil, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	verification, err := modelrecipetest.PublishVerification(
+		ctx, store, "fixture/discovery/task-catalog/"+name+"/evidence", definition.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.ActivateVerified(
+		ctx, store, "fixture/discovery/task-catalog/"+name+"/active", definition, verification,
+		recipe.EvidenceVerified, "task-scoped capability catalog fixture", nil, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	return manifest.ID, location
+}

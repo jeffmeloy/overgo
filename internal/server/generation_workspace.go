@@ -12,6 +12,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
 
@@ -40,6 +41,9 @@ type WorkflowCapability struct {
 	Inputs   []recipe.Input    `json:"inputs,omitempty"`
 	Outputs  []recipe.Output   `json:"outputs"`
 	Controls []WorkflowControl `json:"controls"`
+	// model is projected from the compiled recipe by native workspace owners.
+	// It must not be inferred from an unrelated co-hosted text runner.
+	model artifact.ID
 }
 
 type WorkflowKind string
@@ -57,6 +61,25 @@ type WorkflowWorkspaceAPI interface {
 }
 
 type WorkflowWorkspaceSet []WorkflowWorkspaceAPI
+
+func failWorkflow(ctx context.Context, store artifact.Repository, recipeID artifact.ID, inputs []artifact.ID, failure string, cause error) (operation.Completion, error) {
+	outcome := runrecord.OutcomeFailed
+	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
+		outcome, failure = runrecord.OutcomeCancelled, ""
+	}
+	run, err := runrecord.NewRun(recipeID, outcome, inputs, nil, failure)
+	if err == nil {
+		batch, batchErr := run.Batch("workflow/failed-run/" + run.ID.String())
+		if batchErr == nil {
+			_, batchErr = artifact.CommitBatch(context.WithoutCancel(ctx), store, batch)
+			if errors.Is(batchErr, artifact.ErrNoChange) {
+				batchErr = nil
+			}
+		}
+		err = batchErr
+	}
+	return operation.Completion{Run: run.ID}, errors.Join(cause, err)
+}
 
 func (set WorkflowWorkspaceSet) WorkflowCapabilities(ctx context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
 	var capabilities []WorkflowCapability
@@ -169,7 +192,7 @@ func (h *Handler) submitWorkflow(
 		return artifact.ID{}, err
 	}
 	execute := func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-		return h.executeObservedOperation(ctx, reporter, capability.Task, capability.Recipe,
+		return h.executeObservedOperation(ctx, reporter, capability.Task, capability.Recipe, capability.model,
 			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 				return operation.ExecuteReentrant(ctx, h.repository, reporter, request, intent,
 					func(ctx context.Context) (operation.Completion, error) {

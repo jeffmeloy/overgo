@@ -34,6 +34,18 @@ const (
 	TaskSeq2Seq Task = "seq2seq"
 	// TaskSpeech: speech synthesis (ladder rung 7; text in, audio out).
 	TaskSpeech Task = "speech"
+	// TaskTranscription converts audio into a language-bearing transcript.
+	TaskTranscription Task = "transcription"
+	// TaskAlignment binds transcript elements to source-audio sample spans.
+	TaskAlignment Task = "alignment"
+	// TaskDiarization identifies speaker turns in source audio.
+	TaskDiarization Task = "diarization"
+	// TaskActivityDetection identifies active speech spans in source audio.
+	TaskActivityDetection Task = "activity-detection"
+	// TaskAudioConversion transforms audio while preserving its semantic content.
+	TaskAudioConversion Task = "audio-conversion"
+	// TaskAudioGeneration produces audio from a non-audio condition.
+	TaskAudioGeneration Task = "audio-generation"
 	// TaskImageGen: class-conditional image generation (ladder rung 8;
 	// condition tensor in, sampled image out). A NEW terminal task: the
 	// existing TaskGeneration is token generation (tokenizer-coupled in the
@@ -82,17 +94,29 @@ const (
 	DataClassConditioning  DataKind = "class-conditioning"
 	DataAudio              DataKind = "audio"
 	DataAudioTensor        DataKind = "audio-tensor"
-	DataVideo              DataKind = "video"
-	DataVideoTensor        DataKind = "video-tensor"
-	DataMetrics            DataKind = "metrics"
-	DataCheckpoint         DataKind = "checkpoint"
-	DataScores             DataKind = "scores"
-	DataRanking            DataKind = "ranking"
-	DataBatch              DataKind = "batch"
-	DataPreferenceBatch    DataKind = "preference-batch"
-	DataSequenceScores     DataKind = "sequence-scores"
-	DataLoss               DataKind = "loss"
-	DataGradients          DataKind = "gradients"
+	// DataTranscription carries text bound to an exact audio source.
+	DataTranscription DataKind = "transcription"
+	// DataTimestampedAlignment carries transcript elements with sample spans.
+	DataTimestampedAlignment DataKind = "timestamped-alignment"
+	// DataSpeechTurns carries ordered, potentially overlapping speaker turns.
+	DataSpeechTurns DataKind = "speech-turns"
+	// DataActivitySegments carries ordered active-speech sample spans.
+	DataActivitySegments DataKind = "activity-segments"
+	// DataConvertedAudio carries transformed audio with source lineage.
+	DataConvertedAudio DataKind = "converted-audio"
+	// DataGeneratedAudio carries condition-derived audio with restart state.
+	DataGeneratedAudio  DataKind = "generated-audio"
+	DataVideo           DataKind = "video"
+	DataVideoTensor     DataKind = "video-tensor"
+	DataMetrics         DataKind = "metrics"
+	DataCheckpoint      DataKind = "checkpoint"
+	DataScores          DataKind = "scores"
+	DataRanking         DataKind = "ranking"
+	DataBatch           DataKind = "batch"
+	DataPreferenceBatch DataKind = "preference-batch"
+	DataSequenceScores  DataKind = "sequence-scores"
+	DataLoss            DataKind = "loss"
+	DataGradients       DataKind = "gradients"
 	// DataToolCall carries one strict tool invocation.
 	DataToolCall DataKind = "tool-call"
 	// DataToolResult carries one typed invocation result.
@@ -341,7 +365,10 @@ func validateDependency(dependency Dependency) error {
 
 func validateTask(task Task) error {
 	switch task {
-	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining, TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskImageGen, TaskVideoGen, TaskVideoEdit, TaskVQA:
+	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining,
+		TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskTranscription, TaskAlignment,
+		TaskDiarization, TaskActivityDetection, TaskAudioConversion, TaskAudioGeneration,
+		TaskImageGen, TaskVideoGen, TaskVideoEdit, TaskVQA:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)
@@ -361,7 +388,9 @@ func validateDataKind(kind DataKind) error {
 	switch kind {
 	case DataArtifact, DataText, DataTokens, DataEmbeddings, DataTensor, DataModelPlan, DataSessionPlan,
 		DataCache, DataLogits, DataImage, DataImageTensor, DataPromptConditioning, DataClassConditioning,
-		DataAudio, DataAudioTensor, DataVideo, DataVideoTensor, DataMetrics, DataCheckpoint,
+		DataAudio, DataAudioTensor, DataTranscription, DataTimestampedAlignment, DataSpeechTurns,
+		DataActivitySegments, DataConvertedAudio, DataGeneratedAudio,
+		DataVideo, DataVideoTensor, DataMetrics, DataCheckpoint,
 		DataScores, DataRanking, DataBatch, DataPreferenceBatch, DataSequenceScores, DataLoss, DataGradients,
 		DataToolCall, DataToolResult:
 		return nil

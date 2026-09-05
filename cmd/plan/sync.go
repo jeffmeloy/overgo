@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
@@ -18,6 +20,10 @@ import (
 const (
 	compatibilityDocumentPath         = "docs/COMPATIBILITY.md"
 	trainingCompatibilityDocumentPath = "docs/TRAINING_COMPATIBILITY.md"
+	apiManifestDocumentPath           = "docs/API_MANIFEST.md"
+	apiManifestJSONPath               = "docs/api_manifest.json"
+	modernGoBaselinePath              = "docs/modern_go_baseline.json"
+	modernGoCensusPath                = "docs/modern_go_census.json"
 )
 
 func prepareMerge(root, source string, output io.Writer) error {
@@ -59,7 +65,7 @@ func prepareMergeWithProjection(
 			return err
 		}
 		snapshot := strings.TrimSpace(string(sourceRaw))
-		closureSnapshot, err := captureClosureEvidence(root, snapshot)
+		closureSnapshot, err := captureClosureEvidence(root, source, snapshot)
 		if err != nil {
 			return err
 		}
@@ -149,12 +155,15 @@ func prepareMergeWithProjection(
 				return conflictErr
 			}
 			for path := range strings.FieldsSeq(string(conflicts)) {
-				if path != plan.Path && path != compatibilityDocumentPath && path != trainingCompatibilityDocumentPath {
+				if !mergeOwnedDocument(path) {
 					return fmt.Errorf("prepare-merge source conflict; merge aborted: %w", mergeErr)
 				}
 			}
 		}
 		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), merged); err != nil {
+			return err
+		}
+		if err := regenerateMergeOwnedDocuments(root, localRevision); err != nil {
 			return err
 		}
 		if _, err := commandOutput(root, "go", "run", "./cmd/compatibility", "-refresh-identities"); err != nil {
@@ -164,8 +173,20 @@ func prepareMergeWithProjection(
 		if err := verifySourceSnapshot(source, snapshot, latest, err); err != nil {
 			return err
 		}
-		if _, err := gitOutput(root, "add", "--", plan.Path, "compatibility.json", compatibilityDocumentPath, trainingCompatibilityDocumentPath); err != nil {
+		if _, err := gitOutput(root, "add", "--",
+			plan.Path,
+			"compatibility.json",
+			compatibilityDocumentPath,
+			trainingCompatibilityDocumentPath,
+			apiManifestDocumentPath,
+			apiManifestJSONPath,
+			modernGoBaselinePath,
+			modernGoCensusPath,
+		); err != nil {
 			return err
+		}
+		if _, err := gitOutput(root, "update-index", "--clear-resolve-undo"); err != nil {
+			return fmt.Errorf("clear resolved merge metadata: %w", err)
 		}
 		if closureSnapshot.store != "" {
 			result, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-import-store", closureSnapshot.store)
@@ -189,6 +210,45 @@ func prepareMergeWithProjection(
 		)
 		return nil
 	})
+}
+
+func mergeOwnedDocument(path string) bool {
+	switch path {
+	case plan.Path,
+		compatibilityDocumentPath,
+		trainingCompatibilityDocumentPath,
+		apiManifestDocumentPath,
+		apiManifestJSONPath,
+		modernGoBaselinePath,
+		modernGoCensusPath:
+		return true
+	default:
+		return false
+	}
+}
+
+func regenerateMergeOwnedDocuments(root, localRevision string) error {
+	baseline, err := gitOutput(root, "show", localRevision+":"+modernGoBaselinePath)
+	if err != nil {
+		return fmt.Errorf("restore target modern-Go baseline: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(modernGoBaselinePath)), baseline, clioptions.OutputFileMode); err != nil {
+		return fmt.Errorf("restore target modern-Go baseline: %w", err)
+	}
+	commands := []struct {
+		label string
+		args  []string
+	}{
+		{"lower merged modern-Go baseline", []string{"run", "./cmd/modern-census", "-lower-baseline"}},
+		{"publish merged modern-Go census", []string{"run", "./cmd/modern-census", "-publish-census"}},
+		{"refresh merged API manifest", []string{"run", "./cmd/api-manifest", "-update"}},
+	}
+	for _, command := range commands {
+		if _, err := commandOutput(root, "go", command.args...); err != nil {
+			return fmt.Errorf("%s: %w", command.label, err)
+		}
+	}
+	return nil
 }
 
 func projectMergePlan(

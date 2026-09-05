@@ -1,0 +1,10 @@
+{
+  "container_sha256": "c816e936fed8b83d5e3de28795bff1bcd3b46b3f1a5815bad4395d20186a9770",
+  "oracle": "soundfile 0.14.0 / libsndfile 1.2.2; openslr/librispeech_asr revision 71cacbfb7e2354c4226d01e70d77d5fca3d04ba1, clean/validation/0000.parquet, first four non-null audio.bytes values; SHA-256 covers every interleaved little-endian float32 sample",
+  "observations": [
+    {"encoded_sha256":"fead3e0c481f1c637fe6ec8edef42506c7c2d33a3fb7519bfdf5815b31150303","decoded_sha256":"fbc11f91b7c86f82a12d875720d30aef2417b477632ced680991b855c84e5850","frames":105440,"format":{"sample_rate":16000,"channels":1,"encoding":"pcm-f32le"},"outcome":"accepted"},
+    {"encoded_sha256":"f9c3371b4d1c6e95e7c01298a26215c2be97bee22c5408885d8d29b6e0e4171c","decoded_sha256":"6396bb754f08856a163737669583d4791c046e8d700bebd84a68fa74c6762304","frames":114320,"format":{"sample_rate":16000,"channels":1,"encoding":"pcm-f32le"},"outcome":"accepted"},
+    {"encoded_sha256":"ade2caad47934462292358ba49acf7f048ced0595615492b4b20866d118bf901","decoded_sha256":"daaaea00e4cbb933b457d482d602a24b5056863ae1206f36c9d5e45a389d3c38","frames":77360,"format":{"sample_rate":16000,"channels":1,"encoding":"pcm-f32le"},"outcome":"accepted"},
+    {"encoded_sha256":"a99595b53e5d48524c2ba4903071f2498b05c25c509f0a78d60dc15ee46a4836","decoded_sha256":"4b4cb22649c6b46ec07e00a87eb9dec99bc6e0dda3e9df5b1cdb1ed8048f161f","frames":45440,"format":{"sample_rate":16000,"channels":1,"encoding":"pcm-f32le"},"outcome":"accepted"}
+  ]
+}

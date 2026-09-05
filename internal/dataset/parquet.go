@@ -293,10 +293,19 @@ func stringColumnLeaf(metadata parquetMetadata, column string) (int, int, error)
 		wanted = []string{"sequence", "text"}
 	}
 	for _, name := range wanted {
+		var matches int
+		var selectedLeaf, selectedOptional int
 		for _, found := range strings {
 			if found.name == name {
-				return found.leaf, found.optional, nil
+				matches++
+				selectedLeaf, selectedOptional = found.leaf, found.optional
 			}
+		}
+		if matches > 1 {
+			return 0, 0, fmt.Errorf("dataset: parquet column %q is ambiguous", name)
+		}
+		if matches == 1 {
+			return selectedLeaf, selectedOptional, nil
 		}
 	}
 	if column != "" {

@@ -96,7 +96,7 @@ func TestMultimodalTrainingMatrix(t *testing.T) {
 	}
 	audioRecord := trainingdata.RawRecord{ID: "longspeech/000000", Group: "longspeech/train", Data: readFile(t, audioPath)}
 	audioExample := processMediaTextPair(t, audioDataset, audioRecord,
-		trainingdata.AudioProcessor(trainingdata.RoleInput), recipecontract.ModalityAudio,
+		trainingdata.AudioProcessor(trainingdata.RoleInput, uint64(len(audioRecord.Data))), recipecontract.ModalityAudio,
 		realAudioTarget(t, audioLabelPath, "LongSpeech_p1/wavs/part_00/000000.wav"))
 	samples, sampleRate, err := trainingdata.Audio(audioExample.Values[0])
 	if err != nil {

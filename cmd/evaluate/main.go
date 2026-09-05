@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
@@ -66,10 +67,18 @@ func run() error {
 	catalogLimit := flag.Int("catalog-limit", 256, "servable model listing bound for -all")
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
 	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
+	transcriptionManifest := flag.String("transcription-manifest", "", "score stored transcription runs from separate suite and prediction files")
+	transcriptionResourceManifest := flag.String("transcription-resource-manifest", "", "execute and measure a pinned CPU transcription corpus")
 	importDNA := flag.String("import-dna-corpus", "", "import a bounded slice of every parquet subset under this corpus root and merge the entries into the active benchmark catalog")
 	dnaLimit := flag.Int("dna-limit", 16, "sequences imported per corpus subset for -import-dna-corpus")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
+	if strings.TrimSpace(*transcriptionManifest) != "" && strings.TrimSpace(*transcriptionResourceManifest) != "" {
+		return errors.New("evaluate: select one transcription manifest")
+	}
+	if *cpuProfile != "" && strings.TrimSpace(*transcriptionResourceManifest) != "" {
+		return errors.New("evaluate: CPU profiling is not allowed during timed transcription evaluation")
+	}
 	if *cpuProfile != "" {
 		profile, err := os.Create(*cpuProfile)
 		if err != nil {
@@ -80,6 +89,18 @@ func run() error {
 			return err
 		}
 		defer pprof.StopCPUProfile()
+	}
+	if path := strings.TrimSpace(*transcriptionManifest); path != "" {
+		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" || *allModels {
+			return errors.New("usage: evaluate -transcription-manifest <manifest.json> [-repo <store>]")
+		}
+		return evaluateTranscriptionManifest(context.Background(), *repository, path)
+	}
+	if path := strings.TrimSpace(*transcriptionResourceManifest); path != "" {
+		if flag.NArg() != 0 || *worker || strings.TrimSpace(*manifestPath) != "" || *allModels {
+			return errors.New("usage: evaluate -transcription-resource-manifest <manifest.json> [-repo <store>]")
+		}
+		return evaluateTranscriptionResourceManifest(context.Background(), *repository, path)
 	}
 	if root := strings.TrimSpace(*importDNA); root != "" {
 		if flag.NArg() != 0 {
@@ -107,7 +128,8 @@ func run() error {
 		if flag.NArg() != 1 {
 			return errors.New("usage: evaluate -declare-domain <domains-csv> [-repo <store>] <model-path>")
 		}
-		return declareEvalDomain(context.Background(), *repository, flag.Arg(0), csv, *catalogLimit)
+		modelPath, _ := checked.First(flag.Args())
+		return declareEvalDomain(context.Background(), *repository, modelPath, csv, *catalogLimit)
 	}
 	if *allModels {
 		if strings.TrimSpace(*manifestPath) != "" {

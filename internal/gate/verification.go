@@ -849,6 +849,9 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 	if err := repoanalysis.AdmitModernGoRatchet(baseline, candidate, time.Now().UTC()); err != nil {
 		return false, err
 	}
+	if err := admitModernGoExactExceptions(baseline, candidate); err != nil {
+		return false, err
+	}
 	if _, err := command(g.repo, "git", "cat-file", "-e", "HEAD:"+repoanalysis.ModernGoBaselineFile); err == nil {
 		if g.baseSource == nil {
 			base, err := sourceAtHEAD(g.repo, snapshot)

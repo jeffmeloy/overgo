@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -228,12 +229,7 @@ func (h *Handler) runNativeWorkflow(
 	capability WorkflowCapability,
 	input json.RawMessage,
 ) (operation.Status, bool) {
-	id, err := h.submitWorkflow(request.Context(), workspace, WorkflowGeneration, capability, input)
-	if err != nil {
-		writeGenerationError(response, err)
-		return operation.Status{}, false
-	}
-	status, err := h.operations.Wait(request.Context(), id)
+	status, err := h.waitNativeWorkflow(request.Context(), workspace, capability, input)
 	if err != nil {
 		writeGenerationError(response, err)
 		return operation.Status{}, false
@@ -243,6 +239,14 @@ func (h *Handler) runNativeWorkflow(
 		return operation.Status{}, false
 	}
 	return status, true
+}
+
+func (h *Handler) waitNativeWorkflow(ctx context.Context, workspace WorkflowWorkspaceAPI, capability WorkflowCapability, input json.RawMessage) (operation.Status, error) {
+	id, err := h.submitWorkflow(ctx, workspace, WorkflowGeneration, capability, input)
+	if err != nil {
+		return operation.Status{}, err
+	}
+	return h.operations.Wait(ctx, id)
 }
 
 func takeNativeString(fields map[string]json.RawMessage, name string) (string, error) {

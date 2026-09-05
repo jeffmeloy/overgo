@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cmp"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -63,21 +63,14 @@ func audioProjectedPrompt(
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: read audio: %w", err)
 	}
-	var samples []float32
-	switch strings.ToLower(filepath.Ext(audioPath)) {
-	case ".f32":
-		samples, err = media.DecodeFloat32LE(data)
-	case ".wav":
-		var sampleRate int
-		samples, sampleRate, err = media.DecodeWAV(data)
-		want, rateErr := projector.AudioSampleRate(audio)
-		err = cmp.Or(err, rateErr)
-		if err == nil && sampleRate != want {
-			err = fmt.Errorf("sample rate %d Hz; want %d Hz", sampleRate, want)
+	var want int
+	if strings.EqualFold(filepath.Ext(audioPath), ".wav") {
+		want, err = projector.AudioSampleRate(audio)
+		if err != nil {
+			return nil, inference.ProjectedInputs{}, err
 		}
-	default:
-		err = errors.New("audio input must use .wav or .f32")
 	}
+	samples, err := decodeProjectedAudio(ctx, data, filepath.Ext(audioPath), want)
 	if err != nil {
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: decode audio: %w", err)
 	}
@@ -86,6 +79,41 @@ func audioProjectedPrompt(
 		return nil, inference.ProjectedInputs{}, fmt.Errorf("generate: encode audio: %w", err)
 	}
 	return inference.CompileProjectedInputs(prompt, runner.Spec().EmbeddingLength)
+}
+
+func decodeProjectedAudio(ctx context.Context, data []byte, extension string, sampleRate int) ([]float32, error) {
+	if ctx == nil {
+		return nil, errors.New("audio input requires a context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	switch strings.ToLower(extension) {
+	case ".f32":
+		samples, err := media.DecodeFloat32LE(data)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return nil, contextErr
+		}
+		return samples, err
+	case ".wav":
+		if !bytes.HasPrefix(data, []byte("RIFF")) {
+			return nil, errors.New(".wav input must contain RIFF/WAVE audio")
+		}
+		// Every supported WAV scalar consumes at least one encoded byte.
+		audio, _, err := media.DecodeAudio(ctx, data, uint64(len(data)))
+		if err != nil {
+			return nil, err
+		}
+		if audio.Format.Channels != 1 {
+			return nil, errors.New("audio projector requires mono samples")
+		}
+		if sampleRate <= 0 || audio.Format.SampleRate != uint64(sampleRate) {
+			return nil, fmt.Errorf("sample rate %d Hz; want %d Hz", audio.Format.SampleRate, sampleRate)
+		}
+		return audio.Samples, nil
+	default:
+		return nil, errors.New("audio input must use .wav or .f32")
+	}
 }
 
 func videoProjectedPrompt(

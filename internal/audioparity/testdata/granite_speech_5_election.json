@@ -1,0 +1,246 @@
+{
+    "version": 1,
+    "capability": "offline-asr",
+    "name": "Granite Speech 5.0 470M TurboCTC",
+    "family": "granite5asr",
+    "model": {
+        "version": 1,
+        "id": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+        "components": [
+            {
+                "role": "weights",
+                "ordinal": 0,
+                "name": "weights",
+                "artifact": "tensor-set:sha256:8b98a8c34fd5fcb081caef719638eded31bb6d197d62053eefc5c1703aaf1ad4"
+            },
+            {
+                "role": "config",
+                "ordinal": 0,
+                "name": "config",
+                "artifact": "file:sha256:165744342ffaf663713eabe1137e2248997ffbb6f2711783f5966f4b6300752c"
+            },
+            {
+                "role": "tokenizer",
+                "ordinal": 0,
+                "name": "tokenizer.json",
+                "artifact": "tokenizer:sha256:ee87426e9a5ed085795bd4d634ff84de6ccdf9b463531f9c781451badcf8f55e"
+            },
+            {
+                "role": "tokenizer",
+                "ordinal": 1,
+                "name": "tokenizer_config.json",
+                "artifact": "tokenizer:sha256:c185e00565b035ed71739dac929f2fa1a259b4bad88649a7df4c18dd2b2503f8"
+            },
+            {
+                "role": "preprocessor",
+                "ordinal": 0,
+                "name": "preprocessor_config.json",
+                "artifact": "file:sha256:a9a4000a11d973baf03abfab3d00bb5da201e92e7ce59d20c4185dd7fc66a27a"
+            },
+            {
+                "role": "preprocessor",
+                "ordinal": 1,
+                "name": "processor_config.json",
+                "artifact": "file:sha256:2327bbbe6f15e3f7e63405131b9af1f4a2f2099f0b91143876761b6a1706ae50"
+            },
+            {
+                "role": "generation-config",
+                "ordinal": 0,
+                "name": "generation_config.json",
+                "artifact": "file:sha256:c2be33933cccf708c73f73d91134d5ebb5c2ad2de7dcf9c2f7a363fe86c5041f"
+            }
+        ]
+    },
+    "model_source": {
+        "repository": "https://huggingface.co/ibm-granite/granite-speech-5.0-470m-turboctc",
+        "commit": "7e74c6438b7cfb5090cb6a131538f5e8515a7de3"
+    },
+    "files": [
+        {
+            "path": ".gitattributes",
+            "role": "source-metadata",
+            "artifact": "file:sha256:88023d0a029a0c409b30c03b689c68605b559f5cefe06376e4a26b38ed795269",
+            "bytes": 1554,
+            "media_type": "text/plain"
+        },
+        {
+            "path": "README.md",
+            "role": "license",
+            "artifact": "file:sha256:4953938517b4d2e25313f1b6853f4f8cec6e64ac629beacba91008ef6f2fe280",
+            "bytes": 7134,
+            "media_type": "text/markdown"
+        },
+        {
+            "path": "config.json",
+            "role": "configuration",
+            "artifact": "file:sha256:165744342ffaf663713eabe1137e2248997ffbb6f2711783f5966f4b6300752c",
+            "bytes": 964,
+            "media_type": "application/json"
+        },
+        {
+            "path": "configuration_ctc_conformer.py",
+            "role": "reference-code",
+            "artifact": "file:sha256:b5c3a534d0da3c89ea6bcd57fbf4634006ff46124711e259b7e3b1d047996fb0",
+            "bytes": 4036,
+            "media_type": "text/x-python"
+        },
+        {
+            "path": "generation_config.json",
+            "role": "generation-config",
+            "artifact": "file:sha256:c2be33933cccf708c73f73d91134d5ebb5c2ad2de7dcf9c2f7a363fe86c5041f",
+            "bytes": 165,
+            "media_type": "application/json"
+        },
+        {
+            "path": "granite_encoder.py",
+            "role": "reference-code",
+            "artifact": "file:sha256:d1b4c92a7bb7209959757699765e016e37cdb6a2b7ade6d01aaa29c996b2fd8c",
+            "bytes": 14813,
+            "media_type": "text/x-python"
+        },
+        {
+            "path": "model.safetensors",
+            "role": "weights",
+            "artifact": "tensor-set:sha256:8b98a8c34fd5fcb081caef719638eded31bb6d197d62053eefc5c1703aaf1ad4",
+            "bytes": 946180704,
+            "media_type": "application/vnd.safetensors"
+        },
+        {
+            "path": "model.sig",
+            "role": "signature",
+            "artifact": "file:sha256:2923178d5fb64ef296f857f823bccaf74c55481b5484d382882a400c1e8c402f",
+            "bytes": 10879,
+            "media_type": "application/vnd.dev.sigstore.bundle.v0.3+json"
+        },
+        {
+            "path": "modeling_ctc_conformer.py",
+            "role": "reference-code",
+            "artifact": "file:sha256:d15195309b3f2f19d7e224450a1c2e8adb2ec93ffbb41a3f1d32040d711b08cf",
+            "bytes": 4835,
+            "media_type": "text/x-python"
+        },
+        {
+            "path": "preprocessor_config.json",
+            "role": "preprocessor",
+            "artifact": "file:sha256:a9a4000a11d973baf03abfab3d00bb5da201e92e7ce59d20c4185dd7fc66a27a",
+            "bytes": 341,
+            "media_type": "application/json"
+        },
+        {
+            "path": "processing_ctc_conformer.py",
+            "role": "reference-code",
+            "artifact": "file:sha256:b7924abc447208e2cd50c2f84c7fcf9e88bea6ce3184924e9df1d0057676c30a",
+            "bytes": 12996,
+            "media_type": "text/x-python"
+        },
+        {
+            "path": "processor_config.json",
+            "role": "preprocessor",
+            "artifact": "file:sha256:2327bbbe6f15e3f7e63405131b9af1f4a2f2099f0b91143876761b6a1706ae50",
+            "bytes": 447,
+            "media_type": "application/json"
+        },
+        {
+            "path": "tokenizer.json",
+            "role": "tokenizer",
+            "artifact": "tokenizer:sha256:ee87426e9a5ed085795bd4d634ff84de6ccdf9b463531f9c781451badcf8f55e",
+            "bytes": 1218465,
+            "media_type": "application/json"
+        },
+        {
+            "path": "tokenizer_config.json",
+            "role": "tokenizer",
+            "artifact": "tokenizer:sha256:c185e00565b035ed71739dac929f2fa1a259b4bad88649a7df4c18dd2b2503f8",
+            "bytes": 230,
+            "media_type": "application/json"
+        }
+    ],
+    "license": {
+        "spdx": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "document": "file:sha256:4953938517b4d2e25313f1b6853f4f8cec6e64ac629beacba91008ef6f2fe280"
+    },
+    "dataset": {
+        "name": "LibriSpeech ASR clean",
+        "source": {
+            "repository": "https://huggingface.co/datasets/openslr/librispeech_asr",
+            "commit": "71cacbfb7e2354c4226d01e70d77d5fca3d04ba1"
+        },
+        "split": "clean/validation",
+        "path": "clean/validation/0000.parquet",
+        "artifact": "dataset-shard:sha256:c816e936fed8b83d5e3de28795bff1bcd3b46b3f1a5815bad4395d20186a9770",
+        "bytes": 341833540,
+        "media_type": "application/vnd.apache.parquet"
+    },
+    "runtime": {
+        "implementation": "transformers GraniteSpeech5ForCTC.generate",
+        "python": "3.12.10",
+        "torch": "2.7.0+cpu",
+        "transformers": "5.16.1",
+        "device": "cpu",
+        "dtype": "torch.float32",
+        "host": "AI",
+        "os": "windows",
+        "arch": "amd64",
+        "observer_commit": "68ed9cda44728ca71c7f45cd325cbb79c27a4578",
+        "model_load_wall_ns": 646103200,
+        "entrypoints": [
+            "transformers.AutoModelForCTC.from_pretrained",
+            "transformers.AutoProcessor.from_pretrained",
+            "transformers.GraniteSpeech5ForCTC.generate"
+        ]
+    },
+    "normalizations": [
+        "english-apostrophe-s-equivalence-v1",
+        "lowercase-alphanumeric-whitespace-v1"
+    ],
+    "observations": [
+        {
+            "fixture": "2277-149896-0000",
+            "audio": "file:sha256:fead3e0c481f1c637fe6ec8edef42506c7c2d33a3fb7519bfdf5815b31150303",
+            "audio_bytes": 127816,
+            "samples": 105440,
+            "sample_rate": 16000,
+            "expected": "HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE",
+            "observed": "he was in a fevered state of mind owing to the blight his wife is action threatened to cast upon his entire future",
+            "wall_ns": 365908800
+        },
+        {
+            "fixture": "2277-149896-0001",
+            "audio": "file:sha256:f9c3371b4d1c6e95e7c01298a26215c2be97bee22c5408885d8d29b6e0e4171c",
+            "audio_bytes": 133145,
+            "samples": 114320,
+            "sample_rate": 16000,
+            "expected": "HE WOULD HAVE TO PAY HER THE MONEY WHICH SHE WOULD NOW REGULARLY DEMAND OR THERE WOULD BE TROUBLE IT DID NOT MATTER WHAT HE DID",
+            "observed": "he would have to pay her the money which she would now regularly demand or there would be trouble it did not matter what he did",
+            "wall_ns": 227234100
+        },
+        {
+            "fixture": "2277-149896-0002",
+            "audio": "file:sha256:ade2caad47934462292358ba49acf7f048ced0595615492b4b20866d118bf901",
+            "audio_bytes": 90701,
+            "samples": 77360,
+            "sample_rate": 16000,
+            "expected": "HURSTWOOD WALKED THE FLOOR MENTALLY ARRANGING THE CHIEF POINTS OF HIS SITUATION",
+            "observed": "hurstwood walked the floor mentally arranging the chief points of his situation",
+            "wall_ns": 199999500
+        },
+        {
+            "fixture": "2277-149896-0003",
+            "audio": "file:sha256:a99595b53e5d48524c2ba4903071f2498b05c25c509f0a78d60dc15ee46a4836",
+            "audio_bytes": 57634,
+            "samples": 45440,
+            "sample_rate": 16000,
+            "expected": "HE ALSO THOUGHT OF HIS MANAGERIAL POSITION",
+            "observed": "he also thought of his managerial position",
+            "wall_ns": 175673600
+        }
+    ],
+    "reason": "The native Safetensors artifact executes offline English CTC transcription on CPU and matches every pinned LibriSpeech fixture under the recorded apostrophe-s diagnostic policy, with three of four matches under standard transcript normalization.",
+    "reopen_when": [
+        "A bound model, tokenizer, configuration, reference-runtime, license, dataset-shard, or fixture byte identity changes.",
+        "A compatible candidate produces fewer standard-normalized word errors on the same pinned fixtures.",
+        "Any pinned fixture stops matching under the recorded apostrophe-s equivalence policy.",
+        "Native Overgo artifact qualification cannot reproduce the declared model structure."
+    ]
+}

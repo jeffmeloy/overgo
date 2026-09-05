@@ -76,14 +76,11 @@ func (h *Handler) executeObservedOperation(
 	reporter operation.Reporter,
 	task recipe.Task,
 	recipeID artifact.ID,
+	modelID artifact.ID,
 	execute operation.Executor,
 ) (operation.Completion, error) {
 	started := time.Now()
 	completion, err := execute(ctx, reporter)
-	modelID := h.modelArtifact
-	if !modelID.Valid() {
-		modelID, _, _ = h.servingIdentity(task)
-	}
 	if modelID.Kind() != artifact.KindModel || recipeID.Kind() != artifact.KindRecipe {
 		return completion, err
 	}

@@ -75,6 +75,10 @@ func groundedDoctrineDecisions() []string {
 // row-specific assertions are conditional while the ratchets remain active.
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
+	if strings.Contains(document.Campaign, "audio.cpp") {
+		assertAudioCapabilityCampaign(t, document)
+		return
+	}
 	// Each campaign pins its own structure ratchet, keyed by campaign
 	// identity the way the grounded doctrine binding already is: the
 	// integrated-RSI snapshot binds to the RSI control-plane campaign, and
@@ -418,6 +422,73 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"live-safety/circuit-breaker")
 }
 
+// assertAudioCapabilityCampaign admits the branch-specific audio campaign
+// without weakening its structure to the historical RSI or validation
+// whitelists. Once the campaign adopts the repeated master-sync workflow, the
+// plan itself must retain one exact synchronization row before every work row.
+// Between the gated synchronization commit and its paired work commit, the
+// completed sync row is pruned and the leading work row retains its exact
+// dependency on that completion authority.
+func assertAudioCapabilityCampaign(t *testing.T, document Plan) {
+	t.Helper()
+	for _, required := range []string{
+		"pinned behavioral oracle", "never a linked runtime", "exact stop and resume", "pre/post WER",
+	} {
+		if !strings.Contains(document.Doctrine, required) {
+			t.Errorf("audio campaign doctrine omits %q", required)
+		}
+	}
+	workflow := strings.Contains(document.Doctrine, "Every retained work row executes as one repeated automation cycle.")
+	paired := 0
+	for _, item := range document.Items {
+		if strings.HasPrefix(item.ID, "merge-") || item.ID == "workflow-cycle" {
+			continue
+		}
+		for _, step := range item.Steps {
+			if step.Status != StatusOpen || strings.TrimSpace(step.Verify) == "" {
+				t.Errorf("audio campaign step %s/%s lacks an open machine-checked verifier", item.ID, step.ID)
+			}
+		}
+		if !workflow {
+			continue
+		}
+		steps := item.Steps
+		if len(steps)%2 != 0 {
+			work := steps[0]
+			wantDependency := []string{item.ID + "/sync-" + work.ID}
+			if strings.HasPrefix(work.ID, "sync-") || !slices.Equal(work.DependsOn, wantDependency) {
+				t.Errorf("audio workflow item %s has invalid leading post-sync work row %s with dependencies %v, want %v", item.ID, work.ID, work.DependsOn, wantDependency)
+				continue
+			}
+			steps = steps[1:]
+		}
+		for index := 0; index < len(steps); index += 2 {
+			sync, work := steps[index], steps[index+1]
+			if sync.ID != "sync-"+work.ID {
+				t.Errorf("audio workflow pair %s[%d] = %s then %s", item.ID, index, sync.ID, work.ID)
+			}
+			wantVerify := "git merge-base --is-ancestor master HEAD && go run ./cmd/plan -status"
+			// The operator deferred master integration for this one CPU row
+			// until the tokenizer and continuation-scoring fixes are verified.
+			if item.ID == "audio-primitives" && sync.ID == "sync-decode-inspect" &&
+				strings.Contains(document.Doctrine, "The decode-inspect step proceeds on audio baseline cda086d8") {
+				wantVerify = "git merge-base --is-ancestor cda086d8 HEAD && go run ./cmd/plan -status"
+			}
+			if sync.Verify != wantVerify {
+				t.Errorf("audio workflow sync %s/%s has verifier %q", item.ID, sync.ID, sync.Verify)
+			}
+			wantDependency := []string{item.ID + "/" + sync.ID}
+			if !slices.Equal(work.DependsOn, wantDependency) {
+				t.Errorf("audio workflow work %s/%s dependencies = %v, want %v", item.ID, work.ID, work.DependsOn, wantDependency)
+			}
+			paired++
+		}
+	}
+	if workflow && paired == 0 {
+		t.Error("audio workflow doctrine has no retained sync/work pairs")
+	}
+}
+
 // assertValidationCampaignSnapshot pins the validation-only freeze campaign:
 // only its declared drill steps may appear (completed rows leave plan.json,
 // so absence is fine and unknown ids are the violation), every retained step
@@ -558,7 +629,15 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	for _, id := range wantIDs {
 		want[id] = true
 	}
+	mergeRows := 0
 	for _, item := range document.Items {
+		if strings.HasPrefix(item.ID, "merge-") {
+			mergeRows++
+			if !preparedMergeBoundary(item) {
+				t.Errorf("invalid prepared merge boundary %+v", item)
+			}
+			continue
+		}
 		for _, step := range item.Steps {
 			id := item.ID + "/" + step.ID
 			if !want[id] {
@@ -570,11 +649,23 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 			}
 		}
 	}
+	if mergeRows > 1 {
+		t.Errorf("validation campaign has %d prepared merge boundaries, want at most one", mergeRows)
+	}
 	for _, required := range []string{"capability freeze enforced by structure", "UNAVAILABLE", "plan -setverify"} {
 		if !strings.Contains(document.Doctrine, required) {
 			t.Errorf("validation campaign doctrine omits %q", required)
 		}
 	}
+}
+
+// The gate separately proves the exact parent and prunes this temporary row.
+// Campaign closeout therefore cannot depend on it without changing the target plan.
+func preparedMergeBoundary(item Item) bool {
+	revision, found := strings.CutPrefix(item.ID, "merge-")
+	return found && len(revision) == 12 && strings.Trim(revision, "0123456789abcdef") == "" &&
+		item.Status == StatusOpen && len(item.Steps) == 1 && item.Steps[0].ID == "do" &&
+		item.Steps[0].Status == StatusOpen && item.Steps[0].Verify == "go run ./cmd/compatibility -check"
 }
 
 func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
@@ -659,10 +750,7 @@ func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {
 		}
 		if strings.HasPrefix(item.ID, "merge-") {
 			mergeRows++
-			revision := strings.TrimPrefix(item.ID, "merge-")
-			if len(revision) != 12 || strings.Trim(revision, "0123456789abcdef") != "" ||
-				item.Status != StatusOpen || len(item.Steps) != 1 || item.Steps[0].ID != "do" ||
-				item.Steps[0].Status != StatusOpen || item.Steps[0].Verify != "go run ./cmd/compatibility -check" {
+			if !preparedMergeBoundary(item) {
 				t.Errorf("invalid prepared merge boundary %+v", item)
 			}
 			continue

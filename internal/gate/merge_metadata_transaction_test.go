@@ -27,6 +27,33 @@ func restoreInterruptedMergeForTest(repo string, intent gateCommitIntent) error 
 	return err
 }
 
+func TestGitMetadataPathsMatchGitInLinkedWorktree(t *testing.T) {
+	repo, _, _ := newIndexCASFixture(t)
+	worktree := filepath.Join(t.TempDir(), "linked worktree")
+	runGitFixture(t, repo, "worktree", "add", "--detach", worktree, "HEAD")
+	names := []string{"index", "MERGE_HEAD", "MERGE_MSG", "AUTO_MERGE", "refs/heads/metadata-test"}
+	for _, directory := range []string{repo, worktree} {
+		paths, err := gitMetadataPaths(directory, names)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range names {
+			output, err := command(directory, "git", "rev-parse", "--path-format=absolute", "--git-path", name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := filepath.Clean(strings.TrimSpace(output)); paths[name] != want {
+				t.Fatalf("%s/%s = %q, want %q", directory, name, paths[name], want)
+			}
+		}
+	}
+	for _, names := range [][]string{nil, {""}, {"MERGE_HEAD\nindex"}} {
+		if _, err := gitMetadataPaths(repo, names); err == nil {
+			t.Fatalf("accepted invalid names %q", names)
+		}
+	}
+}
+
 func TestClearCommittedMergeStateRefusesConcurrentMetadataBeforeLock(t *testing.T) {
 	repo, intent := newMergeMetadataTransactionFixture(t)
 	writeMergeMetadataFixture(t, repo, intent.Merge)

@@ -100,6 +100,7 @@ func run() error {
 	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "video frame sampling rate; unset uses recipe policy")
 	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
+	transcriptionPolicyPath := flag.String("transcription-policy", "", "strict JSON policy for an additional CPU transcription workflow; empty disables")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
 	var evaluationSuites []string
 	flag.Func("evaluation-suite", "compiled evaluation suite JSON; repeatable", func(value string) error {
@@ -120,6 +121,14 @@ func run() error {
 	explicit := clioptions.ExplicitOverrides(flag.CommandLine)
 	if flag.NArg() != 1 {
 		return errors.New("usage: server [options] <model.gguf>")
+	}
+	var transcriptionPolicy *llamaserver.TranscriptionPolicy
+	if *transcriptionPolicyPath != "" {
+		policy, err := llamaserver.LoadTranscriptionPolicy(*transcriptionPolicyPath)
+		if err != nil {
+			return fmt.Errorf("load transcription policy: %w", err)
+		}
+		transcriptionPolicy = &policy
 	}
 	apiKey := strings.TrimSpace(os.Getenv("OVERGO_API_KEY"))
 	if *apiKeyFile != "" {
@@ -184,6 +193,21 @@ func run() error {
 		defer workspaceStore.Close()
 	}
 	var workflowWorkspaces llamaserver.WorkflowWorkspaceSet
+	if transcriptionPolicy != nil {
+		if workspaceStore == nil {
+			return errors.New("transcription workspace requires a repository")
+		}
+		commit, err := runrecord.ExecutableCodeCommit(".")
+		if err != nil {
+			return fmt.Errorf("bind transcription source: %w", err)
+		}
+		workspace, err := llamaserver.NewTranscriptionWorkspace(shutdownContext, workspaceStore, *transcriptionPolicy, commit)
+		if err != nil {
+			return fmt.Errorf("open transcription workspace: %w", err)
+		}
+		defer workspace.Close(context.WithoutCancel(shutdownContext))
+		workflowWorkspaces = append(workflowWorkspaces, workspace)
+	}
 	if *trainingEnabled {
 		if rootsErr != nil {
 			return rootsErr

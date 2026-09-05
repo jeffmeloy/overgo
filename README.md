@@ -139,7 +139,7 @@ the artifacts and environments for which verification evidence exists.
   tokenization, detokenization, perplexity measurement, and sequence scoring.
 - OpenAI-compatible HTTP surfaces for Completions, Chat Completions,
   Responses, Embeddings, image generation, video generation and editing, and
-  speech generation.
+  speech generation; a bounded Audio Transcriptions subset supports CPU ASR.
 - An Anthropic Messages-compatible surface with token counting, system
   messages, image input, tool use, streaming events, and bounded local
   reasoning output.
@@ -159,6 +159,29 @@ the artifacts and environments for which verification evidence exists.
 
 Authentication and method requirements are defined per route. The generated
 [API manifest](docs/API_MANIFEST.md#routes) is the authoritative route list.
+
+CPU transcription is enabled with `-transcription-policy <policy.json>` on
+`cmd/server`; the existing positional GGUF model is still required. The strict
+[policy](internal/server/transcription_workspace.go) supplies `recipe` (the exact
+active transcription recipe ID), `memory_bytes`, and `inspection` (the existing
+[audio admission policy](internal/dataset/testdata/audio_inspection_policy.json),
+with bounds chosen for the admitted data). Startup refuses an inactive recipe;
+execution rechecks activation after session admission. The endpoint uses the
+existing bearer-authentication policy:
+
+```sh
+curl -H "Authorization: Bearer $OVERGO_API_KEY" \
+  -F "model=$TRANSCRIPTION_RECIPE_ID" -F "file=@clip.wav" \
+  http://localhost:8080/v1/audio/transcriptions
+```
+
+WAV and FLAC are decoded natively under the recipe's channel, sample-rate and
+admission constraints. The response is `{"text":"..."}`. Only `file`, `model`,
+`response_format=json`, and `stream=false` are accepted; timestamps, streaming,
+language overrides and prompt conditioning are not implemented. Uploads,
+operations and transcript runs retain OvergoDB lineage. The
+[acceptance test](internal/server/audio_transcriptions_test.go) executes a small
+encoder; it does not establish full-model WER or throughput.
 
 ### Model and artifact lifecycle
 

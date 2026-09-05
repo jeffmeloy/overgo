@@ -210,3 +210,68 @@ Merge protocol for the master worktree (see the lane merge protocol):
 - Verification after the merge: `go build ./...`,
   `go test ./internal/server -run 'TestWebUI|TestFrontPage' -count=1`, and
   `go run ./cmd/webui-lane` against a store holding a servable model.
+
+## Multimodal in and out (2026-09-05, owner directive)
+
+The owner's directive after the closeout: the GUI is multimodal in and out
+for every model and modality. Seven rows landed on the same lane branch
+after the closeout commit (`9d85697c` serve-projectors, `47af2db5`
+register-projectors, `3230c35c` library fixes, `788eea20` generation
+workspace, `e0d870f2` generation declarations, `e785c516` media roundtrip,
+`cfe9a4a2` journey modalities), and this closeout regenerates the
+simplification report over the whole lane: the JavaScript ceiling stands
+at 4728, the three generation tabs are gone, and the client names 81
+manifest routes.
+
+What the rows established, each a record rather than a statement:
+
+- The server resolves a served model's projector from its active
+  projection recipe when no `-mmproj` is given (`discovery.ActiveProjector`),
+  so the swap proxy, `overgo_gui.bat` and the lane serve image, audio and
+  video input for every model that declares it. The capability catalog
+  pages the alias projection to its end; one bounded page had hidden the
+  27B's inference activation.
+- The Library registers a projector beside or with a model (files sorted by
+  their own metadata), validates it with the model (the projector opens on
+  the host and declares its media), and activates the projection. The lane
+  store holds projection activations for Qwen3.8-27B, Qwen3.5-4B and
+  gemma-4-12B-it-fp8-native, the last two made through the route. The
+  Gemma 4 E4B projector converts to the tower form whose catalog descriptor
+  declares no media; that is a parked finding for `internal/projector`.
+- A generation workspace over the store (`internal/server/generation_store_workspace.go`)
+  lists every active media recipe with the controls its request type
+  declares (`internal/mediacapability`, the catalog extracted from
+  cmd/recipe) and executes through the same executors, publishing PNG, GIF
+  and WAV artifacts behind run records. Wan and LiveEdit list with the
+  reason no page can type their requests. The capability runtime replays an
+  identical request from its recorded artifact, so media output types
+  decode their own recorded content. The VQA activation has no executor in
+  the catalog and is a parked finding.
+- The front page renders every generation mode from the declaration (models
+  by name, refusals, controls, exported choices such as voices), runs
+  through `/generation/run` and the operation wait, and every media card
+  offers itself back as input.
+- The journey proves image in on Qwen3.5-4B (switched to by declaration),
+  image out of Un-0, the image back in and refused by Qwen2.5-0.5B with its
+  declared reason, and a speech clip out of pocket-tts with an exported
+  voice, in one real browser session.
+
+Additional facts for the master merge:
+
+- `internal/mediacapability` replaces cmd/recipe's capability files (the
+  compatibility claim `sensenova-production-image-oracle` names the moved
+  evidence path); the repoanalysis authority table declares the three
+  executor call sites; the internal/server import budget is 42; the clone
+  ceiling is 9999 under the review recorded in 788eea20.
+- `internal/dataroot` resolves the `OVERGO_DATA_ROOT` base as a working
+  directory of its own, so a base whose `local-models.json` points at data
+  in another home resolves from any tree; the lane's `build/latentvideo`
+  holds the retained Wan fixtures the moved video test reads.
+- The gate's command runner relaunches a child Windows could not start
+  (STATUS_DLL_INIT_FAILED), three attempts two seconds apart; the deferred
+  finding for that flake records the fix in 788eea20 (the finding tool
+  disposes once, so its record stays deferred). The journey's vision
+  finding likewise stays deferred by record while its closure landed in
+  cfe9a4a2.
+- The runtime event stream reconnects while anyone listens and an operation
+  wait falls back to `/operations/wait` when the stream breaks under a swap.

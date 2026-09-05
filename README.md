@@ -458,7 +458,22 @@ derived from the server, not from client configuration:
 - **Media import.** Images, audio, video, and documents attach by button,
   drop, or paste. An attachment the served capability does not accept is
   refused before upload with the declared reason; accepted media flow
-  through the same bounded media policy the APIs enforce.
+  through the same bounded media policy the APIs enforce. A model whose
+  store holds a projection activation serves its projector's media without
+  a command-line flag: the server resolves the projector's bytes from the
+  activation, so the swap proxy, the launcher, and the lane all serve
+  image, audio, and video input for every model that declares it.
+- **Generation from declarations.** A generation mode (images, video,
+  video edit, speech) reads the store's generation capabilities: every
+  model activated for the task is offered by name, a model whose request
+  no page can type is listed with the reason, and the request's own fields
+  render as controls, with the choices a model's artifact exports (a speech
+  model's voices) offered as a select. The run goes through the generic run
+  route as an operation the strip shows, and its outputs land in the thread
+  as media artifacts (PNG, GIF, WAV) with their provenance.
+- **Media back in.** Every media card offers "use as input": the artifact's
+  bytes re-enter the composer as a file of their own kind, accepted or
+  refused by the served capability like any attachment.
 - **Turn inspection.** Any turn opens in the inspector with its run record,
   and the analysis inspectors run over that turn's exact prompt and
   completion.
@@ -487,15 +502,22 @@ the prompts in `library_validation.json`, replayed exactly, published as gate
 and run evidence, and the recipe is activated with that evidence, after which
 the catalog serves the model as verified; a dataset validates by the preview
 the datasets route answers. Every stage reports its receipt as the store's
-identities.
+identities. A projector beside the model, or one named with it, registers as
+the model's projection candidate: the files sort by what each declares,
+never by name, and the validation adds a stage in which the projector opens
+on the host, declares its media, and activates with that evidence, after
+which the served model accepts the projector's media. A model already on
+disk, with an optional projector, rides the same lifecycle from the tab.
 
 ### Retained workbench
 
 The workbench tabs remain behind the front page:
 
-- **Generation workspaces.** Dedicated image, video, and speech generation
-  workspaces drive the corresponding model recipes through the same dispatch
-  the front page's modes use.
+- **Generate workspace.** One workflow tab over the store's generation
+  capabilities: every activated media model by name, a refused one marked
+  with its reason, the request's declared controls rendered by the same
+  helper the front page's modes use, and the run as an operation with its
+  receipt.
 - **Agent sessions.** Agent definitions bind a prompt, model configuration,
   tools, and policies immutably; sessions execute with native tool calling
   against the typed tool catalog. Layered authority maps bound what each
@@ -540,15 +562,19 @@ selects for every web UI change: the workbench acceptance steps, the front
 page's keyboard, motion, colour, and width contract, and a first-run journey
 against a served model through the real swap proxy. The journey proves, in
 order, that the page boots once the default model serves, that the first
-message streams a reply and fills the context meter, that an image
-attachment reaches a grounded reply from a vision-capable model or is refused
-with the declared reason, that the inspector opens over the turn with its run
-record, that an agent created through the API runs a tool step and a chat
-turn from the same composer, that the served model switches through the
-picker and the composer re-derives, and that a running turn stops from the
-composer. A leg whose prerequisite is absent (a browser, the built server, a
-servable model with bytes on disk) reports UNAVAILABLE rather than failing
-what it cannot observe.
+message streams a reply and fills the context meter, that the inspector
+opens over the turn with its run record, that an agent created through the
+API runs a tool step and a chat turn from the same composer, that an image
+attachment reaches a grounded reply from the smallest model whose store
+declares a projector (the journey switches to it by declaration) or is
+refused with the declared reason when none is declared, that the served
+model switches through the picker and the composer re-derives, that a
+running turn stops from the composer, that an image comes out of the
+cheapest declared image model as an artifact card and goes back in as the
+next attachment, and that a speech clip comes out of the declared speech
+model with a voice its artifact exports. A leg whose prerequisite is absent
+(a browser, the built server, a servable model with bytes on disk) reports
+UNAVAILABLE rather than failing what it cannot observe.
 
 ### Usage
 

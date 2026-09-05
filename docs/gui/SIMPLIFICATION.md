@@ -7,19 +7,23 @@ composer budget ratchet's definitions and the API manifest.
 | --- | ---: | ---: | ---: |
 | Shells (HTML documents) | 2 | 1 | -1 |
 | Hand-listed scripts | 32 | 7 | -25 |
-| Tab modules (mod/*.js) | 25 | 26 | +1 |
-| JavaScript lines | 4594 | 4747 | +153 |
+| Tab modules (mod/*.js) | 25 | 23 | -2 |
+| JavaScript lines | 4594 | 4728 | +134 |
 | fetch call sites | 6 | 4 | -2 |
 | Stream reader sites | 2 | 1 | -1 |
-| api.stream sites | 2 | 2 | +0 |
+| api.stream sites | 2 | 1 | -1 |
 | API manifest routes | 90 | 129 | +39 |
 | Bearer-authenticated routes | 82 | 118 | +36 |
-| Routes the client names | 45 | 82 | +37 |
+| Routes the client names | 45 | 81 | +36 |
 
 ## Behaviours the acceptance lane proved on the head
 
-- TestWebUIBrowserAcceptance (0.54s)
-- TestWebUIBrowserFrontPage (0.60s)
+- TestWebUIBrowserAcceptance (0.42s)
+- TestWebUIBrowserFrontPage (0.48s)
 - first-run journey: model Qwen2.5-0.5B-f16.gguf at C:\Users\jeffm\adaptive_new\checkpoints\overgo-hfconvert\Qwen2.5-0.5B-f16.gguf
-- vision leg: the served model accepts no images, so the refusal contract was proven instead
-- TestWebUIBrowserFirstRun (113.32s)
+- image-in leg: switched to Qwen3.5-4B-f16.gguf, image input declared true
+- image-in leg: the multimodal model answered the attached image
+- media-out leg: an image landed as an artifact card
+- media-in leg: the generated image re-entered the composer, refused=true
+- speech-out leg: a clip landed as an artifact card
+- TestWebUIBrowserFirstRun (134.98s)

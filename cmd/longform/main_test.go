@@ -21,7 +21,7 @@ func TestOptionsAndReport(t *testing.T) {
 	if _, err := parseOptions([]string{"-all", "-check", "-publish"}); err == nil {
 		t.Fatal("-check with -publish accepted")
 	}
-	options, err := parseOptions([]string{"-publish", "-show", "12", "a.gguf", "b.gguf"})
+	options, err := parseOptions([]string{"-publish", "-budget", "1m", "-show", "12", "a.gguf", "b.gguf"})
 	if err != nil || !options.Publish || options.All || options.Check || options.OutputPrefix != 12 || len(options.Models) != 2 ||
 		options.Repository != "overgodb-store" {
 		t.Fatalf("options = %+v, %v", options, err)

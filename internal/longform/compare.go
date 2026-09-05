@@ -14,9 +14,12 @@ import (
 // ceiling. A difference names the shape, so the report says which
 // context length moved.
 func Compare(record, fresh Result, floors Floors, ceiling int) Verdict {
+	if !record.Inputs.valid() || !fresh.Inputs.valid() || record.Inputs != fresh.Inputs || record.Floors != fresh.Floors || record.Floors != floors {
+		return Verdict{Reasons: []string{"comparison inputs differ or are unbound: model, corpus, tokens, protocol or floors"}}
+	}
 	var reasons []string
 	reasons = append(reasons, compareTokens("short", record.Shape.OutputIDs, fresh.Shape.OutputIDs, floors)...)
-	if delta := math.Abs(fresh.Shape.NLL - record.Shape.NLL); delta > floors.NLLTolerance {
+	if delta := math.Abs(fresh.Shape.NLL - record.Shape.NLL); math.IsNaN(delta) || math.IsInf(delta, 0) || delta > floors.NLLTolerance {
 		reasons = append(reasons, fmt.Sprintf("short: NLL moved %.4f nat/token (%.4f to %.4f), past the %.2f tolerance",
 			delta, record.Shape.NLL, fresh.Shape.NLL, floors.NLLTolerance))
 	}
@@ -34,7 +37,7 @@ func Compare(record, fresh Result, floors Floors, ceiling int) Verdict {
 		}
 		name := fmt.Sprintf("rung %d", rung.Measure.PromptTokens)
 		reasons = append(reasons, compareTokens(name, reference.OutputIDs, rung.OutputIDs, floors)...)
-		if delta := math.Abs(rung.Measure.Score.LongContextNLL - reference.Measure.Score.LongContextNLL); delta > floors.NLLTolerance {
+		if delta := math.Abs(rung.Measure.Score.LongContextNLL - reference.Measure.Score.LongContextNLL); math.IsNaN(delta) || math.IsInf(delta, 0) || delta > floors.NLLTolerance {
 			reasons = append(reasons, fmt.Sprintf("%s: NLL moved %.4f nat/token (%.4f to %.4f), past the %.2f tolerance",
 				name, delta, reference.Measure.Score.LongContextNLL, rung.Measure.Score.LongContextNLL, floors.NLLTolerance))
 		}
@@ -70,6 +73,11 @@ func equalPrefixMask(record, fresh []int32) []bool {
 
 func compareRates(name string, record, fresh Measure, floors Floors) []string {
 	var reasons []string
+	for _, rate := range []float64{record.PromptTokensPerSecond, record.DecodeTokensPerSecond, fresh.PromptTokensPerSecond, fresh.DecodeTokensPerSecond} {
+		if math.IsNaN(rate) || math.IsInf(rate, 0) || rate <= 0 {
+			return []string{fmt.Sprintf("%s: rate is absent or non-finite", name)}
+		}
+	}
 	if floor := floors.RateRegressionFraction * record.PromptTokensPerSecond; fresh.PromptTokensPerSecond < floor {
 		reasons = append(reasons, fmt.Sprintf("%s: prompt %.1f tok/s is below %.1f (%.0f%% of the record's %.1f)",
 			name, fresh.PromptTokensPerSecond, floor, 100*floors.RateRegressionFraction, record.PromptTokensPerSecond))

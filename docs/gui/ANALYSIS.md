@@ -255,7 +255,12 @@ What the rows established, each a record rather than a statement:
   and the planar source video decoded from the clip's GIF; a clip whose
   latent frames the schedule cannot chunk is refused with the admissible
   counts. The page fills the artifact id by hand until the media-reference
-  control lands. The capability runtime replays an
+  control lands. The HTTP package names neither the media executor catalog
+  nor the model intake: the launcher binds `GenerationCatalog` (executors,
+  declared controls, output content) and `LibraryIntake`
+  (`internal/libraryintake`: model files, register, validate) into the
+  server, which keeps its internal-import budget at 42 after the audio
+  merge. The capability runtime replays an
   identical request from its recorded artifact, so media output types
   decode their own recorded content. The VQA activation has no executor in
   the catalog and is a parked finding.

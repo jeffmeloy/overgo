@@ -273,7 +273,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:69d6fa0dbdda30b4cfc0d3801b0451bf9ecdb6d4de46e6556209537890d7ed94"
+     "identity": "evidence:sha256:32618ecee3337b348ff4a159ee21518bb496cd06982722b0e8897df4370061eb"
     }
    ],
    "id": "bounded-server-media",

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
+	"overgo/internal/libraryintake"
 	"overgo/internal/mediacapability"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -234,7 +235,8 @@ func run() error {
 	// Generation rides the store alone: every active media recipe with
 	// bytes on disk is a capability of any server opened over the store.
 	if workspaceStore != nil {
-		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore, mediacapability.Catalog, generationCatalogLimit))
+		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore,
+			llamaserver.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), generationCatalogLimit))
 	}
 	if len(workflowWorkspaces) > 0 {
 		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workflowWorkspaces}
@@ -356,6 +358,7 @@ func run() error {
 		Evaluation:         evaluationWorkspace,
 		AgentEmbedder:      agentRetrieval,
 		AgentReranker:      agentRetrieval,
+		LibraryIntake:      llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate},
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,
 			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,

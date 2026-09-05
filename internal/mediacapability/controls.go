@@ -25,6 +25,12 @@ type Control struct {
 	Choices []string
 }
 
+// Declared reports the control's fields as one tuple, so a consumer with
+// its own control type binds the declaration without naming this one.
+func (control Control) Declared() (name, kind string, required bool, choices []string) {
+	return control.Name, control.Type, control.Required, control.Choices
+}
+
 // choiceProviders name, per entry module, the request fields whose values
 // the model directory exports; the provider reads them from the artifact.
 var choiceProviders = map[recipe.ModuleID]func(directory string) (map[string][]string, error){

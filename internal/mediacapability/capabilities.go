@@ -31,6 +31,10 @@ type Capability struct {
 	Execute capabilityruntime.Executor
 }
 
+// Executor reports the capability's executor, so a consumer binding a
+// catalog by task names the executor without naming this type.
+func (capability Capability) Executor() capabilityruntime.Executor { return capability.Execute }
+
 // Source is what Resolve reads from a model path: the model inventory, the
 // related inventories (a projector), the component-group manifests, and the
 // definition the recipe is built from.

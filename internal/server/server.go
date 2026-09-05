@@ -255,6 +255,9 @@ type Config struct {
 	Analysis      AnalysisPolicy
 	AgentEmbedder dataset.AgentEmbeddingProvider
 	AgentReranker dataset.AgentRerankProvider
+	// LibraryIntake is the model intake the library routes drive, assembled
+	// by the launcher; absent, those routes answer that they need it.
+	LibraryIntake LibraryIntake
 }
 
 type slotRuntimeStats struct {

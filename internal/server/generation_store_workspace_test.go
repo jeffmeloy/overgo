@@ -114,7 +114,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 			return tinyPNG(t), nil
 		},
 	}}
-	workspace := NewStoreGenerationWorkspace(store, catalog, 16)
+	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
 	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("capabilities = %+v, %v", capabilities, err)
@@ -176,7 +176,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	}
 	defer store.Close()
 	ctx := t.Context()
-	workspace := NewStoreGenerationWorkspace(store, mediacapability.Catalog, 256)
+	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), 256)
 	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
 	if err != nil {
 		t.Fatal(err)

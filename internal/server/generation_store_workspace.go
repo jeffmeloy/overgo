@@ -11,13 +11,59 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/discovery"
-	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
+
+// GenerationCatalog is what the store generation workspace needs from the
+// media capability catalog, supplied by the assembly root so this package
+// names no media executor package: one executor per media task, the
+// controls a stage's request declares for a model directory, and the
+// media artifact an executor's output becomes.
+type GenerationCatalog struct {
+	Execute       map[recipe.Task]capabilityruntime.Executor
+	Controls      func(entry recipe.ModuleID, directory string) ([]WorkflowControl, string)
+	OutputContent func(output any) (artifact.Content, error)
+}
+
+// BindGenerationCatalog builds the catalog from a capability catalog's
+// executors, its control declarations and its output publisher, so the
+// launcher and the tests bind the same shape once while the catalog's own
+// types stay outside this package: a capability names its executor and a
+// control reports its declaration as one tuple.
+func BindGenerationCatalog[
+	Capability interface {
+		Executor() capabilityruntime.Executor
+	},
+	Control interface {
+		Declared() (name, kind string, required bool, choices []string)
+	},
+](
+	catalog map[recipe.Task]Capability,
+	controls func(recipe.ModuleID, string) ([]Control, string),
+	output func(any) (artifact.Content, error),
+) GenerationCatalog {
+	execute := make(map[recipe.Task]capabilityruntime.Executor, len(catalog))
+	for task, capability := range catalog {
+		execute[task] = capability.Executor()
+	}
+	return GenerationCatalog{
+		Execute: execute,
+		Controls: func(entry recipe.ModuleID, directory string) ([]WorkflowControl, string) {
+			declared, refusal := controls(entry, directory)
+			bound := make([]WorkflowControl, 0, len(declared))
+			for _, control := range declared {
+				name, kind, required, choices := control.Declared()
+				bound = append(bound, WorkflowControl{Name: name, Type: WorkflowControlType(kind), Required: required, Choices: choices})
+			}
+			return bound, refusal
+		},
+		OutputContent: output,
+	}
+}
 
 // StoreGenerationWorkspace is the generation workspace over the store
 // (professional GUI campaign, gui-generation-workspace): every active
@@ -28,13 +74,13 @@ import (
 // flag and no model name is involved.
 type StoreGenerationWorkspace struct {
 	store   *overgodb.Store
-	catalog map[recipe.Task]mediacapability.Capability
+	catalog GenerationCatalog
 	limit   int
 }
 
 // NewStoreGenerationWorkspace binds the workspace to the store and to the
 // capability catalog the recipe command shares.
-func NewStoreGenerationWorkspace(store *overgodb.Store, catalog map[recipe.Task]mediacapability.Capability, limit int) *StoreGenerationWorkspace {
+func NewStoreGenerationWorkspace(store *overgodb.Store, catalog GenerationCatalog, limit int) *StoreGenerationWorkspace {
 	return &StoreGenerationWorkspace{store: store, catalog: catalog, limit: limit}
 }
 
@@ -65,7 +111,7 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 			if capability.Stale != "" || !slices.Contains(generationTasks, capability.Task) {
 				continue
 			}
-			if _, known := workspace.catalog[capability.Task]; !known {
+			if _, known := workspace.catalog.Execute[capability.Task]; !known {
 				continue
 			}
 			selection, err := modelrecipe.ResolveActiveExecution(ctx, workspace.store, entry.Model, capability.Task, modelrecipe.SessionWarm)
@@ -79,10 +125,10 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 				continue
 			}
 			directory, _ := workspace.executionPath(ctx, entry.Model, entry.Location)
-			controls, refusal := mediacapability.Controls(stages[0].Module.ID, directory)
-			declared := make([]WorkflowControl, 0, len(controls))
-			for _, control := range controls {
-				declared = append(declared, WorkflowControl{Name: control.Name, Type: WorkflowControlType(control.Type), Required: control.Required, Choices: control.Choices})
+			var declared []WorkflowControl
+			var refusal string
+			if workspace.catalog.Controls != nil {
+				declared, refusal = workspace.catalog.Controls(stages[0].Module.ID, directory)
 			}
 			capabilities = append(capabilities, WorkflowCapability{
 				Task: capability.Task, Recipe: definition.ID, Stages: stages,
@@ -118,6 +164,9 @@ func (workspace *StoreGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if selected.Refusal != "" {
 		return operation.Completion{}, errors.New("generation workspace: " + selected.Refusal)
 	}
+	if workspace.catalog.OutputContent == nil {
+		return operation.Completion{}, errors.New("generation workspace: the catalog publishes no output")
+	}
 	path, err := workspace.executionPath(ctx, selected.Model, selected.Location)
 	if err != nil {
 		return operation.Completion{}, err
@@ -126,13 +175,13 @@ func (workspace *StoreGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	output, err := workspace.catalog[task].Execute(ctx, workspace.store, path, selection, string(raw))
+	output, err := workspace.catalog.Execute[task](ctx, workspace.store, path, selection, string(raw))
 	if err != nil {
-		return workspace.fail(ctx, recipeID, err)
+		return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", err)
 	}
-	content, err := mediacapability.OutputContent(capabilityruntime.Unwrap(output))
+	content, err := workspace.catalog.OutputContent(capabilityruntime.Unwrap(output))
 	if err != nil {
-		return workspace.fail(ctx, recipeID, err)
+		return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", err)
 	}
 	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{content.Descriptor.ID}, "")
 	if err != nil {
@@ -162,10 +211,4 @@ func (workspace *StoreGenerationWorkspace) executionPath(ctx context.Context, mo
 		return "", fmt.Errorf("generation workspace: model %s has no bytes on disk", model)
 	}
 	return filepath.Dir(location), nil
-}
-
-// fail records the failed generation as a run so the operation carries a
-// durable receipt of what did not happen.
-func (workspace *StoreGenerationWorkspace) fail(ctx context.Context, recipeID artifact.ID, cause error) (operation.Completion, error) {
-	return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", cause)
 }

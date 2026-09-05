@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
+	"overgo/internal/libraryintake"
 	"overgo/internal/overgodb"
 	"overgo/internal/testevidence"
 )
@@ -56,23 +57,23 @@ func TestFrontPageLibraryProjector(t *testing.T) {
 		t.Skip(testevidence.ShortIntegrationSkip + ": reading model files is integration")
 	}
 	modelPath, projectorPath := storedProjectorPair(t)
-	model, projector, err := libraryModelFiles(modelPath, projectorPath)
+	model, projector, err := libraryintake.ModelFiles(modelPath, projectorPath)
 	if err != nil || model != modelPath || projector != projectorPath {
-		t.Fatalf("libraryModelFiles(%s, %s) = (%s, %s, %v)", modelPath, projectorPath, model, projector, err)
+		t.Fatalf("libraryintake.ModelFiles(%s, %s) = (%s, %s, %v)", modelPath, projectorPath, model, projector, err)
 	}
-	if _, _, err := libraryModelFiles(projectorPath, ""); err == nil {
+	if _, _, err := libraryintake.ModelFiles(projectorPath, ""); err == nil {
 		t.Fatal("a projector registered as the model")
 	}
 	notes := filepath.Join(t.TempDir(), "notes.txt")
 	if err := os.WriteFile(notes, []byte("not a projector"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := libraryModelFiles(modelPath, notes); err == nil {
+	if _, _, err := libraryintake.ModelFiles(modelPath, notes); err == nil {
 		t.Fatal("a text file passed as the projector")
 	}
 	// The pair's own directory sorts into the same two files when it holds
 	// exactly that pair; a directory holding more is refused by count.
-	if dirModel, dirProjector, err := libraryModelFiles(filepath.Dir(modelPath), ""); err == nil && (dirModel != modelPath || dirProjector != projectorPath) {
+	if dirModel, dirProjector, err := libraryintake.ModelFiles(filepath.Dir(modelPath), ""); err == nil && (dirModel != modelPath || dirProjector != projectorPath) {
 		t.Fatalf("directory classification = (%s, %s)", dirModel, dirProjector)
 	}
 

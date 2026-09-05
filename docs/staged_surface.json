@@ -6,7 +6,7 @@
       "package": "overgo/internal/capabilityruntime",
       "name": "OpenAudioStream",
       "reason": "Bounded chunk, cancellation and restart contracts precede native streaming integration, which continues in the separate audio lane. Master's integration intake must remove this declaration when a landed production consumer is verified, or preserve the unresolved obligation under an explicit master validation step before completing registration. The audio task list is not imported and contract tests do not establish native streaming parity. The professional GUI lane carries master's declaration through its merge row; its next row mirrors master's register-models step so the obligation stays bound to that step until master consumes the surface.",
-      "retire_with": "merge-e1a9cc0deeac/do"
+      "retire_with": "audio-staged-surface/do"
     },
     {
       "package": "overgo/internal/testutil",

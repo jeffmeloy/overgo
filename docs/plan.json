@@ -4,23 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-workbench",
-      "title": "The analysis, agent and operations capabilities retained, and reached from the conversation",
-      "status": "open",
-      "steps": [
-        {
-          "id": "operations-strip",
-          "title": "Long operations on the front page: model load and switch, generation jobs, evaluations and training sessions show in the operations strip with progress, cancel, the live log tail of the running operation and the durable receipt, reusing operations_shell.js and /operations/evidence; the header carries status dots for the server, the swap proxy and the device (with peak memory) and the approvals inbox count, which opens the inbox",
-          "status": "open",
-          "verify": "go test ./internal/server -run 'TestFrontPageOperations' -count=1",
-          "rationale": "The operations shell already exists for the workbench; the front page must not hide a running swap or evaluation, or the health of what serves it, from the user who started it.",
-          "depends_on": [
-            "gui-shell/model-switch"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-quality",
       "title": "Professional finish: accessibility, responsiveness, and a real-browser acceptance lane for the front page",
       "status": "open",

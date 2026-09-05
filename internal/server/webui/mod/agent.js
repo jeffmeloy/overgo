@@ -36,9 +36,7 @@
       let selected = "";
       let tools = [];
       const sessions = new Map();
-      // One session per page visit, named automatically: nobody types a
-      // session identity to talk to an agent. The Advanced panel can
-      // still override it.
+      // One session per page visit, named automatically; the Advanced panel can still override it.
       const autoSession = "chat-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
 
       // The creation surface: a name, plain instructions, tool checkboxes; every identity derives at /agents/create.
@@ -123,10 +121,8 @@
         } catch (err) { showError(err); }
       });
 
-      // The conversation is the shared thread and composer (composer.js):
-      // the agent's replies arrive complete through /agents/chat and render
-      // through the same event vocabulary the streamed surfaces use, so
-      // attachments, stop, markdown and copy behave here as in Chat.
+      // The conversation is the shared thread and composer: replies arrive complete through /agents/chat
+      // and render through the same event vocabulary, so attachments, stop, markdown and copy match Chat.
       let chatThread = null;
       let chatComposer = null;
       let chatController = null;
@@ -207,10 +203,8 @@
       }
 
       function renderRetrieval() {
-        const projection = el("input", { class: "text", placeholder: "retrieval projection identity" });
-        const policy = el("input", { class: "text", placeholder: "rerank policy identity" });
-        const query = el("input", { class: "text", placeholder: "retrieval query" });
-        const limit = el("input", { class: "text", type: "number", min: "1", placeholder: "result limit" });
+        const [projection, policy, query, limit] = ["retrieval projection identity", "rerank policy identity", "retrieval query", "result limit"]
+          .map((placeholder) => el("input", { class: "text", placeholder }));
         const results = el("div");
         const search = el("button", { class: "btn", text: "Search", disabled: !selected });
         search.addEventListener("click", async () => {
@@ -250,10 +244,8 @@
         automationHost.replaceChildren(el("div", { class: "row" }, select, key, destination, run), inputs);
       }
 
-      // renderProvenance expands one step's full evidence walk: the
-      // interaction, the exact manual identity, the receipt chain from
-      // completed back to admitted, the committed decision, and the
-      // result -- every link an artifact the operator can open.
+      // renderProvenance expands one step's full evidence walk: interaction, manual identity, receipt chain
+      // from completed back to admitted, committed decision and result, every link an artifact.
       async function renderProvenance(host, session, step) {
         try {
           const walk = await api.get("/agent/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);

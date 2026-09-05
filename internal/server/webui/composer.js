@@ -213,11 +213,9 @@
     return mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : "document";
   }
 
-  // ---- composer: the input surface ----
-  // One prompt box (Enter sends, Shift+Enter newline), attach, drop or paste
-  // the kinds the capability document accepts, an attachment strip with
-  // previews and refusals, send and stop, and optional modes. Attachments
-  // become the served protocol's own content parts; there is no side channel.
+  // ---- composer: the input surface: one prompt box (Enter sends, Shift+Enter newline), attach, drop or
+  // paste the kinds the capability document accepts, an attachment strip with previews and refusals, send
+  // and stop, optional modes; attachments become the served protocol's own content parts. ----
   function composer(host, options) {
     options = options || {};
     const input = el("textarea", { class: "text", placeholder: options.placeholder || "message (Enter to send, Shift+Enter for newline)" });

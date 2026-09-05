@@ -337,3 +337,8 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 /* ---- inspect this turn: a side panel over the conversation (chat.js inspectTurn) ---- */
 .inspector { position:fixed; top:0; right:0; bottom:0; width:min(620px, 70vw); overflow:auto; background:var(--bg2); border-left:1px solid var(--line); padding:14px; z-index:5; }
 .inspector[hidden] { display:none; }
+/* ---- header status dots and the approvals count (boot.js refreshStatus, operations_shell.js) ---- */
+.dots { display:inline-flex; gap:5px; align-items:center; }
+.dot { width:9px; height:9px; border-radius:50%; background:var(--line); display:inline-block; }
+.dot.ok { background:var(--ok); } .dot.off { background:var(--faint); } .dot.err { background:var(--err); }
+#inbox-count { cursor:pointer; color:var(--amber); }

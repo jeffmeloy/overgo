@@ -154,13 +154,7 @@
             progress.max = total;
             progress.value = current.progress.completed;
           }
-          const table = el("table", { class: "grid metric-grid" });
-          table.appendChild(el("tr", {}, el("th", { text: "measurement" }), el("th", { text: "value" })));
-          for (const metric of current.metrics || []) {
-            table.appendChild(el("tr", {},
-              el("td", { text: metric.name }),
-              el("td", { class: "mono", text: String(metric.value) + (metric.unit ? " " + metric.unit : "") })));
-          }
+          const table = overgo.table(["measurement", "value"], (current.metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : "")]), "metric-grid");
           metrics.replaceChildren(...((current.metrics || []).length ? [table] : []));
         }
         run.addEventListener("click", async () => {

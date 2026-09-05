@@ -42,9 +42,8 @@
       let controller = null;
       let lastResponseID = "";
 
-      // Agent mode: the active agent definitions the store holds. A turn in
-      // this mode runs the same thread through /agents/chat, and the shared
-      // tool-step surface (composer.js) runs the session's tool steps inline.
+      // Agent mode: the active definitions the store holds; a turn runs the same thread through /agents/chat
+      // and the shared tool-step surface runs the session's tool steps inline.
       let agents = [];
       let tools = [];
       try { agents = (await overgo.api.get("/agents")).filter((item) => item.state === "active"); } catch (_) { /* no agent runtime */ }

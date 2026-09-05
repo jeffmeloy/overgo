@@ -56,13 +56,8 @@
         }
         const state = item.state || {};
         const capacity = item.capacity || {};
-        const actions = el("div", { class: "row" });
-        if (state.state === "active") actions.appendChild(el("button", {
-          class: "btn alt", text: "Drain", onclick: () => transition(item.peer, "draining"),
-        }));
-        if (state.state === "draining") actions.appendChild(el("button", {
-          class: "btn alt", text: "Retire after drain", onclick: () => transition(item.peer, "retired"),
-        }));
+        const actions = el("div", { class: "row" }, ...[["active", "Drain", "draining"], ["draining", "Retire after drain", "retired"]]
+          .filter(([from]) => state.state === from).map(([, text, to]) => el("button", { class: "btn alt", text, onclick: () => transition(item.peer, to) })));
         detailHost.replaceChildren(el("div", { class: "card" },
           el("strong", { text: item.enrollment.name }), " / ", el("span", { text: state.state || "unknown" }),
           el("div", { class: "mono", text: item.peer }),

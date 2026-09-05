@@ -48,7 +48,9 @@
 
   const api = {
     async get(path, opts) {
-      return readJSON(await fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
+      const response = await fetch(path, { headers: authHeaders(), signal: opts && opts.signal });
+      if (opts && opts.onHeaders) opts.onHeaders(response.headers);
+      return readJSON(response);
     },
     async post(path, body, opts) {
       return readJSON(await fetch(path, {
@@ -430,13 +432,21 @@
     tab.panel.appendChild(errorBanner(String(err && err.message || err)));
   }
 
+  // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
+  function dot(id, state, title) {
+    const node = document.getElementById(id);
+    if (node) { node.className = "dot " + state; node.title = title; }
+  }
   async function refreshStatus() {
     const statusPill = document.getElementById("status-pill");
     const modelPill = document.getElementById("model-pill");
     try {
-      const health = await api.get("/health");
+      const health = await api.get("/health", { onHeaders: (headers) => dot("proxy-dot", headers.has("X-Overgo-Swap-Proxy") ? "ok" : "off",
+        headers.has("X-Overgo-Swap-Proxy") ? "swap proxy serving " + headers.get("X-Overgo-Swap-Proxy") : "no swap proxy: served directly") });
       statusPill.textContent = "online";
       statusPill.className = "pill ok";
+      dot("server-dot", "ok", "server online");
+      dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
       if (health && health.model) {
         modelPill.textContent = health.model;
         const catalog = await api.get("/catalog/models").catch(() => null);
@@ -447,6 +457,7 @@
     } catch (err) {
       statusPill.textContent = "offline";
       statusPill.className = "pill err";
+      dot("server-dot", "err", "server offline");
     }
   }
 
@@ -466,6 +477,8 @@
     async function swapModel(item, name, button) {
       const before = modelPill.textContent;
       const started = Date.now();
+      const chip = { id: "swap-" + name, task: "model switch " + name, state: "running", progress: {} };
+      window.overgo.localOperation(chip);
       button.disabled = true;
       const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, 1000);
       try {
@@ -477,11 +490,13 @@
           workspaceManifest = await api.get("/workspace/manifest");
           capabilityDocument = workspaceManifest.model || null;
           remountActive();
+          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served after " + Math.round((Date.now() - started) / 1000) + "s" }));
           const elapsed = Math.round((Date.now() - started) / 1000);
           panel.replaceChildren(el("div", { class: "note", text: "now serving " + modelPill.textContent + " after " + elapsed + "s · " +
             (capabilityDocument ? "context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
           return;
         }
+        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "no swap proxy" }));
         const command = 'overgo_gui.bat "' + (item.location || name) + '"';
         const copy = el("button", { class: "btn alt", text: "copy launch" });
         copy.addEventListener("click", () => navigator.clipboard.writeText(command));
@@ -489,6 +504,7 @@
           el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
           el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
       } catch (err) {
+        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: friendlyError(err) }));
         panel.replaceChildren(errorBanner(friendlyError(err)));
       } finally {
         clearInterval(timer);

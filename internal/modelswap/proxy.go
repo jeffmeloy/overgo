@@ -60,6 +60,9 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		request.Body = io.NopCloser(bytes.NewReader(body))
 		request.ContentLength = int64(len(body))
 	}
+	// Every proxied answer names the proxy, so a shell behind it can show the
+	// swap capability and a shell served directly can say it is absent.
+	response.Header().Set("X-Overgo-Swap-Proxy", servable.Name)
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
 	proxy.FlushInterval = -1
 	proxy.ServeHTTP(response, request)

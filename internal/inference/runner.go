@@ -41,6 +41,10 @@ type PromptEvaluation struct {
 type GenerateOptions struct {
 	MaxNewTokens int
 	Sampler      *sampling.Sampler
+	// ContinueAfterEOG keeps sampled EOG tokens and continues to MaxNewTokens.
+	// Intended for fixed-budget measurements; callbacks, cancellation and explicit
+	// stop sequences still stop generation. The default preserves natural stopping.
+	ContinueAfterEOG bool
 	// DeviceGreedy: device argmax; TokenEvent.Logits omitted.
 	DeviceGreedy bool
 	// SpeculativeDecode: NextN MTP speculation under raw-greedy device

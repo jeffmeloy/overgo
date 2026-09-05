@@ -65,7 +65,7 @@ func TestCompareNamesTheShapeThatMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	record.Inputs = BindInputs(model, "corpus", []tokenizer.TokenID{1, 2, 3})
+	record.Inputs = BindInputs(model, "corpus", []tokenizer.TokenID{1, 2, 3}, RawContinuation)
 	if verdict := Compare(record, record, floors, 0); !verdict.Passed {
 		t.Fatalf("identical run = %+v", verdict)
 	}

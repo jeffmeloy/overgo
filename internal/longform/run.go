@@ -103,13 +103,13 @@ type Rung struct {
 }
 
 // Short runs the SHORT shape on the corpus tokens.
-func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.TokenID, floors Floors) (ShortShape, error) {
+func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.TokenID, floors Floors, protocol Protocol) (ShortShape, error) {
 	if len(corpus) < floors.ShortPromptTokens+floors.ShortOutputTokens {
 		return ShortShape{}, fmt.Errorf("longform: the corpus holds %d tokens, fewer than the short shape's %d", len(corpus), floors.ShortPromptTokens+floors.ShortOutputTokens)
 	}
 	prompt := corpus[:floors.ShortPromptTokens]
 	continuation := corpus[floors.ShortPromptTokens : floors.ShortPromptTokens+floors.ShortOutputTokens]
-	generation, err := Run(ctx, runner, prompt, floors.ShortOutputTokens)
+	generation, err := Run(ctx, runner, prompt, floors.ShortOutputTokens, protocol)
 	if err != nil {
 		return ShortShape{}, err
 	}
@@ -130,12 +130,12 @@ func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.Tok
 // score on the corpus prefix of the rung's length; it stops after the
 // rung whose prefill ran past the rung budget, and reports why it
 // stopped when it did not climb every planned rung.
-func Ladder(ctx context.Context, runner *inference.Runner, corpus []tokenizer.TokenID, rungs []int, floors Floors, progress func(Rung) string) ([]Rung, string, error) {
+func Ladder(ctx context.Context, runner *inference.Runner, corpus []tokenizer.TokenID, rungs []int, floors Floors, protocol Protocol, progress func(Rung) string) ([]Rung, string, error) {
 	var climbed []Rung
 	for index, length := range rungs {
 		prompt := corpus[:length]
 		continuation := corpus[length : length+floors.ScoreTokens]
-		generation, err := Run(ctx, runner, prompt, floors.OutputTokens)
+		generation, err := Run(ctx, runner, prompt, floors.OutputTokens, protocol)
 		if err != nil {
 			if index == 0 {
 				return nil, "", err
@@ -208,24 +208,24 @@ const warmupTokens = 4
 
 // Warm runs the prompt once with a short decode so the measured run
 // reads steady-state rates.
-func Warm(ctx context.Context, runner *inference.Runner, prompt []tokenizer.TokenID) error {
-	_, err := Run(ctx, runner, prompt, warmupTokens)
+func Warm(ctx context.Context, runner *inference.Runner, prompt []tokenizer.TokenID, protocol Protocol) error {
+	_, err := Run(ctx, runner, prompt, warmupTokens, protocol)
 	return err
 }
 
 // Run prefills the prompt and decodes greedily up to the output budget,
 // timing the prompt evaluation and the decode separately the way the
 // benchmark does, and reads the degeneration measures off the tokens.
-// End-of-generation is not banned: a model that stops early is recorded
-// as stopped, and the verdict reads the stop.
-func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.TokenID, outputTokens int) (Generation, error) {
+// RawContinuation retains natural stopping; GuardContinuation continues past
+// sampled EOG tokens so the guard measures its full budget on the same path.
+func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.TokenID, outputTokens int, protocol Protocol) (Generation, error) {
 	if runner == nil {
 		return Generation{}, errors.New("longform: runner is nil")
 	}
 	if len(prompt) == 0 || outputTokens <= 0 {
 		return Generation{}, errors.New("longform: the run needs a prompt and an output budget")
 	}
-	sampler, err := sampling.New(sampling.Config{Temperature: 0})
+	options, err := generationOptions(protocol, outputTokens)
 	if err != nil {
 		return Generation{}, err
 	}
@@ -239,23 +239,19 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 	// runner has none and the counts stay zero.
 	before, _ := runner.DeviceExecutionStats(ctx)
 	started := time.Now()
-	_, _, err = runner.Generate(ctx, "", inference.GenerateOptions{
-		MaxNewTokens:   outputTokens,
-		Sampler:        sampler,
-		DeviceGreedy:   true,
-		PromptTokenIDs: prompt,
-		OnPromptEvaluated: func(value inference.PromptEvaluation) {
-			evaluation = value
-			afterPrompt, _ = runner.DeviceExecutionStats(ctx)
-		},
-		OnToken: func(event inference.TokenEvent) error {
-			if firstToken.IsZero() {
-				firstToken = time.Now()
-			}
-			tokens = append(tokens, event.ID)
-			return nil
-		},
-	})
+	options.PromptTokenIDs = prompt
+	options.OnPromptEvaluated = func(value inference.PromptEvaluation) {
+		evaluation = value
+		afterPrompt, _ = runner.DeviceExecutionStats(ctx)
+	}
+	options.OnToken = func(event inference.TokenEvent) error {
+		if firstToken.IsZero() {
+			firstToken = time.Now()
+		}
+		tokens = append(tokens, event.ID)
+		return nil
+	}
+	_, _, err = runner.Generate(ctx, "", options)
 	finished := time.Now()
 	if err != nil {
 		return Generation{}, err
@@ -291,4 +287,13 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 		return Generation{}, err
 	}
 	return Generation{Tokens: tokens, Text: text, Measure: measure}, nil
+}
+
+func generationOptions(protocol Protocol, outputTokens int) (inference.GenerateOptions, error) {
+	if err := protocol.validate(); err != nil {
+		return inference.GenerateOptions{}, err
+	}
+	sampler, err := sampling.New(sampling.Config{Temperature: 0})
+	return inference.GenerateOptions{MaxNewTokens: outputTokens, Sampler: sampler, DeviceGreedy: true,
+		ContinueAfterEOG: protocol == GuardContinuation}, err
 }

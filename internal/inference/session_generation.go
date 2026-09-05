@@ -81,7 +81,7 @@ func (r *Runner) ContinueSession(
 	}
 	ids := slices.Clone(session.TokenIDs)
 	cache := session.Cache
-	if options.MaxNewTokens > 0 && !r.vocab.IsEOG(ids[len(ids)-1]) {
+	if options.MaxNewTokens > 0 && (options.ContinueAfterEOG || !r.vocab.IsEOG(ids[len(ids)-1])) {
 		var err error
 		ids, cache, err = r.generateCachedHost(
 			ctx, ids, reference.Value{}, cache, options, true, 0, -1,

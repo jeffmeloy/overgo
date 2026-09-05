@@ -91,6 +91,9 @@ func bindBaselines(ctx context.Context, options options, targets []target) error
 // A legacy admission record cannot silently become a memory regression guard.
 func validateGuard(result longform.Result) error {
 	floors := longform.DeclaredFloors()
+	if result.Inputs.Protocol != longform.GuardContinuation {
+		return errors.New("guard: requires the explicit fixed-budget generation protocol")
+	}
 	if result.Floors != floors || !result.Verdict.Passed || len(result.Verdict.Reasons) != 0 {
 		return errors.New("guard: failed verdict or changed declared floors")
 	}
@@ -123,7 +126,12 @@ func validateGuard(result longform.Result) error {
 	var previousPeak uint64
 	for index, shape := range shapes {
 		measure := shape.Measure
-		if measure.OutputTokens != len(shape.OutputIDs) || len(shape.OutputIDs) < max(floors.IdenticalTokens, floors.MinimumOutputTokens) {
+		expectedOutput := floors.OutputTokens
+		if index == 0 {
+			expectedOutput = floors.ShortOutputTokens
+		}
+		if measure.OutputTokens != len(shape.OutputIDs) || measure.OutputTokens != expectedOutput || measure.StoppedEarly ||
+			len(shape.OutputIDs) < max(floors.IdenticalTokens, floors.MinimumOutputTokens) {
 			return fmt.Errorf("guard: prompt %d lacks its declared output fingerprint", measure.PromptTokens)
 		}
 		memory := measure.Memory

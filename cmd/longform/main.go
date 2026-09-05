@@ -94,7 +94,7 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.Publish, "publish", false, "commit each result as long-form evidence with a verification claim (requires a clean worktree)")
 	flags.BoolVar(&result.All, "all", false, "run every servable text model, smallest first")
 	flags.BoolVar(&result.Check, "check", false, "measure a fresh ladder against explicit -baseline records on the fixed -corpus; exit 1 on a regression")
-	flags.BoolVar(&result.Guard, "guard", false, "bound the ladder to the declared regression ceiling and require complete recipe-bound quality, rate and allocation evidence")
+	flags.BoolVar(&result.Guard, "guard", false, "continue past sampled EOG to measure full output budgets on the same greedy device path; require complete recipe-bound quality, rate and allocation evidence through the regression ceiling")
 	flags.BoolVar(&result.ValidateBaselines, "validate-baselines", false, "read-only acceptance of explicit current-surface guard records; does not load models or measure CUDA")
 	flags.IntVar(&result.OutputPrefix, "show", 240, "characters of the judged generation to print")
 	flags.StringVar(&result.Corpus, "corpus", "", "fixed UTF-8 corpus file; required for -check")
@@ -417,11 +417,15 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		reportMemory(output, name, memory)
 	}
 	stage(fmt.Sprintf("loaded, %d corpus tokens, rungs %v", len(corpus), rungs))
-	if err := longform.Warm(ctx, runner, corpus[:rungs[0]]); err != nil {
+	protocol := longform.RawContinuation
+	if options.Guard {
+		protocol = longform.GuardContinuation
+	}
+	if err := longform.Warm(ctx, runner, corpus[:rungs[0]], protocol); err != nil {
 		return longform.Result{}, err
 	}
 	stage("warm")
-	shape, err := longform.Short(ctx, runner, corpus, floors)
+	shape, err := longform.Short(ctx, runner, corpus, floors, protocol)
 	if err != nil {
 		return longform.Result{}, err
 	}
@@ -430,7 +434,7 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 	// when that growth would not fit the device's memory, since a rung
 	// past it thrashed the E4B at its 65536 rung with the device full.
 	previous := uint64(0)
-	climbed, stop, err := longform.Ladder(ctx, runner, corpus, rungs, floors, func(rung longform.Rung) string {
+	climbed, stop, err := longform.Ladder(ctx, runner, corpus, rungs, floors, protocol, func(rung longform.Rung) string {
 		measure := rung.Measure
 		reportMemory(output, fmt.Sprintf("rung %d: prompt %.1f tok/s, decode %.1f tok/s, gain %.3f", measure.PromptTokens,
 			measure.PromptTokensPerSecond, measure.DecodeTokensPerSecond, measure.Score.ContextGain), measure.Memory)
@@ -471,7 +475,7 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 	}
 	result := longform.Result{
 		Program: description.Identity, Device: options.deviceInfo, ContextLength: properties.ContextLength,
-		Inputs:    longform.BindInputs(target.weights, text, corpus),
+		Inputs:    longform.BindInputs(target.weights, text, corpus, protocol),
 		ModelPath: properties.Path, ModelName: properties.Name, Architecture: properties.Architecture, FileType: properties.FileType,
 		Commit: commit, Surface: surface, PromptSource: options.Corpus,
 		Measure: judged.Measure, Short: target.short, Floors: floors,
@@ -498,6 +502,7 @@ func publish(ctx context.Context, repository string, model artifact.ID, result l
 // the head of the judged output so a reader sees what the model wrote,
 // not only how fast.
 func report(output io.Writer, result longform.Result, prefix int) {
+	fmt.Fprintf(output, "  protocol: %s\n", result.Inputs.Protocol)
 	fmt.Fprintf(output, "  short %d->%d tok: NLL %.3f, decode %.1f tok/s\n",
 		result.Shape.PromptTokens, len(result.Shape.OutputIDs), result.Shape.NLL, result.Shape.Measure.DecodeTokensPerSecond)
 	reportMemory(output, "short", result.Shape.Measure.Memory)

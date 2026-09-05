@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"io"
 	"math"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,6 +24,7 @@ import (
 func guardResult(t *testing.T) longform.Result {
 	t.Helper()
 	r := contractResult(t, "guard")
+	r.Inputs.Protocol = longform.GuardContinuation
 	id := func(kind artifact.Kind) artifact.ID {
 		value, _, err := artifact.Identify(kind, strings.NewReader("guard fixture"))
 		if err != nil {
@@ -55,11 +59,27 @@ func guardResult(t *testing.T) longform.Result {
 }
 
 func TestGuardEvidenceContract(t *testing.T) {
+	t.Run("frozen measured corpus", func(t *testing.T) {
+		corpus, err := os.ReadFile("testdata/guard-corpus.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Exact bytes measured by the Qwen/E4B records at 3a75f6fb.
+		if digest := fmt.Sprintf("%x", sha256.Sum256(corpus)); digest != "0968f131791aca99b7526836c9e8f643b2e63777a85353d42c36ecad49e0d29b" {
+			t.Fatalf("frozen measurement corpus changed: %s", digest)
+		}
+	})
 	t.Run("complete guard and rejected evidence", func(t *testing.T) {
 		if err := validateGuard(guardResult(t)); err != nil {
 			t.Fatal(err)
 		}
 		for name, mutate := range map[string]func(*longform.Result){
+			"natural stop protocol": func(r *longform.Result) { r.Inputs.Protocol = longform.RawContinuation },
+			"incomplete budget": func(r *longform.Result) {
+				r.Rungs[0].OutputIDs = r.Rungs[0].OutputIDs[:r.Floors.IdenticalTokens]
+				r.Rungs[0].Measure.OutputTokens = r.Floors.IdenticalTokens
+			},
+			"early stop":          func(r *longform.Result) { r.Shape.Measure.StoppedEarly = true },
 			"legacy identity":     func(r *longform.Result) { r.Program = modelrecipe.ProgramIdentity{} },
 			"wrong identity kind": func(r *longform.Result) { r.Program.Profile = r.Program.Model },
 			"missing allocation":  func(r *longform.Result) { r.Shape.Measure.Memory = driver.MemoryStats{} },

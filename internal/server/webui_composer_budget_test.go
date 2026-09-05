@@ -15,8 +15,8 @@ import (
 const (
 	webuiStreamReaderCeiling = 1    // response.body.getReader(): boot.js sseEvents, the one stream reader
 	webuiRawFetchCeiling     = 4    // fetch(: boot.js api client only
-	webuiAPIStreamCeiling    = 2    // api.stream(: chat and speech
-	webuiJavaScriptCeiling   = 4726 // total lines under webui/
+	webuiAPIStreamCeiling    = 1    // api.stream(: chat
+	webuiJavaScriptCeiling   = 4729 // total lines under webui/
 )
 
 func webuiJavaScript(t *testing.T) map[string]string {
@@ -58,9 +58,9 @@ func TestWebUIComposerBudget(t *testing.T) {
 		}
 	}
 	// Every surface that talks to the served model uses the shared pieces.
-	for _, module := range []string{"mod/chat.js", "mod/agent.js", "mod/image.js", "mod/video.js", "mod/speech.js"} {
+	for _, module := range []string{"mod/chat.js", "mod/agent.js"} {
 		source := sources[module]
-		if !strings.Contains(source, "overgo.generationTab(") && (!strings.Contains(source, "overgo.composer(") || !strings.Contains(source, "overgo.thread(")) {
+		if !strings.Contains(source, "overgo.composer(") || !strings.Contains(source, "overgo.thread(") {
 			t.Errorf("%s does not use the shared composer and thread", module)
 		}
 		if strings.Contains(source, "getReader()") || strings.Contains(source, "FileReader") {

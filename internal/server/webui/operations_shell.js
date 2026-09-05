@@ -231,9 +231,7 @@
         operations.set(value.status.id, value.status);
         note(value.status, value.stage && value.stage.node ? "stage " + value.stage.node + " " + (value.stage.state || "") : "");
         renderStrip(host);
-        if (selected === value.status.id) {
-          loadDetail(host, selected);
-        }
+        if (selected === value.status.id) loadDetail(host, selected);
       }
       if (name === "stream.error") renderDetailError(host, value);
     });

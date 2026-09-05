@@ -10,14 +10,16 @@ import (
 )
 
 // TestFrontPageModalities pins modality-adaptive inference (professional
-// GUI campaign, gui-multimodal/dynamic-inference): the front page's modes
-// are the capability document's enabled modes and nothing else, every
-// generation mode rides one shared dispatch in composer.js that the
-// generation tabs are thin wrappers over, generated media names its
-// artifact for provenance (speech through a response header, images and
-// video through their artifact URLs), a mode the served recipe lacks is
-// refused by the server with a typed error, and a model switch re-derives
-// the page from the refreshed capability document without a reload.
+// GUI campaign, gui-multimodal/dynamic-inference, revised by
+// gui-generation-declarations): the front page's modes are the capability
+// document's enabled modes and nothing else, every generation mode rides
+// one shared dispatch in composer.js that runs the declared capability
+// through the generic run route, generated media names its artifact for
+// provenance through its artifact URL (the native speech route still
+// names its artifact in a header for API clients), a mode the served
+// recipe lacks is refused by the server with a typed error, and a model
+// switch re-derives the page from the refreshed capability document
+// without a reload.
 func TestFrontPageModalities(t *testing.T) {
 	handler, workspace, _, _ := nativeMediaProtocolFixture(t)
 
@@ -54,24 +56,17 @@ func TestFrontPageModalities(t *testing.T) {
 	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }
 	composer := get("/composer.js")
 	for _, needle := range []string{
-		"async function* generate(", "function generationTab(", `"/v1/images/generations"`, `"/v1/videos/generations"`,
-		`"/v1/videos/edits"`, `"/v1/audio/speech"`, `"/v1/embeddings"`, `"/v1/rerank"`, `"X-Overgo-Artifact"`,
-		"artifactOf(item.url)", "overgo.artifactLink(event.artifact)", "options.modes.length > 1",
+		"async function* generate(", "async function* generation(", `"/generation/run"`,
+		`"/v1/embeddings"`, `"/v1/rerank"`, "artifactOf(item.url)", "overgo.artifactLink(event.artifact)", "options.modes.length > 1",
 	} {
 		if !strings.Contains(composer, needle) {
 			t.Errorf("composer missing %q", needle)
 		}
 	}
 	chat := get("/mod/chat.js")
-	for _, needle := range []string{"modes: (capabilities.modes || []).filter((mode) => mode.enabled)", "overgo.generate(mode, text, parts, controller.signal)"} {
+	for _, needle := range []string{"modes: (capabilities.modes || []).filter((mode) => mode.enabled)", "overgo.generate(mode, text, parts, controller.signal, selection)"} {
 		if !strings.Contains(chat, needle) {
 			t.Errorf("chat missing %q", needle)
-		}
-	}
-	for _, module := range []string{"/mod/image.js", "/mod/speech.js", "/mod/video.js"} {
-		source := get(module)
-		if !strings.Contains(source, "window.overgo.generationTab(") || strings.Contains(source, "api.post(") || strings.Contains(source, "/v1/") {
-			t.Errorf("%s is not a thin wrapper over the shared dispatch", module)
 		}
 	}
 	boot := get("/boot.js")

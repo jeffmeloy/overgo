@@ -86,7 +86,7 @@ func TestWebUIOneShell(t *testing.T) {
 		t.Errorf("GET /probe.js status = %d, want 404: the landing probe is gone", response.Code)
 	}
 	manifest := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
-	if manifest.Code != http.StatusOK || !strings.Contains(manifest.Body.String(), `"module":"image"`) {
+	if manifest.Code != http.StatusOK || !strings.Contains(manifest.Body.String(), `"module":"discovery"`) {
 		t.Fatalf("manifest does not publish tab modules: %d %s", manifest.Code, manifest.Body.String())
 	}
 }

@@ -31,10 +31,24 @@
     yield { type: "done" };
   }
 
-  // blob: a raw media body (speech synthesis) as one media event, with the artifact it was stored as.
-  async function* blob(kind, body, caption, artifact) {
-    yield { type: "media", kind, url: URL.createObjectURL(body), caption, bytes: body.size, mime: body.type, artifact };
-    yield { type: "done" };
+  // outputKind: the media kind a generation task's output is rendered as; the
+  // task vocabulary is the server's (recipe tasks), not a list of models.
+  function outputKind(task) {
+    return task === "speech" ? "audio" : task.startsWith("video") ? "video" : "image";
+  }
+
+  // generation: one run of a declared capability through the generic run route:
+  // the operation's outputs land as media events, each an artifact with provenance.
+  async function* generation(selection, text, signal) {
+    const { capability, fields } = selection;
+    const { input, missing } = overgo.controlValues(fields);
+    const textControl = (capability.controls || []).find((control) => control.type === "text" && (control.name === "prompt" || control.name === "text"));
+    if (textControl) { input[textControl.name] = text; missing.delete(textControl.name); }
+    if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
+    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input }, { signal });
+    const completed = await overgo.waitOperation(accepted.operation, null, signal);
+    if (completed.state !== "completed") { yield { type: "error", message: completed.failure || completed.state }; return; }
+    yield* media(outputKind(capability.task), { data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) }, text);
   }
 
   // responses: the Responses API SSE events (follow replays them too): deltas, function-call items, usage, failures.
@@ -237,7 +251,9 @@
     const modeSelect = options.modes && options.modes.length > 1
       ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label })))
       : null;
-    const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, ...(options.controls || []));
+    // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
+    const modeHost = el("span", { class: "row mode-controls" });
+    const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, modeHost, ...(options.controls || []));
     const element = el("div", { class: "composer" }, input, attachmentHost, controls);
     host.appendChild(element);
 
@@ -312,7 +328,7 @@
       if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); }
     });
     return {
-      element, input, attachments, attachmentParts, setBusy, addFile,
+      element, input, attachments, attachmentParts, setBusy, addFile, modeHost,
       clearAttachments() { attachments.length = 0; renderAttachments(); },
       openPicker() { picker.click(); },
       clearInput() { input.value = ""; },
@@ -326,22 +342,12 @@
   }
 
   // generate: one request per composer mode beyond chat, answered in the event
-  // vocabulary; the front page's modes and the generation tabs share it.
-  async function* generate(mode, text, parts, signal) {
+  // vocabulary; the front page's modes and the generation tabs share it. A
+  // generation mode carries the declared capability the page selected and the
+  // controls it typed; nothing about a task's request lives here.
+  async function* generate(mode, text, parts, signal, selection) {
     const api = overgo.api;
-    if (mode === "image-gen") { yield* media("image", await api.post("/v1/images/generations", { prompt: text }, { signal }), text); return; }
-    if (mode === "video-gen") { yield* media("video", await api.post("/v1/videos/generations", { prompt: text }, { signal }), text); return; }
-    if (mode === "video-edit") {
-      const source = parts.find((part) => part.type === "input_video");
-      if (!source) { yield { type: "error", message: "attach the source video first" }; return; }
-      yield* media("video", await api.post("/v1/videos/edits", { prompt: text, source: source.input_video.data }, { signal }), text);
-      return;
-    }
-    if (mode === "speech") {
-      const response = await api.stream("/v1/audio/speech", { input: text }, { signal });
-      yield* blob("audio", await response.blob(), text, response.headers.get("X-Overgo-Artifact") || "");
-      return;
-    }
+    if (selection && selection.capability) { yield* generation(selection, text, signal); return; }
     if (mode === "embeddings") {
       const result = await api.post("/v1/embeddings", { input: text }, { signal });
       const vector = ((result.data || [])[0] || {}).embedding || [];
@@ -421,41 +427,12 @@
     return { setAgent, guard };
   }
 
-  // generationTab: a workbench tab that is one composer mode over its own thread.
-  function generationTab(id, mode, options) {
-    overgo.registerTab({
-      id,
-      mount(panel) {
-        clear(panel);
-        let controller = null;
-        const thread = overgo.thread(panel);
-        const composer = overgo.composer(panel, Object.assign({
-          onStop: () => { if (controller) controller.abort(); },
-          onSubmit: async (text, attachments) => {
-            if (controller) return;
-            controller = new AbortController();
-            composer.setBusy(true);
-            thread.add("user", userLine(text, attachments));
-            const parts = composer.attachmentParts();
-            composer.clearInput();
-            composer.clearAttachments();
-            try {
-              await thread.consume(generate(mode, text, parts, controller.signal));
-            } catch (err) {
-              thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err));
-            } finally { controller = null; composer.setBusy(false); }
-          },
-        }, options));
-      },
-    });
-  }
 
   overgo.thread = thread;
   overgo.composer = composer;
-  overgo.streams = { reply, media, blob, responses };
+  overgo.streams = { reply, media, responses };
   overgo.userLine = userLine;
   overgo.generate = generate;
-  overgo.generationTab = generationTab;
   overgo.toolStep = toolStep;
   overgo.mediaPlayer = mediaPlayer;
   overgo.mediaKind = mediaKind;

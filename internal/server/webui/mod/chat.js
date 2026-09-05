@@ -73,12 +73,39 @@
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
-        onMode: (mode) => { agentHost.hidden = mode !== "agent"; },
+        onMode: (mode) => { agentHost.hidden = mode !== "agent"; renderMode(mode); },
         controls: [reset,
           el("span", { class: "note", text: "temp" }), temperature,
           el("span", { class: "note", text: "max tokens" }), maxTokens],
       });
       panel.insertBefore(agentHost, composer.element);
+
+      // A generation mode renders what its capability declares: the models
+      // activated for the task (a refused one says why) and the request's
+      // controls, read from the generation capabilities, never from a list
+      // typed here; the message body feeds the declared text control.
+      const generation = { capabilities: null, capability: null, fields: new Map() };
+      async function renderMode(mode) {
+        generation.capability = null;
+        composer.modeHost.replaceChildren();
+        if (!mode || mode === "chat" || mode === "agent") return;
+        try {
+          if (!generation.capabilities) generation.capabilities = await overgo.api.get("/generation/capabilities");
+        } catch (err) { composer.modeHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
+        const declared = generation.capabilities.filter((capability) => capability.task === mode);
+        if (!declared.length) return;
+        const controlsHost = el("span", { class: "row" });
+        const picker = el("select", { class: "text", style: "width:auto", "aria-label": "generation model" }, ...declared.map((capability) => el("option", {
+          value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
+        const select = () => {
+          generation.capability = declared.find((capability) => capability.recipe === picker.value && !capability.refusal) || null;
+          const typed = generation.capability ? generation.capability.controls.filter((control) => !(control.type === "text" && (control.name === "prompt" || control.name === "text"))) : [];
+          generation.fields = overgo.controlInputs(controlsHost, typed);
+        };
+        picker.addEventListener("change", select);
+        composer.modeHost.append(picker, controlsHost);
+        select();
+      }
       const toolSurface = agents.length ? overgo.toolStep(agentHost, {
         agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker],
         onError: (err) => thread.errorRow(overgo.friendlyError(err)),
@@ -177,7 +204,11 @@
             histories.set(agentPicker.value, history);
             return;
           }
-          if (mode && mode !== "chat") { await thread.consume(overgo.generate(mode, text, parts, controller.signal)); return; }
+          if (mode && mode !== "chat") {
+            const selection = generation.capability ? { capability: generation.capability, fields: generation.fields } : null;
+            await thread.consume(overgo.generate(mode, text, parts, controller.signal, selection));
+            return;
+          }
           assistant = thread.add("assistant", "");
           const request = { model: modelID, input: responsesInput(text, parts), stream: true, store: true };
           if (lastResponseID) request.previous_response_id = lastResponseID;

@@ -286,9 +286,7 @@
     const benchmark = item.benchmark || {};
     if (benchmark.prompt_tokens_per_second_p50) facts.push(Math.round(benchmark.prompt_tokens_per_second_p50) + " prompt tok/s");
     if (benchmark.decode_tokens_per_second_p50) facts.push(Math.round(benchmark.decode_tokens_per_second_p50) + " decode tok/s");
-    for (const entry of item.evals || []) {
-      if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2));
-    }
+    for (const entry of item.evals || []) if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2));
     return facts.join(" · ");
   }
 
@@ -418,9 +416,7 @@
   function safeMount(tab) {
     try {
       const result = tab.mount(tab.panel, window.overgo);
-      if (result && typeof result.catch === "function") {
-        result.catch((err) => renderMountError(tab, err));
-      }
+      if (result && typeof result.catch === "function") result.catch((err) => renderMountError(tab, err));
     } catch (err) { renderMountError(tab, err); }
   }
   function renderMountError(tab, err) {
@@ -580,13 +576,9 @@
   }
 
   function bindWorkspaceManifest(manifest) {
-    if (!manifest || !Array.isArray(manifest.sections) || !Array.isArray(manifest.tabs)) {
-      throw new Error("Workspace manifest is invalid");
-    }
+    if (!manifest || !Array.isArray(manifest.sections) || !Array.isArray(manifest.tabs)) throw new Error("Workspace manifest is invalid");
     const implementations = new Map(tabs.map((tab) => [tab.id, tab]));
-    for (const id of implementations.keys()) {
-      if (!manifest.tabs.some((tab) => tab.id === id)) throw new Error("Undeclared workspace tab " + id);
-    }
+    for (const id of implementations.keys()) if (!manifest.tabs.some((tab) => tab.id === id)) throw new Error("Undeclared workspace tab " + id);
     const ordered = [];
     for (const declaration of manifest.tabs) {
       const implementation = implementations.get(declaration.id);

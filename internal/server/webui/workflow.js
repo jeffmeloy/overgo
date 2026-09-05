@@ -53,6 +53,47 @@
   }
 
   window.overgo.runtimeEvents = { subscribe, restart };
+  // controlInputs renders a capability's declared controls into host: one
+  // input per control, typed by the declaration; the returned map binds each
+  // control name to its declaration and input. The generation tabs and the
+  // front page's generation modes render from the same declaration.
+  window.overgo.controlInputs = function (host, controls) {
+    const el = window.overgo.el;
+    const fields = new Map();
+    host.replaceChildren();
+    for (const control of controls || []) {
+      let input;
+      if (control.type === "boolean") {
+        input = el("select", { class: "text" },
+          el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
+          el("option", { value: "true", text: "true" }),
+          el("option", { value: "false", text: "false" }));
+      } else {
+        input = el(control.type === "text" ? "textarea" : "input", {
+          class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
+          step: control.type === "integer" ? "1" : "any", required: control.required,
+        });
+      }
+      fields.set(control.name, { control, input });
+      host.appendChild(el("label", { class: "control" }, el("span", { text: control.name }), input));
+    }
+    return fields;
+  };
+
+  // controlValues reads the typed inputs back as the request's fields and
+  // names the required ones left empty.
+  window.overgo.controlValues = function (fields) {
+    const input = {};
+    const missing = new Set();
+    for (const [name, field] of fields) {
+      const value = field.input.value;
+      if (value === "") { if (field.control.required) missing.add(name); continue; }
+      input[name] = field.control.type === "boolean" ? value === "true" :
+        (field.control.type === "integer" || field.control.type === "number" ? Number(value) : value);
+    }
+    return { input, missing };
+  };
+
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
       let unsubscribe = function () {};
@@ -105,35 +146,19 @@
           run.disabled = true;
           return;
         }
+        // A task is served by every model activated for it: the recipe is the
+        // identity, the model's name the label, and a refused one says why.
         for (const capability of capabilities) {
           capabilitySelect.appendChild(el("option", {
-            value: capability.task,
-            text: capability.task + " / " + fmt.shortID(capability.recipe),
+            value: capability.recipe, disabled: !!capability.refusal, title: capability.refusal || "",
+            text: capability.task + " / " + (capability.name || fmt.shortID(capability.recipe)) + (capability.refusal ? " (" + capability.refusal + ")" : ""),
           }));
         }
         let fields = new Map();
-        function selected() { return capabilities.find((item) => item.task === capabilitySelect.value); }
+        function selected() { return capabilities.find((item) => item.recipe === capabilitySelect.value); }
         function renderControls() {
-          fields = new Map();
-          controls.replaceChildren();
           const capability = selected();
-          if (!capability) return;
-          for (const control of capability.controls) {
-            let input;
-            if (control.type === "boolean") {
-              input = el("select", { class: "text" },
-                el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
-                el("option", { value: "true", text: "true" }),
-                el("option", { value: "false", text: "false" }));
-            } else {
-              input = el(control.type === "text" ? "textarea" : "input", {
-                class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
-                step: control.type === "integer" ? "1" : "any", required: control.required,
-              });
-            }
-            fields.set(control.name, { control, input });
-            controls.appendChild(el("label", { class: "control" }, el("span", { text: control.name }), input));
-          }
+          fields = overgo.controlInputs(controls, capability ? capability.controls : []);
         }
         capabilitySelect.addEventListener("change", renderControls);
         renderControls();
@@ -160,17 +185,12 @@
         run.addEventListener("click", async () => {
           const capability = selected();
           if (!capability) return;
-          const input = {};
-          for (const [name, field] of fields) {
-            const value = field.input.value;
-            if (value === "" && field.control.required) {
-              field.input.focus();
-              status.textContent = name + " is required";
-              return;
-            }
-            if (value === "") continue;
-            input[name] = field.control.type === "boolean" ? value === "true" :
-              (field.control.type === "integer" || field.control.type === "number" ? Number(value) : value);
+          const { input, missing } = overgo.controlValues(fields);
+          if (missing.size) {
+            const [name] = missing;
+            fields.get(name).input.focus();
+            status.textContent = name + " is required";
+            return;
           }
           run.disabled = true;
           cancel.disabled = false;
@@ -183,9 +203,7 @@
             operation = accepted.operation;
             status.textContent = "running / " + fmt.shortID(operation);
             const completed = await overgo.waitOperation(operation, renderOperation);
-            if (completed && completed.state === "completed" && definition.renderEvidence) {
-              await definition.renderEvidence(evidence, completed, overgo);
-            }
+            if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
           } catch (err) {
             status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
           } finally {

@@ -9,7 +9,9 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
+	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -709,6 +711,23 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 			"missing or invalid bearer token",
 		)
 		return
+	}
+	if h.config.APIKey == "" {
+		// The credential-less CLI only binds loopback. On a real HTTP transport,
+		// reject foreign Host names as well: matching Origin alone cannot stop
+		// DNS rebinding. Embedded Handler callers have no listener authority.
+		if request.Context().Value(http.LocalAddrContextKey) != nil {
+			host := (&url.URL{Host: request.Host}).Hostname()
+			if !strings.EqualFold(host, "localhost") && !net.ParseIP(host).IsLoopback() {
+				writeError(response, http.StatusForbidden, "invalid_host", "credential-less requests require a loopback Host")
+				return
+			}
+		}
+		var protection http.CrossOriginProtection
+		if err := protection.Check(request); err != nil {
+			writeError(response, http.StatusForbidden, "cross_origin_request", err.Error())
+			return
+		}
 	}
 	if routed && len(route.Methods) != 0 && !route.accepts(request.Method) {
 		response.Header().Set("Allow", strings.Join(route.Methods, ", "))

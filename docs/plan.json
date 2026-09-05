@@ -25,6 +25,20 @@
       ]
     },
     {
+      "id": "boundary-hardening",
+      "title": "Close the two execution-boundary defects found in review",
+      "status": "open",
+      "steps": [
+        {
+          "id": "argv-output",
+          "title": "Bound argv stdout during collection and terminate overflowed process trees",
+          "status": "open",
+          "verify": "test -f internal/agenttool/output_limit_test.go \u0026\u0026 go test ./internal/agenttool -run '^TestArgvOutputLimit$' -count=1",
+          "rationale": "Reproduce output exceeding artifact.MaxContentBytes before process exit. Replace the unbounded buffer at the argv transport with a bounded collector; overflow cancels the supervised process tree, drains/closes pipes safely and returns a typed failure rather than success or a partial JSON result. Test a finite flood and a continuing writer under a short fixture deadline, bounded retained bytes, descendant termination and failure receipt propagation; retain valid UTF-8/JSON behavior. Add the named fixture to agenttool and reuse processcontrol lifecycle tests."
+        }
+      ]
+    },
+    {
       "id": "model-regression-gate",
       "title": "Enforce cheap execution-coverage regression checks before device-wide work",
       "status": "open",
@@ -80,27 +94,6 @@
             "benchmark-27b/mmlu-pro-pass",
             "validation-automation/benchmark-protocol"
           ]
-        }
-      ]
-    },
-    {
-      "id": "boundary-hardening",
-      "title": "Close the two execution-boundary defects found in review",
-      "status": "open",
-      "steps": [
-        {
-          "id": "cross-origin",
-          "title": "Reject cross-site server mutations in credential-less local mode",
-          "status": "open",
-          "verify": "test -f internal/server/cross_origin_test.go \u0026\u0026 go test ./internal/server -run '^TestCrossOriginMutationProtection$' -count=1",
-          "rationale": "Reproduce the reviewed cross-site text/plain POST to /lora-adapters changing a scale without credentials. Enforce browser-origin protection and the JSON media-type contract at the shared request boundary, including local Host validation where necessary. Preserve intentional same-origin workbench requests and authenticated API use; test spoofed/local Host, cross-site Origin/Fetch Metadata, missing/invalid credentials, rejected requests causing no mutation, and allowed requests. Use the named regression fixture plus the existing route tests."
-        },
-        {
-          "id": "argv-output",
-          "title": "Bound argv stdout during collection and terminate overflowed process trees",
-          "status": "open",
-          "verify": "test -f internal/agenttool/output_limit_test.go \u0026\u0026 go test ./internal/agenttool -run '^TestArgvOutputLimit$' -count=1",
-          "rationale": "Reproduce output exceeding artifact.MaxContentBytes before process exit. Replace the unbounded buffer at the argv transport with a bounded collector; overflow cancels the supervised process tree, drains/closes pipes safely and returns a typed failure rather than success or a partial JSON result. Test a finite flood and a continuing writer under a short fixture deadline, bounded retained bytes, descendant termination and failure receipt propagation; retain valid UTF-8/JSON behavior. Add the named fixture to agenttool and reuse processcontrol lifecycle tests."
         }
       ]
     },

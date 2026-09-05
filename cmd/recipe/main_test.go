@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/mediacapability"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -32,14 +33,14 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 		recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen,
 	} {
 		t.Run(string(task), func(t *testing.T) {
-			capability, ok := capabilities[task]
-			if !ok || capability.resolve == nil || capability.execute == nil {
+			capability, ok := mediacapability.Catalog[task]
+			if !ok || capability.Resolve == nil || capability.Execute == nil {
 				t.Fatalf("capability = %+v", capability)
 			}
 		})
 	}
-	projection := projectionCapability("")
-	if projection.resolve == nil || projection.execute != nil {
+	projection := mediacapability.Projection("")
+	if projection.Resolve == nil || projection.Execute != nil {
 		t.Fatalf("projection capability = %+v", projection)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/mediacapability"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -32,7 +33,7 @@ func TestFractaleRecipeActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	capability := capabilities[recipe.TaskGeneration]
+	capability := mediacapability.Catalog[recipe.TaskGeneration]
 	modelID, definition, err := prepareCapability(ctx, store, modelPath, recipe.TaskGeneration, capability)
 	if err != nil {
 		t.Fatal(err)
@@ -44,7 +45,7 @@ func TestFractaleRecipeActivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err := capability.execute(
+	output, err := capability.Execute(
 		ctx, store, modelPath, candidateCapabilityExecution(t, store, program),
 		`{"text":"def fibonacci(n):","max_tokens":8}`,
 	)

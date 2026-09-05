@@ -1,4 +1,4 @@
-package main
+package mediacapability
 
 import (
 	"context"
@@ -23,30 +23,36 @@ import (
 	"overgo/internal/thoughtbank"
 )
 
-type capability struct {
-	resolve func(string) (capabilitySource, error)
-	execute capabilityruntime.Executor
+// Capability is one task the catalog can register and execute: Resolve reads a
+// model path into its inventory and recipe definition; Execute runs the
+// compiled program against the model bytes with a JSON input.
+type Capability struct {
+	Resolve func(string) (Source, error)
+	Execute capabilityruntime.Executor
 }
 
-type capabilitySource struct {
-	inventory modelartifact.Inventory
-	related   []modelartifact.Inventory
+// Source is what Resolve reads from a model path: the model inventory, the
+// related inventories (a projector), the component-group manifests, and the
+// definition the recipe is built from.
+type Source struct {
+	Inventory modelartifact.Inventory
+	Related   []modelartifact.Inventory
 	// manifests are component-group model manifests the source derives
 	// from the composite inventory, published so slotted recipe stages
 	// resolve their component models by content identity.
-	manifests []artifact.Manifest
-	define    func(artifact.ID) (recipe.Definition, []artifact.Content, error)
+	Manifests []artifact.Manifest
+	Define    func(artifact.ID) (recipe.Definition, []artifact.Content, error)
 }
 
 func definitionSource(
 	inventory modelartifact.Inventory,
 	err error,
 	define func(artifact.ID) (recipe.Definition, error),
-) (capabilitySource, error) {
+) (Source, error) {
 	if err != nil {
-		return capabilitySource{}, err
+		return Source{}, err
 	}
-	return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+	return Source{Inventory: inventory, Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 		definition, err := define(modelID)
 		return definition, nil, err
 	}}, nil
@@ -55,13 +61,13 @@ func definitionSource(
 func inventoryCapability(
 	inventory func(string) (modelartifact.Inventory, error),
 	execute capabilityruntime.Executor,
-) capability {
-	return capability{
-		resolve: func(path string) (capabilitySource, error) {
+) Capability {
+	return Capability{
+		Resolve: func(path string) (Source, error) {
 			resolved, err := inventory(path)
-			return capabilitySource{inventory: resolved}, err
+			return Source{Inventory: resolved}, err
 		},
-		execute: execute,
+		Execute: execute,
 	}
 }
 
@@ -77,7 +83,7 @@ func sessionExecutor[Input, Model, Output any](
 	}
 }
 
-func thoughtBankCapability() capability {
+func thoughtBankCapability() Capability {
 	director, err := capabilityruntime.NewModelSessionDirector[textgeneration.Request, *thoughtbank.Generator, thoughtbank.Generation](
 		"generation", "host", recipe.SessionRequestCapacity,
 		textgeneration.Validate,
@@ -87,36 +93,38 @@ func thoughtBankCapability() capability {
 		func(context.Context, *thoughtbank.Generator, textgeneration.Request) error { return nil },
 		thoughtbank.RegisterRuntime,
 	)
-	return capability{
-		resolve: func(path string) (capabilitySource, error) {
+	return Capability{
+		Resolve: func(path string) (Source, error) {
 			inventory, inventoryErr := thoughtBankInventory(path)
 			return definitionSource(inventory, inventoryErr, func(modelID artifact.ID) (recipe.Definition, error) {
 				return modelrecipe.CapabilityDefinition(recipe.TaskGeneration, modelID)
 			})
 		},
-		execute: sessionExecutor(director, err),
+		Execute: sessionExecutor(director, err),
 	}
 }
 
-func projectionCapability(projectorPath string) capability {
-	return capability{resolve: func(modelPath string) (capabilitySource, error) {
+// Projection is the projection capability for one projector file: the model
+// and the projector bind into a projection recipe (no executor).
+func Projection(projectorPath string) Capability {
+	return Capability{Resolve: func(modelPath string) (Source, error) {
 		file, err := gguf.Open(modelPath)
 		if err != nil {
-			return capabilitySource{}, err
+			return Source{}, err
 		}
 		modelInventory, inventoryErr := modelartifact.FromGGUF(file, artifact.KindModel)
 		inventoryErr = errors.Join(inventoryErr, file.Close())
 		if inventoryErr != nil {
-			return capabilitySource{}, inventoryErr
+			return Source{}, inventoryErr
 		}
 		projectorInventory, media, processor, err := projector.InspectProjection(context.Background(), projectorPath)
 		if err != nil {
-			return capabilitySource{}, err
+			return Source{}, err
 		}
-		return capabilitySource{
-			inventory: modelInventory,
-			related:   []modelartifact.Inventory{projectorInventory},
-			define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+		return Source{
+			Inventory: modelInventory,
+			Related:   []modelartifact.Inventory{projectorInventory},
+			Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 				var processorID artifact.ID
 				var contents []artifact.Content
 				if processor != nil {
@@ -136,7 +144,9 @@ func projectionCapability(projectorPath string) capability {
 	}}
 }
 
-var capabilities = map[recipe.Task]capability{
+// Catalog binds every registrable task to its capability; cmd/recipe and the
+// server generation workspace execute the same code through it.
+var Catalog = map[recipe.Task]Capability{
 	recipe.TaskGeneration: thoughtBankCapability(),
 	recipe.TaskForecast: inventoryCapability(modelartifact.FromHFPath, capabilityruntime.JSONScalar[[]float32, *seriesforecast.Model, []float32](
 		"forecast", seriesforecast.ValidateRequest,
@@ -167,12 +177,12 @@ func safetensorsInventory(context, path, config string, companions ...modelartif
 			continue
 		}
 		if weights != "" {
-			return modelartifact.Inventory{}, fmt.Errorf("%s inventory: multiple safetensors files in %s", context, path)
+			return modelartifact.Inventory{}, fmt.Errorf("%s Inventory: multiple safetensors files in %s", context, path)
 		}
 		weights = entry.Name()
 	}
 	if weights == "" {
-		return modelartifact.Inventory{}, fmt.Errorf("%s inventory: no safetensors weights in %s", context, path)
+		return modelartifact.Inventory{}, fmt.Errorf("%s Inventory: no safetensors weights in %s", context, path)
 	}
 	specs := []modelartifact.FileSpec{
 		{Path: filepath.Join(path, config), Name: "config", Role: artifact.ComponentConfig},

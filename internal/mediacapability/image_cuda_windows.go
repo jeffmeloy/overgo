@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package mediacapability
 
 import (
 	"context"
@@ -21,7 +21,7 @@ const (
 	imageSessionCapacity = 1
 )
 
-func imageCapability() capability {
+func imageCapability() Capability {
 	routedDirector, routedErr := capabilityruntime.NewModelSessionDirector[sensenovarecipe.GenerationRequest, *sensenovarecipe.Generator, latentimage.EncodedImage](
 		"image-gen", imageDevice, imageSessionCapacity,
 		sensenovarecipe.ValidateGenerationRequest,
@@ -70,9 +70,9 @@ func imageCapability() capability {
 		diffusionimage.RegisterRuntime[*diffusionimage.ResidentGenerator],
 	)
 	diffusion := sessionExecutor(diffusionDirector, diffusionErr)
-	return capability{
-		resolve: resolveImageSource,
-		execute: capabilityruntime.ExecutorCatalog{
+	return Capability{
+		Resolve: resolveImageSource,
+		Execute: capabilityruntime.ExecutorCatalog{
 			modelrecipe.ModuleRoutedImagePrepare:     routed,
 			modelrecipe.ModuleLatentImagePrepare:     latent,
 			modelrecipe.ModuleOscillatorImagePrepare: oscillator,

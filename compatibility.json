@@ -1111,9 +1111,9 @@
     },
     {
      "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",
-     "path": "cmd/recipe/image_cuda_windows.go",
+     "path": "internal/mediacapability/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:b69c0ca28741b3f1e27e86219148cbeb9107b4a24f13b32a1783bcf027c41cb3"
+     "identity": "file:sha256:c1d915e76ccfb5123a843366d88e6f20f88baac3873b051cf28923ccd8c9f682"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

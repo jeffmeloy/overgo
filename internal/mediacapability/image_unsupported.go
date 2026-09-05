@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package mediacapability
 
 import (
 	"overgo/internal/capabilityruntime"
@@ -10,7 +10,7 @@ import (
 	"overgo/internal/oscillatorimage"
 )
 
-func imageCapability() capability {
+func imageCapability() Capability {
 	diffusion := capabilityruntime.JSONScalar[diffusionimage.Request, *diffusionimage.Model, latentimage.EncodedImage](
 		"image-gen", diffusionimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[diffusionimage.Request](diffusionimage.Load), diffusionimage.RegisterRuntime[*diffusionimage.Model],
@@ -19,9 +19,9 @@ func imageCapability() capability {
 		"image-gen", oscillatorimage.ValidateRequest,
 		capabilityruntime.IgnoreInput[oscillatorimage.Request](oscillatorimage.Load), oscillatorimage.RegisterRuntime,
 	)
-	return capability{
-		resolve: resolveImageSource,
-		execute: capabilityruntime.ExecutorCatalog{
+	return Capability{
+		Resolve: resolveImageSource,
+		Execute: capabilityruntime.ExecutorCatalog{
 			modelrecipe.ModuleDiffusionImagePrepare:  diffusion,
 			modelrecipe.ModuleOscillatorImagePrepare: oscillator,
 		}.Execute,

@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package mediacapability
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 func TestVideoProductionActivation(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(repo)
+	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestVideoProductionActivation(t *testing.T) {
 	execution := candidateCapabilityExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
-		output, err := capability.execute(t.Context(), store, edit, execution, string(raw))
+		output, err := capability.Execute(t.Context(), store, edit, execution, string(raw))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +106,7 @@ func TestVideoProductionActivation(t *testing.T) {
 			t.Fatal(err)
 		}
 		if video.MediaType != "image/gif" || video.Frames != 5 || len(animation.Image) != 5 ||
-			video.Height != 16 || video.Width != 32 || video.ResidentRun != run {
+			video.Height != 16 || video.Width != 32 || video.ResidentRun != residentRun(run) {
 			t.Fatalf("run %d video=%+v decoded_frames=%d", run, video, len(animation.Image))
 		}
 		hash := sha256.Sum256(video.Data)
@@ -214,4 +214,15 @@ func publishArtifactExtent(t testing.TB, repository artifact.Repository, id arti
 	}); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// residentRun is the resident-session run a produced clip records: the
+// first execution produces the clip in session one, and an identical
+// request afterwards replays the recorded artifact, which carries no
+// resident run of its own.
+func residentRun(run int) int {
+	if run == 1 {
+		return 1
+	}
+	return 0
 }

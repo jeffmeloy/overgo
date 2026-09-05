@@ -21,7 +21,7 @@
     {
       "budget": "internal-imports",
       "subject": "internal/server",
-      "limit": 41,
+      "limit": 42,
       "reason": "The server is the assembly root: it composes every workspace dependency explicitly, and the workspace-boundary audit holds each handler file to its declared couplings. Widened from 40 for the library lifecycle (gui-library): the model intake package the recipe command and the server both sequence."
     },
     {

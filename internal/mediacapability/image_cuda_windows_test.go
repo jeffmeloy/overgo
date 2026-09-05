@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package mediacapability
 
 import (
 	"encoding/binary"
@@ -117,11 +117,11 @@ func TestImagePolicyComesFromRecipeProfile(t *testing.T) {
 	testutil.WriteImageProfileFixture(t, root)
 	writeLatentImageInventoryFixture(t, root)
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "profile-bound-image")
-	source, err := imageCapability().resolve(root)
+	source, err := imageCapability().Resolve(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, facts, err := source.define(modelID)
+	definition, facts, err := source.Define(modelID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,11 +142,11 @@ func TestImageCapabilityBindsSenseNovaByArchitecture(t *testing.T) {
 	}
 	writeInventorySafetensor(t, filepath.Join(root, "model.safetensors"), "weight")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "sensenova-image")
-	source, err := imageCapability().resolve(root)
+	source, err := imageCapability().Resolve(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, facts, err := source.define(modelID)
+	definition, facts, err := source.Define(modelID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 		len(definition.Outputs) != 1 || definition.Outputs[0].Data != recipe.DataImage {
 		t.Fatalf("latent image program=%+v", definition)
 	}
-	if capability := imageCapability(); capability.execute == nil {
+	if capability := imageCapability(); capability.Execute == nil {
 		t.Fatal("typed image runtime has no executor")
 	}
 }

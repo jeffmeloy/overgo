@@ -17,6 +17,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
+	"overgo/internal/mediacapability"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
@@ -31,6 +32,9 @@ const (
 	serverIdleTimeout       = 2 * time.Minute
 	serverShutdownTimeout   = 30 * time.Second
 	serverMaxHeaderBytes    = 1 << 20
+
+	// generationCatalogLimit bounds the activated models the generation workspace lists.
+	generationCatalogLimit = 256
 
 	defaultAnalysisTensorSamples = 4096
 	defaultAnalysisTensorBytes   = 64 << 20
@@ -202,6 +206,11 @@ func run() error {
 			return fmt.Errorf("open model builder workspace: %w", err)
 		}
 		workflowWorkspaces = append(workflowWorkspaces, workspace)
+	}
+	// Generation rides the store alone: every active media recipe with
+	// bytes on disk is a capability of any server opened over the store.
+	if workspaceStore != nil {
+		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore, mediacapability.Catalog, generationCatalogLimit))
 	}
 	if len(workflowWorkspaces) > 0 {
 		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workflowWorkspaces}

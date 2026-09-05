@@ -1,4 +1,4 @@
-package main
+package mediacapability
 
 import (
 	"fmt"
@@ -16,14 +16,14 @@ import (
 	"overgo/internal/routedlm"
 )
 
-func resolveImageSource(path string) (capabilitySource, error) {
+func resolveImageSource(path string) (Source, error) {
 	identity, err := hfrepo.InspectIdentity(path)
 	if err != nil {
-		return capabilitySource{}, err
+		return Source{}, err
 	}
 	source, err := modelrecipe.ResolveGenerationSource(recipe.TaskImageGen, identity)
 	if err != nil {
-		return capabilitySource{}, err
+		return Source{}, err
 	}
 
 	var inventory modelartifact.Inventory
@@ -35,10 +35,10 @@ func resolveImageSource(path string) (capabilitySource, error) {
 	case modelrecipe.SourceInventoryRootSafetensors:
 		inventory, err = imageGenInventory(path)
 	default:
-		return capabilitySource{}, fmt.Errorf("image-gen: unsupported inventory strategy %q", source.Inventory)
+		return Source{}, fmt.Errorf("image-gen: unsupported inventory strategy %q", source.Inventory)
 	}
 	if err != nil {
-		return capabilitySource{}, err
+		return Source{}, err
 	}
 
 	var profileID artifact.ID
@@ -47,35 +47,35 @@ func resolveImageSource(path string) (capabilitySource, error) {
 	case recipe.DependencyFlowProfile:
 		profile, err := routedlm.InspectFlowProfile(path)
 		if err != nil {
-			return capabilitySource{}, err
+			return Source{}, err
 		}
 		profileID = profile.ID
 		content, err := profile.Content()
 		if err != nil {
-			return capabilitySource{}, err
+			return Source{}, err
 		}
 		contents = []artifact.Content{content}
 	case recipe.DependencyProfile:
 		profile, err := latentimage.ResolveProfile(path)
 		if err != nil {
-			return capabilitySource{}, err
+			return Source{}, err
 		}
 		profileID = profile.ID
 		content, err := profile.Content()
 		if err != nil {
-			return capabilitySource{}, err
+			return Source{}, err
 		}
 		contents = []artifact.Content{content}
 	case "":
 	default:
-		return capabilitySource{}, fmt.Errorf("image-gen: unsupported profile strategy %q", source.Profile)
+		return Source{}, fmt.Errorf("image-gen: unsupported profile strategy %q", source.Profile)
 	}
 
 	bindings, manifests, err := latentImageComponentBindings(source, inventory)
 	if err != nil {
-		return capabilitySource{}, err
+		return Source{}, err
 	}
-	return capabilitySource{inventory: inventory, manifests: manifests, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+	return Source{Inventory: inventory, Manifests: manifests, Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 		definition, err := modelrecipe.GenerationDefinitionWithComponents(source.Prepare, modelID, profileID, bindings)
 		return definition, contents, err
 	}}, nil
@@ -156,10 +156,10 @@ func latentImageInventory(path string) (modelartifact.Inventory, error) {
 		}
 		slices.Sort(weights)
 		if len(weights) == 0 {
-			return modelartifact.Inventory{}, fmt.Errorf("latent image inventory: no %s weights", directory)
+			return modelartifact.Inventory{}, fmt.Errorf("latent image Inventory: no %s weights", directory)
 		}
 		if len(weights) > 1 && indexName == "" {
-			return modelartifact.Inventory{}, fmt.Errorf("latent image inventory: %s shards have no index", directory)
+			return modelartifact.Inventory{}, fmt.Errorf("latent image Inventory: %s shards have no index", directory)
 		}
 		if indexName != "" {
 			files = append(files, struct {

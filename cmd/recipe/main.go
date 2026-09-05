@@ -18,6 +18,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
+	"overgo/internal/mediacapability"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
@@ -106,12 +107,12 @@ func run() error {
 	}
 	path := roots.ResolveModelPath(flags.Arg(0))
 	selectedTask := recipe.Task(*task)
-	capability, capabilityKnown := capabilities[selectedTask]
+	capability, capabilityKnown := mediacapability.Catalog[selectedTask]
 	if selectedTask == recipe.TaskProjection && verb != "status" {
 		if strings.TrimSpace(*projectorPath) == "" {
 			return errors.New("projection requires -projector")
 		}
-		capability = projectionCapability(roots.ResolveModelPath(*projectorPath))
+		capability = mediacapability.Projection(roots.ResolveModelPath(*projectorPath))
 		capabilityKnown = true
 	}
 	switch verb {
@@ -138,7 +139,7 @@ func run() error {
 			return fmt.Errorf("task %q has no registered verifier runtime", selectedTask)
 		}
 		rawInput := ""
-		if capability.execute != nil {
+		if capability.Execute != nil {
 			var inputErr error
 			rawInput, inputErr = readInput(*input)
 			if inputErr != nil {
@@ -193,7 +194,7 @@ func run() error {
 		}
 		return retire(repository, path, *reason, sessionOverride, residency, verification)
 	case "run":
-		if !capabilityKnown || capability.execute == nil {
+		if !capabilityKnown || capability.Execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
 		}
 		rawInput, inputErr := readInput(*input)
@@ -260,7 +261,7 @@ func parseVerification(gateText, runText string) (modelrecipe.Verification, erro
 func activateCapability(
 	repository, path, reason string,
 	task recipe.Task,
-	capability capability,
+	capability mediacapability.Capability,
 	verification modelrecipe.Verification,
 ) error {
 	ctx := context.Background()
@@ -286,28 +287,28 @@ func prepareCapability(
 	store artifact.Repository,
 	path string,
 	task recipe.Task,
-	capability capability,
+	capability mediacapability.Capability,
 ) (artifact.ID, recipe.Definition, error) {
-	source, err := capability.resolve(path)
+	source, err := capability.Resolve(path)
 	if err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
-	modelID := source.inventory.Manifest.ID
+	modelID := source.Inventory.Manifest.ID
 	var definition recipe.Definition
 	var facts []artifact.Content
-	if source.define != nil {
-		definition, facts, err = source.define(modelID)
+	if source.Define != nil {
+		definition, facts, err = source.Define(modelID)
 	} else {
 		definition, err = modelrecipe.CapabilityDefinition(task, modelID)
 	}
 	if err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
-	batch, err := source.inventory.Batch("recipe/facts/" + modelID.String())
+	batch, err := source.Inventory.Batch("recipe/facts/" + modelID.String())
 	if err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
-	for _, related := range source.related {
+	for _, related := range source.Related {
 		relatedBatch, err := related.Batch(batch.Key)
 		if err != nil {
 			return artifact.ID{}, recipe.Definition{}, err
@@ -324,7 +325,7 @@ func prepareCapability(
 	}
 	// Component-group manifests commit under their own content-derived
 	// keys: the facts batch key is content-bound and predates them.
-	for _, manifest := range source.manifests {
+	for _, manifest := range source.Manifests {
 		if _, err := store.Commit(ctx, artifact.Batch{
 			Key: "recipe/component/" + manifest.ID.String(), Manifests: []artifact.Manifest{manifest},
 		}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
@@ -334,7 +335,7 @@ func prepareCapability(
 	return modelID, definition, nil
 }
 
-func verifyCapability(repository, path string, task recipe.Task, capability capability, input string) error {
+func verifyCapability(repository, path string, task recipe.Task, capability mediacapability.Capability, input string) error {
 	ctx := context.Background()
 	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
@@ -367,8 +368,8 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 	started := time.Now()
 	var output any
 	var measured capabilityruntime.Measured
-	if capability.execute != nil {
-		output, err = capability.execute(ctx, store, path, execution, input)
+	if capability.Execute != nil {
+		output, err = capability.Execute(ctx, store, path, execution, input)
 		if err != nil {
 			return err
 		}
@@ -386,7 +387,7 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 		"gate_id":   verification.Gate.String(),
 		"recipe_id": definition.ID.String(), "run_id": verification.Run.String(),
 	}
-	if capability.execute != nil {
+	if capability.Execute != nil {
 		result["output"] = output
 	}
 	return json.NewEncoder(os.Stdout).Encode(result)
@@ -396,7 +397,7 @@ func executeCapability(
 	repository, path, alias, compatibilityText string,
 	selection modelrecipe.SessionSelection,
 	task recipe.Task,
-	capability capability,
+	capability mediacapability.Capability,
 	input string,
 ) error {
 	ctx := context.Background()
@@ -445,11 +446,11 @@ func executeCapability(
 	} else if selection == modelrecipe.SessionSpillover || compatibility.Valid() {
 		return errors.New("recipe: spillover requires an evidence-bound alias")
 	}
-	source, err := capability.resolve(path)
+	source, err := capability.Resolve(path)
 	if err != nil {
 		return err
 	}
-	modelID := source.inventory.Manifest.ID
+	modelID := source.Inventory.Manifest.ID
 	if alias != "" {
 		if selected.Activation.Definition.Model != modelID {
 			return errors.New("recipe: capability alias differs from loaded model")
@@ -460,7 +461,7 @@ func executeCapability(
 			return err
 		}
 	}
-	output, err := capability.execute(ctx, store, path, selected, input)
+	output, err := capability.Execute(ctx, store, path, selected, input)
 	if err != nil {
 		return err
 	}
@@ -583,12 +584,12 @@ func policyModelInventory(path string, task recipe.Task) (modelartifact.Inventor
 	if task == recipe.TaskVQA {
 		return modelartifact.FromHFPath(path)
 	}
-	if capability, known := capabilities[task]; known && capability.resolve != nil {
-		source, err := capability.resolve(path)
+	if capability, known := mediacapability.Catalog[task]; known && capability.Resolve != nil {
+		source, err := capability.Resolve(path)
 		if err != nil {
 			return modelartifact.Inventory{}, err
 		}
-		return source.inventory, nil
+		return source.Inventory, nil
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -607,12 +608,12 @@ func status(repository, path string, task recipe.Task) error {
 		if err != nil {
 			return err
 		}
-	} else if capability, ok := capabilities[task]; ok {
-		source, err := capability.resolve(path)
+	} else if capability, ok := mediacapability.Catalog[task]; ok {
+		source, err := capability.Resolve(path)
 		if err != nil {
 			return err
 		}
-		inventory = source.inventory
+		inventory = source.Inventory
 	} else {
 		if task != recipe.TaskInference && task != recipe.TaskProjection {
 			return fmt.Errorf("unsupported model recipe task %q", task)

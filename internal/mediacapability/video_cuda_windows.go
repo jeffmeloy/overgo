@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package mediacapability
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"overgo/internal/recipe"
 )
 
-func videoCapability() capability {
+func videoCapability() Capability {
 	wanDirector, wanErr := capabilityruntime.NewModelSessionDirector[latentvideo.WanRequest, *latentvideo.WanRuntime, latentvideo.EncodedVideo](
 		"video-gen", imageDevice, imageSessionCapacity,
 		latentvideo.ValidateWanRequest,
@@ -58,9 +58,9 @@ func videoCapability() capability {
 		}, oscillatorimage.RegisterRuntime,
 	)
 
-	return capability{
-		resolve: resolveVideoSource,
-		execute: capabilityruntime.ExecutorCatalog{
+	return Capability{
+		Resolve: resolveVideoSource,
+		Execute: capabilityruntime.ExecutorCatalog{
 			modelrecipe.ModuleLatentVideoPrepare:     wan,
 			modelrecipe.ModuleReferenceVideoPrepare:  edit,
 			modelrecipe.ModuleOscillatorVideoPrepare: oscillator,
@@ -68,7 +68,7 @@ func videoCapability() capability {
 	}
 }
 
-func resolveVideoSource(path string) (capabilitySource, error) {
+func resolveVideoSource(path string) (Source, error) {
 	if latentvideo.IsLiveEdit(path) {
 		wan := filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B")
 		// The edit composite genuinely spans two sibling repositories --
@@ -80,7 +80,7 @@ func resolveVideoSource(path string) (capabilitySource, error) {
 			{Path: filepath.Join(wan, "diffusion_pytorch_model.safetensors"), Name: "wan/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(wan, "Wan2.1_VAE.pth"), Name: "wan/vae", Role: artifact.ComponentWeights},
 		})
-		return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+		return Source{Inventory: inventory, Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 			profile, err := latentvideo.ResolveProfile(wan)
 			if err != nil {
 				return recipe.Definition{}, nil, err
@@ -99,7 +99,7 @@ func resolveVideoSource(path string) (capabilitySource, error) {
 			{Path: filepath.Join(path, "diffusion_pytorch_model.safetensors"), Name: "denoiser/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(path, "Wan2.1_VAE.pth"), Name: "vae/weights", Role: artifact.ComponentWeights},
 		})
-		return capabilitySource{inventory: inventory, define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+		return Source{Inventory: inventory, Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 			profile, err := latentvideo.ResolveProfile(path)
 			if err != nil {
 				return recipe.Definition{}, nil, err

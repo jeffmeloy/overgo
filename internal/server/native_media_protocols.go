@@ -215,7 +215,7 @@ func selectNativeWorkflowCapability(
 		return WorkflowCapability{}, err
 	}
 	for _, capability := range capabilities {
-		if capability.Task == task && (model == "" || model == capability.Recipe.String()) {
+		if capability.Task == task && capability.Refusal == "" && (model == "" || model == capability.Recipe.String()) {
 			return capability, nil
 		}
 	}

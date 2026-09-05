@@ -1,7 +1,7 @@
 @echo off
-rem overgo_gui.bat: double-click to run the workbench. Builds the server
+rem overgo_gui.bat: double-click to open the front page. Builds the server
 rem and the model-swap proxy, starts the proxy on localhost:8080 over the
-rem repo store, and opens the GUI. The model pill in the GUI switches the
+rem repo store, and opens the front page. Its model pill switches the
 rem served model live; no relaunch needed.
 rem Pass a GGUF path (or a servable model name) to start on that model:
 rem   overgo_gui.bat D:\models\my-model.gguf
@@ -16,7 +16,7 @@ echo Building the overgo server and swap proxy...
 go build -o bin\overgo-server.exe .\cmd\server || goto :error
 go build -o bin\overgo-swap.exe .\cmd\swap || goto :error
 
-start "" http://localhost:8080/app.html
+start "" http://localhost:8080/
 if "%MODEL%"=="" (
   echo Starting with no default model -- pick one from the GUI's model pill.
 ) else (

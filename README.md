@@ -436,44 +436,93 @@ reads the same store the command line and the automation read, so a result
 shown in the workbench is the same durable record a gate or a script would
 see.
 
-### Surfaces
+### Front page
 
-- **Chat and media.** Multimodal conversation against the served model:
-  text, image, and audio attachments flow through the same bounded media
-  policy the APIs enforce, projected media and token counts survive in
-  earlier turns of the formatted history, and conversations continue across
-  server restarts because the interaction record — not the browser — owns
-  the state. Dedicated image, video, and speech generation workspaces drive
-  the corresponding model recipes.
+The default page is a conversation against the served model. Its shape is
+derived from the server, not from client configuration:
+
+- **Capability document.** `/workspace/manifest` declares, for the served
+  recipe, the modes the composer offers (chat, images, video, video edit,
+  speech, embeddings, rerank, and agent), each enabled or carrying the reason
+  it is refused, together with the media types the model accepts and the
+  byte, dimension, and pixel bounds the media policy enforces. The composer
+  derives itself from this document and re-derives when the served model
+  changes.
+- **Model pill.** The header names the served model beside its measured
+  evidence. The picker lists every servable model in the store; choosing one
+  switches the served model live through the swap proxy (`cmd/swap`), and
+  the page reports the switch as an operation chip.
+- **Conversations owned by the server.** Conversations are listed, resumed,
+  labelled, and reattached to a turn in flight from the interaction records;
+  the browser holds no state a reload would lose.
+- **Media import.** Images, audio, video, and documents attach by button,
+  drop, or paste. An attachment the served capability does not accept is
+  refused before upload with the declared reason; accepted media flow
+  through the same bounded media policy the APIs enforce.
+- **Turn inspection.** Any turn opens in the inspector with its run record,
+  and the analysis inspectors run over that turn's exact prompt and
+  completion.
+- **Agent mode.** With an active agent definition, the composer runs the
+  agent from the same conversation: tool steps and chat turns appear inline,
+  and exceptional mutations queue in the approvals inbox.
+- **Operations strip.** Long operations appear under the header as chips with
+  progress, a live event tail, cancel, and the durable receipt: run, outputs,
+  traces, attempts, stages, and decisions. The header carries the server,
+  proxy, and device state and the count of approvals waiting.
+- **Keyboard, motion, colour, width.** Every control is reachable from the
+  keyboard, the inspector closes on Escape and returns focus, reduced-motion
+  and colour-scheme preferences are honoured, and the layout holds down to
+  phone width.
+
+### Library lifecycle
+
+The Library tab takes a model or dataset from the Hugging Face hub into the
+catalog in four stages, each offered only once the previous one is durable.
+Select searches the hub. Download fetches the files with verified digests.
+Register publishes a model's resolved facts and a candidate recipe (known to
+the store, not yet servable), or registers a dataset's downloaded directory
+under its name. Validate runs a model as an operation the strip shows with
+its steps: an exact suite is recorded from the model's own greedy output over
+the prompts in `library_validation.json`, replayed exactly, published as gate
+and run evidence, and the recipe is activated with that evidence, after which
+the catalog serves the model as verified; a dataset validates by the preview
+the datasets route answers. Every stage reports its receipt as the store's
+identities.
+
+### Retained workbench
+
+The workbench tabs remain behind the front page:
+
+- **Generation workspaces.** Dedicated image, video, and speech generation
+  workspaces drive the corresponding model recipes through the same dispatch
+  the front page's modes use.
 - **Agent sessions.** Agent definitions bind a prompt, model configuration,
   tools, and policies immutably; sessions execute with native tool calling
   against the typed tool catalog. Layered authority maps bound what each
   session may touch, and every past interaction replays from its durable
   record for inspection.
-- **Approvals inbox.** Exceptional mutations — actions outside a session's
-  standing authority — queue as argument-bound approval requests. The
-  operator sees the exact tool identity and arguments that will run; a
-  durable receipt precedes the side effect, and nothing executes on a stale
-  approval.
+- **Approvals inbox.** Exceptional mutations queue as argument-bound approval
+  requests. The operator sees the exact tool identity and arguments that will
+  run; a durable receipt precedes the side effect, and a decision is bound to
+  the approval request the operation advertises, so nothing executes on a
+  stale approval.
 - **Models and data.** The model catalog is derived from the store: every
   locally present model with its active recipe, verified capability tier,
-  and measured evidence — benchmark throughput and evaluation scores appear
-  beside each entry in the picker, so choosing a model is choosing from
-  evidence rather than filenames. Dataset browsing reads the active catalog
+  and measured evidence. Benchmark throughput and evaluation scores appear
+  beside each entry in the picker. Dataset browsing reads the active catalog
   without payload access, and the model builder and recipe inspector expose
   construction and activation records.
 - **Analysis.** Structure, tensor, attention, logit, hidden-state, and
   vocabulary inspectors over the loaded artifact. The attention view replays
   bounded plain-causal attention on the host and refuses compiled score
-  policies it cannot reproduce exactly — the displayed weights are recomputed
-  evidence, not a screenshot of runtime state.
+  policies it cannot reproduce exactly; the displayed weights are recomputed
+  evidence, not a copy of runtime state.
 - **Training.** Session-supervised training: a session is leased, observed,
   and recorded; the observer captures a pre-training evaluation bracket on
   admission and publishes the post-training deltas on finish, so every
   session's measured effect is attributed to it in the store.
-- **Evaluation.** Suites derive from the benchmark catalog in the store —
-  no suite files — and route by each model's declared evaluation domains,
-  so a DNA model never meets English multiple choice. Results publish back
+- **Evaluation.** Suites derive from the benchmark catalog in the store and
+  route by each model's declared evaluation domains. Results publish back
   through the campaign ledger and reappear as the evidence beside the model
   in the picker.
 - **Workflows and runtime.** Typed workflow graphs with bounded admission,
@@ -484,23 +533,40 @@ see.
   records behind every displayed result, down to the content identities a
   claim cites.
 
+### Verification
+
+`go run ./cmd/webui-lane` runs the real-browser acceptance lane the gate
+selects for every web UI change: the workbench acceptance steps, the front
+page's keyboard, motion, colour, and width contract, and a first-run journey
+against a served model through the real swap proxy. The journey proves, in
+order, that the page boots once the default model serves, that the first
+message streams a reply and fills the context meter, that an image
+attachment reaches a grounded reply from a vision-capable model or is refused
+with the declared reason, that the inspector opens over the turn with its run
+record, that an agent created through the API runs a tool step and a chat
+turn from the same composer, that the served model switches through the
+picker and the composer re-derives, and that a running turn stops from the
+composer. A leg whose prerequisite is absent (a browser, the built server, a
+servable model with bytes on disk) reports UNAVAILABLE rather than failing
+what it cannot observe.
+
 ### Usage
 
 Launch the server with a model (see Quick start) and open the listen
-address; the workbench is the default page. A typical serving session:
-pick a model in the catalog — the evidence line under each entry shows its
-measured throughput and evaluation scores — then chat, attach media, or
-open a generation workspace. A typical measurement session: open the
-evaluation workspace, run the store-derived suites for the served model,
-and watch the results land in the picker as published evidence. A typical
-training session: start a supervised session from the training workspace
-and read its bracket when it finishes — the pre/post deltas are the
-session's measured effect, not an impression.
+address; the front page is the default page. A typical serving session:
+pick a model from the pill, then chat, attach media, or choose a generation
+mode. A typical intake session: search the hub in the Library tab, download,
+register, and validate, and watch the model appear in the pill as verified.
+A typical measurement session: open the evaluation workspace, run the
+store-derived suites for the served model, and watch the results land in the
+picker as published evidence. A typical training session: start a supervised
+session from the training workspace and read its bracket when it finishes;
+the pre/post deltas are the session's measured effect.
 
 Interventions follow the same shape everywhere: inspect the record first,
 act through a bounded control, and find the durable receipt in the store
-afterward. Steering from the workbench — goals, priorities, interventions,
-approvals, rollback — enters through the same bounded interface the RSI
+afterward. Steering from the workbench (goals, priorities, interventions,
+approvals, rollback) enters through the same bounded interface the RSI
 path uses. Nothing is reachable from the browser that is not equally
 reachable, and equally checked, from the deterministic control plane.
 
@@ -670,7 +736,7 @@ Requirements:
 - NVIDIA CUDA driver
 - A model artifact supported by an available configuration
 
-Start the operator workbench:
+Start the front page (builds the server and the swap proxy, then opens the browser):
 
 ```bat
 overgo_gui.bat "D:\models\model.gguf"

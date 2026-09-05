@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-docs",
-      "title": "Documentation, launcher and manifest follow the front page",
-      "status": "open",
-      "steps": [
-        {
-          "id": "readme-launcher-manifest",
-          "title": "The README's workbench section describes the front page and the retained workbench as they are, overgo_gui.bat opens the front page, and the API manifest records every route the front page uses (go run ./cmd/api-manifest -update, then -check)",
-          "status": "open",
-          "verify": "go run ./cmd/api-manifest -check",
-          "depends_on": [
-            "gui-quality/acceptance-lane"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-closeout",
       "title": "Close the campaign and prepare the lane for merge",
       "status": "open",

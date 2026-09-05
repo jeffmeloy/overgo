@@ -39,7 +39,7 @@ func TestFrontPageGenerationDeclarations(t *testing.T) {
 	}
 
 	workflow := get("/workflow.js")
-	for _, needle := range []string{`window.overgo.controlInputs = function`, `window.overgo.controlValues = function`, `value: capability.recipe`, `capability.name || fmt.shortID(capability.recipe)`} {
+	for _, needle := range []string{`window.overgo.controlInputs = function`, `window.overgo.controlValues = function`, `control.choices`, `value: capability.recipe`, `capability.name || fmt.shortID(capability.recipe)`} {
 		if !strings.Contains(workflow, needle) {
 			t.Errorf("workflow module missing %q", needle)
 		}

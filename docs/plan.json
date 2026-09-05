@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-journey-modalities",
-      "title": "The first-run journey proves modalities in and out: an image to a multimodal model answered grounded, an image out, a speech clip out and a VQA answer, each on the smallest model that declares it, chosen by the lane from the store",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The first-run journey proves modalities in and out: an image to a multimodal model answered grounded, an image out, a speech clip out and a VQA answer, each on the smallest model that declares it, chosen by the lane from the store",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane"
-        }
-      ]
-    },
-    {
       "id": "gui-multimodal-closeout",
       "title": "Close the multimodal rows: the simplification report regenerated, README and manifest follow the modalities, the deferred vision and VQA findings closed, merge readiness updated",
       "status": "open",

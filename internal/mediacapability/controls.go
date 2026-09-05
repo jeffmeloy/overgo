@@ -20,6 +20,21 @@ type Control struct {
 	Name     string
 	Type     string
 	Required bool
+	// Choices are the values the model's own artifact exports for the
+	// field (a speech model's voices); empty when any value may be typed.
+	Choices []string
+}
+
+// choiceProviders name, per entry module, the request fields whose values
+// the model directory exports; the provider reads them from the artifact.
+var choiceProviders = map[recipe.ModuleID]func(directory string) (map[string][]string, error){
+	modelrecipe.ModuleSpeechTokenize: func(directory string) (map[string][]string, error) {
+		voices, err := speechsynth.ListVoices(directory)
+		if err != nil {
+			return nil, err
+		}
+		return map[string][]string{"voice": voices}, nil
+	},
 }
 
 const (
@@ -45,16 +60,30 @@ var requestTypes = map[recipe.ModuleID]any{
 }
 
 // Controls describes the request the entry module's executor decodes as
-// page controls. A request carrying a field no page can type (a tensor, a
-// nested document) is reported as the refusal reason instead, so the
-// capability lists with why the page cannot run it rather than as a form
-// that could never be submitted.
-func Controls(entry recipe.ModuleID) ([]Control, string) {
+// page controls, with the choices the model directory exports for a field.
+// A request carrying a field no page can type (a tensor, a nested
+// document) is reported as the refusal reason instead, so the capability
+// lists with why the page cannot run it rather than as a form that could
+// never be submitted; a directory whose exported choices cannot be read
+// is reported the same way.
+func Controls(entry recipe.ModuleID, directory string) ([]Control, string) {
 	request, ok := requestTypes[entry]
 	if !ok {
 		return nil, fmt.Sprintf("entry module %s declares no page request", entry)
 	}
-	return describe(reflect.TypeOf(request))
+	controls, refusal := describe(reflect.TypeOf(request))
+	provider, provides := choiceProviders[entry]
+	if refusal != "" || !provides || directory == "" {
+		return controls, refusal
+	}
+	choices, err := provider(directory)
+	if err != nil {
+		return nil, fmt.Sprintf("the model directory exports no choices: %v", err)
+	}
+	for index := range controls {
+		controls[index].Choices = choices[controls[index].Name]
+	}
+	return controls, ""
 }
 
 func describe(request reflect.Type) ([]Control, string) {

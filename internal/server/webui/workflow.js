@@ -28,8 +28,12 @@
       if (err.name !== "AbortError") publish("stream.error", err);
     } finally {
       if (streamController === controller) streamController = null;
+      // A broken stream (a model swap replaces the serving child) reconnects
+      // while anyone still listens; the pause keeps a dead server quiet.
+      if (!streamController && subscribers.size) setTimeout(() => { if (!streamController && subscribers.size) connect(); }, streamReconnectDelayMS);
     }
   }
+  const streamReconnectDelayMS = 2000;
 
   function subscribe(handler) {
     subscribers.add(handler);
@@ -63,11 +67,13 @@
     host.replaceChildren();
     for (const control of controls || []) {
       let input;
-      if (control.type === "boolean") {
+      // A field the model's artifact exports values for (a voice) is a
+      // choice, never a free input; a boolean is one too.
+      const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
+      if (choices) {
         input = el("select", { class: "text" },
           el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
-          el("option", { value: "true", text: "true" }),
-          el("option", { value: "false", text: "false" }));
+          ...choices.map((choice) => el("option", { value: choice, text: choice })));
       } else {
         input = el(control.type === "text" ? "textarea" : "input", {
           class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
@@ -110,8 +116,10 @@
           if (current) finish(current);
         }
         if (name === "stream.error") {
+          // The event stream can break under a model swap; the operation's
+          // durable status still answers from the server's own wait route.
           unsubscribe();
-          reject(value);
+          window.overgo.api.get("/operations/wait?id=" + encodeURIComponent(id)).then(resolve, () => reject(value));
         }
       });
       if (signal) signal.addEventListener("abort", () => {

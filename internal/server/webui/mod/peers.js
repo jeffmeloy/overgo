@@ -159,13 +159,8 @@
       async function renderEvidence(operation) {
         const evidence = await api.get("/peers/evidence?operation=" + encodeURIComponent(operation));
         if (!(evidence.attempts || []).length) return;
-        const table = el("table", { class: "grid" }, overgo.headerRow(["phase", "outcome", "attempt", "failure / log", "artifacts"]));
-        for (const document of evidence.attempts || []) {
-          const attempt = document.value;
-          table.appendChild(overgo.tableRow([attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed",
-            el("span", {}, ...((attempt.artifacts || []).map(artifactLink)))]));
-        }
-        evidenceHost.replaceChildren(table);
+        evidenceHost.replaceChildren(overgo.table(["phase", "outcome", "attempt", "failure / log", "artifacts"], (evidence.attempts || []).map(({ value: attempt }) => [
+          attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed", el("span", {}, ...((attempt.artifacts || []).map(artifactLink)))])));
       }
 
       await refreshInventory();

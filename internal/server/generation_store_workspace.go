@@ -78,10 +78,11 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 			if len(stages) == 0 {
 				continue
 			}
-			controls, refusal := mediacapability.Controls(stages[0].Module.ID)
+			directory, _ := workspace.executionPath(ctx, entry.Model, entry.Location)
+			controls, refusal := mediacapability.Controls(stages[0].Module.ID, directory)
 			declared := make([]WorkflowControl, 0, len(controls))
 			for _, control := range controls {
-				declared = append(declared, WorkflowControl{Name: control.Name, Type: WorkflowControlType(control.Type), Required: control.Required})
+				declared = append(declared, WorkflowControl{Name: control.Name, Type: WorkflowControlType(control.Type), Required: control.Required, Choices: control.Choices})
 			}
 			capabilities = append(capabilities, WorkflowCapability{
 				Task: capability.Task, Recipe: definition.ID, Stages: stages,

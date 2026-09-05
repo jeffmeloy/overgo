@@ -224,9 +224,7 @@
       const current = new AbortController();
       controller = current;
       try { await task(current.signal); }
-      catch (err) {
-        if (!err || err.name !== "AbortError") throw err;
-      } finally {
+      catch (err) { if (!err || err.name !== "AbortError") throw err; } finally {
         if (controller === current) controller = null;
         schedule();
       }
@@ -636,10 +634,7 @@
         clearInterval(offlineTimer);
         offlineTimer = null;
         initShell();
-      } catch (err) {
-        dot.className = "dot err";
-        text.textContent = "no server at " + location.origin + " (" + friendlyError(err) + ")";
-      }
+      } catch (err) { dot.className = "dot err"; text.textContent = "no server at " + location.origin + " (" + friendlyError(err) + ")"; }
     }
     retry.addEventListener("click", probe);
     if (offlineTimer == null) offlineTimer = setInterval(probe, 4000);
@@ -656,20 +651,14 @@
     try {
       workspaceManifest = await api.get("/workspace/manifest");
       capabilityDocument = workspaceManifest.model || null;
-    } catch (err) {
-      offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")");
-      return;
-    }
+    } catch (err) { offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")"); return; }
     clear(panels);
     clear(sectionBar);
     sectionButtons.length = 0;
     try {
       await loadWorkspaceModules(workspaceManifest);
       bindWorkspaceManifest(workspaceManifest);
-    } catch (err) {
-      panels.appendChild(errorBanner(friendlyError(err)));
-      return;
-    }
+    } catch (err) { panels.appendChild(errorBanner(friendlyError(err))); return; }
     for (const section of sectionsPresent()) {
       const button = el("button", { class: "section", onclick: () => selectSection(section.id) }, section.label);
       const group = el("div", { class: "nav-group" }, button);

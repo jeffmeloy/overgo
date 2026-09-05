@@ -11,10 +11,7 @@
       let bundles = [];
       try {
         data = await overgo.api.get("/recipes/active?task=inference");
-      } catch (err) {
-        panel.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
+      } catch (err) { panel.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
 	  try {
 		const bundleData = await overgo.api.get("/capabilities/bundles");
 		bundles = bundleData.bundles || [];

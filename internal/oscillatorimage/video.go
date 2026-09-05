@@ -8,6 +8,8 @@ import (
 	"image/color/palette"
 	"image/draw"
 	"image/gif"
+
+	"overgo/internal/media"
 )
 
 type VideoRequest struct {
@@ -24,8 +26,14 @@ type EncodedVideo struct {
 	Channels      int    `json:"channels"`
 	Height        int    `json:"height"`
 	Width         int    `json:"width"`
+	FPS           int    `json:"fps"`
 	ChangedPixels int    `json:"changed_pixels"`
 }
+
+// videoFPS is the clip's frame rate: the GIF's per-frame delay derives from
+// it, and the published clip carries it so a consumer validating the
+// encoded video reads the rate the encoder wrote.
+const videoFPS = 8
 
 type videoPlan struct{ request VideoRequest }
 type videoFeatures struct {
@@ -92,7 +100,7 @@ func (m *Model) decodeVideo(features videoFeatures) (EncodedVideo, error) {
 		paletted := image.NewPaletted(rgba.Bounds(), palette.Plan9)
 		draw.FloydSteinberg.Draw(paletted, rgba.Bounds(), rgba, image.Point{})
 		animation.Image = append(animation.Image, paletted)
-		animation.Delay = append(animation.Delay, 12)
+		animation.Delay = append(animation.Delay, media.GIFFrameDelay(videoFPS))
 	}
 	var encoded bytes.Buffer
 	if err := gif.EncodeAll(&encoded, animation); err != nil {
@@ -100,7 +108,7 @@ func (m *Model) decodeVideo(features videoFeatures) (EncodedVideo, error) {
 	}
 	return EncodedVideo{
 		Data: encoded.Bytes(), MediaType: "image/gif", Frames: len(features.frames), Channels: m.Cfg.OutChannels,
-		Height: m.Cfg.OutH() * features.scale, Width: m.Cfg.OutW() * features.scale, ChangedPixels: changed,
+		Height: m.Cfg.OutH() * features.scale, Width: m.Cfg.OutW() * features.scale, FPS: videoFPS, ChangedPixels: changed,
 	}, nil
 }
 

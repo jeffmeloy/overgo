@@ -14,7 +14,7 @@ func (video *EncodedVideo) DecodeContent(content artifact.Content) error {
 	if err := decoded.DecodeContent(content); err != nil {
 		return err
 	}
-	*video = EncodedVideo{}
+	*video = EncodedVideo{FPS: videoFPS}
 	video.Data, video.MediaType = decoded.Data, decoded.MediaType
 	video.Frames, video.Channels, video.Height, video.Width = decoded.Frames, decoded.Channels, decoded.Height, decoded.Width
 	return nil

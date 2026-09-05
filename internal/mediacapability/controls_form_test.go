@@ -43,7 +43,7 @@ func TestControlsDeclareTheWanPromptForm(t *testing.T) {
 	for _, control := range edit {
 		names = append(names, control.Name+":"+control.Type)
 	}
-	if joined := strings.Join(names, ","); joined != "prompt:text,seed:integer,source_artifact:text" {
+	if joined := strings.Join(names, ","); joined != "prompt:text,seed:integer,source_artifact:artifact" {
 		t.Fatalf("LiveEdit controls = %s", joined)
 	}
 }

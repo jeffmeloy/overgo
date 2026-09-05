@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/media"
 )
 
@@ -53,7 +54,11 @@ func TestEditPolicyDeclaresTheReferenceSchedule(t *testing.T) {
 // marshals without condition or source keys, and the tensor form keeps
 // its strict validation.
 func TestReferenceEditRequestFormAdmitsClipOrTensors(t *testing.T) {
-	clip := ReferenceEditRequest{Prompt: "a fox", Seed: 7, SourceArtifact: "file:sha256:" + strings.Repeat("ab", 32)}
+	clipID, err := artifact.ParseID("file:sha256:" + strings.Repeat("ab", 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clip := ReferenceEditRequest{Prompt: "a fox", Seed: 7, SourceArtifact: clipID}
 	if !clip.ClipForm() {
 		t.Fatal("clip form not recognised")
 	}
@@ -70,11 +75,10 @@ func TestReferenceEditRequestFormAdmitsClipOrTensors(t *testing.T) {
 		}
 	}
 	for name, request := range map[string]ReferenceEditRequest{
-		"empty":            {},
-		"prompt only":      {Prompt: "a fox"},
-		"artifact only":    {SourceArtifact: clip.SourceArtifact},
-		"unparseable clip": {Prompt: "a fox", SourceArtifact: "not-an-id"},
-		"negative seed":    {Prompt: "a fox", Seed: -1, SourceArtifact: clip.SourceArtifact},
+		"empty":         {},
+		"prompt only":   {Prompt: "a fox"},
+		"artifact only": {SourceArtifact: clip.SourceArtifact},
+		"negative seed": {Prompt: "a fox", Seed: -1, SourceArtifact: clip.SourceArtifact},
 	} {
 		if ValidateReferenceEditRequestForm(request) == nil {
 			t.Errorf("%s: admitted %+v", name, request)

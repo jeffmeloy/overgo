@@ -28,7 +28,11 @@ func TestFrontPageMediaRoundtrip(t *testing.T) {
 		}
 	}
 	chat := get("/mod/chat.js")
-	if !strings.Contains(chat, "reuse: (file) => composer.addFile(file)") {
-		t.Error("the chat page does not take media outputs back as input")
+	// The hook takes the card's file and its stored id: a mode whose request
+	// names an artifact takes the id, any other turn takes the file.
+	for _, needle := range []string{"reuse: (file, artifact) =>", `field.control.type === "artifact"`, "field.input.value = artifact", "composer.addFile(file)"} {
+		if !strings.Contains(chat, needle) {
+			t.Errorf("the chat page does not take media outputs back as input: missing %q", needle)
+		}
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/diffusionimage"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
@@ -44,6 +45,9 @@ var choiceProviders = map[recipe.ModuleID]func(directory string) (map[string][]s
 }
 
 const (
+	// ControlArtifact is a request field naming an artifact the store holds,
+	// which a page fills from a media card's stored id.
+	ControlArtifact = "artifact"
 	// ControlText is a request field a page types as free text.
 	ControlText = "text"
 	// ControlInteger is a request field a page types as a whole number.
@@ -107,6 +111,13 @@ func describe(request reflect.Type) ([]Control, string) {
 		}
 		optional := strings.Contains(options, "omitzero") || strings.Contains(options, "omitempty")
 		control := Control{Name: name}
+		// An artifact id names something the store holds (a clip a page
+		// attaches), which a page fills from a media card rather than types.
+		if field.Type == reflect.TypeOf(artifact.ID{}) {
+			control.Type, control.Required = ControlArtifact, !optional
+			controls = append(controls, control)
+			continue
+		}
 		switch field.Type.Kind() {
 		case reflect.String:
 			control.Type, control.Required = ControlText, !optional

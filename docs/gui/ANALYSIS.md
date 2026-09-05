@@ -254,8 +254,11 @@ What the rows established, each a record rather than a statement:
   context through the Wan text pipeline, flow sigmas for its timesteps)
   and the planar source video decoded from the clip's GIF; a clip whose
   latent frames the schedule cannot chunk is refused with the admissible
-  counts. The page fills the artifact id by hand until the media-reference
-  control lands. The HTTP package names neither the media executor catalog
+  counts. The clip reference is a typed artifact id: the controls
+  reflection declares it as an artifact control, and a media card's "use as
+  input" fills it with the card's stored id when the chosen mode's request
+  names one (the journey's clip legs prove it on the oscillator video and
+  LiveEdit). The HTTP package names neither the media executor catalog
   nor the model intake: the launcher binds `GenerationCatalog` (executors,
   declared controls, output content) and `LibraryIntake`
   (`internal/libraryintake`: model files, register, validate) into the

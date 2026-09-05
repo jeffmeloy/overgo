@@ -69,8 +69,12 @@
         el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
         facts);
       // A media output in this thread re-enters the composer as the next
-      // turn's attachment, refused or accepted by the served capability.
-      const thread = overgo.thread(panel, { reuse: (file) => composer.addFile(file) });
+      // turn's attachment, refused or accepted by the served capability; a
+      // mode whose request names an artifact takes the card's stored id.
+      const thread = overgo.thread(panel, { reuse: (file, artifact) => {
+        const field = [...generation.fields.values()].find((field) => field.control.type === "artifact");
+        if (field && artifact) field.input.value = artifact; else composer.addFile(file);
+      } });
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },

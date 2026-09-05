@@ -149,9 +149,7 @@
                 await chatThread.consume(overgo.streams.reply(result), assistant);
                 if (assistant.content) history.push({ role: "assistant", content: assistant.content });
                 sessions.set(selected, history);
-              } catch (err) {
-                chatThread.errorRow(err.name === "AbortError" ? "stopped" : overgo.friendlyError(err));
-              } finally {
+              } catch (err) { chatThread.errorRow(err.name === "AbortError" ? "stopped" : overgo.friendlyError(err)); } finally {
                 chatController = null;
                 const current = activeAgent();
                 chatComposer.setBusy(!current || current.state !== "active");

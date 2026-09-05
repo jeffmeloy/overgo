@@ -150,7 +150,7 @@
       const again = reuse && event.url ? el("button", { class: "btn alt", text: "use as input", onclick: async () => {
         try {
           const body = await overgo.api.blob(event.url);
-          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }));
+          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }), event.artifact);
         } catch (err) { errorRow(overgo.friendlyError(err)); }
       } }) : null;
       const card = el("div", { class: "artifact msg media" }, player,

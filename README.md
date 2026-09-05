@@ -518,7 +518,11 @@ derived from the server, not from client configuration:
   as media artifacts (PNG, GIF, WAV) with their provenance.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
-  refused by the served capability like any attachment.
+  refused by the served capability like any attachment. When the chosen
+  generation mode's request names an artifact (LiveEdit's source clip),
+  the same button fills that control with the card's stored id instead, so
+  a clip the page just generated is the next edit's source without leaving
+  the store.
 - **Turn inspection.** Any turn opens in the inspector with its run record,
   and the analysis inspectors run over that turn's exact prompt and
   completion.

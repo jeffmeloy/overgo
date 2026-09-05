@@ -31,7 +31,7 @@ func OutputContent(output any) (artifact.Content, error) {
 	case oscillatorimage.EncodedVideo:
 		return latentvideo.GIFContent(latentvideo.EncodedVideo{
 			Data: value.Data, MediaType: value.MediaType, Frames: value.Frames,
-			Channels: value.Channels, Height: value.Height, Width: value.Width,
+			Channels: value.Channels, Height: value.Height, Width: value.Width, FPS: value.FPS,
 		})
 	case speechsynth.Audio:
 		if value.Channels != 1 {

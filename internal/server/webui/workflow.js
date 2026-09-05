@@ -24,9 +24,7 @@
     streamController = controller;
     try {
       await window.overgo.api.events("/runtime/activity/stream", publish, { signal: controller.signal });
-    } catch (err) {
-      if (err.name !== "AbortError") publish("stream.error", err);
-    } finally {
+    } catch (err) { if (err.name !== "AbortError") publish("stream.error", err); } finally {
       if (streamController === controller) streamController = null;
       // A broken stream (a model swap replaces the serving child) reconnects
       // while anyone still listens; the pause keeps a dead server quiet.
@@ -212,9 +210,7 @@
             status.textContent = "running / " + fmt.shortID(operation);
             const completed = await overgo.waitOperation(operation, renderOperation);
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
-          } catch (err) {
-            status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-          } finally {
+          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally {
             operation = null;
             run.disabled = false;
             cancel.disabled = false;

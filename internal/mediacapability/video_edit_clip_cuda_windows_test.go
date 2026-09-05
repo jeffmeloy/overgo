@@ -75,7 +75,7 @@ func TestVideoEditClipActivation(t *testing.T) {
 	}
 	raw, err := json.Marshal(latentvideo.ReferenceEditRequest{
 		Prompt: "a red fox licking a vanilla ice cream cone on a snowy pine forest trail",
-		Seed:   7, SourceArtifact: clip.Descriptor.ID.String(),
+		Seed:   7, SourceArtifact: clip.Descriptor.ID,
 	})
 	if err != nil {
 		t.Fatal(err)

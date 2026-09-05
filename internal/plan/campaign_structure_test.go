@@ -505,6 +505,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"model-regression-gate/coverage-selection",
 		"model-regression-gate/coverage-acquisition",
 		"model-regression-gate/readmit-controls",
+		"model-regression-gate/repair-pool-release",
+		"model-regression-gate/readmit-pool-controls",
 		"model-regression-baseline/do",
 		"simplify-prefill-paths/do",
 		"simplify-command-surface/do",

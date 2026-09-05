@@ -30,6 +30,16 @@
       "status": "open",
       "steps": [
         {
+          "id": "readmit-pool-controls",
+          "title": "Readmit the controls after the pool ownership repair",
+          "status": "open",
+          "verify": "test -f cmd/longform/current_guard_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^(TestCurrentGuardControls|TestAcceptedBaselineEvidence)$' -count=1",
+          "rationale": "Publish three clean isolated repeats for each control after the pool repair changes the inference surface. Compare against the prior exact controls and first new repeat with unchanged tokens, NLL, rate and peak/retained allocation limits. Preserve all original and 977e3ebe-surface records as historical evidence. Update the exact current-control binding before reacquiring invalidated text cohorts. Correct any performance or ownership regression before continuing.",
+          "depends_on": [
+            "model-regression-gate/repair-pool-release"
+          ]
+        },
+        {
           "id": "coverage-acquisition",
           "title": "Complete missing fixed-budget text guard records before enforcement",
           "status": "open",
@@ -37,7 +47,8 @@
           "rationale": "The accepted census has eight available activated text models plus a separate DNA inference activation. After the two controls are readmitted, acquire the six missing current-surface cohorts: MiniCPM1B, Qwen3.5 4B/9B, the Gemma12B precision twins and quantized27B. These are available models, distinct from the census's six unavailable inactive historical identities. Use longform -guard, the frozen corpus and unchanged floors, smallest first in a clean evidence worktree. Retain the original historical controls and the new three-repeat control cohorts. Older incomplete records and the two MiniCPM measurements exposed to uncertain device contention cannot become isolated guard references. Derive per-run budgets from measured cost and stop/repair failures immediately. This is bounded guard acquisition, not the operator-owned27B MMLU campaign or full modality milestone. Compare raw instruction NLL only with the same model; do not reopen the answered framing issue. Keep first accepted references and all failures, never the fastest sample or weaker floors. Acceptance binds exact immutable records, current recipe/source/corpus, full64-token short and four256-token rung outputs through8192, quality/rate/resource comparisons and the full live text denominator. Repair demonstrated execution defects under the current controls with CPU then CUDA parity before continuing. Final automatic gate enforcement remains blocked until coverage is complete.",
           "depends_on": [
             "model-regression-gate/coverage-selection",
-            "model-regression-gate/readmit-controls"
+            "model-regression-gate/readmit-controls",
+            "model-regression-gate/readmit-pool-controls"
           ]
         },
         {

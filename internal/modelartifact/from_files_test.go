@@ -1,6 +1,8 @@
 package modelartifact
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -8,6 +10,53 @@ import (
 
 	"overgo/internal/artifact"
 )
+
+func TestFromFilesPyTorchCompoundSuffix(t *testing.T) {
+	// A protocol-2 torch state_dict with one float32 weight, shape [1].
+	metadata := "\x80\x02}X\x06\x00\x00\x00weightctorch._utils\n_rebuild_tensor_v2\n((X\x07\x00\x00\x00storagectorch\nFloatStorage\nX\x01\x00\x00\x000X\x03\x00\x00\x00cpuK\x01tQK\x00K\x01\x85K\x01\x85\x89)tRs."
+	var encoded bytes.Buffer
+	archive := zip.NewWriter(&encoded)
+	for name, body := range map[string]string{"archive/data.pkl": metadata, "archive/data/0": "\x00\x00\x80\x3f"} {
+		entry, err := archive.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := entry.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var expected artifact.ID
+	for _, suffix := range []string{".pth", ".pt", ".pth.tar", ".PT.TAR"} {
+		t.Run(suffix, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, "model"+suffix)
+			if err := os.WriteFile(path, encoded.Bytes(), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			inventory, err := FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fact, found := inventory.TensorInventory.Tensor("weights/weight")
+			if !found || fact.Storage != "f32" || fact.Bytes != 4 || len(fact.Shape) != 1 || fact.Shape[0] != 1 {
+				t.Fatalf("tensor facts: %+v", inventory.TensorInventory)
+			}
+			if expected.Valid() && inventory.Manifest.ID != expected {
+				t.Fatal("filename suffix changed the same checkpoint's identity")
+			}
+			expected = inventory.Manifest.ID
+			if err := os.WriteFile(path, []byte("not a ZIP checkpoint"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := FromFiles(root, []FileSpec{{Path: path, Name: "weights", Role: artifact.ComponentWeights}}); err == nil {
+				t.Fatal("accepted invalid PyTorch container")
+			}
+		})
+	}
+}
 
 func TestFromFilesInventoriesIndexedShardsOnce(t *testing.T) {
 	directory := t.TempDir()

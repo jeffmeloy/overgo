@@ -32,9 +32,12 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
+		return errors.New("usage: recipe <register|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
 	}
 	verb := os.Args[1]
+	if verb == "register" {
+		return registerModels(os.Args[2:])
+	}
 	if verb == "validate-candidate" {
 		return validateCandidate(os.Args[2:])
 	}
@@ -548,7 +551,7 @@ func retire(
 // committed.
 func ensurePolicy(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
-	inventory, err := policyModelInventory(path, task)
+	inventory, err := taskModelInventory(path, task)
 	if err != nil {
 		return err
 	}
@@ -575,12 +578,9 @@ func ensurePolicy(repository, path string, task recipe.Task) error {
 	return nil
 }
 
-// policyModelInventory resolves the model identity for a policy bind
-// through the same authority each task uses everywhere else: the GGUF
-// header for inference-family models, the task's registered capability
-// source for everything else -- a safetensors speech or media model is
-// never opened as a GGUF.
-func policyModelInventory(path string, task recipe.Task) (modelartifact.Inventory, error) {
+// taskModelInventory shares task-specific identity resolution between status
+// and policy operations through the existing capability source owners.
+func taskModelInventory(path string, task recipe.Task) (modelartifact.Inventory, error) {
 	if task == recipe.TaskVQA {
 		return modelartifact.FromHFPath(path)
 	}
@@ -590,6 +590,9 @@ func policyModelInventory(path string, task recipe.Task) (modelartifact.Inventor
 			return modelartifact.Inventory{}, err
 		}
 		return source.Inventory, nil
+	}
+	if task != recipe.TaskInference && task != recipe.TaskProjection {
+		return modelartifact.Inventory{}, fmt.Errorf("unsupported model recipe task %q", task)
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -601,32 +604,9 @@ func policyModelInventory(path string, task recipe.Task) (modelartifact.Inventor
 
 func status(repository, path string, task recipe.Task) error {
 	ctx := context.Background()
-	var inventory modelartifact.Inventory
-	if task == recipe.TaskVQA {
-		var err error
-		inventory, err = modelartifact.FromHFPath(path)
-		if err != nil {
-			return err
-		}
-	} else if capability, ok := mediacapability.Catalog[task]; ok {
-		source, err := capability.Resolve(path)
-		if err != nil {
-			return err
-		}
-		inventory = source.Inventory
-	} else {
-		if task != recipe.TaskInference && task != recipe.TaskProjection {
-			return fmt.Errorf("unsupported model recipe task %q", task)
-		}
-		file, err := gguf.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-		inventory, err = modelartifact.FromGGUF(file, artifact.KindModel)
-		if err != nil {
-			return err
-		}
+	inventory, err := taskModelInventory(path, task)
+	if err != nil {
+		return err
 	}
 	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
@@ -643,5 +623,49 @@ func status(repository, path string, task recipe.Task) error {
 	}
 	fmt.Printf("%s\n  model  %s\n  recipe %s\n  tier   %s\n",
 		path, inventory.Manifest.ID, activation.Definition.ID, activation.Tier)
+	return nil
+}
+
+// registerModels publishes exact physical inventories and their supplied source
+// declaration. It never derives recipes, selects runtimes or changes activation.
+func registerModels(args []string) error {
+	flags := flag.NewFlagSet("recipe register", flag.ContinueOnError)
+	repository := flags.String("repo", "", "OvergoDB store")
+	root := flags.String("root", "", "root containing the declared model directories")
+	declaration := flags.String("spec", "", "JSON array of exact model, tensor, source and license identities")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 || *repository == "" || *root == "" || *declaration == "" {
+		return errors.New("usage: recipe register -repo STORE -root MODELS -spec JSON")
+	}
+	ctx := context.Background()
+	batch, err := modelartifact.PrepareRegistration(ctx, *root, *declaration)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.Open(*repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if err := modelartifact.PreserveRawTextDescriptors(ctx, store, &batch); err != nil {
+		return err
+	}
+	// Include physical locations in the idempotency key: the same exact models
+	// may be registered at another root without changing their identities.
+	identityBytes, err := json.Marshal(batch)
+	if err != nil {
+		return err
+	}
+	identity, err := artifact.IdentifyBytes(artifact.KindFile, identityBytes)
+	if err != nil {
+		return err
+	}
+	batch.Key = "recipe/registration/" + identity.DigestHex()
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		return err
+	}
+	fmt.Printf("registered=%d source_declaration=%s; exact model, tensor, source and license identities checked; model bytes copied=0; runtime execution and activation did not run\n", len(batch.Manifests), batch.Contents[0].Descriptor.ID)
 	return nil
 }

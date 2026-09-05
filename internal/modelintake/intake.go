@@ -111,7 +111,9 @@ func PrepareInferenceCandidate(
 // candidate recipe is not yet published, the candidate itself: the model
 // is then known to the store as a candidate, not yet servable.
 func RegisterCandidate(ctx context.Context, store artifact.Repository, candidate Candidate) error {
-	if _, err := modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil {
+	// Facts already published are no change, and a registration repeated
+	// for a model the store knows is a registration, not a fault.
+	if _, err := modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return fmt.Errorf("publish model facts: %w", err)
 	}
 	_, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID)

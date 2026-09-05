@@ -48,6 +48,7 @@ const libraryValidationPolicyPath = "library_validation.json"
 
 type libraryValidationPolicy struct {
 	Schema    int      `json:"schema"`
+	Doc       string   `json:"doc,omitzero"`
 	Prompts   []string `json:"prompts"`
 	MaxTokens int      `json:"max_tokens"`
 }

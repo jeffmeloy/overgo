@@ -458,6 +458,7 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"gui-closeout/closeout",
 		"gui-serve-projectors/do",
 		"gui-register-projectors/do",
+		"gui-library-fixes/do",
 		"gui-generation-declarations/do",
 		"gui-media-roundtrip/do",
 		"gui-journey-modalities/do",

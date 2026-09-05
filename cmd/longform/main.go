@@ -29,6 +29,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
@@ -50,10 +51,6 @@ const (
 	deviceFitDenominator = uint64(10)
 )
 
-// deviceTotalBytes is the device's memory, read once at start; zero
-// leaves the ladder unbounded by memory.
-var deviceTotalBytes uint64
-
 // corpusBytesPerToken sizes the text read for the ladder: the
 // tokenizers in the catalog average under four bytes per token on the
 // repository's text, so six bytes per token reads enough for the
@@ -61,21 +58,24 @@ var deviceTotalBytes uint64
 const corpusBytesPerToken = 6
 
 type options struct {
-	Repository   string
-	Root         string
-	Device       int
-	Publish      bool
-	All          bool
-	Check        bool
-	OutputPrefix int
-	Models       []string
-	Corpus       string
-	ExportCorpus string
-	CorpusBytes  int
-	Baselines    []string
-	Budget       time.Duration
-	ModelBudget  time.Duration
-	corpusText   string
+	Repository        string
+	Root              string
+	Device            int
+	Publish           bool
+	All               bool
+	Check             bool
+	Guard             bool
+	ValidateBaselines bool
+	OutputPrefix      int
+	Models            []string
+	Corpus            string
+	ExportCorpus      string
+	CorpusBytes       int
+	Baselines         []string
+	Budget            time.Duration
+	ModelBudget       time.Duration
+	corpusText        string
+	deviceInfo        driver.DeviceInfo
 }
 
 func main() {
@@ -94,6 +94,8 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.Publish, "publish", false, "commit each result as long-form evidence with a verification claim (requires a clean worktree)")
 	flags.BoolVar(&result.All, "all", false, "run every servable text model, smallest first")
 	flags.BoolVar(&result.Check, "check", false, "measure a fresh ladder against explicit -baseline records on the fixed -corpus; exit 1 on a regression")
+	flags.BoolVar(&result.Guard, "guard", false, "bound the ladder to the declared regression ceiling and require complete recipe-bound quality, rate and allocation evidence")
+	flags.BoolVar(&result.ValidateBaselines, "validate-baselines", false, "read-only acceptance of explicit current-surface guard records; does not load models or measure CUDA")
 	flags.IntVar(&result.OutputPrefix, "show", 240, "characters of the judged generation to print")
 	flags.StringVar(&result.Corpus, "corpus", "", "fixed UTF-8 corpus file; required for -check")
 	flags.StringVar(&result.ExportCorpus, "export-corpus", "", "write a new fixed corpus file from this repository, without measuring models")
@@ -106,7 +108,7 @@ func parseOptions(args []string) (options, error) {
 	}
 	result.Models = flags.Args()
 	if result.ExportCorpus != "" {
-		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
+		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Guard || result.ValidateBaselines || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
 			return options{}, errors.New("longform: -export-corpus requires positive -corpus-bytes and no measurement options")
 		}
 		return result, nil
@@ -114,17 +116,20 @@ func parseOptions(args []string) (options, error) {
 	if result.CorpusBytes != 0 || result.Budget <= 0 || result.ModelBudget < 0 {
 		return options{}, errors.New("longform: measurement requires positive -budget; -model-budget cannot be negative")
 	}
-	if result.Check && (result.Corpus == "" || len(result.Baselines) == 0) {
-		return options{}, errors.New("longform: -check requires a fixed -corpus and explicit -baseline records")
+	if (result.Check || result.ValidateBaselines) && (result.Corpus == "" || len(result.Baselines) == 0) {
+		return options{}, errors.New("longform: -check and -validate-baselines require a fixed -corpus and explicit -baseline records")
 	}
-	if !result.Check && len(result.Baselines) != 0 {
-		return options{}, errors.New("longform: -baseline requires -check")
+	if !result.Check && !result.ValidateBaselines && len(result.Baselines) != 0 {
+		return options{}, errors.New("longform: -baseline requires -check or -validate-baselines")
+	}
+	if result.Guard && result.Corpus == "" {
+		return options{}, errors.New("longform: -guard requires a fixed -corpus")
 	}
 	if result.All == (len(result.Models) > 0) {
 		return options{}, errors.New("usage: longform [-repo <store>] [-device N] [-publish | -check] (-all | <model.gguf>...)")
 	}
-	if result.Publish && result.Check {
-		return options{}, errors.New("longform: -check compares, it does not publish")
+	if result.Publish && (result.Check || result.ValidateBaselines) || result.Check && result.ValidateBaselines {
+		return options{}, errors.New("longform: -publish, -check and -validate-baselines are separate modes")
 	}
 	if strings.TrimSpace(result.Repository) == "" {
 		return options{}, errors.New("longform: -repo is required")
@@ -266,18 +271,25 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if options.Check {
+	if options.Check || options.ValidateBaselines {
 		if err := bindBaselines(ctx, options, targets); err != nil {
 			return err
 		}
 	}
-	if cuda, err := driver.Open(); err == nil {
-		if err := cuda.Init(); err == nil {
-			if info, err := cuda.DeviceInfo(options.Device); err == nil {
-				deviceTotalBytes = info.TotalMemoryBytes
-			}
-		}
-		cuda.Close()
+	if options.ValidateBaselines {
+		return validateSelectedBaselines(output, targets, surface)
+	}
+	cuda, err := driver.Open()
+	if err != nil {
+		return err
+	}
+	defer cuda.Close()
+	if err := cuda.Init(); err != nil {
+		return err
+	}
+	options.deviceInfo, err = cuda.DeviceInfo(options.Device)
+	if err != nil {
+		return err
 	}
 	return runTargets(ctx, output, options, targets, commit, surface, measure, publish)
 }
@@ -288,7 +300,7 @@ type publishModel func(context.Context, string, artifact.ID, longform.Result) (a
 func runTargets(ctx context.Context, output io.Writer, options options, targets []target, commit, surface string, measure measureModel, publish publishModel) error {
 	floors := longform.DeclaredFloors()
 	ceiling := 0
-	if options.Check {
+	if options.Check || options.Guard {
 		ceiling = floors.CheckRungCeiling
 	}
 	var failures []error
@@ -327,9 +339,19 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 			continue
 		}
 		measured++
+		if options.Guard {
+			if err := validateGuard(result); err != nil {
+				result.Verdict.Passed = false
+				result.Verdict.Reasons = append(result.Verdict.Reasons, err.Error())
+			}
+		}
 		report(output, result, options.OutputPrefix)
 		if options.Check {
 			verdict := longform.Compare(target.record.Result, result, floors, ceiling)
+			if options.Guard && !result.Verdict.Passed {
+				verdict.Passed = false
+				verdict.Reasons = append(verdict.Reasons, result.Verdict.Reasons...)
+			}
 			fmt.Fprintf(output, "  against record %.12s (surface %.12s): %s\n", target.record.Record, target.record.Result.Surface, verdict)
 			if !verdict.Passed {
 				failures = append(failures, fmt.Errorf("%s: regression: %s", name, verdict))
@@ -360,6 +382,13 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		return longform.Result{}, err
 	}
 	defer runner.Close()
+	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
+	if err != nil {
+		return longform.Result{}, err
+	}
+	if description.Identity.Recipe != target.entry.Recipe {
+		return longform.Result{}, errors.New("longform: active recipe changed after target selection")
+	}
 	properties := runner.ModelProperties()
 	highest := int(properties.ContextLength)
 	if ceiling > 0 {
@@ -385,7 +414,7 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 			fmt.Fprintf(output, "  stage %s (device memory unread: %v)\n", name, err)
 			return
 		}
-		fmt.Fprintf(output, "  stage %s: device %d MiB (peak %d MiB)\n", name, memory.CurrentBytes>>20, memory.PeakBytes>>20)
+		reportMemory(output, name, memory)
 	}
 	stage(fmt.Sprintf("loaded, %d corpus tokens, rungs %v", len(corpus), rungs))
 	if err := longform.Warm(ctx, runner, corpus[:rungs[0]]); err != nil {
@@ -396,17 +425,17 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 	if err != nil {
 		return longform.Result{}, err
 	}
-	stage("short")
+	reportMemory(output, "short", shape.Measure.Memory)
 	// A rung doubles the cache the last rung added; the ladder stops
 	// when that growth would not fit the device's memory, since a rung
 	// past it thrashed the E4B at its 65536 rung with the device full.
 	previous := uint64(0)
 	climbed, stop, err := longform.Ladder(ctx, runner, corpus, rungs, floors, func(rung longform.Rung) string {
 		measure := rung.Measure
-		stage(fmt.Sprintf("rung %d: prompt %.1f tok/s, decode %.1f tok/s, gain %.3f", measure.PromptTokens,
-			measure.PromptTokensPerSecond, measure.DecodeTokensPerSecond, measure.Score.ContextGain))
-		memory, err := runner.DeviceMemoryStats(ctx)
-		if err != nil || deviceTotalBytes == 0 {
+		reportMemory(output, fmt.Sprintf("rung %d: prompt %.1f tok/s, decode %.1f tok/s, gain %.3f", measure.PromptTokens,
+			measure.PromptTokensPerSecond, measure.DecodeTokensPerSecond, measure.Score.ContextGain), measure.Memory)
+		memory := measure.Memory
+		if options.deviceInfo.TotalMemoryBytes == 0 {
 			return ""
 		}
 		growth := uint64(0)
@@ -414,8 +443,8 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 			growth = memory.CurrentBytes - previous
 		}
 		previous = memory.CurrentBytes
-		if next := memory.CurrentBytes + 2*growth; next > deviceTotalBytes/deviceFitDenominator*deviceFitNumerator {
-			return fmt.Sprintf("the device holds %d MiB of %d and the next rung would take it to %d", memory.CurrentBytes>>20, deviceTotalBytes>>20, next>>20)
+		if next := memory.CurrentBytes + 2*growth; next > options.deviceInfo.TotalMemoryBytes/deviceFitDenominator*deviceFitNumerator {
+			return fmt.Sprintf("the device holds %d MiB of %d and the next rung would take it to %d", memory.CurrentBytes>>20, options.deviceInfo.TotalMemoryBytes>>20, next>>20)
 		}
 		return ""
 	})
@@ -441,12 +470,16 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		return longform.Result{}, err
 	}
 	result := longform.Result{
+		Program: description.Identity, Device: options.deviceInfo, ContextLength: properties.ContextLength,
 		Inputs:    longform.BindInputs(target.weights, text, corpus),
 		ModelPath: properties.Path, ModelName: properties.Name, Architecture: properties.Architecture, FileType: properties.FileType,
 		Commit: commit, Surface: surface, PromptSource: options.Corpus,
 		Measure: judged.Measure, Short: target.short, Floors: floors,
 		Shape: shape, Rungs: climbed, LadderStop: stop,
 		PromptTail: tail, Output: outputText,
+	}
+	if result.PromptSource == "" {
+		result.PromptSource = "repository corpus at " + commit
 	}
 	result.Verdict = longform.Judge(result.Measure, result.Short, floors)
 	return result, nil
@@ -467,6 +500,7 @@ func publish(ctx context.Context, repository string, model artifact.ID, result l
 func report(output io.Writer, result longform.Result, prefix int) {
 	fmt.Fprintf(output, "  short %d->%d tok: NLL %.3f, decode %.1f tok/s\n",
 		result.Shape.PromptTokens, len(result.Shape.OutputIDs), result.Shape.NLL, result.Shape.Measure.DecodeTokensPerSecond)
+	reportMemory(output, "short", result.Shape.Measure.Memory)
 	for _, rung := range result.Rungs {
 		measure := rung.Measure
 		fmt.Fprintf(output, "  rung %d: prompt %.1f tok/s, decode %d tok at %.1f tok/s, distinct 4-gram %.3f, span %d, NLL %.3f long / %.3f short (gain %.3f)\n",
@@ -478,6 +512,7 @@ func report(output io.Writer, result longform.Result, prefix int) {
 			cost.KernelLaunchesPerToken, cost.SynchronizationsPerToken, cost.HostToDeviceBytesPerToken, cost.DeviceToHostBytesPerToken,
 			cost.GraphInstantiationsPerToken, cost.GraphLaunchesPerToken,
 			cost.PromptKernelLaunches, cost.PromptGraphInstantiations, cost.PromptStreamSynchronizations, cost.PromptHostToDeviceBytes)
+		reportMemory(output, fmt.Sprintf("rung %d", measure.PromptTokens), measure.Memory)
 	}
 	if result.LadderStop != "" {
 		fmt.Fprintf(output, "  ladder stopped: %s\n", result.LadderStop)
@@ -496,4 +531,8 @@ func report(output io.Writer, result longform.Result, prefix int) {
 		text = string(runes[:prefix]) + "..."
 	}
 	fmt.Fprintf(output, "  output: %s\n", text)
+}
+
+func reportMemory(output io.Writer, name string, memory driver.MemoryStats) {
+	fmt.Fprintf(output, "  %s owned allocations: retained=%d bytes, peak=%d bytes since model open; excludes other processes and driver allocations\n", name, memory.CurrentBytes, memory.PeakBytes)
 }

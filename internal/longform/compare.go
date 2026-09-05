@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"slices"
+
+	"overgo/internal/cuda/driver"
 )
 
 // Compare judges a fresh run against a record of the same model from
@@ -14,8 +16,9 @@ import (
 // ceiling. A difference names the shape, so the report says which
 // context length moved.
 func Compare(record, fresh Result, floors Floors, ceiling int) Verdict {
-	if !record.Inputs.valid() || !fresh.Inputs.valid() || record.Inputs != fresh.Inputs || record.Floors != fresh.Floors || record.Floors != floors {
-		return Verdict{Reasons: []string{"comparison inputs differ or are unbound: model, corpus, tokens, protocol or floors"}}
+	if !record.Inputs.valid() || !fresh.Inputs.valid() || record.Inputs != fresh.Inputs || record.Floors != fresh.Floors || record.Floors != floors ||
+		record.Program != fresh.Program || record.Device != fresh.Device || record.ContextLength != fresh.ContextLength {
+		return Verdict{Reasons: []string{"comparison inputs differ or are unbound: model, corpus, tokens, protocol, floors, recipe, device or context"}}
 	}
 	var reasons []string
 	reasons = append(reasons, compareTokens("short", record.Shape.OutputIDs, fresh.Shape.OutputIDs, floors)...)
@@ -23,7 +26,7 @@ func Compare(record, fresh Result, floors Floors, ceiling int) Verdict {
 		reasons = append(reasons, fmt.Sprintf("short: NLL moved %.4f nat/token (%.4f to %.4f), past the %.2f tolerance",
 			delta, record.Shape.NLL, fresh.Shape.NLL, floors.NLLTolerance))
 	}
-	reasons = append(reasons, compareRates("short", record.Shape.Measure, fresh.Shape.Measure, floors)...)
+	reasons = append(reasons, compareResources("short", record.Shape.Measure, fresh.Shape.Measure, floors)...)
 	recorded := map[int]Rung{}
 	for _, rung := range record.Rungs {
 		recorded[rung.Measure.PromptTokens] = rung
@@ -41,7 +44,7 @@ func Compare(record, fresh Result, floors Floors, ceiling int) Verdict {
 			reasons = append(reasons, fmt.Sprintf("%s: NLL moved %.4f nat/token (%.4f to %.4f), past the %.2f tolerance",
 				name, delta, reference.Measure.Score.LongContextNLL, rung.Measure.Score.LongContextNLL, floors.NLLTolerance))
 		}
-		reasons = append(reasons, compareRates(name, reference.Measure, rung.Measure, floors)...)
+		reasons = append(reasons, compareResources(name, reference.Measure, rung.Measure, floors)...)
 	}
 	for _, rung := range record.Rungs {
 		length := rung.Measure.PromptTokens
@@ -71,7 +74,7 @@ func equalPrefixMask(record, fresh []int32) []bool {
 	return mask
 }
 
-func compareRates(name string, record, fresh Measure, floors Floors) []string {
+func compareResources(name string, record, fresh Measure, floors Floors) []string {
 	var reasons []string
 	for _, rate := range []float64{record.PromptTokensPerSecond, record.DecodeTokensPerSecond, fresh.PromptTokensPerSecond, fresh.DecodeTokensPerSecond} {
 		if math.IsNaN(rate) || math.IsInf(rate, 0) || rate <= 0 {
@@ -85,6 +88,27 @@ func compareRates(name string, record, fresh Measure, floors Floors) []string {
 	if floor := floors.RateRegressionFraction * record.DecodeTokensPerSecond; fresh.DecodeTokensPerSecond < floor {
 		reasons = append(reasons, fmt.Sprintf("%s: decode %.1f tok/s is below %.1f (%.0f%% of the record's %.1f)",
 			name, fresh.DecodeTokensPerSecond, floor, 100*floors.RateRegressionFraction, record.DecodeTokensPerSecond))
+	}
+	return append(reasons, compareMemory(name, record.Memory, fresh.Memory)...)
+}
+
+func compareMemory(name string, record, fresh driver.MemoryStats) []string {
+	// Legacy comparisons retain their original scope; guard admission requires
+	// allocation measurements before a record can establish memory protection.
+	if record.PeakBytes == 0 && fresh.PeakBytes == 0 {
+		return nil
+	}
+	for _, memory := range []driver.MemoryStats{record, fresh} {
+		if memory.CurrentBytes == 0 || memory.PeakBytes < memory.CurrentBytes {
+			return []string{fmt.Sprintf("%s: allocation accounting is absent or inconsistent", name)}
+		}
+	}
+	var reasons []string
+	if fresh.CurrentBytes > record.CurrentBytes {
+		reasons = append(reasons, fmt.Sprintf("%s: retained device allocations grew from %d to %d bytes", name, record.CurrentBytes, fresh.CurrentBytes))
+	}
+	if fresh.PeakBytes > record.PeakBytes {
+		reasons = append(reasons, fmt.Sprintf("%s: peak device allocations grew from %d to %d bytes", name, record.PeakBytes, fresh.PeakBytes))
 	}
 	return reasons
 }

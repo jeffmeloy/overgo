@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "prepare-guard",
-          "title": "Store the missing guard measurements and bind acceptance in longform",
-          "status": "open",
-          "verify": "test -f cmd/longform/accepted_baseline_test.go \u0026\u0026 go test ./cmd/longform -run '^TestGuardEvidenceContract$' -count=1",
-          "rationale": "The current longform command prints device memory but does not persist peak/retained bytes, and old accepted records lack the fixed-input/rung contract. Extend the existing longform record and command only with the missing recipe/execution identity, durable memory measurements and bounded small-guard coverage, plus read-only acceptance of explicitly selected records. Prove rejection of missing/failed/mismatched evidence and preserved declared bounds using the named fixture. Commit this producer support before the do step publishes actual evidence from a clean committed tree; synthetic fixtures do not establish the model baseline. Reuse existing measurement and store owners, with no parallel reporting framework.",
-          "depends_on": [
-            "validation-readiness/measurement-contract"
-          ]
-        },
-        {
           "id": "do",
           "title": "Publish a small accepted guard baseline before execution changes",
           "status": "open",

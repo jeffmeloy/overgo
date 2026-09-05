@@ -1,17 +1,26 @@
 package evaluation
 
 import (
-	"context"
-	"errors"
+	"encoding/json"
 	"math"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/audiodsp"
 	"overgo/internal/dataset"
+	"overgo/internal/hfrepo"
+	"overgo/internal/modelartifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
+	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/testutil"
 )
@@ -20,230 +29,417 @@ type transcriptionResourceFixture struct {
 	store    artifact.Repository
 	compiled TranscriptionPlan
 	plan     Plan
-	executor *recordingTranscriptionExecutor
+	model    artifact.ID
 	inputs   []TranscriptionResourceInput
 }
 
-type recordingTranscriptionExecutor struct {
-	repository artifact.Repository
-	model      artifact.ID
-	recipe     artifact.ID
-	cases      map[artifact.ID]TranscriptionCase
-	texts      map[string]string
-	failures   map[string]string
-	calls      map[string]uint32
-	totalCalls uint64
-	change     bool
+func TestTranscriptionResourceEvidenceContract(t *testing.T) {
+	t.Run("native-execution-and-measurement-scope", testTranscriptionResourcesNativeExecution)
+	t.Run("refused-input-denominators", testTranscriptionResourcesFailureDenominators)
+	t.Run("stable-output-required", testTranscriptionResourcesStableOutput)
+	t.Run("unknown-not-zero", testTranscriptionResourcesUnknownCounters)
+	t.Run("repeated-and-mismatched-attempts", testTranscriptionResourcesRunAuthority)
+	t.Run("model-definition-mismatch", testTranscriptionResourcesModelMismatch)
+	t.Run("profiling-refused-before-side-effects", testTranscriptionResourcesProfileRefusal)
 }
 
-func (executor *recordingTranscriptionExecutor) Transcribe(
-	ctx context.Context,
-	data []byte,
-	origin dataset.AudioPayloadOrigin,
-	_ dataset.AudioInspectionPolicy,
-	_ *speechrecognition.TranscriptionWorkspace,
-	binding speechrecognition.RunBinding,
-) (recipecontract.Transcription, runrecord.Run, error) {
-	if err := ctx.Err(); err != nil {
-		return recipecontract.Transcription{}, runrecord.Run{}, err
-	}
-	testCase, found := executor.cases[origin.Container]
-	if !found {
-		return recipecontract.Transcription{}, runrecord.Run{}, errors.New("fixture: unknown audio source")
-	}
-	source, err := artifact.IdentifyBytes(artifact.KindFile, data)
-	if err != nil || source != testCase.Source.Audio {
-		return recipecontract.Transcription{}, runrecord.Run{}, errors.New("fixture: audio identity differs")
-	}
-	executor.calls[testCase.Name]++
-	executor.totalCalls++
-	measured := 100 + executor.totalCalls
-	inputs := []artifact.ID{executor.model, binding.Dataset, binding.Split, testCase.Source.Audio, testCase.Source.Profile}
-	if failure := executor.failures[testCase.Name]; failure != "" {
-		run, runErr := runrecord.NewBoundRun(
-			executor.recipe, runrecord.OutcomeFailed, inputs, nil, failure,
-			binding.CodeCommit, binding.Environment, measured,
-			[]runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: measured}},
-		)
-		if runErr != nil {
-			return recipecontract.Transcription{}, runrecord.Run{}, runErr
-		}
-		batch, runErr := run.Batch(binding.Key)
-		if runErr == nil {
-			_, runErr = artifact.CommitBatch(ctx, executor.repository, batch)
-		}
-		return recipecontract.Transcription{}, run, errors.Join(errors.New("fixture: transcription failed"), runErr)
-	}
-	text := executor.texts[testCase.Name]
-	if executor.change && executor.calls[testCase.Name] > 1 {
-		text += " changed"
-	}
-	transcription := recipecontract.Transcription{Source: testCase.Source, Text: text, Language: "en"}
-	output, err := artifact.JSONContent(
-		artifact.JSONContract(artifact.KindOutput, speechrecognition.TranscriptionSchema), transcription,
-	)
-	if err != nil {
-		return recipecontract.Transcription{}, runrecord.Run{}, err
-	}
-	run, err := runrecord.NewBoundRun(
-		executor.recipe, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output.Descriptor.ID}, "",
-		binding.CodeCommit, binding.Environment, measured,
-		[]runrecord.PhaseMetric{{Phase: runrecord.PhasePrefill, DurationNS: measured}},
-	)
-	if err != nil {
-		return recipecontract.Transcription{}, runrecord.Run{}, err
-	}
-	runContent, err := run.Content()
-	if err != nil {
-		return recipecontract.Transcription{}, runrecord.Run{}, err
-	}
-	batch, err := artifact.NewDocumentBatch(binding.Key, []artifact.Content{output, runContent}, run.Lineage(), nil)
-	if err == nil {
-		_, err = artifact.CommitBatch(ctx, executor.repository, batch)
-	}
-	return transcription, run, err
-}
-
-func TestTranscriptionResourcesExecuteEveryRunAndPublishFitness(t *testing.T) {
-	fixture := newTranscriptionResourceFixture(t, []string{"first", "second"})
-	defer fixture.store.Close()
-	report, err := EvaluateTranscriptionResources(
-		t.Context(), fixture.store, fixture.compiled, fixture.plan, fixture.executor.model, fixture.inputs,
-		TranscriptionResourceOptions{WarmupRuns: 1, TimedRuns: 2},
-		func(context.Context) (TranscriptionResourceExecutor, error) { return fixture.executor, nil },
-	)
+func testTranscriptionResourcesNativeExecution(t *testing.T) {
+	fixture := newTranscriptionResourceFixture(t)
+	report, err := EvaluateTranscriptionResources(t.Context(), fixture.store, fixture.compiled, fixture.plan,
+		fixture.model, fixture.inputs, TranscriptionResourceOptions{WarmupRuns: 1, TimedRuns: 2}, 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fixture.executor.totalCalls != 6 || fixture.executor.calls["first"] != 3 || fixture.executor.calls["second"] != 3 {
-		t.Fatalf("recipe executions = total %d cases %+v", fixture.executor.totalCalls, fixture.executor.calls)
+	if report.Summary.Runs != 4 || len(report.Executions) != 6 ||
+		report.Summary.AdmissionFailures != 0 || report.Summary.InferenceFailures != 0 ||
+		report.QualityScore.SilentControls != 1 || report.QualityScore.SilentControlFailures != 0 || report.QualityScore.WordErrorRate != 0 ||
+		report.QualityScore.CharacterErrorRate != 0 {
+		t.Fatalf("native report = %+v", report)
 	}
-	if report.Summary.Runs != 4 || report.Summary.AudioSeconds != 4 || report.Summary.WallSeconds <= 0 ||
-		report.Summary.RealTimeFactor <= 0 || report.Summary.PeakHostBytes == 0 || report.QualityScore.WordErrorRate != 0 ||
-		report.QualityScore.CharacterErrorRate != 0 || len(report.Executions) != 6 || report.Load.Observation.Kind() != artifact.KindEvidence {
-		t.Fatalf("resource report = %+v", report)
+	if report.Load.WallNS == 0 || report.Summary.WallSeconds <= 0 || report.Summary.RealTimeFactor <= 0 {
+		t.Fatalf("missing measured time: %+v", report)
 	}
-	for _, execution := range report.Executions {
-		summary, summaryErr := runrecord.RequireObservationChunkSummary(t.Context(), fixture.store, execution.Observation)
-		wall, wallKnown := summary.Aggregate.Measure(runrecord.ResourceWallNS)
-		peak, peakKnown := summary.Aggregate.Measure(runrecord.ResourcePeakHostBytes)
-		inputBytes, inputKnown := summary.Aggregate.Measure(runrecord.ResourceInputBytes)
-		if summaryErr != nil || !wallKnown || wall != execution.WallNS || !peakKnown || peak != execution.PeakHostBytes ||
-			!inputKnown || inputBytes == 0 || summary.Aggregate.Interactions == nil {
-			t.Fatalf("execution resource evidence = %+v, err %v", summary, summaryErr)
+	attempts := make(map[artifact.ID]bool)
+	var wall, recorded, tail, allocations uint64
+	for _, measurement := range report.Executions {
+		if attempts[measurement.Attempt] {
+			t.Fatalf("repeated attempt %s", measurement.Attempt)
+		}
+		attempts[measurement.Attempt] = true
+		run, err := runrecord.RequireExactRun(t.Context(), fixture.store, measurement.Run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if measurement.WallNS < run.MeasuredNS || measurement.RecordedWorkNS != run.MeasuredNS ||
+			measurement.RecordedWorkNS+measurement.UnrecordedNS != measurement.WallNS {
+			t.Fatalf("different timing scopes: %+v, run %+v", measurement, run)
+		}
+		if !measurement.Warmup {
+			wall += measurement.WallNS
+			recorded += measurement.RecordedWorkNS
+			tail += measurement.UnrecordedNS
+			allocations += measurement.ProcessAllocations
+		}
+		observation, err := runrecord.RequireObservationChunkSummary(t.Context(), fixture.store, measurement.Observation)
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, known := observation.Aggregate.Measure(runrecord.ResourceWallNS)
+		inputBytes, inputKnown := observation.Aggregate.Measure(runrecord.ResourceInputBytes)
+		_, peakKnown := observation.Aggregate.Measure(runrecord.ResourcePeakHostBytes)
+		if !known || value != measurement.WallNS || !inputKnown || inputBytes == 0 ||
+			peakKnown || observation.Aggregate.Interactions != nil {
+			t.Fatalf("misclassified observation: %+v", observation)
+		}
+		if run.Outcome == runrecord.OutcomeSucceeded {
+			output, err := speechrecognition.RequireTranscription(t.Context(), fixture.store, measurement.Output)
+			if err != nil || output.Text != "x" {
+				t.Fatalf("native output %+v: %v", output, err)
+			}
 		}
 	}
-	stored, found, err := artifact.ReadContent(t.Context(), fixture.store, report.ID)
-	if err != nil || !found || stored.Descriptor.Schema != transcriptionResourceReportSchema {
-		t.Fatalf("stored resource report = found %t schema %q err %v", found, stored.Descriptor.Schema, err)
+	for _, pair := range [][2]float64{
+		{report.Summary.WallSeconds, float64(wall) / 1e9},
+		{report.Summary.RecordedWorkSeconds, float64(recorded) / 1e9},
+		{report.Summary.UnrecordedSeconds, float64(tail) / 1e9},
+	} {
+		if math.Abs(pair[0]-pair[1]) > 1e-12 {
+			t.Fatalf("summary span mismatch %v", pair)
+		}
+	}
+	if report.Summary.ProcessAllocations != allocations {
+		t.Fatal("allocation denominator differs")
+	}
+	for _, metric := range report.Metrics {
+		if strings.Contains(metric.Name, "peak") {
+			t.Fatalf("unobserved peak metric %+v", metric)
+		}
+	}
+	content, found, err := artifact.ReadContent(t.Context(), fixture.store, report.ID)
+	if err != nil || !found || content.Descriptor.Schema != transcriptionResourceReportSchema {
+		t.Fatalf("report persistence: found=%t err=%v", found, err)
+	}
+	if strings.Contains(string(content.Data), "peak_host_bytes") || strings.Contains(string(content.Data), "\"interactions\"") {
+		t.Fatal("report invents unavailable evidence")
+	}
+	repeated, err := EvaluateTranscriptionResources(t.Context(), fixture.store, fixture.compiled, fixture.plan,
+		fixture.model, fixture.inputs, TranscriptionResourceOptions{TimedRuns: 1}, 1<<20)
+	if err != nil || repeated.Summary.Runs != 2 {
+		t.Fatalf("second evaluation must publish new measurements: %v", err)
 	}
 }
 
-func TestAudioResourceFitnessRejectsChangedTranscriptionOutput(t *testing.T) {
-	fixture := newTranscriptionResourceFixture(t, []string{"unstable"})
-	defer fixture.store.Close()
-	fixture.executor.change = true
-	_, err := EvaluateTranscriptionResources(
-		t.Context(), fixture.store, fixture.compiled, fixture.plan, fixture.executor.model, fixture.inputs,
-		TranscriptionResourceOptions{TimedRuns: 2},
-		func(context.Context) (TranscriptionResourceExecutor, error) { return fixture.executor, nil },
-	)
-	if err == nil || fixture.executor.totalCalls != 2 {
-		t.Fatalf("unstable output err=%v calls=%d", err, fixture.executor.totalCalls)
+func testTranscriptionResourcesStableOutput(t *testing.T) {
+	stable := transcriptionExecutionSignature{outcome: runrecord.OutcomeSucceeded, output: testutil.ArtifactID(t, artifact.KindOutput, "stable")}
+	for _, changed := range []transcriptionExecutionSignature{
+		{outcome: runrecord.OutcomeSucceeded, output: testutil.ArtifactID(t, artifact.KindOutput, "changed")},
+		{outcome: runrecord.OutcomeFailed, failure: speechrecognition.AudioAdmissionFailure},
+	} {
+		signatures := make(map[string]transcriptionExecutionSignature)
+		if err := recordTranscriptionResourceSignature(signatures, "case", stable); err != nil {
+			t.Fatal(err)
+		}
+		if err := recordTranscriptionResourceSignature(signatures, "case", stable); err != nil {
+			t.Fatal(err)
+		}
+		if err := recordTranscriptionResourceSignature(signatures, "case", changed); err == nil {
+			t.Fatal("unstable execution accepted")
+		}
 	}
 }
 
-func TestTranscriptionResourcesCountPersistedFailures(t *testing.T) {
-	fixture := newTranscriptionResourceFixture(t, []string{"failed"})
-	defer fixture.store.Close()
-	fixture.executor.failures["failed"] = speechrecognition.AudioAdmissionFailure
-	report, err := EvaluateTranscriptionResources(
-		t.Context(), fixture.store, fixture.compiled, fixture.plan, fixture.executor.model, fixture.inputs,
-		TranscriptionResourceOptions{TimedRuns: 1},
-		func(context.Context) (TranscriptionResourceExecutor, error) { return fixture.executor, nil },
-	)
+func testTranscriptionResourcesFailureDenominators(t *testing.T) {
+	fixture := newTranscriptionResourceFixture(t)
+	suite := fixture.compiled.suite
+	suite.Cases = slices.Clone(suite.Cases)
+	for index := range suite.Cases {
+		if suite.Cases[index].SilentControl {
+			suite.Cases[index].SilentControl = false
+			suite.Cases[index].Reference = "x"
+		}
+	}
+	compiled, err := CompileTranscription(suite)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.Summary.AdmissionFailures != 1 || report.Summary.InferenceFailures != 0 ||
-		report.QualityScore.AdmissionFailures != 1 || math.Abs(report.QualityScore.WordErrorRate-1) > 1e-12 {
-		t.Fatalf("failure accounting = resources %+v quality %+v", report.Summary, report.QualityScore)
+	plan, err := BindTranscription(compiled, ExactAuthorities{
+		ModelDefinition: fixture.plan.body.ModelDefinition, RuntimeRecipe: fixture.plan.body.RuntimeRecipe,
+		CodeCommit: fixture.plan.body.CodeCommit, Environment: fixture.plan.body.Environment,
+		Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := EvaluateTranscriptionResources(t.Context(), fixture.store, compiled, plan,
+		fixture.model, fixture.inputs, TranscriptionResourceOptions{TimedRuns: 1}, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Summary.Runs != 2 || report.Summary.AdmissionFailures != 1 || report.QualityScore.AdmissionFailures != 1 ||
+		report.QualityScore.WordErrorRate != .5 || report.QualityScore.CharacterErrorRate != .5 {
+		t.Fatalf("refused sample disappeared from denominator: %+v", report)
 	}
 }
 
-func newTranscriptionResourceFixture(t *testing.T, names []string) transcriptionResourceFixture {
+func testTranscriptionResourcesUnknownCounters(t *testing.T) {
+	fixture := newTranscriptionResourceFixture(t)
+	attempt := testutil.ArtifactID(t, artifact.KindRun, "observed zero wall")
+	fitness, err := transcriptionResourceFitness(fixture.plan, fixture.model, attempt, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wall, known := fitness.Measure(runrecord.ResourceWallNS)
+	_, peakKnown := fitness.Measure(runrecord.ResourcePeakHostBytes)
+	if !known || wall != 0 || peakKnown || fitness.Interactions != nil {
+		t.Fatalf("unknown differs from observed zero: %+v", fitness)
+	}
+}
+
+func testTranscriptionResourcesRunAuthority(t *testing.T) {
+	fixture := newTranscriptionResourceFixture(t)
+	testCase := fixture.compiled.suite.Cases[0]
+	run, err := runrecord.NewBoundRun(fixture.plan.body.RuntimeRecipe, runrecord.OutcomeFailed,
+		[]artifact.ID{fixture.model, fixture.plan.body.Dataset, fixture.plan.body.Split, testCase.Source.Audio, testCase.Source.Profile},
+		nil, speechrecognition.AudioAdmissionFailure, fixture.plan.body.CodeCommit, fixture.plan.body.Environment, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateTranscriptionResourceRun(run, fixture.plan, fixture.model, testCase); err != nil {
+		t.Fatal(err)
+	}
+	batch, err := run.Batch("resource-fixture/run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(t.Context(), fixture.store, batch); err != nil {
+		t.Fatal(err)
+	}
+	if err := publishPlanAuthorities(t.Context(), fixture.store, fixture.plan, nil); err != nil {
+		t.Fatal(err)
+	}
+	load, err := publishTranscriptionLoadMeasurement(t.Context(), fixture.store, fixture.plan, fixture.model, 1,
+		transcriptionMemoryBoundary{}, transcriptionMemoryBoundary{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	measurement := TranscriptionResourceMeasurement{Name: testCase.Name, Run: run.ID, WallNS: 1, Outcome: run.Outcome, Failure: run.Failure}
+	seen := make(map[string]bool)
+	first, _, err := publishTranscriptionExecutionMeasurement(t.Context(), fixture.store, fixture.plan, fixture.model, load.Attempt, 1, measurement, seen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	measurement.WallNS++
+	if _, _, err := publishTranscriptionExecutionMeasurement(t.Context(), fixture.store, fixture.plan, fixture.model, load.Attempt, 1, measurement, seen); err == nil {
+		t.Fatal("duplicate repetition accepted")
+	}
+	measurement.Repetition++
+	second, _, err := publishTranscriptionExecutionMeasurement(t.Context(), fixture.store, fixture.plan, fixture.model, load.Attempt, 1, measurement, seen)
+	if err != nil || first == second {
+		t.Fatalf("equal run content must allow distinct measured repetitions: %v", err)
+	}
+	for _, mutate := range []func(*runrecord.Run){
+		func(r *runrecord.Run) { r.Recipe = testutil.ArtifactID(t, artifact.KindRecipe, "foreign") },
+		func(r *runrecord.Run) { r.CodeCommit = strings.Repeat("a", len(transcriptionTestCommit)) },
+		func(r *runrecord.Run) { r.Environment = testutil.ArtifactID(t, artifact.KindEvidence, "foreign") },
+		func(r *runrecord.Run) {
+			r.Inputs = slices.DeleteFunc(slices.Clone(r.Inputs), func(id artifact.ID) bool { return id == fixture.model })
+		},
+		func(r *runrecord.Run) { r.ID = artifact.ID{} },
+	} {
+		changed := run
+		mutate(&changed)
+		if err := validateTranscriptionResourceRun(changed, fixture.plan, fixture.model, testCase); err == nil {
+			t.Fatalf("foreign run accepted %+v", changed)
+		}
+	}
+}
+
+func testTranscriptionResourcesModelMismatch(t *testing.T) {
+	fixture := newTranscriptionResourceFixture(t)
+	other := testutil.ArtifactID(t, artifact.KindModel, "foreign model")
+	if _, err := EvaluateTranscriptionResources(t.Context(), fixture.store, fixture.compiled, fixture.plan,
+		other, fixture.inputs, TranscriptionResourceOptions{TimedRuns: 1}, 1<<20); err == nil ||
+		!strings.Contains(err.Error(), "model definition differs") {
+		t.Fatalf("model mismatch: %v", err)
+	}
+	if _, err := EvaluateTranscriptionResources(t.Context(), fixture.store, fixture.compiled, fixture.plan,
+		fixture.model, fixture.inputs, TranscriptionResourceOptions{TimedRuns: 1}, 0); err == nil {
+		t.Fatal("absent memory bound accepted")
+	}
+}
+
+func testTranscriptionResourcesProfileRefusal(t *testing.T) {
+	profile := filepath.Join(t.TempDir(), "profile.pprof")
+	command := exec.CommandContext(t.Context(), "go", "run", "../../cmd/evaluate",
+		"-transcription-resource-manifest", filepath.Join(t.TempDir(), "absent.json"), "-cpuprofile", profile)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "CPU profiling is not allowed during timed transcription evaluation") {
+		t.Fatalf("profile refusal: %v\n%s", err, output)
+	}
+	if _, err := os.Stat(profile); !os.IsNotExist(err) {
+		t.Fatalf("profile created before refusal: %v", err)
+	}
+}
+
+func newTranscriptionResourceFixture(t *testing.T) transcriptionResourceFixture {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "resource dataset")
-	splitID := testutil.ArtifactID(t, artifact.KindDatasetShard, "resource split")
-	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "resource recipe")
-	modelID := testutil.ArtifactID(t, artifact.KindModel, "resource model")
-	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "resource model definition")
-	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "resource environment")
-	descriptors := []artifact.Descriptor{{ID: datasetID}, {ID: splitID}, {ID: recipeID}, {ID: modelID}, {ID: definitionID}, {ID: environmentID}}
-	cases := make([]TranscriptionCase, len(names))
-	inputs := make([]TranscriptionResourceInput, len(names))
-	executorCases := make(map[artifact.ID]TranscriptionCase, len(names))
-	texts := make(map[string]string, len(names))
-	for index, name := range names {
-		data := []byte("fixture audio payload " + name)
-		audioID, identifyErr := artifact.IdentifyBytes(artifact.KindFile, data)
-		if identifyErr != nil {
-			store.Close()
-			t.Fatal(identifyErr)
+	t.Cleanup(func() {
+		if err := store.Close(); err != nil {
+			t.Error(err)
 		}
-		profileID := testutil.ArtifactID(t, artifact.KindProfile, "resource profile "+name)
-		cases[index] = TranscriptionCase{
-			Name: name, Group: "clean", Source: recipecontract.AudioReference{Audio: audioID, Profile: profileID},
-			Reference: "expected " + name, SampleCount: 16_000, SampleRate: 16_000,
-		}
-		policy := dataset.AudioInspectionPolicy{
-			MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 20, ClipThreshold: 1,
-			Admission: recipecontract.AudioAdmissionPolicy{
-				MinimumChannels: 1, MaximumChannels: 1, SilenceRMSThreshold: 1.0 / 32_768,
-				MaximumAbsoluteDCOffset: 1,
-			},
-		}
-		inputs[index] = TranscriptionResourceInput{
-			Name: name, Data: data, Origin: dataset.AudioPayloadOrigin{Container: audioID}, Policy: policy,
-		}
-		descriptors = append(descriptors, artifact.Descriptor{ID: audioID, Size: uint64(len(data))}, artifact.Descriptor{ID: profileID})
-		executorCases[audioID] = cases[index]
-		texts[name] = cases[index].Reference
-	}
-	if _, err = artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "evaluation/transcription-resource/fixture", Artifacts: descriptors}); err != nil {
-		store.Close()
+	})
+	// Reuse the independently captured small encoder oracle, not recorded predictions.
+	data, err := os.ReadFile("../speechrecognition/testdata/encoder.json")
+	if err != nil {
 		t.Fatal(err)
+	}
+	var captured struct {
+		Declaration speechrecognition.Declaration `json:"declaration"`
+		Weights     map[string]struct {
+			Shape  []int     `json:"shape"`
+			Values []float32 `json:"values"`
+		} `json:"weights"`
+	}
+	if err := json.Unmarshal(data, &captured); err != nil {
+		t.Fatal(err)
+	}
+	values, shapes := make(map[string][]float32), make(map[string][]int)
+	for name, weight := range captured.Weights {
+		values[name], shapes[name] = weight.Values, weight.Shape
+	}
+	directory := t.TempDir()
+	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), values, shapes, nil); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"config.json":    `{"model_type":"fixture"}`,
+		"tokenizer.json": `{"added_tokens":[],"model":{"type":"BPE","vocab":{"a":0,"b":1,"c":2,"x":3,"y":4},"merges":[],"byte_fallback":false}}`,
+	} {
+		if err := os.WriteFile(filepath.Join(directory, name), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hf, err := hfrepo.Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := modelartifact.FromHFRepository(hf)
+	closeErr := hf.Close()
+	if err != nil || closeErr != nil {
+		t.Fatalf("inventory: %v, close: %v", err, closeErr)
+	}
+	batch, err := inventory.Batch("resource-fixture/model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
+		t.Fatal(err)
+	}
+	var tokenizer artifact.ID
+	for _, component := range inventory.Manifest.Components {
+		if component.Name == "tokenizer.json" {
+			tokenizer = component.Artifact
+		}
+	}
+	frontend := audiodsp.FrontendConfig{
+		SampleRate: 16000, Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 4, HopSamples: 2, FeatureBins: 4},
+		FFTLength: 16, FrameSpan: 4, Padding: "zero", Window: "rectangular",
+		Mel: audiodsp.MelConfig{Scale: "htk", MinFrequency: 20, MaxFrequency: 7000},
+		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
+	}
+	profile, err := speechrecognition.NewExecutionProfile(frontend,
+		audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 4}, captured.Declaration, 0, "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract, err := modelrecipe.NewAudioContract(
+		recipecontract.AudioFormat{SampleRate: 16000, Channels: 1, Encoding: "pcm-f32le"}, frontend.Geometry, artifact.ID{}, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err = profile.Batch("resource-fixture/profile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
+		t.Fatal(err)
+	}
+	batch, err = contract.Batch("resource-fixture/contract")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizer, inventory.TensorInventory.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "resource-fixture/recipe", definition); err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := modelrecipetest.PublishModelDefinition(t.Context(), store, "resource-fixture/metadata", inventory.Manifest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "resource corpus")
+	splitID := testutil.ArtifactID(t, artifact.KindDatasetShard, "resource split")
+	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "resource CPU")
+	batch = artifact.Batch{Key: "resource-fixture/authorities", Artifacts: []artifact.Descriptor{{ID: datasetID}, {ID: splitID}, {ID: environmentID}}}
+	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
+		t.Fatal(err)
+	}
+	policy := dataset.AudioInspectionPolicy{
+		MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 16, ClipThreshold: .999,
+		Admission: recipecontract.AudioAdmissionPolicy{MinimumChannels: 1, MaximumChannels: 1,
+			SilenceRMSThreshold: .001, MaximumAbsoluteDCOffset: .1},
+	}
+	var cases []TranscriptionCase
+	var inputs []TranscriptionResourceInput
+	for _, name := range []string{"speech", "silence"} {
+		samples := make([]int16, 128)
+		if name == "speech" {
+			for i := range samples {
+				samples[i] = int16(8192 * math.Sin(2*math.Pi*float64(i)/16))
+			}
+		}
+		wave := testutil.MonoPCM16WAV(16000, samples)
+		id, err := artifact.IdentifyBytes(artifact.KindFile, wave)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch := artifact.Batch{Key: "resource-fixture/" + name, Artifacts: []artifact.Descriptor{{ID: id, Size: uint64(len(wave))}}}
+		if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
+			t.Fatal(err)
+		}
+		origin := dataset.AudioPayloadOrigin{Container: id}
+		inspection, err := dataset.InspectAudio(t.Context(), store, wave, origin, policy)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reference := "x"
+		if name == "silence" {
+			reference = ""
+		}
+		cases = append(cases, TranscriptionCase{Name: name, Group: "fixture", Source: inspection.Signal.Source,
+			Reference: reference, SampleCount: uint64(len(samples)), SampleRate: 16000, SilentControl: name == "silence"})
+		inputs = append(inputs, TranscriptionResourceInput{Name: name, Data: wave, Origin: origin, Policy: policy})
 	}
 	compiled, err := CompileTranscription(TranscriptionSuite{
-		Kind: TranscriptionKind, Schema: "fixture/resource/v1", Source: "pinned resource fixture",
-		Dataset: datasetID, Split: splitID,
-		Normalization: []TranscriptionNormalization{TranscriptionLowercase, TranscriptionStripPunctuation, TranscriptionCollapseWhitespace},
-		Cases:         cases,
+		Kind: TranscriptionKind, Schema: "fixture/resource/v2", Source: "small encoder oracle and deterministic PCM controls",
+		Dataset: datasetID, Split: splitID, Normalization: []TranscriptionNormalization{TranscriptionCollapseWhitespace}, Cases: cases,
 	})
 	if err != nil {
-		store.Close()
 		t.Fatal(err)
 	}
-	plan, err := BindTranscription(compiled, ExactAuthorities{
-		ModelDefinition: definitionID, RuntimeRecipe: recipeID, CodeCommit: transcriptionTestCommit,
-		Environment: environmentID, Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
-	})
+	plan, err := BindTranscription(compiled, ExactAuthorities{ModelDefinition: metadata.Document.ID, RuntimeRecipe: definition.ID,
+		CodeCommit: transcriptionTestCommit, Environment: environmentID, Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
 	if err != nil {
-		store.Close()
 		t.Fatal(err)
 	}
-	executor := &recordingTranscriptionExecutor{
-		repository: store, model: modelID, recipe: recipeID, cases: executorCases, texts: texts,
-		failures: make(map[string]string), calls: make(map[string]uint32),
-	}
-	return transcriptionResourceFixture{
-		store: store, compiled: compiled, plan: plan, executor: executor,
-		inputs: slices.Clone(inputs),
-	}
+	return transcriptionResourceFixture{store: store, compiled: compiled, plan: plan, model: inventory.Manifest.ID, inputs: inputs}
 }
-
-var _ TranscriptionResourceExecutor = (*recordingTranscriptionExecutor)(nil)

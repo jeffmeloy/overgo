@@ -1,6 +1,6 @@
 {
-  "campaign": "Complete integrated platform validation, then transfer validated audio.cpp behavior into reusable audio primitives and composable ingest-train-evaluate-serve recipes",
-  "doctrine": "Operator override (2026-09-04): work and commit only in overgo_audiocpp; do not push. After each completed audio commit, prepare and gate a first-parent-target merge of current master, review master's plan for compatible platform direction, and update affected remaining audio rows before dispatching the next audio step. Master's plan informs integration but does not replace this audio campaign. Each downloaded reference is a pinned behavioral oracle, never a linked runtime or permanent product dependency. Granite Speech 5.0 470M TurboCTC is the first offline ASR oracle; Nemotron 3.5 ASR native Safetensors is the second, streaming oracle; its incompatible Q8 GGUF remains explicitly rejected. FireRedVAD supplies segmentation evidence. Reuse internal/audiodsp, safetensors, tokenizer, hostmath/tensor, modelrecipe, capabilityruntime, dataset, evaluation, trainingprogram and trainingworkflow before adding owners. Shared execution means operation-named concrete components, even with one recipe consumer, not a new general-purpose graph engine. Model identity, tensor names, geometry, padding, normalization, weight sharing and composition belong in artifact/recipe declarations; no model-family dispatch in mathematical execution. Implement only demonstrated semantic gaps and bind each to a real recipe consumer in the same slice. Preserve one forward implementation for inference and training; checkpoint, optimizer, scheduler, resource and persistence ownership stay with the existing platform. First prove the complete processor tensor and layer/logit/token/transcript parity, then admitted offline recipe execution and early WER/CER/resource measurements. Dataset preparation and VAD depend on decoded-audio contracts and their own oracles, not on a completed recognizer. Reuse existing typed results and stored prediction evidence across consumers; performance repetitions still execute the actual recipe. Capability acceptance uses one exact integration entry point with mandatory subchecks, not a broad pattern that can match only a fraction of the promised tests. Static DSP parity is not ASR parity, and transport chunking is not native streaming. The first train-evaluate-publish-serve proof is CPU-only with an identity-initialized linear adapter on final hidden features, a frozen base, and exact stop and resume preserving optimizer, random, scheduler and data-stream state. It includes VAD composition, a pre/post WER bracket, bounded resource measurements and complete OvergoDB lineage, but does not wait for full-encoder gradients, streaming ASR, another architecture, voice expansion or CUDA. Full-encoder training, second-architecture/native streaming, alignment, diarization, voice and generative audio remain open capabilities, not discarded scope. CPU is the numerical authority; CUDA follows measured bottlenecks through kernels/manifest.json. While GPU capacity is occupied, execute eligible CPU work; commit gates may use the GPU when their derived scope requires it. Unsupported or unavailable device execution is never passing evidence. Admission decodes actual samples and quarantines policy-invalid, silent, near-silent, corrupt, clipped or non-finite records. Reference text is isolated from prediction. Pinned LibriSpeech clean is the initial positive corpus. The historically silent AMI materialization remains quarantined until exact source/transformation identity is established; the non-silent original source does not clear it. The historical audio inspection batch-key finding remains open until canonical replay is repaired and verified; isolated-store success is not repair. Use one source-bound golden corpus, independent boundary traces and explicit tolerances across inference, evaluation and training. Reject unsupported behavior rather than silently approximating it. Preserve tied weights, cancellation, memory bounds, deterministic splits, restart state and failure denominators. Measure numerical error, allocations, wall time and host memory before claiming simplification or speed; direct DFT remains a reference, not FFT performance. Prefer caller-owned buffers and single-clip synchronous execution until batching or concurrency removes measured cost. Do not add a second loader, registry, scheduler, dataset cache, optimizer, checkpoint format, service or verifier framework. Each capability extends an existing owner with concrete operations; similarly named but semantically incompatible APIs are not reused by fabricating inputs. Retain broad platform benchmarks and recovery drills after the audio proof; they do not gate first CPU capability. Findings outside the audio scope are recorded without expanding it.",
+  "campaign": "Transfer audio.cpp behavior into reusable Go audio operations and prove the CPU ingest-train-evaluate-serve lifecycle before broader architectures and CUDA",
+  "doctrine": "Work and commit only in overgo_audiocpp; do not push. At the boundary after an audio commit and before the next implementation step, snapshot current master once, prepare and gate its first-parent-target merge if needed, review its plan for relevant owner/API changes, and retain this audio plan. Do not chase master during a slice or recursively merge after merge commits. Honor an explicit stop before beginning another merge or slice. Existing sync-* IDs are retained for completion-history integrity but now identify the concrete work in their titles, not synchronization-only commits; no rows are declared completed by this replan. Master owns broad text benchmarking and platform cleanup; this campaign proves their shared owners on audio, without importing master's task list. Each downloaded reference is a pinned behavioral oracle, never a linked runtime or permanent product dependency. Granite Speech 5.0 470M TurboCTC is the first offline oracle, native Safetensors Nemotron 3.5 ASR the second and streaming oracle, and FireRedVAD the segmentation oracle; the incompatible Q8 GGUF remains rejected. Pin source revision, artifact, fixture and transform identities with independent boundary traces and explicit tolerances. Reuse audiodsp, safetensors, tokenizer, hostmath/tensor, modelrecipe, capabilityruntime, dataset, evaluation, runrecord, trainingprogram and trainingworkflow. Use concrete operation-named components, including those used by one recipe; model identity, tensor names, geometry, padding, normalization, ties and composition belong in declarations, never model-family execution branches. Add only a demonstrated missing operation with its real consumer in the same slice. Preserve one inference/training forward path and the existing loader, scheduler, optimizer, checkpoint and persistence owners. No general-purpose graph engine, parallel registry, dataset cache, service or verifier framework. Migrate callers and delete displaced paths together; measure API/state/buffer reduction alongside parity, not line count alone. First correct measurement semantics, then bounded dataset traversal and a real pinned CPU baseline, then frozen-base adaptation, exact stop and resume, evaluation, publication, reload and authenticated serving. The first adapter is identity-initialized on final hidden features before the frozen CTC projection; preserve tied weights and optimizer, random, scheduler and data-stream state. First lifecycle acceptance includes VAD composition, pre/post WER/resource evidence and complete OvergoDB lineage, but does not wait for encoder gradients, another ASR architecture, streaming ASR, voice or CUDA. Keep those capabilities as later work. Dataset preparation and VAD do not depend on a trained recognizer. Decode actual samples, account for every rejection, and quarantine policy-invalid, silent, near-silent, corrupt, clipped or non-finite inputs. Reference text never enters prediction. Use pinned LibriSpeech clean first; the historical silent AMI materialization remains quarantined until its exact source/transformation is established, and isolated-store success does not repair the historical inspection batch-key finding. Reuse source-addressed Parquet/Arrow traversal and immutable outputs for scoring; do not eagerly copy a corpus or cache predictions for timing. Performance repetitions execute fresh inference, identify each attempt, and separate cold load, warm execution and publication spans. Unknown counters stay absent; boundary Go heap samples are not process peak memory, and unavailable peak/VRAM evidence cannot support a memory or promotion claim. Profiling is separate from timed runs. CPU remains the numerical authority; eligible CPU work proceeds while GPU capacity is occupied, and CUDA follows measured bottlenecks through kernels/manifest.json. Commit gates may use required GPU scope; unsupported or unavailable device execution never passes. Static DSP parity is not ASR parity, transport chunking is not native streaming, and segment offsets are not word timestamps. Every verify names one exact acceptance test with mandatory subchecks: add it to the existing owner as part of that step, run through cmd/plan -verify or the gate, require nonempty executed cases, and fail on missing artifacts or skipped subchecks. The acceptance names are planned work, not claims that the tests already exist. Report failures, denominators and no-gain outcomes; promotion requires the existing quality/resource policy.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
@@ -9,28 +9,14 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-transcriptions-route",
-          "title": "Reconcile the retained audio baseline before asr-serving/transcriptions-route",
-          "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
-          "depends_on": [
-            "asr-reference/offline-recipe"
-          ],
-          "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
-          ]
-        },
-        {
           "id": "transcriptions-route",
-          "title": "Expose the admitted offline recipe through POST /v1/audio/transcriptions",
+          "title": "Expose the admitted recipe through authenticated POST /v1/audio/transcriptions",
           "status": "open",
-          "verify": "go test ./internal/server -run 'Test.*AudioTranscriptions'",
-          "rationale": "Use existing authenticated workspace, upload, operation and cancellation owners; the route is a transport adapter, not a second inference pipeline. Initially admit the short-clip recipe only, explicitly refusing unsupported formats, timestamps and streaming. When the segmented recipe is verified, bind it through the same recipe selection without duplicating route logic. Signal-admission failures remain explicit and cannot become successful transcripts.",
+          "verify": "go test ./internal/server -run '^TestAudioTranscriptionsAcceptance$' -count=1 -v",
+          "rationale": "Reuse workspace authentication, upload limits, recipe selection, operations and cancellation. The route invokes the existing transcriber; it cannot implement decoding or inference again. Initially refuse unsupported formats, timestamps and streaming. Prove real successful transcription plus authentication, invalid input, limit and cancellation failures. Later segmented recipes use this same route.",
           "depends_on": [
-            "asr-serving/sync-transcriptions-route"
+            "asr-serving/sync-transcriptions-route",
+            "asr-reference/offline-recipe"
           ],
           "capabilities": [
             "openai-audio-transcriptions",
@@ -40,29 +26,28 @@
         },
         {
           "id": "sync-streaming-transcription",
-          "title": "Reconcile the retained audio baseline before asr-serving/streaming-transcription",
+          "title": "Bind verified native recognizer state to existing bounded audio sessions",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/capabilityruntime -run '^TestNativeASRSessionAcceptance$' -count=1 -v",
+          "rationale": "Adapt the second oracle's verified state to capabilityruntime.OpenAudioStream; one owner controls retained buffers, discontinuities, checkpoint/restart and finalization. No growing-prefix offline re-inference, second scheduler or general session framework. Prove native state continuation, declared chunk semantics, bounded retained bytes and cancellation before HTTP transport.",
           "depends_on": [
             "audio-contracts/stream-session-contract",
-            "asr-serving/transcriptions-route",
             "shared-asr-proof/second-architecture"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "native-stream-state",
+            "bounded-session-reuse"
           ]
         },
         {
           "id": "streaming-transcription",
-          "title": "Serve partial and final transcripts through the bounded session contract and prove chunk-boundary invariance, backpressure, disconnect cancellation and clean shutdown",
+          "title": "Serve partial and final transcripts through the existing session and transport owners",
           "status": "open",
-          "verify": "go test ./internal/server ./internal/capabilityruntime -run 'Test.*StreamingTranscription|Test.*Audio.*Shutdown'",
-          "rationale": "Use capabilityruntime's bounded audio sessions and the second architecture's independently verified native streaming state. Do not simulate streaming by rerunning the offline model over a growing buffer or equate upload chunking with partial inference. Reuse the offline recipe's admission, transcript and persistence contracts; add only declared state transitions, partial/final events and transport adaptation. Verify chunk-boundary invariance within native semantics, discontinuities, checkpoint/restart, first-partial and finalization latency, real-time factor, retained memory, backpressure, cancellation and clean shutdown. No second scheduler or unbounded queue.",
+          "verify": "go test ./internal/server -run '^TestStreamingTranscriptionAcceptance$' -count=1 -v",
+          "rationale": "Mandatory subchecks cover partial/final ordering, native chunk semantics, backpressure, disconnect cancellation, restart, shutdown and resource bounds using actual recognition. Measure first-partial/finalization latency separately from total real-time factor. Reuse admission, transcript persistence and authenticated route policy.",
           "depends_on": [
-            "asr-serving/sync-streaming-transcription"
+            "asr-serving/sync-streaming-transcription",
+            "asr-serving/transcriptions-route"
           ],
           "capabilities": [
             "streaming-transcription",
@@ -79,26 +64,25 @@
       "steps": [
         {
           "id": "sync-dataset-materialization",
-          "title": "Reconcile the retained audio baseline before asr-training/dataset-materialization",
+          "title": "Repair canonical audio-inspection replay without rewriting immutable source evidence",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile the retained audio baseline under doctrine, then gate this paired step without merging or pushing. Dataset registration, decode admission, split assignment and resumable materialization use already verified audio contracts; they do not require a recognizer, predicted transcripts or WER. Training execution still requires forward parity and a quality bracket before promotion.",
+          "verify": "go test ./internal/dataset -run '^TestAudioInspectionCanonicalReplayAcceptance$' -count=1 -v",
+          "rationale": "Reproduce the historical inspection batch-key conflict through dataset's existing inspection/publication owner. Repair canonical idempotent replay, prove identical replay has no change and conflicting content refuses, and verify the actual historical identity before closing its finding. A fresh isolated store is only a fixture, not historical repair. Do not clear the quarantined AMI materialization based on a different source.",
           "depends_on": [
             "audio-primitives/intermediate-parity",
             "oracle-intake/artifact-election"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "canonical-audio-replay",
+            "immutable-source-identity"
           ]
         },
         {
           "id": "dataset-materialization",
-          "title": "Register pinned LibriSpeech clean and materialize only admitted waveform, transcript and derived-feature records with deterministic splits, resumable stream position, rejection accounting and complete source lineage",
+          "title": "Register LibriSpeech and share bounded source traversal between training and evaluation",
           "status": "open",
-          "verify": "go test ./internal/dataset ./internal/trainingdata -run 'Test.*Audio.*Material|Test.*Speech.*Split|Test.*Audio.*Resume|Test.*Audio.*Admission|Test.*Silent.*Reject'",
-          "rationale": "Reuse dataset/trainingdata streaming materialization and split owners for admitted audio and separately stored reference transcripts. Register source/shard identities, decode once per materialization pass, and make split membership, rejection counts, transformations and stream position exactly resumable. Do not require predicted text or ASR weights to prepare data. Derived features are optional artifacts keyed by the exact transform, not a mandatory second dataset store. Do not cache frozen-encoder outputs until measured reuse justifies it and the immutable base/adapter boundary is verified. The historical inspection batch-key mismatch must be reproduced and canonically resolved without changing immutable records or disguising it with a new key. Historical AMI materialization remains quarantined; only its own exact source/transformation evidence can clear it, not the valid original source. Pinned LibriSpeech preparation does not require admitting AMI.",
+          "verify": "go test ./internal/dataset -run '^TestSpeechMaterializationAcceptance$' -count=1 -v",
+          "rationale": "Reuse dataset/trainingdata Parquet/Arrow traversal, deterministic split and resume owners. Bind shard/row/column identity and target-isolated transcripts; decode once per pass, account for rejects, and resume the exact next record. Replace evaluation's eager os.ReadFile corpus array and full payload clones with the same bounded source traversal. Persist provenance by reference; transformed features remain optional transform-keyed artifacts, not another corpus store. Prove bounded live payloads, split disjointness, resume, corruption/silence refusal and cancellation on a nonempty pinned corpus.",
           "depends_on": [
             "asr-training/sync-dataset-materialization"
           ],
@@ -110,26 +94,42 @@
           ]
         },
         {
-          "id": "sync-trainable-graph",
-          "title": "Reconcile the retained audio baseline before asr-training/trainable-graph",
+          "id": "sync-closed-loop-proof",
+          "title": "Record a real pinned CPU quality and resource baseline before training",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestASRCPUBaselineAcceptance$' -count=1 -v",
+          "rationale": "Invoke the concrete admitted recipe through evaluate's existing transcription resource manifest on a nonempty source-addressed LibriSpeech split plus explicit negative controls. Require fresh attempts, source/model/recipe/environment identities, WER/CER, complete failure denominators and corrected resource availability. Report cold load and warm execution separately. Faked executors and stored transcripts cannot establish inference performance. This baseline supplies later training and benchmarking; do not recreate it for each consumer.",
           "depends_on": [
             "asr-training/dataset-materialization",
+            "asr-serving/sync-transcriptions-route",
+            "asr-reference/offline-recipe"
+          ],
+          "capabilities": [
+            "real-corpus-baseline",
+            "target-isolated-inference",
+            "resource-quality-evidence"
+          ]
+        },
+        {
+          "id": "sync-trainable-graph",
+          "title": "Bind CTC loss and gradients to the universal trainer's existing objective owner",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run '^TestCTCObjectiveAcceptance$' -count=1 -v",
+          "rationale": "Implement only missing CTC math, using independent oracle values and finite differences for blank/repeated labels, variable lengths and impossible alignments. Define refusal/reduction semantics explicitly and derive workspace from sequence geometry. Reuse existing parameter and loss contracts; no audio trainer, duplicate forward graph or speculative encoder tape.",
+          "depends_on": [
+            "asr-training/sync-closed-loop-proof",
             "asr-reference/load-forward-decode"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "ctc-objective",
+            "independent-gradient-parity"
           ]
         },
         {
           "id": "trainable-graph",
           "title": "Train one identity-initialized hidden-feature projection with shared CTC loss and the base model frozen",
           "status": "open",
-          "verify": "go test ./internal/speechrecognition ./internal/trainingprogram -run 'TestCTCGrad|TestASRAdapterTraining|TestASRFrozenBase|TestASRSharedWeightIdentity' -count=1",
+          "verify": "go test ./internal/audioparity -run '^TestASRFrozenAdapterAcceptance$' -count=1 -v",
           "rationale": "Use one square linear adapter on the final encoder hidden features, before the existing frozen CTC projection. Derive its width from the loaded hidden tensor and initialize it to identity, with no bias or additional activation required for the first proof. Reuse hostmath linear forward, LinearBackwardInput through the frozen final projection, and LinearWeightGradient for adapter updates; do not retain an encoder backward trace. The mutable matrix is hidden-width squared, not vocabulary-size squared. Bind CTC to trainingprogram and the existing optimizer, parameter-selection and checkpoint owners; include weights, gradients, optimizer workspace and forward buffers in the memory admission. Independently verify identity-logit preservation, CTC loss/gradients, repeated labels, blanks, lengths, impossible-alignment policy and unchanged base bytes. Preserve the shared final/intermediate projection; never untie it or update feedback weights under a frozen-base claim. Existing gated per-layer adapters and two-model bridge fitting have different semantics; do not fabricate side inputs or a second model to force reuse. Store base, adapter, placement and recipe identities. If held-out WER does not improve, report the result and use the planned internal/full-encoder training path rather than adding an unplanned adapter stack.",
           "depends_on": [
             "asr-training/sync-trainable-graph"
@@ -142,25 +142,24 @@
         },
         {
           "id": "sync-exact-resume",
-          "title": "Reconcile the retained audio baseline before asr-training/exact-resume",
+          "title": "Publish and reload the adapted recipe through existing checkpoint and artifact owners",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestASRAdapterPublicationAcceptance$' -count=1 -v",
+          "rationale": "Bind base, hidden-feature adapter, placement, tied-parameter identity and recipe to the universal trainer's checkpoint/publication contract. Reload must preserve logits and transcripts without copying the frozen base into each adapter checkpoint. Prove digest mismatch, missing component, incompatible placement and incomplete-publication refusal; introduce no audio-specific checkpoint format.",
           "depends_on": [
             "asr-training/trainable-graph"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "adapter-publication",
+            "shared-checkpoint-format"
           ]
         },
         {
           "id": "exact-resume",
-          "title": "Interrupt and resume native ASR training while preserving parameters, optimizer, random, scheduler and data-stream state, then prove the resumed trajectory matches uninterrupted execution",
+          "title": "Prove interrupted and uninterrupted adapter training follow the same trajectory",
           "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -run 'Test.*ASR.*ExactResume|Test.*Audio.*Checkpoint'",
-          "rationale": "A loadable weight file is not exact resume. The comparison covers the next batch identity, loss, parameter update and optimizer state after restart.",
+          "verify": "go test ./internal/audioparity -run '^TestASRExactResumeAcceptance$' -count=1 -v",
+          "rationale": "Reuse trainingworkflow resume ownership. Compare next batch identity, parameters, optimizer moments, random and scheduler state, loss and subsequent updates after a real stop/restart. Missing or mismatched state must fail, not restart silently. A loadable weight file alone is insufficient.",
           "depends_on": [
             "asr-training/sync-exact-resume"
           ],
@@ -171,30 +170,15 @@
           ]
         },
         {
-          "id": "sync-closed-loop-proof",
-          "title": "Reconcile the retained audio baseline before asr-training/closed-loop-proof",
+          "id": "closed-loop-proof",
+          "title": "Prove the CPU audio lifecycle: adapt, resume, evaluate, publish, reload and serve the same recipe",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestASRCPUClosedLoop$' -count=1 -v",
+          "rationale": "TestASRCPUClosedLoop owns the integration proof using existing trainingworkflow, evaluation and server owners; it is not a new orchestrator. Its mandatory subchecks execute the pinned real-artifact CPU path, a nonempty admitted training/held-out split, nonzero updates, interrupted/uninterrupted trajectory equality, VAD-composed admission, pre/post WER/resource fitness, artifact publication/reload and authenticated HTTP transcription. Each stage binds its predecessor's actual artifact IDs and accounts for failures. Missing prerequisites refuse rather than skip; mocks, cached transcripts, absent subchecks or unrelated train-lane tests cannot satisfy acceptance. Reuse earlier immutable prediction records only when identities match; explicitly rerun training, resume, reload and serving behavior. Do not wait for CUDA, full encoder gradients, second-model or voice work. Record no-gain results honestly; promotion requires the existing quality/resource policy.",
           "depends_on": [
             "asr-training/exact-resume",
             "asr-serving/transcriptions-route",
             "audio-recipes/validated-transcription",
-            "asr-evaluation/resource-suite"
-          ],
-          "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
-          ]
-        },
-        {
-          "id": "closed-loop-proof",
-          "title": "Prove the CPU audio lifecycle: adapt, resume, evaluate, publish, reload and serve the same recipe",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRCPUClosedLoop$' -count=1",
-          "rationale": "TestASRCPUClosedLoop owns the integration proof using existing trainingworkflow, evaluation and server owners; it is not a new orchestrator. Its mandatory subchecks execute the pinned real-artifact CPU path, a nonempty admitted training/held-out split, nonzero updates, interrupted/uninterrupted trajectory equality, VAD-composed admission, pre/post WER/resource fitness, artifact publication/reload and authenticated HTTP transcription. Each stage binds its predecessor's actual artifact IDs and accounts for failures. Missing prerequisites refuse rather than skip; mocks, cached transcripts, absent subchecks or unrelated train-lane tests cannot satisfy acceptance. Reuse earlier immutable prediction records only when identities match; explicitly rerun training, resume, reload and serving behavior. Do not wait for CUDA, full encoder gradients, second-model or voice work. Record no-gain results honestly; promotion requires the existing quality/resource policy.",
-          "depends_on": [
             "asr-training/sync-closed-loop-proof"
           ],
           "capabilities": [
@@ -206,24 +190,23 @@
         },
         {
           "id": "sync-encoder-backward",
-          "title": "Reconcile the retained audio baseline before asr-training/encoder-backward",
+          "title": "Add only missing common backward operations required by the admitted encoder",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestASREncoderOperatorGradients$' -count=1 -v",
+          "rationale": "Read the oracle end-to-end and inventory existing hostmath/tensor backward operations. For each missing operation, bind an actual encoder consumer and independently verify gradients, including shared intermediate-feedback/final-projection contributions. Trace only what backward needs, derive workspace, and preserve the inference forward implementation. No duplicate tensor engine.",
           "depends_on": [
             "asr-training/closed-loop-proof"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "common-backward-operations",
+            "minimal-training-trace"
           ]
         },
         {
           "id": "encoder-backward",
           "title": "Extend the same forward graph to internal adapters and full-encoder CTC training",
           "status": "open",
-          "verify": "go test ./internal/speechrecognition ./internal/trainingprogram ./internal/trainingworkflow -run 'TestASREncoderGrad|TestASRInternalAdapter|TestASRTiedFeedbackGrad|TestASRFullTrainingResume' -count=1",
+          "verify": "go test ./internal/audioparity -run '^TestASRFullTrainingAcceptance$' -count=1 -v",
           "rationale": "Retain full training capability without placing every encoder gradient on the first adaptation path. Reuse the existing forward and common backward owners; add gradients only for missing operators, checking each against independent oracle or finite differences. Accumulate shared-parameter contributions from both intermediate feedback and final projection into one optimizer-owned parameter. Internal adapters still require gradients through their downstream frozen operations; freezing is not permission to omit that path. Extend the same exact-resume and pre/post WER/resource evidence to full or internally adapted training, with no second trainer or checkpoint format.",
           "depends_on": [
             "asr-training/sync-encoder-backward"
@@ -244,29 +227,28 @@
       "steps": [
         {
           "id": "sync-vad",
-          "title": "Reconcile the retained audio baseline before speech-analysis-expansion/vad",
+          "title": "Bind the segmentation artifact to common frontend and recurrent operations",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile the retained audio baseline under doctrine and gate the paired step without merging or pushing. VAD consumes decoded audio, the shared frontend and its own checkpoints/oracle; remove the unrelated ASR WER/resource prerequisite. It remains mandatory before segmented transcription and the first complete CPU lifecycle.",
+          "verify": "go test ./internal/audioparity -run '^TestVADOfflineAcceptance$' -count=1 -v",
+          "rationale": "Use the pinned FireRedVAD oracle to derive checkpoint tensor declarations, normalization and recurrent-state geometry. Reuse verified DSP and host operations; only semantics absent from those owners justify new operation-named code. Prove feature/probability parity and no-speech controls on nonempty source-bound fixtures; no FireRed-specific mathematical dispatch.",
           "depends_on": [
             "oracle-intake/artifact-compatibility",
-            "audio-contracts/stream-session-contract",
             "audio-primitives/intermediate-parity"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "declared-vad-recipe",
+            "offline-segmentation-parity"
           ]
         },
         {
           "id": "vad",
-          "title": "Port FireRedVAD as a compact offline and streaming segmentation primitive with checkpoint, feature, probability, boundary-state and final-segment parity on pinned decoded fixtures",
+          "title": "Prove bounded streaming VAD, restart and segment-boundary parity",
           "status": "open",
-          "verify": "go test ./internal/speechanalysis ./internal/audioparity -run 'Test.*FireRedVAD|Test.*VAD.*Offline|Test.*VAD.*Stream|Test.*VAD.*Boundary'",
-          "rationale": "Both downloaded FireRedVAD checkpoints load under the reference runtime. Offline and streaming boundaries closely agree on all four pinned LibriSpeech fixtures. Synthetic all-zero fixtures must produce no speech. Attribute a silent AMI negative control only after locating and hashing the historical materialization; the available pinned source record is non-silent. The primitive shares the frontend and bounded stream contracts and introduces no second scheduler. Its production streaming path must consume capabilityruntime.OpenAudioStream and retire that exact docs/staged_surface.json declaration in the same commit; reference parity must cover checkpoint/restart and discontinuity boundaries.",
+          "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
+          "rationale": "Reuse the offline VAD forward operations and capabilityruntime.OpenAudioStream. Prove offline/stream boundary behavior, discontinuity, finalization, checkpoint/restart and all-zero no-speech controls against the pinned oracle. Consume and retire the corresponding staged-surface declaration in the same slice. Attribute the AMI negative control only to its exact historical materialization.",
           "depends_on": [
-            "speech-analysis-expansion/sync-vad"
+            "speech-analysis-expansion/sync-vad",
+            "audio-contracts/stream-session-contract"
           ],
           "capabilities": [
             "voice-activity-detection",
@@ -276,26 +258,25 @@
         },
         {
           "id": "sync-alignment-diarization",
-          "title": "Reconcile the retained audio baseline before speech-analysis-expansion/alignment-diarization",
+          "title": "Derive scored word alignment from verified frame emissions and transcript tokens",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestSpeechAlignmentAcceptance$' -count=1 -v",
+          "rationale": "Use common CTC/frame alignment over stored emissions and typed transcripts where supported. Define blank/repeat, silence, sample-offset and token-to-word semantics from the oracle; refuse unsupported alignment rather than treating segment offsets as word timestamps. Score timestamp errors against actual annotations with complete denominators. This does not require live model switching.",
           "depends_on": [
-            "speech-analysis-expansion/vad",
-            "shared-asr-proof/live-model-operations"
+            "audio-recipes/validated-transcription",
+            "asr-training/closed-loop-proof"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "word-alignment",
+            "timestamp-quality"
           ]
         },
         {
           "id": "alignment-diarization",
-          "title": "Add timestamped alignment and speaker-turn diarization with native evaluation for boundary error, attribution error and transcript preservation",
+          "title": "Add speaker-turn attribution using verified common embedding and clustering operations",
           "status": "open",
-          "verify": "go test ./internal/speechanalysis ./internal/evaluation -run 'Test.*Alignment|Test.*Diarization'",
-          "rationale": "Alignment and diarization consume typed transcripts, features and stream segments. They land only with quality metrics and artifact lineage, not as unscored postprocessing.",
+          "verify": "go test ./internal/audioparity -run '^TestSpeakerDiarizationAcceptance$' -count=1 -v",
+          "rationale": "Reuse aligned transcripts, VAD segments and the existing typed speech-turn contract. Elect a pinned executable speaker oracle and annotated corpus, derive missing operations from that evidence, and report attribution/boundary error plus transcript preservation. Keep speaker metadata in declarations; no unscored heuristic or second analysis pipeline.",
           "depends_on": [
             "speech-analysis-expansion/sync-alignment-diarization"
           ],
@@ -314,28 +295,29 @@
       "steps": [
         {
           "id": "sync-validated-transcription",
-          "title": "Reconcile the retained audio baseline before audio-recipes/validated-transcription",
+          "title": "Compose VAD segments with the existing short-clip transcriber",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestSegmentedTranscriptionAcceptance$' -count=1 -v",
+          "rationale": "Implement bounded segment traversal and assembly in the existing recipe owner, preserving exact sample offsets, declared overlap/finalization policy and source lineage. Reuse the admitted short-clip call unchanged. Compare whole-record output to the oracle and refuse unsupported duration/memory budgets; do not build another decode-normalize-infer pipeline.",
           "depends_on": [
             "asr-reference/offline-recipe",
             "speech-analysis-expansion/vad"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "bounded-segment-composition",
+            "segment-lineage"
           ]
         },
         {
           "id": "validated-transcription",
-          "title": "Compose verified VAD with the existing admitted transcription recipe and persist segment-level lineage",
+          "title": "Bind the same segmented recipe to dataset and authenticated serving consumers",
           "status": "open",
-          "verify": "go test ./internal/modelrecipe ./internal/audiodsp ./internal/speechanalysis ./internal/speechrecognition ./internal/dataset -run 'Test.*Validated.*Transcription|Test.*Audio.*Recipe.*Admission|Test.*Segment.*Transcribe.*Lineage'",
-          "rationale": "Reuse the admitted short-clip recipe unchanged inside segmentation; do not build another decode/normalize/transcribe pipeline. Preserve sample offsets and segment lineage, explicitly declare overlap/finalization policy, and verify whole-record transcript assembly against the oracle. Segment offsets are not word-level timestamps; alignment remains a later scored capability. Valid LibriSpeech inputs produce stored transcripts; corrupt or silent inputs cannot become evaluation successes or training records. Bind this composed recipe to the same serving and dataset consumers before the first closed-loop proof.",
+          "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
+          "rationale": "Select the verified composed recipe through existing bindings in both consumers and persist segment-level lineage. Prove nonempty valid input, silent/corrupt refusal, transcript assembly and identical recipe identity across offline and HTTP use. Delete displaced consumer-specific segmentation policy in the same slice.",
           "depends_on": [
-            "audio-recipes/sync-validated-transcription"
+            "audio-recipes/sync-validated-transcription",
+            "asr-serving/transcriptions-route",
+            "asr-training/dataset-materialization"
           ],
           "capabilities": [
             "validated-transcription-recipe",
@@ -352,28 +334,27 @@
       "steps": [
         {
           "id": "sync-second-architecture",
-          "title": "Reconcile the retained audio baseline before shared-asr-proof/second-architecture",
+          "title": "Execute the second ASR artifact offline through common operations and declarations",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestSecondASROfflineAcceptance$' -count=1 -v",
+          "rationale": "Use native Safetensors Nemotron as the actual second consumer. Reuse loader, frontend, tokenizer, task/result and evaluation owners; add only independently evidenced missing operations with this consumer. Prove layer/logit/token/transcript parity and family-free execution on both models. Reject the incompatible Q8 GGUF rather than adding a loader shortcut.",
           "depends_on": [
-            "asr-training/closed-loop-proof",
-            "audio-contracts/stream-session-contract"
+            "asr-training/closed-loop-proof"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "second-asr-artifact",
+            "common-operation-reuse"
           ]
         },
         {
           "id": "second-architecture",
-          "title": "Port Nemotron 3.5 ASR native Safetensors as the second materially different architecture with offline, timestamp-token and streaming parity while reusing the shared frontend, task, evaluation, serving and training contracts",
+          "title": "Prove the second architecture's native streaming state and timestamp semantics",
           "status": "open",
-          "verify": "go test ./internal/speechrecognition ./internal/modelrecipe -run 'Test.*SecondASR|Test.*SharedAudioContract'",
-          "rationale": "The installed native Safetensors artifact completed offline and streaming reference inference on the pinned LibriSpeech fixtures, with three normalized-exact transcripts and one minor recognition error. A second real consumer proves the abstraction and exposes family leakage. Architecture facts, timestamp tokens and streaming state stay in artifact and recipe declarations; the incompatible Q8 GGUF remains rejected qualification evidence rather than an alternate loader shortcut.",
+          "verify": "go test ./internal/audioparity -run '^TestSecondASRStreamingAcceptance$' -count=1 -v",
+          "rationale": "Use the pinned native streaming oracle for feature/state/logit/token traces, chunk boundaries, finalization and timestamp tokens. Store geometry and composition in declarations and keep mathematical operations common. This establishes recognition semantics; capabilityruntime and HTTP bindings follow as separate real consumers, not a second model runtime.",
           "depends_on": [
-            "shared-asr-proof/sync-second-architecture"
+            "shared-asr-proof/sync-second-architecture",
+            "audio-contracts/stream-session-contract"
           ],
           "capabilities": [
             "multi-architecture-asr",
@@ -384,26 +365,25 @@
         },
         {
           "id": "sync-live-model-operations",
-          "title": "Reconcile the retained audio baseline before shared-asr-proof/live-model-operations",
+          "title": "Switch between admitted ASR recipes through the existing live-model lifecycle",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestASRModelSwitchAcceptance$' -count=1 -v",
+          "rationale": "Prove sequential switch, predecessor rollback, artifact mismatch refusal and resource release using both real models and the common swap/lifecycle owner. Bind requests to the selected immutable recipe; no audio-only registry, pool or placement service.",
           "depends_on": [
             "shared-asr-proof/second-architecture",
             "asr-serving/streaming-transcription"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "live-audio-switching",
+            "recipe-lifecycle-reuse"
           ]
         },
         {
           "id": "live-model-operations",
-          "title": "Exercise concurrent transcription, resource-aware placement, live model switching, restart recovery and cancellation across both ASR artifacts",
+          "title": "Prove bounded concurrent audio service through shared placement and scheduling",
           "status": "open",
-          "verify": "go run ./cmd/smoke-lane",
-          "rationale": "The second model must participate in Overgo's operational system rather than creating a separate audio runtime. The smoke matrix is derived from verified servable artifacts in the store.",
+          "verify": "go test ./internal/audioparity -run '^TestASRLiveOperationsAcceptance$' -count=1 -v",
+          "rationale": "Reuse the store-derived smoke matrix and existing scheduler. Mandatory real-artifact cases cover both ASR models, concurrent request isolation, resource admission, cancellation, switch during active work, restart and complete release. Do not accept a generic text-only smoke run as audio evidence; collect audio case identities and failure denominators.",
           "depends_on": [
             "shared-asr-proof/sync-live-model-operations"
           ],
@@ -422,25 +402,24 @@
       "steps": [
         {
           "id": "sync-tts-contract-consolidation",
-          "title": "Reconcile the retained audio baseline before audio-generation-expansion/tts-contract-consolidation",
+          "title": "Consolidate existing synthesis outputs and sessions onto common audio contracts",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile the retained audio baseline under doctrine and gate the paired step without merging or pushing. The first proven CPU lifecycle supplies the shared contract; migrating existing TTS does not require second-ASR streaming or live multi-model operations.",
+          "verify": "go test ./internal/audioparity -run '^TestSharedSynthesisInferenceAcceptance$' -count=1 -v",
+          "rationale": "Migrate executable PocketTTS inference to shared source/output lineage and session lifecycle, preserving existing golden results. Reuse synthesis math unchanged and delete displaced policy/call paths atomically. Admission is task-specific: ASR silence rejection must not be blindly applied to valid synthesis silence.",
           "depends_on": [
             "asr-training/closed-loop-proof"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "shared-audio-output",
+            "tts-session-reuse"
           ]
         },
         {
           "id": "tts-contract-consolidation",
-          "title": "Migrate PocketTTS inference and training onto the shared audio artifacts, sessions, evaluation and lifecycle contracts without regressing its existing compatibility evidence",
+          "title": "Bind synthesis training and publication to the proven universal lifecycle",
           "status": "open",
-          "verify": "go test ./internal/speechsynth ./internal/modelrecipe ./internal/evaluation -run 'Test.*Speech|Test.*Audio'",
-          "rationale": "Migrate the already executable TTS path to the proven audio artifact, admission, session and lifecycle owners; reuse its current model and golden evidence. Delete displaced policy in the same migration and verify inference, training/resume and quality preservation. The migration does not port new synthesis architectures or require a second recognizer. Do not place new voice expansion ahead of the first audio lifecycle.",
+          "verify": "go test ./internal/audioparity -run '^TestSharedSynthesisTrainingAcceptance$' -count=1 -v",
+          "rationale": "Retain existing PocketTTS training behavior while reusing checkpoint/resume, evaluation and recipe publication owners proven by ASR. Verify uninterrupted/resumed updates, reload and synthesis quality; delete duplicated lifecycle policy without forcing incompatible loss or admission semantics into one abstraction.",
           "depends_on": [
             "audio-generation-expansion/sync-tts-contract-consolidation"
           ],
@@ -452,25 +431,24 @@
         },
         {
           "id": "sync-voice-capability",
-          "title": "Reconcile the retained audio baseline before audio-generation-expansion/voice-capability",
+          "title": "Elect one executable voice capability and record its reusable-operation gaps",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestVoiceOracleElectionAcceptance$' -count=1 -v",
+          "rationale": "Choose multilingual synthesis or voice conversion from executable, licensed artifact/oracle evidence. Run a bounded pinned reference and identify the exact additional speaker/codec/conditioning operations and a falsifiable quality check before production code. A failed election records a refusal and does not silently satisfy the dependent port.",
           "depends_on": [
             "audio-generation-expansion/tts-contract-consolidation"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "voice-oracle-election",
+            "bounded-capability-evidence"
           ]
         },
         {
           "id": "voice-capability",
-          "title": "Elect and port one additional audio.cpp voice capability such as multilingual TTS or voice conversion through the shared codec, speaker and training contracts",
+          "title": "Deliver the elected voice capability through common conditioning and codec operations",
           "status": "open",
-          "verify": "go test ./internal/speechsynth ./internal/evaluation -run 'Test.*Voice|Test.*Speaker'",
-          "rationale": "The elected capability must provide complete artifact and oracle evidence. Incomplete or documentation-only audio.cpp implementations are ineligible regardless of prominence.",
+          "verify": "go test ./internal/audioparity -run '^TestVoiceCapabilityAcceptance$' -count=1 -v",
+          "rationale": "Port only elected missing operations and bind them to existing synthesis, speaker, evaluation and training contracts. Prove source/conditioning identity, independent output parity, quality denominators and a real training/update path. No model-family executor or parallel synthesis service. Missing admitted election is a failure.",
           "depends_on": [
             "audio-generation-expansion/sync-voice-capability"
           ],
@@ -482,28 +460,27 @@
         },
         {
           "id": "sync-generative-audio-probe",
-          "title": "Reconcile the retained audio baseline before audio-generation-expansion/generative-audio-probe",
+          "title": "Elect a generative-audio oracle and test reuse of existing DiT and codec operations",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestGenerativeAudioElectionAcceptance$' -count=1 -v",
+          "rationale": "Bound artifact intake and CPU-readable component traces before allocating device work. Identify an executable licensed model, quality assertions, conditioning/codec semantics and a credible universal-training route; compare with existing DiT owners. No production package is created by election. Reject unsupported candidates with evidence, leaving dependent execution unavailable.",
           "depends_on": [
-            "audio-generation-expansion/voice-capability",
-            "asr-cuda/device-parity"
+            "audio-generation-expansion/tts-contract-consolidation"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "generative-audio-election",
+            "dit-codec-gap-evidence"
           ]
         },
         {
           "id": "generative-audio-probe",
-          "title": "Run a bounded election and forward-parity probe for one music or general-audio diffusion capability, reusing Overgo's DiT, media evaluation and training infrastructure",
+          "title": "Run the elected generative-audio forward and training feasibility probe",
           "status": "open",
-          "verify": "go test ./internal/evaluation ./internal/trainingprogram -run 'Test.*GenerativeAudio.*Probe'",
-          "rationale": "Generative audio is admitted only after speech proves the lifecycle and a bounded probe shows reusable operators, executable artifacts, quality assertions and a credible training route. The probe closes without production surface when those conditions fail.",
+          "verify": "go test ./internal/audioparity -run '^TestGenerativeAudioProbeAcceptance$' -count=1 -v",
+          "rationale": "Execute the admitted artifact through reused DiT/media owners, compare independent boundary traces and media quality, and measure wall/memory against its model-native reference. Exercise a bounded nonzero training update through the universal trainer. Stop expansion if parity, quality or resource acceptance fails; no production claim from an election alone. Does not require an unrelated voice-conversion port.",
           "depends_on": [
-            "audio-generation-expansion/sync-generative-audio-probe"
+            "audio-generation-expansion/sync-generative-audio-probe",
+            "asr-cuda/device-parity"
           ],
           "capabilities": [
             "generative-audio-election",
@@ -520,26 +497,25 @@
       "steps": [
         {
           "id": "sync-profile-and-bind",
-          "title": "Reconcile the retained audio baseline before asr-cuda/profile-and-bind",
+          "title": "Measure and simplify CPU audio hotspots before introducing device paths",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "verify": "go test ./internal/audioparity -run '^TestASRCPUSimplificationAcceptance$' -count=1 -v",
+          "rationale": "Profile separately from timed repetitions on the pinned baseline. Prefer removal of repeated decode, copies, allocations and duplicated transforms over pooling, batching or new dispatch. Reuse existing FFT/common operators where independently equivalent; direct DFT remains a numerical reference, not a speed claim. Accept changes only with unchanged boundary/quality evidence and measured wall/live-memory results. A measured no-change decision is valid; no speculative optimization.",
           "depends_on": [
             "asr-training/closed-loop-proof",
-            "asr-evaluation/resource-suite"
+            "asr-training/sync-closed-loop-proof"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "measured-cpu-simplification",
+            "buffer-and-transform-reuse"
           ]
         },
         {
           "id": "profile-and-bind",
-          "title": "Profile the CPU recipe, reuse existing kernels where their contracts match, and add only measured missing operators through the kernel manifest and generated ABI",
+          "title": "Bind only measured missing audio operations through existing CUDA manifests",
           "status": "open",
-          "verify": "go test ./cmd/kernel-manifest ./cmd/kernel-bindings ./internal/devicemath -run 'Test.*Audio|Test.*Manifest|Test.*Binding'",
-          "rationale": "CUDA surface follows measured time and operator contracts. Model-specific kernels or hand-written ABI paths are refused when an existing manifest operator can serve the shape. Reference CUDA parity is currently unavailable because CUDA 12.9 rejects Visual Studio 2026/MSVC 19.51 and cudafe++ crashes under the unsupported-compiler override; use a supported VS 2022 toolchain or a CUDA release that supports the installed compiler before treating reference CUDA as evidence.",
+          "verify": "go test ./internal/audioparity -run '^TestASRCUDABindingAcceptance$' -count=1 -v",
+          "rationale": "Use CPU profiles and existing kernel contracts to select acceleration. Reuse manifest entries and generated ABI; no model-specific kernels or manual ABI. Check current compiler/toolkit support before execution: the earlier CUDA 12.9/MSVC 19.51 failure is not a permanent assumption or passing evidence. Defer occupied-device work while eligible CPU work remains.",
           "depends_on": [
             "asr-cuda/sync-profile-and-bind"
           ],
@@ -551,28 +527,27 @@
         },
         {
           "id": "sync-device-parity",
-          "title": "Reconcile the retained audio baseline before asr-cuda/device-parity",
+          "title": "Verify accelerated operation and gradient parity before full recipe promotion",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "verify": "go test ./internal/audioparity -run '^TestASRCUDAOperatorAcceptance$' -count=1 -v",
+          "rationale": "Compare actual CUDA forward/backward operators to independent CPU authority on the admitted shapes, tied parameters and boundary fixtures. Derive workspace and test cancellation/cleanup. Run manifest-derived device and race coverage as required; unavailable device execution fails. Bind operator evidence to the same recipe, not synthetic unrelated shapes only.",
           "depends_on": [
-            "asr-cuda/profile-and-bind",
-            "asr-evaluation/resource-suite"
+            "asr-cuda/profile-and-bind"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "cuda-operation-parity",
+            "cuda-gradient-parity"
           ]
         },
         {
           "id": "device-parity",
-          "title": "Prove CPU and CUDA parity for intermediate activations, logits, decoded transcripts and WER, then record wall, real-time factor, host memory and VRAM",
+          "title": "Prove complete CUDA inference and training against the CPU recipe",
           "status": "open",
-          "verify": "go run ./cmd/device-lane",
-          "rationale": "A device-unavailable result is not passing evidence. The lane records the compiler, toolkit, driver, GPU and exact unavailability reason. The CUDA route becomes eligible only after the toolchain is supported and the same artifact and fixtures preserve intermediate values and quality within recorded tolerances.",
+          "verify": "go test ./internal/audioparity -run '^TestASRCUDARecipeAcceptance$' -count=1 -v",
+          "rationale": "On identical artifacts and datasets compare activations, logits, transcripts, WER, adapter/full-training updates where admitted, and resume. Record wall, real-time factor, host peak availability and VRAM with actual compiler/driver/device identities. Require applicable device-lane evidence and quality/resource policy before promotion; CPU remains supported.",
           "depends_on": [
-            "asr-cuda/sync-device-parity"
+            "asr-cuda/sync-device-parity",
+            "asr-training/encoder-backward"
           ],
           "capabilities": [
             "cpu-cuda-parity",
@@ -583,150 +558,173 @@
     },
     {
       "id": "benchmark-routing",
-      "title": "Benchmark and routing validation",
+      "title": "Measure audio capability and resource fitness through existing evaluation and routing owners",
       "status": "open",
       "steps": [
         {
           "id": "pinned-benchmarks",
-          "title": "Execute the pinned benchmark set with raw-completion anchors and template-aware answer scoring; for every chat-template choice suite prove one rendered case, print the first answer beside its candidates, and refuse an unrenderable or all-unmatched protocol; then report per-protocol committed scores, sourced references, throughput, commit identity, wall time, and missing evidence",
+          "title": "Extend the pinned audio baseline to held-out quality and admission coverage",
           "status": "open",
-          "verify": "go run ./cmd/evaluate -all \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "evaluate -all derives models and suites from the store, orders servable models smallest-first, enforces the six-hour total budget with per-remaining-model slices, and reports geometrically spaced per-suite progress with running score and timing. Evaluation plans bind prompting protocol so unlike passes cannot overwrite one identity. The raw-completion MMLU anchor remains comparable with lm-eval. Master d75d3554 completed the generated-letter protocol by parsing chat-template control tokens as special tokens and recognizing end-of-generation markers by token name; cc4485a0 records the corrected MMLU comparison. Master c36e5b70 renders BBH, MuSR and other text candidates as lettered options while leaving existing letter candidates direct; 4a642032 refuses an unrenderable suite at plan time, prints the first generated answer and its candidates, and stops after an all-unmatched eight-case probe instead of recording zero. Master 03f08dd2 drops instantiated CUDA graph execs whenever captured device memory is released; complete Qwen3.5 4B and 9B chat-template passes must cross the prior BBH failure windows and therefore serve as the long-run replay-safety proof as well as quality measurements. Qwen3.5-4B, Qwen3.5-9B, Gemma4-12B and Qwen3.8-27B now score near or above their raw anchors, while base, long-thinking and explanation-prone models retain bounded unmatched counts. The generated report derives all servable models and their latest per-protocol evidence from OvergoDB, prints missing measurements, and keeps published references as sourced declarations. The remaining broad suite includes MMLU and MMLU-Pro, TruthfulQA, IFEval, sequence likelihood or perplexity, retrieval quality, and applicable multimodal evaluation.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioBenchmarkCoverageAcceptance$' -count=1 -v",
+          "rationale": "Reuse native transcription suites, stored source identities and target-isolated predictions. Cover admitted duration/speaker slices and explicit silence/corrupt controls with WER/CER, normalization, failure denominators and artifact/protocol identity. Reuse the first CPU baseline; add only missing held-out coverage. Report domain limits of LibriSpeech clean. Broad MMLU/text-model runs remain master's work, not an audio prerequisite.",
           "depends_on": [
-            "benchmark-routing/sync-pinned-benchmarks"
+            "asr-training/closed-loop-proof"
+          ],
+          "capabilities": [
+            "held-out-audio-quality",
+            "failure-denominators"
           ]
         },
         {
           "id": "sync-resource-quality-fitness",
-          "title": "Reconcile the retained audio baseline before benchmark-routing/resource-quality-fitness",
+          "title": "Measure repeated audio baselines and derive comparison envelopes",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioResourceEnvelopeAcceptance$' -count=1 -v",
+          "rationale": "Reuse the corrected resource suite across source-derived duration/segment shapes and admitted recipes. Isolate load, warm inference and training timing; keep profiling separate. Use repeated observations to derive variation envelopes and retain unknown peak memory/VRAM. No copied perf-sweep runner or arbitrary fitted thresholds.",
           "depends_on": [
-            "benchmark-routing/pinned-benchmarks"
+            "benchmark-routing/pinned-benchmarks",
+            "asr-cuda/sync-profile-and-bind"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "repeatable-audio-resources",
+            "empirical-comparison-envelope"
           ]
         },
         {
           "id": "resource-quality-fitness",
-          "title": "Measure prefill and decode throughput separately across prompt lengths, K-quant spans and native-dtype decode or tensor-core boundaries, derive noise envelopes from repeated baselines, record host memory and VRAM, and judge every quality/resource pair through the exact multidimensional improvement-fitness owner",
+          "title": "Judge audio quality, latency and memory together through shared fitness policy",
           "status": "open",
-          "verify": "go build ./cmd/perf-sweep ./cmd/perplexity",
-          "rationale": "A throughput gain that reduces quality, or a quality gain that violates memory bounds, must not pass; the fitness owner landed in 45bb65f9 and this drill consumes it. Repeated baseline runs must derive the measured min-max noise envelope before declaring regression or improvement. Master 0c51e3d5 stages K-quant q8 input once and executes wide prefills in eight-column spans; ebbcd657 routes short F16, BF16 and fp8 spans through native-dtype decode according to traffic-derived bounds; 3e89a897 runs qualifying half-precision prefills through tensor cores without F32 weight staging. Master d89dc918 routes continuation scoring through the resident device cache when available while preserving the host-cache implementation as the CPU reference, and evaluate now accepts a CPU-profile output; the later benchmark drill must reuse those paths rather than introduce an audio-specific scoring or profiling owner. The sweep must report prefill separately from decode and include widths immediately below, at and above every applicable boundary, with CPU numerical authority retained. Bind those invocations, repeated baselines, peak host-memory and VRAM capture, perplexity, and loop -compare-resource-fitness via -setverify when the drill starts.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioResourceFitnessAcceptance$' -count=1 -v",
+          "rationale": "Compare baseline and candidate on matched artifact, corpus, protocol, hardware and measurement scopes. Exercise no-gain, regression, unavailable-dimension and approved tradeoff cases through the existing multidimensional fitness owner. Report capability and API/state/buffer changes beside WER/CER and resource results; a faster but less accurate candidate cannot silently win.",
           "depends_on": [
             "benchmark-routing/sync-resource-quality-fitness"
+          ],
+          "capabilities": [
+            "audio-pareto-fitness",
+            "measured-simplification"
           ]
         },
         {
           "id": "sync-routing-replay",
-          "title": "Reconcile the retained audio baseline before benchmark-routing/routing-replay",
+          "title": "Record real audio routing observations through the existing observation owner",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioRoutingObservationAcceptance$' -count=1 -v",
+          "rationale": "Use both admitted ASR recipes and their measured quality/resource evidence. Bind source, context, selected recipe, candidate set, outcome and resource availability to stored observations. Verify refusal on missing identity and incomplete candidate evidence; no audio-specific router or fabricated routing trace.",
           "depends_on": [
-            "benchmark-routing/pinned-benchmarks"
+            "shared-asr-proof/live-model-operations",
+            "benchmark-routing/resource-quality-fitness"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "audio-routing-observations",
+            "shared-routing-owner"
           ]
         },
         {
           "id": "routing-replay",
-          "title": "Run counterfactual routing replay, rollout projection, and safety-window derivation over the recorded router observations",
+          "title": "Evaluate audio counterfactual routing and live safety on recorded observations",
           "status": "open",
-          "verify": "go build ./cmd/router-observation ./cmd/rerank",
-          "rationale": "Routing quality is only measurable against the recorded stream; replay keeps the judgment exact and distribution-honest. Bind the replay invocation via -setverify when the drill starts.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioRoutingReplayAcceptance$' -count=1 -v",
+          "rationale": "Replay real recorded audio observations through existing routing, rollout and safety-window owners. Verify selection, insufficient-evidence refusal, regression quarantine and predecessor rollback against matched quality/resource evidence. Distinguish counterfactual replay from actual live outcomes and retain complete denominators.",
           "depends_on": [
             "benchmark-routing/sync-routing-replay"
+          ],
+          "capabilities": [
+            "audio-routing-replay",
+            "audio-live-safety"
           ]
         }
       ]
     },
     {
       "id": "failure-recovery",
-      "title": "Deliberate failure and recovery drills",
+      "title": "Prove audio consumers recover through shared durability and control-plane owners",
       "status": "open",
       "steps": [
         {
           "id": "sync-interruption-drills",
-          "title": "Reconcile the retained audio baseline before failure-recovery/interruption-drills",
+          "title": "Prove CPU audio cancellation releases buffers, operations and dataset cursors",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioCancellationAcceptance$' -count=1 -v",
+          "rationale": "Use actual offline transcription and adapter-training consumers to interrupt decode, inference and data iteration. Assert cancellation propagation, terminal operation state, bounded goroutine lifetime and resource release through existing owners. This CPU check does not wait for native streaming or CUDA.",
           "depends_on": [
-            "hermetic-foundation/store-drills",
-            "asr-serving/streaming-transcription"
+            "asr-training/closed-loop-proof"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "audio-cancellation",
+            "bounded-resource-lifetime"
           ]
         },
         {
           "id": "interruption-drills",
-          "title": "Interrupt generation and training mid-flight, interrupt checkpoint publication, recover a torn store tail, and run compaction and restore on the damaged copy",
+          "title": "Recover interrupted audio checkpoint publication and damaged store copies",
           "status": "open",
-          "verify": "go run ./cmd/store-check",
-          "rationale": "Interruption is the one input every durable subsystem claims to survive; each drill damages a copy, never the canonical store, and store-check is the verdict.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioPublicationRecoveryAcceptance$' -count=1 -v",
+          "rationale": "Extend the existing exact-resume evidence to interruption at publication boundaries. Exercise torn-tail recovery, restore and supported compaction through store owners on explicitly isolated copies only; verify predecessor recipe availability, no partial activation and resumed data/update identity. Existing platform store drills supply shared mechanics; never damage canonical model/dataset/checkpoint stores.",
           "depends_on": [
-            "failure-recovery/sync-interruption-drills"
+            "failure-recovery/sync-interruption-drills",
+            "hermetic-foundation/store-drills"
+          ],
+          "capabilities": [
+            "audio-publication-recovery",
+            "isolated-store-recovery"
           ]
         },
         {
           "id": "sync-control-plane-drills",
-          "title": "Reconcile the retained audio baseline before failure-recovery/control-plane-drills",
+          "title": "Prove audio candidate quarantine and atomic predecessor rollback",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioRollbackAcceptance$' -count=1 -v",
+          "rationale": "Exercise the existing promotion/circuit-breaker owner with actual audio quality/resource refusal evidence. Verify no partial activation, in-flight request recipe identity, rollback and evidence-based re-entry. No second audio promotion policy.",
           "depends_on": [
-            "failure-recovery/interruption-drills"
+            "failure-recovery/interruption-drills",
+            "benchmark-routing/resource-quality-fitness"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "audio-quarantine",
+            "atomic-recipe-rollback"
           ]
         },
         {
           "id": "control-plane-drills",
-          "title": "Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
+          "title": "Recover audio peer failures and durable workflow obligations",
           "status": "open",
-          "verify": "go build ./cmd/loop ./cmd/agent-loop",
-          "rationale": "The control plane's refusal and recovery paths are capability claims like any other; each has an evidence door under cmd/loop and cmd/agent-loop. Bind the drill sequence via -setverify when it starts.",
+          "verify": "go test ./internal/audioparity -run '^TestAudioDistributedRecoveryAcceptance$' -count=1 -v",
+          "rationale": "Use existing remote streaming adapters and workflow obligations to exercise peer timeout, partial response, cancellation and restart reconciliation. Require an audio request/output lineage chain and exactly one terminal obligation outcome; generic control-plane build success does not count.",
           "depends_on": [
-            "failure-recovery/sync-control-plane-drills"
+            "failure-recovery/sync-control-plane-drills",
+            "asr-serving/streaming-transcription"
+          ],
+          "capabilities": [
+            "audio-peer-recovery",
+            "persistent-audio-obligations"
           ]
         },
         {
           "id": "sync-gate-recovery-drill",
-          "title": "Reconcile the retained audio baseline before failure-recovery/gate-recovery-drill",
+          "title": "Verify the audio gate derives applicable acceptance and resource scope",
           "status": "open",
-          "verify": "git merge-base --is-ancestor d692645c HEAD \u0026\u0026 go run ./cmd/plan -status",
-          "rationale": "Reconcile audio HEAD and store under doctrine; record the baseline, update affected rows and gate before paired work. No merge or push. If its derived work requires an occupied GPU, leave that work pending and dispatch eligible CPU audio work; unavailable device evidence does not pass.",
+          "verify": "go test ./cmd/gate -run '^TestAudioGateScopeAcceptance$' -count=1 -v",
+          "rationale": "On an isolated repository fixture, verify plan/gate scope for representative audio declaration, CPU execution and kernel changes. Reuse manifest-derived test/device selection, and reject unexecuted or skipped audio acceptance. Record measured admission cost using existing phase telemetry. Do not create another gate or broaden this into master's gate redesign.",
           "depends_on": [
             "failure-recovery/interruption-drills"
           ],
           "capabilities": [
-            "retained-audio-baseline",
-            "plan-reconciliation",
-            "no-master-merge"
+            "audio-gate-scope",
+            "non-vacuous-acceptance"
           ]
         },
         {
           "id": "gate-recovery-drill",
-          "title": "Measure gate and plan admission across repeated projected merges, report every pre-heartbeat phase, interrupt a gate run against a scratch clone, and recover through -recover-preparation, -recover-interrupted, and the watchdog",
+          "title": "Recover interrupted audio gate preparation on an isolated checkout",
           "status": "open",
-          "verify": "go build ./cmd/gate ./cmd/plan",
-          "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. The audio synchronization chain exposed exponential completion-authority reconstruction across projected merges and unobservable pre-heartbeat work. The repaired resolver derives each revision, plan digest and store head once per invocation, admission reuses one store handle, and gate phases are timed; the drill must establish explicit latency budgets for gate and cmd/plan authority resolution at increasing merge depth, require linear scaling, exercise interruption before and after preparation, and prove recovery leaves no debt or commit intent. Bind the scripted drill via -setverify when it starts.",
+          "verify": "go test ./cmd/gate -run '^TestAudioGateRecoveryAcceptance$' -count=1 -v",
+          "rationale": "Use existing prepare/recover/watchdog owners on a disposable copy of the audio history/store, never the active worktree. Interrupt preparation and verification; prove recovery preserves dirty user changes, plan identities and completion authority without false completion or duplicate commit. Report phase wall times against measured local baselines. Reopen shared gate defects only with a reproduced audio blocker, not an unbounded merge-depth campaign.",
           "depends_on": [
             "failure-recovery/sync-gate-recovery-drill"
+          ],
+          "capabilities": [
+            "audio-gate-recovery",
+            "completion-authority-preservation"
           ]
         }
       ]

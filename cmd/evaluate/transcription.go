@@ -12,7 +12,6 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
-	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
 )
 
@@ -165,17 +164,15 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 	defer store.Close()
 	report, err := evaluation.EvaluateTranscriptionResources(
 		ctx, store, compiled, plan, manifest.Model, inputs, manifest.Options,
-		func(loadContext context.Context) (evaluation.TranscriptionResourceExecutor, error) {
-			return speechrecognition.LoadTranscriber(loadContext, store, manifest.RuntimeRecipe, manifest.MemoryBytes)
-		},
+		manifest.MemoryBytes,
 	)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("transcription resource report %s plan=%s quality=%s runs=%d audio_seconds=%.6f wall_seconds=%.6f rtf=%.6f allocations=%d peak_host_bytes=%d admission_failures=%d inference_failures=%d\n",
+	fmt.Printf("transcription resource report %s plan=%s quality=%s runs=%d audio_seconds=%.6f wall_seconds=%.6f rtf=%.6f process_allocations=%d peak_host_bytes=unavailable admission_failures=%d inference_failures=%d\n",
 		report.ID, report.Plan, report.Quality, report.Summary.Runs, report.Summary.AudioSeconds,
-		report.Summary.WallSeconds, report.Summary.RealTimeFactor, report.Summary.Allocations,
-		report.Summary.PeakHostBytes, report.Summary.AdmissionFailures, report.Summary.InferenceFailures,
+		report.Summary.WallSeconds, report.Summary.RealTimeFactor, report.Summary.ProcessAllocations,
+		report.Summary.AdmissionFailures, report.Summary.InferenceFailures,
 	)
 	return nil
 }

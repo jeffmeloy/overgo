@@ -76,6 +76,9 @@ func run() error {
 	if strings.TrimSpace(*transcriptionManifest) != "" && strings.TrimSpace(*transcriptionResourceManifest) != "" {
 		return errors.New("evaluate: select one transcription manifest")
 	}
+	if *cpuProfile != "" && strings.TrimSpace(*transcriptionResourceManifest) != "" {
+		return errors.New("evaluate: CPU profiling is not allowed during timed transcription evaluation")
+	}
 	if *cpuProfile != "" {
 		profile, err := os.Create(*cpuProfile)
 		if err != nil {

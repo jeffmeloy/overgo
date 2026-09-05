@@ -379,9 +379,24 @@ func publishTranscriptionReport(ctx context.Context, repository artifact.Reposit
 	}
 	parents = uniqueArtifactIDs(parents)
 	alias := campaignAlias(report.Plan)
+	return publishTranscriptionReportContent(ctx, repository, alias, content, parents)
+}
+
+func publishTranscriptionReportContent(ctx context.Context, repository artifact.Repository, alias string, content artifact.Content, parents []artifact.ID) error {
+	binding := artifact.AliasBinding{Name: alias, Target: content.Descriptor.ID}
+	previous, found, err := artifact.ResolveAlias(ctx, repository, alias)
+	if err != nil {
+		return err
+	}
+	if found {
+		if previous == binding.Target {
+			return artifact.ErrNoChange
+		}
+		binding.Previous = &previous
+	}
 	batch, err := artifact.NewDocumentBatch(
-		alias, []artifact.Content{content}, artifact.DependencyLineage(report.ID, parents...),
-		[]artifact.AliasBinding{{Name: alias, Target: report.ID}},
+		alias+"/"+previous.String()+"/"+binding.Target.DigestHex(), []artifact.Content{content}, artifact.DependencyLineage(binding.Target, parents...),
+		[]artifact.AliasBinding{binding},
 	)
 	if err != nil {
 		return err

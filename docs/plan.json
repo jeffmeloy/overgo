@@ -34,7 +34,10 @@
           "title": "Publish the expected model/task inventory and evidence gaps before costly runs",
           "status": "open",
           "verify": "go run ./cmd/overgodb-query -repo overgodb-store -verifications",
-          "rationale": "Use discovery and overgodb-query/compatibility to record every registered model, activated task, artifact/recipe identity, availability, evidence tier and staleness. Include absent and stale entries; compare the inventory to registered identities rather than listing only servable successes. Pin this denominator for the campaign; additions/removals need a recorded disposition. Acceptance reads the committed census and asserts complete identity/coverage correspondence, not merely successful query output. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row."
+          "rationale": "Use discovery and overgodb-query/compatibility to record every registered model, activated task, artifact/recipe identity, availability, evidence tier and staleness. Include absent and stale entries; compare the inventory to registered identities rather than listing only servable successes. Pin this denominator for the campaign; additions/removals need a recorded disposition. Acceptance reads the committed census and asserts complete identity/coverage correspondence, not merely successful query output. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.",
+          "depends_on": [
+            "modality-verification/capability-census-owner"
+          ]
         },
         {
           "id": "declared-smoke-expectations",

@@ -16,6 +16,7 @@ func optimizedValidationProblems(document Plan) []string {
 		return []string{err.Error()}
 	}
 	prerequisites := map[string][]string{
+		"modality-verification/capability-census":     {"modality-verification/capability-census-owner"},
 		"model-regression-baseline/do":                {"validation-readiness/measurement-contract", "model-regression-baseline/prepare-guard", "model-regression-baseline/repair-throughput"},
 		"model-regression-baseline/complete-coverage": {"baseline-repair-order/do", "model-regression-baseline/prepare-guard"},
 		"model-regression-baseline/repair-throughput": {"model-regression-baseline/complete-coverage"},

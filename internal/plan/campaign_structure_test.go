@@ -519,6 +519,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"benchmark-completion/mmlu-pro-pass",
 		"benchmark-completion/published-comparison",
 		"modality-verification/capability-census",
+		"modality-verification/capability-census-owner",
 		"modality-verification/declared-smoke-expectations",
 		"modality-verification/text-and-vision",
 		"modality-verification/image-and-video",

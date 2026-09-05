@@ -3,7 +3,8 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -38,25 +39,53 @@ type CatalogEntry struct {
 // when the bounded alias listing could not carry every activation: a
 // clipped catalog must say so rather than read as complete.
 func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo) ([]CatalogEntry, bool, error) {
+	return capabilityCatalog(ctx, store, limit, memo, false)
+}
+
+// RegisteredCatalog includes every registered model identity, even without an
+// activation or available bytes. It shares the serving catalog's activation
+// and presence checks; callers must refuse a truncated campaign denominator.
+func RegisteredCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo) ([]CatalogEntry, bool, error) {
+	return capabilityCatalog(ctx, store, limit, memo, true)
+}
+
+func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo, includeInactive bool) ([]CatalogEntry, bool, error) {
 	result, err := store.Query(ctx, overgodb.Query{
 		Kind: artifact.KindRecipe, MaxResults: limit, Projection: overgodb.ProjectAliases,
 	})
 	if err != nil {
 		return nil, false, err
 	}
-	tasksByModel := map[artifact.ID][]recipe.Task{}
+	if includeInactive && result.Truncated {
+		return nil, true, nil
+	}
+	tasksByModel := map[artifact.ID]map[recipe.Task]artifact.ID{}
+	if includeInactive {
+		registered, err := store.Query(ctx, overgodb.Query{
+			Kind: artifact.KindModel, MaxResults: limit, Projection: overgodb.ProjectArtifacts,
+		})
+		if err != nil || registered.Truncated {
+			return nil, registered.Truncated, err
+		}
+		for _, descriptor := range registered.Artifacts {
+			tasksByModel[descriptor.ID] = map[recipe.Task]artifact.ID{}
+		}
+	}
 	for _, alias := range result.Aliases {
 		model, task, ok := modelrecipe.ParseActiveAlias(alias.Name)
 		if !ok {
 			continue
 		}
-		tasksByModel[model] = append(tasksByModel[model], task)
+		if tasksByModel[model] == nil {
+			if includeInactive {
+				return nil, false, fmt.Errorf("discovery: activation names unregistered model %s", model)
+			}
+			tasksByModel[model] = map[recipe.Task]artifact.ID{}
+		}
+		tasksByModel[model][task] = alias.Target
 	}
-	models := make([]artifact.ID, 0, len(tasksByModel))
-	for model := range tasksByModel {
-		models = append(models, model)
-	}
-	sort.Slice(models, func(i, j int) bool { return models[i].String() < models[j].String() })
+	models := slices.Collect(maps.Keys(tasksByModel))
+	slices.SortFunc(models, artifact.CompareID)
 	entries := make([]CatalogEntry, 0, len(models))
 	identities := map[string]fileIdentity{}
 	for _, model := range models {
@@ -75,16 +104,16 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 		} else if path, pathErr := artifact.AvailablePath(ctx, store, model, artifact.LocationDirectory); pathErr == nil {
 			entry.Location, entry.Present = path, true
 		}
-		tasks := tasksByModel[model]
-		sort.Slice(tasks, func(i, j int) bool { return tasks[i] < tasks[j] })
+		tasks := slices.Collect(maps.Keys(tasksByModel[model]))
+		slices.Sort(tasks)
 		for _, task := range tasks {
-			capability := Capability{Task: task}
+			capability := Capability{Task: task, Recipe: tasksByModel[model][task]}
 			activation, active, err := modelrecipe.ActiveRecord(ctx, store, model, task)
 			switch {
 			case err != nil:
 				capability.Stale = fmt.Sprintf("activation cannot be trusted: %v", err)
 			case !active:
-				continue
+				capability.Stale = "declared activation is absent"
 			default:
 				capability.Recipe, capability.Tier = activation.Definition.ID, activation.Tier
 				// Servability is the serving stack's own gate: for tasks the
@@ -103,7 +132,7 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 			}
 			entry.Capabilities = append(entry.Capabilities, capability)
 		}
-		if len(entry.Capabilities) == 0 {
+		if len(entry.Capabilities) == 0 && !includeInactive {
 			continue
 		}
 		entries = append(entries, entry)

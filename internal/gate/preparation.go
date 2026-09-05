@@ -23,6 +23,7 @@ import (
 	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
 	"overgo/internal/overgodb"
+	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
@@ -137,7 +138,13 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	var structuralErr error
 	var legacy codeprofile.FunctionImpact
 	var legacyErr error
+	var verificationBatch *plan.VerificationBatch
 	analysisErr := g.withCandidateWorktree(tree, func(root string) error {
+		var err error
+		verificationBatch, err = planVerificationBatch(root, g.planRef)
+		if err != nil {
+			return err
+		}
 		original := g.repo
 		g.repo = root
 		defer func() { g.repo = original }()
@@ -160,6 +167,10 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	// later package-cache execution after that worktree is removed.
 	g.packageGraph = nil
 	definitions := g.pipelineChecks(devicePackages...)
+	definitions, err = g.batchAcceptanceChecks(definitions, verificationBatch)
+	if err != nil {
+		return plannedPipeline{}, err
+	}
 	surface := automationcheck.Surface{}
 	if structuralErr == nil {
 		surface = automationcheck.ManifestSurface(structural)

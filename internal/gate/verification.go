@@ -1184,26 +1184,35 @@ func (g *gateContext) stepAcceptance() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	tree, err := g.plannedTree()
-	if err != nil {
+	if err := g.verifyAcceptedCandidate(contract.verify, true); err != nil {
 		return false, err
 	}
-	if g.manifestPlan == nil || candidateTreeKey(tree) != g.manifestPlan.CandidateTree {
-		return false, errors.New("acceptance: immutable candidate tree differs from the manifest plan")
-	}
-	if err := g.requirePreparedCandidate(g.manifestPlan.CandidateTree); err != nil {
-		return false, err
-	}
-	verdict, err := g.executeCandidateVerifier(tree, contract.verify)
-	if err != nil {
-		return false, err
-	}
-	if verdict != testevidence.ClassifyVerifyCommand(contract.verify) {
-		return false, errors.New("acceptance: verifier returned the wrong classifier verdict")
-	}
-	g.acceptedTree = tree
 	g.stepEvidence["acceptance"] = contract.evidence
 	return false, nil
+}
+
+func (g *gateContext) verifyAcceptedCandidate(verify string, complete bool) error {
+	tree, err := g.plannedTree()
+	if err != nil {
+		return err
+	}
+	if g.manifestPlan == nil || candidateTreeKey(tree) != g.manifestPlan.CandidateTree {
+		return errors.New("acceptance: immutable candidate tree differs from the manifest plan")
+	}
+	if err := g.requirePreparedCandidate(g.manifestPlan.CandidateTree); err != nil {
+		return err
+	}
+	verdict, err := g.executeCandidateVerifier(tree, verify)
+	if err != nil {
+		return err
+	}
+	if verdict != testevidence.ClassifyVerifyCommand(verify) {
+		return errors.New("acceptance: verifier returned the wrong classifier verdict")
+	}
+	if complete {
+		g.acceptedTree = tree
+	}
+	return nil
 }
 
 type acceptanceContract struct {

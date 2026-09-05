@@ -1443,16 +1443,20 @@ func requireCompletionEvidence(
 	if err != nil {
 		return completionEvidence{}, fmt.Errorf("verify attempt gate: %w", err)
 	}
+	completedStep, found := exactPlanStep(Plan{Items: []Item{contractSnapshot}}, trailers.item, trailers.step)
+	if !found {
+		return completionEvidence{}, errors.New("completion contract lacks the exact step")
+	}
+	if completedStep.VerificationBatch != nil {
+		if !trailers.preparation.Valid() {
+			return completionEvidence{}, errors.New("verification batch completion requires prepared manifest authority")
+		}
+	}
 	if trailers.preparation.Valid() {
 		if verification.Preparation.ID != trailers.preparation {
 			return completionEvidence{}, errors.New("attempt gate differs from the preparation trailer")
 		}
-		if err := requireCompletionManifestBinding(ctx, store, verification, attempt); err != nil {
-			return completionEvidence{}, err
-		}
-		if err := requireCompletionAcceptance(
-			verification.Gate, trailers.item+"/"+trailers.step, trailers.verify,
-		); err != nil {
+		if err := VerifyPreparedStepAcceptance(ctx, store, verification, attempt, trailers.item+"/"+trailers.step, completedStep); err != nil {
 			return completionEvidence{}, err
 		}
 	}
@@ -1473,12 +1477,37 @@ func completionContractDigest(snapshot Item) ([sha256.Size]byte, error) {
 	return completionJSONDigest(snapshot, "contract snapshot")
 }
 
-func requireCompletionManifestBinding(
+// VerifyPreparedStepAcceptance requires the exact parent and subordinate
+// acceptances and their atomically published manifest binding. Both completion
+// replay and interrupted-commit recovery use this check after VerifyAttemptGate.
+// It verifies acceptance evidence, not Git history or dispatch authority.
+func VerifyPreparedStepAcceptance(
 	ctx context.Context,
 	store *overgodb.Store,
 	verification runrecord.AttemptGateVerification,
 	attempt runrecord.AttemptRecord,
+	reference string,
+	step Step,
 ) error {
+	itemID, stepID, found := strings.Cut(reference, "/")
+	if ctx == nil || store == nil || !found || !validPlanID(itemID) || !validPlanID(stepID) ||
+		step.ID != stepID || step.Status != StatusOpen || !validAutomationDetail(step.Verify) {
+		return errors.New("completion acceptance requires a store, context and exact open plan step")
+	}
+	if err := validateVerificationBatch(step.VerificationBatch); err != nil {
+		return err
+	}
+	if err := requireCompletionAcceptance(verification.Gate, reference, step.Verify); err != nil {
+		return err
+	}
+	batch := step.VerificationBatch
+	if batch != nil {
+		for _, checkpoint := range batch.Checkpoints {
+			if err := requireNamedCompletionAcceptance(verification.Gate, checkpoint.GateCheckName(), reference, checkpoint.Verify); err != nil {
+				return fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
+			}
+		}
+	}
 	edges, err := store.Parents(ctx, verification.Gate.ID)
 	if err != nil {
 		return err
@@ -1531,6 +1560,16 @@ func requireCompletionManifestBinding(
 	if manifest.ID != attempt.Recipe || manifest.CandidateManifest != attempt.CandidateManifest ||
 		manifest.CandidateTree != verification.Preparation.TreeKey {
 		return errors.New("completion manifest analysis differs from the attempt or prepared candidate")
+	}
+	if batch != nil {
+		for _, checkpoint := range batch.Checkpoints {
+			index := slices.IndexFunc(manifest.Invocations, func(invocation automationcheck.PlannedInvocation) bool {
+				return invocation.Check.Name == checkpoint.GateCheckName()
+			})
+			if index < 0 || !manifest.Invocations[index].Check.Always || manifest.Invocations[index].Check.Phase != runrecord.PhaseTest {
+				return fmt.Errorf("completion manifest lacks required checkpoint %s", checkpoint.ID)
+			}
+		}
 	}
 	return nil
 }
@@ -1758,13 +1797,17 @@ func advanceHistoricalPlan(document Plan, itemID, stepID string) (Plan, error) {
 }
 
 func requireCompletionAcceptance(gate runrecord.GateResult, reference, verify string) error {
+	return requireNamedCompletionAcceptance(gate, "acceptance", reference, verify)
+}
+
+func requireNamedCompletionAcceptance(gate runrecord.GateResult, name, reference, verify string) error {
 	var acceptance []runrecord.GateStep
 	for _, step := range gate.Steps {
-		if step.Name == "acceptance" {
+		if step.Name == name {
 			acceptance = append(acceptance, step)
 		}
 	}
-	if len(acceptance) != 1 ||
+	if len(acceptance) != 1 || acceptance[0].Phase != runrecord.PhaseTest ||
 		acceptance[0].Outcome != runrecord.StepSucceeded && acceptance[0].Outcome != runrecord.StepReused {
 		return errors.New("completion gate lacks one successful acceptance step")
 	}

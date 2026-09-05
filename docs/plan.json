@@ -9,17 +9,32 @@
       "status": "open",
       "steps": [
         {
-          "id": "governed-checkpoints",
-          "title": "Implement checkpoint, integration and promotion control in the existing plan and gate owners",
+          "id": "provisional-commit-control",
+          "title": "Persist provisional checkpoint commits and verification debt through the existing gate transaction",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestProvisionalCheckpointCommitAcceptance$' -count=1 -v",
+          "rationale": "Extend the existing plan, runrecord and gate transaction owners, not a second scheduler or approval framework. Bind a declared step-local batch to a fully admitted clean base revision, candidate branch, immutable declaration, policy identity, dependency graph and cumulative change. Reuse AgentObligation documents but require independently verified typed receipt evidence; mere scope/epoch equality is not admission. Checkpoint publication records implemented/provisional work and durable outstanding obligations in OvergoDB, never a successful full GateResult or AttemptRecord, plan pruning, recipe activation or verified claim. Reuse the same Git compare-and-swap, exact index snapshots, write-ahead intent, keepalive and recovery engine. A checkpoint binds its exact commit and preparation without circular receipt/commit identities. Prove interrupted preparation/publication, restart, duplicate finalization, cancellation, forged receipts, changed base, changed declaration and out-of-batch edits in disposable worktrees/stores. Keep production reduced-checkpoint admission disabled until integration-control passes; verify this implementation with the existing full gate.",
+          "depends_on": [
+            "audio-gate-control/governed-checkpoints"
+          ],
+          "capabilities": [
+            "provisional-checkpoint-records",
+            "durable-verification-obligations",
+            "recoverable-candidate-commits"
+          ]
+        },
+        {
+          "id": "integration-control",
+          "title": "Admit governed checkpoints only with cumulative integration and debt-free promotion controls",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestGovernedVerificationBatchAcceptance$' -count=1 -v",
-          "rationale": "Master's c3266947 plan already batches model acceptance; reuse its evidence policy without confusing a planned batch with implemented checkpoint control. Extend existing plan, verification-manifest, runrecord and gate transaction owners, not a second scheduler or approval framework. Bind a declared capability batch to its clean base revision, ordered plan members, dependency graph, policy identity, cumulative change and required acceptance. A development checkpoint performs formatting, affected-package build/vet, targeted non-vacuous acceptance and every applicable immediate safety check, then commits only to the candidate worktree through cmd/gate. Checkpoint publication records implemented work and durable outstanding verification obligations in OvergoDB without pruning completed-plan rows, activating recipes, publishing verified claims or permitting master/release promotion. Permit the dispatcher to advance within the declared batch using explicit provisional dependency state while external consumers still require verified dependencies. The integration gate verifies the accumulated change and discharges exact obligations; promotion additionally requires all applicable device, race, quality, security and recovery evidence. Existing full gating is the default for unbatched work and remains mandatory during implementation of this mechanism. Persistence, authentication, concurrency, kernel, public-contract and gate-policy changes force their applicable checks at the earliest boundary. Unknown ownership widens scope. Required unavailable evidence blocks the relevant boundary. Gate-policy changes are verified under the previously admitted stronger policy, never under a candidate's self-reduced checks. The RSI controller may propose batch sizes and scheduling from measured history within an admitted policy; it cannot silently weaken acceptance, erase debt or reinterpret skipped checks as passes. Batch limits and verification budgets must be derived from measured cost/risk or an explicit typed decision with justification and reopen trigger, not arbitrary commit counts or elapsed-time cutoffs. Test forged policy/receipt, checkpoint-versus-completion distinction, cumulative invalidation, out-of-batch edits, changed base, interruption/restart, duplicate finalization, cancellation, promotion refusal with debt, and exact atomic integration completion in disposable worktrees/stores. Match the current full-gate acceptance obligations on the same final tree.",
+          "rationale": "Complete the step-local checkpoint controller before enabling reduced verification. A development checkpoint runs formatting, compiler-derived affected-package build/vet, its non-vacuous acceptance and every applicable immediate safety check; commits remain candidate-worktree only. Derive provisional dispatcher progress from exact durable receipts while the parent stays open and external consumers still require verified completion. Integration derives scope from the clean batch base through the final candidate, reruns all required acceptances, discharges exact obligations and atomically completes the one parent row. Promotion requires all applicable device, race, quality, security and recovery evidence; unresolved debt blocks master/release promotion. Persistence, authentication, concurrency, kernel, public-contract and gate-policy changes force applicable checks at the earliest boundary. Unknown ownership widens scope and required unavailable evidence blocks the boundary. Candidate gate-policy changes cannot admit their own weaker checks: enforce the previously admitted stronger policy. No hand-maintained skip matrix. RSI proposals stay within admitted policy and evidence-derived budgets or a typed justified decision with a reopen trigger, never arbitrary commit counts/timers. Test forged policy/receipt, checkpoint-versus-completion, cumulative invalidation, out-of-batch edits, changed base, recovery, duplicate finalization, cancellation and promotion refusal with debt. Match full-gate obligations on the same final tree. Existing full gating remains the default and verifies all controller implementation changes.",
           "depends_on": [
-            "audio-gate-control/package-evidence"
+            "audio-gate-control/provisional-commit-control"
           ],
           "capabilities": [
             "governed-checkpoint-commits",
-            "durable-verification-obligations",
+            "cumulative-integration-acceptance",
             "evidence-bound-promotion",
             "batch-boundary-dispatch"
           ]
@@ -31,7 +46,7 @@
           "verify": "go test ./internal/gate -run '^TestAudioVerificationBatchAcceptance$' -count=1 -v",
           "rationale": "Use bounded audio dataset traversal, training materialization and their evaluation consumer migration as the first declared capability batch; retain existing plan step identities and split implementation checkpoints only where the typed batch owner can dispatch them without false completion. Pin master once at the batch boundary, never after each checkpoint or recursively after merge commits. Integrate a newer master only at the next declared boundary; urgent shared safety changes explicitly interrupt/revalidate the affected batch. Prove real source-row alignment, target isolation, bounded live payloads, split disjointness, exact cursor resume, quarantine/corruption accounting and consumer parity through the existing dataset acceptance. Compare checkpoint-plus-integration verification with the existing full-per-change policy on an identical final tree and declared faults. Record executed/reused/required/pending checks, test failures detected, gate versus implementation wall time, recovery outcomes and full cost of the controller. Require preserved mandatory fault detection and acceptance coverage; report measured savings or no gain without assuming success. No actual master mutation or production activation in the acceptance fixture. Bank useful evidence for the later failure-recovery/audio gate drills instead of implementing those mechanisms twice.",
           "depends_on": [
-            "audio-gate-control/governed-checkpoints",
+            "audio-gate-control/integration-control",
             "asr-training/dataset-materialization"
           ],
           "capabilities": [
@@ -94,7 +109,7 @@
           "depends_on": [
             "asr-training/sync-dataset-materialization",
             "audio-decode-consolidation/do",
-            "audio-gate-control/governed-checkpoints"
+            "audio-gate-control/integration-control"
           ],
           "capabilities": [
             "speech-dataset",

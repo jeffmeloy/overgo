@@ -27,11 +27,12 @@ type AutomationContext struct {
 }
 
 type TaskContext struct {
-	ItemID    string `json:"item_id"`
-	ItemTitle string `json:"item_title"`
-	StepID    string `json:"step_id"`
-	StepTitle string `json:"step_title"`
-	Verify    string `json:"verify,omitzero"`
+	ItemID            string             `json:"item_id"`
+	ItemTitle         string             `json:"item_title"`
+	StepID            string             `json:"step_id"`
+	StepTitle         string             `json:"step_title"`
+	Verify            string             `json:"verify,omitzero"`
+	VerificationBatch *VerificationBatch `json:"verification_batch,omitempty"`
 }
 
 type DirtyPath = repoanalysis.DirtyPath
@@ -106,6 +107,7 @@ func BuildAutomationContext(document Plan, facts ContextFacts, completions Compl
 		ctx.CurrentTask = &TaskContext{
 			ItemID: item.ID, ItemTitle: item.Title,
 			StepID: step.ID, StepTitle: step.Title, Verify: step.Verify,
+			VerificationBatch: step.VerificationBatch,
 		}
 	}
 	return ctx, nil

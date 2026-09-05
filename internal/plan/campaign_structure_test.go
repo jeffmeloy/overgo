@@ -527,6 +527,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-replan/do",
 		"capability-simplification-replan/do",
 		"model-regression-baseline/full-catalog",
+		"model-regression-baseline/prepare-guard",
 		"validation-readiness/failure-diagnostics",
 		"boundary-hardening/cross-origin",
 		"boundary-hardening/argv-output",

@@ -3,9 +3,14 @@ package testevidence
 
 import (
 	"bufio"
+	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -19,6 +24,8 @@ type GoTestReport struct {
 	Skipped           []string
 	Unavailable       []string
 	Failed            []string
+	Unfinished        []string
+	Diagnostics       []string
 	tests             []testResult
 }
 
@@ -38,9 +45,15 @@ func GoTestJSONShort(out string) error {
 	return RequireComplete(report)
 }
 
-// RequireComplete rejects evidence that contains unavailable or unclassified
+// RequireComplete rejects failed, unfinished, unavailable or unclassified
 // skipped tests. Classified short exclusions remain visible but are permitted.
 func RequireComplete(report GoTestReport) error {
+	if len(report.Failed) > 0 {
+		return fmt.Errorf("%s failed", report.Failed[0])
+	}
+	if len(report.Unfinished) > 0 {
+		return fmt.Errorf("%s did not finish", report.Unfinished[0])
+	}
 	if len(report.Unavailable) > 0 {
 		return fmt.Errorf("%s", report.Unavailable[0])
 	}
@@ -57,6 +70,15 @@ func GoTestJSONShortReport(out string) (GoTestReport, error) {
 	return goTestJSONReport(out, true, false)
 }
 
+// GoTestJSONReader streams test evidence, retaining bounded failure
+// diagnostics and completed verdicts even when a later event is malformed.
+func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int) (GoTestReport, error) {
+	if diagnosticBytes <= 0 {
+		return GoTestReport{}, fmt.Errorf("diagnostic byte limit must be positive")
+	}
+	return readGoTestJSON(reader, short, false, diagnosticBytes)
+}
+
 // GoTestJSONReport decodes complete test evidence without crediting skips.
 // Callers decide whether the tested package is in the changed ownership cone.
 func GoTestJSONReport(out string) (GoTestReport, error) {
@@ -64,35 +86,76 @@ func GoTestJSONReport(out string) (GoTestReport, error) {
 }
 
 func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, error) {
-	scanner := bufio.NewScanner(strings.NewReader(out))
+	return readGoTestJSON(strings.NewReader(out), short, allowAuxiliary, 0)
+}
+
+func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int) (report GoTestReport, err error) {
+	scanner := bufio.NewScanner(reader)
 	seen := false
-	var report GoTestReport
 	classified := map[string]bool{}
 	results := map[string]*testResult{}
+	tails := map[string]diagnosticTail{}
+	started := map[string]bool{}
+	var malformed diagnosticTail
+	defer func() {
+		if malformed.tail != "" {
+			report.Diagnostics = append(report.Diagnostics, "malformed output:\n"+malformed.text())
+		}
+		for _, key := range slices.Sorted(maps.Keys(results)) {
+			result := results[key]
+			if result.Name != "" {
+				report.tests = append(report.tests, *result)
+			}
+			name := result.Package
+			if result.Name != "" {
+				name += ": " + result.Name
+			}
+			if started[key] && result.Action == "" {
+				report.Unfinished = append(report.Unfinished, name)
+			}
+			if tail, found := tails[key]; found {
+				report.Diagnostics = append(report.Diagnostics, name+":\n"+tail.text())
+			}
+		}
+	}()
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
 		var event struct {
-			Action  string
-			Package string
-			Test    string
-			Output  string
+			Action     string
+			Package    string
+			ImportPath string
+			Test       string
+			Output     string
 		}
 		if allowAuxiliary && !strings.HasPrefix(line, "{") {
 			if reason := unavailable(line); reason != "" {
-				return GoTestReport{}, fmt.Errorf("auxiliary verifier: %s", reason)
+				return report, fmt.Errorf("auxiliary verifier: %s", reason)
 			}
 			continue
 		}
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			return GoTestReport{}, fmt.Errorf("decode go test event: %w", err)
+		if decodeErr := json.Unmarshal([]byte(line), &event); decodeErr != nil {
+			err = cmp.Or(err, fmt.Errorf("decode go test event: %w", decodeErr))
+			if diagnosticBytes > 0 {
+				malformed.append(line+"\n", diagnosticBytes)
+			}
+			continue
 		}
 		seen = true
+		event.Package = cmp.Or(event.Package, event.ImportPath)
 		key := event.Package + "\x00" + event.Test
-		if event.Test != "" && results[key] == nil {
+		if results[key] == nil {
 			results[key] = &testResult{Package: event.Package, Name: event.Test}
+		}
+		if event.Action == "run" || event.Action == "start" {
+			started[key] = true
+		}
+		if event.Output != "" && diagnosticBytes > 0 {
+			tail := tails[key]
+			tail.append(event.Output, diagnosticBytes)
+			tails[key] = tail
 		}
 		if short && strings.Contains(event.Output, ShortIntegrationSkip) {
 			classified[key] = true
@@ -119,20 +182,50 @@ func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, err
 		case event.Action == "fail" && event.Test == "":
 			report.Failed = append(report.Failed, event.Package)
 		}
-		if event.Test != "" && (event.Action == "pass" || event.Action == "skip" || event.Action == "fail") {
+		if event.Action == "pass" || event.Action == "skip" || event.Action == "fail" {
 			results[key].Action = event.Action
+			if event.Action == "pass" || event.Action == "skip" && (!short || event.Test == "" || classified[key]) {
+				delete(tails, key)
+			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return GoTestReport{}, fmt.Errorf("read go test events: %w", err)
+	if scanErr := scanner.Err(); scanErr != nil {
+		return report, errors.Join(err, fmt.Errorf("read go test events: %w", scanErr))
 	}
 	if !seen {
-		return GoTestReport{}, fmt.Errorf("go test emitted no events")
+		return report, errors.Join(err, fmt.Errorf("go test emitted no events"))
 	}
-	for _, result := range results {
-		report.tests = append(report.tests, *result)
+	return report, err
+}
+
+// diagnosticTail preserves a cause separately because a panic stack can push
+// its first line out of the bounded output tail.
+type diagnosticTail struct {
+	tail  string
+	cause string
+}
+
+func (tail *diagnosticTail) append(output string, limit int) {
+	tail.tail = boundedDiagnostic(tail.tail+output, limit)
+	if tail.cause == "" {
+		for line := range strings.SplitSeq(output, "\n") {
+			if strings.Contains(line, "panic:") || strings.Contains(line, "fatal error:") || strings.Contains(line, "test timed out") {
+				tail.cause = boundedDiagnostic(line, limit)
+				break
+			}
+		}
 	}
-	return report, nil
+}
+
+func boundedDiagnostic(text string, limit int) string {
+	return strings.Clone(text[max(0, len(text)-limit):])
+}
+
+func (tail diagnosticTail) text() string {
+	if tail.cause != "" && !strings.Contains(tail.tail, tail.cause) {
+		return tail.cause + "\n" + tail.tail
+	}
+	return tail.tail
 }
 
 // FailureSummary names failed tests and packages from a mixed verifier stream.

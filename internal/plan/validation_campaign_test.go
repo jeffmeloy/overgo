@@ -16,7 +16,8 @@ func optimizedValidationProblems(document Plan) []string {
 		return []string{err.Error()}
 	}
 	prerequisites := map[string][]string{
-		"model-regression-baseline/do":              {"validation-readiness/measurement-contract"},
+		"model-regression-baseline/do":              {"validation-readiness/measurement-contract", "model-regression-baseline/prepare-guard"},
+		"model-regression-baseline/prepare-guard":   {"validation-readiness/measurement-contract"},
 		"model-regression-baseline/full-catalog":    {"model-regression-baseline/do", "gemma-12b-accuracy/do", "modality-verification/media-report", "device-memory-retention/do", "decode-attention-per-key-cost/do"},
 		"device-memory-retention/do":                {"model-regression-gate/do"},
 		"decode-attention-per-key-cost/do":          {"model-regression-gate/do"},
@@ -108,6 +109,20 @@ func TestOptimizedValidationRejectsUnsafeOrdering(t *testing.T) {
 		target string
 		change func(*Plan)
 	}{
+		{"publication bypasses producer", "model-regression-baseline/do", func(d *Plan) {
+			for i := range d.Items {
+				if d.Items[i].ID != "model-regression-baseline" {
+					continue
+				}
+				for j := range d.Items[i].Steps {
+					if d.Items[i].Steps[j].ID == "do" {
+						d.Items[i].Steps[j].DependsOn = slices.DeleteFunc(d.Items[i].Steps[j].DependsOn, func(dependency string) bool {
+							return dependency == "model-regression-baseline/prepare-guard"
+						})
+					}
+				}
+			}
+		}},
 		{"guard delayed by media", "model-regression-baseline/do", func(d *Plan) {
 			for i := range d.Items {
 				if d.Items[i].ID == "model-regression-baseline" {

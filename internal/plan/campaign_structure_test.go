@@ -596,6 +596,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/capability-census-owner",
 		"modality-verification/e4b-all-modalities",
 		"modality-verification/e4b-serving-repair",
+		"modality-verification/e4b-serving-admission",
+		"gui-worktree-integration/merge",
 		"audio-worktree-integration/register-models",
 		// Accept or remove the staged API from the explicitly authorized audio intake.
 		"modality-verification/native-audio-streaming-intake",

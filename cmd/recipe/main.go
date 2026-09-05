@@ -121,6 +121,13 @@ func run() error {
 	}
 	switch verb {
 	case "verify":
+		if selectedTask == recipe.TaskProjection {
+			rawInput, err := readInput(*input)
+			if err != nil {
+				return err
+			}
+			return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput)
+		}
 		if selectedTask == recipe.TaskInference {
 			rawInput, inputErr := readInput(*input)
 			if inputErr != nil {
@@ -340,6 +347,9 @@ func prepareCapability(
 }
 
 func verifyCapability(repository, path string, task recipe.Task, capability capability, input string) error {
+	if capability.execute == nil {
+		return fmt.Errorf("task %q has no verifier executor", task)
+	}
 	ctx := context.Background()
 	revision, err := cleanGoRevision()
 	if err != nil {
@@ -370,16 +380,13 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 		return err
 	}
 	started := time.Now()
-	var output any
 	var measured capabilityruntime.Measured
-	if capability.execute != nil {
-		output, err = capability.execute(ctx, store, path, execution, input)
-		if err != nil {
-			return err
-		}
-		if envelope, ok := output.(capabilityruntime.Measured); ok {
-			measured = envelope
-		}
+	output, err := capability.execute(ctx, store, path, execution, input)
+	if err != nil {
+		return err
+	}
+	if envelope, ok := output.(capabilityruntime.Measured); ok {
+		measured = envelope
 	}
 	verification, err := publishMeasuredVerification(
 		ctx, store, definition, revision, time.Since(started), "host", "go", "candidate output validated", measured,
@@ -390,9 +397,7 @@ func verifyCapability(repository, path string, task recipe.Task, capability capa
 	result := map[string]any{
 		"gate_id":   verification.Gate.String(),
 		"recipe_id": definition.ID.String(), "run_id": verification.Run.String(),
-	}
-	if capability.execute != nil {
-		result["output"] = output
+		"output": output,
 	}
 	return json.NewEncoder(os.Stdout).Encode(result)
 }

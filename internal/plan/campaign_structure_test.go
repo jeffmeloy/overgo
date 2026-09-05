@@ -500,6 +500,9 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"gemma-12b-accuracy/do",
 		"model-regression-fingerprints/do",
 		"model-regression-gate/do",
+		// Split the existing guard row at its inventory and selection boundaries.
+		"model-regression-gate/coverage-inventory",
+		"model-regression-gate/coverage-selection",
 		"model-regression-baseline/do",
 		"simplify-prefill-paths/do",
 		"simplify-command-surface/do",

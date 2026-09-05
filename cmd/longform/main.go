@@ -67,6 +67,7 @@ type options struct {
 	Check             bool
 	Guard             bool
 	ValidateBaselines bool
+	GuardCoverage     bool
 	OutputPrefix      int
 	Models            []string
 	Corpus            string
@@ -97,6 +98,7 @@ func parseOptions(args []string) (options, error) {
 	flags.BoolVar(&result.Check, "check", false, "measure a fresh ladder against explicit -baseline records on the fixed -corpus; exit 1 on a regression")
 	flags.BoolVar(&result.Guard, "guard", false, "continue past sampled EOG to measure full output budgets on the same greedy device path; require complete recipe-bound quality, rate and allocation evidence through the regression ceiling")
 	flags.BoolVar(&result.ValidateBaselines, "validate-baselines", false, "read-only acceptance of explicit current-surface guard records; does not load models or measure CUDA")
+	flags.BoolVar(&result.GuardCoverage, "guard-coverage", false, "report exact selected text-model execution facts and explicit baseline gaps as JSON; read-only, incomplete coverage exits nonzero")
 	flags.IntVar(&result.OutputPrefix, "show", 240, "characters of the judged generation to print")
 	flags.StringVar(&result.Corpus, "corpus", "", "fixed UTF-8 corpus file; required for -check")
 	flags.StringVar(&result.ExportCorpus, "export-corpus", "", "write a new fixed corpus file from this repository, without measuring models")
@@ -109,7 +111,7 @@ func parseOptions(args []string) (options, error) {
 	}
 	result.Models = flags.Args()
 	if result.ExportCorpus != "" {
-		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Guard || result.ValidateBaselines || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
+		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Guard || result.ValidateBaselines || result.GuardCoverage || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
 			return options{}, errors.New("longform: -export-corpus requires positive -corpus-bytes and no measurement options")
 		}
 		return result, nil
@@ -117,10 +119,10 @@ func parseOptions(args []string) (options, error) {
 	if result.CorpusBytes != 0 || result.Budget <= 0 || result.ModelBudget < 0 {
 		return options{}, errors.New("longform: measurement requires positive -budget; -model-budget cannot be negative")
 	}
-	if (result.Check || result.ValidateBaselines) && (result.Corpus == "" || len(result.Baselines) == 0) {
+	if (result.Check || result.ValidateBaselines || result.GuardCoverage) && (result.Corpus == "" || len(result.Baselines) == 0) {
 		return options{}, errors.New("longform: -check and -validate-baselines require a fixed -corpus and explicit -baseline records")
 	}
-	if !result.Check && !result.ValidateBaselines && len(result.Baselines) != 0 {
+	if !result.Check && !result.ValidateBaselines && !result.GuardCoverage && len(result.Baselines) != 0 {
 		return options{}, errors.New("longform: -baseline requires -check or -validate-baselines")
 	}
 	if result.Guard && result.Corpus == "" {
@@ -131,6 +133,9 @@ func parseOptions(args []string) (options, error) {
 	}
 	if result.Publish && (result.Check || result.ValidateBaselines) || result.Check && result.ValidateBaselines {
 		return options{}, errors.New("longform: -publish, -check and -validate-baselines are separate modes")
+	}
+	if result.GuardCoverage && (result.Publish || result.Check || result.ValidateBaselines || result.Guard) {
+		return options{}, errors.New("longform: -guard-coverage is a separate read-only mode")
 	}
 	if result.Repository == "" {
 		roots, err := dataroot.Resolve(result.Root)
@@ -180,7 +185,7 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 		return nil, err
 	}
 	var benchmarks map[string]evaluation.BenchmarkSummary
-	if !options.ValidateBaselines {
+	if !options.ValidateBaselines && !options.GuardCoverage {
 		benchmarks = readBenchmarks()
 	}
 	wanted := make(map[string]bool, len(requested))
@@ -278,20 +283,27 @@ func run(args []string, output io.Writer) error {
 	// Publishing binds the evidence to the verifying commit; a dry run
 	// still names the commit it ran on when the tree is clean.
 	sourceStart := time.Now()
+	diagnostics := output
+	if options.GuardCoverage {
+		diagnostics = os.Stderr
+	}
 	commit, commitErr := runrecord.VerifyingCommit(options.Root)
 	if options.Publish && commitErr != nil {
 		return commitErr
 	}
 	surface, err := longform.Surface(ctx, options.Root)
-	fmt.Fprintf(output, "long-form source resolution: %s\n", time.Since(sourceStart))
+	fmt.Fprintf(diagnostics, "long-form source resolution: %s\n", time.Since(sourceStart))
 	if err != nil {
 		return err
 	}
 	catalogStart := time.Now()
 	targets, err := listTargets(ctx, options)
-	fmt.Fprintf(output, "long-form catalog resolution: %s; no models loaded or measured during setup\n", time.Since(catalogStart))
+	fmt.Fprintf(diagnostics, "long-form catalog resolution: %s; no models loaded or measured during setup\n", time.Since(catalogStart))
 	if err != nil {
 		return err
+	}
+	if options.GuardCoverage {
+		return reportGuardCoverage(ctx, output, options, targets, surface)
 	}
 	if options.Check || options.ValidateBaselines {
 		if err := bindBaselines(ctx, options, targets); err != nil {

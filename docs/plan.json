@@ -30,13 +30,24 @@
       "status": "open",
       "steps": [
         {
+          "id": "coverage-selection",
+          "title": "Select accepted guard coverage from affected execution facts",
+          "status": "open",
+          "verify": "test -f cmd/longform/guard_selection_test.go \u0026\u0026 go test ./cmd/longform -run '^TestModelRegressionSelection$' -count=1 \u0026\u0026 go test ./cmd/longform -run '^TestGuardCoverageInventory$' -count=1",
+          "rationale": "Use the coverage inventory and existing code/kernel manifest ownership to derive affected classes. Exact model identity is the conservative class; substitute a cheaper accepted record only with explicit operator/weight/geometry/cache/modality equivalence evidence. Choose by measured cost without best-run baseline promotion, and widen when independence is unproven. Bind accepted references and scope through the existing store owner. Missing coverage produces a concrete acquisition/repair step before dependent execution changes; never relax denominator or accept a two-model guard as full-catalog evidence. Prove selection and missing/stale/device-path negative controls in the one command owner before wiring the gate.",
+          "depends_on": [
+            "model-regression-gate/coverage-inventory"
+          ]
+        },
+        {
           "id": "do",
           "title": "Enforce cheap execution-coverage regression checks before device-wide work",
           "status": "open",
           "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
           "rationale": "Use the code/kernel manifest and typed recipe/operator facts to select a small deterministic model set covering affected weight types, operator paths, head geometry, attention/cache policy and modality; weight type alone is insufficient. Minimize measured run cost subject to coverage, and widen scope when independence is unproven. Compare against the accepted immutable baseline. Sequence the quick model check before broader device work under an exclusive timing lease; host-only changes are explicitly inapplicable. Keep structure-budget checking in the cheap gate phase. Negative tests must reject a missing coverage class, stale/mismatched baseline, untested device path and a reproduced throughput/memory/quality regression. Bind an integration assertion proving the real gate selection and rejection path, alongside the host selector tests; use existing CI/protection ownership to prevent required device evidence being replaced by manual-workflow assumptions. Land the small guard before independent execution fixes; do not wait for media-report or full-catalog expansion. Widen accepted references when the full baseline lands.",
           "depends_on": [
-            "model-regression-baseline/do"
+            "model-regression-baseline/do",
+            "model-regression-gate/coverage-selection"
           ]
         }
       ]

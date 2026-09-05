@@ -73,6 +73,11 @@ func TestSelectedGuardAdmissionScope(t *testing.T) {
 	if historyReads != 0 || targets[0].short != (longform.ShortRates{}) {
 		t.Errorf("read-only admission read benchmark history %d times: %+v", historyReads, targets[0].short)
 	}
+	coverageOptions := opts
+	coverageOptions.ValidateBaselines, coverageOptions.GuardCoverage = false, true
+	if inventory, err := readTargets(t.Context(), store, coverageOptions, readHistory); err != nil || len(inventory) != 1 || historyReads != 0 {
+		t.Fatalf("coverage inventory read benchmark history: models=%d reads=%d error=%v", len(inventory), historyReads, err)
+	}
 	if err := bindBaselines(t.Context(), opts, targets); err != nil {
 		t.Fatal(err)
 	}

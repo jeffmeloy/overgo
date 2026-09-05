@@ -1,7 +1,6 @@
 package evaluation
 
 import (
-	"encoding/json"
 	"math"
 	"os"
 	"os/exec"
@@ -11,17 +10,12 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/audiodsp"
 	"overgo/internal/dataset"
-	"overgo/internal/hfrepo"
-	"overgo/internal/modelartifact"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
-	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
-	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
+	"overgo/internal/speechrecognitiontest"
 	"overgo/internal/testutil"
 )
 
@@ -292,122 +286,23 @@ func newTranscriptionResourceFixture(t *testing.T) transcriptionResourceFixture 
 			t.Error(err)
 		}
 	})
-	// Reuse the independently captured small encoder oracle, not recorded predictions.
-	data, err := os.ReadFile("../speechrecognition/testdata/encoder.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var captured struct {
-		Declaration speechrecognition.Declaration `json:"declaration"`
-		Weights     map[string]struct {
-			Shape  []int     `json:"shape"`
-			Values []float32 `json:"values"`
-		} `json:"weights"`
-	}
-	if err := json.Unmarshal(data, &captured); err != nil {
-		t.Fatal(err)
-	}
-	values, shapes := make(map[string][]float32), make(map[string][]int)
-	for name, weight := range captured.Weights {
-		values[name], shapes[name] = weight.Values, weight.Shape
-	}
-	directory := t.TempDir()
-	if err := safetensors.Save(filepath.Join(directory, "model.safetensors"), values, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
-	for name, body := range map[string]string{
-		"config.json":    `{"model_type":"fixture"}`,
-		"tokenizer.json": `{"added_tokens":[],"model":{"type":"BPE","vocab":{"a":0,"b":1,"c":2,"x":3,"y":4},"merges":[],"byte_fallback":false}}`,
-	} {
-		if err := os.WriteFile(filepath.Join(directory, name), []byte(body), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	hf, err := hfrepo.Open(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	inventory, err := modelartifact.FromHFRepository(hf)
-	closeErr := hf.Close()
-	if err != nil || closeErr != nil {
-		t.Fatalf("inventory: %v, close: %v", err, closeErr)
-	}
-	batch, err := inventory.Batch("resource-fixture/model")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
-		t.Fatal(err)
-	}
-	var tokenizer artifact.ID
-	for _, component := range inventory.Manifest.Components {
-		if component.Name == "tokenizer.json" {
-			tokenizer = component.Artifact
-		}
-	}
-	frontend := audiodsp.FrontendConfig{
-		SampleRate: 16000, Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 4, HopSamples: 2, FeatureBins: 4},
-		FFTLength: 16, FrameSpan: 4, Padding: "zero", Window: "rectangular",
-		Mel: audiodsp.MelConfig{Scale: "htk", MinFrequency: 20, MaxFrequency: 7000},
-		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
-	}
-	profile, err := speechrecognition.NewExecutionProfile(frontend,
-		audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 4}, captured.Declaration, 0, "en")
-	if err != nil {
-		t.Fatal(err)
-	}
-	contract, err := modelrecipe.NewAudioContract(
-		recipecontract.AudioFormat{SampleRate: 16000, Channels: 1, Encoding: "pcm-f32le"}, frontend.Geometry, artifact.ID{}, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err = profile.Batch("resource-fixture/profile")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
-		t.Fatal(err)
-	}
-	batch, err = contract.Batch("resource-fixture/contract")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
-		t.Fatal(err)
-	}
-	definition, err := modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizer, inventory.TensorInventory.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "resource-fixture/recipe", definition); err != nil {
-		t.Fatal(err)
-	}
-	metadata, err := modelrecipetest.PublishModelDefinition(t.Context(), store, "resource-fixture/metadata", inventory.Manifest.ID)
+	fixture := speechrecognitiontest.Publish(t, store, "../speechrecognition/testdata/encoder.json")
+	metadata, err := modelrecipetest.PublishModelDefinition(t.Context(), store, "resource-fixture/metadata", fixture.Definition.Model)
 	if err != nil {
 		t.Fatal(err)
 	}
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "resource corpus")
 	splitID := testutil.ArtifactID(t, artifact.KindDatasetShard, "resource split")
 	environmentID := testutil.ArtifactID(t, artifact.KindEvidence, "resource CPU")
-	batch = artifact.Batch{Key: "resource-fixture/authorities", Artifacts: []artifact.Descriptor{{ID: datasetID}, {ID: splitID}, {ID: environmentID}}}
+	batch := artifact.Batch{Key: "resource-fixture/authorities", Artifacts: []artifact.Descriptor{{ID: datasetID}, {ID: splitID}, {ID: environmentID}}}
 	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
 		t.Fatal(err)
 	}
-	policy := dataset.AudioInspectionPolicy{
-		MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 16, ClipThreshold: .999,
-		Admission: recipecontract.AudioAdmissionPolicy{MinimumChannels: 1, MaximumChannels: 1,
-			SilenceRMSThreshold: .001, MaximumAbsoluteDCOffset: .1},
-	}
+	policy := fixture.Policy
 	var cases []TranscriptionCase
 	var inputs []TranscriptionResourceInput
 	for _, name := range []string{"speech", "silence"} {
-		samples := make([]int16, 128)
-		if name == "speech" {
-			for i := range samples {
-				samples[i] = int16(8192 * math.Sin(2*math.Pi*float64(i)/16))
-			}
-		}
-		wave := testutil.MonoPCM16WAV(16000, samples)
+		wave, sampleCount := speechrecognitiontest.Wave(t, name == "silence")
 		id, err := artifact.IdentifyBytes(artifact.KindFile, wave)
 		if err != nil {
 			t.Fatal(err)
@@ -426,7 +321,7 @@ func newTranscriptionResourceFixture(t *testing.T) transcriptionResourceFixture 
 			reference = ""
 		}
 		cases = append(cases, TranscriptionCase{Name: name, Group: "fixture", Source: inspection.Signal.Source,
-			Reference: reference, SampleCount: uint64(len(samples)), SampleRate: 16000, SilentControl: name == "silence"})
+			Reference: reference, SampleCount: sampleCount, SampleRate: 16000, SilentControl: name == "silence"})
 		inputs = append(inputs, TranscriptionResourceInput{Name: name, Data: wave, Origin: origin, Policy: policy})
 	}
 	compiled, err := CompileTranscription(TranscriptionSuite{
@@ -436,10 +331,10 @@ func newTranscriptionResourceFixture(t *testing.T) transcriptionResourceFixture 
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BindTranscription(compiled, ExactAuthorities{ModelDefinition: metadata.Document.ID, RuntimeRecipe: definition.ID,
+	plan, err := BindTranscription(compiled, ExactAuthorities{ModelDefinition: metadata.Document.ID, RuntimeRecipe: fixture.Definition.ID,
 		CodeCommit: transcriptionTestCommit, Environment: environmentID, Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return transcriptionResourceFixture{store: store, compiled: compiled, plan: plan, model: inventory.Manifest.ID, inputs: inputs}
+	return transcriptionResourceFixture{store: store, compiled: compiled, plan: plan, model: fixture.Definition.Model, inputs: inputs}
 }

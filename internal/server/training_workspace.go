@@ -50,7 +50,7 @@ func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 	}
 	definition := workspace.program.Definition()
 	return []WorkflowCapability{{
-		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(),
+		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
 		Inputs: definition.Inputs, Outputs: definition.Outputs,
 		Controls: []WorkflowControl{
 			{Name: "dataset", Type: WorkflowControlDataset, Required: true},
@@ -256,21 +256,5 @@ func reportDPO(reporter operation.Reporter, observation trainingprogram.DPOObser
 }
 
 func (workspace *TrainingWorkspace) fail(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, cause error) (operation.Completion, error) {
-	outcome, failure := runrecord.OutcomeFailed, "training_failed"
-	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
-		outcome, failure = runrecord.OutcomeCancelled, ""
-	}
-	run, err := runrecord.NewRun(recipeID, outcome, inputs, nil, failure)
-	if err == nil {
-		batch, batchErr := run.Batch("training/run/" + run.ID.String())
-		commitContext := ctx
-		if ctx.Err() != nil {
-			commitContext = context.WithoutCancel(ctx)
-		}
-		if batchErr == nil {
-			_, batchErr = artifact.CommitBatch(commitContext, workspace.store, batch)
-		}
-		err = errors.Join(err, batchErr)
-	}
-	return operation.Completion{Run: run.ID}, errors.Join(cause, err)
+	return failWorkflow(ctx, workspace.store, recipeID, inputs, "training_failed", cause)
 }

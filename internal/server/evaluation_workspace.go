@@ -424,7 +424,7 @@ func (h *Handler) evaluationRun(response http.ResponseWriter, request *http.Requ
 	id, err := h.operations.Submit(context.WithoutCancel(request.Context()), operation.Request{
 		Task: recipe.TaskInference, Recipe: recipeID,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-		return h.executeObservedOperation(ctx, reporter, recipe.TaskInference, recipeID,
+		return h.executeObservedOperation(ctx, reporter, recipe.TaskInference, recipeID, body.Model,
 			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 				if body.GroundedReplay != nil {
 					return workspace.ExecuteSupervisedGroundedReplay(ctx, body.Model, *body.GroundedReplay, reporter)

@@ -9,23 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "transcriptions-route",
-          "title": "Expose the admitted recipe through authenticated POST /v1/audio/transcriptions",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestAudioTranscriptionsAcceptance$' -count=1 -v",
-          "rationale": "Reuse workspace authentication, upload limits, recipe selection, operations and cancellation. The route invokes the existing transcriber; it cannot implement decoding or inference again. Initially refuse unsupported formats, timestamps and streaming. Prove real successful transcription plus authentication, invalid input, limit and cancellation failures. Later segmented recipes use this same route. Bind the existing transcriber through current capability/workflow and model-session owners; share load/residency, operation tracking, timing and publication rather than wrapping them in an audio service. Keep the HTTP handler limited to protocol adaptation and retain distinct transcription output. Reuse the consolidated bounded decoder and task-specific admission policy.",
-          "depends_on": [
-            "asr-serving/sync-transcriptions-route",
-            "asr-reference/offline-recipe",
-            "audio-decode-consolidation/do"
-          ],
-          "capabilities": [
-            "openai-audio-transcriptions",
-            "authenticated-serving",
-            "bounded-upload"
-          ]
-        },
-        {
           "id": "sync-streaming-transcription",
           "title": "Bind verified native recognizer state to existing bounded audio sessions",
           "status": "open",

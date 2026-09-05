@@ -57,7 +57,7 @@ func TestServingObservationPublication(t *testing.T) {
 	operationID, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskInference, Recipe: recipeID,
 	}, func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-		return handler.executeObservedOperation(ctx, reporter, recipe.TaskInference, recipeID,
+		return handler.executeObservedOperation(ctx, reporter, recipe.TaskInference, recipeID, modelID,
 			func(context.Context, operation.Reporter) (operation.Completion, error) {
 				return operation.Completion{Run: runID}, nil
 			})

@@ -29,6 +29,9 @@ const TranscriptionSchema = "overgo/audio-transcription/v1"
 // rejected before model execution.
 const AudioAdmissionFailure = "audio-admission-refused"
 
+// AudioFormatFailure identifies decoded audio incompatible with the recipe.
+const AudioFormatFailure = "audio-format-mismatch"
+
 var transcriptionContract = artifact.JSONContract(artifact.KindOutput, TranscriptionSchema)
 
 // ErrAudioAdmissionRefused reports deterministic quarantine before inference.
@@ -200,7 +203,7 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 	}
 	if inspection.Signal.Format != transcriber.contract.Format {
 		run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
-			"audio-format-mismatch", elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
+			AudioFormatFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
 		return recipecontract.Transcription{}, run, errors.Join(errors.New("speech recognition: decoded audio format differs"), runErr)
 	}
 	prepareStart := time.Now()

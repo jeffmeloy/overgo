@@ -60,6 +60,27 @@
   {
    "evidence": [
     {
+     "contains": "func (h *Handler) nativeAudioTranscriptions(",
+     "path": "internal/server/native_audio_transcriptions.go",
+     "role": "source",
+     "identity": "file:sha256:19474067db6ce62313ea8365716dd354f39e34fdd020be250f4479ae0cf502ea"
+    },
+    {
+     "contains": "func TestAudioTranscriptionsAcceptance(",
+     "path": "internal/server/audio_transcriptions_test.go",
+     "role": "artifact",
+     "identity": "evidence:sha256:b76836ed21421e9b2b6f13a47f221fe6cbc13c1abe7e82b3517f478d10469b39"
+    }
+   ],
+   "id": "openai-audio-transcriptions",
+   "evidence_tier": "contract-tested",
+   "verify": "go test ./internal/server -run '^TestAudioTranscriptionsAcceptance$' -count=1 -v",
+   "status": "implemented",
+   "summary": "Authenticated multipart transcription executes an active CPU recipe on WAV or FLAC through native workflow and session owners, returning JSON text with bounded admission, cancellation and run lineage. Small-encoder integration evidence only; streaming, timestamps and full-model quality are not claimed."
+  },
+  {
+   "evidence": [
+    {
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",

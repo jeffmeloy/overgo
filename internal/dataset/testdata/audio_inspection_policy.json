@@ -1,0 +1,15 @@
+{
+  "maximum_encoded_bytes": 133145,
+  "maximum_samples": 114320,
+  "clip_threshold": 1,
+  "admission": {
+    "minimum_duration_nanoseconds": 0,
+    "maximum_duration_nanoseconds": 0,
+    "minimum_channels": 1,
+    "maximum_channels": 1,
+    "maximum_non_finite_samples": 0,
+    "silence_rms_threshold": 0.000030517578125,
+    "maximum_clipped_fraction": 0,
+    "maximum_absolute_dc_offset": 1
+  }
+}

@@ -1,0 +1,1269 @@
+{
+  "input": {
+    "weight": "encoder.input_linear.weight",
+    "bias": "encoder.input_linear.bias"
+  },
+  "blocks": [
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.0.norm_feed_forward1.weight",
+          "bias": "encoder.layers.0.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.0.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.0.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.0.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.0.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.0.norm_self_att.weight",
+          "bias": "encoder.layers.0.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.0.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.0.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.0.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.0.self_attn.o_proj.weight",
+          "bias": "encoder.layers.0.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.0.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.0.norm_conv.weight",
+          "bias": "encoder.layers.0.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.0.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.0.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.0.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.0.conv.norm.weight",
+          "bias": "encoder.layers.0.conv.norm.bias"
+        },
+        "mean": "encoder.layers.0.conv.norm.running_mean",
+        "variance": "encoder.layers.0.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.0.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.0.conv.pointwise_lin2.bias"
+        },
+        "stride": 2
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.0.norm_feed_forward2.weight",
+          "bias": "encoder.layers.0.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.0.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.0.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.0.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.0.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.0.norm_out.weight",
+        "bias": "encoder.layers.0.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.1.norm_feed_forward1.weight",
+          "bias": "encoder.layers.1.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.1.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.1.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.1.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.1.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.1.norm_self_att.weight",
+          "bias": "encoder.layers.1.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.1.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.1.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.1.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.1.self_attn.o_proj.weight",
+          "bias": "encoder.layers.1.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.1.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.1.norm_conv.weight",
+          "bias": "encoder.layers.1.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.1.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.1.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.1.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.1.conv.norm.weight",
+          "bias": "encoder.layers.1.conv.norm.bias"
+        },
+        "mean": "encoder.layers.1.conv.norm.running_mean",
+        "variance": "encoder.layers.1.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.1.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.1.conv.pointwise_lin2.bias"
+        },
+        "stride": 2
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.1.norm_feed_forward2.weight",
+          "bias": "encoder.layers.1.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.1.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.1.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.1.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.1.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.1.norm_out.weight",
+        "bias": "encoder.layers.1.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.2.norm_feed_forward1.weight",
+          "bias": "encoder.layers.2.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.2.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.2.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.2.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.2.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.2.norm_self_att.weight",
+          "bias": "encoder.layers.2.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.2.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.2.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.2.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.2.self_attn.o_proj.weight",
+          "bias": "encoder.layers.2.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.2.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.2.norm_conv.weight",
+          "bias": "encoder.layers.2.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.2.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.2.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.2.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.2.conv.norm.weight",
+          "bias": "encoder.layers.2.conv.norm.bias"
+        },
+        "mean": "encoder.layers.2.conv.norm.running_mean",
+        "variance": "encoder.layers.2.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.2.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.2.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.2.norm_feed_forward2.weight",
+          "bias": "encoder.layers.2.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.2.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.2.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.2.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.2.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.2.norm_out.weight",
+        "bias": "encoder.layers.2.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.3.norm_feed_forward1.weight",
+          "bias": "encoder.layers.3.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.3.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.3.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.3.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.3.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.3.norm_self_att.weight",
+          "bias": "encoder.layers.3.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.3.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.3.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.3.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.3.self_attn.o_proj.weight",
+          "bias": "encoder.layers.3.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.3.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.3.norm_conv.weight",
+          "bias": "encoder.layers.3.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.3.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.3.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.3.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.3.conv.norm.weight",
+          "bias": "encoder.layers.3.conv.norm.bias"
+        },
+        "mean": "encoder.layers.3.conv.norm.running_mean",
+        "variance": "encoder.layers.3.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.3.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.3.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.3.norm_feed_forward2.weight",
+          "bias": "encoder.layers.3.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.3.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.3.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.3.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.3.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.3.norm_out.weight",
+        "bias": "encoder.layers.3.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.4.norm_feed_forward1.weight",
+          "bias": "encoder.layers.4.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.4.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.4.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.4.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.4.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.4.norm_self_att.weight",
+          "bias": "encoder.layers.4.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.4.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.4.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.4.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.4.self_attn.o_proj.weight",
+          "bias": "encoder.layers.4.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.4.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.4.norm_conv.weight",
+          "bias": "encoder.layers.4.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.4.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.4.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.4.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.4.conv.norm.weight",
+          "bias": "encoder.layers.4.conv.norm.bias"
+        },
+        "mean": "encoder.layers.4.conv.norm.running_mean",
+        "variance": "encoder.layers.4.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.4.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.4.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.4.norm_feed_forward2.weight",
+          "bias": "encoder.layers.4.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.4.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.4.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.4.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.4.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.4.norm_out.weight",
+        "bias": "encoder.layers.4.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.5.norm_feed_forward1.weight",
+          "bias": "encoder.layers.5.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.5.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.5.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.5.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.5.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.5.norm_self_att.weight",
+          "bias": "encoder.layers.5.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.5.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.5.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.5.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.5.self_attn.o_proj.weight",
+          "bias": "encoder.layers.5.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.5.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.5.norm_conv.weight",
+          "bias": "encoder.layers.5.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.5.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.5.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.5.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.5.conv.norm.weight",
+          "bias": "encoder.layers.5.conv.norm.bias"
+        },
+        "mean": "encoder.layers.5.conv.norm.running_mean",
+        "variance": "encoder.layers.5.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.5.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.5.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.5.norm_feed_forward2.weight",
+          "bias": "encoder.layers.5.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.5.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.5.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.5.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.5.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.5.norm_out.weight",
+        "bias": "encoder.layers.5.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.6.norm_feed_forward1.weight",
+          "bias": "encoder.layers.6.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.6.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.6.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.6.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.6.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.6.norm_self_att.weight",
+          "bias": "encoder.layers.6.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.6.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.6.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.6.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.6.self_attn.o_proj.weight",
+          "bias": "encoder.layers.6.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.6.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.6.norm_conv.weight",
+          "bias": "encoder.layers.6.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.6.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.6.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.6.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.6.conv.norm.weight",
+          "bias": "encoder.layers.6.conv.norm.bias"
+        },
+        "mean": "encoder.layers.6.conv.norm.running_mean",
+        "variance": "encoder.layers.6.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.6.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.6.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.6.norm_feed_forward2.weight",
+          "bias": "encoder.layers.6.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.6.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.6.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.6.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.6.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.6.norm_out.weight",
+        "bias": "encoder.layers.6.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.7.norm_feed_forward1.weight",
+          "bias": "encoder.layers.7.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.7.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.7.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.7.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.7.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.7.norm_self_att.weight",
+          "bias": "encoder.layers.7.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.7.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.7.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.7.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.7.self_attn.o_proj.weight",
+          "bias": "encoder.layers.7.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.7.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.7.norm_conv.weight",
+          "bias": "encoder.layers.7.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.7.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.7.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.7.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.7.conv.norm.weight",
+          "bias": "encoder.layers.7.conv.norm.bias"
+        },
+        "mean": "encoder.layers.7.conv.norm.running_mean",
+        "variance": "encoder.layers.7.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.7.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.7.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.7.norm_feed_forward2.weight",
+          "bias": "encoder.layers.7.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.7.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.7.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.7.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.7.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.7.norm_out.weight",
+        "bias": "encoder.layers.7.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.8.norm_feed_forward1.weight",
+          "bias": "encoder.layers.8.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.8.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.8.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.8.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.8.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.8.norm_self_att.weight",
+          "bias": "encoder.layers.8.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.8.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.8.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.8.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.8.self_attn.o_proj.weight",
+          "bias": "encoder.layers.8.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.8.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.8.norm_conv.weight",
+          "bias": "encoder.layers.8.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.8.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.8.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.8.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.8.conv.norm.weight",
+          "bias": "encoder.layers.8.conv.norm.bias"
+        },
+        "mean": "encoder.layers.8.conv.norm.running_mean",
+        "variance": "encoder.layers.8.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.8.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.8.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.8.norm_feed_forward2.weight",
+          "bias": "encoder.layers.8.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.8.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.8.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.8.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.8.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.8.norm_out.weight",
+        "bias": "encoder.layers.8.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.9.norm_feed_forward1.weight",
+          "bias": "encoder.layers.9.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.9.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.9.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.9.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.9.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.9.norm_self_att.weight",
+          "bias": "encoder.layers.9.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.9.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.9.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.9.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.9.self_attn.o_proj.weight",
+          "bias": "encoder.layers.9.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.9.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.9.norm_conv.weight",
+          "bias": "encoder.layers.9.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.9.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.9.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.9.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.9.conv.norm.weight",
+          "bias": "encoder.layers.9.conv.norm.bias"
+        },
+        "mean": "encoder.layers.9.conv.norm.running_mean",
+        "variance": "encoder.layers.9.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.9.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.9.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.9.norm_feed_forward2.weight",
+          "bias": "encoder.layers.9.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.9.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.9.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.9.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.9.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.9.norm_out.weight",
+        "bias": "encoder.layers.9.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.10.norm_feed_forward1.weight",
+          "bias": "encoder.layers.10.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.10.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.10.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.10.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.10.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.10.norm_self_att.weight",
+          "bias": "encoder.layers.10.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.10.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.10.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.10.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.10.self_attn.o_proj.weight",
+          "bias": "encoder.layers.10.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.10.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.10.norm_conv.weight",
+          "bias": "encoder.layers.10.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.10.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.10.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.10.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.10.conv.norm.weight",
+          "bias": "encoder.layers.10.conv.norm.bias"
+        },
+        "mean": "encoder.layers.10.conv.norm.running_mean",
+        "variance": "encoder.layers.10.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.10.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.10.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.10.norm_feed_forward2.weight",
+          "bias": "encoder.layers.10.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.10.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.10.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.10.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.10.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.10.norm_out.weight",
+        "bias": "encoder.layers.10.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.11.norm_feed_forward1.weight",
+          "bias": "encoder.layers.11.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.11.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.11.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.11.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.11.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.11.norm_self_att.weight",
+          "bias": "encoder.layers.11.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.11.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.11.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.11.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.11.self_attn.o_proj.weight",
+          "bias": "encoder.layers.11.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.11.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.11.norm_conv.weight",
+          "bias": "encoder.layers.11.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.11.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.11.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.11.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.11.conv.norm.weight",
+          "bias": "encoder.layers.11.conv.norm.bias"
+        },
+        "mean": "encoder.layers.11.conv.norm.running_mean",
+        "variance": "encoder.layers.11.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.11.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.11.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.11.norm_feed_forward2.weight",
+          "bias": "encoder.layers.11.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.11.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.11.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.11.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.11.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.11.norm_out.weight",
+        "bias": "encoder.layers.11.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.12.norm_feed_forward1.weight",
+          "bias": "encoder.layers.12.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.12.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.12.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.12.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.12.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.12.norm_self_att.weight",
+          "bias": "encoder.layers.12.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.12.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.12.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.12.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.12.self_attn.o_proj.weight",
+          "bias": "encoder.layers.12.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.12.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.12.norm_conv.weight",
+          "bias": "encoder.layers.12.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.12.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.12.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.12.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.12.conv.norm.weight",
+          "bias": "encoder.layers.12.conv.norm.bias"
+        },
+        "mean": "encoder.layers.12.conv.norm.running_mean",
+        "variance": "encoder.layers.12.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.12.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.12.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.12.norm_feed_forward2.weight",
+          "bias": "encoder.layers.12.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.12.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.12.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.12.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.12.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.12.norm_out.weight",
+        "bias": "encoder.layers.12.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.13.norm_feed_forward1.weight",
+          "bias": "encoder.layers.13.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.13.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.13.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.13.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.13.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.13.norm_self_att.weight",
+          "bias": "encoder.layers.13.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.13.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.13.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.13.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.13.self_attn.o_proj.weight",
+          "bias": "encoder.layers.13.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.13.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.13.norm_conv.weight",
+          "bias": "encoder.layers.13.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.13.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.13.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.13.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.13.conv.norm.weight",
+          "bias": "encoder.layers.13.conv.norm.bias"
+        },
+        "mean": "encoder.layers.13.conv.norm.running_mean",
+        "variance": "encoder.layers.13.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.13.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.13.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.13.norm_feed_forward2.weight",
+          "bias": "encoder.layers.13.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.13.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.13.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.13.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.13.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.13.norm_out.weight",
+        "bias": "encoder.layers.13.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.14.norm_feed_forward1.weight",
+          "bias": "encoder.layers.14.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.14.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.14.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.14.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.14.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.14.norm_self_att.weight",
+          "bias": "encoder.layers.14.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.14.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.14.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.14.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.14.self_attn.o_proj.weight",
+          "bias": "encoder.layers.14.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.14.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.14.norm_conv.weight",
+          "bias": "encoder.layers.14.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.14.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.14.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.14.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.14.conv.norm.weight",
+          "bias": "encoder.layers.14.conv.norm.bias"
+        },
+        "mean": "encoder.layers.14.conv.norm.running_mean",
+        "variance": "encoder.layers.14.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.14.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.14.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.14.norm_feed_forward2.weight",
+          "bias": "encoder.layers.14.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.14.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.14.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.14.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.14.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.14.norm_out.weight",
+        "bias": "encoder.layers.14.norm_out.bias"
+      }
+    },
+    {
+      "first": {
+        "norm": {
+          "weight": "encoder.layers.15.norm_feed_forward1.weight",
+          "bias": "encoder.layers.15.norm_feed_forward1.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.15.feed_forward1.linear1.weight",
+          "bias": "encoder.layers.15.feed_forward1.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.15.feed_forward1.linear2.weight",
+          "bias": "encoder.layers.15.feed_forward1.linear2.bias"
+        }
+      },
+      "attention": {
+        "norm": {
+          "weight": "encoder.layers.15.norm_self_att.weight",
+          "bias": "encoder.layers.15.norm_self_att.bias"
+        },
+        "query": {
+          "weight": "encoder.layers.15.self_attn.q_proj.weight"
+        },
+        "key": {
+          "weight": "encoder.layers.15.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "encoder.layers.15.self_attn.v_proj.weight"
+        },
+        "out": {
+          "weight": "encoder.layers.15.self_attn.o_proj.weight",
+          "bias": "encoder.layers.15.self_attn.o_proj.bias"
+        },
+        "relative": "encoder.layers.15.self_attn.rel_pos_emb.weight",
+        "heads": 8,
+        "block_frames": 128
+      },
+      "convolution": {
+        "norm": {
+          "weight": "encoder.layers.15.norm_conv.weight",
+          "bias": "encoder.layers.15.norm_conv.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.15.conv.pointwise_lin1.weight",
+          "bias": "encoder.layers.15.conv.pointwise_lin1.bias"
+        },
+        "kernel": "encoder.layers.15.conv.depthwise_conv.weight",
+        "batch_norm": {
+          "weight": "encoder.layers.15.conv.norm.weight",
+          "bias": "encoder.layers.15.conv.norm.bias"
+        },
+        "mean": "encoder.layers.15.conv.norm.running_mean",
+        "variance": "encoder.layers.15.conv.norm.running_var",
+        "out": {
+          "weight": "encoder.layers.15.conv.pointwise_lin2.weight",
+          "bias": "encoder.layers.15.conv.pointwise_lin2.bias"
+        },
+        "stride": 1
+      },
+      "second": {
+        "norm": {
+          "weight": "encoder.layers.15.norm_feed_forward2.weight",
+          "bias": "encoder.layers.15.norm_feed_forward2.bias"
+        },
+        "in": {
+          "weight": "encoder.layers.15.feed_forward2.linear1.weight",
+          "bias": "encoder.layers.15.feed_forward2.linear1.bias"
+        },
+        "out": {
+          "weight": "encoder.layers.15.feed_forward2.linear2.weight",
+          "bias": "encoder.layers.15.feed_forward2.linear2.bias"
+        }
+      },
+      "out_norm": {
+        "weight": "encoder.layers.15.norm_out.weight",
+        "bias": "encoder.layers.15.norm_out.bias"
+      }
+    }
+  ],
+  "output": {
+    "weight": "encoder.out.weight",
+    "bias": "encoder.out.bias"
+  },
+  "feedback": {
+    "weight": "encoder.out_mid.weight",
+    "bias": "encoder.out_mid.bias"
+  },
+  "feedback_after": 8,
+  "activation": "silu",
+  "feed_forward_scale": 0.5,
+  "layer_norm_epsilon": 0.00001,
+  "batch_norm_epsilon": 0.00001
+}

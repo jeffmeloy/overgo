@@ -446,7 +446,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	if err := requireImprovementDatasetSplit(ctx, store, descriptorDataset, descriptorSplit); err == nil {
 		t.Fatal("improvement dataset accepted descriptor-only authorities")
 	}
-	if err := requireImprovementModelDefinition(ctx, store, descriptorModelDefinition, model); err == nil {
+	if err := requireEvaluationModelDefinition(ctx, store, descriptorModelDefinition, model); err == nil {
 		t.Fatal("improvement accepted a descriptor-only model definition")
 	}
 	foreignModel := id(artifact.KindModel, "foreign model")
@@ -461,7 +461,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := requireImprovementModelDefinition(ctx, store, foreignDefinition.Document.ID, model); err == nil {
+	if err := requireEvaluationModelDefinition(ctx, store, foreignDefinition.Document.ID, model); err == nil {
 		t.Fatal("improvement accepted a model definition bound to a foreign model")
 	}
 

@@ -3,6 +3,7 @@ package checked
 import (
 	"errors"
 	"math"
+	"unsafe"
 )
 
 func Nonzero[T comparable](value T) bool {
@@ -39,6 +40,9 @@ func NonNegativeFinite32(value float32) bool { return value >= 0 && Finite32(val
 
 // NonNegativeFinite64 reports whether value is finite and not negative.
 func NonNegativeFinite64(value float64) bool { return value >= 0 && Finite64(value) }
+
+// UnitInterval64 reports whether value is finite and lies in [0, 1].
+func UnitInterval64(value float64) bool { return value >= 0 && value <= 1 && Finite64(value) }
 
 // AtLeastFinite64 reports whether both operands are finite and value meets the minimum.
 func AtLeastFinite64(value, minimum float64) bool {
@@ -116,6 +120,24 @@ func Empty[T any](values ...[]T) bool {
 		}
 	}
 	return true
+}
+
+// SlicesOverlap reports shared occupied storage in two typed slices in O(1).
+// Empty and zero-sized-element slices occupy no writable bytes.
+// Callers must pass the complete writable destination extent, not just its
+// current length, when checking a buffer that will be extended to capacity.
+func SlicesOverlap[T any](left, right []T) bool {
+	if len(left) == 0 || len(right) == 0 {
+		return false
+	}
+	// Addresses are compared only; no pointer is manufactured or dereferenced.
+	// Actual Go slice storage guarantees each byte extent is addressable.
+	width := unsafe.Sizeof(left[0])
+	leftStart, rightStart := uintptr(unsafe.Pointer(unsafe.SliceData(left))), uintptr(unsafe.Pointer(unsafe.SliceData(right)))
+	if leftStart <= rightStart {
+		return rightStart-leftStart < uintptr(len(left))*width
+	}
+	return leftStart-rightStart < uintptr(len(right))*width
 }
 
 // Nonempty reports whether value contains at least one element.

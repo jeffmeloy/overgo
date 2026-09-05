@@ -1123,15 +1123,55 @@ func currentHeadReference(repo string) (string, error) {
 }
 
 func gitMetadataPath(repo, name string) (string, error) {
-	value, err := command(repo, "git", "rev-parse", "--git-path", name)
+	paths, err := gitMetadataPaths(repo, []string{name})
 	if err != nil {
 		return "", err
 	}
-	value = strings.TrimSpace(value)
-	if !filepath.IsAbs(value) {
-		value = filepath.Join(repo, value)
+	return paths[name], nil
+}
+
+// Resolve each transaction's paths together. Git remains the authority for
+// worktree-local metadata and shared refs; no path survives into another call.
+func gitMetadataPaths(repo string, names []string) (map[string]string, error) {
+	args := []string{"rev-parse", "--path-format=absolute"}
+	for _, name := range names {
+		if name == "" || strings.ContainsAny(name, "\x00\r\n") {
+			return nil, errors.New("gate: invalid Git metadata name")
+		}
+		args = append(args, "--git-path", name)
 	}
-	return filepath.Clean(value), nil
+	output, err := command(repo, "git", args...)
+	if err != nil {
+		return nil, err
+	}
+	values := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+	if len(values) != len(names) {
+		return nil, errors.New("gate: Git metadata path count differs")
+	}
+	paths := make(map[string]string, len(names))
+	for index, name := range names {
+		value := strings.TrimSuffix(values[index], "\r")
+		if !filepath.IsAbs(value) {
+			return nil, errors.New("gate: Git metadata path is not absolute")
+		}
+		paths[name] = filepath.Clean(value)
+	}
+	return paths, nil
+}
+
+func requireNoGitOperation(repo, message string) error {
+	paths, err := gitMetadataPaths(repo, gitOperationMarkers[:])
+	if err != nil {
+		return err
+	}
+	for _, name := range gitOperationMarkers {
+		if _, err := os.Stat(paths[name]); err == nil {
+			return fmt.Errorf(message, name)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
 }
 
 var gateBeforeCommitStateHook func(string)
@@ -1140,19 +1180,8 @@ func captureGateStartState(repo string) (*gateMergeIntent, gateIndexSnapshot, er
 	if err := requireFilesGateRefFormat(repo); err != nil {
 		return nil, gateIndexSnapshot{}, err
 	}
-	for _, name := range gitOperationMarkers {
-		path, err := gitMetadataPath(repo, name)
-		if err != nil {
-			return nil, gateIndexSnapshot{}, err
-		}
-		if _, err := os.Stat(path); err == nil {
-			return nil, gateIndexSnapshot{}, fmt.Errorf(
-				"commit admission: Git operation %s is not supported by gate",
-				name,
-			)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return nil, gateIndexSnapshot{}, err
-		}
+	if err := requireNoGitOperation(repo, "commit admission: Git operation %s is not supported by gate"); err != nil {
+		return nil, gateIndexSnapshot{}, err
 	}
 	if err := requireSupportedMergeRR(repo); err != nil {
 		return nil, gateIndexSnapshot{}, err
@@ -1213,17 +1242,14 @@ func capturePendingMerge(repo string) (*gateMergeIntent, error) {
 	if err := requireSupportedMergeRR(repo); err != nil {
 		return nil, err
 	}
-	headPath, err := gitMetadataPath(repo, "MERGE_HEAD")
+	paths, err := gitMetadataPaths(repo, []string{"MERGE_HEAD", "AUTO_MERGE", "MERGE_AUTOSTASH", "MERGE_MODE", "MERGE_MSG"})
 	if err != nil {
 		return nil, err
 	}
+	headPath := paths["MERGE_HEAD"]
 	headInfo, err := os.Lstat(headPath)
 	if errors.Is(err, os.ErrNotExist) {
-		autoMergePath, pathErr := gitMetadataPath(repo, "AUTO_MERGE")
-		if pathErr != nil {
-			return nil, pathErr
-		}
-		if _, autoMergeErr := os.Lstat(autoMergePath); autoMergeErr == nil {
+		if _, autoMergeErr := os.Lstat(paths["AUTO_MERGE"]); autoMergeErr == nil {
 			// A stash pop leaves AUTO_MERGE behind with no merge in
 			// progress; the gate refuses rather than deleting a marker
 			// that could also belong to a concurrent merge, and names
@@ -1244,20 +1270,13 @@ func capturePendingMerge(repo string) (*gateMergeIntent, error) {
 	if err != nil {
 		return nil, err
 	}
-	autostashPath, err := gitMetadataPath(repo, "MERGE_AUTOSTASH")
-	if err != nil {
-		return nil, err
-	}
-	if _, err := os.Stat(autostashPath); err == nil {
+	if _, err := os.Stat(paths["MERGE_AUTOSTASH"]); err == nil {
 		return nil, errors.New("gate: pending merge uses MERGE_AUTOSTASH; abort it and stage the merge without autostash")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
 	read := func(name string) ([]byte, uint32, error) {
-		path, pathErr := gitMetadataPath(repo, name)
-		if pathErr != nil {
-			return nil, 0, pathErr
-		}
+		path := paths[name]
 		info, statErr := os.Lstat(path)
 		if statErr != nil {
 			return nil, 0, statErr
@@ -1276,10 +1295,7 @@ func capturePendingMerge(repo string) (*gateMergeIntent, error) {
 	if err != nil {
 		return nil, err
 	}
-	autoMergePath, err := gitMetadataPath(repo, "AUTO_MERGE")
-	if err != nil {
-		return nil, err
-	}
+	autoMergePath := paths["AUTO_MERGE"]
 	autoMergeInfo, err := os.Lstat(autoMergePath)
 	var autoMerge []byte
 	var autoMergeFileMode uint32
@@ -1403,12 +1419,16 @@ func gateMergeMetadataFiles(repo string, merge *gateMergeIntent) ([]gateMergeMet
 		}
 		files[4].want, files[4].mode, files[4].managed = merge.Head, fs.FileMode(merge.HeadFileMode), true
 	}
+	names := make([]string, len(files))
+	for index, file := range files {
+		names[index] = file.name
+	}
+	paths, err := gitMetadataPaths(repo, names)
+	if err != nil {
+		return nil, err
+	}
 	for index := range files {
-		metadataPath, err := gitMetadataPath(repo, files[index].name)
-		if err != nil {
-			return nil, err
-		}
-		files[index].path = metadataPath
+		files[index].path = paths[files[index].name]
 	}
 	return files, nil
 }
@@ -1497,11 +1517,12 @@ func gateGitManualLockPaths(
 		"AUTO_MERGE", "MERGE_HEAD", "MERGE_AUTOSTASH", "CHERRY_PICK_HEAD", "REVERT_HEAD",
 		intent.KeepaliveRef,
 	}
+	paths, err := gitMetadataPaths(repo, rootRefNames)
+	if err != nil {
+		return "", nil, err
+	}
 	for _, name := range rootRefNames {
-		path, err := gitMetadataPath(repo, name)
-		if err != nil {
-			return "", nil, err
-		}
+		path := paths[name]
 		if name == intent.KeepaliveRef {
 			if err := os.MkdirAll(filepath.Dir(path), gatePrivateDirectoryMode); err != nil {
 				return "", nil, fmt.Errorf("gate: prepare interrupted commit keepalive lock: %w", err)
@@ -1845,16 +1866,8 @@ func clearCommittedMergeState(repo string, intent gateCommitIntent) error {
 		if err := exactGateIndexState(indexPath, fs.FileMode(intent.IndexMode), intent.IndexAfter); err != nil {
 			return err
 		}
-		for _, name := range gitOperationMarkers {
-			path, err := gitMetadataPath(repo, name)
-			if err != nil {
-				return err
-			}
-			if _, err := os.Stat(path); err == nil {
-				return fmt.Errorf("commit admission: Git operation %s appeared before final state cleanup", name)
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return err
-			}
+		if err := requireNoGitOperation(repo, "commit admission: Git operation %s appeared before final state cleanup"); err != nil {
+			return err
 		}
 		states, err := readGateMergeMetadata(files)
 		if err != nil {

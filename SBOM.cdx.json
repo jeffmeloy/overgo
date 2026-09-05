@@ -141,6 +141,13 @@
       "type": "file"
     },
     {
+      "bom-ref": "pkg:golang/github.com/d4l3k/messagediff@v1.2.2-0.20190829033028-7e0a312ae40b",
+      "name": "github.com/d4l3k/messagediff",
+      "purl": "pkg:golang/github.com/d4l3k/messagediff@v1.2.2-0.20190829033028-7e0a312ae40b",
+      "type": "library",
+      "version": "v1.2.2-0.20190829033028-7e0a312ae40b"
+    },
+    {
       "bom-ref": "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
       "licenses": [
         {
@@ -153,6 +160,97 @@
       "purl": "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
       "type": "library",
       "version": "v2.5.2"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/icza/bitio@v1.1.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "github.com/icza/bitio",
+      "purl": "pkg:golang/github.com/icza/bitio@v1.1.0",
+      "type": "library",
+      "version": "v1.1.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/icza/mighty@v0.0.0-20180919140131-cfd07d671de6",
+      "name": "github.com/icza/mighty",
+      "purl": "pkg:golang/github.com/icza/mighty@v0.0.0-20180919140131-cfd07d671de6",
+      "type": "library",
+      "version": "v0.0.0-20180919140131-cfd07d671de6"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/jszwec/csvutil@v1.10.0",
+      "name": "github.com/jszwec/csvutil",
+      "purl": "pkg:golang/github.com/jszwec/csvutil@v1.10.0",
+      "type": "library",
+      "version": "v1.10.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/mewkiz/flac@v1.0.14",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unlicense"
+          }
+        }
+      ],
+      "name": "github.com/mewkiz/flac",
+      "purl": "pkg:golang/github.com/mewkiz/flac@v1.0.14",
+      "type": "library",
+      "version": "v1.0.14"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/mewkiz/pkg@v0.0.0-20250417130911-3f050ff8c56d",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unlicense"
+          }
+        }
+      ],
+      "name": "github.com/mewkiz/pkg",
+      "purl": "pkg:golang/github.com/mewkiz/pkg@v0.0.0-20250417130911-3f050ff8c56d",
+      "type": "library",
+      "version": "v0.0.0-20250417130911-3f050ff8c56d"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/mewpkg/term@v0.0.0-20241026122259-37a80af23985",
+      "licenses": [
+        {
+          "license": {
+            "name": "Unlicense"
+          }
+        }
+      ],
+      "name": "github.com/mewpkg/term",
+      "purl": "pkg:golang/github.com/mewpkg/term@v0.0.0-20241026122259-37a80af23985",
+      "type": "library",
+      "version": "v0.0.0-20241026122259-37a80af23985"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/pkg/errors@v0.9.1",
+      "name": "github.com/pkg/errors",
+      "purl": "pkg:golang/github.com/pkg/errors@v0.9.1",
+      "type": "library",
+      "version": "v0.9.1"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/image@v0.23.0",
+      "name": "golang.org/x/image",
+      "purl": "pkg:golang/golang.org/x/image@v0.23.0",
+      "type": "library",
+      "version": "v0.23.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/net@v0.38.0",
+      "name": "golang.org/x/net",
+      "purl": "pkg:golang/golang.org/x/net@v0.38.0",
+      "type": "library",
+      "version": "v0.38.0"
     },
     {
       "bom-ref": "pkg:golang/stdlib@1.26",
@@ -183,7 +281,17 @@
         "file:kernels/cuda/torch_cuda_randn.cu",
         "file:kernels/cuda/vector_add.cu",
         "file:kernels/manifest.json",
+        "pkg:golang/github.com/d4l3k/messagediff@v1.2.2-0.20190829033028-7e0a312ae40b",
         "pkg:golang/github.com/dlclark/regexp2/v2@v2.5.2",
+        "pkg:golang/github.com/icza/bitio@v1.1.0",
+        "pkg:golang/github.com/icza/mighty@v0.0.0-20180919140131-cfd07d671de6",
+        "pkg:golang/github.com/jszwec/csvutil@v1.10.0",
+        "pkg:golang/github.com/mewkiz/flac@v1.0.14",
+        "pkg:golang/github.com/mewkiz/pkg@v0.0.0-20250417130911-3f050ff8c56d",
+        "pkg:golang/github.com/mewpkg/term@v0.0.0-20241026122259-37a80af23985",
+        "pkg:golang/github.com/pkg/errors@v0.9.1",
+        "pkg:golang/golang.org/x/image@v0.23.0",
+        "pkg:golang/golang.org/x/net@v0.38.0",
         "pkg:golang/stdlib@1.26"
       ],
       "ref": "pkg:golang/overgo"

@@ -1,51 +1,71 @@
 package gate
 
 import (
-	"path/filepath"
+	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/repoanalysis"
 )
 
 func TestModernGoNoBroadSuppressions(t *testing.T) {
-	root := filepath.Join("..", "..")
-	census, err := repoanalysis.BuildModernGoCensus(root, repoanalysis.ModernGoTargetVersion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	baseline, err := repoanalysis.LoadModernGoBaseline(
-		filepath.Join(root, filepath.FromSlash(repoanalysis.ModernGoBaselineFile)),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := repoanalysis.AdmitModernGoRatchet(baseline, census, time.Now().UTC()); err != nil {
-		t.Fatal(err)
-	}
-	counts := map[string]int{}
-	for _, finding := range census.Findings {
-		for _, site := range finding.Candidates {
-			counts[finding.ID+"\x00"+site.Path+"\x00"+site.Symbol]++
-		}
-	}
-	covered := map[string]int{}
-	for _, exception := range baseline.Exceptions {
-		key := exception.Guideline + "\x00" + exception.Path + "\x00" + exception.Symbol
-		if counts[key] == 0 || exception.CandidateCeiling != counts[key] {
-			t.Errorf("broad or stale exception %s %s:%s covers %d, exact candidates %d",
-				exception.Guideline, exception.Path, exception.Symbol, exception.CandidateCeiling, counts[key])
-		}
-		covered[exception.Guideline] += exception.CandidateCeiling
-	}
-	for _, finding := range census.Findings {
-		if covered[finding.ID] != len(finding.Candidates) {
-			t.Errorf("guideline %s exception coverage = %d, want %d", finding.ID, covered[finding.ID], len(finding.Candidates))
-		}
-	}
-	for _, guideline := range baseline.Guidelines {
-		if guideline.CandidateCeiling != 0 {
-			t.Errorf("guideline %s retains broad aggregate ceiling %d", guideline.ID, guideline.CandidateCeiling)
-		}
+	for _, test := range []struct {
+		name   string
+		change func(*repoanalysis.ModernGoBaseline, *repoanalysis.ModernGoCensus)
+		want   string
+	}{
+		{name: "exact coverage"},
+		{name: "empty candidate set", change: func(b *repoanalysis.ModernGoBaseline, c *repoanalysis.ModernGoCensus) {
+			b.Exceptions = nil
+			c.Findings[0].Candidates = nil
+		}},
+		{name: "aggregate ceiling", change: func(b *repoanalysis.ModernGoBaseline, _ *repoanalysis.ModernGoCensus) {
+			b.Guidelines[0].CandidateCeiling = 1
+		}, want: "broad aggregate ceiling"},
+		{name: "stale exception", change: func(_ *repoanalysis.ModernGoBaseline, c *repoanalysis.ModernGoCensus) {
+			c.Findings[0].Candidates = nil
+		}, want: "broad or stale exception"},
+		{name: "excess ceiling", change: func(b *repoanalysis.ModernGoBaseline, _ *repoanalysis.ModernGoCensus) {
+			b.Exceptions[0].CandidateCeiling++
+		}, want: "broad or stale exception"},
+		{name: "insufficient ceiling", change: func(b *repoanalysis.ModernGoBaseline, _ *repoanalysis.ModernGoCensus) {
+			b.Exceptions[0].CandidateCeiling--
+		}, want: "broad or stale exception"},
+		{name: "wrong path", change: func(b *repoanalysis.ModernGoBaseline, _ *repoanalysis.ModernGoCensus) {
+			b.Exceptions[0].Path = "internal/other.go"
+		}, want: "broad or stale exception"},
+		{name: "wrong symbol", change: func(b *repoanalysis.ModernGoBaseline, _ *repoanalysis.ModernGoCensus) {
+			b.Exceptions[0].Symbol = "other"
+		}, want: "broad or stale exception"},
+		{name: "wrong guideline", change: func(b *repoanalysis.ModernGoBaseline, _ *repoanalysis.ModernGoCensus) {
+			b.Exceptions[0].Guideline = "other"
+		}, want: "broad or stale exception"},
+		{name: "duplicate exception", change: func(b *repoanalysis.ModernGoBaseline, _ *repoanalysis.ModernGoCensus) {
+			b.Exceptions = append(b.Exceptions, b.Exceptions[0])
+		}, want: "broad or stale exception"},
+		{name: "uncovered site", change: func(_ *repoanalysis.ModernGoBaseline, c *repoanalysis.ModernGoCensus) {
+			c.Findings[0].Candidates = append(c.Findings[0].Candidates, repoanalysis.ModernGoSite{Path: "internal/new.go", Symbol: "new"})
+		}, want: "uncovered"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			baseline := repoanalysis.ModernGoBaseline{
+				Guidelines: []repoanalysis.ModernGoBaselineGuideline{{ID: "rule"}},
+				Exceptions: []repoanalysis.ModernGoException{{Guideline: "rule", Path: "internal/example.go", Symbol: "example", CandidateCeiling: 2}},
+			}
+			census := repoanalysis.ModernGoCensus{Findings: []repoanalysis.ModernGoFinding{{ID: "rule", Candidates: []repoanalysis.ModernGoSite{
+				{Path: "internal/example.go", Symbol: "example", Line: 10},
+				{Path: "internal/example.go", Symbol: "example", Line: 20},
+			}}}}
+			if test.change != nil {
+				test.change(&baseline, &census)
+			}
+			err := admitModernGoExactExceptions(baseline, census)
+			if test.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want %q", err, test.want)
+			}
+		})
 	}
 }

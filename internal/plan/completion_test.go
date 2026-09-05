@@ -160,9 +160,9 @@ func (fixture *completionFixture) canonicalMessage() []byte {
 	fixture.t.Helper()
 	manifestPlan := completionManifestPlan(fixture.t, fixture.codeManifest, fixture.preparation.TreeKey)
 	fixture.manifest = manifestPlan.ID
-	message, err := CompletionCommitMessage(
+	message, err := CompletionCommitMessageWithMergeAuthority(
 		[]byte("complete fixture"), fixture.preAdvance, fixture.item, fixture.step,
-		fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit,
+		fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		fixture.t.Fatal(err)
@@ -693,29 +693,29 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 			ID: "item", Status: StatusOpen,
 			Steps: []Step{{ID: "step", Status: StatusOpen, Verify: "go test ./..."}},
 		}}}
-		if _, err := CompletionCommitMessage(
+		if _, err := CompletionCommitMessageWithMergeAuthority(
 			[]byte("subject\n\nOvergo-Plan-Item: forged"), writerPlan, "item", "step",
-			manifest, codeManifest, preparation, preparationCommit,
+			manifest, codeManifest, preparation, preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 		); err == nil {
 			t.Fatal("reserved operator trailer accepted")
 		}
 		writerPlan.Items[0].Steps[0].Verify = "go test ./...\nOvergo-Plan-Step: forged"
-		if _, err := CompletionCommitMessage(
+		if _, err := CompletionCommitMessageWithMergeAuthority(
 			[]byte("subject"), writerPlan, "item", "step",
-			manifest, codeManifest, preparation, preparationCommit,
+			manifest, codeManifest, preparation, preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 		); err == nil {
 			t.Fatal("multiline verifier accepted")
 		}
 		writerPlan.Items[0].Steps[0].Verify = "go test ./..."
-		if _, err := CompletionCommitMessage(
+		if _, err := CompletionCommitMessageWithMergeAuthority(
 			[]byte("subject"), writerPlan, "item", "step",
-			manifest, codeManifest, artifact.ID{}, preparationCommit,
+			manifest, codeManifest, artifact.ID{}, preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 		); err == nil {
 			t.Fatal("missing preparation accepted")
 		}
-		if _, err := CompletionCommitMessage(
+		if _, err := CompletionCommitMessageWithMergeAuthority(
 			[]byte("subject"), writerPlan, "item", "step",
-			manifest, codeManifest, preparation, artifact.CommitID{},
+			manifest, codeManifest, preparation, artifact.CommitID{}, MergeProjectionSemanticUnion, artifact.ID{},
 		); err == nil {
 			t.Fatal("missing preparation introduction commit accepted")
 		}
@@ -762,9 +762,9 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		altered := fixture.preAdvance
 		altered.Items = slices.Clone(altered.Items)
 		altered.Items[0].Title = "same-commit title edit"
-		alteredMessage, err := CompletionCommitMessage(
+		alteredMessage, err := CompletionCommitMessageWithMergeAuthority(
 			[]byte("complete fixture"), altered, fixture.item, fixture.step,
-			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit,
+			fixture.manifest, fixture.codeManifest, fixture.preparation.ID, fixture.preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -976,15 +976,15 @@ func TestVerifyProspectiveCompletionTransition(t *testing.T) {
 	codeManifest := testutil.ArtifactID(t, artifact.KindProfile, "prospective-code-manifest")
 	preparation := testutil.ArtifactID(t, artifact.KindEvidence, "prospective-preparation")
 	preparationCommit := artifact.CommitID{1}
-	message, err := CompletionCommitMessage(
+	message, err := CompletionCommitMessageWithMergeAuthority(
 		[]byte("prospective completion"), parent, "root", "do",
-		manifest, codeManifest, preparation, preparationCommit,
+		manifest, codeManifest, preparation, preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyProspectiveCompletionTransition(
-		[]Plan{parent}, nil, parent, child, string(message),
+	if err := VerifyProspectiveCompletionTransitionWithProjection(
+		[]Plan{parent}, nil, parent, child, string(message), MergeProjectionSemanticUnion,
 	); err != nil {
 		t.Fatalf("exact prospective transition refused: %v", err)
 	}
@@ -998,27 +998,27 @@ func TestVerifyProspectiveCompletionTransition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	messageWithAddedWork, err := CompletionCommitMessage(
+	messageWithAddedWork, err := CompletionCommitMessageWithMergeAuthority(
 		[]byte("prospective completion with added work"), withAddedWork, "root", "do",
-		manifest, codeManifest, preparation, preparationCommit,
+		manifest, codeManifest, preparation, preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyProspectiveCompletionTransition(
-		[]Plan{parent}, nil, withAddedWork, childWithAddedWork, string(messageWithAddedWork),
+	if err := VerifyProspectiveCompletionTransitionWithProjection(
+		[]Plan{parent}, nil, withAddedWork, childWithAddedWork, string(messageWithAddedWork), MergeProjectionSemanticUnion,
 	); err != nil {
 		t.Fatalf("prospective transition with added open work refused: %v", err)
 	}
 	baselineWithUnrelated := parent
 	baselineWithUnrelated.Items = append(baselineWithUnrelated.Items, Item{ID: "empty", Status: StatusOpen})
-	if err := VerifyProspectiveCompletionTransition(
-		[]Plan{baselineWithUnrelated}, nil, parent, child, string(message),
+	if err := VerifyProspectiveCompletionTransitionWithProjection(
+		[]Plan{baselineWithUnrelated}, nil, parent, child, string(message), MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "deleted a baseline") {
 		t.Fatalf("prospective unrelated deletion error = %v", err)
 	}
-	if err := VerifyProspectiveCompletionTransition(
-		[]Plan{parent, parent, parent}, nil, parent, child, string(message),
+	if err := VerifyProspectiveCompletionTransitionWithProjection(
+		[]Plan{parent, parent, parent}, nil, parent, child, string(message), MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "one or two parents") {
 		t.Fatalf("prospective octopus merge error = %v", err)
 	}
@@ -1037,15 +1037,15 @@ func TestVerifyProspectiveCompletionTransition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mergeMessage, err := CompletionCommitMessage(
+	mergeMessage, err := CompletionCommitMessageWithMergeAuthority(
 		[]byte("prospective merge completion"), merged, "root", "do",
-		manifest, codeManifest, preparation, preparationCommit,
+		manifest, codeManifest, preparation, preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyProspectiveCompletionTransition(
-		[]Plan{local, upstream}, &base, merged, mergeChild, string(mergeMessage),
+	if err := VerifyProspectiveCompletionTransitionWithProjection(
+		[]Plan{local, upstream}, &base, merged, mergeChild, string(mergeMessage), MergeProjectionSemanticUnion,
 	); err != nil {
 		t.Fatalf("exact prospective merge transition refused: %v", err)
 	}
@@ -1058,15 +1058,15 @@ func TestVerifyProspectiveCompletionTransition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	staleMergeMessage, err := CompletionCommitMessage(
+	staleMergeMessage, err := CompletionCommitMessageWithMergeAuthority(
 		[]byte("stale-source merge"), completedMain, "dependent", "do",
-		manifest, codeManifest, preparation, preparationCommit,
+		manifest, codeManifest, preparation, preparationCommit, MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyProspectiveCompletionTransition(
-		[]Plan{completedMain, base}, &base, completedMain, completedMainChild, string(staleMergeMessage),
+	if err := VerifyProspectiveCompletionTransitionWithProjection(
+		[]Plan{completedMain, base}, &base, completedMain, completedMainChild, string(staleMergeMessage), MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "merge source must be rebased onto the current protected plan") {
 		t.Fatalf("stale merge source policy error = %v", err)
 	}
@@ -1095,16 +1095,16 @@ func TestProspectiveMergeAuthorityRequiresTargetCompletionEvidence(t *testing.T)
 	}}
 	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
 	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		repository, localRevision, incomingRevision,
-		local, incoming, merged, localAuthority, incomingAuthority,
+		local, incoming, merged, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "pruned dependency retired/do") {
 		t.Fatalf("missing target evidence error = %v", err)
 	}
 	incomingAuthority.completedReferences["retired/do"] = completionEvidence{commit: incomingRevision}
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		repository, localRevision, incomingRevision,
-		local, incoming, merged, localAuthority, incomingAuthority,
+		local, incoming, merged, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
 	); err != nil {
 		t.Fatalf("target-authorized merge refused: %v", err)
 	}
@@ -1122,17 +1122,17 @@ func TestProspectiveMergeAuthorityRejectsCrossParentIdentityReuse(t *testing.T) 
 	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
 	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
 	incomingAuthority.completedReferences["reused/do"] = completionEvidence{commit: incomingRevision}
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		repository, localRevision, incomingRevision,
-		local, incoming, local, localAuthority, incomingAuthority,
+		local, incoming, local, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "reuses completed identity reused/do") {
 		t.Fatalf("cross-parent identity reuse error = %v", err)
 	}
 	incomingAuthority.completedReferences = map[string]completionEvidence{}
 	incomingAuthority.retiredItems["reused"] = completionEvidence{commit: incomingRevision, retiredItem: true}
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		repository, localRevision, incomingRevision,
-		local, incoming, local, localAuthority, incomingAuthority,
+		local, incoming, local, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "reuses retired item reused") {
 		t.Fatalf("cross-parent retired item reuse error = %v", err)
 	}
@@ -1154,9 +1154,9 @@ func TestProspectiveMergeAuthorityRejectsAmbiguousParentEvidence(t *testing.T) {
 	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
 	localAuthority.completedReferences["retired/do"] = completionEvidence{commit: localRevision}
 	incomingAuthority.completedReferences["retired/do"] = completionEvidence{commit: incomingRevision}
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		repository, localRevision, incomingRevision,
-		local, incoming, merged, localAuthority, incomingAuthority,
+		local, incoming, merged, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "ambiguous completion authority for retired/do") {
 		t.Fatalf("ambiguous parent evidence error = %v", err)
 	}
@@ -1169,9 +1169,9 @@ func TestProspectiveMergeAuthorityRequiresCommonProtectedEpoch(t *testing.T) {
 	local, incoming, merged := Plan{}, Plan{}, Plan{}
 	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "local-seed")
 	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "incoming-seed")
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		repository, localRevision, incomingRevision,
-		local, incoming, merged, localAuthority, incomingAuthority,
+		local, incoming, merged, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "do not share a protected completion epoch") {
 		t.Fatalf("disjoint protected epoch error = %v", err)
 	}
@@ -1187,9 +1187,9 @@ func TestProspectiveMergeAuthorityCanonicalizesRelativeRepository(t *testing.T) 
 	local, incoming, merged := Plan{}, Plan{}, Plan{}
 	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
 	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
-	if err := VerifyProspectiveMergeAuthority(
+	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		".", localRevision, incomingRevision,
-		local, incoming, merged, localAuthority, incomingAuthority,
+		local, incoming, merged, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
 	); err != nil {
 		t.Fatalf("relative repository refused: %v", err)
 	}
@@ -1218,9 +1218,9 @@ func TestProspectiveMergeAuthorityBindsBothParents(t *testing.T) {
 		{name: "cross-plan local", requestedRepository: repository, requestedLocal: localRevision, requestedIn: incomingRevision, local: prospectiveMergeAuthority(t, other, repository, localRevision, "common"), incoming: incomingAuthority},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if err := VerifyProspectiveMergeAuthority(
+			if err := VerifyProspectiveMergeAuthorityWithProjection(
 				test.requestedRepository, test.requestedLocal, test.requestedIn,
-				local, incoming, merged, test.local, test.incoming,
+				local, incoming, merged, test.local, test.incoming, MergeProjectionSemanticUnion,
 			); err == nil {
 				t.Fatal("mismatched parent authority accepted")
 			}

@@ -281,7 +281,7 @@ func canonicalizeRetrievalEvaluation(value *RetrievalEvaluation) error {
 }
 
 func finiteRetrievalMetric(value float64) bool {
-	return checked.Finite64(value) && value >= 0 && value <= 1
+	return checked.UnitInterval64(value)
 }
 
 func retrievalMetrics(caseValue RetrievalCase, results []RetrievalRankedResult) RetrievalMetrics {

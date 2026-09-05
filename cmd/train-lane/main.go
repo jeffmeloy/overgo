@@ -10,6 +10,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,6 +42,7 @@ func run() error {
 	sequence := flag.Int("seq", 128, "maximum token sequence for the bounded dense step")
 	maxWall := flag.Duration("max-wall", 10*time.Minute, "projected-wall bound per dense step; declared routes carry their own recorded bounds")
 	routesPath := flag.String("routes", filepath.Join("docs", "training_routes.json"), "committed architecture-to-trainer route declarations")
+	storePath := flag.String("store", "", "OvergoDB root; empty resolves via the data-root contract (OVERGO_DATA_ROOT, local-models.json, or ./overgodb-store)")
 	flag.Parse()
 	catalog, err := loadRouteCatalog(*routesPath)
 	if err != nil {
@@ -50,12 +52,20 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if strings.TrimSpace(*storePath) != "" {
+		roots.Store = filepath.Clean(*storePath)
+	}
 	ctx := context.Background()
+	fmt.Printf("[train] opening capability store %s\n", roots.Store)
 	reader, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
 		return err
 	}
-	entries, truncated, err := discovery.CapabilityCatalog(ctx, reader, trainLaneCatalogBound, nil)
+	catalogBegan := time.Now()
+	memo := discovery.LoadMemo(ctx, reader)
+	entries, truncated, err := discovery.CapabilityCatalogForTasks(
+		ctx, reader, trainLaneCatalogBound, memo, recipe.TaskTraining,
+	)
 	closeErr := reader.Close()
 	if err != nil {
 		return err
@@ -66,6 +76,7 @@ func run() error {
 	if truncated {
 		return runrecord.LaneError(runrecord.LaneFailed, "capability catalog truncated; the matrix would be incomplete")
 	}
+	fmt.Printf("[train] discovered %d training-activated model(s) in %.1fs\n", len(entries), time.Since(catalogBegan).Seconds())
 	corpus := filepath.Join(os.TempDir(), "overgo-train-lane-corpus.txt")
 	if err := os.WriteFile(corpus, []byte(strings.Repeat(smokeCorpus, 32)), 0o644); err != nil {
 		return err
@@ -119,6 +130,7 @@ func run() error {
 			}
 			continue
 		}
+		fmt.Printf("[train] %s route=%s starting (max-wall=%s)\n", entry.Model, route.Name, *maxWall)
 		began := time.Now()
 		stepErr := trainStep(route)
 		wall := time.Since(began)
@@ -200,6 +212,7 @@ func denseArgv(store, recipeID, model, dataset, output string, steps, sequence i
 // itself records the session observation to the store.
 func trainStep(route trainerRoute) error {
 	var combined bytes.Buffer
+	visible := io.MultiWriter(os.Stdout, &combined)
 	var env []string
 	if len(route.Env) > 0 {
 		env = append(os.Environ(), route.Env...)
@@ -208,7 +221,7 @@ func trainStep(route trainerRoute) error {
 		Path:   route.Argv[0],
 		Args:   route.Argv[1:],
 		Env:    env,
-		Stdout: &combined, Stderr: &combined,
+		Stdout: visible, Stderr: visible,
 	})
 	if err != nil {
 		return fmt.Errorf("%v: %s", err, clioptions.Tail(combined.String(), 1200))

@@ -1,0 +1,13 @@
+{
+  "sample_rate": 16000,
+  "geometry": {"window_samples": 400, "hop_samples": 160, "feature_bins": 80},
+  "fft_length": 512,
+  "frame_span": 512,
+  "window_offset": 56,
+  "pad_left": 256,
+  "pad_right": 256,
+  "padding": "reflect",
+  "window": "periodic-hann",
+  "mel": {"scale": "htk", "min_frequency": 0, "max_frequency": 8000, "area_normalize": false},
+  "log": {"power": true, "base": "ten", "guard_mode": "clamp", "guard": 1e-10, "dynamic_range": 8, "scale": 0.25, "bias": 1}
+}

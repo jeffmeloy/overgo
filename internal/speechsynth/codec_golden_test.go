@@ -172,13 +172,14 @@ func TestSpeakE2EProducesReferenceAudio(t *testing.T) {
 	if err != nil {
 		t.Skipf("UNAVAILABLE: reference wav absent; e2e audio parity NOT verified: %v", err)
 	}
-	refPCM, refRate, err := media.DecodeWAV(raw)
+	refAudio, _, err := media.DecodeAudio(t.Context(), raw, uint64(len(raw)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if refRate != m.Codec.SampleRate {
-		t.Fatalf("reference wav rate %d != codec %d", refRate, m.Codec.SampleRate)
+	if refAudio.Format.SampleRate != uint64(m.Codec.SampleRate) || refAudio.Format.Channels != 1 {
+		t.Fatalf("reference wav format %+v != mono codec %d Hz", refAudio.Format, m.Codec.SampleRate)
 	}
+	refPCM := refAudio.Samples
 	if len(refPCM) != len(pcm) {
 		t.Fatalf("reference wav %d samples != generated %d", len(refPCM), len(pcm))
 	}
@@ -233,7 +234,10 @@ func TestResamplePolyMatchesSciPy(t *testing.T) {
 		X    []float64 `json:"x"`
 		Y    []float64 `json:"y"`
 	}](t, "g9_resample.json")
-	got := ResamplePoly(f32of(g.X), g.Up, g.Down, g.Taps)
+	got, err := media.ResamplePoly(t.Context(), nil, f32of(g.X), g.Up, g.Down, g.Taps)
+	if err != nil {
+		t.Fatal(err)
+	}
 	const ulp32 = 1.0 / (1 << 23)
 	tol := 4 * ulp32 * math.Sqrt(float64(len(g.Taps)))
 	requireWithin(t, "resample_poly", got, g.Y, tol)

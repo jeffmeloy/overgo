@@ -49,7 +49,19 @@ func RegisteredCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 	return capabilityCatalog(ctx, store, limit, memo, true)
 }
 
-func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo, includeInactive bool) ([]CatalogEntry, bool, error) {
+// CapabilityCatalogForTasks lists models activated for any selected task. An
+// empty task selection preserves CapabilityCatalog's full-surface behavior.
+// Filtering precedes presence verification to avoid hashing unrelated models.
+func CapabilityCatalogForTasks(ctx context.Context, store *overgodb.Store, limit int, memo *Memo, tasks ...recipe.Task) ([]CatalogEntry, bool, error) {
+	return capabilityCatalog(ctx, store, limit, memo, false, tasks...)
+}
+
+func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, memo *Memo, includeInactive bool, tasks ...recipe.Task) ([]CatalogEntry, bool, error) {
+	for _, task := range tasks {
+		if !task.Valid() {
+			return nil, false, fmt.Errorf("capability catalog: invalid task %q", task)
+		}
+	}
 	// The alias projection is paged to its end: one bounded page shares its
 	// budget with the recipe artifacts, so a store holding more recipes
 	// than the page hid activations (the 27B's inference activation fell
@@ -83,6 +95,9 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 	for _, alias := range aliases {
 		model, task, ok := modelrecipe.ParseActiveAlias(alias.Name)
 		if !ok {
+			continue
+		}
+		if len(tasks) > 0 && !slices.Contains(tasks, task) {
 			continue
 		}
 		if tasksByModel[model] == nil {

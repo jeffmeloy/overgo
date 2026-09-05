@@ -205,7 +205,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 		t.Fatalf("seed source = %s, %v, close=%v", first, err, closeErr)
 	}
 
-	frozen, err := captureClosureEvidence(root, snapshot)
+	frozen, err := captureClosureEvidence(root, "HEAD", snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,6 +319,27 @@ func TestPrepareMergeRequiresExactRepositoryRoot(t *testing.T) {
 	err := prepareMerge(subdirectory, "HEAD", io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "exact repository root") {
 		t.Fatalf("subdirectory prepare merge error = %v", err)
+	}
+}
+
+func TestMergeOwnedDocumentLimitsAutomaticConflictResolution(t *testing.T) {
+	for _, path := range []string{
+		plan.Path,
+		compatibilityDocumentPath,
+		trainingCompatibilityDocumentPath,
+		apiManifestDocumentPath,
+		apiManifestJSONPath,
+		modernGoBaselinePath,
+		modernGoCensusPath,
+	} {
+		if !mergeOwnedDocument(path) {
+			t.Fatalf("owned generated document %q was rejected", path)
+		}
+	}
+	for _, path := range []string{"go.mod", "internal/server/routes.go", "README.md"} {
+		if mergeOwnedDocument(path) {
+			t.Fatalf("handwritten source %q was accepted", path)
+		}
 	}
 }
 

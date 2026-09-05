@@ -167,5 +167,5 @@ func (workspace *StoreGenerationWorkspace) executionPath(ctx context.Context, mo
 // fail records the failed generation as a run so the operation carries a
 // durable receipt of what did not happen.
 func (workspace *StoreGenerationWorkspace) fail(ctx context.Context, recipeID artifact.ID, cause error) (operation.Completion, error) {
-	return recordFailedWorkflowRun(ctx, workspace.store, generationRunKeyPrefix, recipeID, nil, "generation_failed", cause)
+	return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", cause)
 }

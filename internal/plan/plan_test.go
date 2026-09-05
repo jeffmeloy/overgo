@@ -7,6 +7,27 @@ import (
 	"overgo/internal/artifact"
 )
 
+func TestAdvancePreservesHistoricalSchemaAndInput(t *testing.T) {
+	document := Plan{Items: []Item{{ID: "item", Status: StatusOpen, Steps: []Step{
+		{ID: ".", Status: StatusOpen, Verify: "go test ./...", DependsOn: []string{"legacy-item"}},
+		{ID: "next", Status: StatusOpen, Verify: "go test ./...", DependsOn: []string{"legacy-item"}},
+	}}}}
+	historical, err := advancePlan(document, "item", ".", false)
+	if err != nil || len(historical.Items) != 1 || len(historical.Items[0].Steps) != 1 ||
+		historical.Items[0].Steps[0].ID != "next" || historical.Items[0].Steps[0].DependsOn[0] != "legacy-item" {
+		t.Fatalf("historical literal step and dependency schema changed: %+v, %v", historical, err)
+	}
+	if _, err := Advance(document, "item", "."); err == nil || !strings.Contains(err.Error(), "has steps") {
+		t.Fatalf("live whole-item shortcut accepted an item with steps: %v", err)
+	}
+	if _, err := Advance(document, "item", "next"); err == nil {
+		t.Fatal("live advancement accepted historical dependency syntax")
+	}
+	if len(document.Items[0].Steps) != 2 || document.Items[0].Steps[0].ID != "." || document.Items[0].Steps[1].ID != "next" {
+		t.Fatal("advancement mutated the caller's plan")
+	}
+}
+
 // TestEnforceCurrentFirstOpenStep pins the shared dispatch rule.
 func TestEnforceCurrentFirstOpenStep(t *testing.T) {
 	p := Plan{Items: []Item{

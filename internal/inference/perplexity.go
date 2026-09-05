@@ -291,7 +291,7 @@ func logNormalizer(logits []float32) (float64, error) {
 	if len(logits) == 0 {
 		return 0, errors.New("invalid logits")
 	}
-	maximum := math.Inf(-1)
+	maximum := -math.MaxFloat64
 	for _, value := range logits {
 		converted := float64(value)
 		if math.IsNaN(converted) {
@@ -299,12 +299,12 @@ func logNormalizer(logits []float32) (float64, error) {
 		}
 		maximum = max(maximum, converted)
 	}
-	if math.IsInf(maximum, -1) {
-		return 0, errors.New("all logits are negative infinity")
-	}
 	var exponentialSum float64
 	for _, value := range logits {
 		exponentialSum += math.Exp(float64(value) - maximum)
+	}
+	if !checked.PositiveFinite64(exponentialSum) {
+		return 0, errors.New("logits have no finite probability mass")
 	}
 	return maximum + math.Log(exponentialSum), nil
 }
@@ -316,7 +316,7 @@ func negativeLogProbabilityNormalized(logits []float32, normalizer float64, targ
 		return 0, errors.New("invalid logits or target")
 	}
 	result := normalizer - float64(logits[target])
-	if math.IsNaN(result) || math.IsInf(result, 0) {
+	if !checked.Finite64(result) {
 		return 0, errors.New("negative log-likelihood is not finite")
 	}
 	return result, nil

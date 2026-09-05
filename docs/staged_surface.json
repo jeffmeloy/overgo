@@ -3,6 +3,12 @@
   "doc": "Reviewed staged surface: each exported symbol without a statically visible production consumer names either one exact canonical open plan step that retires it or a closed evidence-bound retained classification. Missing, blocked, historical, duplicate, and free-text future-work entries refuse. Undeclared new unconsumed surface still blocks the gate.",
   "staged": [
     {
+      "package": "overgo/internal/capabilityruntime",
+      "name": "OpenAudioStream",
+      "reason": "Bounded chunk, cancellation and restart contracts precede native streaming integration, which continues in the separate audio lane. Master's integration intake must remove this declaration when a landed production consumer is verified, or preserve the unresolved obligation under an explicit master validation step before completing registration. The audio task list is not imported and contract tests do not establish native streaming parity. The professional GUI lane carries master's declaration through its merge row; its next row mirrors master's register-models step so the obligation stays bound to that step until master consumes the surface.",
+      "retire_with": "merge-e1a9cc0deeac/do"
+    },
+    {
       "package": "overgo/internal/testutil",
       "name": "RequireWithin",
       "reason": "Shared max-abs-diff tolerance gate consolidating the per-package golden-test copies; test-support surface is test-consumed by design.",

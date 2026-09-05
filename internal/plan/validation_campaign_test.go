@@ -62,7 +62,7 @@ func optimizedValidationProblems(document Plan) []string {
 	for _, item := range document.Items {
 		for _, step := range item.Steps {
 			ref := item.ID + "/" + step.ID
-			if closing && ref != "campaign-closeout/closeout" && !campaignDependsOn(document, "campaign-closeout/closeout", ref, map[string]bool{}) {
+			if closing && !preparedMergeBoundary(item) && ref != "campaign-closeout/closeout" && !campaignDependsOn(document, "campaign-closeout/closeout", ref, map[string]bool{}) {
 				problems = append(problems, "closeout does not wait for "+ref)
 			}
 			if ref == "benchmark-27b/mmlu-pro-pass" && item.Owner != "operator" {

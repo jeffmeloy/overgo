@@ -60,6 +60,27 @@
   {
    "evidence": [
     {
+     "contains": "func (h *Handler) nativeAudioTranscriptions(",
+     "path": "internal/server/native_audio_transcriptions.go",
+     "role": "source",
+     "identity": "file:sha256:19474067db6ce62313ea8365716dd354f39e34fdd020be250f4479ae0cf502ea"
+    },
+    {
+     "contains": "func TestAudioTranscriptionsAcceptance(",
+     "path": "internal/server/audio_transcriptions_test.go",
+     "role": "artifact",
+     "identity": "evidence:sha256:b76836ed21421e9b2b6f13a47f221fe6cbc13c1abe7e82b3517f478d10469b39"
+    }
+   ],
+   "id": "openai-audio-transcriptions",
+   "evidence_tier": "contract-tested",
+   "verify": "go test ./internal/server -run '^TestAudioTranscriptionsAcceptance$' -count=1 -v",
+   "status": "implemented",
+   "summary": "Authenticated multipart transcription executes an active CPU recipe on WAV or FLAC through native workflow and session owners, returning JSON text with bounded admission, cancellation and run lineage. Small-encoder integration evidence only; streaming, timestamps and full-model quality are not claimed."
+  },
+  {
+   "evidence": [
+    {
      "contains": "func OpenSourceWithLimits(",
      "path": "internal/safetensors/source.go",
      "role": "source",
@@ -197,13 +218,13 @@
      "contains": "func AudioProcessor(",
      "path": "internal/trainingdata/audio.go",
      "role": "source",
-     "identity": "file:sha256:86e945a5fc1d2addfd0a855e303ada389cf877e4dc7409b035324b9413984aab"
+     "identity": "file:sha256:8f5e3cc0a48cb8eab1b47df28981c470407a313de70d6daf904db69f8b110781"
     },
     {
      "contains": "func TestMultimodalTrainingMatrix(",
      "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:68b323ce836aba9b58a1ac24c5475b17cd2f1080b70e997e6f8ad2d89697296e"
+     "identity": "evidence:sha256:ada2b086d779301688d607807192ac3ecee2ea0c35ac617e611dde1ec4de7566"
     }
    ],
    "id": "repodb-multimodal-training-objective-matrix",
@@ -246,7 +267,7 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980"
+     "identity": "file:sha256:57c821aec32ccbf28d010bcaa4d99e53e747cbfe1bc663f4369711ed9433d4c3"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
@@ -297,7 +318,7 @@
      "path": "internal/projector/gemma4tower_audio_frontend.go",
      "symbol": "EncodeAudioTrace",
      "role": "source",
-     "identity": "file:sha256:5e6e80ffdb1fc23bf33d060f0751492502f68c39f94d82d66d3cb442a8b02daf"
+     "identity": "file:sha256:56b502a0a102bdcb97a853c6359467b4e090c02ca1070197ec693d37996d9fe6"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -752,7 +773,7 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:8d974c5897b56a6910b629aee9c643baa539024637aafa94c7fa3c061d147980"
+     "identity": "file:sha256:57c821aec32ccbf28d010bcaa4d99e53e747cbfe1bc663f4369711ed9433d4c3"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
@@ -1022,7 +1043,7 @@
      "contains": "func TestPocketTTSProductionParity(",
      "path": "internal/adaptiveparity/pocket_tts_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:7c7749e15a802fa55c3712aadd66a9fbe0ac6e2cc232ef17a2c059adaff67439"
+     "identity": "evidence:sha256:459afae0c5876437d2acdff817db7fb29092110d2dcb96b0d62ab882fdb41b03"
     }
    ],
    "id": "pocket-tts-production-oracle",

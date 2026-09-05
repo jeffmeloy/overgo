@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "family": "granite5asr",
+  "capability": "offline-asr",
+  "format": "safetensors",
+  "model_type": "granite_speech5_ctc",
+  "architecture": "GraniteSpeech5ForCTC",
+  "tokenizer_class": "ParakeetTokenizer",
+  "processor_class": "GraniteSpeech5Processor",
+  "feature_extractor_class": "GraniteSpeech5FeatureExtractor",
+  "reference_implementation": "transformers GraniteSpeech5ForCTC.generate",
+  "components": [
+    {"name": "config", "role": "config", "path": "config.json"},
+    {"name": "preprocessor_config.json", "role": "preprocessor", "path": "preprocessor_config.json"},
+    {"name": "processor_config.json", "role": "preprocessor", "path": "processor_config.json"},
+    {"name": "tokenizer.json", "role": "tokenizer", "path": "tokenizer.json"},
+    {"name": "tokenizer_config.json", "role": "tokenizer", "path": "tokenizer_config.json"},
+    {"name": "weights", "role": "weights", "path": "model.safetensors"}
+  ],
+  "config": {
+    "vocab_size": 16384,
+    "pad_token_id": 0,
+    "hidden_size": 1024,
+    "intermediate_size": 4096,
+    "num_hidden_layers": 16,
+    "num_attention_heads": 8,
+    "num_key_value_heads": 8,
+    "head_dim": 128,
+    "context_size": 128,
+    "conv_kernel_size": 7,
+    "conv_expansion_factor": 2,
+    "max_position_embeddings": 512,
+    "num_mel_bins": 80,
+    "subsample_layers": [0, 1]
+  },
+  "preprocessor": {
+    "sample_rate": 16000,
+    "n_fft": 512,
+    "win_length": 400,
+    "hop_length": 160,
+    "n_mels": 80,
+    "stack_factor": 2,
+    "deltas": true,
+    "delta_win_length": 3,
+    "logmel_floor_db": 8
+  }
+}

@@ -105,3 +105,16 @@ func TestCheckedArithmetic(t *testing.T) {
 		t.Fatal("zero round-up multiple accepted")
 	}
 }
+
+func TestUnitInterval64(t *testing.T) {
+	for _, value := range []float64{0, 0.5, 1} {
+		if !UnitInterval64(value) {
+			t.Fatalf("unit interval rejected %g", value)
+		}
+	}
+	for _, value := range []float64{-0.1, 1.1, math.NaN(), math.Inf(1)} {
+		if UnitInterval64(value) {
+			t.Fatalf("unit interval accepted %g", value)
+		}
+	}
+}

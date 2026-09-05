@@ -57,5 +57,6 @@ func LoadSplit(dir string) (*Tokenizer, error) {
 		return len(left) > len(right) || len(left) == len(right) && left < right
 	})
 	t.buildByteAlphabet()
+	t.buildID2Vocab()
 	return t, nil
 }

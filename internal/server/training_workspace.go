@@ -50,7 +50,7 @@ func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 	}
 	definition := workspace.program.Definition()
 	return []WorkflowCapability{{
-		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(),
+		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
 		Inputs: definition.Inputs, Outputs: definition.Outputs,
 		Controls: []WorkflowControl{
 			{Name: "dataset", Type: WorkflowControlDataset, Required: true},
@@ -256,5 +256,5 @@ func reportDPO(reporter operation.Reporter, observation trainingprogram.DPOObser
 }
 
 func (workspace *TrainingWorkspace) fail(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, cause error) (operation.Completion, error) {
-	return recordFailedWorkflowRun(ctx, workspace.store, "training/run/", recipeID, inputs, "training_failed", cause)
+	return failWorkflow(ctx, workspace.store, recipeID, inputs, "training_failed", cause)
 }

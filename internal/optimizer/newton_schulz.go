@@ -1,6 +1,10 @@
 package optimizer
 
-import "math"
+import (
+	"math"
+
+	"overgo/internal/scratch"
+)
 
 const (
 	newtonSchulzStage1Iterations = 8
@@ -21,17 +25,10 @@ type newtonSchulzScratch struct {
 }
 
 func (s *newtonSchulzScratch) ensure(maxMatrix, maxSquare int) {
-	s.input = resize(s.input, maxMatrix)
-	s.gram = resize(s.gram, maxSquare)
-	s.square = resize(s.square, maxSquare)
-	s.output = resize(s.output, maxMatrix)
-}
-
-func resize(values []float64, size int) []float64 {
-	if cap(values) < size {
-		return make([]float64, size)
-	}
-	return values[:size]
+	s.input = scratch.Resize(s.input, maxMatrix)
+	s.gram = scratch.Resize(s.gram, maxSquare)
+	s.square = scratch.Resize(s.square, maxSquare)
+	s.output = scratch.Resize(s.output, maxMatrix)
 }
 
 func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch) {

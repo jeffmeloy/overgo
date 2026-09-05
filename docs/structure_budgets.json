@@ -21,8 +21,8 @@
     {
       "budget": "internal-imports",
       "subject": "internal/server",
-      "limit": 42,
-      "reason": "The server is the assembly root: it composes every workspace dependency explicitly, and the workspace-boundary audit holds each handler file to its declared couplings. Widened from 40 for the library lifecycle (gui-library): the model intake package the recipe command and the server both sequence."
+      "limit": 44,
+      "reason": "The server is the assembly root: it composes workspace dependencies explicitly, with each handler constrained by the workspace-boundary audit. Native CPU transcription adds speechrecognition for inference and gitauthority for exact source-identity validation to the prior 40 dependencies. This exact two-owner increase admits no duplicate audio runtime; retire the exception when workspace assembly moves out of the HTTP package. The professional GUI lane's generation and library workspaces add mediacapability (the media executor catalog) and modelintake (projector registration); the lane pays those two back by injecting both through the assembly root (plan row server-import-budget), after which the limit returns to 42."
     },
     {
       "budget": "command-files",

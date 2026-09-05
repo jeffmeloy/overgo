@@ -313,17 +313,14 @@ The same trainer is used across dense decoders, encoders, mixture-of-experts mod
 - Per-model prompt templates, evaluation-domain declarations, group-safe data
   splits, resource measurements, failure records, comparison reports, and
   campaign history.
-- Long-form verification before a suite pass. Every servable text model is
-  measured on a ladder of context lengths doubling from 1024 tokens to what
-  its declared context, the corpus, a per-rung prefill budget, and the device's
-  memory admit. Each rung records a greedy generation by token id, prompt and
-  decode rates, device work per token, distinct 4-gram ratio and longest
-  repeated span, and the teacher-forced likelihood of the text's own
-  continuation under the long context and under a short one. The record binds
-  to the weights digest and to a digest of the inference code surface;
-  `evaluate -all` refuses a text model without a passing record on the current
-  surface, and `longform -check` compares a fresh climb against the latest
-  record from another surface, token for token.
+- Long-form verification before suite passes. Context rungs double from 1024
+  until the declared context, corpus, per-rung budget or device memory ends the
+  climb. Records include greedy token IDs, rates, per-token device work,
+  repetition, and continuation likelihood under long and short contexts.
+  Evidence binds weights and inference surface; `evaluate -all` requires a
+  passing current-surface record. `longform -check` always measures again,
+  comparing explicit baseline IDs on identical checkpoint, corpus, tokenization,
+  raw-continuation protocol and declared floors.
 - Capability-gap derivation, grounded retrieval replay, candidate attribution,
   evidence coverage checks, route selection, and counterfactual replay of
   alternative routing rules.
@@ -732,7 +729,7 @@ record on the current inference code surface, so the records are published
 first, then the pass runs, then the report is regenerated from the store:
 
 ```bash
-go run ./cmd/longform -repo overgodb-store -all -publish
+go run ./cmd/longform -repo overgodb-store -all -publish -budget 3h
 go run ./cmd/evaluate -all -repo overgodb-store -family mmlu-pro -budget 3h
 go run ./cmd/evaluate -all -repo overgodb-store -family mmlu-pro -chat-protocol -budget 3h
 go run ./cmd/benchmark-report -update
@@ -743,9 +740,15 @@ worktree at the same commit keeps the main tree editable while a pass runs.
 These full-catalog examples are operator-launched and include any servable
 27B model. Each protocol has its own explicit budget; a budget-exceeded record
 is incomplete coverage. The plan separates smaller-model work from the full
-27B pass and keeps MATH excluded. Cross-revision corpus equality, explicit
-accepted baseline selection, and aggregate longform cancellation remain planned
-extensions; the current latest-record comparison does not establish them.
+27B pass and keeps MATH excluded.
+
+Freeze regression input with `longform -export-corpus <file> -corpus-bytes
+<required-bytes>`; publish and check with that same `-corpus <file>`. Repeat
+`-baseline <record-id>` for each checked model. Choose `-budget` from measured
+cost; optional `-model-budget` bounds each model within the total. Cancellation
+between runtime operations preserves earlier publications and reports unfinished
+coverage. Legacy admission records remain usable; regression baselines require
+bound inputs.
 
 ## References
 

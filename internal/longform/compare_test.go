@@ -4,6 +4,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/tokenizer"
 )
 
 // The ladder plan doubles from the start while the rung fits the
@@ -54,9 +57,15 @@ func TestCompareNamesTheShapeThatMoved(t *testing.T) {
 		}
 	}
 	record := Result{
-		Shape: ShortShape{PromptTokens: 160, OutputIDs: ids, NLL: 3.1, Measure: Measure{PromptTokensPerSecond: 5000, DecodeTokensPerSecond: 200}},
-		Rungs: []Rung{rung(1024, 3000, 70), rung(2048, 3100, 68), rung(4096, 3200, 66)},
+		Floors: floors,
+		Shape:  ShortShape{PromptTokens: 160, OutputIDs: ids, NLL: 3.1, Measure: Measure{PromptTokensPerSecond: 5000, DecodeTokensPerSecond: 200}},
+		Rungs:  []Rung{rung(1024, 3000, 70), rung(2048, 3100, 68), rung(4096, 3200, 66)},
 	}
+	model, _, err := artifact.Identify(artifact.KindModel, strings.NewReader("model"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Inputs = BindInputs(model, "corpus", []tokenizer.TokenID{1, 2, 3})
 	if verdict := Compare(record, record, floors, 0); !verdict.Passed {
 		t.Fatalf("identical run = %+v", verdict)
 	}

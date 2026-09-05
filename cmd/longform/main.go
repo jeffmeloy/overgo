@@ -4,7 +4,7 @@
 // teacher-forced context score per rung, the rates each rung measured,
 // and a verdict against the declared floors, committed as evidence the
 // suite passes read before they run; -check compares a fresh climb
-// against the latest record from another inference surface.
+// against explicitly selected records on identical corpus/token inputs.
 package main
 
 import (
@@ -15,9 +15,11 @@ import (
 	"io"
 	"maps"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
@@ -67,6 +69,13 @@ type options struct {
 	Check        bool
 	OutputPrefix int
 	Models       []string
+	Corpus       string
+	ExportCorpus string
+	CorpusBytes  int
+	Baselines    []string
+	Budget       time.Duration
+	ModelBudget  time.Duration
+	corpusText   string
 }
 
 func main() {
@@ -84,12 +93,33 @@ func parseOptions(args []string) (options, error) {
 	flags.IntVar(&result.Device, "device", 0, "CUDA device ordinal")
 	flags.BoolVar(&result.Publish, "publish", false, "commit each result as long-form evidence with a verification claim (requires a clean worktree)")
 	flags.BoolVar(&result.All, "all", false, "run every servable text model, smallest first")
-	flags.BoolVar(&result.Check, "check", false, "climb the ladder to the check ceiling and compare against each model's latest record from another inference surface; exit 1 on a regression")
+	flags.BoolVar(&result.Check, "check", false, "measure a fresh ladder against explicit -baseline records on the fixed -corpus; exit 1 on a regression")
 	flags.IntVar(&result.OutputPrefix, "show", 240, "characters of the judged generation to print")
+	flags.StringVar(&result.Corpus, "corpus", "", "fixed UTF-8 corpus file; required for -check")
+	flags.StringVar(&result.ExportCorpus, "export-corpus", "", "write a new fixed corpus file from this repository, without measuring models")
+	flags.IntVar(&result.CorpusBytes, "corpus-bytes", 0, "minimum corpus bytes to export; required with -export-corpus")
+	flags.Func("baseline", "repeatable exact accepted long-form record ID; required for every checked model", func(value string) error { result.Baselines = append(result.Baselines, value); return nil })
+	flags.DurationVar(&result.Budget, "budget", 0, "required aggregate measurement deadline")
+	flags.DurationVar(&result.ModelBudget, "model-budget", 0, "optional per-model deadline within the aggregate budget")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 	result.Models = flags.Args()
+	if result.ExportCorpus != "" {
+		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
+			return options{}, errors.New("longform: -export-corpus requires positive -corpus-bytes and no measurement options")
+		}
+		return result, nil
+	}
+	if result.CorpusBytes != 0 || result.Budget <= 0 || result.ModelBudget < 0 {
+		return options{}, errors.New("longform: measurement requires positive -budget; -model-budget cannot be negative")
+	}
+	if result.Check && (result.Corpus == "" || len(result.Baselines) == 0) {
+		return options{}, errors.New("longform: -check requires a fixed -corpus and explicit -baseline records")
+	}
+	if !result.Check && len(result.Baselines) != 0 {
+		return options{}, errors.New("longform: -baseline requires -check")
+	}
 	if result.All == (len(result.Models) > 0) {
 		return options{}, errors.New("usage: longform [-repo <store>] [-device N] [-publish | -check] (-all | <model.gguf>...)")
 	}
@@ -104,22 +134,20 @@ func parseOptions(args []string) (options, error) {
 
 // target is one model the run measures: its listing entry, the weights
 // identity its claim binds to, the short-prompt rates its long-form
-// rates are bounded against, and its latest long-form record when the
-// store holds one.
+// rates are bounded against, and the explicitly selected comparison record.
 type target struct {
-	entry    discovery.Entry
-	weights  artifact.ID
-	bytes    int64
-	short    longform.ShortRates
-	record   longform.Summary
-	recorded bool
+	entry   discovery.Entry
+	weights artifact.ID
+	bytes   int64
+	short   longform.ShortRates
+	record  longform.Summary
 }
 
 // listTargets reads everything the run needs from the store before any
 // model loads: the servable text models (a declared domain without text
 // excludes a model; undeclared models are text), their sizes, the
-// latest short-prompt benchmark per location, and the latest long-form
-// record per location.
+// latest short-prompt benchmark per location. Baselines are resolved separately
+// by exact record identity before a comparison starts.
 func listTargets(ctx context.Context, repository string, requested []string) ([]target, error) {
 	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
@@ -132,7 +160,6 @@ func listTargets(ctx context.Context, repository string, requested []string) ([]
 		return nil, err
 	}
 	benchmarks := evaluation.LatestEvidence(ctx, store, map[artifact.ID]string{}, 0).BenchmarksByLocation
-	records := longform.LatestByLocation(ctx, store, 0)
 	wanted := make(map[string]bool, len(requested))
 	for _, path := range requested {
 		wanted[longform.Key(path)] = true
@@ -168,14 +195,12 @@ func listTargets(ctx context.Context, repository string, requested []string) ([]
 			return nil, err
 		}
 		benchmark := benchmarks[entry.Location]
-		record, recorded := records[longform.Key(entry.Location)]
 		targets = append(targets, target{
 			entry: entry, weights: weights, bytes: info.Size(),
 			short: longform.ShortRates{
 				PromptTokensPerSecond: benchmark.PromptTokensPerSecond,
 				DecodeTokensPerSecond: benchmark.DecodeTokensPerSecond,
 			},
-			record: record, recorded: recorded,
 		})
 		delete(wanted, longform.Key(entry.Location))
 	}
@@ -197,10 +222,35 @@ func listTargets(ctx context.Context, repository string, requested []string) ([]
 }
 
 func run(args []string, output io.Writer) error {
-	ctx := context.Background()
 	options, err := parseOptions(args)
 	if err != nil {
 		return err
+	}
+	if options.ExportCorpus != "" {
+		text, err := longform.Corpus(options.Root, options.CorpusBytes)
+		if err != nil {
+			return err
+		}
+		file, err := os.OpenFile(options.ExportCorpus, os.O_WRONLY|os.O_CREATE|os.O_EXCL, clioptions.OutputFileMode)
+		if err != nil {
+			return err
+		}
+		_, writeErr := io.WriteString(file, text)
+		if err := errors.Join(writeErr, file.Close()); err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "corpus exported: %s (%d bytes); no models measured\n", options.ExportCorpus, len(text))
+		return nil
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	ctx, cancel := context.WithTimeoutCause(ctx, options.Budget, fmt.Errorf("longform: aggregate budget %s exhausted: %w", options.Budget, context.DeadlineExceeded))
+	defer cancel()
+	if options.Corpus != "" {
+		options.corpusText, err = readCorpus(options, 0)
+		if err != nil {
+			return err
+		}
 	}
 	// Publishing binds the evidence to the verifying commit; a dry run
 	// still names the commit it ran on when the tree is clean.
@@ -216,10 +266,10 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	floors := longform.DeclaredFloors()
-	ceiling := 0
 	if options.Check {
-		ceiling = floors.CheckRungCeiling
+		if err := bindBaselines(ctx, options, targets); err != nil {
+			return err
+		}
 	}
 	if cuda, err := driver.Open(); err == nil {
 		if err := cuda.Init(); err == nil {
@@ -229,27 +279,54 @@ func run(args []string, output io.Writer) error {
 		}
 		cuda.Close()
 	}
+	return runTargets(ctx, output, options, targets, commit, surface, measure, publish)
+}
+
+type measureModel func(context.Context, io.Writer, options, target, string, string, longform.Floors, int) (longform.Result, error)
+type publishModel func(context.Context, string, artifact.ID, longform.Result) (artifact.ID, error)
+
+func runTargets(ctx context.Context, output io.Writer, options options, targets []target, commit, surface string, measure measureModel, publish publishModel) error {
+	floors := longform.DeclaredFloors()
+	ceiling := 0
+	if options.Check {
+		ceiling = floors.CheckRungCeiling
+	}
 	var failures []error
+	started, measured, published := 0, 0, 0
+	defer func() {
+		fmt.Fprintf(output, "long-form audit: requested=%d started=%d measured=%d published=%d failed=%d not-started=%d; budget=%s model-budget=%s; no benchmark suites run\n", len(targets), started, measured, published, len(failures), len(targets)-started, options.Budget, options.ModelBudget)
+	}()
 	for index, target := range targets {
 		name := filepath.Base(target.entry.Location)
 		fmt.Fprintf(output, "long-form %d/%d: %s\n", index+1, len(targets), target.entry.Location)
-		if options.Check {
-			switch {
-			case !target.recorded:
-				failures = append(failures, fmt.Errorf("%s: no long-form record to check against; run: go run ./cmd/longform -publish %q", name, target.entry.Location))
-				fmt.Fprintln(output, "  FAIL: no record")
-				continue
-			case target.record.Result.Surface == surface:
-				fmt.Fprintf(output, "  PASS: the record measured this inference surface (%.12s)\n", surface)
-				continue
+		if err := context.Cause(ctx); err != nil {
+			for _, unfinished := range targets[index:] {
+				fmt.Fprintf(output, "  UNFINISHED: %s\n", unfinished.entry.Location)
 			}
+			return errors.Join(append(failures, err)...)
 		}
-		result, err := measure(ctx, output, options, target, commit, surface, floors, ceiling)
+		modelContext := ctx
+		cancelModel := func() {}
+		if options.ModelBudget > 0 {
+			modelContext, cancelModel = context.WithTimeoutCause(ctx, options.ModelBudget, fmt.Errorf("longform: model budget %s exhausted: %w", options.ModelBudget, context.DeadlineExceeded))
+		}
+		started++
+		start := time.Now()
+		result, err := measure(modelContext, output, options, target, commit, surface, floors, ceiling)
+		result.WallNS = time.Since(start).Nanoseconds()
+		result.BudgetNS, result.ModelBudgetNS = int64(options.Budget), int64(options.ModelBudget)
+		modelErr := context.Cause(modelContext)
+		if deadline, bounded := modelContext.Deadline(); modelErr == nil && bounded && time.Now().After(deadline) {
+			modelErr = context.DeadlineExceeded
+		}
+		cancelModel()
+		err = errors.Join(err, modelErr)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", name, err))
 			fmt.Fprintf(output, "  ERROR %v\n", err)
 			continue
 		}
+		measured++
 		report(output, result, options.OutputPrefix)
 		if options.Check {
 			verdict := longform.Compare(target.record.Result, result, floors, ceiling)
@@ -267,6 +344,7 @@ func run(args []string, output io.Writer) error {
 			if err != nil {
 				return err
 			}
+			published++
 			fmt.Fprintf(output, "  evidence committed: record=%s surface=%.12s commit=%.12s\n", record, surface, commit)
 		}
 	}
@@ -287,7 +365,7 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 	if ceiling > 0 {
 		highest = min(highest, ceiling)
 	}
-	text, err := longform.Corpus(options.Root, corpusBytesPerToken*(highest+floors.ScoreTokens))
+	text, err := readCorpus(options, corpusBytesPerToken*(highest+floors.ScoreTokens))
 	if err != nil {
 		return longform.Result{}, err
 	}
@@ -344,6 +422,9 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 	if err != nil {
 		return longform.Result{}, err
 	}
+	if len(climbed) == 0 {
+		return longform.Result{}, fmt.Errorf("longform: no completed rung: %s", stop)
+	}
 	judged := climbed[len(climbed)-1]
 	for _, rung := range climbed {
 		if rung.Measure.PromptTokens == floors.PromptTokens {
@@ -360,8 +441,9 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		return longform.Result{}, err
 	}
 	result := longform.Result{
+		Inputs:    longform.BindInputs(target.weights, text, corpus),
 		ModelPath: properties.Path, ModelName: properties.Name, Architecture: properties.Architecture, FileType: properties.FileType,
-		Commit: commit, Surface: surface, PromptSource: "README.md, docs, internal (see longform.Corpus)",
+		Commit: commit, Surface: surface, PromptSource: options.Corpus,
 		Measure: judged.Measure, Short: target.short, Floors: floors,
 		Shape: shape, Rungs: climbed, LadderStop: stop,
 		PromptTail: tail, Output: outputText,

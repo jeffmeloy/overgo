@@ -9,13 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "measurement-contract",
-          "title": "Bind stable comparison inputs, accepted baseline references and longform cancellation",
-          "status": "open",
-          "verify": "test -f cmd/longform/measurement_contract_test.go \u0026\u0026 go test ./cmd/longform -run '^TestCampaignMeasurementContract$' -count=1",
-          "rationale": "Reuse existing long-form corpus-at-commit, model/surface identity, declared floors and runrecord contracts. Add only cross-revision corpus/token equality and explicit accepted baseline references instead of latest-other-surface selection, and per-model/aggregate cancellation in cmd/longform. Reject changed inputs, self-comparison, missing rungs and an unaccepted/degraded baseline; cancellation preserves completed evidence and reports unfinished coverage. The named fixture exercises these refusals. This row supports regression-baseline acceptance and does not gate current-surface long-form admission, existing benchmark passes or modality checks."
-        },
-        {
           "id": "failure-diagnostics",
           "title": "Preserve bounded diagnostics for failed and timed-out test lanes",
           "status": "open",

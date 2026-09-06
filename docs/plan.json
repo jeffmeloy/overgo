@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "e4b-media-resource-producer",
-          "title": "Measure and persist recovery and memory across all E4B media modes",
-          "status": "open",
-          "verify": "test -f internal/server/e4b_resource_windows_test.go \u0026\u0026 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./internal/server -run '^TestE4BMediaResourceRecovery$' -count=1 -timeout=12m \u0026\u0026 go test ./cmd/compatibility -run '^TestE4BValidationAcceptanceContract$' -count=1",
-          "rationale": "Inspection of the existing resource owners found that isolated exact-evaluation summaries record wall time, projected transcription reports explicitly exclude GPU peak and recovery counters, and TestE4BResourceRecovery covers text only. These records cannot satisfy six modality resource cells. Correct this producer gap before clean-source publication, using existing server/projector, runrecord resource observations and evaluation acceptance owners. Reuse the six-mode HTTP fixture preparation and resource recovery loop instead of another evaluator or controller. Measure actual peak and retained device bytes/allocations, repeated cancellation and consumer-error recovery, and reload/release for text, image, multi-image, audio, ordered video and mixed history; compare complete outputs to pinned native references and retention to the first complete warm cycle. Preserve the separate 32768-token text guard. Publish observed counters and exact recipe/config/source/environment/input bindings, and make read-only acceptance rederive summaries from those observations. Do not manufacture metrics merely to satisfy the checker. Permit one coherent run to supply independent quality/resource fields only when exact workload and repetition scope agree. Add negative acceptance for omitted modes, fabricated or mismatched counters, stale bindings, missing GPU measurements and growth. This is one coherent resource-producer commit followed by clean-source measurement; it does not reopen or repeat unaffected mask and protocol proofs.",
-          "depends_on": [
-            "modality-verification/e4b-validation-producer"
-          ]
-        },
-        {
           "id": "e4b-all-modalities",
           "title": "Publish and accept the complete E4B evidence bundle from clean source",
           "status": "open",

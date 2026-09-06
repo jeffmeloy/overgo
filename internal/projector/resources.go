@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"image"
 
+	"overgo/internal/cuda/device"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/tensor/reference"
@@ -24,6 +26,21 @@ type projectorResources struct {
 func (r *projectorResources) setPrompt(dispatch promptDispatch) { r.prompt = dispatch }
 
 func (r *projectorResources) compiledPrompt() promptDispatch { return r.prompt }
+
+func (r *projectorResources) deviceMemoryStats(ctx context.Context, resetPeak bool) (driver.MemoryStats, error) {
+	if r == nil || r.cuda == nil || r.cuda.worker == nil {
+		return driver.MemoryStats{}, errors.New("projector: device allocation accounting is unavailable")
+	}
+	var stats driver.MemoryStats
+	err := r.cuda.worker.Do(ctx, func(state *device.State) error {
+		stats = state.Driver.MemoryStats()
+		if resetPeak {
+			state.Driver.ResetPeakBytes()
+		}
+		return nil
+	})
+	return stats, err
+}
 
 type rasterPatchEncoder struct {
 	resources *projectorResources

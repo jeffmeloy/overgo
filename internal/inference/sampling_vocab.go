@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
@@ -14,6 +15,18 @@ func (r *Runner) DeviceMemoryStats(ctx context.Context) (driver.MemoryStats, err
 		return driver.MemoryStats{}, errRunnerNil
 	}
 	return r.worker.MemoryStats(ctx)
+}
+
+// ResetDeviceMemoryPeak starts an allocation high-water window at the current
+// live bytes. Callers must serialize the window with the measured execution.
+func (r *Runner) ResetDeviceMemoryPeak(ctx context.Context) error {
+	if r == nil || r.worker == nil {
+		return errRunnerNil
+	}
+	return r.worker.Do(ctx, func(state *device.State) error {
+		state.Driver.ResetPeakBytes()
+		return nil
+	})
 }
 
 func (r *Runner) DeviceExecutionStats(ctx context.Context) (driver.ExecutionStats, error) {

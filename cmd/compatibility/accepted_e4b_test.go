@@ -83,7 +83,7 @@ func TestAcceptedE4BModalities(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, cell := range spec.Cells {
-		if strings.HasPrefix(cell.Name, "protocol/") && cell.OracleSHA256 != fmt.Sprintf("%x", sha256.Sum256(oracle)) {
+		if (strings.HasPrefix(cell.Name, "protocol/") || strings.HasPrefix(cell.Name, "resources/")) && cell.OracleSHA256 != fmt.Sprintf("%x", sha256.Sum256(oracle)) {
 			t.Fatal("protocol proof differs from the pinned native oracle")
 		}
 	}

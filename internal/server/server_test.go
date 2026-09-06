@@ -180,6 +180,10 @@ func (fakeSessionStub) Capabilities() projector.SessionCapabilities {
 
 func (fakeSessionStub) Close() error { return nil }
 
+func (fakeSessionStub) DeviceMemoryStats(context.Context, bool) (driver.MemoryStats, error) {
+	return driver.MemoryStats{}, errors.New("fake session: device accounting unsupported")
+}
+
 type fakeQwen3VLProjector struct {
 	fakeSessionStub
 	before string

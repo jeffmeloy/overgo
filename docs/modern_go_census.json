@@ -3,14 +3,14 @@
   "doc": "Source-bound Go 1.26 guideline closure. Exact sites and owned exception oracles remain in the ratchet authority.",
   "target_go": "1.26",
   "build_context": "windows/amd64",
-  "source_identity": "5ff26e3fb86eda985c4f241446589a4d34d5887e1d01f9683ccf541387d970c8",
+  "source_identity": "4a6b8b2b8dafc5bac2d07ac4767c6447f47378ed198c6adc354aacc2d986ba68",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
   "exceptions_sha256": "e2402054cac6e8f5ab1afced38b8a47b803afa782d883761da84250c85db83e6",
   "applicable": 48,
   "measured": 48,
   "candidates": 503,
-  "adopted": 9098,
+  "adopted": 9124,
   "exception_groups": 446,
   "excepted_candidates": 503,
   "unresolved": 0,
@@ -54,7 +54,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 2639,
+      "adopted": 2648,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -197,7 +197,7 @@
       "risk": "numerical",
       "measured": true,
       "candidates": 0,
-      "adopted": 847,
+      "adopted": 851,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -219,7 +219,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 477,
+      "adopted": 479,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -241,7 +241,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 22,
+      "adopted": 21,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -318,7 +318,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 1444,
+      "adopted": 1445,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -395,7 +395,7 @@
       "risk": "concurrency",
       "measured": true,
       "candidates": 11,
-      "adopted": 19,
+      "adopted": 20,
       "excepted": 11,
       "unresolved": 0,
       "disposition": "exact-expiring-exceptions"
@@ -439,7 +439,7 @@
       "risk": "behavioral",
       "measured": true,
       "candidates": 0,
-      "adopted": 712,
+      "adopted": 713,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -450,7 +450,7 @@
       "risk": "concurrency",
       "measured": true,
       "candidates": 31,
-      "adopted": 46,
+      "adopted": 47,
       "excepted": 31,
       "unresolved": 0,
       "disposition": "exact-expiring-exceptions"
@@ -516,7 +516,7 @@
       "risk": "behavioral",
       "measured": true,
       "candidates": 0,
-      "adopted": 356,
+      "adopted": 358,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"
@@ -538,7 +538,7 @@
       "risk": "mechanical",
       "measured": true,
       "candidates": 0,
-      "adopted": 237,
+      "adopted": 243,
       "excepted": 0,
       "unresolved": 0,
       "disposition": "applied-or-not-present"

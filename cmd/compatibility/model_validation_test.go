@@ -193,6 +193,9 @@ func TestE4BValidationAcceptanceContract(t *testing.T) {
 			}
 		}
 	})
+	t.Run("observed media resource contract", func(t *testing.T) {
+		testMediaResourceAcceptance(t, store, spec, projection.ID, environment.ID, definition)
+	})
 	t.Run("exact output cannot substitute for transcription quality", func(t *testing.T) {
 		candidate := spec
 		candidate.Cells = slices.Clone(spec.Cells[:1])

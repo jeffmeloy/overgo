@@ -71,7 +71,8 @@ func checkModelValidation(ctx context.Context, store artifact.Reader, spec model
 		}
 		delete(wanted, cell.Name)
 		protocol := strings.HasPrefix(cell.Name, "protocol/")
-		if !protocol {
+		resources := strings.HasPrefix(cell.Name, "resources/")
+		if !protocol && !resources {
 			if seenEvidence[cell.Evidence] || seenPlans[cell.Plan] {
 				return fmt.Errorf("model validation: reused non-protocol cell %q", cell.Name)
 			}
@@ -83,7 +84,11 @@ func checkModelValidation(ctx context.Context, store artifact.Reader, spec model
 		if cell.Name == "quality/audio/native" && cell.Evidence.Kind() != artifact.KindEvaluation {
 			return errors.New("model validation: audio quality requires a scored transcription report")
 		}
-		if protocol {
+		if resources {
+			if err := checkResourceValidationCell(ctx, store, spec, cell); err != nil {
+				return err
+			}
+		} else if protocol {
 			if err := checkProtocolValidationCell(ctx, store, spec, cell); err != nil {
 				return err
 			}
@@ -142,6 +147,9 @@ func checkProtocolValidationCell(ctx context.Context, store artifact.Reader, spe
 }
 
 func checkModelValidationCell(spec modelValidationSpecification, cell modelValidationCell, value evaluation.EvaluationEvidence) error {
+	if strings.HasPrefix(cell.Name, "resources/") {
+		return errors.New("model validation: exact-output evidence cannot replace observed media recovery")
+	}
 	if value.Plan != cell.Plan || value.ModelDefinition != cell.ModelDefinition || value.Recipe != cell.Recipe ||
 		value.Dataset != cell.Dataset || value.Split != cell.Split || value.Environment != cell.Environment || value.CodeCommit != spec.CodeCommit ||
 		len(cell.Shards) == 0 || len(cell.Bounds) == 0 || len(cell.Shards) != len(value.Shards) {
@@ -156,25 +164,7 @@ func checkModelValidationCell(spec modelValidationSpecification, cell modelValid
 	if err := checkValidationBounds(cell, value.Metrics); err != nil {
 		return err
 	}
-	if strings.HasPrefix(cell.Name, "resources/") {
-		if !value.ResourceObservation.Valid() || value.Resources == nil || value.Resources.Scope.Model != spec.Model {
-			return fmt.Errorf("model validation %s: isolated resource evidence absent", cell.Name)
-		}
-		if peak, found := value.Resources.Measure(runrecord.ResourcePeakDeviceBytes); !found || peak == 0 {
-			return fmt.Errorf("model validation %s: measured peak device memory absent", cell.Name)
-		}
-		for _, name := range []string{"reload-recoveries", "cancellation-recoveries", "error-recoveries", "retained-allocation-growth"} {
-			index := slices.IndexFunc(cell.Bounds, func(bound modelValidationBound) bool { return bound.Metric == name })
-			if index < 0 {
-				return fmt.Errorf("model validation %s: resource control %s is absent", cell.Name, name)
-			}
-			bound := cell.Bounds[index]
-			if bound.Unit != "count" || name != "retained-allocation-growth" && bound.Minimum < 1 ||
-				name == "retained-allocation-growth" && (bound.Minimum != 0 || bound.Maximum != 0) {
-				return fmt.Errorf("model validation %s: resource control %s permits incomplete recovery or growth", cell.Name, name)
-			}
-		}
-	}
+
 	return nil
 }
 

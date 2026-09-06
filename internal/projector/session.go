@@ -6,6 +6,7 @@ import (
 	"image"
 
 	"overgo/internal/artifact"
+	"overgo/internal/cuda/driver"
 )
 
 // SessionCapabilities: compiled prompt surfaces.
@@ -25,6 +26,7 @@ type Session interface {
 	BuildAudioPrompt(context.Context, ImageTokenizer, []float32, string, string) (MultimodalPrompt, error)
 	BuildMediaHistoryPrompt(context.Context, ImageTokenizer, []MediaInput, []string) (MultimodalPrompt, error)
 	Capabilities() SessionCapabilities
+	DeviceMemoryStats(context.Context, bool) (driver.MemoryStats, error)
 	Close() error
 }
 
@@ -88,6 +90,22 @@ func (s *compiledSession) Capabilities() SessionCapabilities {
 }
 
 func (s *compiledSession) Close() error { return s.source.Close() }
+
+// DeviceMemoryStats observes the session's own allocations. With resetPeak,
+// the returned observation ends the preceding window and a new window starts
+// at the current live bytes. Host-only and closed sessions return an error.
+func (s *compiledSession) DeviceMemoryStats(ctx context.Context, resetPeak bool) (driver.MemoryStats, error) {
+	if s == nil {
+		return driver.MemoryStats{}, errors.New("projector: session allocation accounting is unavailable")
+	}
+	owner, ok := s.source.(interface {
+		deviceMemoryStats(context.Context, bool) (driver.MemoryStats, error)
+	})
+	if !ok {
+		return driver.MemoryStats{}, errors.New("projector: source allocation accounting is unavailable")
+	}
+	return owner.deviceMemoryStats(ctx, resetPeak)
+}
 
 func (s *compiledSession) BuildImagePrompt(
 	ctx context.Context,

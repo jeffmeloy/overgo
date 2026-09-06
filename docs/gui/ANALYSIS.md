@@ -329,6 +329,22 @@ What the rows established, each a record rather than a statement:
   `TestResponsesRelayStoresInteraction` pins a relayed response's stored
   interaction through a repository-backed handler. The Generate workspace
   lists no remote model: a declaration carries the inference task only.
+- Attachments as artifacts (composer-artifact-intake): `POST
+  /artifacts/intake` takes a file's bytes under their media type, accepts
+  every type the server decodes (`acceptedMedia(true, true, true)`, the
+  same rule the capability document narrows by loaded projectors), bounds
+  them by the media limits and decodes images against the image bounds,
+  and commits a `file` document (`overgo/attachment/v1`, media type the
+  file's own, identity the bytes, so a second upload is the same
+  document); the answer is the id an artifact-typed control validates.
+  The composer's `addFile` asks the surface's `intake(file)` first: the
+  chat page stores a file when the current mode has an artifact-typed
+  control (`artifactField`), fills the control with the id, and the card
+  says "stored as" with the link; a stored card sends no part and a
+  refusal from the route is the card's. `takesAny` widens the file dialog
+  in such a mode. The journey's leg 12b attaches the red square in vqa
+  mode while Qwen2.5-0.5B (no projector) serves, proves the control
+  filled with a new id and the answer about the upload.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

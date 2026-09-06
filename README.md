@@ -554,6 +554,17 @@ derived from the server, not from client configuration:
   store's history. The browser lane declares a fake provider on loopback,
   proves a remote turn with its marker through the real proxy, and retires
   the declaration when the journey ends.
+- **Attachments as artifacts.** In a mode whose request names an artifact
+  (the VQA image, LiveEdit's source clip), a file attached to the composer
+  is stored before it is used: the page posts its bytes under their media
+  type to `/artifacts/intake`, the server accepts every type it decodes
+  (images against the image bounds, all media against the byte limits)
+  whatever the served chat model's projectors, commits a file document of
+  that type whose identity is the bytes, and answers its id; the card names
+  the stored artifact and the control takes the id, so the executor behind
+  the control accepts or refuses the document by its type. The file dialog
+  in such a mode is not narrowed to the chat model's types. In every other
+  mode an attachment travels inline with the turn as before.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

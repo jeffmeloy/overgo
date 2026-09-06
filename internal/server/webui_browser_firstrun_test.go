@@ -114,6 +114,19 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 		settle("picker lists the servable models", `document.querySelectorAll(".topbar .card .row .mono").length > 0`)
 	}
+	// attachTinyPNG: a real image a projector can encode (a small red
+	// square) handed to the composer's file input as file bytes.
+	attachTinyPNG := func() {
+		t.Helper()
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      const picker = document.querySelector(".composer input[type=file]");
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([Uint8Array.from(atob(`+strconv.Quote(tinyPNGBase64(t))+`), (char) => char.charCodeAt(0))], "tiny.png", { type: "image/png" }));
+      picker.files = transfer.files;
+      picker.dispatchEvent(new Event("change"));
+      return true;
+    })()`)
+	}
 	// switchTo serves another model through the picker and waits for the
 	// pill to name it and the composer to re-derive from its capabilities.
 	switchTo := func(name string) {
@@ -173,16 +186,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			}
 			t.Logf("image-in leg: switched to %s, image input declared %v", multimodal, vision)
 		}
-		// The attachment is a real image a projector can encode: a small red
-		// square, encoded here and handed to the page as file bytes.
-		assertBrowserPredicate(t, ctx, browser, `(() => {
-      const picker = document.querySelector(".composer input[type=file]");
-      const transfer = new DataTransfer();
-      transfer.items.add(new File([Uint8Array.from(atob(`+strconv.Quote(tinyPNGBase64(t))+`), (char) => char.charCodeAt(0))], "tiny.png", { type: "image/png" }));
-      picker.files = transfer.files;
-      picker.dispatchEvent(new Event("change"));
-      return true;
-    })()`)
+		attachTinyPNG()
 		if vision {
 			settle("image attached", `!!document.querySelector(".composer .card:not(.refused)")`)
 			// A switch may have opened a fresh conversation: the reply is the one
@@ -389,6 +393,31 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("vqa leg: the VQA model answered %q", answer)
+		// 12b. Fresh attachment in vqa mode (the served chat model refuses
+		// images): stored through the intake route, the card names the
+		// artifact, the image control takes its id, the answer is about it.
+		const vqaImage = `[...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("image"))`
+		var filled string
+		if err := browser.Evaluate(ctx, `((field) => field ? field.querySelector("input").value : "")(`+vqaImage+`)`, &filled); err != nil {
+			t.Fatal(err)
+		}
+		attachTinyPNG()
+		settle("the upload fills the vqa image control", `(() => {
+      const field = `+vqaImage+`, card = document.querySelector(".composer .card");
+      const input = field && field.querySelector("input");
+      return !!input && input.value.includes(":sha256:") && input.value !== `+strconv.Quote(filled)+` && !!card && !card.classList.contains("refused") && card.textContent.includes("stored as"); })()`)
+		var before int
+		if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
+			t.Fatal(err)
+		}
+		say(t, ctx, browser, "What colour is this image?")
+		settle("the answer about the upload lands as the assistant's text", `document.querySelectorAll("#panel-chat .msg.assistant").length === `+strconv.Itoa(before+1)+` &&
+      !document.querySelector(".composer .btn").disabled && document.querySelectorAll("#panel-chat .msg.error").length === 0 &&
+      (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0`)
+		if err := browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("vqa upload leg: the VQA model answered %q about the stored attachment", answer)
 	} else {
 		t.Log("vqa leg not taken: the store declares no VQA model")
 	}

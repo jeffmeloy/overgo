@@ -68,16 +68,17 @@
       panel.append(
         el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
         facts);
-      // A media output in this thread re-enters the composer as the next
-      // turn's attachment, refused or accepted by the served capability; a
-      // mode whose request names an artifact takes the card's stored id.
-      const thread = overgo.thread(panel, { reuse: (file, artifact) => {
-        const field = [...generation.fields.values()].find((field) => field.control.type === "artifact");
-        if (field && artifact) field.input.value = artifact; else composer.addFile(file);
-      }, marker: capabilities.remote ? "remote" : "" });
+      // artifactField: the mode's artifact-typed control, if any. A media card re-enters the composer as the next
+      // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
+      // a fresh attachment in such a mode stores through the intake route and fills the control.
+      const artifactField = () => [...generation.fields.values()].find((field) => field.control.type === "artifact");
+      const thread = overgo.thread(panel, { reuse: (file, artifact) => { const field = artifactField(); if (field && artifact) field.input.value = artifact; else composer.addFile(file); },
+        marker: capabilities.remote ? "remote" : "" });
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },
+        takesAny: () => !!artifactField(),
+        intake: (file) => { const field = artifactField(); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => (field.input.value = stored.id)) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; renderMode(mode); },
         controls: [reset,

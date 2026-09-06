@@ -258,7 +258,9 @@
     const picker = el("input", { type: "file", style: "display:none", multiple: options.multiple !== false, accept: accept.join(",") });
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", style: "display:none" }, "stop");
-    const attach = accept.length ? el("button", { class: "btn alt", onclick: () => picker.click() }, options.attachLabel || "attach") : null;
+    // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
+    function openPicker() { picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
+    const attach = accept.length ? el("button", { class: "btn alt", onclick: openPicker }, options.attachLabel || "attach") : null;
     const modeSelect = options.modes && options.modes.length > 1
       ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label })))
       : null;
@@ -278,7 +280,7 @@
               : item.kind === "audio" ? el("audio", { src: item.dataURL, controls: "" })
                 : el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
         return el("span", { class: "card" + (item.refusal ? " refused" : "") }, preview, " " + item.name + " ",
-          item.refusal ? el("span", { class: "note", text: item.refusal }) : null, remove);
+          item.refusal ? el("span", { class: "note", text: item.refusal }) : item.artifact ? el("span", { class: "note" }, "stored as ", overgo.artifactLink(item.artifact)) : null, remove);
       }));
     }
     function refusal(file, kind) {
@@ -289,7 +291,10 @@
     }
     function addFile(file) {
       const kind = mediaKind(file.type);
-      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: refusal(file, kind) };
+      // options.intake(file): a surface storing the file as an artifact returns the id's promise; the server's refusal is the card's, and the card sends no part.
+      const stored = options.intake ? options.intake(file) : null;
+      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: stored ? "" : refusal(file, kind), storing: !!stored };
+      if (stored) stored.then((id) => { item.artifact = id; }, (err) => { item.refusal = overgo.friendlyError(err); }).then(() => { item.storing = false; renderAttachments(); });
       attachments.push(item);
       const reader = new FileReader();
       reader.onload = () => {
@@ -315,21 +320,18 @@
     element.addEventListener("drop", (event) => { event.preventDefault(); element.classList.remove("drop"); addFiles(event.dataTransfer.files); });
     input.addEventListener("paste", (event) => { if (event.clipboardData.files.length) { event.preventDefault(); addFiles(event.clipboardData.files); } });
     function attachmentParts() {
-      return attachments.filter((item) => item.dataURL && !item.refusal).map((item) => {
+      return attachments.filter((item) => item.dataURL && !item.refusal && !item.artifact && !item.storing).map((item) => {
         if (item.kind === "image") return { type: "image_url", image_url: { url: item.dataURL } };
         if (item.kind === "audio") return { type: "input_audio", input_audio: { data: item.dataURL.split(",").pop(), format: "wav" } };
         if (item.kind === "video") return { type: "input_video", input_video: { data: item.dataURL } };
         return { type: "input_file", filename: item.name, file_data: item.dataURL };
       });
     }
-    function setBusy(busy) {
-      send.disabled = busy;
-      stop.style.display = busy ? "" : "none";
-    }
+    function setBusy(busy) { send.disabled = busy; stop.style.display = busy ? "" : "none"; }
     async function submit() {
       const text = input.value.trim();
       if (!text && !attachments.length) return;
-      if (send.disabled || attachments.some((item) => item.refusal)) return;
+      if (send.disabled || attachments.some((item) => item.refusal || item.storing)) return;
       if (options.onSubmit) await options.onSubmit(text, attachments.slice(), modeSelect ? modeSelect.value : "");
     }
     send.addEventListener("click", submit);
@@ -341,7 +343,7 @@
     return {
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost,
       clearAttachments() { attachments.length = 0; renderAttachments(); },
-      openPicker() { picker.click(); },
+      openPicker,
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },
     };

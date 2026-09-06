@@ -53,21 +53,13 @@
       return readJSON(response);
     },
     async post(path, body, opts) {
-      return readJSON(await fetch(path, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(body),
-        signal: opts && opts.signal,
-      }));
+      return readJSON(await fetch(path, { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body), signal: opts && opts.signal }));
     },
+    // upload: a file's bytes under their own media type (opts.mediaType sends the body raw); the server answers the stored artifact.
+    async upload(path, file, opts) { return readJSON(await this.stream(path, file, Object.assign({ mediaType: file.type }, opts))); },
     async stream(path, body, opts) {
-      const method = (opts && opts.method) || "POST";
-      const response = await fetch(path, {
-        method,
-        headers: authHeaders(method === "POST" ? { "Content-Type": "application/json" } : {}),
-        body: method === "POST" ? JSON.stringify(body) : undefined,
-        signal: opts && opts.signal,
-      });
+      const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType;
+      const response = await fetch(path, { method, headers: authHeaders(method === "POST" ? { "Content-Type": raw || "application/json" } : {}), body: method !== "POST" ? undefined : raw ? body : JSON.stringify(body), signal: opts && opts.signal });
       if (!response.ok) await readJSON(response);
       return response;
     },

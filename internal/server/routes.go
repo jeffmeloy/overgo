@@ -111,6 +111,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/export/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Workflow: WorkflowExport, WorkflowAction: workflowRunAction},
 	{Path: "/artifacts", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).artifactGallery},
 	{Path: "/artifacts/content", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).artifactContent},
+	{Path: "/artifacts/intake", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).artifactIntake},
 	{Path: "/runtime/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeSessions},
 	{Path: "/runtime/activity", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivity},
 	{Path: "/runtime/activity/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivityStream},

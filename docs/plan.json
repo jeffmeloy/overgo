@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "composer-artifact-intake",
-      "title": "Take a fresh attachment as a stored artifact: a file the served capability accepts commits to the store through a bounded upload route as a document of its own kind, so the artifact-typed controls (the VQA image, LiveEdit's source clip) take a file the user just attached and not only a card the page generated, and the journey proves a question answered about an uploaded image",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Take a fresh attachment as a stored artifact: a file the served capability accepts commits to the store through a bounded upload route as a document of its own kind, so the artifact-typed controls (the VQA image, LiveEdit's source clip) take a file the user just attached and not only a card the page generated, and the journey proves a question answered about an uploaded image",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "transcription-mode",
       "title": "Transcribe from the front page: the store's active CPU transcription recipe lists as a mode beside chat with an artifact-typed audio control, an attached or stored audio artifact fills it, the transcript lands as the assistant's text through the generic run route with the run record behind it, and the browser lane proves it on the lane store's activated transcription model",
       "status": "open",

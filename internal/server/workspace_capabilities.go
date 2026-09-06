@@ -65,21 +65,6 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 	// Video rides the image projector frame by frame: GIF frames decode
 	// natively, MP4 only through FFmpeg.
 	video := image
-	accept := []string{}
-	if image {
-		accept = append(accept, media.PNGMediaType, "image/jpeg", media.GIFMediaType)
-	}
-	if audio {
-		accept = append(accept, "audio/wav")
-	}
-	if video {
-		accept = append(accept, media.GIFMediaType)
-		if h.config.FFmpegPath != "" {
-			accept = append(accept, media.MP4MediaType)
-		}
-	}
-	// Documents need no projector: text kinds pass through, PDF is extracted.
-	accept = append(accept, "text/plain", "text/markdown", "text/csv", "application/json", media.PDFMediaType)
 	refusals := map[string]string{}
 	if !image {
 		refusals["image"] = "the served model has no image projector loaded"
@@ -100,7 +85,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		Generation:    h.defaultSamplingParams(),
 		Modalities:    map[string]bool{"text": true, "image": image, "audio": audio, "video": video, "document": true},
 		Media: workspaceMediaLimits{
-			Accept: dedupeStrings(accept), Refusals: refusals,
+			Accept: h.acceptedMedia(image, audio, video), Refusals: refusals,
 			MaxImageBytes: maxImageBytes, MaxMediaBytes: maxMediaBytes,
 			MaxImageDimension: maxImageDimension, MaxImagePixels: maxImagePixels,
 		},
@@ -131,6 +116,26 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 	}
 	document.Modes = append(document.Modes, agentMode)
 	return document, true
+}
+
+// acceptedMedia: media types accepted for the given projectors; documents
+// need none (text passes through, PDF is extracted); MP4 needs FFmpeg.
+// All three true = every type the server decodes (the attachment intake).
+func (h *Handler) acceptedMedia(image, audio, video bool) []string {
+	accept := []string{}
+	if image {
+		accept = append(accept, media.PNGMediaType, "image/jpeg", media.GIFMediaType)
+	}
+	if audio {
+		accept = append(accept, "audio/wav")
+	}
+	if video {
+		accept = append(accept, media.GIFMediaType)
+		if h.config.FFmpegPath != "" {
+			accept = append(accept, media.MP4MediaType)
+		}
+	}
+	return dedupeStrings(append(accept, "text/plain", "text/markdown", "text/csv", "application/json", media.PDFMediaType))
 }
 
 func dedupeStrings(values []string) []string {

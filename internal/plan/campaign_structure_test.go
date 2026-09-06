@@ -563,6 +563,7 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"e4b-acceptance-scope/do",
 		"lane-plan-boundary/do",
 		"hosted-evaluation-coverage/do",
+		"integration-rehearsal/do",
 		"integrate-to-master/do",
 		"audio-staged-surface/do",
 		"merge-4e0b9a670603/do",

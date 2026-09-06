@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"syscall"
 	"time"
 
 	"overgo/internal/automationcheck"
@@ -46,25 +44,9 @@ func deviceClaimPath(repo string) (string, error) {
 	return filepath.Join(filepath.Dir(lock), deviceClaimFile), nil
 }
 
-// processAlive: pid liveness; Windows opens the process, Unix signals 0.
-func processAlive(pid int) bool {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	if runtime.GOOS == "windows" {
-		_ = process.Release()
-		return true
-	}
-	return process.Signal(syscall.Signal(0)) == nil
-}
-
-// claimExpired: a holder is gone when its process is dead or its heartbeat
-// is older than the stale window; returns the reason.
-func claimExpired(claim deviceClaim, now time.Time, alive func(int) bool) (bool, string) {
-	if !alive(claim.PID) {
-		return true, fmt.Sprintf("holder pid %d is dead", claim.PID)
-	}
+// claimExpired: a holder is gone when its heartbeat is older than the stale
+// window; a dead holder stops refreshing, so its claim expires the same way.
+func claimExpired(claim deviceClaim, now time.Time) (bool, string) {
 	if age := now.Sub(claim.Heartbeat); age > runrecord.DefaultHeartbeatStaleAfter {
 		return true, fmt.Sprintf("holder pid %d heartbeat is %s stale", claim.PID, age.Truncate(time.Second))
 	}
@@ -87,10 +69,10 @@ func createDeviceClaim(path string, claim deviceClaim) (bool, error) {
 }
 
 // acquireDeviceClaim: takes the host-wide claim or waits for its holder; a
-// dead or stale holder's claim is removed with the reason audited; the
+// stale holder's claim is removed with the reason audited; the
 // returned release removes the claim and stops the heartbeat.
 func acquireDeviceClaim(
-	ctx context.Context, path string, claim deviceClaim, wait, poll time.Duration, alive func(int) bool, audit func(string),
+	ctx context.Context, path string, claim deviceClaim, wait, poll time.Duration, audit func(string),
 ) (func() error, error) {
 	waitingSince := time.Time{}
 	for {
@@ -119,7 +101,7 @@ func acquireDeviceClaim(
 				}
 			}
 		}
-		if expired, reason := claimExpired(holder, now, alive); readable && expired {
+		if expired, reason := claimExpired(holder, now); readable && expired {
 			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return nil, fmt.Errorf("device claim: release expired holder: %w", err)
 			}
@@ -191,7 +173,7 @@ func (g *gateContext) withDeviceClaim(check automationcheck.Check) automationche
 		}
 		release, err := acquireDeviceClaim(ctx, path, deviceClaim{
 			PID: os.Getpid(), Worktree: g.repo, PlanRef: g.planRef, Check: check.Descriptor.Name,
-		}, deviceClaimWait, deviceClaimPoll, processAlive, func(line string) { g.audit = append(g.audit, line) })
+		}, deviceClaimWait, deviceClaimPoll, func(line string) { g.audit = append(g.audit, line) })
 		if err != nil {
 			return false, "", err
 		}

@@ -278,9 +278,9 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	if err := plan.ValidateFrontierLeases(frontier, leases); err != nil {
 		return err
 	}
-	// Conditions over recorded facts; the fact sources arrive with the
-	// frontier-conditions row, so declared conditions report waiting here.
-	dispositions, err := plan.Dispositions(document, frontier, plan.ConditionFacts{})
+	// Conditions over recorded facts: completed parents' outcomes, retained
+	// outcomes and refusals; blocked rows name the dependency holding them.
+	dispositions, err := plan.Dispositions(document, frontier, plan.DocumentConditionFacts(document, authority))
 	if err != nil {
 		return err
 	}
@@ -290,8 +290,17 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	if lines := plan.FormatDispositions(dispositions); lines != "" {
 		fmt.Fprintln(output, lines)
 	}
-	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d isolated lease(s), %d legacy unreadable lease(s)\n",
-		len(frontier), len(leases), legacyUnreadable)
+	if lines := plan.FormatBlocked(plan.BlockedRows(document, frontier, authority)); lines != "" {
+		fmt.Fprintln(output, lines)
+	}
+	proceeding := 0
+	for _, row := range dispositions {
+		if row.Disposition == plan.DispositionProceed {
+			proceeding++
+		}
+	}
+	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d proceeding, %d isolated lease(s), %d legacy unreadable lease(s)\n",
+		len(frontier), proceeding, len(leases), legacyUnreadable)
 	return nil
 }
 

@@ -4,28 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "conditional-plan-rows",
-      "title": "Evaluate typed skip, cancel and wait conditions over recorded outcomes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "frontier-conditions",
-          "title": "Dispatch only rows whose conditions hold and report waiting rows with their reasons",
-          "status": "open",
-          "verify": "test -f cmd/plan/frontier_conditions_test.go \u0026\u0026 go test ./cmd/plan -run '^TestFrontierReportsConditionOutcomes$' -count=1",
-          "rationale": "ReadyFrontier evaluates conditions and the frontier report names each waiting row with the condition it waits on, so an operator reads the plan's state from the tool rather than from rationale text.",
-          "depends_on": [
-            "conditional-plan-rows/outcome-predicates",
-            "conditional-plan-rows/skipped-and-cancelled-completion"
-          ],
-          "capabilities": [
-            "condition-aware-frontier",
-            "waiting-row-report"
-          ]
-        }
-      ]
-    },
-    {
       "id": "deadlines-and-requeue",
       "title": "Bound waiting and running separately and back off requeues",
       "status": "open",

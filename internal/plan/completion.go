@@ -204,6 +204,9 @@ type completionEvidence struct {
 	result       artifact.ID
 	finalization artifact.ID
 	retiredItem  bool
+	// outcome: the completed step's recorded outcome document from its
+	// completion snapshot; a fact source for dependent conditions.
+	outcome string
 }
 
 func (authority CompletionAuthority) completed(reference string) bool {
@@ -1416,6 +1419,7 @@ func requireCompletionEvidence(
 		codeManifest: trailers.codeManifest, attempt: attempt.ID, result: attempt.Result,
 		finalization: verification.Finalization.ID,
 		retiredItem:  !planHasItem(child, trailers.item),
+		outcome:      string(completedStep.Outcome),
 	}, nil
 }
 

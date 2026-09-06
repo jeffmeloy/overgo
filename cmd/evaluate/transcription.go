@@ -137,12 +137,16 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 	}
 	inputs := make([]evaluation.TranscriptionResourceInput, len(manifest.Inputs))
 	for index, input := range manifest.Inputs {
-		data, readErr := os.ReadFile(resolveEvaluationPath(base, input.Path))
-		if readErr != nil {
-			return readErr
+		var audio artifact.ID
+		for _, testCase := range suite.Cases {
+			if testCase.Name == input.Name {
+				audio = testCase.Source.Audio
+				break
+			}
 		}
 		inputs[index] = evaluation.TranscriptionResourceInput{
-			Name: input.Name, Data: data, Origin: input.Origin, Policy: input.Policy,
+			Name: input.Name, Policy: input.Policy,
+			Reference: dataset.AudioPayloadReference{Path: resolveEvaluationPath(base, input.Path), Audio: audio, Origin: input.Origin},
 		}
 	}
 	compiled, err := evaluation.CompileTranscription(suite)

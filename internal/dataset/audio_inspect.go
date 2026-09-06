@@ -22,12 +22,23 @@ const audioInspectionBatchPrefix = "audio/inspection/v2/"
 
 // AudioPayloadOrigin locates encoded audio within a registered container.
 // ValueIndex is the non-null value ordinal of Column, not a source row number.
+// Row, when present, selects a physical row instead; ValueIndex must be zero.
 // An empty Column denotes the complete container file; dataset paths embedded
 // in records are not followed. Container must already exist in the store.
 type AudioPayloadOrigin struct {
 	Container  artifact.ID `json:"container"`
 	Column     string      `json:"column,omitzero"`
 	ValueIndex uint64      `json:"value_index"`
+	Row        *uint64     `json:"row,omitempty"`
+}
+
+// Validate rejects ambiguous coordinates and unsupported container identities.
+func (origin AudioPayloadOrigin) Validate() error {
+	if origin.Container.Kind() != artifact.KindFile && origin.Container.Kind() != artifact.KindDatasetShard ||
+		origin.Column == "" && (origin.ValueIndex != 0 || origin.Row != nil) || origin.Row != nil && origin.ValueIndex != 0 {
+		return errors.New("dataset: invalid audio payload origin")
+	}
+	return nil
 }
 
 // AudioInspectionPolicy supplies explicit resource and admission decisions.
@@ -89,9 +100,8 @@ func InspectAudio(ctx context.Context, repository artifact.Repository, data []by
 	if err := policy.Validate(); err != nil {
 		return AudioInspection{}, err
 	}
-	if origin.Container.Kind() != artifact.KindFile && origin.Container.Kind() != artifact.KindDatasetShard ||
-		origin.Column == "" && origin.ValueIndex != 0 {
-		return AudioInspection{}, errors.New("dataset: invalid audio payload origin")
+	if err := origin.Validate(); err != nil {
+		return AudioInspection{}, err
 	}
 	if _, found, err := repository.Artifact(ctx, origin.Container); err != nil || !found {
 		if err != nil {

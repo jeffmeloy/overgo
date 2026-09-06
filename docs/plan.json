@@ -47,23 +47,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "dataset-materialization",
-          "title": "Register LibriSpeech and share bounded source traversal between training and evaluation",
-          "status": "open",
-          "verify": "go test ./internal/dataset -run '^TestSpeechMaterializationAcceptance$' -count=1 -v",
-          "rationale": "Extend dataset's existing Parquet/Arrow readers into bounded source traversal for trainingdata and evaluation; reuse deterministic split and exact stream-resume owners. Bind shard/row/column identity and target-isolated transcripts; decode once per pass, account for rejects, and resume the exact next record. Replace evaluation's eager os.ReadFile corpus array and full payload clones with the same bounded source traversal. Persist provenance by reference; transformed features remain optional transform-keyed artifacts, not another corpus store. Prove bounded live payloads, split disjointness, resume, corruption/silence refusal and cancellation on a nonempty pinned corpus. Master has separately registered LibriSpeech validation dataset:sha256:39b4aa4872600afff4be0633dc066adfe5ae36ac17ade4a6ac4a16e26852b2e3 and held-out test dataset:sha256:ad4177fe91ec6ce5ffd1299905164d50672d09d08d5d44fdcb4b36430900b1d7. Verify those exact records and physical Parquet sources before reuse; do not duplicate their registrations or infer that the training split is registered. Bind separate training, validation and held-out identities. Diagnose on validation, then freeze normalization, case selection and bounds before held-out scoring. Capability-first execution: complete CPU development and acceptance with the existing full gate; governed checkpoint implementation is an independent efficiency task, not a dataset or training prerequisite. The two master registrations are inventory versions, not training-ready row streams. Derive row-addressed dataset versions from their verified physical shards with lineage to those inventories; an inventory asset with records=1 is not an audio example. Preserve physical row ordinals and null positions when joining byte-array columns, and bound container decoding as well as each encoded/decoded sample.",
-          "depends_on": [
-            "asr-training/sync-dataset-materialization",
-            "audio-decode-consolidation/do"
-          ],
-          "capabilities": [
-            "speech-dataset",
-            "deterministic-splits",
-            "resumable-materialization",
-            "signal-admission-gate"
-          ]
-        },
-        {
           "id": "sync-closed-loop-proof",
           "title": "Record a real pinned CPU quality and resource baseline before training",
           "status": "open",

@@ -162,7 +162,7 @@ func TestCPUASRReference(t *testing.T) {
 	var fw audiodsp.Workspace
 	var ew speechrecognition.Workspace
 	completed, totalFrames, totalTokens := 0, 0, 0
-	err = dataset.ReadParquetTextRows(corpusPath, "bytes", len(capture.Cases), func(index uint64, payload string) error {
+	err = dataset.ReadParquetTextRows(t.Context(), corpusPath, "bytes", len(capture.Cases), func(index uint64, payload string) error {
 		if index >= uint64(len(capture.Cases)) {
 			return fmt.Errorf("extra corpus row")
 		}

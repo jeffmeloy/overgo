@@ -322,7 +322,12 @@ func newTranscriptionResourceFixture(t *testing.T) transcriptionResourceFixture 
 		}
 		cases = append(cases, TranscriptionCase{Name: name, Group: "fixture", Source: inspection.Signal.Source,
 			Reference: reference, SampleCount: sampleCount, SampleRate: 16000, SilentControl: name == "silence"})
-		inputs = append(inputs, TranscriptionResourceInput{Name: name, Data: wave, Origin: origin, Policy: policy})
+		path := filepath.Join(t.TempDir(), name+".wav")
+		if err := os.WriteFile(path, wave, 0600); err != nil {
+			t.Fatal(err)
+		}
+		inputs = append(inputs, TranscriptionResourceInput{Name: name, Policy: policy,
+			Reference: dataset.AudioPayloadReference{Path: path, Audio: id, Origin: origin}})
 	}
 	compiled, err := CompileTranscription(TranscriptionSuite{
 		Kind: TranscriptionKind, Schema: "fixture/resource/v2", Source: "small encoder oracle and deterministic PCM controls",

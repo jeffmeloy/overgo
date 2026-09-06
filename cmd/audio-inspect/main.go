@@ -225,7 +225,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		return encoder.Encode(result)
 	}
 	if *column != "" {
-		err = dataset.ReadParquetTextRows(location.Value, *column, *limit, func(index uint64, value string) error {
+		err = dataset.ReadParquetTextRows(ctx, location.Value, *column, *limit, func(index uint64, value string) error {
 			return observe(index, []byte(value))
 		})
 	} else {

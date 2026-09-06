@@ -959,15 +959,11 @@ func (g *gateContext) deriveProjectedMergeAuthority(
 	if err != nil {
 		return nil, err
 	}
-	baseOutput, err := gitAuthorityOutput(g.repo, "merge-base", "--all", g.planHead, incomingRevision)
+	mergeBaseRevision, err := projectedMergeBase(g.repo, g.planHead, incomingRevision)
 	if err != nil {
 		return nil, err
 	}
-	bases := strings.Fields(string(baseOutput))
-	if len(bases) != 1 {
-		return nil, fmt.Errorf("first-parent-target merge requires one merge base, found %d", len(bases))
-	}
-	mergeBase, err := loadPlan("merge-base", bases[0])
+	mergeBase, err := loadPlan("merge-base", mergeBaseRevision)
 	if err != nil {
 		return nil, err
 	}
@@ -993,7 +989,7 @@ func (g *gateContext) deriveProjectedMergeAuthority(
 		return nil, errors.New("first-parent-target merge has an invalid completion reference")
 	}
 	receipt, err := plan.NewFirstParentTargetMergeAuthority(
-		context.Background(), g.repo, g.planHead, incomingRevision, bases[0],
+		context.Background(), g.repo, g.planHead, incomingRevision, mergeBaseRevision,
 		local, incoming, mergeBase, preAdvance, child, item, step,
 		g.preparation.ID, g.preparationCommit, localAuthority, incomingAuthority,
 		targetStore, sourceStore,
@@ -2100,6 +2096,41 @@ func gitCompletionFile(repo, revision, path string) ([]byte, error) {
 	return gitAuthorityOutput(repo, "show", revision+":"+path)
 }
 
+// projectedMergeBase names the merge base a merge completion reasons
+// from. A history where each side merged the other has two bases; the
+// target's plan projection reasons from the target's own history, so the
+// base on the target's first-parent chain (the target state the incoming
+// side merged) is the one, and a history with none or several bases on
+// that chain refuses.
+func projectedMergeBase(repo, target, incoming string) (string, error) {
+	baseOutput, err := gitAuthorityOutput(repo, "merge-base", "--all", target, incoming)
+	if err != nil {
+		return "", err
+	}
+	bases := strings.Fields(string(baseOutput))
+	if len(bases) == 1 {
+		return bases[0], nil
+	}
+	chainOutput, err := gitAuthorityOutput(repo, "rev-list", "--first-parent", target)
+	if err != nil {
+		return "", err
+	}
+	chain := map[string]bool{}
+	for revision := range strings.FieldsSeq(string(chainOutput)) {
+		chain[revision] = true
+	}
+	var selected []string
+	for _, base := range bases {
+		if chain[base] {
+			selected = append(selected, base)
+		}
+	}
+	if len(selected) != 1 {
+		return "", fmt.Errorf("gate: merge requires one merge base on the target's first-parent chain, found %d of %d", len(selected), len(bases))
+	}
+	return selected[0], nil
+}
+
 func gitAuthorityOutput(repo string, arguments ...string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := newGateGitReaderCommand(repo, arguments...)
@@ -2175,21 +2206,17 @@ func verifyProspectiveGateCompletion(
 	}
 	var mergeBase *plan.Plan
 	if intent.Merge != nil {
-		baseOutput, err := gitAuthorityOutput(repo, "merge-base", "--all", intent.Parent, mergeParent)
+		mergeBaseRevision, err := projectedMergeBase(repo, intent.Parent, mergeParent)
 		if err != nil {
 			return err
 		}
-		bases := strings.Fields(string(baseOutput))
-		if len(bases) != 1 {
-			return fmt.Errorf("gate: completion merge requires one merge base, found %d", len(bases))
-		}
-		data, err := gitCompletionFile(repo, bases[0], plan.Path)
+		data, err := gitCompletionFile(repo, mergeBaseRevision, plan.Path)
 		if err != nil {
 			return err
 		}
 		base, err := plan.ParseHistorical(data)
 		if err != nil {
-			return fmt.Errorf("gate: parse merge-base plan %.12s: %w", bases[0], err)
+			return fmt.Errorf("gate: parse merge-base plan %.12s: %w", mergeBaseRevision, err)
 		}
 		mergeBase = &base
 		if store == nil {
@@ -2204,7 +2231,7 @@ func verifyProspectiveGateCompletion(
 				return errors.New("gate: projected completion has an invalid plan reference")
 			}
 			if err := plan.VerifyFirstParentTargetMergeAuthorityTransition(
-				intent.Parent, mergeParent, bases[0], parents[0], parents[1], base,
+				intent.Parent, mergeParent, mergeBaseRevision, parents[0], parents[1], base,
 				preAdvance, child, item, step, intent.Preparation, intent.PreparationCommit,
 				*mergeAuthority,
 			); err != nil {
@@ -2245,10 +2272,10 @@ func verifyProspectiveGateCompletion(
 			parentAuthorities[index] = authority
 		}
 		baseAuthority, err := plan.ResolveCompletionAuthority(
-			context.Background(), repo, bases[0], base, store,
+			context.Background(), repo, mergeBaseRevision, base, store,
 		)
 		if err != nil {
-			return fmt.Errorf("gate: audit completion merge base %.12s: %w", bases[0], err)
+			return fmt.Errorf("gate: audit completion merge base %.12s: %w", mergeBaseRevision, err)
 		}
 		if !baseAuthority.ProtectsRevision() {
 			return errors.New("gate: completion merge parents do not share a protected epoch; rebase the merge source")

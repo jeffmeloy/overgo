@@ -19,6 +19,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -31,7 +32,7 @@ import (
 // replaying the first edit.
 func TestVideoEditClipActivation(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestVideoEditClipActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	capability := videoCapability()
-	execution := candidateCapabilityExecution(t, store, program)
+	execution := modelrecipetest.CandidateExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
 		output, err := capability.Execute(t.Context(), store, edit, execution, string(raw))

@@ -295,7 +295,8 @@ Additional facts for the master merge:
   compatibility claim `sensenova-production-image-oracle` names the moved
   evidence path); the repoanalysis authority table declares the three
   executor call sites; the internal/server import budget is 42; the clone
-  ceiling is 9999 under the review recorded in 788eea20.
+  lane ceiling was 9999 under the review recorded in 788eea20. Integration
+  preserves master's stricter 9964 ceiling by consolidating repeated helpers.
 - `internal/dataroot` resolves the `OVERGO_DATA_ROOT` base as a working
   directory of its own, so a base whose `local-models.json` points at data
   in another home resolves from any tree; the lane's `build/latentvideo`

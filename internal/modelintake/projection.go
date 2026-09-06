@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
@@ -96,32 +94,4 @@ func RegisterProjectionCandidate(ctx context.Context, store artifact.Repository,
 		}
 	}
 	return nil
-}
-
-// VerifyProjection proves the projector loads on the host and declares the
-// media its recipe binds, and publishes that as the candidate's
-// verification evidence bound to the code revision.
-func VerifyProjection(ctx context.Context, store artifact.Repository, candidate ProjectionCandidate, revision string) (modelrecipe.Verification, error) {
-	started := time.Now()
-	session, err := projector.OpenSession(ctx, candidate.ProjectorPath, projector.OpenOptions{})
-	if err != nil {
-		return modelrecipe.Verification{}, fmt.Errorf("projector did not open: %w", err)
-	}
-	capabilities := session.Capabilities()
-	if err := session.Close(); err != nil {
-		return modelrecipe.Verification{}, err
-	}
-	var declared []string
-	for _, kind := range candidate.Media {
-		declared = append(declared, string(kind))
-	}
-	evidence := fmt.Sprintf("projector opened on the host; media=%s; image=%v audio=%v video=%v",
-		strings.Join(declared, ","), capabilities.Image, capabilities.Audio, capabilities.Video)
-	return PublishVerification(ctx, store, candidate.Definition, revision, time.Since(started), "host", "go", evidence)
-}
-
-// ActivateProjection binds the verification to the projection recipe as
-// its active evidence: the model then serves the projector's media.
-func ActivateProjection(ctx context.Context, store artifact.Repository, candidate ProjectionCandidate, verification modelrecipe.Verification, reason string) error {
-	return modelrecipe.ActivateCapability(ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, reason)
 }

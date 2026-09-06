@@ -120,20 +120,16 @@ func run() error {
 	}
 	switch verb {
 	case "verify":
-		if selectedTask == recipe.TaskProjection {
-			rawInput, err := readInput(*input)
-			if err != nil {
-				return err
-			}
-			return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput)
-		}
-		if selectedTask == recipe.TaskInference {
+		if selectedTask == recipe.TaskInference || selectedTask == recipe.TaskProjection {
 			rawInput, inputErr := readInput(*input)
 			if inputErr != nil {
 				return inputErr
 			}
 			if strings.TrimSpace(rawInput) == "" {
 				return errors.New("verify requires -input JSON")
+			}
+			if selectedTask == recipe.TaskProjection {
+				return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput)
 			}
 			sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
 			if sessionErr != nil {

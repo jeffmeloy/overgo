@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
@@ -75,7 +76,7 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 	}
 	results := make(chan result, 2)
 	run := func(store artifact.Repository, _ artifact.ID, program recipe.Program, raw string) {
-		execution := candidateExecution(t, store, program)
+		execution := modelrecipetest.CandidateExecution(t, store, program)
 		value, err := director.Executor()(t.Context(), store, "model", execution, raw)
 		results <- result{value: value, err: err}
 	}
@@ -159,15 +160,6 @@ func capabilityFixture(t *testing.T, name string) (*overgodb.Store, artifact.ID,
 	return store, modelID, program
 }
 
-func candidateExecution(t *testing.T, store artifact.Reader, program recipe.Program) modelrecipe.CapabilityEvidenceSelection {
-	t.Helper()
-	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return execution
-}
-
 func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	store, _, program := capabilityFixture(t, "scalar-model")
 	execute := JSONScalar[scalarRequest, int, int](
@@ -188,7 +180,7 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 			)
 		},
 	)
-	execution := candidateExecution(t, store, program)
+	execution := modelrecipetest.CandidateExecution(t, store, program)
 	got, err := execute(t.Context(), store, "abc", execution, `{"value":4}`)
 	if err != nil {
 		t.Fatal(err)
@@ -206,7 +198,7 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 
 func TestExecutorCatalogUsesCompiledEntryModule(t *testing.T) {
 	store, modelID, program := capabilityFixture(t, "executor-catalog")
-	execution := candidateExecution(t, store, program)
+	execution := modelrecipetest.CandidateExecution(t, store, program)
 	catalog := ExecutorCatalog{scalarModule: func(
 		_ context.Context, _ artifact.Repository, _ string, bound modelrecipe.CapabilityEvidenceSelection, raw string,
 	) (any, error) {
@@ -280,7 +272,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 	}
 	execute := director.Executor()
 	foreign := testutil.ArtifactID(t, artifact.KindModel, "foreign-cached-model")
-	execution := candidateExecution(t, store, program)
+	execution := modelrecipetest.CandidateExecution(t, store, program)
 	execution.Activation.Definition.Model = foreign
 	if _, err := execute(t.Context(), store, "model", execution, `{"value":4}`); err == nil {
 		t.Fatal("foreign model loaded into session director")
@@ -289,7 +281,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 		t.Fatalf("foreign admission loaded %d models", loads)
 	}
 	for raw, want := range map[string]int{`{"value":4}`: 8, `{"value":5}`: 10} {
-		got, err := execute(t.Context(), store, "model", candidateExecution(t, store, program), raw)
+		got, err := execute(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, program), raw)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -321,7 +313,7 @@ func TestComponentSessionDirectorFollowsCompiledLifetimes(t *testing.T) {
 		t.Fatalf("request resources=%+v", requestResources)
 	}
 	for range 2 {
-		if _, err := execute(t.Context(), store, "model", candidateExecution(t, store, requestProgram), `{"value":6}`); err != nil {
+		if _, err := execute(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, requestProgram), `{"value":6}`); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -445,7 +437,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		output, err := director.Executor()(t.Context(), store, "model", candidateExecution(t, store, program), `{"condition":2,"source":3}`)
+		output, err := director.Executor()(t.Context(), store, "model", modelrecipetest.CandidateExecution(t, store, program), `{"condition":2,"source":3}`)
 		if err != nil {
 			t.Fatal(err)
 		}

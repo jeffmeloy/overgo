@@ -182,7 +182,8 @@ func (r *inflightRegistry) begin(responseID string, bound int) *inflightTurn {
 		if len(r.turns) < bound {
 			break
 		}
-		if turn.done {
+		_, done, _, _, _ := turn.snapshot()
+		if done {
 			delete(r.turns, id)
 		}
 	}

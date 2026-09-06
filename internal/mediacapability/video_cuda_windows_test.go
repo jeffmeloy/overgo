@@ -21,6 +21,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -28,7 +29,7 @@ import (
 func TestVideoProductionActivation(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +91,7 @@ func TestVideoProductionActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	capability := videoCapability()
-	execution := candidateCapabilityExecution(t, store, program)
+	execution := modelrecipetest.CandidateExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
 		output, err := capability.Execute(t.Context(), store, edit, execution, string(raw))

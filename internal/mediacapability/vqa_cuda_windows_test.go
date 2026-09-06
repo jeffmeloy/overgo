@@ -14,6 +14,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/vqaserve"
 )
@@ -68,7 +69,7 @@ func TestVQAActivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	execution := candidateCapabilityExecution(t, store, program)
+	execution := modelrecipetest.CandidateExecution(t, store, program)
 	output, err := capability.Execute(t.Context(), store, model, execution, string(raw))
 	if err != nil {
 		t.Fatal(err)

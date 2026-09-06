@@ -25,6 +25,17 @@ type Capability struct {
 	Runtime *workflowruntime.Runtime
 }
 
+// CandidateExecution compiles the real pre-activation capability selection for
+// runtime and media-executor fixtures; failures remain fatal to the calling test.
+func CandidateExecution(t testing.TB, store artifact.Reader, program recipe.Program) modelrecipe.CapabilityEvidenceSelection {
+	t.Helper()
+	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return execution
+}
+
 // PublishModelDefinition publishes a small, fully typed model-definition
 // authority suitable for tests that must reject descriptor-only model claims.
 func PublishModelDefinition(

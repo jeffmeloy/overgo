@@ -89,7 +89,7 @@ func answerChoiceByGeneration(
 	if err != nil {
 		return ChoiceObservation{}, err
 	}
-	result, err := generateText(ctx, runtime, testCase.Name, shaped+chatAnswerOpener, chatAnswerTokens)
+	result, err := Record(ctx, runtime, testCase.Name, shaped+chatAnswerOpener, chatAnswerTokens)
 	if err != nil {
 		return ChoiceObservation{}, err
 	}

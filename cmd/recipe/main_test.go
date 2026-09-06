@@ -14,19 +14,6 @@ import (
 	"overgo/internal/testutil"
 )
 
-func candidateCapabilityExecution(
-	t testing.TB,
-	store artifact.Reader,
-	program recipe.Program,
-) modelrecipe.CapabilityEvidenceSelection {
-	t.Helper()
-	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return execution
-}
-
 func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 	for _, task := range []recipe.Task{
 		recipe.TaskGeneration, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,

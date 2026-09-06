@@ -18,6 +18,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -29,7 +30,7 @@ import (
 // plan from the seed, and the resident second run replays the first clip.
 func TestVideoPromptActivation(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +75,7 @@ func TestVideoPromptActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	capability := videoCapability()
-	execution := candidateCapabilityExecution(t, store, program)
+	execution := modelrecipetest.CandidateExecution(t, store, program)
 	var firstHash string
 	for run := 1; run <= 2; run++ {
 		output, err := capability.Execute(t.Context(), store, wan, execution, string(raw))

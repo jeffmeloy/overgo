@@ -12,6 +12,7 @@ const gemma4ClosedThought = "<|channel>thought\n<channel|>"
 type gemmaPromptSource struct {
 	width      int
 	assistant  string
+	attention  bool
 	image      func(context.Context, image.Image) (Gemma4Output, error)
 	audio      func(context.Context, []float32) (Gemma4AudioOutput, error)
 	video      func(context.Context, []image.Image) (Gemma4VideoOutput, error)
@@ -20,13 +21,15 @@ type gemmaPromptSource struct {
 
 func gemma4PromptSource(r *Gemma4Runner) gemmaPromptSource {
 	return gemmaPromptSource{
-		width: r.spec.Hidden, assistant: gemma4ClosedThought,
+		width: r.spec.Hidden, assistant: gemma4ClosedThought, attention: true,
 		image: r.EncodeImage, audio: r.EncodeAudio, video: r.EncodeVideoFrames,
 		sampleRate: func() (int, error) { spec, err := r.AudioSpec(); return spec.SampleRate, err },
 	}
 }
 
 func gemma4TowerPromptSource(r *Gemma4TowerRunner) gemmaPromptSource {
+	// The admitted E4B tower's text configuration is causal, including media.
+	// Its image spans supply embeddings without bidirectional attention blocks.
 	return gemmaPromptSource{
 		width: r.spec.Vision.ProjectionDim,
 		image: func(ctx context.Context, source image.Image) (Gemma4Output, error) {

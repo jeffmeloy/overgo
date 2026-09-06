@@ -558,14 +558,16 @@ under its name. Validate runs a model as an operation the strip shows with
 its steps: an exact suite is recorded from the model's own greedy output over
 the prompts in `library_validation.json`, replayed exactly, published as gate
 and run evidence, and the recipe is activated with that evidence, after which
-the catalog serves the model as verified; a dataset validates by the preview
+the catalog serves the model as verified. This replay checks consistency,
+not independent task accuracy; a dataset validates by the preview
 the datasets route answers. Every stage reports its receipt as the store's
 identities. A projector beside the model, or one named with it, registers as
 the model's projection candidate: the files sort by what each declares,
-never by name, and the validation adds a stage in which the projector opens
-on the host, declares its media, and activates with that evidence, after
-which the served model accepts the projector's media. A model already on
-disk, with an optional projector, rides the same lifecycle from the tab.
+never by name. Projector activation requires an executed exact media suite
+covering every declared input mode through the recipe CLI. The library's
+text-prompt validation currently refuses projector requests because it has
+no media fixtures; opening a projector cannot verify its outputs. A model
+already on disk, with an optional projector, can register from the same tab.
 
 ### Retained workbench
 

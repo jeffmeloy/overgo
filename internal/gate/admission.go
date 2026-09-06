@@ -175,7 +175,7 @@ func strayRootExecutables(repo string) ([]string, error) {
 // stepScope refuses staged paths outside the plan (the commit would ship
 // them) and reports unstaged co-implementer dirt without blocking on it.
 func (g *gateContext) stepScope() (bool, error) {
-	staged, err := gitLines(g.repo, "diff", "--cached", "--name-only")
+	staged, err := stagedPaths(g.repo)
 	if err != nil {
 		return false, err
 	}
@@ -219,6 +219,12 @@ func (g *gateContext) stepScope() (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// stagedPaths includes both the deletion and addition of a rename, independent
+// of Git's rename presentation settings. Both affect verification and commit scope.
+func stagedPaths(repo string) ([]string, error) {
+	return gitLines(repo, "diff", "--cached", "--no-renames", "--name-only")
 }
 
 func unplannedVerificationInput(path string) bool {

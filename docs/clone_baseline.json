@@ -1,5 +1,5 @@
 {
   "version": 1,
   "doc": "Reviewed ceiling on duplicate-excess AST nodes; the gate refuses commits above it. Lower with clone-census -update-baseline after tightening.",
-  "duplicate_excess_nodes": 9999
+  "duplicate_excess_nodes": 9964
 }

@@ -18,6 +18,7 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
 	"overgo/internal/testevidence"
+	"overgo/internal/testutil"
 )
 
 // TestFrontPageServedProjector proves that a model whose store declares a
@@ -32,26 +33,26 @@ func TestFrontPageServedProjector(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip + ": a served model is integration")
 	}
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
-		t.Skipf("served projector UNAVAILABLE: %v", err)
+		t.Fatalf("served projector unavailable: %v", err)
 	}
 	store := roots.Store
 	if _, err := os.Stat(store); err != nil {
-		t.Skipf("served projector UNAVAILABLE: no store at %s", store)
+		t.Fatalf("served projector unavailable: no store at %s", store)
 	}
 	ctx, cancel := context.WithTimeoutCause(t.Context(), 8*time.Minute, errors.New("served projector: the model did not serve in time"))
 	defer cancel()
 	name, location, projectorPath := smallestDeclaredProjector(t, ctx, store)
 	if location == "" {
-		t.Skip("served projector UNAVAILABLE: no servable model declares a projector with bytes on disk")
+		t.Fatal("served projector unavailable: no servable model declares a projector with bytes on disk")
 	}
 	binary := filepath.Join(t.TempDir(), "overgo-server.exe")
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path: "go", Args: []string{"build", "-o", binary, "overgo/cmd/server"}, Stdout: os.Stderr, Stderr: os.Stderr,
 	})
 	if err != nil || receipt.ExitCode != 0 {
-		t.Skipf("served projector UNAVAILABLE: the server binary did not build: %v (exit %d)", err, receipt.ExitCode)
+		t.Fatalf("served projector unavailable: the server binary did not build: %v (exit %d)", err, receipt.ExitCode)
 	}
 	t.Logf("served projector: model %s at %s, declared projector %s", name, location, projectorPath)
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
@@ -108,7 +109,7 @@ func smallestDeclaredProjector(t *testing.T, ctx context.Context, store string) 
 	t.Helper()
 	db, err := overgodb.OpenReadOnly(store)
 	if err != nil {
-		t.Skipf("served projector UNAVAILABLE: the store did not open: %v", err)
+		t.Fatalf("served projector unavailable: the store did not open: %v", err)
 	}
 	defer db.Close()
 	memo := discovery.LoadMemo(ctx, db)

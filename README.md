@@ -515,10 +515,23 @@ derived from the server, not from client configuration:
   (chunking, denoising timesteps, flow sigmas), refusing a clip whose
   latent frames the schedule cannot chunk. The run goes through the generic run
   route as an operation the strip shows, and its outputs land in the thread
-  as media artifacts (PNG, GIF, WAV) with their provenance.
+  as media artifacts (PNG, GIF, WAV) with their provenance. A question about
+  an image runs the same way: the vqa mode lists the models activated for
+  visual question answering with an image control (a stored artifact) and a
+  question control (the message body), the decode budget left blank is the
+  serving declaration's, and the answer lands in the thread as the
+  assistant's text, published as a plain-text output artifact behind the run
+  record. The serving pipeline is the one the parity harness verifies
+  (`internal/vqaserve`: the processor, the device vision tower, merger,
+  chained prefill and decode, and the two-stage recipe execution), so the
+  page answers with the activation the harness proved.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
-  refused by the served capability like any attachment.
+  refused by the served capability like any attachment. When the chosen
+  generation mode's request names an artifact (LiveEdit's source clip),
+  the same button fills that control with the card's stored id instead, so
+  a clip the page just generated is the next edit's source without leaving
+  the store.
 - **Turn inspection.** Any turn opens in the inspector with its run record,
   and the analysis inspectors run over that turn's exact prompt and
   completion.

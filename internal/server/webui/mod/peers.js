@@ -137,10 +137,7 @@
           for (const refusal of compiledPlan.refusals || []) replicaCards.push(overgo.errorBanner(refusal.reason + " / " + refusal.detail));
           evidenceHost.replaceChildren(...replicaCards);
           status.textContent = "placement compiled / " + fmt.shortID(compiledPlan.identity);
-        } catch (err) {
-          compiledPlan = null; reconcile.disabled = true;
-          status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { compiledPlan = null; reconcile.disabled = true; status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       });
 
       reconcile.addEventListener("click", async () => {

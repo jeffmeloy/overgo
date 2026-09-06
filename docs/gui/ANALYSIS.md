@@ -254,16 +254,32 @@ What the rows established, each a record rather than a statement:
   context through the Wan text pipeline, flow sigmas for its timesteps)
   and the planar source video decoded from the clip's GIF; a clip whose
   latent frames the schedule cannot chunk is refused with the admissible
-  counts. The page fills the artifact id by hand until the media-reference
-  control lands. The HTTP package names neither the media executor catalog
+  counts. The clip reference is a typed artifact id: the controls
+  reflection declares it as an artifact control, and a media card's "use as
+  input" fills it with the card's stored id when the chosen mode's request
+  names one (the journey's clip legs prove it on the oscillator video and
+  LiveEdit). The HTTP package names neither the media executor catalog
   nor the model intake: the launcher binds `GenerationCatalog` (executors,
   declared controls, output content) and `LibraryIntake`
   (`internal/libraryintake`: model files, register, validate) into the
   server, which keeps its internal-import budget at 42 after the audio
   merge. The capability runtime replays an
   identical request from its recorded artifact, so media output types
-  decode their own recorded content. The VQA activation has no executor in
-  the catalog and is a parked finding.
+  decode their own recorded content. The VQA activation runs from the page
+  (`internal/vqaserve`, lifted from cmd/vqaparity's serving copies: the
+  processor, the device pipeline of vision tower, merger, chained prefill
+  and decode, and the two-stage recipe execution; the harness keeps its
+  goldens and verifiers and drives the shared pipeline with the golden
+  chain as the per-step verifier). The catalog's vqa capability takes a
+  stored image artifact, a question and an optional decode budget (the
+  serving declaration `serve_policy.json` when blank, the budget the
+  activation evidence is produced under), reads the image from the store,
+  and returns the answer text, which the workspace publishes as a
+  plain-text output artifact; the page's vqa mode feeds the message body to
+  the question control, takes the image from a media card's "use as input",
+  and renders the answer as the assistant's turn. `TestVQAActivation`
+  proves the canonical RxBrain case through the catalog's executor on the
+  device.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

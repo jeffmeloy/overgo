@@ -84,8 +84,9 @@ func NewStoreGenerationWorkspace(store *overgodb.Store, catalog GenerationCatalo
 	return &StoreGenerationWorkspace{store: store, catalog: catalog, limit: limit}
 }
 
-// generationTasks are the media tasks a generation capability serves.
-var generationTasks = []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVideoEdit, recipe.TaskSpeech}
+// generationTasks are the tasks a generation capability serves: the media
+// outputs and the text answer to a question about an image.
+var generationTasks = []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVideoEdit, recipe.TaskSpeech, recipe.TaskVQA}
 
 // generationRunKeyPrefix roots every generation run record's batch key.
 const generationRunKeyPrefix = "generation/run/"
@@ -114,11 +115,19 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 			if _, known := workspace.catalog.Execute[capability.Task]; !known {
 				continue
 			}
-			selection, err := modelrecipe.ResolveActiveExecution(ctx, workspace.store, entry.Model, capability.Task, modelrecipe.SessionWarm)
-			if err != nil {
-				return nil, fmt.Errorf("generation workspace: %s for %s: %w", capability.Task, entry.Model, err)
+			selection, executionErr := modelrecipe.ResolveActiveExecution(ctx, workspace.store, entry.Model, capability.Task, modelrecipe.SessionWarm)
+			program, refusal := selection.Program, ""
+			if executionErr != nil {
+				// An activation whose execution the store cannot resolve (a
+				// recipe declaring no component session, a model without a
+				// recorded extent) lists with the reason rather than failing
+				// the workspace for every other activation.
+				var err error
+				if _, program, err = modelrecipe.ResolveActiveCapability(ctx, workspace.store, entry.Model, capability.Task); err != nil {
+					return nil, fmt.Errorf("generation workspace: %s for %s: %w", capability.Task, entry.Model, err)
+				}
+				refusal = executionErr.Error()
 			}
-			program := selection.Program
 			definition := program.Definition()
 			stages := program.Stages()
 			if len(stages) == 0 {
@@ -126,8 +135,7 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 			}
 			directory, _ := workspace.executionPath(ctx, entry.Model, entry.Location)
 			var declared []WorkflowControl
-			var refusal string
-			if workspace.catalog.Controls != nil {
+			if workspace.catalog.Controls != nil && refusal == "" {
 				declared, refusal = workspace.catalog.Controls(stages[0].Module.ID, directory)
 			}
 			capabilities = append(capabilities, WorkflowCapability{

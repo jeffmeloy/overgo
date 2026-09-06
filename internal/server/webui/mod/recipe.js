@@ -11,10 +11,7 @@
       let bundles = [];
       try {
         data = await overgo.api.get("/recipes/active?task=inference");
-      } catch (err) {
-        panel.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
+      } catch (err) { panel.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
 	  try {
 		const bundleData = await overgo.api.get("/capabilities/bundles");
 		bundles = bundleData.bundles || [];
@@ -50,9 +47,7 @@
       if (runtime.evidence && runtime.evidence.length) {
         panel.appendChild(el("div", { class: "section-title", text: "Admission evidence" }));
         const evidence = el("div", { class: "row" });
-        for (const id of runtime.evidence) {
-          evidence.appendChild(el("span", { class: "tag", title: id, text: fmt.shortID(id) }));
-        }
+        for (const id of runtime.evidence) evidence.appendChild(el("span", { class: "tag", title: id, text: fmt.shortID(id) }));
         panel.appendChild(evidence);
       }
 	  if (bundles.length) {

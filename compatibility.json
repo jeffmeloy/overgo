@@ -391,7 +391,7 @@
      "contains": "func executeVQAProgram(",
      "path": "cmd/vqaparity/recipeserve.go",
      "role": "source",
-     "identity": "file:sha256:0e57a6efbf606072009231ddd010eafead1d2617b59b2665ba6e52fdee907053"
+     "identity": "file:sha256:90e89bd50dc1ade5facbc6d310abe6075f536095853480c28cd2b86d12777fa4"
     },
     {
      "contains": "func TestRxBrainProductionParity(",

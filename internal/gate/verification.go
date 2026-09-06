@@ -991,8 +991,8 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.audit = append(g.audit, fmt.Sprintf(
-			"dependent fixture evidence not credited: %d skipped, %d unavailable",
-			len(report.Skipped), len(report.Unavailable),
+			"dependent fixture evidence not credited: %d skipped [%s], %d unavailable [%s]",
+			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
 		))
 	} else if err := g.recordPackagePasses(dependentPending, "complete", dependentInputs); err != nil {
 		return false, err

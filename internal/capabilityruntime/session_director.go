@@ -476,7 +476,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	if err == nil {
 		output, walls, executeErr := ExecuteMeasured[Output](
 			ctx, store, modelID, program,
-			"recipe/run/"+program.Definition().ID.String()+"/"+content.Descriptor.ID.String(), inputs,
+			RunKey(program.Definition(), content), inputs,
 			func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
 		)
 		var measured Measured
@@ -902,7 +902,7 @@ func executeScalar[Input, Model, Output any](
 	inputPort := definition.Inputs[0]
 	return ExecuteMeasured[Output](
 		ctx, store, modelID, program,
-		"recipe/run/"+definition.ID.String()+"/"+content.Descriptor.ID.String(),
+		RunKey(definition, content),
 		map[recipe.PortName]workflowruntime.Value{
 			inputPort.Name: workflowruntime.ArtifactValue(inputPort.Data, input, content),
 		},

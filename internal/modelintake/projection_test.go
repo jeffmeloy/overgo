@@ -11,6 +11,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/testevidence"
+	"overgo/internal/testutil"
 )
 
 // storedProjectionPair finds a model whose store activation binds a
@@ -18,13 +19,13 @@ import (
 // store is the authority for which pair that is; no name is typed here.
 func storedProjectionPair(t *testing.T) (modelPath, projectorPath string, projection recipe.Definition) {
 	t.Helper()
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
-		t.Skipf("projection pair UNAVAILABLE: %v", err)
+		t.Fatalf("projection pair unavailable: %v", err)
 	}
 	store, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
-		t.Skipf("projection pair UNAVAILABLE: %v", err)
+		t.Fatalf("projection pair unavailable: %v", err)
 	}
 	defer store.Close()
 	ctx := t.Context()
@@ -50,7 +51,7 @@ func storedProjectionPair(t *testing.T) (modelPath, projectorPath string, projec
 		}
 		return entry.Location, declared, program.Definition()
 	}
-	t.Skip("projection pair UNAVAILABLE: the store activates no projector with bytes on disk")
+	t.Fatal("projection pair unavailable: the store activates no projector with bytes on disk")
 	return "", "", recipe.Definition{}
 }
 

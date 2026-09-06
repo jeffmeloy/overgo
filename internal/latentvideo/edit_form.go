@@ -99,19 +99,15 @@ func (policy EditPolicy) admitLatentFrames(latent int) error {
 // artifact rather than a compiled condition and decoded pixels: the page
 // form, which the video capability resolves before the runtime.
 func (request ReferenceEditRequest) ClipForm() bool {
-	return request.Prompt != "" && request.SourceArtifact != "" &&
+	return request.Prompt != "" && request.SourceArtifact.Valid() &&
 		len(request.Condition.TextContext) == 0 && len(request.Source.Pixels) == 0
 }
 
 // ValidateReferenceEditRequestForm admits the complete request or the clip
-// form: a prompt, a parseable source clip artifact id, and a non-negative
-// seed.
+// form: a prompt, a source clip artifact id, and a non-negative seed.
 func ValidateReferenceEditRequestForm(request ReferenceEditRequest) error {
 	if !request.ClipForm() {
 		return ValidateReferenceEditRequest(request)
-	}
-	if _, err := artifact.ParseID(request.SourceArtifact); err != nil {
-		return fmt.Errorf("latent video: source clip: %w", err)
 	}
 	if request.Seed < 0 {
 		return errors.New("latent video: negative LiveEdit seed")
@@ -165,19 +161,15 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if err := ValidateReferenceEditRequestForm(request); err != nil {
 		return ReferenceEditRequest{}, err
 	}
-	id, err := artifact.ParseID(request.SourceArtifact)
-	if err != nil {
-		return ReferenceEditRequest{}, err
-	}
-	content, found, err := artifact.ReadContent(ctx, reader, id)
+	content, found, err := artifact.ReadContent(ctx, reader, request.SourceArtifact)
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}
 	if !found {
-		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is absent", id)
+		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is absent", request.SourceArtifact)
 	}
 	if content.Descriptor.MediaType != media.GIFMediaType {
-		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is %s, not a GIF", id, content.Descriptor.MediaType)
+		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is %s, not a GIF", request.SourceArtifact, content.Descriptor.MediaType)
 	}
 	source, err := SourceVideoFromGIF(content.Data)
 	if err != nil {

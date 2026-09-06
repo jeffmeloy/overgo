@@ -171,9 +171,7 @@
       // A local chip has no durable evidence; its detail is the chip's own facts.
       const projection = status && status.local ? { id, operation: status } : await api.get("/operations/evidence?id=" + encodeURIComponent(id), { signal: controller.signal });
       if (selected === id) renderDetail(host, projection);
-    } catch (err) {
-      if (!err || err.name !== "AbortError") renderDetailError(host, err);
-    } finally {
+    } catch (err) { if (!err || err.name !== "AbortError") renderDetailError(host, err); } finally {
       if (detailRequest === controller) detailRequest = null;
     }
   }

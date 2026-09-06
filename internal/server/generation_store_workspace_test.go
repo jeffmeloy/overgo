@@ -31,6 +31,15 @@ import (
 // can declare, with no profile and host placement.
 func activatedImageModel(t *testing.T, store *overgodb.Store) artifact.ID {
 	t.Helper()
+	return activateModel(t, store, func(modelID artifact.ID) (recipe.Definition, error) {
+		return modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, modelID, artifact.ID{})
+	})
+}
+
+// activateModel publishes a model with bytes on disk and a verified
+// activation of the definition built over it.
+func activateModel(t *testing.T, store *overgodb.Store, define func(artifact.ID) (recipe.Definition, error)) artifact.ID {
+	t.Helper()
 	ctx := t.Context()
 	payload := []byte("oscillator-weights")
 	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
@@ -54,7 +63,7 @@ func activatedImageModel(t *testing.T, store *overgodb.Store) artifact.ID {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, manifest.ID, artifact.ID{})
+	definition, err := define(manifest.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,13 +175,13 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip + ": generating from store models is integration")
 	}
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
-		t.Skipf("store media UNAVAILABLE: %v", err)
+		t.Fatalf("store media unavailable: %v", err)
 	}
 	store, err := overgodb.Open(roots.Store)
 	if err != nil {
-		t.Skipf("store media UNAVAILABLE: %v", err)
+		t.Fatalf("store media unavailable: %v", err)
 	}
 	defer store.Close()
 	ctx := t.Context()
@@ -191,7 +200,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 		}
 	}
 	if oscillator == nil {
-		t.Skip("store media UNAVAILABLE: the store activates no oscillator image model")
+		t.Fatal("store media unavailable: the store activates no oscillator image model")
 	}
 	if tasks[recipe.TaskSpeech] == 0 || tasks[recipe.TaskVideoGen] == 0 {
 		t.Errorf("the store's speech and video activations are not listed: %v", tasks)

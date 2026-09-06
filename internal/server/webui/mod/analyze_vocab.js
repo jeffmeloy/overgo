@@ -35,10 +35,7 @@
         let data;
         try {
           data = await overgo.api.get("/analyze/vocab?" + params.toString());
-        } catch (err) {
-          host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-          return;
-        }
+        } catch (err) { host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
         // Clamp a past-the-end page back to the last populated window.
         if (data.tokens.length === 0 && offset > 0 && data.matched > 0) {
           offset = Math.max(0, Math.floor((data.matched - 1) / limit) * limit);

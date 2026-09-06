@@ -548,6 +548,8 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"openrouter-evals/do",
 		"audio-staged-surface/do",
 		"merge-4e0b9a670603/do",
+		"merge-b3977f8cff14/do",
+		"merge-7d3ca937764c/do",
 		// Rows retained from the master plan at the lane base (9dce4fca):
 		// the plan authority protects every identity committed at the
 		// protected revision, so the lane keeps them after its own rows and
@@ -705,6 +707,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/e4b-serving-repair",
 		"modality-verification/e4b-serving-admission",
 		"gui-worktree-integration/merge",
+		"gui-vqa-integration/merge",
 		"gui-validation-handoff/do",
 		"audio-worktree-integration/register-models",
 		// Accept or remove the staged API from the explicitly authorized audio intake.

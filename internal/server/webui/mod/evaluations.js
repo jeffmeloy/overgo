@@ -145,9 +145,7 @@
           const completed = await overgo.waitOperation(operation, renderOperation);
           renderOperation(completed);
           await loadHistory();
-        } catch (err) {
-          status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        } finally {
+        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally {
           operation = null;
           run.disabled = false;
           cancel.style.display = "none";

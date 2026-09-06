@@ -69,8 +69,12 @@
         el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
         facts);
       // A media output in this thread re-enters the composer as the next
-      // turn's attachment, refused or accepted by the served capability.
-      const thread = overgo.thread(panel, { reuse: (file) => composer.addFile(file) });
+      // turn's attachment, refused or accepted by the served capability; a
+      // mode whose request names an artifact takes the card's stored id.
+      const thread = overgo.thread(panel, { reuse: (file, artifact) => {
+        const field = [...generation.fields.values()].find((field) => field.control.type === "artifact");
+        if (field && artifact) field.input.value = artifact; else composer.addFile(file);
+      } });
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },
@@ -101,7 +105,7 @@
           value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
         const select = () => {
           generation.capability = declared.find((capability) => capability.recipe === picker.value && !capability.refusal) || null;
-          const typed = generation.capability ? generation.capability.controls.filter((control) => !(control.type === "text" && (control.name === "prompt" || control.name === "text"))) : [];
+          const typed = generation.capability ? generation.capability.controls.filter((control) => control !== overgo.bodyControl(generation.capability.controls)) : [];
           generation.fields = overgo.controlInputs(controlsHost, typed);
         };
         picker.addEventListener("change", select);

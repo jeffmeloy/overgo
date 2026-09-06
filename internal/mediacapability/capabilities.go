@@ -168,6 +168,7 @@ var Catalog = map[recipe.Task]Capability{
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
 	recipe.TaskImageGen: imageCapability(),
 	recipe.TaskVideoGen: videoCapability(),
+	recipe.TaskVQA:      vqaCapability(),
 }
 
 func safetensorsInventory(context, path, config string, companions ...modelartifact.FileSpec) (modelartifact.Inventory, error) {

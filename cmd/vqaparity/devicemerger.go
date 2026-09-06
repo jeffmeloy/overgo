@@ -19,6 +19,7 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/vqaserve"
 )
 
 func runDeviceMerger(l *campaignContext) error {
@@ -126,7 +127,7 @@ func runDeviceMerger(l *campaignContext) error {
 		deviceFeeds[node] = p
 		return nil
 	}
-	if err := firstErr(
+	if err := vqaserve.FirstError(
 		bind(g.Proj1W, merger.Proj1Weight), bind(g.Proj1B, merger.Proj1Bias),
 		bind(g.Proj2W, merger.Proj2Weight), bind(g.Proj2B, merger.Proj2Bias),
 		bind(g.Pool0W, merger.Pool0Weight), bind(g.Pool0B, merger.Pool0Bias),

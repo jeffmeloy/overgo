@@ -1529,6 +1529,38 @@ func preservesPlanIdentities(baseline, candidate Plan) bool {
 	return true
 }
 
+// CompletionMergeBase selects the unique merge base on the target's first-parent
+// history when reciprocal merges leave more than one base. It refuses histories
+// without a unique target-side base, keeping replay and commit admission aligned.
+func CompletionMergeBase(ctx context.Context, repository, target, incoming string) (string, error) {
+	output, err := gitCompletionCommand(ctx, repository, "merge-base", "--all", target, incoming)
+	if err != nil {
+		return "", fmt.Errorf("derive completion merge base: %w", err)
+	}
+	bases := strings.Fields(string(output))
+	if len(bases) == 1 {
+		return bases[0], nil
+	}
+	output, err = gitCompletionCommand(ctx, repository, "rev-list", "--first-parent", target)
+	if err != nil {
+		return "", err
+	}
+	chain := map[string]bool{}
+	for revision := range strings.FieldsSeq(string(output)) {
+		chain[revision] = true
+	}
+	var selected []string
+	for _, base := range bases {
+		if chain[base] {
+			selected = append(selected, base)
+		}
+	}
+	if len(selected) != 1 {
+		return "", fmt.Errorf("completion merge requires one merge base on the target's first-parent chain, found %d of %d", len(selected), len(bases))
+	}
+	return selected[0], nil
+}
+
 func completionTransitionPlans(
 	ctx context.Context,
 	repository string,
@@ -1557,19 +1589,15 @@ func completionTransitionPlans(
 			)
 		}
 		if parentCount == completionParentCount {
-			output, err := gitCompletionCommand(
-				ctx, repository, "merge-base", "--all",
+			base, err := CompletionMergeBase(
+				ctx, repository,
 				commit.parents[completionLocalParentIndex], commit.parents[completionIncomingParentIndex],
 			)
 			if err != nil {
 				return nil, fmt.Errorf("derive completion merge base: %w", err)
 			}
-			bases := strings.Fields(string(output))
-			if len(bases) != 1 {
-				return nil, fmt.Errorf("completion merge requires exactly one merge base, found %d", len(bases))
-			}
-			mergeBases[commit.hash] = bases[0]
-			appendRevision(bases[0])
+			mergeBases[commit.hash] = base
+			appendRevision(base)
 		}
 	}
 	plans, err := gitCompletionPlans(ctx, repository, revisions)

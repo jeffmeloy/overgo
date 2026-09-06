@@ -478,9 +478,26 @@ func TestProspectiveGateCompletionRejectsAmbiguousMergeBase(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
+	// A criss-cross history (each side merged the other) has two bases;
+	// the one on the target's first-parent chain is selected, so the
+	// completion proceeds to the next refusal, the absent authority store.
 	intent := gateCommitIntent{Parent: leftMerge, Merge: &gateMergeIntent{Head: []byte(rightMerge + "\n")}}
 	if err := verifyProspectiveGateCompletion(repository, intent, document, child, string(message), nil); err == nil ||
-		!strings.Contains(err.Error(), "one merge base, found 2") {
+		!strings.Contains(err.Error(), "locked authority store") {
+		t.Fatalf("criss-cross prospective merge error = %v", err)
+	}
+	if selected, err := plan.CompletionMergeBase(t.Context(), repository, leftMerge, rightMerge); err != nil || selected != left {
+		t.Fatalf("criss-cross merge base = %q, %v; want the target's first-parent base %q", selected, err, left)
+	}
+	// A target whose first-parent chain holds none of the bases refuses.
+	fork := commitTree("fork", root)
+	forkMerge := commitTree("fork merge", fork, leftMerge)
+	if bases := strings.Fields(recoveryGit(t, repository, "merge-base", "--all", forkMerge, rightMerge)); len(bases) != 2 {
+		t.Fatalf("forked fixture merge bases = %v, want two", bases)
+	}
+	forked := gateCommitIntent{Parent: forkMerge, Merge: &gateMergeIntent{Head: []byte(rightMerge + "\n")}}
+	if err := verifyProspectiveGateCompletion(repository, forked, document, child, string(message), nil); err == nil ||
+		!strings.Contains(err.Error(), "first-parent chain, found 0 of 2") {
 		t.Fatalf("ambiguous prospective merge-base error = %v", err)
 	}
 }

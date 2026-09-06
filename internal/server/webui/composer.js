@@ -25,26 +25,30 @@
 
   // media: a generation result whose data[] carries artifact URLs.
   async function* media(kind, result, caption) {
-    for (const item of (result && result.data) || []) {
-      yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url) };
-    }
+    for (const item of (result && result.data) || []) yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url) };
     yield { type: "done" };
   }
 
   // generation: one run of a declared capability through the generic run route:
-  // the operation's outputs land as media events, each an artifact with provenance;
-  // the output's media kind follows the server's task vocabulary, not a model list.
-  const outputKind = (task) => task === "speech" ? "audio" : task.startsWith("video") ? "video" : "image";
+  // the operation's outputs land as media events, each an artifact with provenance,
+  // or as the assistant's text when the task answers in text; the output's kind
+  // follows the server's task vocabulary, not a model list.
+  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" ? "text" : task.startsWith("video") ? "video" : "image";
+  // bodyControl: the declared text control the message body feeds (a prompt, a text, a question).
+  const bodyControl = (controls) => (controls || []).find((control) => control.type === "text" && ["prompt", "text", "question"].includes(control.name));
   async function* generation(selection, text, signal) {
     const { capability, fields } = selection;
     const { input, missing } = overgo.controlValues(fields);
-    const textControl = (capability.controls || []).find((control) => control.type === "text" && (control.name === "prompt" || control.name === "text"));
+    const textControl = bodyControl(capability.controls);
     if (textControl) { input[textControl.name] = text; missing.delete(textControl.name); }
     if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
     const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input }, { signal });
     const completed = await overgo.waitOperation(accepted.operation, null, signal);
     if (completed.state !== "completed") { yield { type: "error", message: completed.failure || completed.state }; return; }
-    yield* media(outputKind(capability.task), { data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) }, text);
+    const outputs = (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) }));
+    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), { data: outputs }, text); return; }
+    for (const output of outputs) yield { type: "token", text: await (await overgo.api.blob(output.url)).text() };
+    yield { type: "done" };
   }
 
   // responses: the Responses API SSE events (follow replays them too): deltas, function-call items, usage, failures.
@@ -150,7 +154,7 @@
       const again = reuse && event.url ? el("button", { class: "btn alt", text: "use as input", onclick: async () => {
         try {
           const body = await overgo.api.blob(event.url);
-          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }));
+          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }), event.artifact);
         } catch (err) { errorRow(overgo.friendlyError(err)); }
       } }) : null;
       const card = el("div", { class: "artifact msg media" }, player,
@@ -439,6 +443,7 @@
   overgo.streams = { reply, media, responses };
   overgo.userLine = userLine;
   overgo.generate = generate;
+  overgo.bodyControl = bodyControl;
   overgo.toolStep = toolStep;
   overgo.mediaPlayer = mediaPlayer;
   overgo.mediaKind = mediaKind;

@@ -185,6 +185,8 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoEdit)
 	case "workflow.speech":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskSpeech)
+	case "workflow.vqa":
+		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVQA)
 	}
 	if supported {
 		return true, ""

@@ -149,9 +149,7 @@
                 await chatThread.consume(overgo.streams.reply(result), assistant);
                 if (assistant.content) history.push({ role: "assistant", content: assistant.content });
                 sessions.set(selected, history);
-              } catch (err) {
-                chatThread.errorRow(err.name === "AbortError" ? "stopped" : overgo.friendlyError(err));
-              } finally {
+              } catch (err) { chatThread.errorRow(err.name === "AbortError" ? "stopped" : overgo.friendlyError(err)); } finally {
                 chatController = null;
                 const current = activeAgent();
                 chatComposer.setBusy(!current || current.state !== "active");
@@ -256,9 +254,7 @@
             parts.push(el("div", {}, "decision ", artifactLink(walk.decision.id),
               " / " + walk.decision.answer + " for " + walk.decision.tool));
           }
-          if (walk.result) {
-            parts.push(el("div", { class: "mono", text: "result " + (walk.result.error ? "ERROR " : "") + walk.result.content }));
-          }
+          if (walk.result) parts.push(el("div", { class: "mono", text: "result " + (walk.result.error ? "ERROR " : "") + walk.result.content }));
           host.replaceChildren(el("div", { class: "card" }, ...parts));
         } catch (err) { showError(err); }
       }

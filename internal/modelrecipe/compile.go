@@ -451,7 +451,7 @@ func ReferenceVideoEditDefinition(modelID, profileID artifact.ID) (recipe.Defini
 
 func vqaDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	prepare := recipe.Node{ID: "prepare", Module: ModuleVQAPrepare, Placement: recipe.PlacementHost}
-	generate := recipe.Node{ID: "generate", Module: ModuleVQAGenerate, Placement: recipe.PlacementDevice}
+	generate := recipe.Node{ID: "generate", Module: ModuleVQAGenerate, Placement: recipe.PlacementDevice, Session: recipe.SessionRequest}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskVQA,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},

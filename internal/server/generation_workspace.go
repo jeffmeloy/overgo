@@ -26,6 +26,9 @@ const (
 	WorkflowControlDataset    WorkflowControlType = "dataset"
 	WorkflowControlCheckpoint WorkflowControlType = "checkpoint"
 	WorkflowControlOutput     WorkflowControlType = "managed-output"
+	// WorkflowControlArtifact names an artifact the store holds; a page
+	// fills it from a media card's stored id rather than typing it.
+	WorkflowControlArtifact WorkflowControlType = "artifact"
 )
 
 type WorkflowControl struct {
@@ -241,7 +244,7 @@ func (kind WorkflowControlType) valid() bool {
 	return kind == WorkflowControlText || kind == WorkflowControlInteger ||
 		kind == WorkflowControlNumber || kind == WorkflowControlBoolean ||
 		kind == WorkflowControlDataset || kind == WorkflowControlCheckpoint ||
-		kind == WorkflowControlOutput
+		kind == WorkflowControlOutput || kind == WorkflowControlArtifact
 }
 
 func selectWorkflowCapability(capabilities []WorkflowCapability, task recipe.Task, recipeID artifact.ID) (WorkflowCapability, error) {
@@ -287,6 +290,15 @@ func validateWorkflowValue(controlType WorkflowControlType, raw json.RawMessage)
 	switch controlType {
 	case WorkflowControlText, WorkflowControlOutput:
 		target = new(string)
+	case WorkflowControlArtifact:
+		// The page fills an artifact control from a media card's stored id;
+		// a value that is no artifact id is refused before any run.
+		var value string
+		if err := strictjson.Decode(bytes.NewReader(raw), &value); err != nil {
+			return err
+		}
+		_, err := artifact.ParseID(value)
+		return err
 	case WorkflowControlDataset, WorkflowControlCheckpoint:
 		var value string
 		if err := strictjson.Decode(bytes.NewReader(raw), &value); err != nil {

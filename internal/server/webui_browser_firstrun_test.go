@@ -327,6 +327,56 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	} else {
 		t.Log("speech-out leg not taken: the store declares no speech model")
 	}
+	// 11. Clip back in: a clip from the host oscillator video model lands as
+	// a card, and with LiveEdit chosen in the same mode the card's "use as
+	// input" fills the request's source clip with the card's stored id
+	// instead of attaching bytes.
+	if generationMode("video-gen", "model.oscillator-video-prepare") {
+		say(t, ctx, browser, "a test clip")
+		settle("clip out as an artifact card", `!document.querySelector(".composer .btn").disabled &&
+      !!document.querySelector("#panel-chat .msg.media video") && !!document.querySelector("#panel-chat .msg.media .note a")`)
+		t.Log("clip-out leg: a clip landed as an artifact card")
+		if generationMode("video-gen", "model.reference-video-prepare") {
+			assertBrowserPredicate(t, ctx, browser, `(() => {
+      const card = [...document.querySelectorAll("#panel-chat .msg.media")].find((card) => card.querySelector("video"));
+      const again = card && [...card.querySelectorAll("button")].find((button) => button.textContent === "use as input");
+      if (!again) return false; again.click(); return true; })()`)
+			settle("clip fills the source artifact", `(() => {
+      const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("source_artifact"));
+      const input = field && field.querySelector("input");
+      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .card").length === 0; })()`)
+			t.Log("clip-in leg: the clip's stored id filled LiveEdit's source clip")
+		} else {
+			t.Log("clip-in leg not taken: the store declares no LiveEdit model")
+		}
+	} else {
+		t.Log("clip-out leg not taken: the store declares no host oscillator video model")
+	}
+	// 12. Ask about an image: with the declared VQA model chosen, the image
+	// card's "use as input" fills the request's image with the card's stored
+	// id, the message body is the question, and the answer lands as the
+	// assistant's text.
+	if generationMode("vqa", "model.vqa-prepare") {
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      const card = [...document.querySelectorAll("#panel-chat .msg.media")].find((card) => card.querySelector("img"));
+      const again = card && [...card.querySelectorAll("button")].find((button) => button.textContent === "use as input");
+      if (!again) return false; again.click(); return true; })()`)
+		settle("image fills the vqa image control", `(() => {
+      const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("image"));
+      const input = field && field.querySelector("input");
+      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .card").length === 0; })()`)
+		say(t, ctx, browser, "What does this image show?")
+		settle("the answer lands as the assistant's text", `!document.querySelector(".composer .btn").disabled &&
+      (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0 &&
+      document.querySelectorAll("#panel-chat .msg.error").length === 0`)
+		var answer string
+		if err := browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("vqa leg: the VQA model answered %q", answer)
+	} else {
+		t.Log("vqa leg not taken: the store declares no VQA model")
+	}
 }
 
 // say types one message into the composer through the browser's input

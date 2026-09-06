@@ -74,12 +74,15 @@ func RequireModelDefinitionBinding(ctx context.Context, reader artifact.Reader, 
 	if err != nil || !found {
 		return errors.Join(err, errors.New("model recipe: model definition is absent"))
 	}
-	if descriptor.Schema == ModelDefinitionSchema {
+	switch descriptor.Schema {
+	case ModelDefinitionSchema:
 		definition, err := ResolveModelDefinition(ctx, reader, definitionID)
 		if err != nil || definition.Document.Model != modelID {
 			return errors.Join(err, errors.New("model recipe: model definition differs from model"))
 		}
 		return nil
+	case RemoteModelDefinitionSchema:
+		return requireRemoteModelDefinition(ctx, reader, definitionID, modelID, runtimeRecipeID)
 	}
 	value, err := taskModelDefinitionCodec.RequireExactLineage(ctx, reader, definitionID, taskModelDefinitionLineage)
 	if err != nil || value.Model != modelID || value.Recipe != runtimeRecipeID {

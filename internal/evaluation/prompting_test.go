@@ -6,6 +6,8 @@ func TestPromptingIsAPlanAuthority(t *testing.T) {
 	raw := ListingAuthorities()
 	templated := raw
 	templated.Execution.Prompting = PromptingChatTemplate
+	hosted := raw
+	hosted.Execution.Prompting = PromptingHostedChat
 	suite := MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "test/mmlu/v1", Source: "store/mmlu",
 		Normalization: "sum", Aggregation: AggregationAccuracy,
@@ -26,12 +28,21 @@ func TestPromptingIsAPlanAuthority(t *testing.T) {
 	if rawPlan.Identity() == templatedPlan.Identity() || rawPlan.Execution() == templatedPlan.Execution() {
 		t.Fatal("prompting protocol did not change the plan identity")
 	}
+	// Hosted chat: its own execution policy and scorer authority (the
+	// opener rides the user message), distinct from the templated plan.
+	hostedPlan, err := BindMultipleChoice(compiled, hosted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hostedPlan.Identity() == templatedPlan.Identity() || hostedPlan.Execution() == templatedPlan.Execution() || hostedPlan.Identity() == rawPlan.Identity() {
+		t.Fatal("hosted prompting did not change the plan identity")
+	}
 	invalid := raw
 	invalid.Execution.Prompting = "few-shot"
 	if _, err := BindMultipleChoice(compiled, invalid); err == nil {
 		t.Fatal("unknown prompting protocol was bound")
 	}
-	if PromptingRawCompletion.Label() != "raw-completion" || PromptingChatTemplate.Label() != "chat-template" {
-		t.Fatalf("labels = %q, %q", PromptingRawCompletion.Label(), PromptingChatTemplate.Label())
+	if PromptingRawCompletion.Label() != "raw-completion" || PromptingChatTemplate.Label() != "chat-template" || PromptingHostedChat.Label() != "hosted-chat" {
+		t.Fatalf("labels = %q, %q, %q", PromptingRawCompletion.Label(), PromptingChatTemplate.Label(), PromptingHostedChat.Label())
 	}
 }

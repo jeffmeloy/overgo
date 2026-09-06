@@ -1,10 +1,19 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"overgo/internal/cuda/driver"
 )
+
+// TestRunRefusesHostedModel: a hosted model has no local decode to
+// measure; the refusal names the evaluate path before any device opens.
+func TestRunRefusesHostedModel(t *testing.T) {
+	if err := run([]string{"remote://fake/vendor/model", "hello"}); err == nil || !strings.Contains(err.Error(), "hosted model") {
+		t.Fatalf("hosted benchmark: %v", err)
+	}
+}
 
 func TestParseOptionsBounds(t *testing.T) {
 	want := struct {

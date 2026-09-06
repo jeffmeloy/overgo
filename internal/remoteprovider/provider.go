@@ -87,6 +87,12 @@ func Location(provider Provider) string {
 	return locationScheme + provider.Name + "/" + provider.Model
 }
 
+// IsRemoteLocation reports whether a serving reference names a hosted
+// model rather than bytes on disk.
+func IsRemoteLocation(reference string) bool {
+	return strings.HasPrefix(reference, locationScheme)
+}
+
 // Refusal names why the provider cannot serve now: its key is absent from
 // the environment. An empty refusal means the key is present.
 func Refusal(provider Provider) string {

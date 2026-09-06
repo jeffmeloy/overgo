@@ -363,6 +363,26 @@ What the rows established, each a record rather than a statement:
   verify/activate` refuses the task; the ASR baseline harness publishes
   the Granite candidate and evaluates without activating); parked as a
   finding for the audio lane.
+- Hosted models in the evaluation harness (openrouter-evals):
+  `cmd/evaluate` opens a hosted session for a `remote://` reference
+  (`hosted.go`): the key gates it (`remoteprovider.Key`), the relay
+  generator is the runtime (`ShapeChatPrompt` returns the prompt, the
+  provider owns its template; `ScoreContinuations` refuses), the campaign
+  binds `modelrecipe.PublishRemoteModelDefinition` (a `model-definition`
+  document of model + provider profile + relay recipe, accepted by
+  `RequireModelDefinitionBinding` under its own schema) and the remote
+  environment, and runs under `evaluation.PromptingHostedChat`, whose
+  multiple-choice scorer method is `generated-letter-hosted`, a distinct
+  plan authority from the templated method. `servableModels` lists a keyed
+  hosted declaration without stat-ing its location (the relay row had left
+  `-all` failing on such an entry) and takes no long-form admission for it;
+  derived evaluation campaigns multiple-choice suites only and names the
+  rest. `EvalSummary.Reproducible` reads the run's environment, and the
+  picker's evidence line marks a hosted score. `cmd/benchmark` refuses a
+  hosted reference. `TestHostedSessionScoresThroughRelay` scores a
+  two-case suite against the loopback fake (accuracy 0.5 from a fixed "B"),
+  checks the execution policy, the non-reproducible remote environment,
+  the definition binding and the keyless refusal.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

@@ -554,6 +554,21 @@ derived from the server, not from client configuration:
   store's history. The browser lane declares a fake provider on loopback,
   proves a remote turn with its marker through the real proxy, and retires
   the declaration when the journey ends.
+  A hosted model is scored beside local ones: `go run ./cmd/evaluate -all`
+  lists a declared model whose key is set as a target without bytes on
+  disk, and a worker given its `remote://` reference evaluates it through
+  the relay under the hosted-chat protocol, in which each question travels
+  as the user message with the answer opener (the provider owns its
+  template) and multiple-choice suites score by the generated letter;
+  likelihood-scored suites are named and not taken, since a hosted
+  completion exposes no continuation likelihoods. The records are the
+  same evaluation records local models produce, bound to a remote model
+  definition (model, provider profile, relay recipe) in place of an
+  architecture, and to the remote environment, so every one reads as not
+  reproducible; the picker's evidence line marks such a score "hosted".
+  Without the key the session is refused by the variable's name. The
+  benchmark command refuses a hosted reference: there is no local decode
+  to measure.
 - **Attachments as artifacts.** In a mode whose request names an artifact
   (the VQA image, LiveEdit's source clip), a file attached to the composer
   is stored before it is used: the page posts its bytes under their media

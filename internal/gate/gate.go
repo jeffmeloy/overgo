@@ -87,6 +87,7 @@ type gateContext struct {
 	stepEvidence        map[string]string
 	cachePaths          []string
 	retryCache          *automationcheck.EvidenceCache
+	checkpointMemos     map[string]checkpointMemoEntry
 	structural          *codeprofile.FunctionImpact
 	packageGraph        *packageInputGraph
 	selection           automationcheck.SelectionMetrics

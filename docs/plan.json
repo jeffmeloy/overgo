@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "checkpoint-memo",
-          "title": "Persist accepted checkpoint evidence per candidate identity and batch key so a re-run of the same candidate reuses it",
-          "status": "open",
-          "verify": "test -f internal/gate/checkpoint_memo_test.go \u0026\u0026 go test ./internal/gate -run '^TestCheckpointEvidenceReuseAcrossRuns$' -count=1",
-          "rationale": "Design record E1 applied to the gate: each accepted checkpoint is a memo keyed by the candidate tree identity, the batch key and the checkpoint id. A gate run of the same candidate reads the memo instead of re-executing the checkpoint and records the reuse; a changed candidate or key never matches. This is the paused master terminal-evidence-resume and cumulative-promotion checkpoints on the existing evidence cache owner.",
-          "depends_on": [
-            "batch-flush-contracts/flush-conditions"
-          ],
-          "capabilities": [
-            "checkpoint-memo",
-            "restart-safe-verification"
-          ]
-        },
-        {
           "id": "gate-batch-cost",
           "title": "Record gate wall per accepted checkpoint and the re-run savings from checkpoint reuse, before and after",
           "status": "open",

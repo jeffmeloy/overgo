@@ -128,9 +128,16 @@ func (g *gateContext) pipeline() error {
 		}
 		input, hasInput := inputs[check.ID]
 		cacheCheck := cacheable(check.Check.Name) && hasInput
+		// Checkpoint memo: stable slot + package-scoped input replace the
+		// phase-wide fingerprint, so an unchanged checkpoint reuses across
+		// candidates.
+		slot := check
+		if memoSlot, memoInput, memoised := g.memoSlot(check); memoised {
+			slot, input, cacheCheck = memoSlot, memoInput, true
+		}
 		if cacheCheck {
 			cacheMutex.Lock()
-			evidence, reused := cache.Lookup(check, input)
+			evidence, reused := cache.Lookup(slot, input)
 			cacheMutex.Unlock()
 			if reused {
 				terminalMutex.Lock()
@@ -142,7 +149,7 @@ func (g *gateContext) pipeline() error {
 		evidence, runErr := automationcheck.Run(ctx, check)
 		if runErr == nil && cacheCheck {
 			cacheMutex.Lock()
-			cache.Record(check, input, evidence)
+			cache.Record(slot, input, evidence)
 			cacheMutex.Unlock()
 		}
 		if evidence.ID.Valid() {

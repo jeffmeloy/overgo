@@ -54,6 +54,14 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 			return nil, fmt.Errorf("acceptance: %w", err)
 		}
 	}
+	// Checkpoint memo slots: computed once from the declared verifies so the
+	// verification loop can reuse accepted checkpoint evidence across runs.
+	memos, err := g.checkpointMemoInputs(batch)
+	if err != nil {
+		return nil, fmt.Errorf("acceptance: %w", err)
+	}
+	g.checkpointMemos = memos
+	g.audit = append(g.audit, fmt.Sprintf("checkpoint memo: key=%s checkpoints=%d", checkpointMemoKey(g.planRef, batch), len(memos)))
 	var added []automationcheck.Check
 	for _, checkpoint := range batch.Checkpoints {
 		check := gateCheck(checkpoint.GateCheckName(), runrecord.PhaseTest, func() (bool, error) {

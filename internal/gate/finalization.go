@@ -187,6 +187,9 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if closeStore {
 		defer store.Close()
 	}
+	// Cost per accepted checkpoint and reuse saving against this row's prior
+	// gate results; advisory audit, derived from stored results only.
+	g.batchCostAudit(context.Background(), store, g.steps)
 	if err := requireSoleCurrentGatePreparation(
 		context.Background(), store, g.preparation, g.preparationCommit,
 	); err != nil {

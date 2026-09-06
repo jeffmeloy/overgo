@@ -4,26 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "batch-flush-contracts",
-      "title": "Declare when keyed batches flush and measure the gate cost they save",
-      "status": "open",
-      "steps": [
-        {
-          "id": "gate-batch-cost",
-          "title": "Record gate wall per accepted checkpoint and the re-run savings from checkpoint reuse, before and after",
-          "status": "open",
-          "verify": "test -f internal/gate/batch_cost_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchedGateCostEvidence$' -count=1",
-          "rationale": "The measurement that decides E7 and the memo: wall per accepted checkpoint from the stored gate result steps, and the wall a re-run saved by reusing memoised checkpoints, recorded as evidence for the same declared batch before and after. The row closes with the comparison recorded whatever its sign.",
-          "depends_on": [
-            "batch-flush-contracts/checkpoint-memo"
-          ],
-          "capabilities": [
-            "gate-cost-evidence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "conditional-plan-rows",
       "title": "Evaluate typed skip, cancel and wait conditions over recorded outcomes",
       "status": "open",

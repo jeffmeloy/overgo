@@ -4,6 +4,97 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "proxy-request-admission",
+      "title": "Admit a request at the proxy as the server does before any proxy mutation: the server loopback-Host and cross-origin checks (server.go ServeHTTP on a credential-less transport) become one shared admission the proxy applies before a provider key is placed in its environment and before a child is acquired, so a foreign-origin request can neither set a key nor launch a model; tests with foreign Origin and foreign Host counterexamples against the proxy and the idle shell",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit a request at the proxy as the server does before any proxy mutation: the server loopback-Host and cross-origin checks (server.go ServeHTTP on a credential-less transport) become one shared admission the proxy applies before a provider key is placed in its environment and before a child is acquired, so a foreign-origin request can neither set a key nor launch a model; tests with foreign Origin and foreign Host counterexamples against the proxy and the idle shell",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "relay-stream-completion",
+      "title": "Reject a hosted stream that ends without its terminal marker: remoterelay.Generate treats EOF without the [DONE] marker or a finish reason as a truncated answer rather than success, a provider error event in the stream becomes the error, and cancellation returns the context error; tests for truncation, cancellation and the provider error event through relaytest",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reject a hosted stream that ends without its terminal marker: remoterelay.Generate treats EOF without the [DONE] marker or a finish reason as a truncated answer rather than success, a provider error event in the stream becomes the error, and cancellation returns the context error; tests for truncation, cancellation and the provider error event through relaytest",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "lane-verify-browser-evidence",
+      "title": "Make browser acceptance non-vacuous in the plan: cmd/webui-lane takes -run for the tests it prepares and fails when a named test skipped or did not run, every lane row verify names its journey through cmd/webui-lane rather than go test alone (which returns without a browser when the lane is unset), and the cold-proxy journey verify requires evidence that the cold page, the picker choice and the served model executed",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make browser acceptance non-vacuous in the plan: cmd/webui-lane takes -run for the tests it prepares and fails when a named test skipped or did not run, every lane row verify names its journey through cmd/webui-lane rather than go test alone (which returns without a browser when the lane is unset), and the cold-proxy journey verify requires evidence that the cold page, the picker choice and the served model executed",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "e4b-acceptance-scope",
+      "title": "Keep E4B acceptance failing when its document is absent: cmd/compatibility accepted-E4B test fails again on a missing docs/verification/e4b-validation.json (no tree holds the document today; master modality-verification/e4b-validation-producer row writes it), and the lane gate excludes that check through explicit scope until the producer lands, instead of a skip that weakens master acceptance",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep E4B acceptance failing when its document is absent: cmd/compatibility accepted-E4B test fails again on a missing docs/verification/e4b-validation.json (no tree holds the document today; master modality-verification/e4b-validation-producer row writes it), and the lane gate excludes that check through explicit scope until the producer lands, instead of a skip that weakens master acceptance",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "lane-plan-boundary",
+      "title": "Enforce the lane boundary mechanically: a plan item carries its owning lane and plan -next in a worktree whose branch is not that lane never dispatches it, the stop gate does not count another lane open rows, and the retained master rows (long-context-collapse through campaign-closeout) are marked master, so the boundary is held by the tool rather than by prose while the lane own rows stay dispatchable",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Enforce the lane boundary mechanically: a plan item carries its owning lane and plan -next in a worktree whose branch is not that lane never dispatches it, the stop gate does not count another lane open rows, and the retained master rows (long-context-collapse through campaign-closeout) are marked master, so the boundary is held by the tool rather than by prose while the lane own rows stay dispatchable",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "hosted-evaluation-coverage",
+      "title": "Cover the hosted-evaluation contract extensions for shared-owner acceptance: evaluation.PromptingHostedChat with the generated-letter-hosted method, modelrecipe.PublishRemoteModelDefinition, discovery remote catalog entries and inference.Usage with OnUsage get protocol tests at their package boundaries, and docs/gui/ANALYSIS.md records each extension, its owning package and its acceptance, so HTTP usability work does not silently define master model-validation policy",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Cover the hosted-evaluation contract extensions for shared-owner acceptance: evaluation.PromptingHostedChat with the generated-letter-hosted method, modelrecipe.PublishRemoteModelDefinition, discovery remote catalog entries and inference.Usage with OnUsage get protocol tests at their package boundaries, and docs/gui/ANALYSIS.md records each extension, its owning package and its acceptance, so HTTP usability work does not silently define master model-validation policy",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "integrate-to-master",
+      "title": "Integrate the settled lane into master preserving master plan: merge the lane branch into master with master docs/plan.json untouched (the lane plan never merges), the merge gate green on master, and the lane rebased on the merged master; executed from the master worktree only with the owner go-ahead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Integrate the settled lane into master preserving master plan: merge the lane branch into master with master docs/plan.json untouched (the lane plan never merges), the merge gate green on master, and the lane rebased on the merged master; executed from the master worktree only with the owner go-ahead",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
       "id": "long-context-collapse",
       "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
       "status": "open",

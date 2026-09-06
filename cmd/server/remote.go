@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"overgo/internal/libraryintake"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/providerintake"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay"
-	"overgo/internal/runrecord"
 	llamaserver "overgo/internal/server"
 )
 
@@ -63,60 +62,14 @@ type remoteServeOptions struct {
 	repository, hubRoot, webuiDir                                 string
 }
 
-// declareProvider is the library route's provider intake: the page's
-// declaration commits exactly as the provider command's file does, under
-// this executable's source commit, and answers each declared model with
-// the refusal its key's absence carries now.
-func declareProvider(ctx context.Context, store *overgodb.Store, declaration llamaserver.ProviderDeclaration) ([]llamaserver.DeclaredProvider, error) {
-	commit, err := runrecord.ExecutableCodeCommit(".")
-	if err != nil {
-		return nil, err
-	}
-	declarations, err := remoteprovider.DeclareDocument(ctx, store, remoteprovider.Document{
-		Name: declaration.Name, Endpoint: declaration.Endpoint, KeyEnvironment: declaration.KeyEnvironment,
-		Models: declaration.Models, ContextLength: declaration.ContextLength,
-	}, commit)
-	declared := make([]llamaserver.DeclaredProvider, 0, len(declarations))
-	for _, declaration := range declarations {
-		declared = append(declared, llamaserver.DeclaredProvider{
-			Location: declaration.Location, Model: declaration.Model.String(), Recipe: declaration.Recipe.ID.String(),
-			Refusal: remoteprovider.Refusal(declaration.Provider),
-		})
-	}
-	return declared, err
-}
+// providerIntake: the hosted-provider intake the library routes call, shared with the swap proxy's idle shell.
+var providerIntake = providerintake.Intake{CatalogLimit: generationCatalogLimit}
 
-// listProviderModels is the library route's listing intake: the provider
-// at the endpoint lists its models under the key its variable holds.
-func listProviderModels(ctx context.Context, endpoint, keyEnvironment string) ([]llamaserver.ProviderModel, error) {
-	listed, err := remoterelay.ListModels(ctx, remoteprovider.Provider{Endpoint: strings.TrimRight(endpoint, "/"), KeyEnvironment: keyEnvironment}, nil)
-	if err != nil {
-		return nil, err
-	}
-	models := make([]llamaserver.ProviderModel, 0, len(listed))
-	for _, model := range listed {
-		models = append(models, llamaserver.ProviderModel{ID: model.ID, Name: model.Name, ContextLength: model.ContextLength})
-	}
-	return models, nil
-}
-
-// retireProvider is the library route's retirement intake: the declared
-// hosted model at the location retires exactly as the provider command
-// retires it, under this executable's source commit.
-func retireProvider(ctx context.Context, store *overgodb.Store, location, reason string) error {
-	commit, err := runrecord.ExecutableCodeCommit(".")
-	if err != nil {
-		return err
-	}
-	return remoteprovider.Retire(ctx, store, generationCatalogLimit, location, commit, reason)
-}
-
-// providerKeys is the server's provider-key intake: the key the page
-// enters for a hosted model lands in this process's environment (never
-// on disk); the variable's name comes back.
-func providerKeys(ctx context.Context, store *overgodb.Store, reference, key string) (string, error) {
-	provider, err := remoteprovider.SetKey(ctx, store, generationCatalogLimit, reference, key)
-	return provider.KeyEnvironment, err
+// serverLibraryIntake: the library intake with the validation step a served model runs.
+func serverLibraryIntake() llamaserver.LibraryIntake {
+	intake := providerIntake.Library(libraryintake.ModelFiles, libraryintake.Register)
+	intake.Validate = libraryintake.Validate
+	return intake
 }
 
 // remoteRuntime is the relay with the store's workflow workspaces beside
@@ -153,8 +106,8 @@ func serveRemote(ctx context.Context, remote *remoteServing, options remoteServe
 		MaxStoredResponses: options.storedResponses, ResponseStoreBytes: options.responseStoreBytes,
 		OvergoDBPath: options.repository, Repository: workspaceStore, Environment: environment,
 		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: options.hubRoot, WebUIDir: options.webuiDir,
-		LibraryIntake: llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate, DeclareProvider: declareProvider, ListProviderModels: listProviderModels, RetireProvider: retireProvider},
-		ProviderKeys:  providerKeys,
+		LibraryIntake: serverLibraryIntake(),
+		ProviderKeys:  providerIntake.Keys,
 	}, &remoteRuntime{Generator: generator, WorkflowWorkspaceAPI: llamaserver.WorkflowWorkspaceSet{generation}})
 	if err != nil {
 		return err

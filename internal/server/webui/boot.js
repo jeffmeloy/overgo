@@ -335,19 +335,21 @@
     }
     applyCapabilities();
     const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
-    if (current && tabs.some(tabSupported)) activate(current);
+    if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) activate(current);
     syncColdStart();
     refreshStatus();
   }
 
-  // syncColdStart: the front page while no model serves (the proxy answers alone, every tab refused); the picker is the way on.
+  // syncColdStart: the landing while no model serves (no capability document: the proxy answers alone) and no tab
+  // is open; the picker is the way on, and the Library, the one tab the cold page serves, is a hash away.
   function syncColdStart() {
     const existing = document.getElementById("cold-start");
-    if (tabs.some(tabSupported)) { if (existing) existing.remove(); return; }
+    if (capabilityDocument || tabs.some((t) => t.panel.classList.contains("active"))) { if (existing) existing.remove(); return; }
     if (existing) return;
     document.getElementById("panels").appendChild(el("div", { class: "card front-empty", id: "cold-start" }, el("h2", { text: "no model serves" }),
-      el("div", { class: "note", text: (tabs[0] && tabs[0].refusal) || "choose a model from the model pill" }),
-      el("div", { class: "starters" }, el("button", { class: "btn", text: "Choose a model", onclick: () => document.getElementById("model-pill").click() }))));
+      el("div", { class: "note", text: "choose a model from the model pill; the Library tab registers a local model or declares a hosted provider" }),
+      el("div", { class: "starters" }, el("button", { class: "btn", text: "Choose a model", onclick: () => document.getElementById("model-pill").click() }),
+        el("button", { class: "btn alt", text: "Open the Library", onclick: () => activate("library") }))));
   }
 
   function activate(id) {
@@ -365,6 +367,7 @@
       if (on && t.onActivate) t.onActivate();
     }
     syncSectionUI();
+    syncColdStart();
     if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
   }
 
@@ -701,7 +704,8 @@
     }
     const start = location.hash.slice(1);
     applyCapabilities();
-    if (tabs.some(tabSupported)) activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
+    const named = tabs.some((t) => t.id === start);
+    if (named || capabilityDocument) activate(named ? start : (tabs[0] && tabs[0].id));
     syncColdStart();
     refreshStatus();
     refreshConversations();

@@ -152,10 +152,14 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library registration needs a store")
 		return
 	}
+	libraryRegisterRoute(response, request, h.repository, h.config.LibraryIntake, body)
+}
+
+// libraryRegisterRoute: the registration over one store and intake; the idle shell serves it over the store it opens.
+func libraryRegisterRoute(response http.ResponseWriter, request *http.Request, repository *overgodb.Store, intake LibraryIntake, body libraryRegisterRequest) {
 	switch body.Kind {
 	case "model":
-		intake := h.config.LibraryIntake
-		if !intake.assembled() {
+		if intake.ModelFiles == nil || intake.Register == nil {
 			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library registration needs the model intake")
 			return
 		}
@@ -164,7 +168,7 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 			writeInvalidRequest(response, err)
 			return
 		}
-		receipt, err := intake.Register(request.Context(), h.repository, path, projectorPath)
+		receipt, err := intake.Register(request.Context(), repository, path, projectorPath)
 		if err != nil {
 			writeLibraryError(response, err)
 			return
@@ -172,7 +176,7 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 		receipt["kind"] = body.Kind
 		writeJSON(response, http.StatusOK, receipt)
 	case "dataset":
-		registered, err := dataset.RegisterDirectoryDatasetAs(context.WithoutCancel(request.Context()), h.repository, strings.TrimSpace(body.Name), strings.TrimSpace(body.Directory), body.Modality)
+		registered, err := dataset.RegisterDirectoryDatasetAs(context.WithoutCancel(request.Context()), repository, strings.TrimSpace(body.Name), strings.TrimSpace(body.Directory), body.Modality)
 		if err != nil {
 			writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
 			return
@@ -182,12 +186,12 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 			"files": registered.Files, "bytes": registered.Bytes, "changed": registered.Changed,
 		})
 	case "provider":
-		declare := h.config.LibraryIntake.DeclareProvider
+		declare := intake.DeclareProvider
 		if declare == nil {
 			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider declaration needs the launcher's provider intake")
 			return
 		}
-		declared, err := declare(context.WithoutCancel(request.Context()), h.repository, ProviderDeclaration{
+		declared, err := declare(context.WithoutCancel(request.Context()), repository, ProviderDeclaration{
 			Name: body.Name, Endpoint: body.Endpoint, KeyEnvironment: body.KeyEnvironment, Models: body.Models, ContextLength: body.ContextLength,
 		})
 		if err != nil {
@@ -205,6 +209,11 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 // the launcher's intake, so the page declares from the provider's own
 // listing with each model's declared context length.
 func (h *Handler) libraryProviderModels(response http.ResponseWriter, request *http.Request) {
+	libraryProviderModelsRoute(response, request, h.config.LibraryIntake.ListProviderModels)
+}
+
+// libraryProviderModelsRoute: the listing over one intake; the idle shell serves it too.
+func libraryProviderModelsRoute(response http.ResponseWriter, request *http.Request, list func(context.Context, string, string) ([]ProviderModel, error)) {
 	if !requireMethod(response, request, http.MethodGet) {
 		return
 	}
@@ -213,7 +222,6 @@ func (h *Handler) libraryProviderModels(response http.ResponseWriter, request *h
 		writeInvalidRequestMessage(response, "library: endpoint and key_environment are required")
 		return
 	}
-	list := h.config.LibraryIntake.ListProviderModels
 	if list == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider listing needs the launcher's provider intake")
 		return
@@ -235,16 +243,20 @@ func (h *Handler) libraryProviderRetire(response http.ResponseWriter, request *h
 	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
+	libraryProviderRetireRoute(response, request, h.repository, h.config.LibraryIntake.RetireProvider, body)
+}
+
+// libraryProviderRetireRoute: the retirement over one store and intake; the idle shell serves it too.
+func libraryProviderRetireRoute(response http.ResponseWriter, request *http.Request, repository *overgodb.Store, retire func(context.Context, *overgodb.Store, string, string) error, body providerRetireRequest) {
 	if strings.TrimSpace(body.Location) == "" || strings.TrimSpace(body.Reason) == "" {
 		writeInvalidRequestMessage(response, "library: location and reason are required")
 		return
 	}
-	retire := h.config.LibraryIntake.RetireProvider
-	if h.repository == nil || retire == nil {
+	if repository == nil || retire == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider retirement needs a store and the launcher's provider intake")
 		return
 	}
-	if err := retire(context.WithoutCancel(request.Context()), h.repository, body.Location, body.Reason); err != nil {
+	if err := retire(context.WithoutCancel(request.Context()), repository, body.Location, body.Reason); err != nil {
 		writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
 		return
 	}

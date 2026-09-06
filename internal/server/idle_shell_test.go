@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 )
 
@@ -51,7 +52,7 @@ func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 		t.Fatalf("manifest = %+v", manifest)
 	}
 	for _, tab := range manifest.Tabs {
-		if tab.Enabled || tab.Refusal != idleRefusal {
+		if library := tab.ID == "library"; tab.Enabled != library || (tab.Refusal != idleRefusal) == !library {
 			t.Fatalf("tab %s = %+v", tab.ID, tab)
 		}
 	}
@@ -91,6 +92,88 @@ func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 	defer brokenFront.Close()
 	if failed := get(t, brokenFront.URL+"/catalog/models"); failed.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("catalog failure = %d", failed.StatusCode)
+	}
+	if refused := post(t, brokenFront.URL+"/library/register", `{"kind":"provider","name":"p","endpoint":"http://127.0.0.1:1","key_environment":"K","models":["m"]}`); refused.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("library write without a store = %d", refused.StatusCode)
+	}
+}
+
+// TestIdleShellLibraryWritesOverTheOpenedStore pins the cold page's
+// library: a declaration, a listing and a retirement go through the
+// intake over the store the shell opens for each write, and a local
+// registration reaches the model intake without a validation step.
+func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
+	root := t.TempDir()
+	var opened, declared, retired, registered int
+	shell := &IdleShell{
+		OpenStore: func(context.Context) (*overgodb.Store, error) { opened++; return overgodb.Open(root) },
+		Intake: LibraryIntake{
+			ModelFiles: func(path, projector string) (string, string, error) { return path, projector, nil },
+			Register: func(_ context.Context, store *overgodb.Store, path, projector string) (map[string]any, error) {
+				registered++
+				return map[string]any{"path": path}, nil
+			},
+			DeclareProvider: func(_ context.Context, store *overgodb.Store, declaration ProviderDeclaration) ([]DeclaredProvider, error) {
+				declared++
+				if store == nil || declaration.Name != "page" || len(declaration.Models) != 1 {
+					t.Fatalf("declaration = %+v over %v", declaration, store)
+				}
+				return []DeclaredProvider{{Location: "remote://page/" + declaration.Models[0], Refusal: "key absent"}}, nil
+			},
+			ListProviderModels: func(_ context.Context, endpoint, variable string) ([]ProviderModel, error) {
+				return []ProviderModel{{ID: "vendor/one", ContextLength: 4096}}, nil
+			},
+			RetireProvider: func(_ context.Context, store *overgodb.Store, location, reason string) error { retired++; return nil },
+		},
+	}
+	front := httptest.NewServer(shell)
+	defer front.Close()
+
+	var declaration struct {
+		Declared []DeclaredProvider `json:"declared"`
+	}
+	decodeResponse(t, post(t, front.URL+"/library/register", `{"kind":"provider","name":"page","endpoint":"http://127.0.0.1:1","key_environment":"K","models":["vendor/one"]}`), &declaration)
+	if len(declaration.Declared) != 1 || declaration.Declared[0].Location != "remote://page/vendor/one" {
+		t.Fatalf("declared = %+v", declaration)
+	}
+	var listing struct {
+		Models []ProviderModel `json:"models"`
+	}
+	decode(t, front.URL+"/library/providers/models?endpoint=http://127.0.0.1:1&key_environment=K", &listing)
+	if len(listing.Models) != 1 || listing.Models[0].ContextLength != 4096 {
+		t.Fatalf("listing = %+v", listing)
+	}
+	if retirement := post(t, front.URL+"/library/providers/retire", `{"location":"remote://page/vendor/one","reason":"closed"}`); retirement.StatusCode != http.StatusOK {
+		t.Fatalf("retirement = %d", retirement.StatusCode)
+	}
+	if registration := post(t, front.URL+"/library/register", `{"kind":"model","path":"C:/models/local.gguf"}`); registration.StatusCode != http.StatusOK {
+		t.Fatalf("registration = %d", registration.StatusCode)
+	}
+	if opened != 3 || declared != 1 || retired != 1 || registered != 1 {
+		t.Fatalf("opened=%d declared=%d retired=%d registered=%d", opened, declared, retired, registered)
+	}
+	if invalid := post(t, front.URL+"/library/register", `{"kind":"other"}`); invalid.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unknown kind = %d", invalid.StatusCode)
+	}
+}
+
+func post(t *testing.T, url, body string) *http.Response {
+	t.Helper()
+	response, err := http.Post(url, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { response.Body.Close() })
+	return response
+}
+
+func decodeResponse(t *testing.T, response *http.Response, into any) {
+	t.Helper()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", response.StatusCode)
+	}
+	if err := json.NewDecoder(response.Body).Decode(into); err != nil {
+		t.Fatal(err)
 	}
 }
 

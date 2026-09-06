@@ -493,8 +493,14 @@ derived from the server, not from client configuration:
   for the picker; every other route refuses with the reason. The pill
   says no model serves, the front page carries the one control that opens
   the picker, and the chosen model's serve launches the first child, after
-  which the page continues as over any served model. The browser lane
-  opens its journey from the cold proxy.
+  which the page continues as over any served model. The Library is the
+  one tab the cold page serves: a hosted provider lists and declares
+  there and a local model registers there through the same intake the
+  launcher binds (`internal/providerintake`), over the store the proxy
+  opens for the write while no child holds it; validation waits for a
+  served model, and the download surface says so. The browser lane opens
+  its journey from the cold proxy and declares its page provider there
+  before the first model serves.
 - **Conversations owned by the server.** Conversations are listed, resumed,
   labelled, and reattached to a turn in flight from the interaction records;
   the browser holds no state a reload would lose.

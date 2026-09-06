@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -23,7 +24,9 @@ func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 		Resolver:   mapResolver{"alpha": {Name: "alpha", Location: "alpha.gguf"}},
 		Idle: http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 			response.Header().Set("X-Idle", request.URL.Path)
-			io.WriteString(response, "idle")
+			// A JSON body the proxy read for its model field arrives whole.
+			body, _ := io.ReadAll(request.Body)
+			io.WriteString(response, "idle"+string(body))
 		}),
 	}
 	front := httptest.NewServer(proxy)
@@ -41,6 +44,15 @@ func TestModelSwapProxyIdleHandlerAnswersColdStart(t *testing.T) {
 	}
 	if _, running := supervisor.Status(); running {
 		t.Fatal("the idle answer launched a child")
+	}
+	posted, err := http.Post(front.URL+"/library/register", "application/json", strings.NewReader(`{"kind":"provider","name":"p"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	echoed, _ := io.ReadAll(posted.Body)
+	posted.Body.Close()
+	if string(echoed) != `idle{"kind":"provider","name":"p"}` {
+		t.Fatalf("idle handler received %q", echoed)
 	}
 
 	launched, err := http.Get(front.URL + "/health?swap=alpha")

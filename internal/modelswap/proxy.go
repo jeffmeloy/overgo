@@ -90,6 +90,11 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		request.ContentLength = int64(len(raw))
 	}
 	servable, body, err := p.routeServable(request)
+	if body != nil {
+		// The body read for its model field is handed on whole, to the child or to the idle handler.
+		request.Body = io.NopCloser(bytes.NewReader(body))
+		request.ContentLength = int64(len(body))
+	}
 	if errors.Is(err, errNothingServes) && p.Idle != nil {
 		// The header names the proxy with no model, so the shell shows the proxy present and nothing served.
 		response.Header().Set("X-Overgo-Swap-Proxy", "")
@@ -110,10 +115,6 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		http.Error(response, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	if body != nil {
-		request.Body = io.NopCloser(bytes.NewReader(body))
-		request.ContentLength = int64(len(body))
 	}
 	// Every proxied answer names the proxy, so a shell behind it can show the
 	// swap capability and a shell served directly can say it is absent.
@@ -171,5 +172,5 @@ func (p *Proxy) routeServable(request *http.Request) (Servable, []byte, error) {
 	if p.Default.Name != "" {
 		return p.Default, body, nil
 	}
-	return Servable{}, nil, errNothingServes
+	return Servable{}, body, errNothingServes
 }

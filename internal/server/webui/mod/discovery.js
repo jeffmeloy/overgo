@@ -107,7 +107,9 @@
         return cell;
       }
       const jobPoller = overgo.poller(async (signal) => {
-        const listed = await overgo.api.get("/hub/downloads", { signal });
+        // A server with no download surface (the cold page) says so once; the tab remounts when a model serves.
+        const listed = await overgo.api.get("/hub/downloads", { signal }).catch((err) => { jobsNote.textContent = overgo.friendlyError(err); jobPoller.stop(); return null; });
+        if (!listed) return;
         jobsBody.replaceChildren(...(listed.downloads || []).map((job) => {
           const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
           const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) : el("span", { class: "tag byte", text: progress || "running" });

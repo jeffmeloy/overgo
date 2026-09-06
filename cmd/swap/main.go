@@ -16,7 +16,10 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/libraryintake"
 	"overgo/internal/modelswap"
+	"overgo/internal/overgodb"
+	"overgo/internal/providerintake"
 	"overgo/internal/server"
 )
 
@@ -43,8 +46,14 @@ func run() error {
 		return err
 	}
 	defer supervisor.Close()
-	// The cold start: with no default and no child the proxy serves the shell itself, and the picker launches the first child.
-	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver, Keys: resolver, Idle: &server.IdleShell{Catalog: resolver.Catalog}}
+	// The cold start: with no default and no child the proxy serves the shell itself; the picker launches the first child,
+	// and the Library's writes go through the launcher's intake over the store no child holds yet.
+	shell := &server.IdleShell{
+		Catalog:   resolver.Catalog,
+		OpenStore: func(context.Context) (*overgodb.Store, error) { return overgodb.Open(*store) },
+		Intake:    providerintake.Intake{CatalogLimit: *catalogLimit}.Library(libraryintake.ModelFiles, libraryintake.Register),
+	}
+	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver, Keys: resolver, Idle: shell}
 	if *defaultModel != "" {
 		if fileExists(*defaultModel) {
 			// An on-disk model file is launchable directly -- no store

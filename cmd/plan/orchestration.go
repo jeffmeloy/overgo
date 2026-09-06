@@ -278,8 +278,17 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	if err := plan.ValidateFrontierLeases(frontier, leases); err != nil {
 		return err
 	}
+	// Conditions over recorded facts; the fact sources arrive with the
+	// frontier-conditions row, so declared conditions report waiting here.
+	dispositions, err := plan.Dispositions(document, frontier, plan.ConditionFacts{})
+	if err != nil {
+		return err
+	}
 	if len(frontier) != 0 {
 		fmt.Fprintln(output, plan.FormatFrontier(frontier))
+	}
+	if lines := plan.FormatDispositions(dispositions); lines != "" {
+		fmt.Fprintln(output, lines)
 	}
 	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d isolated lease(s), %d legacy unreadable lease(s)\n",
 		len(frontier), len(leases), legacyUnreadable)

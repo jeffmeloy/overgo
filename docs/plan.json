@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "outcome-predicates",
-          "title": "Declare skip-if, cancel-if and wait-for conditions as typed field comparisons over parent outcomes",
-          "status": "open",
-          "verify": "test -f internal/plan/conditions_test.go \u0026\u0026 go test ./internal/plan -run '^TestConditionalRowsOverRecordedOutcomes$' -count=1",
-          "rationale": "Design record E6. A condition is a field, an operator and a literal evaluated against the recorded outcome of a parent row, or a wait on a recorded event or elapsed duration. No expression language is embedded; the plan owns the evaluator.",
-          "depends_on": [
-            "campaign-definition/author-plan"
-          ],
-          "capabilities": [
-            "typed-row-conditions",
-            "no-expression-language"
-          ]
-        },
-        {
           "id": "skipped-and-cancelled-completion",
           "title": "Record skipped and cancelled rows as completion authority with reasons",
           "status": "open",

@@ -56,6 +56,9 @@ type Step struct {
 	// VerificationBatch declares subordinate acceptance obligations. It does
 	// not confer completion or permission to omit any full-gate check.
 	VerificationBatch *VerificationBatch `json:"verification_batch,omitempty"`
+	// Conditions: typed skip/cancel/wait predicates over recorded parent
+	// outcomes and events; frontier evaluates them (see conditions.go).
+	Conditions *StepConditions `json:"conditions,omitempty"`
 }
 
 // Item is one rung of the ladder.
@@ -165,6 +168,9 @@ func validatePlanGraph(d Plan) error {
 				return fmt.Errorf("plan step %s/%s has an invalid verifier", item.ID, step.ID)
 			}
 			if err := validateVerificationBatch(step.VerificationBatch); err != nil {
+				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
+			}
+			if err := validateStepConditions(step); err != nil {
 				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
 			}
 		}

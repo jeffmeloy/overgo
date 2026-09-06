@@ -66,9 +66,7 @@
           el("div", { class: "row" }, create, note));
       }
 
-      function activeAgent() {
-        return inventory.find((item) => item.name === selected);
-      }
+      function activeAgent() { return inventory.find((item) => item.name === selected); }
 
       const showError = overgo.reporter(status);
 

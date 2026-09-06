@@ -330,9 +330,7 @@
   const sectionButtons = [];
 
   function tabSection(tab) { return tab.section; }
-  function sectionsPresent() {
-    return workspaceManifest.sections.filter((s) => tabs.some((t) => tabSection(t) === s.id));
-  }
+  function sectionsPresent() { return workspaceManifest.sections.filter((s) => tabs.some((t) => tabSection(t) === s.id)); }
 
   // Sidebar navigation shows every section at once; the active section header highlights the active tab group.
   function syncSectionUI() {
@@ -509,7 +507,11 @@
         panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
           ...entries.map((item) => {
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
-            const row = el("div", { class: "row" }, el("span", { class: "mono", text: name }));
+            // Keyboard path: a focused row serves on Enter; the arrows move between rows.
+            const row = el("div", { class: "row", tabindex: "0", onkeydown: (event) => {
+              if (event.key === "Enter") { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "serve"); if (serve) serve.click(); }
+              else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...panel.querySelectorAll(".row")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
+            } }, el("span", { class: "mono", text: name }));
             if ((item.location || "").startsWith("remote://")) row.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
             const facts = evidenceLine(item);
             if (facts) row.appendChild(el("span", { class: "note", text: facts }));
@@ -527,8 +529,12 @@
             }
             row.appendChild(el("button", { class: "btn alt", text: "serve", onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
+        const first = panel.querySelector(".row"); if (first) first.focus();
       } catch (err) { panel.textContent = friendlyError(err); }
     });
+    // Alt+M opens the picker from anywhere on the page; the first row takes focus.
+    modelPill.setAttribute("aria-keyshortcuts", "Alt+M");
+    document.addEventListener("keydown", (event) => { if (event.altKey && !event.ctrlKey && event.key.toLowerCase() === "m") { event.preventDefault(); modelPill.click(); } });
   }
   wireModelPicker();
 

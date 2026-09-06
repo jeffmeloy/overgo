@@ -14,7 +14,9 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/operatoraction"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/remoteprovider"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -258,7 +260,23 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
+	// A declared hosted model gives the picker a row (its key set, so the
+	// row serves); the generator holds every turn open until released, so
+	// a running turn is there for the Escape key to stop.
+	repository, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = repository.Close() })
+	t.Setenv("OVERGO_FRONT_PAGE_TEST_KEY", "front-key")
+	if _, err := remoteprovider.Declare(t.Context(), repository, remoteprovider.Provider{
+		Name: "front", Endpoint: "https://front.example/api/v1", KeyEnvironment: "OVERGO_FRONT_PAGE_TEST_KEY", Model: "vendor/front-model",
+	}, transcriptionHTTPCommit); err != nil {
+		t.Fatal(err)
+	}
+	blocking := &fakeGenerator{started: make(chan struct{}), release: make(chan struct{})}
+	t.Cleanup(func() { close(blocking.release) })
+	handler := newTestHandlerForRepository(t, repository, responseRecipeGenerator(t, blocking))
 	defer handler.Close()
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
@@ -291,6 +309,26 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	if err := browser.Eventually(ctx, `document.querySelector("#inspector").hidden`); err != nil {
 		t.Fatal(err)
 	}
+	// Keyboard path to a model: Alt+M opens the picker, its first row takes
+	// focus, Enter serves it (without the proxy the page says a relaunch is
+	// the way), Escape stops a running turn from anywhere on the page.
+	pressKey(t, ctx, browser, "m", 77, keyModifierAlt)
+	if err := browser.Eventually(ctx, `document.activeElement.classList.contains("row") && document.activeElement.querySelector(".mono").textContent === "front-model"`); err != nil {
+		t.Fatal(err)
+	}
+	pressKey(t, ctx, browser, "Enter", 13)
+	if err := browser.Eventually(ctx, `document.querySelector(".topbar .card").textContent.includes("without the swap proxy")`); err != nil {
+		t.Fatal(err)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector("#model-pill").click(); return !document.querySelector(".topbar .card"); })()`)
+	say(t, ctx, browser, "hello")
+	if err := browser.Eventually(ctx, `document.querySelector(".composer .btn").disabled`); err != nil {
+		t.Fatal(err)
+	}
+	pressKey(t, ctx, browser, "Escape", 27)
+	if err := browser.Eventually(ctx, `!document.querySelector(".composer .btn").disabled`); err != nil {
+		t.Fatal(err)
+	}
 	emulateMedia(t, ctx, browser, "prefers-reduced-motion", "reduce")
 	assertBrowserPredicate(t, ctx, browser, `matchMedia("(prefers-reduced-motion: reduce)").matches && parseFloat(getComputedStyle(document.querySelector("#server-dot")).transitionDuration) < 0.001`)
 	for scheme, background := range map[string]string{"light": "rgb(244, 246, 250)", "dark": "rgb(10, 13, 19)"} {
@@ -309,15 +347,36 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 			t.Fatalf("width %d: %v", width, err)
 		}
 	}
+	// Phone width with a conversation: an unbroken line wraps inside its
+	// bubble and nothing scrolls sideways; Escape stops the turn it opened.
+	say(t, ctx, browser, strings.Repeat("overgo", 60))
+	if err := browser.Eventually(ctx, `document.querySelectorAll("#panel-chat .msg.user").length === 2 && document.documentElement.scrollWidth <= innerWidth &&
+      [...document.querySelectorAll("#panel-chat .msg")].every((message) => message.getBoundingClientRect().right <= innerWidth)`); err != nil {
+		var page string
+		_ = browser.Evaluate(ctx, `JSON.stringify({width: innerWidth, scroll: document.documentElement.scrollWidth, messages: [...document.querySelectorAll("#panel-chat .msg")].map((m) => m.getBoundingClientRect().right)})`, &page)
+		t.Fatalf("phone conversation: %v; %s", err, page)
+	}
+	pressKey(t, ctx, browser, "Escape", 27)
+	if err := browser.Eventually(ctx, `!document.querySelector(".composer .btn").disabled`); err != nil {
+		t.Fatal(err)
+	}
 }
 
+// keyModifierAlt is the DevTools key event modifier bit for Alt.
+const keyModifierAlt = 1
+
 // pressKey sends one real key press through the browser's input domain, so
-// focus-visible and default key handling behave as they do for a person.
-func pressKey(t *testing.T, ctx context.Context, browser *webuilane.Browser, key string, code int) {
+// focus-visible and default key handling behave as they do for a person;
+// modifiers are the DevTools modifier bits held during the press.
+func pressKey(t *testing.T, ctx context.Context, browser *webuilane.Browser, key string, code int, modifiers ...int) {
 	t.Helper()
+	modifier := 0
+	for _, bit := range modifiers {
+		modifier |= bit
+	}
 	for _, kind := range []string{"keyDown", "keyUp"} {
 		if err := browser.Call(ctx, "Input.dispatchKeyEvent", map[string]any{
-			"type": kind, "key": key, "code": key, "windowsVirtualKeyCode": code, "nativeVirtualKeyCode": code,
+			"type": kind, "key": key, "code": key, "windowsVirtualKeyCode": code, "nativeVirtualKeyCode": code, "modifiers": modifier,
 		}, nil); err != nil {
 			t.Fatal(err)
 		}

@@ -428,6 +428,19 @@ What the rows established, each a record rather than a statement:
   `relaytest.ServeListing` gives the fake a models route; the lane's leg
   15 now lists the fake's model, picks it (the form's fields fill from
   the listing) and declares from that.
+- Keyboard and phone paths (gui-keyboard-and-phone): the picker's rows
+  are focusable (`tabindex`), serve on Enter and move with the arrows;
+  the first row takes focus when the picker opens; Alt+M opens it from
+  anywhere (`aria-keyshortcuts` on the pill). `overgo.stopTurn` is the
+  chat page's abort, shared by the composer's stop control and the
+  document's Escape handler beside the inspector's close. `.msg` is
+  bounded by `min(80ch, 100%)` and its body and code blocks wrap
+  anywhere. `TestWebUIBrowserFrontPage` now runs over a repository with
+  a declared hosted model (a picker row) and a generator that holds every
+  turn open: Alt+M focuses the row, Enter reaches the swap path (the
+  proxy-less note), Escape stops a running turn, and at 390 px an
+  unbroken 360-character line stays inside its bubble with no horizontal
+  scroll. The cannot-do list's item 8 is answered for the front page.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

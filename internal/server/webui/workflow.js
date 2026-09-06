@@ -4,9 +4,7 @@
   const latest = new Map();
   let streamController = null;
 
-  function terminal(state) {
-    return state === "completed" || state === "cancelled" || state === "failed";
-  }
+  function terminal(state) { return state === "completed" || state === "cancelled" || state === "failed"; }
 
   function publish(name, value) {
     if (name === "operation") {

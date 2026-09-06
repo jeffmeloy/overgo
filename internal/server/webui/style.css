@@ -254,11 +254,12 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 
 /* ---- chat ---- */
 .chat-log { display:flex; flex-direction:column; gap:12px; margin-bottom:14px; }
-.msg { border:1px solid var(--line); border-radius:var(--radius-m); padding:10px 14px; background:var(--bg1); max-width:80ch; box-shadow:var(--shadow-1); }
+.msg { border:1px solid var(--line); border-radius:var(--radius-m); padding:10px 14px; background:var(--bg1); max-width:min(80ch, 100%); box-shadow:var(--shadow-1); }
 .msg.user { align-self:flex-end; border-color:color-mix(in srgb, var(--acc) 35%, var(--line)); background:color-mix(in srgb, var(--acc-soft) 60%, var(--bg1)); }
 .msg.assistant { align-self:flex-start; }
 .msg .role { display:flex; align-items:center; gap:8px; font:600 10px var(--font); letter-spacing:1.4px; text-transform:uppercase; color:var(--faint); margin-bottom:4px; }
-.msg .body { white-space:pre-wrap; word-break:break-word; }
+.msg .body { white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; }
+.msg .body pre { white-space:pre-wrap; overflow-wrap:anywhere; max-width:100%; }
 .msg .body .cursor { color:var(--acc); animation:pulse 1s ease infinite; }
 .chat-controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px; }
 

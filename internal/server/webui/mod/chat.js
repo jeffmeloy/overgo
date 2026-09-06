@@ -7,9 +7,11 @@
   const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
 
   // inspectTurn: the side panel over one assistant turn: its run record, then any inspector embedded over it.
-  document.addEventListener("keydown", (event) => { // Escape closes the inspector from anywhere on the page
+  document.addEventListener("keydown", (event) => { // Escape closes the inspector and stops a running turn from anywhere on the page
     const aside = document.getElementById("inspector");
-    if (event.key === "Escape" && aside && !aside.hidden) { aside.hidden = true; aside.replaceChildren(); }
+    if (event.key !== "Escape") return;
+    if (aside && !aside.hidden) { aside.hidden = true; aside.replaceChildren(); }
+    if (window.overgo.stopTurn) window.overgo.stopTurn();
   });
   window.overgo.inspectTurn = async function (responseID) {
     const overgo = window.overgo;
@@ -72,9 +74,10 @@
       const artifactField = () => [...generation.fields.values()].find((field) => field.control.type === "artifact");
       const thread = overgo.thread(panel, { reuse: (file, artifact) => { const field = artifactField(); if (field && artifact) field.input.value = artifact; else composer.addFile(file); },
         marker: capabilities.remote ? "remote" : "" });
+      overgo.stopTurn = () => { if (controller) controller.abort(); }; // the Escape key's stop, the composer's stop control's too
       const composer = overgo.composer(panel, {
         onSubmit: submit,
-        onStop: () => { if (controller) controller.abort(); },
+        onStop: overgo.stopTurn,
         takesAny: () => !!artifactField(),
         intake: (file) => { const field = artifactField(); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => (field.input.value = stored.id)) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest

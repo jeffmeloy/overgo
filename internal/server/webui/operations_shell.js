@@ -12,13 +12,9 @@
   let detailRequest = null;
   let shellHost = null;
 
-  function terminal(state) {
-    return state === "completed" || state === "cancelled" || state === "failed";
-  }
+  function terminal(state) { return state === "completed" || state === "cancelled" || state === "failed"; }
 
-  function routeOperation() {
-    return new URL(window.location.href).searchParams.get("operation") || "";
-  }
+  function routeOperation() { return new URL(window.location.href).searchParams.get("operation") || ""; }
 
   function updateRoute(id, replace) {
     const url = new URL(window.location.href);

@@ -5,9 +5,7 @@
   let activityView = null;
   let activityUnsubscribe = null;
 
-  function present(value, format) {
-    return value == null ? "unknown" : String(format ? format(value) : value);
-  }
+  function present(value, format) { return value == null ? "unknown" : String(format ? format(value) : value); }
 
   function activateRuntime() {
     if (!runtimeUnsubscribe && runtimeView) runtimeUnsubscribe = window.overgo.runtimeEvents.subscribe(runtimeView);

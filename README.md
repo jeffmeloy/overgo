@@ -620,6 +620,15 @@ derived from the server, not from client configuration:
   production path activates a transcription recipe yet (parked as a
   finding), so a store activated by the ASR baseline harness is the only
   one that lists the mode.
+- **Keyboard and phone paths.** Alt+M opens the model picker from anywhere
+  on the front page; its rows take focus, the arrows move between them and
+  Enter serves the focused row, the same path the mouse takes. Escape stops
+  a running turn from anywhere on the page, as the composer's stop control
+  does, and closes the turn inspector. At a phone width a message bubble is
+  bounded by the conversation's width and an unbroken line or a code block
+  wraps inside it, so nothing scrolls sideways; the acceptance lane proves
+  the keyboard path, the stop, and the phone-width conversation in the
+  real browser.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

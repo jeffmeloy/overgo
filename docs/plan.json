@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "selection-shadow",
-          "title": "Prove change selection against full-gate counterexamples",
-          "status": "open",
-          "verify": "test -f internal/gate/change_selection_shadow_test.go \u0026\u0026 go test ./internal/gate -run '^TestChangeSelectiveVerificationShadow$' -count=1",
-          "rationale": "Review finding 3. Cost reporting establishes expense; only counterexamples establish that selective verification misses no required check. For a set of recorded candidate changes the full-gate check set is computed and the selected set must contain every check that would have failed; a selection that omits one is a counterexample the test pins. The name matches the paused master checkpoint so the lane-to-master merge joins them.",
-          "depends_on": [
-            "gate-checkpoints/complete-memo-identity"
-          ],
-          "capabilities": [
-            "selection-safety"
-          ]
-        },
-        {
           "id": "cost-report-scope",
           "title": "Report failed checks and total gate wall separately from accepted cost and estimated saving",
           "status": "open",

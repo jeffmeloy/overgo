@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "durable-attempt-log",
-      "title": "Bind durable attempts to invocation counts and a keyed memo log",
-      "status": "open",
-      "steps": [
-        {
-          "id": "agent-tool-children",
-          "title": "Run agent tool calls as memoised child attempts that replay from their receipts",
-          "status": "open",
-          "verify": "test -f internal/agentloop/tool_child_attempts_test.go \u0026\u0026 go test ./internal/agentloop -run '^TestToolCallsReplayAsChildAttempts$' -count=1",
-          "rationale": "Tool calls are the side effects an agent loop must not repeat after interruption. Each call is a child attempt with its own receipt; a resumed session reads completed receipts and only executes calls the log has not recorded.",
-          "depends_on": [
-            "durable-attempt-log/divergence-and-eviction"
-          ],
-          "capabilities": [
-            "tool-calls-as-child-attempts",
-            "receipt-replay"
-          ]
-        }
-      ]
-    },
-    {
       "id": "operator-references",
       "title": "Diagnose and replay one plan row from its records",
       "status": "open",

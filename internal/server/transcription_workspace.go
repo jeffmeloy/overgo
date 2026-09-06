@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -144,7 +145,9 @@ func (workspace *TranscriptionWorkspace) WorkflowCapabilities(_ context.Context,
 	definition := workspace.program.Definition()
 	return []WorkflowCapability{{Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
 		Inputs: definition.Inputs, Outputs: definition.Outputs,
-		Controls: []WorkflowControl{{Name: "audio", Type: WorkflowControlText, Required: true}},
+		// The audio control names a stored file artifact: an attachment the
+		// page stored through the intake route, or a card's stored id.
+		Controls: []WorkflowControl{{Name: "audio", Type: WorkflowControlArtifact, Required: true}},
 	}}, nil
 }
 
@@ -201,9 +204,25 @@ func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, ki
 		return completion, errors.New("transcription workspace: audio content is absent")
 	}
 	session := lease.Model()
-	_, run, err := session.model.Transcribe(ctx, content.Data, dataset.AudioPayloadOrigin{Container: input.Audio},
+	transcription, run, err := session.model.Transcribe(ctx, content.Data, dataset.AudioPayloadOrigin{Container: input.Audio},
 		workspace.policy.Inspection, &session.workspace, speechrecognition.RunBinding{
 			Key: "transcription/run/" + reporter.OperationID().String(), CodeCommit: workspace.commit, Environment: workspace.environment,
 		})
-	return operation.Completion{Run: run.ID, Outputs: run.Outputs}, err
+	completion = operation.Completion{Run: run.ID, Outputs: run.Outputs}
+	if err != nil || transcription.Text == "" {
+		return completion, err
+	}
+	// The transcript's text beside the run's transcription document: the
+	// page renders the text output as the assistant's turn.
+	text, err := modelrecipe.TextAnswerContract.OwnedContentBytes([]byte(transcription.Text))
+	if err != nil {
+		return completion, err
+	}
+	if _, err := artifact.CommitBatch(ctx, workspace.store, artifact.Batch{
+		Key: "transcription/text/" + text.Descriptor.ID.String(), Contents: []artifact.Content{text},
+	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		return completion, err
+	}
+	completion.Outputs = append(slices.Clone(run.Outputs), text.Descriptor.ID)
+	return completion, nil
 }

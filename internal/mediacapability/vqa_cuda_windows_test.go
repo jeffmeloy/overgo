@@ -83,7 +83,7 @@ func TestVQAActivation(t *testing.T) {
 		t.Fatalf("answer %q does not start with %q", answer, wantPrefix)
 	}
 	content, err := OutputContent(answer)
-	if err != nil || content.Descriptor.MediaType != textMediaType {
+	if err != nil || content.Descriptor.MediaType != modelrecipe.TextAnswerMediaType {
 		t.Fatalf("published answer = %+v, %v", content.Descriptor, err)
 	}
 	t.Logf("VQA activation answer=%q phases=%d", answer, len(output.(capabilityruntime.Measured).Phases))

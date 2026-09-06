@@ -155,8 +155,9 @@ func testAudioTranscriptionsNative(t *testing.T) {
 	if len(statuses) != 2 {
 		t.Fatalf("operations=%d", len(statuses))
 	}
+	// Two outputs per run: the transcription document and the transcript's text beside it.
 	for _, status := range statuses {
-		if status.State != operation.StateCompleted || status.Run == nil || len(status.Outputs) != 1 || len(status.Attempts) != 1 || runs[*status.Run] {
+		if status.State != operation.StateCompleted || status.Run == nil || len(status.Outputs) != 2 || len(status.Attempts) != 1 || runs[*status.Run] {
 			t.Fatalf("incomplete or reused operation: %+v", status)
 		}
 		runs[*status.Run] = true

@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/png"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -421,6 +422,34 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	} else {
 		t.Log("vqa leg not taken: the store declares no VQA model")
 	}
+	// 12c. Transcribe: an attached clip stores through the intake route and
+	// fills the audio control; the transcript lands as the assistant's text.
+	// Taken only when the lane store holds an active transcription recipe.
+	if generationMode("transcription", "model.transcribe-audio") {
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      const picker = document.querySelector(".composer input[type=file]");
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([Uint8Array.from(atob(`+strconv.Quote(toneWAVBase64())+`), (char) => char.charCodeAt(0))], "tone.wav", { type: "audio/wav" }));
+      picker.files = transfer.files;
+      picker.dispatchEvent(new Event("change"));
+      return true;
+    })()`)
+		settle("the clip fills the audio control", `(() => {
+      const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("audio"));
+      const input = field && field.querySelector("input"), card = document.querySelector(".composer .card");
+      return !!input && input.value.includes(":sha256:") && !!card && !card.classList.contains("refused") && card.textContent.includes("stored as"); })()`)
+		var before int
+		if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
+			t.Fatal(err)
+		}
+		say(t, ctx, browser, "transcribe")
+		settle("the transcript lands as the assistant's text", `document.querySelectorAll("#panel-chat .msg.assistant").length === `+strconv.Itoa(before+1)+` &&
+      !document.querySelector(".composer .btn").disabled && document.querySelectorAll("#panel-chat .msg.error").length === 0 &&
+      (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0`)
+		t.Log("transcription leg: the transcript of the attached clip landed as the assistant's text")
+	} else {
+		t.Log("transcription leg not taken: the store declares no active transcription recipe")
+	}
 	// 13. Remote turn: picker marks the remote model; serving it swaps the
 	// child to the relay; welcome + assistant turns carry the marker; answer
 	// from the fake provider, no input-token count.
@@ -515,6 +544,16 @@ func ensureLaneAgent(t *testing.T, base string) {
 
 // tinyPNGBase64 encodes a small red square as PNG bytes for the browser to
 // attach: a real image a projector can encode, not a bare signature.
+// toneWAVBase64: one second of a 16 kHz mono sine, the clip the
+// transcription leg attaches.
+func toneWAVBase64() string {
+	samples := make([]int16, 16000)
+	for i := range samples {
+		samples[i] = int16(8192 * math.Sin(2*math.Pi*float64(i)/16))
+	}
+	return base64.StdEncoding.EncodeToString(testutil.MonoPCM16WAV(16000, samples))
+}
+
 func tinyPNGBase64(t *testing.T) string {
 	t.Helper()
 	canvas := image.NewRGBA(image.Rect(0, 0, 16, 16))

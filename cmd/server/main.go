@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -36,6 +37,9 @@ const (
 
 	// generationCatalogLimit bounds the activated models the generation workspace lists.
 	generationCatalogLimit = 256
+	// transcriptionPolicyDocument: the transcription policy declared beside
+	// the store (in its data root); found, it serves without the flag.
+	transcriptionPolicyDocument = "transcription_policy.json"
 
 	defaultAnalysisTensorSamples = 4096
 	defaultAnalysisTensorBytes   = 64 << 20
@@ -228,6 +232,21 @@ func run() error {
 		defer workspaceStore.Close()
 	}
 	var workflowWorkspaces llamaserver.WorkflowWorkspaceSet
+	// A transcription policy declared beside the store (the data root's
+	// transcription_policy.json) serves without the flag, so a server the
+	// swap proxy launches offers the store's active transcription recipe;
+	// its refusal (the recipe retired) is logged, not fatal.
+	discovered := false
+	if transcriptionPolicy == nil && repoPath != "" {
+		candidate := filepath.Join(filepath.Dir(repoPath), transcriptionPolicyDocument)
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			policy, err := llamaserver.LoadTranscriptionPolicy(candidate)
+			if err != nil {
+				return fmt.Errorf("load transcription policy: %w", err)
+			}
+			transcriptionPolicy, discovered = &policy, true
+		}
+	}
 	if transcriptionPolicy != nil {
 		if workspaceStore == nil {
 			return errors.New("transcription workspace requires a repository")
@@ -237,11 +256,15 @@ func run() error {
 			return fmt.Errorf("bind transcription source: %w", err)
 		}
 		workspace, err := llamaserver.NewTranscriptionWorkspace(shutdownContext, workspaceStore, *transcriptionPolicy, commit)
-		if err != nil {
+		switch {
+		case err != nil && discovered:
+			log.Printf("transcription workspace unavailable under the declared policy: %v", err)
+		case err != nil:
 			return fmt.Errorf("open transcription workspace: %w", err)
+		default:
+			defer workspace.Close(context.WithoutCancel(shutdownContext))
+			workflowWorkspaces = append(workflowWorkspaces, workspace)
 		}
-		defer workspace.Close(context.WithoutCancel(shutdownContext))
-		workflowWorkspaces = append(workflowWorkspaces, workspace)
 	}
 	if *trainingEnabled {
 		if rootsErr != nil {

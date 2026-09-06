@@ -33,7 +33,7 @@
   // the operation's outputs land as media events, each an artifact with provenance,
   // or as the assistant's text when the task answers in text; the output's kind
   // follows the server's task vocabulary, not a model list.
-  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" ? "text" : task.startsWith("video") ? "video" : "image";
+  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" || task === "transcription" ? "text" : task.startsWith("video") ? "video" : "image";
   // bodyControl: the declared text control the message body feeds (a prompt, a text, a question).
   const bodyControl = (controls) => (controls || []).find((control) => control.type === "text" && ["prompt", "text", "question"].includes(control.name));
   async function* generation(selection, text, signal) {
@@ -47,7 +47,8 @@
     if (completed.state !== "completed") { yield { type: "error", message: completed.failure || completed.state }; return; }
     const outputs = (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) }));
     if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), { data: outputs }, text); return; }
-    for (const output of outputs) yield { type: "token", text: await (await overgo.api.blob(output.url)).text() };
+    // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
+    for (const output of outputs) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
     yield { type: "done" };
   }
 
@@ -272,8 +273,7 @@
 
     function renderAttachments() {
       attachmentHost.replaceChildren(...attachments.map((item, index) => {
-        const remove = el("button", { class: "btn alt", text: "×" });
-        remove.addEventListener("click", () => { attachments.splice(index, 1); renderAttachments(); });
+        const remove = el("button", { class: "btn alt", text: "×", onclick: () => { attachments.splice(index, 1); renderAttachments(); } });
         const preview = item.refusal ? el("span", { class: "tag control", text: "refused" })
           : item.kind === "image" ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
             : item.kind === "video" ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" })

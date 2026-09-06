@@ -565,6 +565,20 @@ derived from the server, not from client configuration:
   the control accepts or refuses the document by its type. The file dialog
   in such a mode is not narrowed to the chat model's types. In every other
   mode an attachment travels inline with the turn as before.
+- **Transcription as a mode.** A server whose store holds the active CPU
+  transcription recipe of its transcription policy lists "Transcribe"
+  beside chat; the capability declares one artifact-typed audio control,
+  which an attached clip fills through the intake route and a stored
+  card's "use as input" fills directly; the generic run route executes the
+  transcription workspace under its resource bounds and completes with the
+  run's transcription document and the transcript's text as a plain-text
+  output, which the page renders as the assistant's turn. The policy comes
+  from `-transcription-policy` or, for a server the swap proxy launches,
+  from `transcription_policy.json` beside the store; a declared policy
+  whose recipe is not active is logged and the mode is absent. No
+  production path activates a transcription recipe yet (parked as a
+  finding), so a store activated by the ASR baseline harness is the only
+  one that lists the mode.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

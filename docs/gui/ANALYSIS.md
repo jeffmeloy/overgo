@@ -345,6 +345,24 @@ What the rows established, each a record rather than a statement:
   in such a mode. The journey's leg 12b attaches the red square in vqa
   mode while Qwen2.5-0.5B (no projector) serves, proves the control
   filled with a new id and the answer about the upload.
+- Transcription as a mode (transcription-mode): `TranscriptionWorkspace`
+  declares its audio control artifact-typed (the intake's file documents
+  are what its executor already required) and completes with the
+  transcript's text under `modelrecipe.TextAnswerContract` (moved from
+  mediacapability so the server and the media executors share one owner)
+  beside the run's transcription document; the capability document lists
+  the mode (`workflow.transcription`); the page's text path yields only
+  `text/*` outputs. `cmd/server` loads `transcription_policy.json` beside
+  the store when the flag is absent, logging a refused workspace rather
+  than failing the server, so a proxy-launched child can serve the mode.
+  `TestTranscriptionModeRunsThroughGenericRoute` drives manifest,
+  capabilities, intake, run, wait and both outputs over the fixture
+  transcriber. The lane's leg 12c attaches a one-second tone and is taken
+  only when the lane store holds an active transcription recipe: no store
+  does, since no production path activates one (`cmd/recipe
+  verify/activate` refuses the task; the ASR baseline harness publishes
+  the Granite candidate and evaluates without activating); parked as a
+  finding for the audio lane.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

@@ -143,8 +143,7 @@
           cards.push(overgo.stat("Cached", fmt.grouped(timings.cache_n), "tokens"));
           if (timings.prompt_n && timings.prompt_ms > 0) cards.push(overgo.stat("Prefill", Number(timings.prompt_per_second).toFixed(2), "tok/s"));
           if (timings.predicted_n && timings.predicted_ms > 0) cards.push(overgo.stat("Decode", Number(timings.predicted_per_second).toFixed(2), "tok/s"));
-          const elapsed = Number(timings.prompt_ms) + Number(timings.predicted_ms);
-          if (elapsed > 0) cards.push(overgo.stat("Elapsed", elapsed.toFixed(2), "ms"));
+          if (Number(timings.prompt_ms) + Number(timings.predicted_ms) > 0) cards.push(overgo.stat("Elapsed", (Number(timings.prompt_ms) + Number(timings.predicted_ms)).toFixed(2), "ms"));
         }
         facts.replaceChildren(...cards);
       }

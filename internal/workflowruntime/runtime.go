@@ -246,7 +246,13 @@ func (r *Runtime) executeProgram(
 	if err != nil {
 		return Result{}, err
 	}
-	outputs, nodeWalls, executeErr := r.executePlan(ctx, definition, readySets, operation, attempts, inputs)
+	// One durable attempt per execution: stage completions are memoised
+	// under it, and a resumed execution reads them under a newer count.
+	attempt, err := runrecord.OpenDurableAttempt(context.WithoutCancel(ctx), r.store, operation)
+	if err != nil {
+		return Result{}, err
+	}
+	outputs, nodeWalls, executeErr := r.executePlan(ctx, definition, readySets, operation, attempt, attempts, inputs)
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if executeErr != nil {
 		outputs = nil
@@ -287,6 +293,7 @@ func (r *Runtime) executePlan(
 	definition recipe.Definition,
 	readySets [][]recipe.Stage,
 	operation artifact.ID,
+	attempt runrecord.DurableAttempt,
 	attempts AttemptRecorder,
 	external map[recipe.PortName]Value,
 ) (map[recipe.PortName]Value, []NodeWall, error) {
@@ -306,7 +313,7 @@ func (r *Runtime) executePlan(
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		completed, err := r.executeReadySet(ctx, definition, ready, operation, attempts, bound)
+		completed, err := r.executeReadySet(ctx, definition, ready, operation, attempt, attempts, bound)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -364,13 +371,14 @@ func (r *Runtime) executeReadySet(
 	definition recipe.Definition,
 	ready []recipe.Stage,
 	operation artifact.ID,
+	attempt runrecord.DurableAttempt,
 	attempts AttemptRecorder,
 	bound map[recipe.Endpoint][]Value,
 ) ([]stageExecution, error) {
 	stages := make([]stageExecution, len(ready))
 	active := 0
 	for index, stage := range ready {
-		execution, err := r.prepareStage(ctx, definition, stage, operation, attempts, bound)
+		execution, err := r.prepareStage(ctx, definition, stage, operation, attempt, attempts, bound)
 		if err != nil {
 			return nil, fmt.Errorf("workflow runtime: step %q: %w", stage.Node.ID, err)
 		}
@@ -424,8 +432,19 @@ func (r *Runtime) executeReadySet(
 		if stage.err == nil {
 			stage.outputs, stage.err = validateOutputs(stage.stage.Module, stage.outputs)
 		}
-		if err := r.finishStage(ctx, stage.base, stage.outputs, stage.err); err != nil {
+		receipt, err := r.finishStage(ctx, stage.base, stage.outputs, stage.err)
+		if err != nil {
 			stage.err = errors.Join(stage.err, err)
+		}
+		// A completed stage is a memo of this attempt: a later invocation
+		// reads the receipt instead of running the stage again. A stage whose
+		// memo could not be recovered (value-only outputs) runs again and
+		// completes under a fresh receipt; the first memo stands and the
+		// receipt chain carries the re-execution.
+		if stage.err == nil {
+			if _, err := attempt.Record(context.WithoutCancel(ctx), r.store, runrecord.DurableMemo, string(stage.stage.Node.ID), receipt); err != nil && !errors.Is(err, runrecord.ErrEntryRecorded) {
+				stage.err = err
+			}
 		}
 		if stage.err != nil && executeErr == nil {
 			executeErr = fmt.Errorf("workflow runtime: step %q: %w", stage.stage.Node.ID, stage.err)
@@ -439,6 +458,7 @@ func (r *Runtime) prepareStage(
 	definition recipe.Definition,
 	stage recipe.Stage,
 	operation artifact.ID,
+	attempt runrecord.DurableAttempt,
 	attempts AttemptRecorder,
 	bound map[recipe.Endpoint][]Value,
 ) (stageExecution, error) {
@@ -466,10 +486,18 @@ func (r *Runtime) prepareStage(
 		Recipe: definition.ID, Operation: operation, Model: model,
 		Task: definition.Task, Node: step.ID, Attempts: attempts, Inputs: inputs,
 	}, adapter: adapter}
-	outputs, recovered, err := r.recoverStage(ctx, definition, stage, operation)
-	if err != nil || recovered {
-		execution.outputs, execution.recovered = outputs, recovered
-		return execution, err
+	// The memo decides recovery: a stale attempt is refused here, its first
+	// log request, and only a memoised stage is read back from its receipt.
+	_, memoised, err := attempt.Lookup(ctx, r.store, runrecord.DurableMemo, string(step.ID))
+	if err != nil {
+		return stageExecution{}, err
+	}
+	if memoised {
+		outputs, recovered, err := r.recoverStage(ctx, definition, stage, operation)
+		if err != nil || recovered {
+			execution.outputs, execution.recovered = outputs, recovered
+			return execution, err
+		}
 	}
 	execution.base, err = r.beginStage(ctx, definition, stage, operation, execution.request)
 	return execution, err
@@ -641,7 +669,7 @@ func (r *Runtime) finishStage(
 	base runrecord.StageReceipt,
 	produced map[recipe.PortName]Value,
 	executeErr error,
-) error {
+) (artifact.ID, error) {
 	publishContext := ctx
 	if ctx.Err() != nil {
 		publishContext = context.WithoutCancel(ctx)
@@ -651,16 +679,16 @@ func (r *Runtime) finishStage(
 		if _, waiting := operatoraction.Recovery(executeErr); waiting {
 			state, failure = runrecord.StageWaiting, ""
 		}
-		_, err := runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, state, failure), nil, nil)
-		return err
+		receipt, err := runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, state, failure), nil, nil)
+		return receipt.ID, err
 	}
 	outputs, outputFacts, err := stageFacts(produced)
 	if err != nil {
-		return err
+		return artifact.ID{}, err
 	}
 	base.Outputs = outputs
-	_, err = runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
-	return err
+	receipt, err := runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
+	return receipt.ID, err
 }
 
 func withStageState(value runrecord.StageReceipt, state runrecord.StageState, failure string) runrecord.StageReceipt {

@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "attempt-identity",
-          "title": "Record attempt identity as the durable unit and its invocation count, with keyed memo, wait and child entries",
-          "status": "open",
-          "verify": "test -f internal/runrecord/durable_attempt_test.go \u0026\u0026 go test ./internal/runrecord -run '^TestDurableAttemptInvocationContract$' -count=1",
-          "rationale": "Design record E1. One record contract replaces three recovery derivations: a memo entry is keyed by a caller key bound to the attempt, a wait or child is an ordinal entry, and each completion is recorded once. Invocation counts increase monotonically per durable unit and a stale count is refused at its first request.",
-          "depends_on": [
-            "campaign-definition/author-plan"
-          ],
-          "capabilities": [
-            "durable-attempt-identity",
-            "keyed-memo-log"
-          ]
-        },
-        {
           "id": "memo-replay",
           "title": "Replay a workflow graph from its keyed log without re-executing memoised stages",
           "status": "open",

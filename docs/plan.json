@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "divergence-and-eviction",
-          "title": "Refuse divergent replays with a typed failure and refuse stale invocations",
-          "status": "open",
-          "verify": "test -f internal/agentloop/durable_divergence_test.go \u0026\u0026 go test ./internal/agentloop -run '^TestDurableInvocationDivergenceAndEviction$' -count=1",
-          "rationale": "A replay whose next request differs from the recorded entry is a determinism defect, not a retry. The session recovery owner records the divergence as a typed failure and an invocation superseded by a newer count cannot complete.",
-          "depends_on": [
-            "durable-attempt-log/memo-replay"
-          ],
-          "capabilities": [
-            "replay-divergence-refusal",
-            "stale-invocation-eviction"
-          ]
-        },
-        {
           "id": "agent-tool-children",
           "title": "Run agent tool calls as memoised child attempts that replay from their receipts",
           "status": "open",

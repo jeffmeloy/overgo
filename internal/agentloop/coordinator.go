@@ -54,6 +54,9 @@ type Session struct {
 	// handoff is the context this session's latest attempt received: the
 	// bounded full context or the verified stable cursor delta.
 	handoff sessionContext
+	// attempt is the durable invocation a resumed session replays under;
+	// nil for a session that executes without the log.
+	attempt *runrecord.DurableAttempt
 }
 
 // Coordinator admits and records agent tool steps.
@@ -152,6 +155,13 @@ func (c *Coordinator) propose(
 	if err := session.Contract.Admit(plannedEffect); err != nil {
 		return nil, err
 	}
+	// A durable session reads a recorded step from its log before it
+	// executes anything; the log refuses a stale invocation here.
+	if replayed, found, err := c.replayChild(ctx, session, manual, arguments, plannedEffect); err != nil {
+		return nil, err
+	} else if found {
+		return replayed, nil
+	}
 	callID := fmt.Sprintf("%s-step-%d", session.ID, session.Steps+1)
 	var stimulus runrecord.AttemptStimulusBoundary
 	var decision runrecord.HumanDecision
@@ -219,6 +229,9 @@ func (c *Coordinator) propose(
 	interaction, err := c.recordStep(ctx, session, manual, arguments, result, receipt, checkpoint.ID, stimulus.ID)
 	if err != nil {
 		return nil, fmt.Errorf("agent loop: step executed but did not persist: %w", err)
+	}
+	if err := c.recordChild(ctx, session, interaction); err != nil {
+		return nil, fmt.Errorf("agent loop: step executed but its invocation cannot complete it: %w", err)
 	}
 	session.Steps++
 	if manual.Effect == agenttool.EffectInspection {

@@ -42,3 +42,12 @@ func (delegated *DelegatedCoordinator) Propose(ctx context.Context, session *Ses
 	session.Ceiling = delegated.coordinator.identity.Recipe
 	return delegated.coordinator.ProposeWithManuals(ctx, session, name, arguments, delegated.manuals)
 }
+
+// OpenDurableSession opens the session's next durable invocation through
+// the delegated coordinator.
+func (delegated *DelegatedCoordinator) OpenDurableSession(ctx context.Context, id string) (*Session, error) {
+	if delegated == nil {
+		return nil, errors.New("agent loop: delegated coordinator is absent")
+	}
+	return delegated.coordinator.OpenDurableSession(ctx, id)
+}

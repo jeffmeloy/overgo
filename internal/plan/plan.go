@@ -59,6 +59,11 @@ type Step struct {
 	// Conditions: typed skip/cancel/wait predicates over recorded parent
 	// outcomes and events; frontier evaluates them (see conditions.go).
 	Conditions *StepConditions `json:"conditions,omitempty"`
+	// AcceptsRefusal: dependencies whose skip or cancel satisfies this row;
+	// every other refused dependency holds it (see refusal.go).
+	AcceptsRefusal []string `json:"accepts_refusal,omitempty"`
+	// Refusal: the recorded skip or cancel of this row.
+	Refusal *RowRefusal `json:"refusal,omitempty"`
 }
 
 // Item is one rung of the ladder.
@@ -173,6 +178,9 @@ func validatePlanGraph(d Plan) error {
 			if err := validateStepConditions(step); err != nil {
 				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
 			}
+			if err := validateRefusal(step); err != nil {
+				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
+			}
 		}
 		if item.Status == StatusDone && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.Status != StatusDone }) {
 			return fmt.Errorf("plan item %s is done with unfinished steps", item.ID)
@@ -262,7 +270,10 @@ func dependenciesSatisfied(d Plan, step Step, authority CompletionAuthority) boo
 			for _, candidate := range item.Steps {
 				if candidate.ID == stepID {
 					present = true
-					satisfied = candidate.Status == StatusDone
+					// A refused dependency satisfies only a row that declares
+					// it accepts the refusal.
+					satisfied = candidate.Status == StatusDone ||
+						refused(candidate.Status) && slices.Contains(step.AcceptsRefusal, reference)
 					break
 				}
 			}
@@ -292,7 +303,7 @@ func ValidateCampaignCensusAuthority(d Plan) error {
 }
 
 func validStatus(status string) bool {
-	return status == StatusOpen || status == StatusDone || strings.HasPrefix(status, "blocked")
+	return status == StatusOpen || status == StatusDone || refused(status) || strings.HasPrefix(status, "blocked")
 }
 
 // Current returns the role-owned open step, then the first unowned step.
@@ -323,6 +334,8 @@ func currentOwned(d Plan, owner string, authority CompletionAuthority) (Item, St
 		blocked := false
 		for _, s := range it.Steps {
 			if s.Status != StatusOpen {
+				// A refused row is retained, never a rung to open.
+				blocked = blocked || refused(s.Status)
 				continue
 			}
 			// depends_on is enforced, not descriptive: a step whose

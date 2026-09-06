@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "skipped-and-cancelled-completion",
-          "title": "Record skipped and cancelled rows with reasons, and let them satisfy only dependencies that declare they accept a refusal",
-          "status": "open",
-          "verify": "test -f internal/plan/skipped_completion_test.go \u0026\u0026 go test ./internal/plan -run '^TestSkippedAndCancelledRowAuthority$' -count=1",
-          "rationale": "Review finding 5. A terminal refusal can resolve a decision branch, but a skipped required validation must not satisfy a dependency that requires successful evidence. A dependency declares whether it accepts a refusal; the completion authority records the skip or cancel with its reason and resolves each dependent by that declaration. The acceptance tests both the accepted and the refused case.",
-          "depends_on": [
-            "conditional-plan-rows/outcome-predicates"
-          ],
-          "capabilities": [
-            "skipped-completion",
-            "recorded-reasons",
-            "explicit-required-outcome"
-          ]
-        },
-        {
           "id": "frontier-conditions",
           "title": "Dispatch only rows whose conditions hold and report waiting rows with their reasons",
           "status": "open",

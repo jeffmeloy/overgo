@@ -79,6 +79,9 @@ func main() {
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
+	refuse := flag.Bool("refuse", false, "record a skip or cancel on an open row: -refuse <item>/<step> -disposition skip|cancel -reason <text>")
+	disposition := flag.String("disposition", "", "with -refuse: skip or cancel")
+	reason := flag.String("reason", "", "with -refuse: the recorded reason")
 	contain := flag.String("contain", "", "record typed lane containment: -contain <reason-code> -lane <lane> <detail>")
 	lane := flag.String("lane", "", "lane affected by -contain")
 	_ = flag.String("force", "", "retired with -advance")
@@ -87,7 +90,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{move: *move, retitle: *retitle, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{move: *move, retitle: *retitle, refuse: *refuse, disposition: *disposition, reason: *reason, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -95,7 +98,8 @@ func main() {
 
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop bool
-	move, retitle                                                                    bool
+	move, retitle, refuse                                                            bool
+	disposition, reason                                                              string
 	frontier                                                                         bool
 	judgeEfficiency                                                                  string
 	pruneDone                                                                        bool
@@ -185,6 +189,11 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
 		}
 		return setStepVerify(".", args[0], args[1], c.verifyCmd, role)
+	case c.refuse:
+		if len(args) != 1 {
+			return errors.New("usage: plan -refuse <item>/<step> -disposition skip|cancel -reason <text>")
+		}
+		return refuseRow(".", args[0], c.disposition, c.reason, role)
 	case c.stop:
 		return recordStop(strings.Join(args, " "))
 	case c.contain != "":

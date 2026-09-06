@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "operator-references",
-      "title": "Diagnose and replay one plan row from its records",
-      "status": "open",
-      "steps": [
-        {
-          "id": "replay-attempt",
-          "title": "Replay one attempt from its receipt with the same or new inputs",
-          "status": "open",
-          "verify": "test -f internal/loop/replay_test.go \u0026\u0026 go test ./internal/loop -run '^TestReplayAttemptFromReceipt$' -count=1",
-          "rationale": "A recorded attempt is re-run from its receipt under a new invocation count, reading memoised results where the inputs are unchanged and executing where they differ, which is the replay reference an agent uses after a diagnosis.",
-          "depends_on": [
-            "operator-references/diagnose-row",
-            "durable-attempt-log/memo-replay"
-          ],
-          "capabilities": [
-            "attempt-replay"
-          ]
-        }
-      ]
-    },
-    {
       "id": "declared-capacity",
       "title": "Declare slot cost, lane labels and sticky assignment on the existing schedulers",
       "status": "open",

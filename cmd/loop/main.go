@@ -87,6 +87,7 @@ func run(args []string) error {
 	efficiencyTraceSpecPath := flags.String("publish-efficiency-trace", "", "publish one measured interaction-work trace from this spec")
 	directionSpecPath := flags.String("publish-direction", "", "publish one extracted residual-direction claim from this spec")
 	attemptReceiptSpecPath := flags.String("attempt-receipt", "", "resolve and print one terminal attempt receipt from this spec")
+	replayReference := flags.String("replay-attempt", "", "replay one row's latest recorded attempt from its receipt: -replay-attempt <item>/<step>")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -126,6 +127,8 @@ func run(args []string) error {
 		return publishEfficiencyTrace(*repoPath, *efficiencyTraceSpecPath, os.Stdout)
 	case *directionSpecPath != "":
 		return publishDirection(*repoPath, *directionSpecPath, os.Stdout)
+	case *replayReference != "":
+		return replayAttempt(*repoPath, *replayReference, os.Stdout)
 	case *attemptReceiptSpecPath != "":
 		return readAttemptReceipt(*repoPath, *attemptReceiptSpecPath, os.Stdout)
 	}

@@ -756,6 +756,14 @@ The workbench tabs remain behind the front page:
 
 ### Verification
 
+The client is held by measures, not by rule prose: the composer budget
+test ratchets the JavaScript line count and the review criteria the lane
+census measures (silent fallbacks, window dialogs, controls and buttons
+without an accessible name, inline style attributes, nested ternaries,
+timer literals, debt markers, the largest file), each at its measured
+value and only tightening; `go run ./cmd/webui-lane -report` prints
+them beside the size measures.
+
 `go run ./cmd/webui-lane` runs the real-browser acceptance lane the gate
 selects for every web UI change: the workbench acceptance steps, the front
 page's keyboard, motion, colour, and width contract, and a first-run journey

@@ -30,6 +30,77 @@ type Census struct {
 	Routes            int    `json:"routes"`              // distinct route paths in the API manifest
 	BearerRoutes      int    `json:"bearer_routes"`       // distinct bearer-authenticated route paths
 	ClientRoutes      int    `json:"client_routes"`       // manifest routes the client names by literal path
+	LargestFileLines  int    `json:"largest_file_lines"`  // newline count of the largest *.js under webui/
+	Review                   // the review criteria, summed over every *.js
+}
+
+// Review is the client review criteria measured over JavaScript source
+// (owner rule 2026-09-06: review concepts are owned as measures with
+// ratchets, never as rule prose): silent failures, dialogs that leave the
+// page, controls without an accessible name, inline styling, nested
+// conditionals, timer literals and debt markers.
+type Review struct {
+	SilentFallbacks int `json:"silent_fallbacks"` // .catch swallowing to null/{}/[]/false without a reviewed comment after it
+	WindowDialogs   int `json:"window_dialogs"`   // alert/confirm/prompt calls
+	UnnamedControls int `json:"unnamed_controls"` // el("input"/"select") without aria-label, placeholder, a file/checkbox/hidden type or a wrapping label on the line
+	UnnamedButtons  int `json:"unnamed_buttons"`  // el("button", {...}) closed on its attributes without text, aria-label or title
+	InlineStyles    int `json:"inline_styles"`    // style: "..." attributes in el() calls
+	NestedTernaries int `json:"nested_ternaries"` // a ternary inside a ternary's branch on one line
+	TimerLiterals   int `json:"timer_literals"`   // setTimeout/setInterval with a numeric literal
+	DebtMarkers     int `json:"debt_markers"`     // TODO/FIXME/HACK/XXX
+}
+
+var (
+	silentFallbackPattern = regexp.MustCompile(`\.catch\(\([^)]*\) => (?:null|\{\s*\}|\[\]|false|undefined|""|0)\)(\s*/\*)?`)
+	windowDialogPattern   = regexp.MustCompile(`(?:^|[\s(=!&|,])(?:window\.)?(?:alert|confirm|prompt)\(`)
+	controlPattern        = regexp.MustCompile(`el\("(?:input|select)"[^\n]*`)
+	buttonPattern         = regexp.MustCompile(`el\("button", \{[^}]*\}\)`)
+	inlineStylePattern    = regexp.MustCompile(`style: "`)
+	nestedTernaryPattern  = regexp.MustCompile(`\?[^:\n]*\?[^:\n]*:`)
+	timerLiteralPattern   = regexp.MustCompile(`set(?:Timeout|Interval)\([^\n]*?,\s*\d+\)`)
+	debtMarkerPattern     = regexp.MustCompile(`\b(?:TODO|FIXME|HACK|XXX)\b`)
+)
+
+// ReviewMeasures measures one JavaScript source against the review criteria.
+func ReviewMeasures(source string) Review {
+	var review Review
+	for _, match := range silentFallbackPattern.FindAllStringSubmatch(source, everyMatch) {
+		if match[1] == "" {
+			review.SilentFallbacks++
+		}
+	}
+	review.WindowDialogs = len(windowDialogPattern.FindAllString(source, everyMatch))
+	for line := range strings.SplitSeq(source, "\n") {
+		for _, at := range controlPattern.FindAllStringIndex(line, everyMatch) {
+			call, before := line[at[0]:at[1]], line[:at[0]]
+			if !strings.Contains(call, "aria-label") && !strings.Contains(call, "placeholder") && !strings.Contains(call, `type: "file"`) &&
+				!strings.Contains(call, `type: "checkbox"`) && !strings.Contains(call, `type: "hidden"`) && !strings.Contains(before, `el("label"`) {
+				review.UnnamedControls++
+			}
+		}
+	}
+	for _, call := range buttonPattern.FindAllString(source, everyMatch) {
+		if !strings.Contains(call, "text:") && !strings.Contains(call, "aria-label") && !strings.Contains(call, "title:") {
+			review.UnnamedButtons++
+		}
+	}
+	review.InlineStyles = len(inlineStylePattern.FindAllString(source, everyMatch))
+	review.NestedTernaries = len(nestedTernaryPattern.FindAllString(source, everyMatch))
+	review.TimerLiterals = len(timerLiteralPattern.FindAllString(source, everyMatch))
+	review.DebtMarkers = len(debtMarkerPattern.FindAllString(source, everyMatch))
+	return review
+}
+
+// add sums another source's measures into this review.
+func (review *Review) add(other Review) {
+	review.SilentFallbacks += other.SilentFallbacks
+	review.WindowDialogs += other.WindowDialogs
+	review.UnnamedControls += other.UnnamedControls
+	review.UnnamedButtons += other.UnnamedButtons
+	review.InlineStyles += other.InlineStyles
+	review.NestedTernaries += other.NestedTernaries
+	review.TimerLiterals += other.TimerLiterals
+	review.DebtMarkers += other.DebtMarkers
 }
 
 const (
@@ -72,6 +143,8 @@ func MeasureTree(root, label string) (Census, error) {
 			}
 			census.ListedScripts += len(scriptLiteralPattern.FindAllString(source, everyMatch))
 			census.JavaScriptLines += strings.Count(source, "\n")
+			census.LargestFileLines = max(census.LargestFileLines, strings.Count(source, "\n"))
+			census.Review.add(ReviewMeasures(source))
 			census.FetchSites += len(fetchSitePattern.FindAllString(source, everyMatch))
 			census.StreamReaderSites += strings.Count(source, ".getReader()")
 			census.APIStreamSites += strings.Count(source, "api.stream(")
@@ -178,6 +251,15 @@ func SimplificationReport(fork, head Census, proven, unobserved []string) string
 		{"API manifest routes", func(c Census) int { return c.Routes }},
 		{"Bearer-authenticated routes", func(c Census) int { return c.BearerRoutes }},
 		{"Routes the client names", func(c Census) int { return c.ClientRoutes }},
+		{"Largest file (lines)", func(c Census) int { return c.LargestFileLines }},
+		{"Silent fallbacks", func(c Census) int { return c.SilentFallbacks }},
+		{"Window dialogs", func(c Census) int { return c.WindowDialogs }},
+		{"Controls without a name", func(c Census) int { return c.UnnamedControls }},
+		{"Buttons without a name", func(c Census) int { return c.UnnamedButtons }},
+		{"Inline style attributes", func(c Census) int { return c.InlineStyles }},
+		{"Nested ternaries", func(c Census) int { return c.NestedTernaries }},
+		{"Timer literals", func(c Census) int { return c.TimerLiterals }},
+		{"Debt markers", func(c Census) int { return c.DebtMarkers }},
 	}
 	var report strings.Builder
 	fmt.Fprintf(&report, "# Simplification report: %s to %s\n\n", fork.Tree, head.Tree)

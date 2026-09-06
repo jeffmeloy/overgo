@@ -5,6 +5,48 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "webui-silent-failures",
+      "title": "Hunt the silent failures the census names: the catalog fetch after health, the peer evidence renders and the count-route refusal either surface their failure in the page (a note beside the surface it starves) or carry a reviewed comment naming why the refusal is tolerated, the conversation title prompt becomes an in-page rename field instead of a window dialog, and the ceilings drop to the reviewed count and zero dialogs",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hunt the silent failures the census names: the catalog fetch after health, the peer evidence renders and the count-route refusal either surface their failure in the page (a note beside the surface it starves) or carry a reviewed comment naming why the refusal is tolerated, the conversation title prompt becomes an in-page rename field instead of a window dialog, and the ceilings drop to the reviewed count and zero dialogs",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-accessible-names",
+      "title": "Give every control an accessible name and every status a live region (WCAG 2.2 name-role-value, target size, live updates): inputs and selects without a wrapping label take aria-label, the two unnamed buttons take names, the operation strip and the error banners announce as polite live regions, pills meet the 24px minimum target, and the acceptance lane asserts on every tab it visits that each input, select and button has an accessible name; the unnamed ceilings drop to zero",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give every control an accessible name and every status a live region (WCAG 2.2 name-role-value, target size, live updates): inputs and selects without a wrapping label take aria-label, the two unnamed buttons take names, the operation strip and the error banners announce as polite live regions, pills meet the 24px minimum target, and the acceptance lane asserts on every tab it visits that each input, select and button has an accessible name; the unnamed ceilings drop to zero",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-style-consistency",
+      "title": "Bring the client to one style and fix the picker: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the ceilings drop accordingly",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bring the client to one style and fix the picker: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the ceilings drop accordingly",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
       "id": "integrate-to-master",
       "title": "Integrate the settled lane into master preserving master plan: merge the lane branch into master with master docs/plan.json untouched (the lane plan never merges), the merge gate green on master, and the lane rebased on the merged master; executed from the master worktree only with the owner go-ahead",
       "owner": "professional_overgo_gui",

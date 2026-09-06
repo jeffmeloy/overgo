@@ -591,7 +591,11 @@ derived from the server, not from client configuration:
   (the OpenAI-compatible listing carries each id; OpenRouter's adds the
   name and context length), and a listed model picked on the page fills
   the model ids and the declared context length, so a declaration names
-  only models the provider lists. The form also asks
+  only models the provider lists. A declared hosted model's row in the
+  Library catalog retires it with the section's reason through
+  `/library/providers/retire`, exactly as `cmd/remote-provider -retire`
+  does (a failed gate record under the remote environment, the active
+  alias released), and the catalog and the picker stop offering it. The form also asks
   the provider for its own model listing (`GET
   /library/providers/models`, the provider's models route under the key
   its variable holds, so the key gates it): each listed model is offered

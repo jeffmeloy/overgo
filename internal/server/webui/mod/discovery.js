@@ -12,8 +12,7 @@
       clear(panel);
 
       // ---- local catalog ----
-      const catalogBody = el("tbody");
-      const catalogNote = el("div", { class: "note", text: "loading catalog…" });
+      const catalogBody = el("tbody"), catalogNote = el("div", { class: "note", text: "loading catalog…" });
       async function refreshCatalog() {
         try {
           const catalog = await overgo.api.get("/catalog/models");
@@ -28,7 +27,11 @@
             const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
               class: "tag", style: "margin-right:4px", title: capability.stale || capability.recipe,
               text: capability.task + (capability.stale ? " · stale" : capability.tier ? " · " + capability.tier : "") })));
-            catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" })]));
+            // A hosted model retires from its row with the section's reason; the catalog relists without it.
+            const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "retire", onclick: async () => {
+              try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.textContent = overgo.friendlyError(err); }
+            } }) : "";
+            catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]));
           }
         } catch (err) { catalogNote.textContent = overgo.friendlyError(err); }
       }
@@ -57,8 +60,7 @@
           }
         });
       }
-      query.addEventListener("keydown", (event) => { if (event.key === "Enter") search(); });
-      searchButton.addEventListener("click", search);
+      query.addEventListener("keydown", (event) => { if (event.key === "Enter") search(); }); searchButton.addEventListener("click", search);
 
       // ---- downloads ----
       const jobsBody = el("tbody");
@@ -138,6 +140,7 @@
       const providerFields = ["name", "endpoint", "key variable", "model ids (comma-separated)", "context length (optional)"].map((placeholder) => el("input", { class: "text", placeholder, "aria-label": "provider " + placeholder }));
       const providerNote = el("span", { class: "note" });
       const providerListing = el("span", { class: "row" });
+      const providerReason = el("input", { class: "text", placeholder: "retirement reason (the endpoint gone, the key withdrawn)", "aria-label": "retirement reason" });
       const providerValues = () => providerFields.map((field) => field.value.trim());
       const providerButton = el("button", { class: "btn alt", text: "declare a hosted provider", onclick: async () => {
         const [name, endpoint, keyEnvironment, models, contextLength] = providerValues();
@@ -157,7 +160,7 @@
           } })));
         } catch (err) { providerNote.textContent = overgo.friendlyError(err); }
       } });
-      panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote);
+      panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
 
       refreshCatalog();
       this.onActivate = () => jobPoller.start();

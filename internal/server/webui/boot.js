@@ -132,15 +132,10 @@
 
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
-  function errorBanner(message) {
-    return el("div", { class: "err-banner", text: message });
-  }
+  function errorBanner(message) { return el("div", { class: "err-banner", text: message }); }
 
   // friendlyError: a 401 becomes the same actionable hint on every tab.
-  function friendlyError(err) {
-    if (err && err.status === 401) return "API key required — enter it in the top bar.";
-    return String((err && err.message) || err);
-  }
+  function friendlyError(err) { return err && err.status === 401 ? "API key required — enter it in the top bar." : String((err && err.message) || err); }
 
   // Number formatting helpers (grouping, byte sizes, compact counts).
   function grouped(n) { return Number(n).toLocaleString("en-US"); }

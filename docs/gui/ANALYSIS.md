@@ -451,6 +451,16 @@ What the rows established, each a record rather than a statement:
   prompt count when the count route refused. `relaytest` emits the usage
   chunk when asked (prompt 7, completion = pieces). The lane's remote leg
   reads the Input fact after the hosted turn.
+- Retirement from the page (openrouter-retire-from-page): `POST
+  /library/providers/retire` takes a location and a reason and retires
+  through the launcher-injected `LibraryIntake.RetireProvider`
+  (`remoteprovider.Retire` under the executable's source commit, the
+  command's rule); the Library catalog's hosted rows carry a "retire"
+  control that posts the section's reason and relists. The lane's leg 16
+  retires the key-entry model from its row; a modified tree sees the
+  refusal, a clean tree sees the row leave; the lane's own cleanup then
+  finds nothing to retire. `TestLibraryProviderRetireRetiresThroughTheIntake`
+  pins the route.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

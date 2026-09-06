@@ -539,6 +539,26 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
 			t.Log("declare-from-page leg: a provider declared on the Library tab served a turn through the relay")
 		}
+		// 16. Retire from the page: the key-entry model's Library row retires
+		// it with the section's reason; the catalog relists without it. The
+		// retirement is a store claim like the declaration, so a modified
+		// tree sees the refusal and a clean tree sees the row leave.
+		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#library"; return true; })()`)
+		settle("the library lists the key-entry model with its retire control", `[...document.querySelectorAll("#panel-library tr")].some((row) =>
+      row.textContent.includes(`+strconv.Quote(entryName)+`) && [...row.querySelectorAll("button")].some((button) => button.textContent === "retire"))`)
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      document.querySelector("input[aria-label='retirement reason']").value = "the browser lane's fake provider closed";
+      const row = [...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(`+strconv.Quote(entryName)+`));
+      [...row.querySelectorAll("button")].find((button) => button.textContent === "retire").click(); return true; })()`)
+		settle("the retired model leaves the library or the modified tree refuses", `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(`+strconv.Quote(entryName)+`)) ||
+      [...document.querySelectorAll("#panel-library .note")].some((note) => note.textContent.includes("worktree is dirty"))`)
+		var retiredOnPage bool
+		if err := browser.Evaluate(ctx, `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(`+strconv.Quote(entryName)+`))`, &retiredOnPage); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("retire-from-page leg: retired on the page %v", retiredOnPage)
+		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#chat"; return true; })()`)
+		settle("back on the front page after the retirement", `!!document.querySelector("#panel-chat.active .composer textarea")`)
 	}
 }
 

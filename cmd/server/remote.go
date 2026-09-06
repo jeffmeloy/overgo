@@ -100,6 +100,17 @@ func listProviderModels(ctx context.Context, endpoint, keyEnvironment string) ([
 	return models, nil
 }
 
+// retireProvider is the library route's retirement intake: the declared
+// hosted model at the location retires exactly as the provider command
+// retires it, under this executable's source commit.
+func retireProvider(ctx context.Context, store *overgodb.Store, location, reason string) error {
+	commit, err := runrecord.ExecutableCodeCommit(".")
+	if err != nil {
+		return err
+	}
+	return remoteprovider.Retire(ctx, store, generationCatalogLimit, location, commit, reason)
+}
+
 // providerKeys is the server's provider-key intake: the key the page
 // enters for a hosted model lands in this process's environment (never
 // on disk); the variable's name comes back.
@@ -142,7 +153,7 @@ func serveRemote(ctx context.Context, remote *remoteServing, options remoteServe
 		MaxStoredResponses: options.storedResponses, ResponseStoreBytes: options.responseStoreBytes,
 		OvergoDBPath: options.repository, Repository: workspaceStore, Environment: environment,
 		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: options.hubRoot, WebUIDir: options.webuiDir,
-		LibraryIntake: llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate, DeclareProvider: declareProvider, ListProviderModels: listProviderModels},
+		LibraryIntake: llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate, DeclareProvider: declareProvider, ListProviderModels: listProviderModels, RetireProvider: retireProvider},
 		ProviderKeys:  providerKeys,
 	}, &remoteRuntime{Generator: generator, WorkflowWorkspaceAPI: llamaserver.WorkflowWorkspaceSet{generation}})
 	if err != nil {

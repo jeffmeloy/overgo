@@ -114,6 +114,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/artifacts/intake", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).artifactIntake},
 	{Path: "/providers/key", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).providerKey},
 	{Path: "/library/providers/models", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).libraryProviderModels},
+	{Path: "/library/providers/retire", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryProviderRetire},
 	{Path: "/runtime/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeSessions},
 	{Path: "/runtime/activity", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivity},
 	{Path: "/runtime/activity/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivityStream},

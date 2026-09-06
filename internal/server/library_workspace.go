@@ -54,6 +54,16 @@ type LibraryIntake struct {
 	// under the key its variable holds; absent, the listing route answers
 	// that it needs it.
 	ListProviderModels func(ctx context.Context, endpoint, keyEnvironment string) ([]ProviderModel, error)
+	// RetireProvider retires a declared hosted model by its location with
+	// a reason, as the provider command does; absent, the retirement route
+	// answers that it needs it.
+	RetireProvider func(ctx context.Context, repository *overgodb.Store, location, reason string) error
+}
+
+// providerRetireRequest: the hosted model to retire and why.
+type providerRetireRequest struct {
+	Location string `json:"location"`
+	Reason   string `json:"reason"`
 }
 
 // ProviderModel is one model a hosted provider lists: its id, a display
@@ -214,6 +224,31 @@ func (h *Handler) libraryProviderModels(response http.ResponseWriter, request *h
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]any{"endpoint": endpoint, "models": models})
+}
+
+// libraryProviderRetire answers POST /library/providers/retire: the
+// declared hosted model at the location retires through the launcher's
+// intake with the reason (a failed gate record, the alias released), so
+// the catalog and the picker stop offering it.
+func (h *Handler) libraryProviderRetire(response http.ResponseWriter, request *http.Request) {
+	var body providerRetireRequest
+	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	if strings.TrimSpace(body.Location) == "" || strings.TrimSpace(body.Reason) == "" {
+		writeInvalidRequestMessage(response, "library: location and reason are required")
+		return
+	}
+	retire := h.config.LibraryIntake.RetireProvider
+	if h.repository == nil || retire == nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider retirement needs a store and the launcher's provider intake")
+		return
+	}
+	if err := retire(context.WithoutCancel(request.Context()), h.repository, body.Location, body.Reason); err != nil {
+		writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"location": body.Location, "retired": true})
 }
 
 // libraryValidate answers POST /library/validate: the validation runs as an

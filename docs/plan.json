@@ -1,24 +1,13 @@
 {
   "campaign": "Professional operator GUI: a consumer-simple front page over the served model with model selection and live switching, multimodal import and modality-adaptive inference, and the analysis workbench retained behind it",
   "doctrine": "This campaign lives in the professional_overgo_gui worktree (owner directive 2026-09-04): every row is built, verified and committed there through the plan-bound gate, never in the master worktree, and this lane plan.json never merges (lane merge protocol: first-parent-target projection, retired rows dead on the first-parent chain). The GUI stays a thin client: no build step, no external assets, same-origin content-security policy, embedded in cmd/server, and every panel projects server records and submits bounded actions; state that must survive a reload lives in the server's interaction and run records, never only in the browser. The front page is the product: one conversation surface a first-time user reads without instruction, with the served model, its evidence and its live switch in view, and attachments accepted or refused by the served recipe's declared capabilities, never by a client-side guess. The existing workbench (app.html, its 24 modules, the operations shell, the analysis inspectors) keeps every capability it has today and keeps passing its real-browser acceptance lane at every commit; a workbench capability the front page absorbs is retired from the old shell only after the front page's own acceptance step proves it. Verification is machine-checked: hermetic Go tests over the static routes and the JSON contracts, and go run ./cmd/webui-lane driving a real headless browser for every user-facing behavior; a missing browser, model or device reports UNAVAILABLE, which is never passing evidence. Rows whose exact verify depends on execution-time facts (installed models, browser presence) bind their final verify through plan -setverify before work starts, never through prose. Simplification precedes capability (owner rule 2026-09-04): the gui-simplify rows land before the front page is built on them, each names the capability it gains and the ratchet it lowers, and every ratchet is a Go test with a declared ceiling that only tightens, so capability improvement by simplification is measured on the client the way the clone and structure budgets measure it on the Go tree. Patterns adopted from the go-micro review of 2026-09-04 (the appendix of docs/gui/ANALYSIS.md: typed stream events with tool-call cards, checkpointed run resume, observable memory compaction, the empty state as the getting-started card, the first-run flow as a verified contract, run inspection with a status vocabulary, an API explorer derived from the route table, dev-time asset reload) enter as behaviors and contracts only; no code is copied or imported from that tree, and tool calling stays UTCP through the store's manuals. Design records are written (docs/gui/ANALYSIS.md, the row rationales); reports of evidence are generated. Findings outside a row are parked with cmd/finding and scheduled by the close-out row, not absorbed silently. The rows after gui-closeout (long-context-collapse, gemma-12b-accuracy, benchmark-completion, model-regression-gate, model-regression-baseline, modality-verification, failure-recovery, the simplify-* rows, campaign-closeout) are the master worktree's validation campaign retained at the lane base 9dce4fca because the plan authority protects every identity committed at the protected revision; they are never worked in this lane and drop out at merge.",
+  "lane": "professional_overgo_gui",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "lane-plan-boundary",
-      "title": "Enforce the lane boundary mechanically: a plan item carries its owning lane and plan -next in a worktree whose branch is not that lane never dispatches it, the stop gate does not count another lane open rows, and the retained master rows (long-context-collapse through campaign-closeout) are marked master, so the boundary is held by the tool rather than by prose while the lane own rows stay dispatchable",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Enforce the lane boundary mechanically: a plan item carries its owning lane and plan -next in a worktree whose branch is not that lane never dispatches it, the stop gate does not count another lane open rows, and the retained master rows (long-context-collapse through campaign-closeout) are marked master, so the boundary is held by the tool rather than by prose while the lane own rows stay dispatchable",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "hosted-evaluation-coverage",
       "title": "Cover the hosted-evaluation contract extensions for shared-owner acceptance: evaluation.PromptingHostedChat with the generated-letter-hosted method, modelrecipe.PublishRemoteModelDefinition, discovery remote catalog entries and inference.Usage with OnUsage get protocol tests at their package boundaries, and docs/gui/ANALYSIS.md records each extension, its owning package and its acceptance, so HTTP usability work does not silently define master model-validation policy",
+      "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
@@ -32,6 +21,7 @@
     {
       "id": "integrate-to-master",
       "title": "Integrate the settled lane into master preserving master plan: merge the lane branch into master with master docs/plan.json untouched (the lane plan never merges), the merge gate green on master, and the lane rebased on the merged master; executed from the master worktree only with the owner go-ahead",
+      "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
@@ -45,6 +35,7 @@
     {
       "id": "long-context-collapse",
       "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -58,6 +49,7 @@
     {
       "id": "audio-staged-surface",
       "title": "Carry master's OpenAudioStream staged declaration: the staged surface binds to this row until master's register-models consumes the surface and the lane merges that; the row closes when the entry is gone",
+      "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
@@ -71,6 +63,7 @@
     {
       "id": "gemma-12b-accuracy",
       "title": "Chat-shaped long-form rung (owner rule 2026-09-04: long-form output verification): the raw-continuation NLL of the instruction-tuned gemma-4-12B twins (6.94, 6.97 nat/token against the E4B's 4.21) is the model answering the document instead of continuing it, its greedy output an assistant synthesis of the README, so the raw shape cannot judge a chat model's long-form output; the long-form run adds, for every model that declares a chat template, one chat-shaped generation at the judged rung (the rung's text as the user turn with an instruction to continue it, the model turn opened, thinking off, 256 greedy tokens) and records its text, distinct 4-gram ratio, longest repeated span, decode tok/s and the teacher-forced NLL of the text's own continuation under that framing; the chat-shaped NLL is recorded beside the raw one, the fingerprint compares both, and the floors stay as declared",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -84,6 +77,7 @@
     {
       "id": "benchmark-completion",
       "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -111,6 +105,7 @@
     {
       "id": "model-regression-gate",
       "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects longform -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise, one model per weight type at most; inapplicable, never skipped, for commits outside execution code. The structure-budget test (internal/repoanalysis TestStructureBudgetRatchets, 3 s) runs unconditionally in the gate's test step: it caught the executor.go overrun the fp8 gate missed",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -124,6 +119,7 @@
     {
       "id": "model-regression-baseline",
       "title": "Record the regression fingerprints for every servable text model from the clean evidence worktree (owner rule 2026-09-04; both shapes, smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind longform -check as this row's verify through -setverify once the evidence identities exist",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -137,6 +133,7 @@
     {
       "id": "modality-verification",
       "title": "Verify every registered model's activated modalities against a declared expectation",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -204,6 +201,7 @@
     {
       "id": "failure-recovery",
       "title": "Deliberate failure and recovery drills carried over from phase 1",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -241,6 +239,7 @@
     {
       "id": "simplify-prefill-paths",
       "title": "Prefill-path unification (owner rule 2026-09-04, capability improvement by simplification): mul_mat prefill now has four paths (exact F32 staging with SGEMM, f16 staging with the tensor-core GEMM for quantized and fp8 weights, direct tensor-core for half-precision weights, the span kernels below the column floor); derive one prefill policy from the weight type, the column count and the measured parity bounds already committed, retire the exact F32 staged path and the per-type duplicates it leaves behind, and let the regression ladder show the prompt tok/s curve against context length on every servable model before and after, the curve recorded as evidence and quoted in the commit; a path may be retired only where the f16-staged parity bound already holds, and the fp8 12B's 1646 prompt tok/s against its bf16 twin's 2850 is the gap the unification is measured against",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -254,6 +253,7 @@
     {
       "id": "simplify-command-surface",
       "title": "Command-surface fold (owner rule 2026-09-04, simplification): the nineteen single-purpose probe, lane and parity commands (the *-train-probe family, the *-lane family, sensenovaparity, vqaparity) fold into a train-probe command and a lane command with typed subcommands and the parity probes into eval-lane, each retired command's behavior reachable through the survivor and recorded as a move in the API manifest; a command-package ceiling enters docs/structure_budgets.json at the new count and only tightens; the plan, gate, loop and hook adapters keep their commands",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -267,6 +267,7 @@
     {
       "id": "simplify-execution-core",
       "title": "Execution-core deduplication (owner rule 2026-09-04, simplification): lower the duplicate-excess ceiling in docs/clone_baseline.json by a reviewed, measured amount concentrated in internal/cuda and internal/inference (the launch-layout, staging and attention paths that grew by copy during the prefill rows), retire the executor.go 2400-line standing exception in docs/structure_budgets.json by decomposition, and bind the new ceiling as this row's verify through -setverify before work starts; the model regression check must hold on every servable model at every step, so the reduction is proven not to move a token or a rate",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -280,6 +281,7 @@
     {
       "id": "simplify-checkpoint-locations",
       "title": "Checkpoint relocation (owner rule 2026-09-04, simplification): the servable checkpoints still resolve to paths under the retired adaptive_new tree; relocate them under overgo's models directory, re-record every model's location in the store through the existing location owner, retire the adaptive_new path from every baseline and fixture that names it, and prove the servable predicate holds for every model at its new location, so the living system no longer depends on the retired tree's disk layout",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -293,6 +295,7 @@
     {
       "id": "simplify-capability-report",
       "title": "Capability-versus-mechanism report (owner rule 2026-09-04, simplification campaign close): a generated report sets the committed benchmark records and regression fingerprints (short shape, context ladder, capability sample) recorded before the simplification rows against those recorded after, beside the mechanism deltas the ratchets measure (duplicate-excess nodes, command packages, production lines, standing budget exceptions), so the campaign's claim that capability held or rose with less mechanism is a number, not a narrative; a row whose after-numbers fall below its before-numbers is listed as a regression finding, never averaged away",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -306,6 +309,7 @@
     {
       "id": "campaign-closeout",
       "title": "Close the campaign",
+      "owner": "master",
       "status": "open",
       "steps": [
         {

@@ -938,7 +938,14 @@ store-recorded:
 The sole live backlog and dependency queue is [docs/plan.json](docs/plan.json).
 Imported branch plans, design records, staged-surface inventory, and historical
 Git snapshots are evidence only; distinct requirements from them are mapped
-into that canonical plan instead of maintained as parallel checklists.
+into that canonical plan instead of maintained as parallel checklists. A
+plan names its lane (`lane`) and an item its owner (`owner`); dispatch in a
+lane takes the lane's own rows first and then unowned rows, never another
+lane's, so a worktree that carries rows retained from another lane cannot
+dispatch them, and the stop gate counts only what the lane can dispatch.
+`go run ./cmd/plan -assign <item> -owner <lane>` and `-set-lane <lane>`
+record the ownership; an explicit `-role` or `OVERGO_AUTOMATION_ROLE`
+still takes precedence over the plan's lane.
 
 Human steering remains a supported operating mode throughout: human and model
 steering submit goals through the same bounded interface, and deterministic

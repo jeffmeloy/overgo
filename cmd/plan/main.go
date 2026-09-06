@@ -35,6 +35,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -76,6 +77,9 @@ func main() {
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
+	assign := flag.Bool("assign", false, "record an open item's owning lane: -assign <item-id> -owner <lane>; another lane never dispatches it")
+	owner := flag.String("owner", "", "with -assign: the owning lane")
+	setLane := flag.String("set-lane", "", "record the lane this plan dispatches for (the unassigned role's role)")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
@@ -88,7 +92,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{move: *move, retitle: *retitle, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -101,6 +105,8 @@ type cli struct {
 	judgeEfficiency                                                                  string
 	pruneDone                                                                        bool
 	title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane   string
+	assign                                                                           bool
+	owner, setLane                                                                   string
 	prepareMerge                                                                     string
 	planProjection                                                                   string
 	grantExploration, chargeExploration, recordExperiment                            string
@@ -181,6 +187,13 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -retitle <item-id> -title <title>")
 		}
 		return retitleItem(".", args[0], c.title, role)
+	case c.assign:
+		if len(args) != 1 || strings.TrimSpace(c.owner) == "" {
+			return errors.New("usage: plan -assign <item-id> -owner <lane>")
+		}
+		return mutatePlan(".", role, "assigned item "+args[0]+" to "+strings.TrimSpace(c.owner), func(document plan.Plan) (plan.Plan, error) { return assignOwner(document, args[0], c.owner) })
+	case c.setLane != "":
+		return mutatePlan(".", role, "set lane "+strings.TrimSpace(c.setLane), func(document plan.Plan) (plan.Plan, error) { return setPlanLane(document, c.setLane) })
 	case c.setverify:
 		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
@@ -511,6 +524,50 @@ func retitleItem(root, id, title, role string) error {
 		fmt.Printf("retitled item %s; next: %s\n", id, action)
 		return nil
 	})
+}
+
+// mutatePlan applies one pure plan mutation, saves it and prints what changed and the next action.
+func mutatePlan(root, role, what string, mutation func(plan.Plan) (plan.Plan, error)) error {
+	return withPlanMutation(root, false, func(document plan.Plan) error {
+		updated, err := mutation(document)
+		if err != nil {
+			return err
+		}
+		updatedAuthority, err := resolveCompletionAuthority(root, updated)
+		if err != nil {
+			return err
+		}
+		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+			return err
+		}
+		action, _ := nextAction(updated, role, updatedAuthority)
+		fmt.Printf("%s; next: %s\n", what, action)
+		return nil
+	})
+}
+
+// assignOwner is the pure core of -assign: the named open item takes the owner. No I/O.
+func assignOwner(document plan.Plan, id, owner string) (plan.Plan, error) {
+	owner = strings.TrimSpace(owner)
+	if owner == "" {
+		return plan.Plan{}, errors.New("assign: the owner is empty")
+	}
+	index := slices.IndexFunc(document.Items, func(item plan.Item) bool { return item.ID == id })
+	if index < 0 {
+		return plan.Plan{}, fmt.Errorf("assign: no item %q", id)
+	}
+	document.Items = slices.Clone(document.Items)
+	document.Items[index].Owner = owner
+	return document, nil
+}
+
+// setPlanLane is the pure core of -set-lane. No I/O.
+func setPlanLane(document plan.Plan, lane string) (plan.Plan, error) {
+	if lane = strings.TrimSpace(lane); lane == "" {
+		return plan.Plan{}, errors.New("set-lane: the lane is empty")
+	}
+	document.Lane = lane
+	return document, nil
 }
 
 // rescopeItem is the pure core of retitleItem. No I/O.

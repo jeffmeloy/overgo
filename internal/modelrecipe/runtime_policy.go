@@ -165,6 +165,12 @@ func (policy RuntimePolicy) ValidateIdentity() error {
 	return runtimePolicyCodec.ValidateIdentity(policy)
 }
 
+// Content returns the exact effective policy, including declared overrides,
+// for atomic publication with a run that references it.
+func (policy RuntimePolicy) Content() (artifact.Content, error) {
+	return runtimePolicyCodec.Content(policy)
+}
+
 func canonicalizeRuntimePolicy(policy *RuntimePolicy) error {
 	if policy == nil || policy.Version != runtimePolicyVersion || len(policy.Tasks) == 0 {
 		return errors.New("model recipe: invalid runtime policy envelope")

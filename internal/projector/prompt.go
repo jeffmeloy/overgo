@@ -379,21 +379,17 @@ func OpenActiveAs[T Projector](
 		if err != nil {
 			return nil, err
 		}
-		var processorID artifact.ID
-		var resolved *MediaPreprocessProfile
+		var base *MediaPreprocessProfile
 		if hasDeclared {
-			profile, err := modelrecipe.ResolveProfileDependency(
-				ctx, store, definition, recipe.DependencyProcessorProfile, mediaPreprocessProfileCodec,
-			)
-			if err != nil {
-				return nil, err
-			}
-			if profile.ID != declared.ID {
-				return nil, errors.New("projector: active processor profile differs from artifact declaration")
-			}
-			processorID, resolved = profile.ID, &profile
-		} else if _, bound := definition.PrimaryDependency(recipe.DependencyProcessorProfile); bound {
-			return nil, errors.New("projector: processor profile bound to unsupported artifact")
+			base = &declared
+		}
+		resolved, err := ResolvePreprocessProfile(ctx, store, definition, base)
+		if err != nil {
+			return nil, err
+		}
+		var processorID artifact.ID
+		if resolved != nil {
+			processorID = resolved.ID
 		}
 		expected, err := modelrecipe.ProjectionDefinition(
 			modelID, inventory.Manifest.ID, processorID, descriptor.media...,
@@ -642,7 +638,7 @@ func compileGemma4ImagePrompt(r *Gemma4Runner) compiledImagePromptProgram {
 
 func compileGemma4ImageProgram(r gemmaPromptSource) compiledImagePromptProgram {
 	var attentionBlocks func([]int, []imagePromptItem) []AttentionBlock
-	if r.attention {
+	if r.bidirectionalImages {
 		attentionBlocks = imagePromptBlocks
 	}
 	compile := func(history bool) imagePromptPlan {
@@ -676,6 +672,9 @@ func compileGemma4ImageProgram(r gemmaPromptSource) compiledImagePromptProgram {
 		Default: compile(false),
 		History: compile(true),
 		Encode: func(ctx context.Context, source image.Image) (imagePromptItem, error) {
+			if r.policyErr != nil {
+				return imagePromptItem{}, r.policyErr
+			}
 			output, err := r.image(ctx, source)
 			if err != nil {
 				return imagePromptItem{}, err
@@ -707,7 +706,7 @@ func compileGemma4MediaPrompt(r *Gemma4Runner) compiledMediaPromptProgram {
 
 func compileGemma4MediaProgram(r gemmaPromptSource) compiledMediaPromptProgram {
 	var attentionBlocks func([]int, int) []AttentionBlock
-	if r.attention {
+	if r.bidirectionalImages {
 		attentionBlocks = mediaPromptAttentionBlocks
 	}
 	history := mixedMediaPromptPlan{
@@ -716,8 +715,11 @@ func compileGemma4MediaProgram(r gemmaPromptSource) compiledMediaPromptProgram {
 		Kinds: map[MediaKind]mixedMediaKindPlan{
 			MediaImage: {
 				Placeholder: "<|image|>", PlaceholderLabel: "Gemma 4 image placeholder",
-				Open: "<|image>", Close: "<image|>", Attention: r.attention,
+				Open: "<|image>", Close: "<image|>", Attention: r.bidirectionalImages,
 				Encode: func(ctx context.Context, input MediaInput) (imagePromptItem, error) {
+					if r.policyErr != nil {
+						return imagePromptItem{}, r.policyErr
+					}
 					output, err := r.image(ctx, input.Image)
 					if err != nil {
 						return imagePromptItem{}, err
@@ -755,6 +757,9 @@ func compileGemma4MediaProgram(r gemmaPromptSource) compiledMediaPromptProgram {
 		if !checked.PositiveFinite64(fps) {
 			return MultimodalPrompt{}, errors.New("projector: video FPS must be positive and finite")
 		}
+		if r.policyErr != nil {
+			return MultimodalPrompt{}, r.policyErr
+		}
 		output, err := r.video(ctx, frames)
 		if err != nil {
 			return MultimodalPrompt{}, err
@@ -772,6 +777,9 @@ func compileGemma4MediaProgram(r gemmaPromptSource) compiledMediaPromptProgram {
 	return compiledMediaPromptProgram{
 		Video: video,
 		History: func(ctx context.Context, tokenizer ImageTokenizer, media []MediaInput, text []string) (MultimodalPrompt, error) {
+			if r.policyErr != nil {
+				return MultimodalPrompt{}, r.policyErr
+			}
 			return executeMixedMediaPromptPlan(ctx, tokenizer, media, text, history)
 		},
 		Audio: func(
@@ -785,6 +793,9 @@ func compileGemma4MediaProgram(r gemmaPromptSource) compiledMediaPromptProgram {
 			}
 			if strings.TrimSpace(beforeAudio) != "" {
 				return MultimodalPrompt{}, errors.New("projector: Gemma 4 requires audio before user text")
+			}
+			if r.policyErr != nil {
+				return MultimodalPrompt{}, r.policyErr
 			}
 			output, err := r.audio(ctx, samples)
 			if err != nil {

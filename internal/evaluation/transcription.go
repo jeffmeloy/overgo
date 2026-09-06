@@ -237,9 +237,29 @@ func transcriptionScorer(normalization []TranscriptionNormalization) struct {
 // EvaluateTranscription scores already persisted target-free predictions. It
 // never invokes inference and rejects any run whose exact authorities differ
 // from the bound plan.
-func EvaluateTranscription(
+func EvaluateTranscription(ctx context.Context, repository artifact.Repository, compiled TranscriptionPlan, plan Plan, predictions []TranscriptionPrediction) (TranscriptionReport, error) {
+	report, err := scoreTranscriptionReport(ctx, repository, compiled, plan, predictions)
+	if err != nil {
+		return TranscriptionReport{}, err
+	}
+	// Exact replay reads the immutable report rather than republishing it or
+	// moving the current-report alias back to an older prediction set.
+	if _, found, err := artifact.ReadContent(ctx, repository, report.ID); err != nil {
+		return TranscriptionReport{}, err
+	} else if found {
+		return RequireTranscriptionReport(ctx, repository, report.ID)
+	}
+	if err := publishPlanAuthorities(ctx, repository, plan, nil); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		return TranscriptionReport{}, err
+	}
+	if err := publishTranscriptionReport(ctx, repository, report); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		return TranscriptionReport{}, err
+	}
+	return report, nil
+}
+func scoreTranscriptionReport(
 	ctx context.Context,
-	repository artifact.Repository,
+	repository artifact.Reader,
 	compiled TranscriptionPlan,
 	plan Plan,
 	predictions []TranscriptionPrediction,
@@ -253,9 +273,7 @@ func EvaluateTranscription(
 	if err != nil || plan.ValidateIdentity() != nil || scorer.Descriptor.ID != plan.body.Scorer {
 		return TranscriptionReport{}, errors.Join(err, errors.New("evaluation: transcription scoring protocol differs"))
 	}
-	if err := publishPlanAuthorities(ctx, repository, plan, nil); err != nil && !errors.Is(err, artifact.ErrNoChange) {
-		return TranscriptionReport{}, err
-	}
+
 	predictions = slices.Clone(predictions)
 	slices.SortFunc(predictions, func(left, right TranscriptionPrediction) int { return cmp.Compare(left.Name, right.Name) })
 	report := TranscriptionReport{
@@ -296,9 +314,7 @@ func EvaluateTranscription(
 		return TranscriptionReport{}, err
 	}
 	report.ID = id
-	if err = publishTranscriptionReport(ctx, repository, report); err != nil && !errors.Is(err, artifact.ErrNoChange) {
-		return TranscriptionReport{}, err
-	}
+
 	return report, nil
 }
 

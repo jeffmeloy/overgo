@@ -26,7 +26,7 @@ func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 			}
 		})
 	}
-	projection := mediacapability.Projection("")
+	projection := mediacapability.Projection(t.Context(), nil, "")
 	if projection.Resolve == nil || projection.Execute != nil {
 		t.Fatalf("projection capability = %+v", projection)
 	}

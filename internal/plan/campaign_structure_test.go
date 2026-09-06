@@ -557,6 +557,7 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"merge-b3977f8cff14/do",
 		"merge-7d3ca937764c/do",
 		"merge-62851924d6e4/do",
+		"merge-27f3944b47af/do",
 		// Rows retained from the master plan at the lane base (9dce4fca):
 		// the plan authority protects every identity committed at the
 		// protected revision, so the lane keeps them after its own rows and
@@ -709,6 +710,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/capability-census-owner",
 		"modality-verification/e4b-all-modalities",
 		"modality-verification/e4b-validation-producer",
+		"modality-verification/e4b-media-resource-producer",
 		"modality-verification/e4b-protocol-parity-repair",
 		"modality-verification/e4b-resource-recovery",
 		"modality-verification/e4b-scored-audio-producer",

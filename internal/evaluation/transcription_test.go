@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -17,6 +18,74 @@ import (
 )
 
 const transcriptionTestCommit = "0123456789abcdef0123456789abcdef01234567"
+
+func TestStoredTranscriptionReportRejectsAlteredScoresAndDenominators(t *testing.T) {
+	fixture := singleTranscriptionEvaluationFixture(t, TranscriptionCase{
+		Name: "exact", Group: "clean", Source: audioReference(t, "stored-quality"),
+		Reference: "Hello world", SampleCount: 16000, SampleRate: 16000,
+	})
+	defer fixture.store.Close()
+	prediction := fixture.successfulPrediction(t, "exact", "hello word")
+	report, err := EvaluateTranscription(t.Context(), fixture.store, fixture.compiled, fixture.plan,
+		[]TranscriptionPrediction{prediction})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := fixture.store.(*overgodb.Store)
+	head, sequence := store.Head()
+	actual, err := RequireTranscriptionReport(t.Context(), store, report.ID)
+	if err != nil || !reflect.DeepEqual(actual, report) {
+		t.Fatalf("read-only replay: %v", err)
+	}
+	if after, n := store.Head(); after != head || n != sequence {
+		t.Fatal("read-only verification wrote to store")
+	}
+	newer, err := EvaluateTranscription(t.Context(), store, fixture.compiled, fixture.plan,
+		[]TranscriptionPrediction{fixture.successfulPrediction(t, "exact", "hello world")})
+	if err != nil || newer.ID == report.ID {
+		t.Fatalf("new prediction report: %v", err)
+	}
+	head, sequence = store.Head()
+	replayed, err := EvaluateTranscription(t.Context(), store, fixture.compiled, fixture.plan, []TranscriptionPrediction{prediction})
+	if err != nil || !reflect.DeepEqual(replayed, report) {
+		t.Fatalf("exact report replay: %v", err)
+	}
+	if after, n := store.Head(); after != head || n != sequence {
+		t.Fatal("exact replay republished an old report or rewound its alias")
+	}
+	for _, test := range []struct {
+		name   string
+		change func(*TranscriptionReport)
+	}{
+		{"score", func(r *TranscriptionReport) { r.Overall.WordErrorRate = 0 }},
+		{"denominator", func(r *TranscriptionReport) { r.Observations = nil }},
+		{"source", func(r *TranscriptionReport) {
+			r.Observations[0].Source = audioReference(t, "another-source").Audio
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			changed := report
+			changed.ID = artifact.ID{}
+			changed.Observations = slices.Clone(report.Observations)
+			test.change(&changed)
+			id, err := artifact.JSONID(artifact.KindEvaluation, changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			changed.ID = id
+			content, err := transcriptionReportContract.ContentJSON(id, changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: id.String(), Contents: []artifact.Content{content}}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := RequireTranscriptionReport(t.Context(), store, id); err == nil {
+				t.Fatal("altered report accepted")
+			}
+		})
+	}
+}
 
 type transcriptionEvaluationFixture struct {
 	store       artifact.Repository
@@ -249,7 +318,7 @@ func (fixture transcriptionEvaluationFixture) successfulPrediction(t *testing.T,
 		t.Fatal(err)
 	}
 	batch, err := artifact.NewDocumentBatch(
-		"evaluation/transcription/prediction/"+name,
+		"evaluation/transcription/prediction/"+name+"/"+run.ID.DigestHex(),
 		[]artifact.Content{output, runContent}, run.Lineage(), nil,
 	)
 	if err != nil {

@@ -2,6 +2,7 @@ package projector
 
 import (
 	"context"
+	"errors"
 	"image"
 )
 
@@ -10,27 +11,26 @@ const gemma4ClosedThought = "<|channel>thought\n<channel|>"
 // Both artifact architectures share prompt assembly; only their encoders and
 // declared assistant prefix differ. The tower oracle has no thought prefix.
 type gemmaPromptSource struct {
-	width      int
-	assistant  string
-	attention  bool
-	image      func(context.Context, image.Image) (Gemma4Output, error)
-	audio      func(context.Context, []float32) (Gemma4AudioOutput, error)
-	video      func(context.Context, []image.Image) (Gemma4VideoOutput, error)
-	sampleRate func() (int, error)
+	width               int
+	assistant           string
+	bidirectionalImages bool
+	policyErr           error
+	image               func(context.Context, image.Image) (Gemma4Output, error)
+	audio               func(context.Context, []float32) (Gemma4AudioOutput, error)
+	video               func(context.Context, []image.Image) (Gemma4VideoOutput, error)
+	sampleRate          func() (int, error)
 }
 
 func gemma4PromptSource(r *Gemma4Runner) gemmaPromptSource {
-	return gemmaPromptSource{
-		width: r.spec.Hidden, assistant: gemma4ClosedThought, attention: true,
+	return bindGemmaPromptAttention(gemmaPromptSource{
+		width: r.spec.Hidden, assistant: gemma4ClosedThought,
 		image: r.EncodeImage, audio: r.EncodeAudio, video: r.EncodeVideoFrames,
 		sampleRate: func() (int, error) { spec, err := r.AudioSpec(); return spec.SampleRate, err },
-	}
+	}, r.preprocess)
 }
 
 func gemma4TowerPromptSource(r *Gemma4TowerRunner) gemmaPromptSource {
-	// The admitted E4B tower's text configuration is causal, including media.
-	// Its image spans supply embeddings without bidirectional attention blocks.
-	return gemmaPromptSource{
+	return bindGemmaPromptAttention(gemmaPromptSource{
 		width: r.spec.Vision.ProjectionDim,
 		image: func(ctx context.Context, source image.Image) (Gemma4Output, error) {
 			output, err := r.EncodeVisionImage(ctx, source)
@@ -49,7 +49,17 @@ func gemma4TowerPromptSource(r *Gemma4TowerRunner) gemmaPromptSource {
 			return Gemma4VideoOutput{Embeddings: output.Embeddings, Frames: output.Frames, TokensPerFrame: output.TokensPerFrame}, err
 		},
 		sampleRate: func() (int, error) { return r.spec.Audio.SampleRate, nil },
+	}, r.preprocess)
+}
+
+func bindGemmaPromptAttention(source gemmaPromptSource, profile MediaPreprocessProfile) gemmaPromptSource {
+	if profile.ImageAttention == "" {
+		source.policyErr = errors.New("projector: media prompt requires explicit recipe-bound image attention")
+		return source
 	}
+	_, source.policyErr = profile.Content()
+	source.bidirectionalImages = profile.ImageAttention == "vision"
+	return source
 }
 
 func compileGemma4TowerImagePrompt(r *Gemma4TowerRunner) compiledImagePromptProgram {

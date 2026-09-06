@@ -10,7 +10,9 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
@@ -34,7 +36,17 @@ func TestE4BServingModalities(t *testing.T) {
 	}
 	path := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-mmproj-bf16.gguf")
 	assertSHA256(t, path, "185786ec6d77c31f87e6ebdcf8a0d095dbb7175999122229f8e82dcdad25004e")
-	session, err := projector.OpenSession(t.Context(), path, projector.OpenOptions{CUDA: true})
+	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
+	store, err := overgodb.OpenReadOnly(roots.Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	candidate, err := modelintake.PrepareProjectionCandidate(t.Context(), store, modelPath, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := projector.OpenSession(t.Context(), path, projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +55,6 @@ func TestE4BServingModalities(t *testing.T) {
 	if got := session.Capabilities(); got != want {
 		t.Fatalf("real E4B serving modalities = %+v, want %+v; tower parity alone cannot admit serving", got, want)
 	}
-	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "gemma-4-E4B-it-bf16.gguf")
 	assertSHA256(t, modelPath, "cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501")
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionRequest, recipe.ResidencyHybridNative)
 	if err != nil {

@@ -115,7 +115,12 @@ func run() error {
 		if strings.TrimSpace(*projectorPath) == "" {
 			return errors.New("projection requires -projector")
 		}
-		capability = mediacapability.Projection(roots.ResolveModelPath(*projectorPath))
+		configurationStore, err := overgodb.OpenReadOnly(repository)
+		if err != nil {
+			return err
+		}
+		defer configurationStore.Close()
+		capability = mediacapability.Projection(context.Background(), configurationStore, roots.ResolveModelPath(*projectorPath))
 		capabilityKnown = true
 	}
 	switch verb {

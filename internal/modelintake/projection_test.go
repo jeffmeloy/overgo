@@ -64,7 +64,16 @@ func TestPrepareProjectionCandidateReproducesStoredBinding(t *testing.T) {
 		t.Skip(testevidence.ShortIntegrationSkip + ": reading model files is integration")
 	}
 	modelPath, projectorPath, stored := storedProjectionPair(t)
-	candidate, err := PrepareProjectionCandidate(t.Context(), modelPath, projectorPath)
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(roots.Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	candidate, err := PrepareProjectionCandidate(t.Context(), store, modelPath, projectorPath)
 	if err != nil {
 		t.Fatal(err)
 	}

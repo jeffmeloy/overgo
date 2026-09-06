@@ -1,7 +1,10 @@
 package modelintake
 
 import (
+	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -9,6 +12,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 )
@@ -23,12 +27,13 @@ type ProjectionCandidate struct {
 	ProjectorPath string
 	Media         []recipe.DataKind
 	Processor     *projector.MediaPreprocessProfile
+	Config        *modelartifact.ModelConfigDocument
 	Definition    recipe.Definition
 }
 
 // PrepareProjectionCandidate reads the model and the projector GGUF and
 // defines the projection recipe binding them, publishing nothing.
-func PrepareProjectionCandidate(ctx context.Context, modelPath, projectorPath string) (ProjectionCandidate, error) {
+func PrepareProjectionCandidate(ctx context.Context, store overgodb.DocumentReader, modelPath, projectorPath string) (ProjectionCandidate, error) {
 	file, err := gguf.Open(modelPath)
 	if err != nil {
 		return ProjectionCandidate{}, err
@@ -41,6 +46,19 @@ func PrepareProjectionCandidate(ctx context.Context, modelPath, projectorPath st
 	if err != nil {
 		return ProjectionCandidate{}, err
 	}
+	config, declared, err := modelrecipe.ResolveModelConfig(ctx, store, model.Manifest.ID)
+	if err != nil {
+		return ProjectionCandidate{}, err
+	}
+	var boundConfig *modelartifact.ModelConfigDocument
+	if declared && config.Generation != nil && config.Generation.ImageAttention != "" {
+		processor = cmp.Or(processor, &projector.MediaPreprocessProfile{Version: artifact.InitialDocumentVersion})
+		bound, err := processor.BindModelConfig(config)
+		if err != nil {
+			return ProjectionCandidate{}, err
+		}
+		processor, boundConfig = &bound, &config
+	}
 	var processorID artifact.ID
 	if processor != nil {
 		processorID = processor.ID
@@ -51,7 +69,7 @@ func PrepareProjectionCandidate(ctx context.Context, modelPath, projectorPath st
 	}
 	return ProjectionCandidate{
 		Model: model, Projector: projectorInventory, ProjectorPath: projectorPath,
-		Media: media, Processor: processor, Definition: definition,
+		Media: media, Processor: processor, Config: boundConfig, Definition: definition,
 	}, nil
 }
 
@@ -79,6 +97,22 @@ func RegisterProjectionCandidate(ctx context.Context, store artifact.Repository,
 		}
 		batch.Contents = append(batch.Contents, content)
 	}
+	if candidate.Config != nil {
+		content, err := candidate.Config.Content()
+		if err != nil {
+			return err
+		}
+		batch.Contents = append(batch.Contents, content)
+		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(candidate.Config.ID, candidate.Config.Model)...)
+		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(candidate.Processor.ID, candidate.Config.ID)...)
+	}
+	// One model can acquire another projector/configuration or move on disk.
+	// Idempotency must name all published facts, including their locations.
+	data, err := json.Marshal(batch)
+	if err != nil {
+		return err
+	}
+	batch.Key = fmt.Sprintf("recipe/projection-facts/%x", sha256.Sum256(data))
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return fmt.Errorf("publish projection facts: %w", err)
 	}

@@ -466,9 +466,11 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       row.querySelector(".mono") && row.querySelector(".mono").textContent === `+strconv.Quote(remoteName)+` && [...row.querySelectorAll(".tag")].some((tag) => tag.textContent === "remote"))`)
 		switchTo(remoteName)
 		say(t, ctx, browser, "hello relay")
-		settle("the remote turn answers with its marker", `!document.querySelector(".composer .btn").disabled &&
+		// The provider's usage fills the facts the refused count route left empty.
+		settle("the remote turn answers with its marker and the provider's counts", `!document.querySelector(".composer .btn").disabled &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").includes("Hello from the relay") &&
       [...document.querySelectorAll("#panel-chat .msg.assistant .role .tag")].some((tag) => tag.textContent === "remote") &&
+      [...document.querySelectorAll(".statgrid .stat")].some((stat) => stat.textContent.includes("Input")) &&
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
 		t.Log("remote leg: the declared remote model answered through the relay with its marker")
 	}

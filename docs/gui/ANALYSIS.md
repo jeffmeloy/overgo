@@ -441,6 +441,16 @@ What the rows established, each a record rather than a statement:
   proxy-less note), Escape stops a running turn, and at 390 px an
   unbroken 360-character line stays inside its bubble with no horizontal
   scroll. The cannot-do list's item 8 is answered for the front page.
+- Hosted turn usage (hosted-turn-usage): `inference.GenerateOptions`
+  gains `OnUsage`, the accounting a generator that tokenizes elsewhere
+  reports; the relay requests `stream_options.include_usage` and hands the
+  provider's usage chunk on; the generation pump keeps it and the
+  protocol results (`promptTokens`, `outputTokens`, `completionTokens`)
+  prefer it over the id counts, so the responses and chat completions
+  routes report the provider's numbers; the page's facts take the usage's
+  prompt count when the count route refused. `relaytest` emits the usage
+  chunk when asked (prompt 7, completion = pieces). The lane's remote leg
+  reads the Input fact after the hosted turn.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

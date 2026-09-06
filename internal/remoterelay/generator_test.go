@@ -50,6 +50,7 @@ func TestGeneratorRelaysTheConversationAndStreams(t *testing.T) {
 		t.Fatal(err)
 	}
 	var pieces []string
+	var usage inference.Usage
 	_, text, err := generator.Generate(t.Context(), prompt, inference.GenerateOptions{
 		MaxNewTokens: 7, StopSequences: []string{"END"},
 		OnToken: func(event inference.TokenEvent) error {
@@ -59,13 +60,18 @@ func TestGeneratorRelaysTheConversationAndStreams(t *testing.T) {
 			pieces = append(pieces, event.Piece)
 			return nil
 		},
+		OnUsage: func(reported inference.Usage) { usage = reported },
 	})
 	if err != nil || text != "Hello world" || strings.Join(pieces, "|") != "Hel|lo| world" {
 		t.Fatalf("relay = %q pieces=%v err=%v", text, pieces, err)
 	}
-	if received.Model != "fake/model" || !received.Stream || received.MaxTokens != 7 || len(received.Stop) != 1 ||
+	// The relay asks for the usage chunk and hands the provider's counts on.
+	if received.Model != "fake/model" || !received.Stream || received.MaxTokens != 7 || len(received.Stop) != 1 || !received.StreamOptions.IncludeUsage ||
 		len(received.Messages) != 2 || received.Messages[0].Role != "system" || received.Messages[1].Content != "hello?" {
 		t.Fatalf("provider received %+v", *received)
+	}
+	if usage != (inference.Usage{PromptTokens: relaytest.UsagePromptTokens, CompletionTokens: 3}) {
+		t.Fatalf("usage = %+v", usage)
 	}
 	properties := generator.ModelProperties()
 	if properties.Name != "fake/model" || properties.Path != "remote://fake/fake/model" || properties.ContextLength != 4096 {

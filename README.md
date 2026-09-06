@@ -546,7 +546,10 @@ derived from the server, not from client configuration:
   count route refuses. The swap proxy resolves the entry to its remote
   location, which the server serves through the relay. The Generate
   workspace lists no remote model, since a declaration carries the
-  inference task only. A withdrawn provider retires by location
+  inference task only. The relay asks the provider's stream for its usage
+  chunk, so a hosted turn's response and its facts carry the provider's
+  prompt and completion counts where a local turn carries its own, and the
+  stored response keeps them. A withdrawn provider retires by location
   (`go run ./cmd/remote-provider -retire remote://<provider>/<model> -reason <text>`):
   a failed gate record under the remote environment retires the
   activation and releases the model's active alias, so the catalog and the

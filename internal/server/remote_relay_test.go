@@ -83,6 +83,10 @@ func TestResponsesRelayStoresInteraction(t *testing.T) {
 	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &stored) != nil || stored.ID == "" {
 		t.Fatalf("relayed response status=%d body=%s", response.Code, response.Body.String())
 	}
+	// The response's usage is the provider's accounting, not the relay's piece count.
+	if !strings.Contains(response.Body.String(), `"input_tokens":7,"output_tokens":1,"total_tokens":8`) {
+		t.Fatalf("relayed usage: %s", response.Body.String())
+	}
 	if _, found, err := runrecord.ResolveInteraction(t.Context(), repository, stored.ID); err != nil || !found {
 		t.Fatalf("stored interaction for %s: found=%v err=%v", stored.ID, found, err)
 	}
@@ -149,7 +153,7 @@ func TestFrontPageRemoteTurns(t *testing.T) {
 		t.Error("the thread renders no turn marker")
 	}
 	chat := get("/mod/chat.js")
-	for _, needle := range []string{`marker: capabilities.remote`, `capabilities.remote ? ["remote"] : []`, `.catch(() => null)`, `count ? count.input_tokens : null`} {
+	for _, needle := range []string{`marker: capabilities.remote`, `capabilities.remote ? ["remote"] : []`, `.catch(() => null)`, `count ? count.input_tokens : null`, `usage.prompt_tokens`} {
 		if !strings.Contains(chat, needle) {
 			t.Errorf("the chat page lacks %q", needle)
 		}

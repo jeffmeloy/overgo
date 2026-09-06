@@ -84,6 +84,19 @@ type completionRequest struct {
 	Stream    bool          `json:"stream"`
 	MaxTokens int           `json:"max_tokens,omitzero"`
 	Stop      []string      `json:"stop,omitempty"`
+	// StreamOptions asks the provider to close the stream with its usage
+	// chunk (the OpenAI stream protocol's include_usage).
+	StreamOptions *streamOptions `json:"stream_options,omitempty"`
+}
+
+type streamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
+// completionUsage is the provider's token accounting for the completion.
+type completionUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
 }
 
 type completionChunk struct {
@@ -92,6 +105,7 @@ type completionChunk struct {
 			Content string `json:"content"`
 		} `json:"delta"`
 	} `json:"choices"`
+	Usage *completionUsage `json:"usage"`
 }
 
 // conversationOf decodes the formatter's conversation, or wraps a plain
@@ -116,6 +130,7 @@ func (g *Generator) Generate(ctx context.Context, prompt string, options inferen
 	body, err := json.Marshal(completionRequest{
 		Model: g.provider.Model, Messages: conversationOf(prompt), Stream: true,
 		MaxTokens: options.MaxNewTokens, Stop: options.StopSequences,
+		StreamOptions: &streamOptions{IncludeUsage: true},
 	})
 	if err != nil {
 		return nil, "", err
@@ -151,6 +166,10 @@ func (g *Generator) Generate(ctx context.Context, prompt string, options inferen
 		var chunk completionChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			return nil, text.String(), fmt.Errorf("remote relay: decode stream chunk: %w", err)
+		}
+		// The provider's accounting closes the stream: it tokenizes, so its counts are the turn's.
+		if chunk.Usage != nil && options.OnUsage != nil {
+			options.OnUsage(inference.Usage{PromptTokens: chunk.Usage.PromptTokens, CompletionTokens: chunk.Usage.CompletionTokens})
 		}
 		for _, choice := range chunk.Choices {
 			piece := choice.Delta.Content

@@ -552,6 +552,8 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"openrouter-declare-from-page/do",
 		"openrouter-model-listing/do",
 		"gui-keyboard-and-phone/do",
+		"hosted-turn-usage/do",
+		"openrouter-retire-from-page/do",
 		"audio-staged-surface/do",
 		"merge-4e0b9a670603/do",
 		"merge-b3977f8cff14/do",

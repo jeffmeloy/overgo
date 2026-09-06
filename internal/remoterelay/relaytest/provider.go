@@ -23,7 +23,15 @@ type Received struct {
 	Stream    bool     `json:"stream"`
 	MaxTokens int      `json:"max_tokens"`
 	Stop      []string `json:"stop"`
+	// StreamOptions: whether the relay asked for the usage chunk.
+	StreamOptions struct {
+		IncludeUsage bool `json:"include_usage"`
+	} `json:"stream_options"`
 }
+
+// UsagePromptTokens is the prompt count the fake's usage chunk reports;
+// its completion count is the number of pieces streamed.
+const UsagePromptTokens = 7
 
 // Model is one entry of the fake's model listing, in the provider's
 // wire shape.
@@ -67,6 +75,9 @@ func ServeListing(t testing.TB, basePath, key string, pieces []string, models []
 		response.Header().Set("Content-Type", "text/event-stream")
 		for _, piece := range pieces {
 			fmt.Fprintf(response, "data: {\"choices\":[{\"delta\":{\"content\":%q}}]}\n\n", piece)
+		}
+		if received.StreamOptions.IncludeUsage {
+			fmt.Fprintf(response, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":%d,\"completion_tokens\":%d}}\n\n", UsagePromptTokens, len(pieces))
 		}
 		fmt.Fprint(response, "data: [DONE]\n\n")
 	}))

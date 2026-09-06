@@ -131,10 +131,8 @@
 
       function renderFacts(inputTokens, usage, timings) {
         const cards = [];
-        if (inputTokens != null) {
-          cards.push(overgo.stat("Input", fmt.grouped(inputTokens), "tokens"));
-          if (contextLength != null) cards.push(overgo.stat("Available", fmt.grouped(Number(contextLength) - Number(inputTokens)), "tokens"), overgo.stat("Context ratio", inputTokens + " / " + contextLength));
-        }
+        if (inputTokens == null && usage && usage.prompt_tokens) inputTokens = usage.prompt_tokens; // a hosted turn: the provider's count, the count route having refused
+        if (inputTokens != null) { cards.push(overgo.stat("Input", fmt.grouped(inputTokens), "tokens")); if (contextLength != null) cards.push(overgo.stat("Available", fmt.grouped(Number(contextLength) - Number(inputTokens)), "tokens"), overgo.stat("Context ratio", inputTokens + " / " + contextLength)); }
         if (usage && usage.completion_tokens != null) cards.push(overgo.stat("Completion", fmt.grouped(usage.completion_tokens), "tokens"));
         if (timings) {
           cards.push(overgo.stat("Cached", fmt.grouped(timings.cache_n), "tokens"));

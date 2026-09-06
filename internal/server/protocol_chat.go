@@ -923,8 +923,8 @@ func (h *Handler) streamChatCompletion(
 		}
 		terminalUsage := completionUsage{
 			PromptTokens:     result.promptTokens(),
-			CompletionTokens: result.pump.completion,
-			TotalTokens:      result.promptTokens() + result.pump.completion,
+			CompletionTokens: result.completionTokens(),
+			TotalTokens:      result.promptTokens() + result.completionTokens(),
 		}
 		terminalTimings := h.slotStats[plan.session.ID].metrics(true).Timings
 		usage = &terminalUsage

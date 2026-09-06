@@ -1,0 +1,97 @@
+{
+  "schema": "overgo/e4b-audio-native-fixture/v1",
+  "source": "LibriSpeech clean validation; eight evenly spaced non-null ordinals of 2703; held-out test excluded",
+  "native_commit": "ee0ef6023621cff504d758262d4e04895a5af4a2",
+  "native_source_sha256": "9efccc72bf4e7491b067a69dd945094527396a56a1096dfce13bded7cec34353",
+  "torch": "2.12.0+cu126",
+  "transformers": "5.14.1",
+  "attention": "sdpa",
+  "tf32": false,
+  "prompt": "Transcribe the speech exactly. Return only the transcript.",
+  "max_tokens": 256,
+  "denominator": 2703,
+  "container_sha256": "c816e936fed8b83d5e3de28795bff1bcd3b46b3f1a5815bad4395d20186a9770",
+  "cases": [
+    {
+      "name": "2277-149896-0000",
+      "row": 0,
+      "reference": "HE WAS IN A FEVERED STATE OF MIND OWING TO THE BLIGHT HIS WIFE'S ACTION THREATENED TO CAST UPON HIS ENTIRE FUTURE",
+      "samples": 105440,
+      "wav_sha256": "20e10e583b4918e05cea91316f7bde65a345d2756e64abc7f7ee133e2a0547f5",
+      "accepted_outputs": [
+        "He was in a fevered state of mind owing to the blight his wife's action threatened to cast upon his entire future."
+      ]
+    },
+    {
+      "name": "777-126732-0006",
+      "row": 386,
+      "reference": "YES I HAD THE TIME TO THINK THINGS OUT A LITTLE HE ADDED WITHOUT EMPHASIS",
+      "samples": 73200,
+      "wav_sha256": "5510863cfb2f11523d5e025c3df05d6dd9bc7dff5ffd00b6b8209fcebca0b892",
+      "accepted_outputs": [
+        "Yes, I had the time to think things out a little, he added without emphasis."
+      ]
+    },
+    {
+      "name": "6345-64257-0013",
+      "row": 772,
+      "reference": "SHE HAD LOST HIM YEARS AND YEARS BEFORE AND NOW SHE SAW HIM HE WAS THERE AND SHE KNEW HIM",
+      "samples": 100720,
+      "wav_sha256": "3cbb8b73c8b57d0c29cd8635164a419bdf4f2a52257a25538a9292c8f2b5c286",
+      "accepted_outputs": [
+        "She had lost him years and years before and now she saw him he was there and she knew him."
+      ]
+    },
+    {
+      "name": "2078-142845-0036",
+      "row": 1158,
+      "reference": "PLAIN BUNS SEVENTEEN TWENTY NINE",
+      "samples": 59520,
+      "wav_sha256": "60262d373bacfec3cd6aa71fd400b1ed4a0faa21975fffe82b7b4f4138746609",
+      "accepted_outputs": [
+        "Plain Bounds 1729"
+      ]
+    },
+    {
+      "name": "3752-4944-0040",
+      "row": 1544,
+      "reference": "DOCTOR WE ALL HAVE OUR CROSSES HAVE WE NOT",
+      "samples": 44560,
+      "wav_sha256": "1da206c3055fb5b67cb577c23062dec664af895f6742f99d446247544890be23",
+      "accepted_outputs": [
+        "Doctor, we all have our crosses, have we not?"
+      ]
+    },
+    {
+      "name": "3170-137482-0010",
+      "row": 1930,
+      "reference": "YET THERE ARE A FEW PRIVATE ROOMS WHICH CONTAIN A TABLE SURROUNDED WITH BENCHES IN WHICH A RESPECTABLE FAMILY OR A FEW FRIENDS CAN ENJOY THEMSELVES IN A DECENT WAY",
+      "samples": 160160,
+      "wav_sha256": "dca4cea7cd132a0d2e8f0027ac946c53fdfaf0831a9d08615d35645314ba578e",
+      "accepted_outputs": [
+        "yet there are a few private rooms which contain a table surrounded with benches in which a respectable family or a few friends can enjoy themselves in a decent way"
+      ]
+    },
+    {
+      "name": "3576-138058-0015",
+      "row": 2316,
+      "reference": "HE WAS MOUNTED UPON A POWERFUL HORSE AND HAD ON A COAT OF MAIL WITH FOUR OF THE PISTOLS THEY CALL PETRONELS IN THAT COUNTRY AT HIS WAIST",
+      "samples": 146960,
+      "wav_sha256": "f8cbdd87ce7c5f2a25e8a81b1b507e1a58075dbf938b0c4bb8a47dcb50e4cd0d",
+      "accepted_outputs": [
+        "He was mounted upon a powerful horse and had on a coat of mail with four of the pistols they call paterneles in that country at his waist."
+      ]
+    },
+    {
+      "name": "3853-163249-0056",
+      "row": 2702,
+      "reference": "I COULD NOT LOVE THEE DEAR SO MUCH LOVED I NOT HONOR MORE",
+      "samples": 66480,
+      "wav_sha256": "b8034a7962c8ff7545670e6eea5e07eeeab568bc388dacdf270760d835dfcfcd",
+      "accepted_outputs": [
+        "I could not love thee so much, lovede I not honour more.",
+        "I could not love thee dear so much, lovede I not honour more."
+      ]
+    }
+  ]
+}

@@ -130,6 +130,9 @@ type transcriptionMemoryBoundary struct {
 // EvaluateTranscriptionResources measures the native cold load once, then invokes the
 // loaded recipe for every warmup and timed case. Quality is scored from the
 // first timed execution; no stored transcript is counted as throughput.
+// memoryBytes bounds native CPU frontend/encoder arrays. Projected inference
+// requires zero here and uses its active device policy; this report does not
+// establish a separate GPU memory ceiling.
 func EvaluateTranscriptionResources(
 	ctx context.Context,
 	repository artifact.Repository,
@@ -139,8 +142,8 @@ func EvaluateTranscriptionResources(
 	inputs []TranscriptionResourceInput,
 	options TranscriptionResourceOptions,
 	memoryBytes uint64,
-) (TranscriptionResourceReport, error) {
-	if ctx == nil || repository == nil || memoryBytes == 0 || model.Kind() != artifact.KindModel ||
+) (report TranscriptionResourceReport, returnErr error) {
+	if ctx == nil || repository == nil || (compiled.suite.Prompt == "") != (memoryBytes > 0) || model.Kind() != artifact.KindModel ||
 		compiled.identity != plan.body.CaseProfile ||
 		compiled.dataset != plan.body.Dataset || compiled.split != plan.body.Split || options.TimedRuns == 0 {
 		return TranscriptionResourceReport{}, errors.New("evaluation: invalid transcription resource request")
@@ -172,13 +175,19 @@ func EvaluateTranscriptionResources(
 	}
 	loadBefore := readTranscriptionMemoryBoundary()
 	loadStarted := time.Now()
-	executor, loadErr := speechrecognition.LoadTranscriber(ctx, repository, plan.body.RuntimeRecipe, memoryBytes)
+	executor, loadErr := loadTranscriptionRuntime(ctx, repository, plan, compiled.suite.Prompt, compiled.suite.MaxTokens, compiled.suite.DecodeRecipe, memoryBytes)
 	loadWall := elapsedResourceNanoseconds(loadStarted)
 	loadAfter := readTranscriptionMemoryBoundary()
 	if loadErr != nil {
 		return TranscriptionResourceReport{}, loadErr
 	}
-	report := TranscriptionResourceReport{
+	closed := false
+	defer func() {
+		if !closed {
+			returnErr = errors.Join(returnErr, executor.close())
+		}
+	}()
+	report = TranscriptionResourceReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Model: model,
 		Dataset: compiled.dataset, Split: compiled.split, Options: options,
 	}
@@ -191,7 +200,6 @@ func EvaluateTranscriptionResources(
 	report.Executions = make([]TranscriptionResourceMeasurement, 0, int(totalRounds)*len(orderedInputs))
 	predictions := make([]TranscriptionPrediction, len(orderedInputs))
 	signatures := make(map[string]transcriptionExecutionSignature, len(orderedInputs))
-	workspace := &speechrecognition.TranscriptionWorkspace{}
 	attempts := make(map[string]bool)
 	for round := uint64(0); round < totalRounds; round++ {
 		warmup := round < uint64(options.WarmupRuns)
@@ -201,7 +209,7 @@ func EvaluateTranscriptionResources(
 		}
 		for index, input := range orderedInputs {
 			measurement, run, signature, executeErr := executeTranscriptionResourceCase(
-				ctx, repository, executor, workspace, plan, model, compiled.suite.Cases[index], input,
+				ctx, repository, executor, plan, model, compiled.suite.Cases[index], input,
 				warmup, repetition, report.Load.Attempt, attempts,
 			)
 			if executeErr != nil && !run.ID.Valid() {
@@ -219,6 +227,10 @@ func EvaluateTranscriptionResources(
 			}
 		}
 	}
+	if err := executor.close(); err != nil {
+		return TranscriptionResourceReport{}, err
+	}
+	closed = true
 	quality, err := EvaluateTranscription(ctx, repository, compiled, plan, predictions)
 	if err != nil {
 		return TranscriptionResourceReport{}, err
@@ -261,8 +273,7 @@ func bindTranscriptionResourceInputs(compiled TranscriptionPlan, inputs []Transc
 func executeTranscriptionResourceCase(
 	ctx context.Context,
 	repository artifact.Repository,
-	executor *speechrecognition.Transcriber,
-	workspace *speechrecognition.TranscriptionWorkspace,
+	executor transcriptionRuntime,
 	plan Plan,
 	model artifact.ID,
 	testCase TranscriptionCase,
@@ -274,7 +285,7 @@ func executeTranscriptionResourceCase(
 ) (TranscriptionResourceMeasurement, runrecord.Run, transcriptionExecutionSignature, error) {
 	before := readTranscriptionMemoryBoundary()
 	started := time.Now()
-	_, returnedRun, executeErr := executor.Transcribe(ctx, input.Data, input.Origin, input.Policy, workspace, speechrecognition.RunBinding{
+	_, returnedRun, executeErr := executor.transcribe(ctx, input, speechrecognition.RunBinding{
 		Key:        fmt.Sprintf("evaluation/transcription-resource/%s/%t/%d/%s", loadAttempt.DigestHex(), warmup, repetition, input.Name),
 		CodeCommit: plan.body.CodeCommit, Environment: plan.body.Environment,
 		Dataset: plan.body.Dataset, Split: plan.body.Split,

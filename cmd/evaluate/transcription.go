@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelintake"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
 )
@@ -87,10 +88,14 @@ func evaluateTranscriptionManifest(ctx context.Context, repository, path string)
 	if err != nil {
 		return err
 	}
+	prompting := evaluation.PromptingRawCompletion
+	if suite.Prompt != "" {
+		prompting = evaluation.PromptingChatTemplate
+	}
 	plan, err := evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{
 		ModelDefinition: manifest.ModelDefinition, RuntimeRecipe: manifest.RuntimeRecipe,
 		CodeCommit: strings.TrimSpace(manifest.CodeCommit), Environment: manifest.Environment,
-		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident, Prompting: prompting},
 	})
 	if err != nil {
 		return err
@@ -135,24 +140,29 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 	if err = strictjson.DecodeBytes(suiteData, &suite); err != nil {
 		return fmt.Errorf("evaluate: decode transcription resource suite: %w", err)
 	}
-	inputs := make([]evaluation.TranscriptionResourceInput, len(manifest.Inputs))
-	for index, input := range manifest.Inputs {
-		data, readErr := os.ReadFile(resolveEvaluationPath(base, input.Path))
-		if readErr != nil {
-			return readErr
-		}
-		inputs[index] = evaluation.TranscriptionResourceInput{
-			Name: input.Name, Data: data, Origin: input.Origin, Policy: input.Policy,
-		}
+	revision, err := modelintake.CleanRevision(ctx)
+	if err != nil {
+		return err
+	}
+	if manifest.CodeCommit != revision {
+		return errors.New("evaluate: transcription execution commit differs from clean producer")
+	}
+	inputs, err := readTranscriptionInputs(ctx, base, manifest.Inputs)
+	if err != nil {
+		return err
 	}
 	compiled, err := evaluation.CompileTranscription(suite)
 	if err != nil {
 		return err
 	}
+	prompting := evaluation.PromptingRawCompletion
+	if suite.Prompt != "" {
+		prompting = evaluation.PromptingChatTemplate
+	}
 	plan, err := evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{
 		ModelDefinition: manifest.ModelDefinition, RuntimeRecipe: manifest.RuntimeRecipe,
 		CodeCommit: strings.TrimSpace(manifest.CodeCommit), Environment: manifest.Environment,
-		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident, Prompting: prompting},
 	})
 	if err != nil {
 		return err
@@ -169,7 +179,7 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 	if err != nil {
 		return err
 	}
-	fmt.Printf("transcription resource report %s plan=%s quality=%s runs=%d audio_seconds=%.6f wall_seconds=%.6f rtf=%.6f process_allocations=%d peak_host_bytes=unavailable admission_failures=%d inference_failures=%d\n",
+	fmt.Printf("transcription resource report %s plan=%s quality=%s runs=%d audio_seconds=%.6f wall_seconds=%.6f rtf=%.6f process_allocations=%d peak_host_bytes=unavailable peak_device_bytes=unavailable admission_failures=%d inference_failures=%d\n",
 		report.ID, report.Plan, report.Quality, report.Summary.Runs, report.Summary.AudioSeconds,
 		report.Summary.WallSeconds, report.Summary.RealTimeFactor, report.Summary.ProcessAllocations,
 		report.Summary.AdmissionFailures, report.Summary.InferenceFailures,

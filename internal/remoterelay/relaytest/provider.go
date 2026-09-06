@@ -41,6 +41,18 @@ type Model struct {
 	ContextLength uint32 `json:"context_length,omitzero"`
 }
 
+// Behaviour is how the fake ends a stream after its flushed pieces: whole
+// by default, or truncated before the terminal marker, or with the
+// provider's error event, or held open until the caller goes away.
+type Behaviour struct {
+	// Truncate ends the stream after the pieces without the usage chunk or [DONE].
+	Truncate bool
+	// ErrorEvent, when set, is the provider's in-stream error message after the pieces.
+	ErrorEvent string
+	// Hold keeps the stream open after the pieces until the request's context ends.
+	Hold bool
+}
+
 // Serve starts the fake under basePath answering pieces to every chat
 // completion signed with key; the models route is absent.
 func Serve(t testing.TB, basePath, key string, pieces []string) (*httptest.Server, *Received) {
@@ -51,6 +63,12 @@ func Serve(t testing.TB, basePath, key string, pieces []string) (*httptest.Serve
 // ServeListing starts the fake with a models listing beside its chat
 // completions; a nil listing leaves the models route absent.
 func ServeListing(t testing.TB, basePath, key string, pieces []string, models []Model) (*httptest.Server, *Received) {
+	t.Helper()
+	return ServeBehaviour(t, basePath, key, pieces, models, Behaviour{})
+}
+
+// ServeBehaviour starts the fake with the stream ending as behaviour says.
+func ServeBehaviour(t testing.TB, basePath, key string, pieces []string, models []Model, behaviour Behaviour) (*httptest.Server, *Received) {
 	t.Helper()
 	received := &Received{}
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -75,6 +93,19 @@ func ServeListing(t testing.TB, basePath, key string, pieces []string, models []
 		response.Header().Set("Content-Type", "text/event-stream")
 		for _, piece := range pieces {
 			fmt.Fprintf(response, "data: {\"choices\":[{\"delta\":{\"content\":%q}}]}\n\n", piece)
+		}
+		if flusher, ok := response.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		switch {
+		case behaviour.Hold:
+			<-request.Context().Done()
+			return
+		case behaviour.ErrorEvent != "":
+			fmt.Fprintf(response, "data: {\"error\":{\"message\":%q,\"type\":\"server_error\"}}\n\n", behaviour.ErrorEvent)
+			return
+		case behaviour.Truncate:
+			return
 		}
 		if received.StreamOptions.IncludeUsage {
 			fmt.Fprintf(response, "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":%d,\"completion_tokens\":%d}}\n\n", UsagePromptTokens, len(pieces))

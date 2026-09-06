@@ -552,6 +552,10 @@ derived from the server, not from client configuration:
   refused by the variable's name, and with it the server serves the model
   through a relay (`internal/remoterelay`) that carries each conversation
   to the provider's chat completions endpoint and streams the answer back.
+  A stream that ends before its terminal marker (the `[DONE]` event or a
+  finish reason) is refused as a truncated answer rather than returned as
+  a complete one, a provider's error event inside the stream is the
+  turn's error, and the caller's cancellation comes back as its own error.
   The relay forwards text only and counts no tokens (the provider does);
   its environment records the remote backend, so every interaction and
   observation under it is marked as not reproducible from the store.

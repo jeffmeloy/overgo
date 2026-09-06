@@ -1,6 +1,11 @@
 package remoterelay
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -88,6 +93,68 @@ func TestGeneratorRelaysTheConversationAndStreams(t *testing.T) {
 		len(received.Messages) != 1 || received.Messages[0].Role != "user" || received.Messages[0].Content != "plain" {
 		t.Fatalf("plain prompt relay = %q %+v err=%v", text, received.Messages, err)
 	}
+}
+
+// TestGeneratorRefusesTruncatedCancelledAndErroredStreams pins the stream's
+// ending: an EOF before the terminal marker is a truncated answer with the
+// text so far, a finish reason closes a stream without [DONE], the
+// provider's in-stream error event is the error, and the caller's
+// cancellation comes back as its own error once the pieces have arrived.
+func TestGeneratorRefusesTruncatedCancelledAndErroredStreams(t *testing.T) {
+	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "test-key")
+	relay := func(t *testing.T, behaviour relaytest.Behaviour) *Generator {
+		t.Helper()
+		server, _ := relaytest.ServeBehaviour(t, "/api/v1", "test-key", []string{"par", "tial"}, nil, behaviour)
+		provider, definition := testProvider(t, server.URL)
+		generator, err := New(provider, definition, server.Client())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return generator
+	}
+	t.Run("truncated", func(t *testing.T) {
+		_, text, err := relay(t, relaytest.Behaviour{Truncate: true}).Generate(t.Context(), "hello", inference.GenerateOptions{})
+		if err == nil || !strings.Contains(err.Error(), "without its terminal marker after 2 piece(s)") || text != "partial" {
+			t.Fatalf("truncated stream = %q, %v", text, err)
+		}
+	})
+	t.Run("provider error event", func(t *testing.T) {
+		_, text, err := relay(t, relaytest.Behaviour{ErrorEvent: "overloaded"}).Generate(t.Context(), "hello", inference.GenerateOptions{})
+		if err == nil || !strings.Contains(err.Error(), "fake reported server_error: overloaded") || text != "partial" {
+			t.Fatalf("errored stream = %q, %v", text, err)
+		}
+	})
+	t.Run("cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(nil)
+		// The caller leaves once the second piece is in hand; the held stream then ends with its error.
+		_, text, err := relay(t, relaytest.Behaviour{Hold: true}).Generate(ctx, "hello", inference.GenerateOptions{
+			OnToken: func(event inference.TokenEvent) error {
+				if event.Index == 1 {
+					cancel(errors.New("the caller left"))
+				}
+				return nil
+			},
+		})
+		if !errors.Is(err, context.Canceled) || text != "partial" {
+			t.Fatalf("cancelled stream = %q, %v", text, err)
+		}
+	})
+	t.Run("finish reason closes the stream", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			response.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(response, "data: {\"choices\":[{\"delta\":{\"content\":\"done\"},\"finish_reason\":\"stop\"}]}\n\n")
+		}))
+		defer server.Close()
+		provider, definition := testProvider(t, server.URL)
+		generator, err := New(provider, definition, server.Client())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, text, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err != nil || text != "done" {
+			t.Fatalf("finished stream = %q, %v", text, err)
+		}
+	})
 }
 
 // TestGeneratorRefusesWithoutKeyAndReportsProviderErrors pins the two

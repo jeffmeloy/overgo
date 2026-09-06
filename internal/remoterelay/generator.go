@@ -104,8 +104,15 @@ type completionChunk struct {
 		Delta struct {
 			Content string `json:"content"`
 		} `json:"delta"`
+		// FinishReason closes the choice ("stop", "length"): a terminal marker beside [DONE].
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage *completionUsage `json:"usage"`
+	// Error is the provider's error event inside the stream; it ends the answer.
+	Error *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+	} `json:"error"`
 }
 
 // conversationOf decodes the formatter's conversation, or wraps a plain
@@ -144,6 +151,9 @@ func (g *Generator) Generate(ctx context.Context, prompt string, options inferen
 	request.Header.Set("Accept", "text/event-stream")
 	response, err := g.client.Do(request)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, "", ctx.Err()
+		}
 		return nil, "", fmt.Errorf("remote relay: %s: %w", g.provider.Name, err)
 	}
 	defer response.Body.Close()
@@ -153,6 +163,9 @@ func (g *Generator) Generate(ctx context.Context, prompt string, options inferen
 	}
 	var text strings.Builder
 	index := 0
+	// completed: the stream reached its terminal marker ([DONE] or a finish reason); an EOF
+	// before it is a truncated answer, never a success.
+	completed := false
 	scanner := bufio.NewScanner(response.Body)
 	for scanner.Scan() {
 		data, ok := strings.CutPrefix(scanner.Text(), "data:")
@@ -161,17 +174,22 @@ func (g *Generator) Generate(ctx context.Context, prompt string, options inferen
 		}
 		data = strings.TrimSpace(data)
 		if data == "[DONE]" {
+			completed = true
 			break
 		}
 		var chunk completionChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			return nil, text.String(), fmt.Errorf("remote relay: decode stream chunk: %w", err)
 		}
+		if chunk.Error != nil {
+			return nil, text.String(), fmt.Errorf("remote relay: %s reported %s: %s", g.provider.Name, cmp.Or(chunk.Error.Type, "an error"), chunk.Error.Message)
+		}
 		// The provider's accounting closes the stream: it tokenizes, so its counts are the turn's.
 		if chunk.Usage != nil && options.OnUsage != nil {
 			options.OnUsage(inference.Usage{PromptTokens: chunk.Usage.PromptTokens, CompletionTokens: chunk.Usage.CompletionTokens})
 		}
 		for _, choice := range chunk.Choices {
+			completed = completed || choice.FinishReason != ""
 			piece := choice.Delta.Content
 			if piece == "" {
 				continue
@@ -190,7 +208,14 @@ func (g *Generator) Generate(ctx context.Context, prompt string, options inferen
 		}
 	}
 	if err := scanner.Err(); err != nil {
+		// The caller's cancellation is its own error, not a provider failure.
+		if ctx.Err() != nil {
+			return nil, text.String(), ctx.Err()
+		}
 		return nil, text.String(), fmt.Errorf("remote relay: read stream: %w", err)
+	}
+	if !completed {
+		return nil, text.String(), fmt.Errorf("remote relay: %s ended the stream without its terminal marker after %d piece(s)", g.provider.Name, index)
 	}
 	return nil, text.String(), nil
 }

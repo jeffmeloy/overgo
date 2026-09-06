@@ -463,3 +463,33 @@ The mapping table above is corrected accordingly: master's selection-shadow
 checkpoint maps to its own row, not to the cost record. Physical device
 exclusion moves ahead of conditional workflows, placement and scheduling as
 its own item, `device-exclusion/host-wide-claim`.
+
+## Throughput review of 2026-09-06
+
+Owner request after the review rows landed: improve automation performance
+further. The day's gate logs, twenty-one successful runs and their reruns,
+measure where the wall goes.
+
+| Measurement | Value |
+| --- | --- |
+| Successful gate wall, rows confined to host packages | 660 to 830 s |
+| Gate wall when the validate and test phases were reused | 120 to 460 s |
+| Impact selection on every run | excluded=0/6 unresolved=6 |
+| Device and browser lanes executed on host-only rows | every run, four to six minutes |
+| Reruns lost to findings the validate phases report | about twelve: style, magics, modern-Go, profile, architecture |
+| Manual closure triage rows for identity literals | eleven (zero, one, radix, bit widths) |
+
+The item `gate-wall` ranks the remedies by expected wall saved per commit:
+
+1. `impact-exclusions`: the ownership impact proves the device and browser
+   checks independent when the reachable closure of the change touches none
+   of their owned packages or symbols. Saves four to six minutes on every
+   host-only row.
+2. `preflight`: `gate -preflight -paths <csv>` runs the validate phases on
+   the working tree without admission and reports every finding at once.
+   Saves one rerun per late finding, about half of today's runs.
+3. `identity-literal-triage`: identity literals classify as mathematical
+   facts with an audited rule. Saves a propose, fill and triage cycle per
+   literal.
+4. `phase-wall-table`: the gate prints its per-phase wall after every run so
+   the next optimisation is measured rather than guessed.

@@ -40,6 +40,8 @@ func BindGenerationCatalog[
 	},
 	Control interface {
 		Declared() (name, kind string, required bool, choices []string)
+		// Slot reports an artifact control's label and media kind (empty for a typed field).
+		Slot() (label, media string)
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -57,7 +59,8 @@ func BindGenerationCatalog[
 			bound := make([]WorkflowControl, 0, len(declared))
 			for _, control := range declared {
 				name, kind, required, choices := control.Declared()
-				bound = append(bound, WorkflowControl{Name: name, Type: WorkflowControlType(kind), Required: required, Choices: choices})
+				label, media := control.Slot()
+				bound = append(bound, WorkflowControl{Name: name, Type: WorkflowControlType(kind), Required: required, Choices: choices, Label: label, Media: media})
 			}
 			return bound, refusal
 		},

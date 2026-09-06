@@ -37,10 +37,7 @@
     if (!streamController) connect();
     return function unsubscribe() {
       subscribers.delete(handler);
-      if (!subscribers.size && streamController) {
-        streamController.abort();
-        streamController = null;
-      }
+      if (!subscribers.size && streamController) { streamController.abort(); streamController = null; }
     };
   }
 
@@ -75,10 +72,31 @@
         });
       }
       fields.set(control.name, { control, input });
-      host.appendChild(el("label", { class: "control" }, el("span", { text: control.name }), input));
+      const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
+      host.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name }), input, slot));
     }
     return fields;
   };
+
+  // intakeStrip: the store's recent stored files of the slot's media kind (attachments the
+  // composer stored, media that came out of a capability), one click filling the slot.
+  function intakeStrip(control, input) {
+    const el = window.overgo.el;
+    const strip = el("div", { class: "intake-strip", "aria-label": "recent " + (control.media || "stored files") });
+    const kind = control.media ? control.media + "/" : "";
+    const load = () => window.overgo.api.get("/artifacts?kind=file&newest=1&media=" + encodeURIComponent(kind) + "&limit=" + window.overgo.intakeStripLimit).then((listed) => {
+      strip.replaceChildren(...(listed.artifacts || []).filter((item) => item.payload).map((item) => {
+        const id = item.descriptor.id, source = "/artifacts/content?id=" + encodeURIComponent(id);
+        const preview = item.descriptor.media_type.startsWith("image/") ? el("img", { src: source, alt: "" }) : el("span", { class: "mono", text: item.descriptor.media_type });
+        return el("button", { class: "intake-thumb", type: "button", "data-id": id, title: id, "aria-label": "use " + window.overgo.fmt.shortID(id), onclick: () => { input.value = id; input.dispatchEvent(new Event("change", { bubbles: true })); } }, preview);
+      }));
+    }).catch((err) => strip.replaceChildren(el("span", { class: "note", text: window.overgo.friendlyError(err) })));
+    input.addEventListener("intake", load); // a fresh attachment stored into the slot relists the strip
+    load();
+    return strip;
+  }
+  // intakeStripLimit bounds the stored files a slot lists (the newest first).
+  window.overgo.intakeStripLimit = 12;
 
   // controlValues reads the typed inputs back as the request's fields and
   // names the required ones left empty.
@@ -105,10 +123,7 @@
       }
       unsubscribe = subscribe((name, value) => {
         if (name === "operation" && value.status.id === id) finish(value.status);
-        if (name === "operation.snapshot") {
-          const current = value.find((item) => item.id === id);
-          if (current) finish(current);
-        }
+        if (name === "operation.snapshot") { const current = value.find((item) => item.id === id); if (current) finish(current); }
         if (name === "stream.error") {
           // The event stream can break under a model swap; the operation's
           // durable status still answers from the server's own wait route.
@@ -174,10 +189,7 @@
           status.textContent = current.state + suffix + (current.failure ? " / " + current.failure : "");
           const total = current.progress && current.progress.total;
           progress.style.display = total ? "" : "none";
-          if (total) {
-            progress.max = total;
-            progress.value = current.progress.completed;
-          }
+          if (total) { progress.max = total; progress.value = current.progress.completed; }
           const table = overgo.table(["measurement", "value"], (current.metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : "")]), "metric-grid");
           metrics.replaceChildren(...((current.metrics || []).length ? [table] : []));
         }

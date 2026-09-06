@@ -9,10 +9,7 @@
       const { el, clear } = overgo;
       clear(panel);
       let table;
-      try { table = await overgo.api.get("/workspace/routes"); } catch (err) {
-        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
+      try { table = await overgo.api.get("/workspace/routes"); } catch (err) { panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
       panel.append(el("div", { class: "note", text: table.routes.length + " routes from the server's route table" }));
       function routeCard(route) {
         const out = el("pre", { class: "mono", style: "display:none;max-height:320px;overflow:auto" });

@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-media-input-slots",
-      "title": "Media input slots and an intake history (concept from Open-Generative-AI: per-model media input profiles with labeled slots such as first frame, last frame and reference, an upload picker with recent uploads as thumbnails and a maximum count): a capability declares its artifact inputs with a role label and a count, the composer renders one labeled slot per declared input instead of one untyped artifact control, a strip of recent intakes (from the store's intake records, not browser storage) fills a slot with one click, and a Go test pins the declaration-to-slot mapping while the journey fills a slot from the strip",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Media input slots and an intake history (concept from Open-Generative-AI: per-model media input profiles with labeled slots such as first frame, last frame and reference, an upload picker with recent uploads as thumbnails and a maximum count): a capability declares its artifact inputs with a role label and a count, the composer renders one labeled slot per declared input instead of one untyped artifact control, a strip of recent intakes (from the store's intake records, not browser storage) fills a slot with one click, and a Go test pins the declaration-to-slot mapping while the journey fills a slot from the strip",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "webui-declared-presets",
       "title": "Declared presets for size, aspect ratio and duration (concept from Open-Generative-AI: aspect-ratio and resolution options derived from each model's size capability; overgo derives them from the recipe's declared control bounds, never from a model list): mediacapability derives preset chips (aspect ratios within the declared width and height bounds and step, durations from the declared frame bounds and frame rate) from the control declarations alone, the composer shows the chips beside the numeric fields and a chosen chip fills them, and a Go test pins the derivation over declared bounds",
       "owner": "professional_overgo_gui",

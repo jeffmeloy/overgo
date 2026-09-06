@@ -101,10 +101,7 @@
       }
 
       publish.addEventListener("click", async () => {
-        if (!definitionForm.validate()) {
-          status.textContent = "Complete every required definition field";
-          return;
-        }
+        if (!definitionForm.validate()) { status.textContent = "Complete every required definition field"; return; }
         try {
           const created = await api.post("/agents/definitions", definitionForm.value());
           await api.post("/agents/activate", { definition: created.id });

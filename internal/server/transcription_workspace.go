@@ -147,7 +147,7 @@ func (workspace *TranscriptionWorkspace) WorkflowCapabilities(_ context.Context,
 		Inputs: definition.Inputs, Outputs: definition.Outputs,
 		// The audio control names a stored file artifact: an attachment the
 		// page stored through the intake route, or a card's stored id.
-		Controls: []WorkflowControl{{Name: "audio", Type: WorkflowControlArtifact, Required: true}},
+		Controls: []WorkflowControl{{Name: "audio", Type: WorkflowControlArtifact, Required: true, Label: "audio clip", Media: "audio"}},
 	}}, nil
 }
 

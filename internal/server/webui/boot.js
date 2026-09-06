@@ -87,10 +87,7 @@
         buffered = buffered.slice(boundary + 2);
         let event = "message";
         const data = [];
-        for (const line of block.split("\n")) {
-          if (line.startsWith("event: ")) event = line.slice(7);
-          else if (line.startsWith("data: ")) data.push(line.slice(6));
-        }
+        for (const line of block.split("\n")) { if (line.startsWith("event: ")) event = line.slice(7); else if (line.startsWith("data: ")) data.push(line.slice(6)); }
         if (!data.length) continue;
         const joined = data.join("\n");
         if (joined === "[DONE]") { yield { event: "done", data: null }; continue; }
@@ -120,10 +117,7 @@
         else node.setAttribute(name, value);
       }
     }
-    for (const child of children.flat()) {
-      if (child == null || child === false) continue;
-      node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
-    }
+    for (const child of children.flat()) { if (child == null || child === false) continue; node.appendChild(typeof child === "string" ? document.createTextNode(child) : child); }
     return node;
   }
 

@@ -25,6 +25,11 @@ type Control struct {
 	// Choices are the values the model's own artifact exports for the
 	// field (a speech model's voices); empty when any value may be typed.
 	Choices []string
+	// Label names an artifact slot the way a page shows it (the request
+	// field's label tag); Media is the kind of artifact it takes (the
+	// media tag: image, video or audio), so a page offers the right stored
+	// files and routes an attachment to the slot of its kind.
+	Label, Media string
 }
 
 // Declared reports the control's fields as one tuple, so a consumer with
@@ -32,6 +37,9 @@ type Control struct {
 func (control Control) Declared() (name, kind string, required bool, choices []string) {
 	return control.Name, control.Type, control.Required, control.Choices
 }
+
+// Slot reports an artifact control's label and media kind (empty for a typed field).
+func (control Control) Slot() (label, media string) { return control.Label, control.Media }
 
 // choiceProviders name, per entry module, the request fields whose values
 // the model directory exports; the provider reads them from the artifact.
@@ -117,6 +125,7 @@ func describe(request reflect.Type) ([]Control, string) {
 		// attaches), which a page fills from a media card rather than types.
 		if field.Type == reflect.TypeOf(artifact.ID{}) {
 			control.Type, control.Required = ControlArtifact, !optional
+			control.Label, control.Media = field.Tag.Get("label"), field.Tag.Get("media")
 			controls = append(controls, control)
 			continue
 		}

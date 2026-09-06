@@ -326,7 +326,7 @@ type ReferenceEditRequest struct {
 	Source         SourceVideo            `json:"source,omitzero"`
 	Prompt         string                 `json:"prompt,omitzero"`
 	Seed           int64                  `json:"seed,omitzero"`
-	SourceArtifact artifact.ID            `json:"source_artifact,omitzero"`
+	SourceArtifact artifact.ID            `json:"source_artifact,omitzero" label:"source clip" media:"video"`
 }
 
 func ValidateReferenceEditRequest(request ReferenceEditRequest) error {

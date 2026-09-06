@@ -24,10 +24,7 @@
 
     function value() {
       const result = {};
-      for (const [name, control] of controls) {
-        const current = readField(control.field, control.input);
-        if (current !== undefined) result[name] = current;
-      }
+      for (const [name, control] of controls) { const current = readField(control.field, control.input); if (current !== undefined) result[name] = current; }
       return result;
     }
 

@@ -36,7 +36,7 @@ func TestTranscriptionModeRunsThroughGenericRoute(t *testing.T) {
 		t.Fatalf("manifest status=%d body=%s", manifest.Code, manifest.Body.String())
 	}
 	if capabilities := authorized(http.MethodGet, "/generation/capabilities", "", ""); capabilities.Code != http.StatusOK ||
-		!strings.Contains(capabilities.Body.String(), `"controls":[{"name":"audio","type":"artifact","required":true}]`) {
+		!strings.Contains(capabilities.Body.String(), `"controls":[{"name":"audio","type":"artifact","required":true,"label":"audio clip","media":"audio"}]`) {
 		t.Fatalf("capabilities status=%d body=%s", capabilities.Code, capabilities.Body.String())
 	}
 	var stored attachmentIntake

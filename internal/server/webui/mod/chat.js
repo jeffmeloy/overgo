@@ -71,15 +71,17 @@
       // artifactField: the mode's artifact-typed control, if any. A media card re-enters the composer as the next
       // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
       // a fresh attachment in such a mode stores through the intake route and fills the control.
-      const artifactField = () => [...generation.fields.values()].find((field) => field.control.type === "artifact");
-      const thread = overgo.thread(panel, { reuse: (file, artifact) => { const field = artifactField(); if (field && artifact) field.input.value = artifact; else composer.addFile(file); },
+      // A file goes to the slot of its kind (the slot's declared media), else to the first slot.
+      const artifactField = (file) => { const slots = [...generation.fields.values()].filter((field) => field.control.type === "artifact");
+        return slots.find((field) => file && field.control.media && file.type.startsWith(field.control.media + "/")) || slots[0]; };
+      const thread = overgo.thread(panel, { reuse: (file, artifact) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file); },
         marker: capabilities.remote ? "remote" : "" });
       overgo.stopTurn = () => { if (controller) controller.abort(); }; // the Escape key's stop, the composer's stop control's too
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: overgo.stopTurn,
         takesAny: () => !!artifactField(),
-        intake: (file) => { const field = artifactField(); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => (field.input.value = stored.id)) : null; },
+        intake: (file) => { const field = artifactField(file); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => { field.input.value = stored.id; field.input.dispatchEvent(new Event("intake")); return stored.id; }) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; renderMode(mode); },
         controls: [reset, el("span", { class: "note", text: "temp" }), temperature, el("span", { class: "note", text: "max tokens" }), maxTokens],
@@ -217,10 +219,7 @@
             assistant.content += (assistant.content ? "\n" : "") + "[stopped]";
             thread.renderMessage(assistant, false);
           } else thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err));
-        } finally {
-          controller = null;
-          composer.setBusy(false);
-        }
+        } finally { controller = null; composer.setBusy(false); }
       }
 
       // Resume the rail selection from its record, or reattach to a turn this page was streaming.

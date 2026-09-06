@@ -432,7 +432,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const again = card && [...card.querySelectorAll("button")].find((button) => button.textContent === "use as input");
       if (!again) return false; again.click(); return true; })()`)
 			settle("clip fills the source artifact", `(() => {
-      const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("source_artifact"));
+      const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("source clip"));
       const input = field && field.querySelector("input");
       return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .card").length === 0; })()`)
 			t.Log("clip-in leg: the clip's stored id filled LiveEdit's source clip")
@@ -477,6 +477,15 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const field = `+vqaImage+`, card = document.querySelector(".composer .card");
       const input = field && field.querySelector("input");
       return !!input && input.value.includes(":sha256:") && input.value !== `+strconv.Quote(filled)+` && !!card && !card.classList.contains("refused") && card.textContent.includes("stored as"); })()`)
+		// The slot is declared (label "image", media image) and its strip lists the stored
+		// attachment; choosing it from the strip fills the slot with the same id.
+		settle("the image slot lists the stored attachment", `(() => {
+      const field = `+vqaImage+`, input = field && field.querySelector("input");
+      const thumb = field && [...field.querySelectorAll(".intake-thumb")].find((button) => button.dataset.id === input.value);
+      if (!thumb) return false;
+      input.value = ""; thumb.click();
+      return input.value === thumb.dataset.id; })()`)
+		t.Log("slot leg: the declared image slot listed the stored attachment and filled from it")
 		var before int
 		if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
 			t.Fatal(err)
@@ -505,7 +514,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       return true;
     })()`)
 		settle("the clip fills the audio control", `(() => {
-      const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("audio"));
+      const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("audio clip"));
       const input = field && field.querySelector("input"), card = document.querySelector(".composer .card");
       return !!input && input.value.includes(":sha256:") && !!card && !card.classList.contains("refused") && card.textContent.includes("stored as"); })()`)
 		var before int

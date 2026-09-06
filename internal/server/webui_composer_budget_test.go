@@ -18,7 +18,7 @@ const (
 	webuiStreamReaderCeiling = 1    // response.body.getReader(): boot.js sseEvents, the one stream reader
 	webuiRawFetchCeiling     = 4    // fetch(: boot.js api client only
 	webuiAPIStreamCeiling    = 1    // api.stream(: chat
-	webuiJavaScriptCeiling   = 4661 // total lines under webui/
+	webuiJavaScriptCeiling   = 4657 // total lines under webui/
 )
 
 // webuiReviewCeiling: the review criteria webuilane.ReviewMeasures counts, each at its

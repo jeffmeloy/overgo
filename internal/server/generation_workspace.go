@@ -38,7 +38,15 @@ type WorkflowControl struct {
 	// Choices are the values the model's artifact exports for the field;
 	// a page offers them instead of a free input.
 	Choices []string `json:"choices,omitempty"`
+	// Label and Media describe an artifact slot: what a page calls it and
+	// the kind of stored file it takes (image, video, audio), so the page
+	// lists matching intakes beside it and routes an attachment to it.
+	Label string `json:"label,omitzero"`
+	Media string `json:"media,omitzero"`
 }
+
+// slotMedia: the media kinds an artifact slot may declare.
+var slotMedia = map[string]bool{"": true, "image": true, "video": true, "audio": true}
 
 type WorkflowCapability struct {
 	Task     recipe.Task       `json:"task"`
@@ -231,7 +239,7 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 		seen[capability.Recipe] = true
 		fields := make(map[string]bool, len(capability.Controls))
 		for _, control := range capability.Controls {
-			if control.Name == "" || !control.Type.valid() || fields[control.Name] {
+			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] {
 				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
 			}
 			fields[control.Name] = true

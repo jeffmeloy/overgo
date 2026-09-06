@@ -664,6 +664,13 @@ derived from the server, not from client configuration:
   opens the Library tab on its form with the first field focused. The
   acceptance lane proves the welcome card, the picker, and the path to
   the hosted form in the real browser.
+- **Media input slots.** A capability's artifact inputs are declared on
+  its request (a label and a media kind per field), so a mode renders one
+  labeled slot per input rather than an untyped artifact control, a strip
+  of the store's recent files of that kind (attachments the composer
+  stored, media a capability made) fills a slot with one click, and a fresh
+  attachment goes to the slot of its kind. The store, not browser storage,
+  is the history. The journey fills the VQA image slot from its strip.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

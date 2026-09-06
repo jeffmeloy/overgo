@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "diagnose-row",
-          "title": "Render a state-keyed diagnosis of one plan row from its attempt records and evidence tails",
-          "status": "open",
-          "verify": "test -f cmd/plan/diagnose_test.go \u0026\u0026 go test ./cmd/plan -run '^TestDiagnoseRowReference$' -count=1",
-          "rationale": "Design record E11. The command prints the row's state, its attempt records in order, bounded evidence tails, and the next action keyed on the observed state, so an operator or an agent diagnoses a stuck or failed row from one tool.",
-          "depends_on": [
-            "durable-attempt-log/attempt-identity"
-          ],
-          "capabilities": [
-            "row-diagnosis"
-          ]
-        },
-        {
           "id": "replay-attempt",
           "title": "Replay one attempt from its receipt with the same or new inputs",
           "status": "open",

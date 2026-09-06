@@ -220,6 +220,20 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       document.querySelector("#panel-chat .msg.assistant .body").textContent.trim().length > 0 &&
       document.querySelector('[aria-label="context meter"]').textContent.includes("Input") && !document.querySelector(".composer .btn").disabled`)
 
+	// 2b. The conversation renames in place: the rail's rename control turns the
+	// title into a field, Enter saves through the label route, the rail relists.
+	settle("the rail lists the conversation", `[...document.querySelectorAll("#conversation-list button")].some((button) => button.textContent === "rename")`)
+	// The rail relists once the reply lands, which can replace a field opened
+	// during the relist; the step clicks rename until the field stands.
+	settle("the title is a field", `(() => {
+      if (document.querySelector("#conversation-list input[aria-label='conversation title']")) return true;
+      const rename = [...document.querySelectorAll("#conversation-list button")].find((button) => button.textContent === "rename");
+      if (rename) rename.click();
+      return false; })()`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { const field = document.querySelector("#conversation-list input[aria-label='conversation title']"); field.value = "renamed by the lane"; field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); return true; })()`)
+	settle("the rail shows the new title", `[...document.querySelectorAll("#conversation-list button")].some((button) => button.textContent === "renamed by the lane")`)
+	t.Log("rename leg: the conversation renamed in place from the rail")
+
 	// 3. The inspector opens over the first turn with its run record.
 	assertBrowserPredicate(t, ctx, browser, `(() => { const button = document.querySelector("#panel-chat .msg.assistant .role button.link-button"); if (!button) return false; button.click(); return true; })()`)
 	settle("inspector over the turn", `!document.querySelector("#inspector").hidden && document.querySelector("#inspector").textContent.includes("done")`)

@@ -209,8 +209,7 @@
           if (system.value.trim()) request.instructions = system.value.trim();
           if (temperature.value !== "") request.temperature = Number(temperature.value);
           if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
-          // Remote model: provider tokenizes; count route refuses -> meter stays empty.
-          const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null);
+          const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null) /* reviewed: a hosted model's provider tokenizes, the count route refuses, and the meter stays empty by design */;
           renderFacts(count ? count.input_tokens : null, null, null);
           await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count ? count.input_tokens : null);
         } catch (err) {

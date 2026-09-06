@@ -214,10 +214,7 @@
       active = true;
       if (!document.hidden) tick();
     }
-    function stop() {
-      active = false;
-      cancel();
-    }
+    function stop() { active = false; cancel(); }
     document.addEventListener("visibilitychange", () => {
       cancel();
       if (active && !document.hidden) tick();
@@ -296,8 +293,12 @@
         if (patch.archived && selectedConversation && selectedConversation.root === item.root) openConversation(null);
         refreshConversations();
       };
-      const rename = el("button", { class: "link-button", text: "rename", "aria-label": "rename conversation",
-        onclick: () => { const title = window.prompt("conversation title", item.title); if (title != null) label({ title }); } });
+      // Rename in place: the title becomes a field; Enter saves, Escape restores the rail.
+      const rename = el("button", { class: "link-button", text: "rename", "aria-label": "rename conversation", onclick: () => {
+        const field = el("input", { class: "text", value: item.title, "aria-label": "conversation title" });
+        field.addEventListener("keydown", (event) => { if (event.key === "Enter") label({ title: field.value.trim() || item.title }); else if (event.key === "Escape") refreshConversations(); });
+        open.replaceWith(field); field.focus(); field.select();
+      } });
       const archive = el("button", { class: "link-button", text: "archive", "aria-label": "archive conversation", onclick: () => label({ archived: true }) });
       host.appendChild(el("div", { class: "conversation" }, open, el("div", { class: "row" }, rename, archive)));
     }
@@ -431,10 +432,10 @@
       // The proxy with no child names no model; the pill says so rather than keeping the last name.
       modelPill.textContent = (health && health.model) || "no model serves";
       if (health && health.model) {
-        const catalog = await api.get("/catalog/models").catch(() => null);
-        servedEntry = ((catalog && catalog.models) || []).find((item) =>
-          (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
-        document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : "";
+        // A catalog that fails to list says so under the pill instead of an empty evidence line.
+        const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
+        servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
+        document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || "";
       }
     } catch (err) {
       statusPill.textContent = "offline";
@@ -571,10 +572,7 @@
       tab.button.title = ok ? "" : tab.refusal;
     }
     const active = tabs.find((t) => t.button.classList.contains("active"));
-    if (active && !tabSupported(active)) {
-      const firstOk = tabs.find(tabSupported);
-      if (firstOk) activate(firstOk.id);
-    }
+    if (active && !tabSupported(active)) { const firstOk = tabs.find(tabSupported); if (firstOk) activate(firstOk.id); }
   }
 
   function bindWorkspaceManifest(manifest) {

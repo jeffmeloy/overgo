@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-silent-failures",
-      "title": "Hunt the silent failures the census names: the catalog fetch after health, the peer evidence renders and the count-route refusal either surface their failure in the page (a note beside the surface it starves) or carry a reviewed comment naming why the refusal is tolerated, the conversation title prompt becomes an in-page rename field instead of a window dialog, and the ceilings drop to the reviewed count and zero dialogs",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hunt the silent failures the census names: the catalog fetch after health, the peer evidence renders and the count-route refusal either surface their failure in the page (a note beside the surface it starves) or carry a reviewed comment naming why the refusal is tolerated, the conversation title prompt becomes an in-page rename field instead of a window dialog, and the ceilings drop to the reviewed count and zero dialogs",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "webui-accessible-names",
       "title": "Give every control an accessible name and every status a live region (WCAG 2.2 name-role-value, target size, live updates): inputs and selects without a wrapping label take aria-label, the two unnamed buttons take names, the operation strip and the error banners announce as polite live regions, pills meet the 24px minimum target, and the acceptance lane asserts on every tab it visits that each input, select and button has an accessible name; the unnamed ceilings drop to zero",
       "owner": "professional_overgo_gui",
@@ -33,14 +19,98 @@
       ]
     },
     {
-      "id": "webui-style-consistency",
-      "title": "Bring the client to one style and fix the picker: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the ceilings drop accordingly",
+      "id": "webui-media-input-slots",
+      "title": "Media input slots and an intake history (concept from Open-Generative-AI: per-model media input profiles with labeled slots such as first frame, last frame and reference, an upload picker with recent uploads as thumbnails and a maximum count): a capability declares its artifact inputs with a role label and a count, the composer renders one labeled slot per declared input instead of one untyped artifact control, a strip of recent intakes (from the store's intake records, not browser storage) fills a slot with one click, and a Go test pins the declaration-to-slot mapping while the journey fills a slot from the strip",
       "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Bring the client to one style and fix the picker: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the ceilings drop accordingly",
+          "title": "Media input slots and an intake history (concept from Open-Generative-AI: per-model media input profiles with labeled slots such as first frame, last frame and reference, an upload picker with recent uploads as thumbnails and a maximum count): a capability declares its artifact inputs with a role label and a count, the composer renders one labeled slot per declared input instead of one untyped artifact control, a strip of recent intakes (from the store's intake records, not browser storage) fills a slot with one click, and a Go test pins the declaration-to-slot mapping while the journey fills a slot from the strip",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-declared-presets",
+      "title": "Declared presets for size, aspect ratio and duration (concept from Open-Generative-AI: aspect-ratio and resolution options derived from each model's size capability; overgo derives them from the recipe's declared control bounds, never from a model list): mediacapability derives preset chips (aspect ratios within the declared width and height bounds and step, durations from the declared frame bounds and frame rate) from the control declarations alone, the composer shows the chips beside the numeric fields and a chosen chip fills them, and a Go test pins the derivation over declared bounds",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Declared presets for size, aspect ratio and duration (concept from Open-Generative-AI: aspect-ratio and resolution options derived from each model's size capability; overgo derives them from the recipe's declared control bounds, never from a model list): mediacapability derives preset chips (aspect ratios within the declared width and height bounds and step, durations from the declared frame bounds and frame rate) from the control declarations alone, the composer shows the chips beside the numeric fields and a chosen chip fills them, and a Go test pins the derivation over declared bounds",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-media-gallery",
+      "title": "Media gallery from the store (concept from Open-Generative-AI: a generation history rail with thumbnails that re-opens a result, downloads it and feeds it back as input; overgo owns it in the store, never in browser storage): the Generate mode lists the store's generated image, video and audio artifacts newest first with thumbnails decoded through the artifact content decoders, filtered by kind and by the capability that made them, each opening its request record (controls, seed, model) and offering use-as-input and download; a route lists them with bounded paging, a Go test pins the listing and the journey proves a generated image reappears in the gallery after a reload",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Media gallery from the store (concept from Open-Generative-AI: a generation history rail with thumbnails that re-opens a result, downloads it and feeds it back as input; overgo owns it in the store, never in browser storage): the Generate mode lists the store's generated image, video and audio artifacts newest first with thumbnails decoded through the artifact content decoders, filtered by kind and by the capability that made them, each opening its request record (controls, seed, model) and offering use-as-input and download; a route lists them with bounded paging, a Go test pins the listing and the journey proves a generated image reappears in the gallery after a reload",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-regenerate-from-record",
+      "title": "Regenerate and vary from the record (concept from Open-Generative-AI: regenerate, remix and seed variation from a result): a media card offers regenerate (the recorded request resubmitted unchanged, which the store memoizes to the same output, so the page says so) and vary (the recorded request with a fresh seed), both built from the operation's stored request rather than page state, with the new card naming its parent; a Go test pins the request replay and the journey varies an oscillator image",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Regenerate and vary from the record (concept from Open-Generative-AI: regenerate, remix and seed variation from a result): a media card offers regenerate (the recorded request resubmitted unchanged, which the store memoizes to the same output, so the page says so) and vary (the recorded request with a fresh seed), both built from the operation's stored request rather than page state, with the new card naming its parent; a Go test pins the request replay and the journey varies an oscillator image",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-artifact-lineage",
+      "title": "Artifact lineage and next steps (concept from Open-Generative-AI: chained workflows image to video to lip sync with variants; overgo has the chain in the store's dependency records and the capabilities that accept each kind): a media card opens its lineage (the request that made it, the inputs it consumed, the outputs made from it) from the store's records, and offers as next steps every active capability whose declared inputs accept the artifact's kind, each opening the composer in that mode with the slot filled; a Go test pins the lineage listing and the next-step derivation, the journey continues an image into a clip",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Artifact lineage and next steps (concept from Open-Generative-AI: chained workflows image to video to lip sync with variants; overgo has the chain in the store's dependency records and the capabilities that accept each kind): a media card opens its lineage (the request that made it, the inputs it consumed, the outputs made from it) from the store's records, and offers as next steps every active capability whose declared inputs accept the artifact's kind, each opening the composer in that mode with the slot filled; a Go test pins the lineage listing and the next-step derivation, the journey continues an image into a clip",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-prompt-enhance",
+      "title": "Prompt enhancement through the served model (concept from Open-Generative-AI: an enhance-prompt step and quick prompts before generation; overgo uses the served chat model, model-agnostic): the composer's enhance control sends the prompt with a fixed instruction through the served model, shows the rewrite beside the original for acceptance, and the accepted prompt is what the request records with the original kept as its source; a Go test pins the instruction and the record, the journey enhances a prompt before an oscillator image",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prompt enhancement through the served model (concept from Open-Generative-AI: an enhance-prompt step and quick prompts before generation; overgo uses the served chat model, model-agnostic): the composer's enhance control sends the prompt with a fixed instruction through the served model, shows the rewrite beside the original for acceptance, and the accepted prompt is what the request records with the original kept as its source; a Go test pins the instruction and the record, the journey enhances a prompt before an oscillator image",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-style-consistency",
+      "title": "Bring the client to one style, last among the review rows because it pays ceilings rather than adding capability: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the census ceilings drop accordingly",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bring the client to one style, last among the review rows because it pays ceilings rather than adding capability: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the census ceilings drop accordingly",
           "status": "open",
           "verify": "go build ./..."
         }

@@ -160,17 +160,17 @@
           attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed", el("span", {}, ...((attempt.artifacts || []).map(artifactLink)))])));
       }
 
+      // An evidence read that fails says so where the evidence would stand.
+      const showEvidence = (data) => { if (data.status && data.status.id) renderEvidence(data.status.id).catch((err) => evidenceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)))); };
       await refreshInventory();
       const stream = new AbortController();
       api.events("/peers/stream", (event, data) => {
         if (event === "peer.inventory") { inventory = data; renderInventory(); }
-        if (event === "operation" && data.status && data.status.id) renderEvidence(data.status.id).catch(() => {});
+        if (event === "operation") showEvidence(data);
       }, { signal: stream.signal }).catch((err) => {
         if (err.name !== "AbortError") status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
       });
-      overgo.runtimeEvents.subscribe((event, data) => {
-        if (event === "operation" && data.status && data.status.id) renderEvidence(data.status.id).catch(() => {});
-      });
+      overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
       return () => { stream.abort(); enrollmentForm.dispose(); placementForm.dispose(); };
     },
   });

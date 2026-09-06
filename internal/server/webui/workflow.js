@@ -158,10 +158,7 @@
         }
         let fields = new Map();
         function selected() { return capabilities.find((item) => item.recipe === capabilitySelect.value); }
-        function renderControls() {
-          const capability = selected();
-          fields = overgo.controlInputs(controls, capability ? capability.controls : []);
-        }
+        function renderControls() { const capability = selected(); fields = overgo.controlInputs(controls, capability ? capability.controls : []); }
         capabilitySelect.addEventListener("change", renderControls);
         renderControls();
 

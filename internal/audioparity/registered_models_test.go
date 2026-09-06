@@ -24,9 +24,8 @@ func TestCanonicalAudioModelRegistration(t *testing.T) {
 	}
 	root := cmp.Or(os.Getenv("OVERGO_DATA_ROOT"), testutil.RepoRoot(t))
 	storeRoot := filepath.Join(root, "overgodb-store")
-	// The audio reference store, when named (as the CPU acceptance door
-	// reads it), carries the registrations and stands beside its own data
-	// root; a lane store forked before them cannot check the exact records.
+	// Use the same explicit reference store as CPU ASR acceptance without
+	// redirecting unrelated package tests to the reference catalog.
 	if reference := os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"); reference != "" {
 		storeRoot, root = reference, filepath.Dir(reference)
 	}

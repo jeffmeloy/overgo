@@ -3,6 +3,7 @@ package trainingdata
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -168,7 +169,7 @@ func (d *Dataset) Close() error {
 	}
 	var first error
 	for _, file := range d.files {
-		if err := file.file.Close(); err != nil && first == nil {
+		if err := file.close(); err != nil && first == nil {
 			first = err
 		}
 	}
@@ -294,7 +295,7 @@ type materializeState struct {
 
 func (state *materializeState) close() {
 	for _, file := range state.files {
-		_ = file.file.Close()
+		_ = file.close()
 	}
 	state.files = nil
 }
@@ -417,9 +418,17 @@ func (state *materializeState) openAsset(
 		}
 		path := fileLocation(locations)
 		if path == "" {
-			return nil, fmt.Errorf("training data: asset %q has no file location", asset.Name)
+			content, found, readErr := artifact.ReadContent(ctx, state.reader, asset.Artifact)
+			if readErr != nil {
+				return nil, readErr
+			}
+			if !found {
+				return nil, fmt.Errorf("training data: asset %q has no file location or inline content", asset.Name)
+			}
+			indexed, err = indexRecords(bytes.NewReader(content.Data), int64(len(content.Data)), asset.Records)
+		} else {
+			indexed, err = openIndexedFile(path, descriptor.Size, asset.Records)
 		}
-		indexed, err = openIndexedFile(path, descriptor.Size, asset.Records)
 		if err != nil {
 			return nil, fmt.Errorf("training data: index %q: %w", asset.Name, err)
 		}
@@ -440,8 +449,18 @@ func (state *materializeState) openAsset(
 }
 
 type indexedFile struct {
-	file  *os.File
-	spans []recordSpan
+	file   io.ReaderAt
+	closer io.Closer
+	spans  []recordSpan
+}
+
+func (file *indexedFile) close() error {
+	if file.closer == nil {
+		return nil
+	}
+	err := file.closer.Close()
+	file.closer = nil
+	return err
 }
 
 type recordSpan struct {
@@ -470,19 +489,28 @@ func openIndexedFile(path string, expectedBytes, records uint64) (*indexedFile, 
 	if !info.Mode().IsRegular() || uint64(info.Size()) != expectedBytes {
 		return fail(errors.New("file size differs from artifact descriptor"))
 	}
+	indexed, err := indexRecords(file, info.Size(), records)
+	if err != nil {
+		return fail(err)
+	}
+	indexed.closer = file
+	return indexed, nil
+}
+
+func indexRecords(file io.ReaderAt, size int64, records uint64) (*indexedFile, error) {
 	indexed := &indexedFile{file: file}
 	if records == 1 {
-		if info.Size() == 0 {
-			return fail(errors.New("empty record file"))
+		if size == 0 {
+			return nil, errors.New("empty record file")
 		}
-		digest, err := hashSection(file, 0, info.Size())
+		digest, err := hashSection(file, 0, size)
 		if err != nil {
-			return fail(err)
+			return nil, err
 		}
-		indexed.spans = []recordSpan{{length: info.Size(), digest: digest}}
+		indexed.spans = []recordSpan{{length: size, digest: digest}}
 		return indexed, nil
 	}
-	reader := bufio.NewReader(file)
+	reader := bufio.NewReader(io.NewSectionReader(file, 0, size))
 	var offset int64
 	for {
 		line, readErr := reader.ReadBytes('\n')
@@ -495,7 +523,7 @@ func openIndexedFile(path string, expectedBytes, records uint64) (*indexedFile, 
 				length--
 			}
 			if length == 0 {
-				return fail(errors.New("empty line record"))
+				return nil, errors.New("empty line record")
 			}
 			indexed.spans = append(indexed.spans, recordSpan{
 				offset: offset, length: int64(length), digest: sha256.Sum256(line[:length]),
@@ -506,16 +534,16 @@ func openIndexedFile(path string, expectedBytes, records uint64) (*indexedFile, 
 			break
 		}
 		if readErr != nil {
-			return fail(readErr)
+			return nil, readErr
 		}
 	}
 	if uint64(len(indexed.spans)) != records {
-		return fail(fmt.Errorf("record count %d differs from declared %d", len(indexed.spans), records))
+		return nil, fmt.Errorf("record count %d differs from declared %d", len(indexed.spans), records)
 	}
 	return indexed, nil
 }
 
-func hashSection(file *os.File, offset, length int64) ([sha256.Size]byte, error) {
+func hashSection(file io.ReaderAt, offset, length int64) ([sha256.Size]byte, error) {
 	hasher := sha256.New()
 	if _, err := io.CopyN(hasher, io.NewSectionReader(file, offset, length), length); err != nil {
 		return [sha256.Size]byte{}, err

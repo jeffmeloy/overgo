@@ -23,6 +23,10 @@ var (
 	procTerminateJobObject = kernel32.NewProc("TerminateJobObject")
 	procOpenProcess        = kernel32.NewProc("OpenProcess")
 	procCloseHandle        = kernel32.NewProc("CloseHandle")
+	procThread32First      = kernel32.NewProc("Thread32First")
+	procThread32Next       = kernel32.NewProc("Thread32Next")
+	procOpenThread         = kernel32.NewProc("OpenThread")
+	procResumeThread       = kernel32.NewProc("ResumeThread")
 )
 
 const (
@@ -42,6 +46,11 @@ const (
 	// terminatedTreeExitCode is the exit status TerminateJobObject
 	// stamps on every process it kills.
 	terminatedTreeExitCode = 1
+	// createSuspended is CREATE_SUSPENDED. No child instructions execute before
+	// the primary thread is resumed following successful job assignment.
+	createSuspended = 0x00000004
+	// threadSuspendResume is THREAD_SUSPEND_RESUME, the minimum ResumeThread right.
+	threadSuspendResume = 0x0002
 )
 
 type jobBasicLimits struct {
@@ -78,9 +87,17 @@ type processTree struct {
 	job uintptr
 }
 
-func configureSysProc(*exec.Cmd) {}
+func configureSysProc(command *exec.Cmd) {
+	if command.SysProcAttr == nil {
+		command.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	command.SysProcAttr.CreationFlags |= createSuspended
+}
 
 func newProcessTree(command *exec.Cmd) (processTree, error) {
+	if command.Process == nil || command.SysProcAttr == nil || command.SysProcAttr.CreationFlags&createSuspended == 0 {
+		return processTree{}, errors.New("job assignment requires a child created suspended")
+	}
 	job, _, callErr := procCreateJobObjectW.Call(0, 0)
 	if job == 0 {
 		return processTree{}, fmt.Errorf("create job object: %w", callErr)
@@ -105,7 +122,62 @@ func newProcessTree(command *exec.Cmd) (processTree, error) {
 		_, _, _ = procCloseHandle.Call(job)
 		return processTree{}, fmt.Errorf("assign process %d to job: %w", command.Process.Pid, callErr)
 	}
+	if err := resumeCreatedThread(uint32(command.Process.Pid)); err != nil {
+		_, _, _ = procCloseHandle.Call(job)
+		return processTree{}, err
+	}
 	return processTree{job: job}, nil
+}
+
+// threadEntry has the documented THREADENTRY32 ABI from tlhelp32.h.
+type threadEntry struct {
+	Size, Usage, ThreadID, ProcessID uint32
+	BasePriority, DeltaPriority      int32
+	Flags                            uint32
+}
+
+// resumeCreatedThread resumes only the unstarted child's primary thread. Go
+// closes CreateProcess's thread handle, so obtain it through documented Toolhelp
+// APIs. An unexpected thread set fails closed rather than resuming other work.
+func resumeCreatedThread(pid uint32) error {
+	snapshot, err := syscall.CreateToolhelp32Snapshot(syscall.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return fmt.Errorf("snapshot suspended child threads: %w", err)
+	}
+	defer syscall.CloseHandle(snapshot)
+	var entry threadEntry
+	var threadID uint32
+	entry.Size = uint32(unsafe.Sizeof(entry))
+	ok, _, callErr := procThread32First.Call(uintptr(snapshot), uintptr(unsafe.Pointer(&entry)))
+	for ok != 0 {
+		if entry.ProcessID == pid {
+			if threadID != 0 {
+				return errors.New("suspended child has more than one initial thread")
+			}
+			threadID = entry.ThreadID
+		}
+		entry.Size = uint32(unsafe.Sizeof(entry))
+		ok, _, callErr = procThread32Next.Call(uintptr(snapshot), uintptr(unsafe.Pointer(&entry)))
+	}
+	if !errors.Is(callErr, syscall.ERROR_NO_MORE_FILES) {
+		return fmt.Errorf("enumerate suspended child threads: %w", callErr)
+	}
+	if threadID == 0 {
+		return errors.New("suspended child primary thread is absent")
+	}
+	thread, _, callErr := procOpenThread.Call(threadSuspendResume, windowsFalse, uintptr(threadID))
+	if thread == 0 {
+		return fmt.Errorf("open suspended child thread: %w", callErr)
+	}
+	defer procCloseHandle.Call(thread)
+	previous, _, callErr := procResumeThread.Call(thread)
+	if uint32(previous) == ^uint32(0) {
+		return fmt.Errorf("resume contained child: %w", callErr)
+	}
+	if previous != 1 {
+		return fmt.Errorf("contained child has unexpected suspend count %d", previous)
+	}
+	return nil
 }
 
 // interrupt has no cooperative tree signal on Windows without a shared

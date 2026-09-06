@@ -710,6 +710,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"gui-vqa-integration/merge",
 		"gui-validation-handoff/do",
 		"audio-worktree-integration/register-models",
+		"validation-integration-replan/do",
 		// Accept or remove the staged API from the explicitly authorized audio intake.
 		"modality-verification/native-audio-streaming-intake",
 		"model-validation-batching/do",

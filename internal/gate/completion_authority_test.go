@@ -410,6 +410,51 @@ func TestProspectiveGateCompletionRejectsUnrelatedPlanDeletion(t *testing.T) {
 	}
 }
 
+func TestProjectedMergePreflightBeforeVerification(t *testing.T) {
+	fixture := newInterruptedCommitFixture(t)
+	publishSuccessfulInterruptedAttempt(t, fixture, true)
+	local, err := plan.Parse(fixture.planAfter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree := recoveryGit(t, fixture.repo, "rev-parse", fixture.commit+"^{tree}")
+	incoming := recoveryGit(t, fixture.repo, "commit-tree", tree, "-p", fixture.commit, "-m", "source unchanged")
+	g := &gateContext{
+		repo: fixture.repo, storePath: fixture.storePath, planHead: fixture.commit,
+		planRef: "integration/do", planProjection: plan.MergeProjectionFirstParentTarget,
+		mergeBefore:      &gateMergeIntent{Head: []byte(incoming + "\n")},
+		mergeSourceStore: filepath.Join(fixture.repo, fixture.storePath),
+		preparation:      fixture.preparation, preparationCommit: fixture.preparationCommit,
+	}
+	document := local
+	document.Items = append([]plan.Item{{ID: "integration", Status: plan.StatusOpen, Steps: []plan.Step{{
+		ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/gate",
+	}}}}, local.Items...)
+	planPath := filepath.Join(fixture.repo, plan.Path)
+	if err := plan.Save(planPath, document); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.preflightProjectedMergeCompletion(); err != nil {
+		t.Fatal(err)
+	}
+	// This exact ownership drift formerly survived the full GPU/browser gate
+	// before failing at commit. It must now refuse before planning or any check.
+	document.Doctrine += " changed while projecting"
+	if err := plan.Save(planPath, document); err != nil {
+		t.Fatal(err)
+	}
+	before := recoveryGit(t, fixture.repo, "status", "--porcelain")
+	if err := g.pipeline(); err == nil || !strings.Contains(err.Error(), "adopts rows outside") {
+		t.Fatalf("late or missing projection refusal: %v", err)
+	}
+	if g.manifestPlan != nil || len(g.steps) != 0 || g.acceptedTree != "" {
+		t.Fatal("invalid projection reached verification")
+	}
+	if after := recoveryGit(t, fixture.repo, "status", "--porcelain"); after != before {
+		t.Fatal("preflight mutated the candidate")
+	}
+}
+
 func TestProspectiveGateCompletionRejectsAmbiguousMergeBase(t *testing.T) {
 	repository := t.TempDir()
 	if err := os.Mkdir(filepath.Join(repository, "docs"), 0o755); err != nil {

@@ -1,0 +1,68 @@
+package gate
+
+import (
+	"errors"
+	"fmt"
+	"path/filepath"
+	"slices"
+
+	"overgo/internal/automationcheck"
+	"overgo/internal/plan"
+	"overgo/internal/runrecord"
+	"overgo/internal/testevidence"
+)
+
+func planVerificationBatch(repo, reference string) (*plan.VerificationBatch, error) {
+	// Inspection without a dispatched row has no subordinate acceptance.
+	if reference == "" {
+		return nil, nil
+	}
+	document, err := plan.Load(filepath.Join(repo, plan.Path))
+	if err != nil {
+		return nil, err
+	}
+	if err := plan.Validate(document); err != nil {
+		return nil, err
+	}
+	for _, item := range document.Items {
+		for _, step := range item.Steps {
+			if item.ID+"/"+step.ID == reference {
+				return step.VerificationBatch, nil
+			}
+		}
+	}
+	return nil, errors.New("acceptance: dispatched row is absent from the candidate plan")
+}
+
+func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batch *plan.VerificationBatch) ([]automationcheck.Check, error) {
+	if batch == nil {
+		return checks, nil
+	}
+	index := slices.IndexFunc(checks, func(check automationcheck.Check) bool { return check.Descriptor.Name == "acceptance" })
+	if index < 0 {
+		return nil, errors.New("acceptance: batch requires the parent integration check")
+	}
+	parent := &checks[index].Descriptor
+	var added []automationcheck.Check
+	for _, checkpoint := range batch.Checkpoints {
+		check := gateCheck(checkpoint.GateCheckName(), runrecord.PhaseTest, func() (bool, error) {
+			evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
+				testevidence.CurrentVerifyPolicy, g.planRef, checkpoint.Verify,
+			)
+			if err != nil {
+				return false, err
+			}
+			if err := g.verifyAcceptedCandidate(checkpoint.Verify, false); err != nil {
+				return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
+			}
+			g.stepEvidence[checkpoint.GateCheckName()] = evidence
+			return false, nil
+		})
+		// Run subordinate verifiers serially: each owns the temporary worktree
+		// and gate evidence maps. Their declared graph remains the batch contract.
+		check.Descriptor.Dependencies = slices.Clone(parent.Dependencies)
+		parent.Dependencies = []string{checkpoint.GateCheckName()}
+		added = append(added, check)
+	}
+	return slices.Insert(checks, index, added...), nil
+}

@@ -22,7 +22,9 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
+	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
@@ -137,7 +139,13 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	var structuralErr error
 	var legacy codeprofile.FunctionImpact
 	var legacyErr error
+	var verificationBatch *plan.VerificationBatch
 	analysisErr := g.withCandidateWorktree(tree, func(root string) error {
+		var err error
+		verificationBatch, err = planVerificationBatch(root, g.planRef)
+		if err != nil {
+			return err
+		}
 		original := g.repo
 		g.repo = root
 		defer func() { g.repo = original }()
@@ -160,6 +168,10 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	// later package-cache execution after that worktree is removed.
 	g.packageGraph = nil
 	definitions := g.pipelineChecks(devicePackages...)
+	definitions, err = g.batchAcceptanceChecks(definitions, verificationBatch)
+	if err != nil {
+		return plannedPipeline{}, err
+	}
 	surface := automationcheck.Surface{}
 	if structuralErr == nil {
 		surface = automationcheck.ManifestSurface(structural)
@@ -438,6 +450,21 @@ func (g *gateContext) requireCandidateTree(expected string) error {
 }
 
 func discoverEnvironment(repo string) (runrecord.Environment, error) {
+	// Package tests can read external models and catalogs through either root
+	// override. Bind effective locations so retries cannot cross that boundary.
+	// This identifies locations, not the contents of external artifacts.
+	roots, err := dataroot.Resolve(repo)
+	if err != nil {
+		return runrecord.Environment{}, err
+	}
+	rootBytes, err := json.Marshal(struct {
+		Roots          dataroot.Roots
+		AudioReference string
+	}{roots, os.Getenv("OVERGO_AUDIO_REFERENCE_STORE")})
+	if err != nil {
+		return runrecord.Environment{}, err
+	}
+	rootIdentity := sha256.Sum256(rootBytes)
 	out, err := command(repo, "go", "env", "CGO_ENABLED", "GOFLAGS", "GOEXPERIMENT", "GOTOOLCHAIN")
 	if err != nil {
 		return runrecord.Environment{}, err
@@ -453,8 +480,8 @@ func discoverEnvironment(repo string) (runrecord.Environment, error) {
 	return runrecord.NewEnvironment(runrecord.Environment{
 		Host: host, OS: runtime.GOOS, Arch: runtime.GOARCH, Device: "host", Backend: "go",
 		Driver: "cgo=" + strings.TrimSpace(values[0]),
-		Runtime: fmt.Sprintf("%s;goflags=%s;goexperiment=%s;gotoolchain=%s", runtime.Version(),
-			strings.TrimSpace(values[1]), strings.TrimSpace(values[2]), strings.TrimSpace(values[3])),
+		Runtime: fmt.Sprintf("%s;goflags=%s;goexperiment=%s;gotoolchain=%s;data-roots=%x", runtime.Version(),
+			strings.TrimSpace(values[1]), strings.TrimSpace(values[2]), strings.TrimSpace(values[3]), rootIdentity),
 	})
 }
 

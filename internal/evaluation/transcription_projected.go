@@ -113,9 +113,9 @@ func (runtime *projectedTranscriptionRuntime) close() error {
 	return errors.Join(runtime.projection.Close(), runtime.runner.Close())
 }
 
-func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, input TranscriptionResourceInput, binding speechrecognition.RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
+func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, input TranscriptionResourceInput, data []byte, binding speechrecognition.RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
 	started := time.Now()
-	inspection, err := dataset.InspectAudio(ctx, runtime.repository, input.Data, input.Origin, input.Policy)
+	inspection, err := dataset.InspectAudio(ctx, runtime.repository, data, input.Reference.Origin, input.Policy)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}

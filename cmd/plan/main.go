@@ -751,12 +751,26 @@ VERIFY %s
 COMMIT go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
 RULES skill.md; only this task; port-first; park off-scope findings with cmd/finding; gate advances atomically; then rerun plan -prompt.
 `, it.ID, st.ID, st.Title, verify, it.ID, st.ID)
+	if st.VerificationBatch != nil {
+		for _, checkpoint := range st.VerificationBatch.Checkpoints {
+			fmt.Fprintf(output, "BATCH ACCEPTANCE %s: %s\n", checkpoint.ID, checkpoint.Verify)
+		}
+		fmt.Fprintln(output, "BATCH declarations add required acceptance; full gating and parent completion remain mandatory.")
+	}
 }
 
 // runVerify executes the step's verify command; its exit code is the verdict.
 func runVerify(it plan.Item, st plan.Step) error {
 	if strings.TrimSpace(st.Verify) == "" {
 		return fmt.Errorf("no verify defined for %s/%s -- add a runnable step.verify (exits 0 iff accepted) before advancing", it.ID, st.ID)
+	}
+	if st.VerificationBatch != nil {
+		for _, checkpoint := range st.VerificationBatch.Checkpoints {
+			fmt.Fprintf(os.Stderr, "plan verify %s/%s checkpoint %s: %s\n", it.ID, st.ID, checkpoint.ID, checkpoint.Verify)
+			if _, err := planverify.Execute(context.Background(), ".", checkpoint.Verify); err != nil {
+				return fmt.Errorf("verify %s/%s checkpoint %s: %w", it.ID, st.ID, checkpoint.ID, err)
+			}
+		}
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
 	class, err := planverify.Execute(context.Background(), ".", st.Verify)

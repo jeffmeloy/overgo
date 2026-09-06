@@ -28,6 +28,23 @@ func TestCompactAgentOutput(t *testing.T) {
 	}
 }
 
+func TestBatchPromptRetainsParentDispatch(t *testing.T) {
+	document := plan.Plan{Items: []plan.Item{{ID: "audio", Status: plan.StatusOpen, Steps: []plan.Step{{
+		ID: "dataset", Status: plan.StatusOpen, Verify: "go test ./x -run '^TestIntegration$'",
+		VerificationBatch: &plan.VerificationBatch{
+			Scope: []string{"internal/dataset"}, Rationale: "Share integration work.", ReopenWhen: "Acceptance changes.",
+			Checkpoints: []plan.VerificationCheckpoint{{ID: "source", Title: "Source", Verify: "go test ./x -run '^TestSource$'"}},
+		},
+	}}}}}
+	var output bytes.Buffer
+	printPrompt(document, plan.UnassignedRole, &output, mustTestCompletionAuthority(t, document))
+	for _, want := range []string{"TASK audio/dataset", "BATCH ACCEPTANCE source:", "full gating and parent completion remain mandatory"} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("prompt lacks %q: %s", want, output.String())
+		}
+	}
+}
+
 func TestStatusCountsRetainedOpenRows(t *testing.T) {
 	document := plan.Plan{Items: []plan.Item{
 		{ID: "complete", Title: "complete", Status: plan.StatusDone, Steps: []plan.Step{{ID: "done", Status: plan.StatusDone}}},

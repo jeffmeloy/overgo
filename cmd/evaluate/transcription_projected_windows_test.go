@@ -133,15 +133,36 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	// selected values are still admitted by the shared signal-quality policy.
 	policy := dataset.AudioInspectionPolicy{MaximumEncodedBytes: maxSamples*2 + 44, MaximumSamples: maxSamples, ClipThreshold: 1,
 		Admission: recipecontract.AudioAdmissionPolicy{MinimumChannels: 1, MaximumChannels: 1, SilenceRMSThreshold: 1.0 / 32768, MaximumAbsoluteDCOffset: 1}}
-	var specifications []transcriptionResourceManifestInput
-	for _, row := range oracle.Cases {
-		specifications = append(specifications, transcriptionResourceManifestInput{Name: row.Name, Path: corpus,
-			Origin: dataset.AudioPayloadOrigin{Container: container, Column: "bytes", ValueIndex: row.Row}, Policy: policy})
-	}
-	inputs, err := readTranscriptionInputs(ctx, "", specifications)
+	// Match the CPU audio acceptance's explicit host decode-workspace budget.
+	// This is an admission bound, not a measured host or device peak.
+	const sourceMemoryBytes = 4 << 30
+	rows, err := dataset.OpenParquetRows(ctx, corpus, []string{"bytes"}, sourceMemoryBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
+	var inputs []evaluation.TranscriptionResourceInput
+	for _, row := range oracle.Cases {
+		values, err := rows.Read(ctx, row.Row)
+		if err != nil || values["bytes"] == nil {
+			t.Fatalf("source row %d unavailable: %v", row.Row, err)
+		}
+		audio, err := artifact.IdentifyBytes(artifact.KindFile, []byte(*values["bytes"]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		inputs = append(inputs, evaluation.TranscriptionResourceInput{Name: row.Name, Policy: policy,
+			Reference: dataset.AudioPayloadReference{Path: corpus, Audio: audio,
+				Origin: dataset.AudioPayloadOrigin{Container: container, Column: "bytes", Row: new(row.Row)}}})
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	source, err := dataset.NewAudioPayloadReader(sourceMemoryBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
 	suite := evaluation.TranscriptionSuite{Kind: evaluation.TranscriptionKind, Schema: "overgo/e4b-audio-validation/v1",
 		Source:  "Eight pinned LibriSpeech validation cases; native FP32/BF16 SDPA full-transcript oracle; held-out excluded",
 		Dataset: datasetID, Split: split, Prompt: oracle.Prompt, MaxTokens: oracle.MaxTokens, DecodeRecipe: candidate.Definition.ID,
@@ -149,7 +170,11 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	expected := make(map[string][]string)
 	for index, input := range inputs {
 		row := oracle.Cases[index]
-		inspection, err := dataset.InspectAudio(ctx, store, input.Data, input.Origin, input.Policy)
+		encoded, err := source.Read(ctx, input.Reference, input.Policy.MaximumEncodedBytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inspection, err := dataset.InspectAudio(ctx, store, encoded, input.Reference.Origin, input.Policy)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -179,7 +204,10 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := evaluation.EvaluateTranscriptionResources(ctx, store, compiled, plan, candidate.Inventory.Manifest.ID, inputs, evaluation.TranscriptionResourceOptions{TimedRuns: 2}, 0)
+	if err := source.Close(); err != nil {
+		t.Fatal(err)
+	}
+	report, err := evaluation.EvaluateTranscriptionResources(ctx, store, compiled, plan, candidate.Inventory.Manifest.ID, inputs, evaluation.TranscriptionResourceOptions{TimedRuns: 2}, sourceMemoryBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +236,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	truncated, err := evaluation.EvaluateTranscriptionResources(ctx, store, compiled, plan, candidate.Inventory.Manifest.ID, inputs[:1], evaluation.TranscriptionResourceOptions{TimedRuns: 1}, 0)
+	truncated, err := evaluation.EvaluateTranscriptionResources(ctx, store, compiled, plan, candidate.Inventory.Manifest.ID, inputs[:1], evaluation.TranscriptionResourceOptions{TimedRuns: 1}, sourceMemoryBytes)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,14 +15,14 @@ func TestSnappyDecode(t *testing.T) {
 	block = append(block, byte(3<<2), 'a', 'b', 'c', 'd')
 	block = append(block, byte((8-4)<<2|1), 4)
 	block = append(block, byte(0<<2), 'X')
-	decoded, err := snappyDecode(block)
+	decoded, err := snappyDecode(block, nil)
 	if err != nil || string(decoded) != "abcdabcdabcdX" {
 		t.Fatalf("decoded = %q, %v", decoded, err)
 	}
-	if _, err := snappyDecode([]byte{5, byte(0 << 2), 'a'}); err == nil {
+	if _, err := snappyDecode([]byte{5, byte(0 << 2), 'a'}, nil); err == nil {
 		t.Fatal("length mismatch decoded")
 	}
-	if _, err := snappyDecode([]byte{2, byte((8-4)<<2 | 1), 9}); err == nil {
+	if _, err := snappyDecode([]byte{2, byte((8-4)<<2 | 1), 9}, nil); err == nil {
 		t.Fatal("invalid copy distance decoded")
 	}
 }
@@ -32,14 +32,14 @@ func TestSnappyDecode(t *testing.T) {
 func TestRLEHybridDecode(t *testing.T) {
 	// RLE run: header 5<<1 (even), value 6 at bit width 3 → one byte.
 	rle := []byte{5 << 1, 6}
-	values, err := decodeRLEHybrid(rle, 3, 5)
+	values, err := decodeRLEHybrid(rle, 3, 5, nil)
 	if err != nil || len(values) != 5 || values[0] != 6 || values[4] != 6 {
 		t.Fatalf("rle = %v, %v", values, err)
 	}
 	// Bit-packed run: header 1<<1|1, 8 values of width 3 in 3 bytes:
 	// values 0..7 → 0b10001000 0b11000110 0b11111010.
 	packed := []byte{1<<1 | 1, 0x88, 0xC6, 0xFA}
-	values, err = decodeRLEHybrid(packed, 3, 8)
+	values, err = decodeRLEHybrid(packed, 3, 8, nil)
 	if err != nil || len(values) != 8 {
 		t.Fatalf("packed = %v, %v", values, err)
 	}
@@ -49,7 +49,7 @@ func TestRLEHybridDecode(t *testing.T) {
 		}
 	}
 	// Width zero decodes to zeros without consuming bytes.
-	if values, err := decodeRLEHybrid(nil, 0, 3); err != nil || len(values) != 3 || values[0] != 0 {
+	if values, err := decodeRLEHybrid(nil, 0, 3, nil); err != nil || len(values) != 3 || values[0] != 0 {
 		t.Fatalf("zero width = %v, %v", values, err)
 	}
 }
@@ -106,11 +106,11 @@ func TestPlainStringsAndColumnSelection(t *testing.T) {
 		data = append(data, length[:]...)
 		data = append(data, value...)
 	}
-	values, err := decodePlainStrings(data, 2)
+	values, err := decodePlainStrings(data, 2, nil)
 	if err != nil || len(values) != 2 || values[1] != "TTAA" {
 		t.Fatalf("plain = %v, %v", values, err)
 	}
-	if _, err := decodePlainStrings(data[:5], 2); err == nil {
+	if _, err := decodePlainStrings(data[:5], 2, nil); err == nil {
 		t.Fatal("truncated plain decoded")
 	}
 

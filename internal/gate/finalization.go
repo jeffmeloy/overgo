@@ -18,15 +18,24 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
+	"overgo/internal/testevidence"
 )
 
-func (g *gateContext) recordPackagePasses(packages []string, mode string, inputs map[string]artifact.ID) error {
+func (g *gateContext) recordPackagePasses(report testevidence.GoTestReport, packages []string, mode string, inputs map[string]artifact.ID) error {
+	credited := 0
 	for _, packagePath := range packages {
+		if !report.PackagePassed(packagePath) {
+			continue
+		}
 		if err := g.retryCache.RecordPackagePass(packagePath, mode, inputs[packagePath]); err != nil {
 			return err
 		}
+		credited++
 	}
-	g.saveRetryCache(*g.retryCache)
+	if credited != 0 {
+		g.saveRetryCache(*g.retryCache)
+	}
+	g.audit = append(g.audit, fmt.Sprintf("package evidence retained: %d/%d %s packages; incomplete or empty evidence not credited", credited, len(packages), mode))
 	return nil
 }
 

@@ -12,7 +12,7 @@ import (
 // transcriptionRuntime keeps model execution separate from the shared target
 // isolation, scoring, repetition and resource-recording loop.
 type transcriptionRuntime interface {
-	transcribe(context.Context, TranscriptionResourceInput, speechrecognition.RunBinding) (recipecontract.Transcription, runrecord.Run, error)
+	transcribe(context.Context, TranscriptionResourceInput, []byte, speechrecognition.RunBinding) (recipecontract.Transcription, runrecord.Run, error)
 	close() error
 }
 
@@ -32,8 +32,8 @@ func loadTranscriptionRuntime(ctx context.Context, repository artifact.Repositor
 	return &cpuTranscriptionRuntime{transcriber: transcriber}, nil
 }
 
-func (runtime *cpuTranscriptionRuntime) transcribe(ctx context.Context, input TranscriptionResourceInput, binding speechrecognition.RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
-	return runtime.transcriber.Transcribe(ctx, input.Data, input.Origin, input.Policy, &runtime.workspace, binding)
+func (runtime *cpuTranscriptionRuntime) transcribe(ctx context.Context, input TranscriptionResourceInput, data []byte, binding speechrecognition.RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
+	return runtime.transcriber.Transcribe(ctx, data, input.Reference.Origin, input.Policy, &runtime.workspace, binding)
 }
 
 func (*cpuTranscriptionRuntime) close() error { return nil }

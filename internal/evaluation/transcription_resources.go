@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
@@ -36,10 +37,9 @@ var (
 // TranscriptionResourceInput is the target-free execution input for one suite
 // case. Audio bytes are never copied into the persisted report.
 type TranscriptionResourceInput struct {
-	Name   string
-	Data   []byte
-	Origin dataset.AudioPayloadOrigin
-	Policy dataset.AudioInspectionPolicy
+	Name      string
+	Reference dataset.AudioPayloadReference
+	Policy    dataset.AudioInspectionPolicy
 }
 
 // TranscriptionResourceOptions bounds warmup and measured repetitions.
@@ -130,9 +130,9 @@ type transcriptionMemoryBoundary struct {
 // EvaluateTranscriptionResources measures the native cold load once, then invokes the
 // loaded recipe for every warmup and timed case. Quality is scored from the
 // first timed execution; no stored transcript is counted as throughput.
-// memoryBytes bounds native CPU frontend/encoder arrays. Projected inference
-// requires zero here and uses its active device policy; this report does not
-// establish a separate GPU memory ceiling.
+// memoryBytes bounds dataset decode workspace and native CPU frontend/encoder
+// arrays separately. Projected inference uses its active device policy; this
+// report does not establish a separate GPU memory ceiling or total host peak.
 func EvaluateTranscriptionResources(
 	ctx context.Context,
 	repository artifact.Repository,
@@ -143,7 +143,7 @@ func EvaluateTranscriptionResources(
 	options TranscriptionResourceOptions,
 	memoryBytes uint64,
 ) (report TranscriptionResourceReport, returnErr error) {
-	if ctx == nil || repository == nil || (compiled.suite.Prompt == "") != (memoryBytes > 0) || model.Kind() != artifact.KindModel ||
+	if ctx == nil || repository == nil || memoryBytes == 0 || model.Kind() != artifact.KindModel ||
 		compiled.identity != plan.body.CaseProfile ||
 		compiled.dataset != plan.body.Dataset || compiled.split != plan.body.Split || options.TimedRuns == 0 {
 		return TranscriptionResourceReport{}, errors.New("evaluation: invalid transcription resource request")
@@ -151,7 +151,7 @@ func EvaluateTranscriptionResources(
 	if err := plan.ValidateIdentity(); err != nil {
 		return TranscriptionResourceReport{}, err
 	}
-	if err := requireEvaluationModelDefinition(ctx, repository, plan.body.ModelDefinition, model); err != nil {
+	if err := modelrecipe.RequireModelDefinitionBinding(ctx, repository, plan.body.ModelDefinition, model, plan.body.RuntimeRecipe); err != nil {
 		return TranscriptionResourceReport{}, err
 	}
 	definition, err := recipe.RequireDefinition(ctx, repository, plan.body.RuntimeRecipe)
@@ -166,6 +166,11 @@ func EvaluateTranscriptionResources(
 	if err != nil {
 		return TranscriptionResourceReport{}, err
 	}
+	source, err := dataset.NewAudioPayloadReader(memoryBytes)
+	if err != nil {
+		return TranscriptionResourceReport{}, err
+	}
+	defer source.Close()
 	totalRounds := uint64(options.WarmupRuns) + uint64(options.TimedRuns)
 	if totalRounds > uint64(math.MaxInt)/uint64(len(orderedInputs)) {
 		return TranscriptionResourceReport{}, errors.New("evaluation: transcription resource request is too large")
@@ -209,7 +214,7 @@ func EvaluateTranscriptionResources(
 		}
 		for index, input := range orderedInputs {
 			measurement, run, signature, executeErr := executeTranscriptionResourceCase(
-				ctx, repository, executor, plan, model, compiled.suite.Cases[index], input,
+				ctx, repository, executor, source, plan, model, compiled.suite.Cases[index], input,
 				warmup, repetition, report.Load.Attempt, attempts,
 			)
 			if executeErr != nil && !run.ID.Valid() {
@@ -259,13 +264,14 @@ func bindTranscriptionResourceInputs(compiled TranscriptionPlan, inputs []Transc
 	slices.SortFunc(inputs, func(left, right TranscriptionResourceInput) int { return cmp.Compare(left.Name, right.Name) })
 	for index, input := range inputs {
 		testCase := compiled.suite.Cases[index]
-		source, err := artifact.IdentifyBytes(artifact.KindFile, input.Data)
-		if input.Name != testCase.Name || len(input.Data) == 0 || err != nil || source != testCase.Source.Audio ||
-			input.Origin.Container.Kind() != artifact.KindFile && input.Origin.Container.Kind() != artifact.KindDatasetShard ||
+		if input.Name != testCase.Name || input.Reference.Path == "" || input.Reference.Audio != testCase.Source.Audio ||
+			input.Reference.Origin.Validate() != nil ||
 			input.Policy.Validate() != nil || index > 0 && inputs[index-1].Name == input.Name {
 			return nil, errors.New("evaluation: invalid transcription resource input")
 		}
-		inputs[index].Data = slices.Clone(input.Data)
+		if row := input.Reference.Origin.Row; row != nil {
+			inputs[index].Reference.Origin.Row = new(*row)
+		}
 	}
 	return inputs, nil
 }
@@ -274,6 +280,7 @@ func executeTranscriptionResourceCase(
 	ctx context.Context,
 	repository artifact.Repository,
 	executor transcriptionRuntime,
+	source *dataset.AudioPayloadReader,
 	plan Plan,
 	model artifact.ID,
 	testCase TranscriptionCase,
@@ -283,9 +290,15 @@ func executeTranscriptionResourceCase(
 	loadAttempt artifact.ID,
 	attempts map[string]bool,
 ) (TranscriptionResourceMeasurement, runrecord.Run, transcriptionExecutionSignature, error) {
+	// Container I/O is outside the inference timing boundary, as it was when
+	// callers eagerly loaded input. Only this attempt's encoded payload is live.
+	data, err := source.Read(ctx, input.Reference, input.Policy.MaximumEncodedBytes)
+	if err != nil {
+		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
+	}
 	before := readTranscriptionMemoryBoundary()
 	started := time.Now()
-	_, returnedRun, executeErr := executor.transcribe(ctx, input, speechrecognition.RunBinding{
+	_, returnedRun, executeErr := executor.transcribe(ctx, input, data, speechrecognition.RunBinding{
 		Key:        fmt.Sprintf("evaluation/transcription-resource/%s/%t/%d/%s", loadAttempt.DigestHex(), warmup, repetition, input.Name),
 		CodeCommit: plan.body.CodeCommit, Environment: plan.body.Environment,
 		Dataset: plan.body.Dataset, Split: plan.body.Split,
@@ -325,7 +338,7 @@ func executeTranscriptionResourceCase(
 		}
 		measurement.Output, signature.output = output, output
 	}
-	attempt, observation, err := publishTranscriptionExecutionMeasurement(ctx, repository, plan, model, loadAttempt, uint64(len(input.Data)), measurement, attempts)
+	attempt, observation, err := publishTranscriptionExecutionMeasurement(ctx, repository, plan, model, loadAttempt, uint64(len(data)), measurement, attempts)
 	if err != nil {
 		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
 	}

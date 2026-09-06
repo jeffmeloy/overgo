@@ -1,6 +1,7 @@
 package gate
 
 import (
+	"encoding/json"
 	"maps"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
+	"overgo/internal/dataroot"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
@@ -51,6 +53,78 @@ func TestEnvironmentBoundRetry(t *testing.T) {
 	}
 	if cache.Reusable(other) {
 		t.Fatal("retry cache crossed environment identity")
+	}
+}
+
+func TestGateDataRootCacheIdentity(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv(dataroot.Env, "")
+	t.Setenv("OVERGO_AUDIO_REFERENCE_STORE", "")
+	identity := func(t *testing.T) artifact.ID {
+		t.Helper()
+		environment, err := discoverEnvironment(repo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return environment.ID
+	}
+	baseline := identity(t)
+	cache := automationcheck.NewEvidenceCache(baseline)
+	if !cache.Reusable(identity(t)) {
+		t.Fatal("unchanged data roots invalidated evidence")
+	}
+	t.Setenv("OVERGO_AUDIO_REFERENCE_STORE", t.TempDir())
+	if cache.Reusable(identity(t)) {
+		t.Fatal("changed audio reference store reused prior evidence")
+	}
+	referenceIdentity := identity(t)
+	t.Setenv("OVERGO_AUDIO_REFERENCE_STORE", t.TempDir())
+	if identity(t) == referenceIdentity {
+		t.Fatal("distinct audio reference stores shared an environment identity")
+	}
+	t.Setenv("OVERGO_AUDIO_REFERENCE_STORE", "")
+	if identity(t) != baseline {
+		t.Fatal("restored data roots did not restore environment identity")
+	}
+	for _, field := range []string{"store", "models", "datasets", "checkpoints"} {
+		t.Run(field, func(t *testing.T) {
+			data, err := json.Marshal(map[string]string{field: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(repo, dataroot.ConfigFile), data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if cache.Reusable(identity(t)) {
+				t.Fatal("changed configured data root reused prior evidence")
+			}
+		})
+	}
+	first, second := t.TempDir(), t.TempDir()
+	t.Setenv(dataroot.Env, first)
+	firstIdentity := identity(t)
+	t.Setenv(dataroot.Env, second)
+	if identity(t) == firstIdentity {
+		t.Fatal("changed explicit data root reused prior environment")
+	}
+	t.Setenv(dataroot.Env, first)
+	if identity(t) != firstIdentity {
+		t.Fatal("identical effective data roots produced unstable identity")
+	}
+	// The shared owner gives the explicit root precedence over local config.
+	if err := os.WriteFile(filepath.Join(repo, dataroot.ConfigFile), []byte("invalid"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if identity(t) != firstIdentity {
+		t.Fatal("inactive local configuration changed explicit-root identity")
+	}
+	t.Setenv(dataroot.Env, filepath.Join(first, "absent"))
+	if _, err := discoverEnvironment(repo); err == nil {
+		t.Fatal("invalid explicit data root accepted")
+	}
+	t.Setenv(dataroot.Env, "")
+	if _, err := discoverEnvironment(repo); err == nil {
+		t.Fatal("invalid active data-root configuration accepted")
 	}
 }
 

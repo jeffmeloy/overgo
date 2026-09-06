@@ -18,11 +18,17 @@ type CheckpointCost struct {
 	DurationNS uint64                `json:"duration_ns"`
 }
 
-// BatchCost records the accepted checkpoint cost of one gate run: the parent
-// acceptance and every checkpoint step; reused steps are counted, executed
-// steps are summed.
+// BatchCost separates the cost of one gate run: total wall over every step,
+// failed steps of any phase, executed non-acceptance phases, and the accepted
+// checkpoint cost (parent acceptance plus every checkpoint step; reused steps
+// counted, executed steps summed).
 type BatchCost struct {
 	Checkpoints []CheckpointCost `json:"checkpoints"`
+	TotalNS     uint64           `json:"total_ns"`
+	Failed      int              `json:"failed"`
+	FailedNS    uint64           `json:"failed_ns"`
+	Other       int              `json:"other"`
+	OtherNS     uint64           `json:"other_ns"`
 	Accepted    int              `json:"accepted"`
 	Reused      int              `json:"reused"`
 	ExecutedNS  uint64           `json:"executed_ns"`
@@ -32,12 +38,22 @@ func acceptanceStep(name string) bool {
 	return name == "acceptance" || strings.HasPrefix(name, "acceptance-")
 }
 
-// BatchCostOf derives the cost from a gate result's steps; non-acceptance
-// steps are ignored; checkpoints sort by name.
+// BatchCostOf derives the cost from a gate result's steps; every step enters
+// the total wall, failures of any phase are counted apart, executed
+// non-acceptance steps are the other phases; checkpoints sort by name.
 func BatchCostOf(steps []runrecord.GateStep) BatchCost {
 	var cost BatchCost
 	for _, step := range steps {
+		cost.TotalNS += step.DurationNS
+		if step.Outcome == runrecord.StepFailed {
+			cost.Failed++
+			cost.FailedNS += step.DurationNS
+		}
 		if !acceptanceStep(step.Name) {
+			if step.Outcome == runrecord.StepSucceeded {
+				cost.Other++
+				cost.OtherNS += step.DurationNS
+			}
 			continue
 		}
 		cost.Checkpoints = append(cost.Checkpoints, CheckpointCost{Name: step.Name, Outcome: step.Outcome, DurationNS: step.DurationNS})
@@ -110,8 +126,9 @@ func priorBatchCosts(ctx context.Context, store *overgodb.Store, planRef string)
 	return costs, nil
 }
 
-// batchCostAudit appends this run's accepted checkpoint cost and the reuse
-// saving against prior runs of the same row; no acceptance steps -> no line.
+// batchCostAudit appends one labelled line: total wall, failed steps, other
+// executed phases, accepted checkpoint cost, and the estimated saving against
+// prior runs of the same row; no acceptance steps -> no line.
 func (g *gateContext) batchCostAudit(ctx context.Context, store *overgodb.Store, steps []runrecord.GateStep) {
 	current := BatchCostOf(steps)
 	if current.Accepted == 0 {
@@ -124,7 +141,8 @@ func (g *gateContext) batchCostAudit(ctx context.Context, store *overgodb.Store,
 	}
 	saved, unmeasured := ReuseSavings(prior, current)
 	g.audit = append(g.audit, fmt.Sprintf(
-		"gate cost: accepted=%d reused=%d executed=%s saved=%s prior_runs=%d unmeasured=%q",
+		"gate cost: total_wall=%s failed=%d/%s other_phases=%d/%s accepted=%d reused=%d accepted_executed=%s estimated_saved=%s prior_runs=%d unmeasured=%q",
+		time.Duration(current.TotalNS), current.Failed, time.Duration(current.FailedNS), current.Other, time.Duration(current.OtherNS),
 		current.Accepted, current.Reused, time.Duration(current.ExecutedNS), time.Duration(saved), len(prior), unmeasured,
 	))
 }

@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "cost-report-scope",
-          "title": "Report failed checks and total gate wall separately from accepted cost and estimated saving",
-          "status": "open",
-          "verify": "test -f internal/gate/batch_cost_scope_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchedGateCostReportScope$' -count=1",
-          "rationale": "Review finding 4, second part. The landed cost line excluded failed checks and other phases and did not label the saving as an estimate. The audit reports total gate wall, failed and executed non-acceptance phases, accepted checkpoint cost, and the estimated saving, each labelled.",
-          "depends_on": [
-            "gate-checkpoints/selection-shadow"
-          ],
-          "capabilities": [
-            "labelled-cost-report"
-          ]
-        },
-        {
           "id": "governed-promotion",
           "title": "Make a flush declaration a durable deferred obligation with governed checkpoint promotion",
           "status": "open",

@@ -68,6 +68,11 @@ type TranscriptionSuite struct {
 	Split         artifact.ID                  `json:"split"`
 	Normalization []TranscriptionNormalization `json:"normalization"`
 	Cases         []TranscriptionCase          `json:"cases"`
+	// Prompt, MaxTokens and DecodeRecipe bind projected autoregressive transcription before
+	// execution. All absent retains the native speech-recognition protocol.
+	Prompt       string      `json:"prompt,omitzero"`
+	MaxTokens    int         `json:"max_tokens,omitzero"`
+	DecodeRecipe artifact.ID `json:"decode_recipe,omitzero"`
 }
 
 // TranscriptionPlan is the compiled, target-bearing portion of evaluation.
@@ -155,6 +160,9 @@ func CompileTranscription(suite TranscriptionSuite) (TranscriptionPlan, error) {
 		suite.Split.Kind() != artifact.KindDatasetShard || len(suite.Normalization) == 0 || len(suite.Cases) == 0 {
 		return TranscriptionPlan{}, errors.New("evaluation: invalid transcription suite")
 	}
+	if suite.Prompt == "" && (suite.MaxTokens != 0 || suite.DecodeRecipe.Valid()) || suite.Prompt != "" && (strings.TrimSpace(suite.Prompt) == "" || suite.MaxTokens <= 0 || suite.DecodeRecipe.Kind() != artifact.KindRecipe) {
+		return TranscriptionPlan{}, errors.New("evaluation: projected transcription requires a prompt and positive token budget")
+	}
 	suite.Normalization = slices.Clone(suite.Normalization)
 	seenOperations := make(map[TranscriptionNormalization]struct{}, len(suite.Normalization))
 	for _, operation := range suite.Normalization {
@@ -201,6 +209,9 @@ func CompileTranscription(suite TranscriptionSuite) (TranscriptionPlan, error) {
 func BindTranscription(compiled TranscriptionPlan, authorities ExactAuthorities) (Plan, error) {
 	if !compiled.identity.Valid() {
 		return Plan{}, errors.New("evaluation: transcription suite is not compiled")
+	}
+	if compiled.suite.Prompt != "" && authorities.Execution.Prompting != PromptingChatTemplate {
+		return Plan{}, errors.New("evaluation: projected transcription requires chat-template prompting")
 	}
 	return bindPlan(
 		compiled.dataset, compiled.split, compiled.identity, compiled.suite,
@@ -260,7 +271,7 @@ func EvaluateTranscription(
 			return TranscriptionReport{}, errors.New("evaluation: transcription prediction differs from suite")
 		}
 		observation, err := scoreTranscriptionPrediction(
-			ctx, repository, plan, testCase, prediction, compiled.suite.Normalization,
+			ctx, repository, plan, testCase, prediction, compiled.suite.Normalization, compiled.suite.DecodeRecipe,
 		)
 		if err != nil {
 			return TranscriptionReport{}, err
@@ -298,6 +309,7 @@ func scoreTranscriptionPrediction(
 	testCase TranscriptionCase,
 	prediction TranscriptionPrediction,
 	normalization []TranscriptionNormalization,
+	decodeRecipe artifact.ID,
 ) (TranscriptionObservation, error) {
 	run, err := runrecord.RequireExactRun(ctx, repository, prediction.Run)
 	if err != nil {
@@ -307,6 +319,7 @@ func scoreTranscriptionPrediction(
 		run.Environment != plan.body.Environment || !slices.Contains(run.Inputs, testCase.Source.Audio) ||
 		!slices.Contains(run.Inputs, testCase.Source.Profile) || !slices.Contains(run.Inputs, plan.body.Dataset) ||
 		!slices.Contains(run.Inputs, plan.body.Split) ||
+		decodeRecipe.Valid() && (!slices.Contains(run.Inputs, decodeRecipe) || !slices.Contains(run.Inputs, plan.identity)) ||
 		run.Outcome != runrecord.OutcomeSucceeded && len(run.Outputs) != 0 {
 		return TranscriptionObservation{}, errors.New("evaluation: transcription run authority differs")
 	}

@@ -175,13 +175,13 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip + ": generating from store models is integration")
 	}
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
-		t.Skipf("store media UNAVAILABLE: %v", err)
+		t.Fatalf("store media unavailable: %v", err)
 	}
 	store, err := overgodb.Open(roots.Store)
 	if err != nil {
-		t.Skipf("store media UNAVAILABLE: %v", err)
+		t.Fatalf("store media unavailable: %v", err)
 	}
 	defer store.Close()
 	ctx := t.Context()
@@ -200,7 +200,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 		}
 	}
 	if oscillator == nil {
-		t.Skip("store media UNAVAILABLE: the store activates no oscillator image model")
+		t.Fatal("store media unavailable: the store activates no oscillator image model")
 	}
 	if tasks[recipe.TaskSpeech] == 0 || tasks[recipe.TaskVideoGen] == 0 {
 		t.Errorf("the store's speech and video activations are not listed: %v", tasks)

@@ -78,6 +78,11 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 }
 
 func (g *gateContext) pipeline() error {
+	if g.planProjection == plan.MergeProjectionFirstParentTarget {
+		if err := reportGateAdmissionPhase("preflight projected merge completion", g.preflightProjectedMergeCompletion); err != nil {
+			return err
+		}
+	}
 	planningStarted := time.Now()
 	planned, err := g.planPipeline()
 	if err != nil {
@@ -963,10 +968,9 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	if len(directPending) > 0 {
-		if _, err := runGoTests(ctx, g.repo, directPending, true); err != nil {
-			return false, err
-		}
-		if err := g.recordPackagePasses(directPending, "short", directInputs); err != nil {
+		report, runErr := runGoTests(ctx, g.repo, directPending, true)
+		if err := errors.Join(runErr, g.recordPackagePasses(report, directPending, "short", directInputs)); err != nil {
+			g.packageCacheAudit(directReused, len(directPending))
 			return false, err
 		}
 	}
@@ -985,20 +989,16 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	report := testevidence.GoTestReport{}
 	if len(dependentPending) > 0 {
 		report, err = runGoTests(ctx, g.repo, dependentPending, false)
-	}
-	if err != nil {
-		return false, err
+		err = errors.Join(err, g.recordPackagePasses(report, dependentPending, "complete", dependentInputs))
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.audit = append(g.audit, fmt.Sprintf(
-			"dependent fixture evidence not credited: %d skipped, %d unavailable",
-			len(report.Skipped), len(report.Unavailable),
+			"dependent fixture evidence not credited: %d skipped [%s], %d unavailable [%s]",
+			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
 		))
-	} else if err := g.recordPackagePasses(dependentPending, "complete", dependentInputs); err != nil {
-		return false, err
 	}
 	g.packageCacheAudit(directReused+dependentReused, len(directPending)+len(dependentPending))
-	return false, nil
+	return false, err
 }
 
 func (g *gateContext) packageCachePartition(packages []string, mode string, inputs map[string]artifact.ID) ([]string, int, error) {
@@ -1190,26 +1190,35 @@ func (g *gateContext) stepAcceptance() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	tree, err := g.plannedTree()
-	if err != nil {
+	if err := g.verifyAcceptedCandidate(contract.verify, true); err != nil {
 		return false, err
 	}
-	if g.manifestPlan == nil || candidateTreeKey(tree) != g.manifestPlan.CandidateTree {
-		return false, errors.New("acceptance: immutable candidate tree differs from the manifest plan")
-	}
-	if err := g.requirePreparedCandidate(g.manifestPlan.CandidateTree); err != nil {
-		return false, err
-	}
-	verdict, err := g.executeCandidateVerifier(tree, contract.verify)
-	if err != nil {
-		return false, err
-	}
-	if verdict != testevidence.ClassifyVerifyCommand(contract.verify) {
-		return false, errors.New("acceptance: verifier returned the wrong classifier verdict")
-	}
-	g.acceptedTree = tree
 	g.stepEvidence["acceptance"] = contract.evidence
 	return false, nil
+}
+
+func (g *gateContext) verifyAcceptedCandidate(verify string, complete bool) error {
+	tree, err := g.plannedTree()
+	if err != nil {
+		return err
+	}
+	if g.manifestPlan == nil || candidateTreeKey(tree) != g.manifestPlan.CandidateTree {
+		return errors.New("acceptance: immutable candidate tree differs from the manifest plan")
+	}
+	if err := g.requirePreparedCandidate(g.manifestPlan.CandidateTree); err != nil {
+		return err
+	}
+	verdict, err := g.executeCandidateVerifier(tree, verify)
+	if err != nil {
+		return err
+	}
+	if verdict != testevidence.ClassifyVerifyCommand(verify) {
+		return errors.New("acceptance: verifier returned the wrong classifier verdict")
+	}
+	if complete {
+		g.acceptedTree = tree
+	}
+	return nil
 }
 
 type acceptanceContract struct {

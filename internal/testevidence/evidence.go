@@ -27,6 +27,11 @@ type GoTestReport struct {
 	Unfinished        []string
 	Diagnostics       []string
 	tests             []testResult
+	packages          map[string]packageEvidence
+}
+
+type packageEvidence struct {
+	passed, tested, incomplete bool
 }
 
 type testResult struct {
@@ -34,6 +39,16 @@ type testResult struct {
 	Name        string
 	Action      string
 	Unavailable string
+	started     bool
+	ineligible  bool
+}
+
+// PackagePassed reports complete, non-vacuous package evidence independently
+// of sibling failures. Skips, missing terminal events and malformed streams
+// never qualify, including classified short-mode exclusions.
+func (report GoTestReport) PackagePassed(packagePath string) bool {
+	result := report.packages[packagePath]
+	return packagePath != "" && result.passed && result.tested && !result.incomplete
 }
 
 // GoTestJSONShort permits only explicitly classified short-mode exclusions.
@@ -95,9 +110,11 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 	classified := map[string]bool{}
 	results := map[string]*testResult{}
 	tails := map[string]diagnosticTail{}
-	started := map[string]bool{}
 	var malformed diagnosticTail
 	defer func() {
+		if err == nil && !allowAuxiliary {
+			report.packages = map[string]packageEvidence{}
+		}
 		if malformed.tail != "" {
 			report.Diagnostics = append(report.Diagnostics, "malformed output:\n"+malformed.text())
 		}
@@ -110,8 +127,15 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 			if result.Name != "" {
 				name += ": " + result.Name
 			}
-			if started[key] && result.Action == "" {
+			if result.started && result.Action == "" {
 				report.Unfinished = append(report.Unfinished, name)
+			}
+			if report.packages != nil {
+				entry := report.packages[result.Package]
+				entry.incomplete = entry.incomplete || !result.started || result.ineligible || result.Action != "pass" || result.Unavailable != ""
+				entry.passed = entry.passed || result.Name == "" && result.Action == "pass"
+				entry.tested = entry.tested || result.Name != "" && result.Action == "pass"
+				report.packages[result.Package] = entry
 			}
 			if tail, found := tails[key]; found {
 				report.Diagnostics = append(report.Diagnostics, name+":\n"+tail.text())
@@ -145,12 +169,18 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		seen = true
 		event.Package = cmp.Or(event.Package, event.ImportPath)
+		if terminal := results[event.Package+"\x00"]; terminal != nil && terminal.Action != "" && event.Test != "" {
+			terminal.ineligible = true
+		}
 		key := event.Package + "\x00" + event.Test
 		if results[key] == nil {
 			results[key] = &testResult{Package: event.Package, Name: event.Test}
 		}
+		if results[key].Action != "" && event.Action != "output" || event.Action == "skip" || event.Action == "fail" {
+			results[key].ineligible = true
+		}
 		if event.Action == "run" || event.Action == "start" {
-			started[key] = true
+			results[key].started = true
 		}
 		if event.Output != "" && diagnosticBytes > 0 {
 			tail := tails[key]
@@ -162,9 +192,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		if reason := unavailable(event.Output); reason != "" {
 			report.Unavailable = append(report.Unavailable, event.Package+": "+reason)
-			if event.Test != "" {
-				results[key].Unavailable = reason
-			}
+			results[key].Unavailable = reason
 		}
 		switch {
 		case event.Action == "pass" && event.Test != "":

@@ -1,11 +1,14 @@
 package dataset
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 )
 
 // Parquet reader for the corpus slices evaluation draws on -- the
@@ -36,8 +39,8 @@ const (
 // parquet file, observing up to limit non-null values in row order.
 // An empty column name prefers "sequence", then "text", then the first
 // string leaf -- the conventions corpus files actually use.
-func ReadParquetTextRows(path, column string, limit int, observe func(uint64, string) error) error {
-	if limit <= 0 || observe == nil {
+func ReadParquetTextRows(ctx context.Context, path, column string, limit int, observe func(uint64, string) error) error {
+	if ctx == nil || limit <= 0 || observe == nil {
 		return errors.New("dataset: incomplete parquet read")
 	}
 	file, err := os.Open(path)
@@ -65,7 +68,21 @@ func ReadParquetTextRows(path, column string, limit int, observe func(uint64, st
 		if leaf >= len(group.columns) {
 			return errors.New("dataset: parquet row group misses the string column")
 		}
-		if err := readColumnChunk(file, group.columns[leaf], maxDefinition, limit, &emitted, observe); err != nil {
+		stop := errors.New("parquet selection complete")
+		err := readColumnChunk(ctx, file, group.columns[leaf], maxDefinition, nil, func(_ uint64, value parquetValue) error {
+			if !value.valid {
+				return nil
+			}
+			if err := observe(emitted, value.text); err != nil {
+				return err
+			}
+			emitted++
+			if int(emitted) >= limit {
+				return stop
+			}
+			return nil
+		})
+		if err != nil && !errors.Is(err, stop) {
 			return err
 		}
 	}
@@ -90,6 +107,7 @@ type parquetSchemaElement struct {
 
 type parquetRowGroup struct {
 	columns []parquetColumn
+	rows    int64
 }
 
 type parquetColumn struct {
@@ -188,6 +206,11 @@ func parseSchemaElement(cursor *thriftCursor) (parquetSchemaElement, error) {
 func parseRowGroup(cursor *thriftCursor) (parquetRowGroup, error) {
 	group := parquetRowGroup{}
 	err := cursor.walkStruct(func(fieldID int16, fieldType byte) error {
+		if fieldID == 3 {
+			value, err := cursor.readI64(fieldType)
+			group.rows = value
+			return err
+		}
 		if fieldID != 1 {
 			return cursor.skip(fieldType)
 		}
@@ -252,12 +275,14 @@ func stringColumnLeaf(metadata parquetMetadata, column string) (int, int, error)
 		leaf     int
 		optional int
 		name     string
+		path     string
 	}
 	type frame struct {
 		remaining int64
 		optional  int
+		path      string
 	}
-	var strings []candidate
+	var candidates []candidate
 	leaf := 0
 	stack := []frame{{remaining: metadata.schema[0].numChildren}}
 	for _, element := range metadata.schema[1:] {
@@ -265,6 +290,10 @@ func stringColumnLeaf(metadata parquetMetadata, column string) (int, int, error)
 			break
 		}
 		optional := stack[len(stack)-1].optional
+		path := element.name
+		if parent := stack[len(stack)-1].path; parent != "" {
+			path = parent + "." + path
+		}
 		const repetitionOptional, repetitionRepeated = 1, 2
 		if element.repetition == repetitionRepeated {
 			return 0, 0, errors.New("dataset: repeated parquet fields are outside the supported subset")
@@ -274,10 +303,10 @@ func stringColumnLeaf(metadata parquetMetadata, column string) (int, int, error)
 		}
 		stack[len(stack)-1].remaining--
 		if element.numChildren > 0 {
-			stack = append(stack, frame{remaining: element.numChildren, optional: optional})
+			stack = append(stack, frame{remaining: element.numChildren, optional: optional, path: path})
 		} else {
 			if element.hasKind && element.kind == parquetTypeByteArray {
-				strings = append(strings, candidate{leaf: leaf, optional: optional, name: element.name})
+				candidates = append(candidates, candidate{leaf: leaf, optional: optional, name: element.name, path: path})
 			}
 			leaf++
 			for len(stack) > 0 && stack[len(stack)-1].remaining == 0 {
@@ -285,7 +314,7 @@ func stringColumnLeaf(metadata parquetMetadata, column string) (int, int, error)
 			}
 		}
 	}
-	if len(strings) == 0 {
+	if len(candidates) == 0 {
 		return 0, 0, errors.New("dataset: parquet file carries no string column")
 	}
 	wanted := []string{column}
@@ -295,8 +324,8 @@ func stringColumnLeaf(metadata parquetMetadata, column string) (int, int, error)
 	for _, name := range wanted {
 		var matches int
 		var selectedLeaf, selectedOptional int
-		for _, found := range strings {
-			if found.name == name {
+		for _, found := range candidates {
+			if found.path == name || !strings.Contains(name, ".") && found.name == name {
 				matches++
 				selectedLeaf, selectedOptional = found.leaf, found.optional
 			}
@@ -311,15 +340,16 @@ func stringColumnLeaf(metadata parquetMetadata, column string) (int, int, error)
 	if column != "" {
 		return 0, 0, fmt.Errorf("dataset: parquet column %q is absent", column)
 	}
-	return strings[0].leaf, strings[0].optional, nil
+	return candidates[0].leaf, candidates[0].optional, nil
 }
 
 func readColumnChunk(
+	ctx context.Context,
 	file *os.File,
 	column parquetColumn,
-	maxDefinition, limit int,
-	emitted *uint64,
-	observe func(uint64, string) error,
+	maxDefinition int,
+	budget *parquetBudget,
+	observe func(uint64, parquetValue) error,
 ) error {
 	if column.kind != parquetTypeByteArray {
 		return errors.New("dataset: parquet string column has a different physical type")
@@ -331,49 +361,76 @@ func readColumnChunk(
 	if column.hasDictionary && column.dictionaryOffset > 0 && column.dictionaryOffset < start {
 		start = column.dictionaryOffset
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if start < int64(len(parquetMagic)) || column.compressedSize <= 0 || start > info.Size() || column.compressedSize > info.Size()-start || column.numValues < 0 {
+		return errors.New("dataset: invalid parquet column bounds")
+	}
+	if err := budget.take(column.compressedSize, 1); err != nil {
+		return err
+	}
 	chunk := make([]byte, column.compressedSize)
 	if _, err := file.ReadAt(chunk, start); err != nil {
 		return err
 	}
 	var dictionary []string
 	values := int64(0)
-	for offset := int64(0); offset < int64(len(chunk)) && values < column.numValues && int(*emitted) < limit; {
+	for offset := int64(0); offset < int64(len(chunk)); {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		cursor := &thriftCursor{data: chunk[offset:]}
 		header, err := parsePageHeader(cursor)
 		if err != nil {
 			return err
 		}
 		payloadStart := offset + int64(cursor.position)
+		if header.compressedSize < 0 || header.compressedSize > int64(len(chunk))-payloadStart || header.uncompressedSize < 0 || header.numValues < 0 {
+			return errors.New("dataset: invalid parquet page bounds")
+		}
 		payload := chunk[payloadStart : payloadStart+int64(header.compressedSize)]
 		offset = payloadStart + int64(header.compressedSize)
 		switch header.kind {
 		case parquetPageDictionary:
-			plain, err := decompressPage(payload, column.codec, header.uncompressedSize)
+			if dictionary != nil || values != 0 || header.encoding != parquetEncodingPlain {
+				return errors.New("dataset: invalid parquet dictionary page")
+			}
+			plain, err := decompressPage(payload, column.codec, header.uncompressedSize, budget)
 			if err != nil {
 				return err
 			}
-			dictionary, err = decodePlainStrings(plain, header.numValues)
+			dictionary, err = decodePlainStrings(plain, header.numValues, budget)
 			if err != nil {
 				return err
 			}
 		case parquetPageData, parquetPageDataV2:
-			pageValues, err := decodeDataPage(payload, column.codec, header, maxDefinition, dictionary)
+			if header.numValues > column.numValues-values {
+				return errors.New("dataset: parquet page exceeds declared row count")
+			}
+			pageValues, err := decodeDataPage(payload, column.codec, header, maxDefinition, dictionary, budget)
 			if err != nil {
 				return err
 			}
-			for _, value := range pageValues {
-				if int(*emitted) >= limit {
-					break
-				}
-				if err := observe(*emitted, value); err != nil {
+			for index, value := range pageValues {
+				if err := ctx.Err(); err != nil {
 					return err
 				}
-				*emitted++
+				if err := observe(uint64(values)+uint64(index), value); err != nil {
+					return err
+				}
 			}
 			values += int64(header.numValues)
 		default:
 			return fmt.Errorf("dataset: parquet page type %d is outside the supported subset", header.kind)
 		}
+	}
+	if values != column.numValues {
+		return errors.New("dataset: parquet column row count differs from metadata")
 	}
 	return nil
 }
@@ -455,11 +512,21 @@ func parsePageHeader(cursor *thriftCursor) (parquetPageHeader, error) {
 	return header, err
 }
 
-func decompressPage(payload []byte, codec, uncompressedSize int64) ([]byte, error) {
+func decompressPage(payload []byte, codec, uncompressedSize int64, budget *parquetBudget) ([]byte, error) {
+	if uncompressedSize < 0 {
+		return nil, errors.New("dataset: negative parquet page size")
+	}
 	if codec == parquetCodecUncompressed {
+		if int64(len(payload)) != uncompressedSize {
+			return nil, errors.New("dataset: parquet uncompressed page size differs")
+		}
 		return payload, nil
 	}
-	plain, err := snappyDecode(payload)
+	length, consumed := binary.Uvarint(payload)
+	if codec != parquetCodecSnappy || consumed <= 0 || length != uint64(uncompressedSize) {
+		return nil, errors.New("dataset: parquet compressed page size or codec differs")
+	}
+	plain, err := snappyDecode(payload, budget)
 	if err != nil {
 		return nil, err
 	}
@@ -469,31 +536,34 @@ func decompressPage(payload []byte, codec, uncompressedSize int64) ([]byte, erro
 	return plain, nil
 }
 
-// decodeDataPage yields the page's non-null string values.
+// decodeDataPage preserves physical rows, including absent optional ancestors.
 func decodeDataPage(
 	payload []byte,
 	codec int64,
 	header parquetPageHeader,
 	maxDefinition int,
 	dictionary []string,
-) ([]string, error) {
+	budget *parquetBudget,
+) ([]parquetValue, error) {
 	var levels, data []byte
 	if header.v2 {
 		split := header.repLevelBytes + header.defLevelBytes
-		if split > int64(len(payload)) {
+		if header.repLevelBytes != 0 || header.defLevelBytes < 0 || split > int64(len(payload)) || split > header.uncompressedSize {
 			return nil, errors.New("dataset: parquet v2 level bytes exceed the page")
 		}
 		levels = payload[header.repLevelBytes:split]
 		data = payload[split:]
 		if header.v2Compressed {
-			plain, err := decompressPage(data, codec, header.uncompressedSize-split)
+			plain, err := decompressPage(data, codec, header.uncompressedSize-split, budget)
 			if err != nil {
 				return nil, err
 			}
 			data = plain
+		} else if int64(len(data)) != header.uncompressedSize-split {
+			return nil, errors.New("dataset: parquet v2 uncompressed size differs")
 		}
 	} else {
-		plain, err := decompressPage(payload, codec, header.uncompressedSize)
+		plain, err := decompressPage(payload, codec, header.uncompressedSize, budget)
 		if err != nil {
 			return nil, err
 		}
@@ -510,32 +580,65 @@ func decodeDataPage(
 			data = data[4+length:]
 		}
 	}
-	present := int(header.numValues)
-	if maxDefinition > 0 && levels != nil {
-		definitions, err := decodeRLEHybrid(levels, bitWidthFor(maxDefinition), int(header.numValues))
+	if err := budget.take(header.numValues, parquetValueBytes); err != nil {
+		return nil, err
+	}
+	rows := make([]parquetValue, int(header.numValues))
+	present := len(rows)
+	if maxDefinition > 0 {
+		definitions, err := decodeRLEHybrid(levels, bitWidthFor(maxDefinition), len(rows), budget)
 		if err != nil {
 			return nil, err
 		}
 		present = 0
-		for _, level := range definitions {
+		for index, level := range definitions {
+			if level > uint64(maxDefinition) {
+				return nil, errors.New("dataset: parquet definition level exceeds schema")
+			}
 			if level == uint64(maxDefinition) {
+				rows[index].valid = true
 				present++
 			}
 		}
+	} else {
+		for index := range rows {
+			rows[index].valid = true
+		}
 	}
-	switch header.encoding {
+	values, err := decodePageStrings(data, header.encoding, present, dictionary, budget)
+	if err != nil {
+		return nil, err
+	}
+	next := 0
+	for index := range rows {
+		if rows[index].valid {
+			rows[index].text = values[next]
+			next++
+		}
+	}
+	return rows, nil
+}
+
+func decodePageStrings(data []byte, encoding int64, present int, dictionary []string, budget *parquetBudget) ([]string, error) {
+	switch encoding {
 	case parquetEncodingPlain:
-		return decodePlainStrings(data, int64(present))
+		return decodePlainStrings(data, int64(present), budget)
 	case parquetEncodingPlainDictionary, parquetEncodingRLEDictionary:
 		if dictionary == nil {
 			return nil, errors.New("dataset: parquet dictionary page is absent")
+		}
+		if present == 0 {
+			return nil, nil
 		}
 		if len(data) == 0 {
 			return nil, errors.New("dataset: parquet dictionary indices are empty")
 		}
 		width := int(data[0])
-		indices, err := decodeRLEHybrid(data[1:], width, present)
+		indices, err := decodeRLEHybrid(data[1:], width, present, budget)
 		if err != nil {
+			return nil, err
+		}
+		if err := budget.take(int64(present), parquetStringBytes); err != nil {
 			return nil, err
 		}
 		values := make([]string, len(indices))
@@ -547,11 +650,17 @@ func decodeDataPage(
 		}
 		return values, nil
 	default:
-		return nil, fmt.Errorf("dataset: parquet encoding %d is outside the supported subset", header.encoding)
+		return nil, fmt.Errorf("dataset: parquet encoding %d is outside the supported subset", encoding)
 	}
 }
 
-func decodePlainStrings(data []byte, count int64) ([]string, error) {
+func decodePlainStrings(data []byte, count int64, budget *parquetBudget) ([]string, error) {
+	if count < 0 || count > int64(len(data)/binary.Size(uint32(0))) {
+		return nil, errors.New("dataset: parquet string count exceeds page")
+	}
+	if err := budget.take(count, parquetStringBytes); err != nil {
+		return nil, err
+	}
 	values := make([]string, 0, count)
 	for offset := 0; int64(len(values)) < count; {
 		if offset+4 > len(data) {
@@ -561,6 +670,9 @@ func decodePlainStrings(data []byte, count int64) ([]string, error) {
 		offset += 4
 		if offset+length > len(data) {
 			return nil, errors.New("dataset: parquet plain string exceeds the page")
+		}
+		if err := budget.take(int64(length), 1); err != nil {
+			return nil, err
 		}
 		values = append(values, string(data[offset:offset+length]))
 		offset += length
@@ -577,7 +689,13 @@ func bitWidthFor(maximum int) int {
 }
 
 // decodeRLEHybrid decodes parquet's RLE/bit-packed hybrid runs.
-func decodeRLEHybrid(data []byte, bitWidth, count int) ([]uint64, error) {
+func decodeRLEHybrid(data []byte, bitWidth, count int, budget *parquetBudget) ([]uint64, error) {
+	if bitWidth < 0 || bitWidth > 64 {
+		return nil, errors.New("dataset: parquet bit width exceeds uint64")
+	}
+	if err := budget.take(int64(count), int64(binary.Size(uint64(0)))); err != nil {
+		return nil, err
+	}
 	if bitWidth == 0 {
 		return make([]uint64, count), nil
 	}
@@ -586,7 +704,7 @@ func decodeRLEHybrid(data []byte, bitWidth, count int) ([]uint64, error) {
 	offset := 0
 	for len(values) < count {
 		runHeader, consumed := binary.Uvarint(data[offset:])
-		if consumed <= 0 {
+		if consumed <= 0 || runHeader>>1 == 0 || runHeader>>1 > uint64(^uint(0)>>1)/8 {
 			return nil, errors.New("dataset: parquet run header is invalid")
 		}
 		offset += consumed
@@ -605,6 +723,9 @@ func decodeRLEHybrid(data []byte, bitWidth, count int) ([]uint64, error) {
 			}
 		} else {
 			groups := int(runHeader >> 1)
+			if groups > (len(data)-offset)/bitWidth {
+				return nil, errors.New("dataset: parquet bit-packed run exceeds the buffer")
+			}
 			needed := groups * bitWidth
 			if offset+needed > len(data) {
 				return nil, errors.New("dataset: parquet bit-packed run exceeds the buffer")
@@ -629,10 +750,16 @@ func decodeRLEHybrid(data []byte, bitWidth, count int) ([]uint64, error) {
 }
 
 // snappyDecode decodes one snappy block (the framing parquet uses).
-func snappyDecode(data []byte) ([]byte, error) {
+func snappyDecode(data []byte, budget *parquetBudget) ([]byte, error) {
 	length, consumed := binary.Uvarint(data)
 	if consumed <= 0 {
 		return nil, errors.New("dataset: snappy length is invalid")
+	}
+	if length > uint64(^uint(0)>>1) {
+		return nil, errors.New("dataset: snappy size exceeds addressable memory")
+	}
+	if err := budget.take(int64(length), 1); err != nil {
+		return nil, err
 	}
 	output := make([]byte, 0, length)
 	for offset := consumed; offset < len(data); {
@@ -653,7 +780,7 @@ func snappyDecode(data []byte) ([]byte, error) {
 				offset += extra
 			}
 			size++
-			if offset+size > len(data) {
+			if size < 0 || size > len(data)-offset || size > cap(output)-len(output) {
 				return nil, errors.New("dataset: snappy literal exceeds the block")
 			}
 			output = append(output, data[offset:offset+size]...)
@@ -697,11 +824,41 @@ func snappyDecode(data []byte) ([]byte, error) {
 }
 
 func snappyCopy(output *[]byte, distance, size int) error {
-	if distance <= 0 || distance > len(*output) {
+	if distance <= 0 || distance > len(*output) || size > cap(*output)-len(*output) {
 		return errors.New("dataset: snappy copy distance is invalid")
 	}
 	for range size {
 		*output = append(*output, (*output)[len(*output)-distance])
+	}
+	return nil
+}
+
+// The workspace budget counts requested backing storage, not process RSS or
+// allocator overhead. It is cumulative for a row group, so even scratch that
+// becomes unreachable remains charged until the next group.
+type parquetBudget struct{ remaining int64 }
+
+const (
+	parquetWordBytes   = strconv.IntSize / 8
+	parquetStringBytes = 2 * parquetWordBytes
+	parquetValueBytes  = parquetStringBytes + parquetWordBytes // bool plus alignment
+)
+
+type parquetValue struct {
+	text  string
+	valid bool
+}
+
+func (budget *parquetBudget) take(count, width int64) error {
+	if count < 0 || width <= 0 || count > int64(^uint(0)>>1)/width {
+		return errors.New("dataset: parquet allocation exceeds addressable memory")
+	}
+	bytes := count * width
+	if budget != nil {
+		if bytes > budget.remaining {
+			return fmt.Errorf("dataset: parquet workspace allocation %d exceeds remaining budget %d", bytes, budget.remaining)
+		}
+		budget.remaining -= bytes
 	}
 	return nil
 }

@@ -135,7 +135,7 @@ func ImportBenchmark(ctx context.Context, repository artifact.Repository, path s
 		if column == BenchmarkColumnAutoText {
 			column = ""
 		}
-		err = ReadParquetTextRows(path, column, int(canonical.Limit), func(ordinal uint64, text string) error {
+		err = ReadParquetTextRows(ctx, path, column, int(canonical.Limit), func(ordinal uint64, text string) error {
 			encoded, err := json.Marshal(text)
 			if err != nil {
 				return err

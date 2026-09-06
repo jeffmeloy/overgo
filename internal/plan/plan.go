@@ -53,6 +53,9 @@ type Step struct {
 	DependsOn    []string        `json:"depends_on,omitempty"`
 	Capabilities []string        `json:"capabilities,omitempty"`
 	Outcome      json.RawMessage `json:"outcome,omitempty"`
+	// VerificationBatch declares subordinate acceptance obligations. It does
+	// not confer completion or permission to omit any full-gate check.
+	VerificationBatch *VerificationBatch `json:"verification_batch,omitempty"`
 }
 
 // Item is one rung of the ladder.
@@ -160,6 +163,9 @@ func validatePlanGraph(d Plan) error {
 			}
 			if step.Verify != "" && !validAutomationDetail(step.Verify) {
 				return fmt.Errorf("plan step %s/%s has an invalid verifier", item.ID, step.ID)
+			}
+			if err := validateVerificationBatch(step.VerificationBatch); err != nil {
+				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
 			}
 		}
 		if item.Status == StatusDone && slices.ContainsFunc(item.Steps, func(step Step) bool { return step.Status != StatusDone }) {

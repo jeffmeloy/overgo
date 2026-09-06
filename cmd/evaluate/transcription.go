@@ -11,6 +11,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelintake"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
 )
@@ -87,19 +89,23 @@ func evaluateTranscriptionManifest(ctx context.Context, repository, path string)
 	if err != nil {
 		return err
 	}
-	plan, err := evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{
-		ModelDefinition: manifest.ModelDefinition, RuntimeRecipe: manifest.RuntimeRecipe,
-		CodeCommit: strings.TrimSpace(manifest.CodeCommit), Environment: manifest.Environment,
-		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-	})
-	if err != nil {
-		return err
-	}
 	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	prompting := evaluation.PromptingRawCompletion
+	if suite.Prompt != "" {
+		prompting = evaluation.PromptingChatTemplate
+	}
+	plan, err := bindTranscriptionPlan(ctx, store, compiled, evaluation.ExactAuthorities{
+		ModelDefinition: manifest.ModelDefinition, RuntimeRecipe: manifest.RuntimeRecipe,
+		CodeCommit: strings.TrimSpace(manifest.CodeCommit), Environment: manifest.Environment,
+		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident, Prompting: prompting},
+	})
+	if err != nil {
+		return err
+	}
 	report, err := evaluation.EvaluateTranscription(ctx, store, compiled, plan, predictions)
 	if err != nil {
 		return err
@@ -135,25 +141,30 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 	if err = strictjson.DecodeBytes(suiteData, &suite); err != nil {
 		return fmt.Errorf("evaluate: decode transcription resource suite: %w", err)
 	}
+	if suite.Prompt != "" {
+		revision, err := modelintake.CleanRevision(ctx)
+		if err != nil {
+			return err
+		}
+		if manifest.CodeCommit != revision {
+			return errors.New("evaluate: transcription execution commit differs from clean producer")
+		}
+	}
 	inputs := make([]evaluation.TranscriptionResourceInput, len(manifest.Inputs))
 	for index, input := range manifest.Inputs {
-		data, readErr := os.ReadFile(resolveEvaluationPath(base, input.Path))
-		if readErr != nil {
-			return readErr
+		var audio artifact.ID
+		for _, testCase := range suite.Cases {
+			if testCase.Name == input.Name {
+				audio = testCase.Source.Audio
+				break
+			}
 		}
 		inputs[index] = evaluation.TranscriptionResourceInput{
-			Name: input.Name, Data: data, Origin: input.Origin, Policy: input.Policy,
+			Name: input.Name, Policy: input.Policy,
+			Reference: dataset.AudioPayloadReference{Path: resolveEvaluationPath(base, input.Path), Audio: audio, Origin: input.Origin},
 		}
 	}
 	compiled, err := evaluation.CompileTranscription(suite)
-	if err != nil {
-		return err
-	}
-	plan, err := evaluation.BindTranscription(compiled, evaluation.ExactAuthorities{
-		ModelDefinition: manifest.ModelDefinition, RuntimeRecipe: manifest.RuntimeRecipe,
-		CodeCommit: strings.TrimSpace(manifest.CodeCommit), Environment: manifest.Environment,
-		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
-	})
 	if err != nil {
 		return err
 	}
@@ -162,6 +173,18 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 		return err
 	}
 	defer store.Close()
+	prompting := evaluation.PromptingRawCompletion
+	if suite.Prompt != "" {
+		prompting = evaluation.PromptingChatTemplate
+	}
+	plan, err := bindTranscriptionPlan(ctx, store, compiled, evaluation.ExactAuthorities{
+		ModelDefinition: manifest.ModelDefinition, RuntimeRecipe: manifest.RuntimeRecipe,
+		CodeCommit: strings.TrimSpace(manifest.CodeCommit), Environment: manifest.Environment,
+		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident, Prompting: prompting},
+	})
+	if err != nil {
+		return err
+	}
 	report, err := evaluation.EvaluateTranscriptionResources(
 		ctx, store, compiled, plan, manifest.Model, inputs, manifest.Options,
 		manifest.MemoryBytes,
@@ -175,6 +198,17 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 		report.Summary.AdmissionFailures, report.Summary.InferenceFailures,
 	)
 	return nil
+}
+
+func bindTranscriptionPlan(ctx context.Context, store artifact.Repository, compiled evaluation.TranscriptionPlan, authority evaluation.ExactAuthorities) (evaluation.Plan, error) {
+	if !authority.ModelDefinition.Valid() {
+		id, err := modelrecipe.PublishTaskModelDefinition(ctx, store, authority.RuntimeRecipe)
+		if err != nil {
+			return evaluation.Plan{}, err
+		}
+		authority.ModelDefinition = id
+	}
+	return evaluation.BindTranscription(compiled, authority)
 }
 
 func resolveEvaluationPath(base, value string) string {

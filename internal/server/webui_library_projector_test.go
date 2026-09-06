@@ -13,19 +13,20 @@ import (
 	"overgo/internal/libraryintake"
 	"overgo/internal/overgodb"
 	"overgo/internal/testevidence"
+	"overgo/internal/testutil"
 )
 
 // storedProjectorPair finds, from the store alone, a model whose active
 // projection recipe binds a projector with bytes on disk.
 func storedProjectorPair(t *testing.T) (modelPath, projectorPath string) {
 	t.Helper()
-	roots, err := dataroot.ResolveCurrent()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
-		t.Skipf("projector pair UNAVAILABLE: %v", err)
+		t.Fatalf("projector pair unavailable: %v", err)
 	}
 	store, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
-		t.Skipf("projector pair UNAVAILABLE: %v", err)
+		t.Fatalf("projector pair unavailable: %v", err)
 	}
 	defer store.Close()
 	ctx := t.Context()
@@ -42,7 +43,7 @@ func storedProjectorPair(t *testing.T) (modelPath, projectorPath string) {
 			return entry.Location, declared
 		}
 	}
-	t.Skip("projector pair UNAVAILABLE: the store activates no projector with bytes on disk")
+	t.Fatal("projector pair unavailable: the store activates no projector with bytes on disk")
 	return "", ""
 }
 

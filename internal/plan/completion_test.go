@@ -1485,7 +1485,7 @@ func TestCompletionAuthorityDerivesMergeTransition(t *testing.T) {
 	}
 }
 
-func TestCompletionAuthorityRejectsAmbiguousMergeBase(t *testing.T) {
+func TestCompletionAuthoritySelectsTargetMergeBase(t *testing.T) {
 	fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 	root := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD")))
 	rootTree := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD^{tree}")))
@@ -1508,21 +1508,22 @@ func TestCompletionAuthorityRejectsAmbiguousMergeBase(t *testing.T) {
 	fixture.completionHash = commitFixtureTree(
 		t, fixture.repository, fixture.canonicalMessage(), childTree, leftMerge, rightMerge,
 	)
-	// A criss-cross history (each side merged the other) has two bases;
-	// the one on the target's first-parent chain is the completion's.
-	if selected, err := CompletionMergeBase(t.Context(), fixture.repository, leftMerge, rightMerge); err != nil || selected != left {
-		t.Fatalf("criss-cross completion merge base = %q, %v; want the target's first-parent base %q", selected, err, left)
-	}
-	if _, err := completionTransitionPlans(t.Context(), fixture.repository, []gitCompletionMessage{{
+	transitions, err := completionTransitionPlans(t.Context(), fixture.repository, []gitCompletionMessage{{
 		hash: fixture.completionHash, parents: []string{leftMerge, rightMerge},
-	}}); err != nil && strings.Contains(err.Error(), "merge base") {
-		t.Fatalf("criss-cross completion refused its merge base: %v", err)
+	}})
+	if err != nil {
+		t.Fatal(err)
 	}
-	// A target whose first-parent chain holds none of the bases refuses.
+	if got := transitions[fixture.completionHash].mergeBaseRevision; got != left {
+		t.Fatalf("replayed merge base = %q, want target base %q", got, left)
+	}
+	if got, err := CompletionMergeBase(t.Context(), fixture.repository, rightMerge, leftMerge); err != nil || got != right {
+		t.Fatalf("reversed target merge base = %q, %v; want %q", got, err, right)
+	}
 	fork := commitFixtureTree(t, fixture.repository, []byte("fork\n"), rootTree, root)
 	forkMerge := commitFixtureTree(t, fixture.repository, []byte("fork merge\n"), rootTree, fork, leftMerge)
-	if _, err := CompletionMergeBase(t.Context(), fixture.repository, forkMerge, rightMerge); err == nil ||
-		!strings.Contains(err.Error(), "first-parent chain, found 0 of 2") {
+	_, err = CompletionMergeBase(t.Context(), fixture.repository, forkMerge, rightMerge)
+	if err == nil || !strings.Contains(err.Error(), "first-parent chain, found 0 of 2") {
 		t.Fatalf("ambiguous completion merge-base error = %v", err)
 	}
 }

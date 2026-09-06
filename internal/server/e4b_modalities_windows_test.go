@@ -173,7 +173,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 	corpus := filepath.Join(paths[2], "0000.parquet")
 	var audioBytes, transcript, recording string
 	for _, column := range []string{"bytes", "text", "id"} {
-		err := dataset.ReadParquetTextRows(corpus, column, 1, func(_ uint64, value string) error {
+		err := dataset.ReadParquetTextRows(ctx, corpus, column, 1, func(_ uint64, value string) error {
 			switch column {
 			case "bytes":
 				audioBytes = value

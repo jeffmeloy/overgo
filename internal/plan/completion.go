@@ -1394,16 +1394,20 @@ func requireCompletionEvidence(
 	if err != nil {
 		return completionEvidence{}, fmt.Errorf("verify attempt gate: %w", err)
 	}
+	completedStep, found := exactPlanStep(Plan{Items: []Item{contractSnapshot}}, trailers.item, trailers.step)
+	if !found {
+		return completionEvidence{}, errors.New("completion contract lacks the exact step")
+	}
+	if completedStep.VerificationBatch != nil {
+		if !trailers.preparation.Valid() {
+			return completionEvidence{}, errors.New("verification batch completion requires prepared manifest authority")
+		}
+	}
 	if trailers.preparation.Valid() {
 		if verification.Preparation.ID != trailers.preparation {
 			return completionEvidence{}, errors.New("attempt gate differs from the preparation trailer")
 		}
-		if err := requireCompletionManifestBinding(ctx, store, verification, attempt); err != nil {
-			return completionEvidence{}, err
-		}
-		if err := requireCompletionAcceptance(
-			verification.Gate, trailers.item+"/"+trailers.step, trailers.verify,
-		); err != nil {
+		if err := VerifyPreparedStepAcceptance(ctx, store, verification, attempt, trailers.item+"/"+trailers.step, completedStep); err != nil {
 			return completionEvidence{}, err
 		}
 	}
@@ -1424,12 +1428,37 @@ func completionContractDigest(snapshot Item) ([sha256.Size]byte, error) {
 	return completionJSONDigest(snapshot, "contract snapshot")
 }
 
-func requireCompletionManifestBinding(
+// VerifyPreparedStepAcceptance requires the exact parent and subordinate
+// acceptances and their atomically published manifest binding. Both completion
+// replay and interrupted-commit recovery use this check after VerifyAttemptGate.
+// It verifies acceptance evidence, not Git history or dispatch authority.
+func VerifyPreparedStepAcceptance(
 	ctx context.Context,
 	store *overgodb.Store,
 	verification runrecord.AttemptGateVerification,
 	attempt runrecord.AttemptRecord,
+	reference string,
+	step Step,
 ) error {
+	itemID, stepID, found := strings.Cut(reference, "/")
+	if ctx == nil || store == nil || !found || !validPlanID(itemID) || !validPlanID(stepID) ||
+		step.ID != stepID || step.Status != StatusOpen || !validAutomationDetail(step.Verify) {
+		return errors.New("completion acceptance requires a store, context and exact open plan step")
+	}
+	if err := validateVerificationBatch(step.VerificationBatch); err != nil {
+		return err
+	}
+	if err := requireCompletionAcceptance(verification.Gate, reference, step.Verify); err != nil {
+		return err
+	}
+	batch := step.VerificationBatch
+	if batch != nil {
+		for _, checkpoint := range batch.Checkpoints {
+			if err := requireNamedCompletionAcceptance(verification.Gate, checkpoint.GateCheckName(), reference, checkpoint.Verify); err != nil {
+				return fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
+			}
+		}
+	}
 	edges, err := store.Parents(ctx, verification.Gate.ID)
 	if err != nil {
 		return err
@@ -1483,6 +1512,16 @@ func requireCompletionManifestBinding(
 		manifest.CandidateTree != verification.Preparation.TreeKey {
 		return errors.New("completion manifest analysis differs from the attempt or prepared candidate")
 	}
+	if batch != nil {
+		for _, checkpoint := range batch.Checkpoints {
+			index := slices.IndexFunc(manifest.Invocations, func(invocation automationcheck.PlannedInvocation) bool {
+				return invocation.Check.Name == checkpoint.GateCheckName()
+			})
+			if index < 0 || !manifest.Invocations[index].Check.Always || manifest.Invocations[index].Check.Phase != runrecord.PhaseTest {
+				return fmt.Errorf("completion manifest lacks required checkpoint %s", checkpoint.ID)
+			}
+		}
+	}
 	return nil
 }
 
@@ -1529,6 +1568,38 @@ func preservesPlanIdentities(baseline, candidate Plan) bool {
 	return true
 }
 
+// CompletionMergeBase selects the unique merge base on the target's first-parent
+// history when reciprocal merges leave more than one base. It refuses histories
+// without a unique target-side base, keeping replay and commit admission aligned.
+func CompletionMergeBase(ctx context.Context, repository, target, incoming string) (string, error) {
+	output, err := gitCompletionCommand(ctx, repository, "merge-base", "--all", target, incoming)
+	if err != nil {
+		return "", fmt.Errorf("derive completion merge base: %w", err)
+	}
+	bases := strings.Fields(string(output))
+	if len(bases) == 1 {
+		return bases[0], nil
+	}
+	output, err = gitCompletionCommand(ctx, repository, "rev-list", "--first-parent", target)
+	if err != nil {
+		return "", err
+	}
+	chain := map[string]bool{}
+	for revision := range strings.FieldsSeq(string(output)) {
+		chain[revision] = true
+	}
+	var selected []string
+	for _, base := range bases {
+		if chain[base] {
+			selected = append(selected, base)
+		}
+	}
+	if len(selected) != 1 {
+		return "", fmt.Errorf("completion merge requires one merge base on the target's first-parent chain, found %d of %d", len(selected), len(bases))
+	}
+	return selected[0], nil
+}
+
 func completionTransitionPlans(
 	ctx context.Context,
 	repository string,
@@ -1558,10 +1629,11 @@ func completionTransitionPlans(
 		}
 		if parentCount == completionParentCount {
 			base, err := CompletionMergeBase(
-				ctx, repository, commit.parents[completionLocalParentIndex], commit.parents[completionIncomingParentIndex],
+				ctx, repository,
+				commit.parents[completionLocalParentIndex], commit.parents[completionIncomingParentIndex],
 			)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("derive completion merge base: %w", err)
 			}
 			mergeBases[commit.hash] = base
 			appendRevision(base)
@@ -1674,13 +1746,17 @@ func readGitCompletionObject(reader *bufio.Reader, requested, objectType string)
 }
 
 func requireCompletionAcceptance(gate runrecord.GateResult, reference, verify string) error {
+	return requireNamedCompletionAcceptance(gate, "acceptance", reference, verify)
+}
+
+func requireNamedCompletionAcceptance(gate runrecord.GateResult, name, reference, verify string) error {
 	var acceptance []runrecord.GateStep
 	for _, step := range gate.Steps {
-		if step.Name == "acceptance" {
+		if step.Name == name {
 			acceptance = append(acceptance, step)
 		}
 	}
-	if len(acceptance) != 1 ||
+	if len(acceptance) != 1 || acceptance[0].Phase != runrecord.PhaseTest ||
 		acceptance[0].Outcome != runrecord.StepSucceeded && acceptance[0].Outcome != runrecord.StepReused {
 		return errors.New("completion gate lacks one successful acceptance step")
 	}
@@ -1721,42 +1797,6 @@ func planHasItem(document Plan, itemID string) bool {
 		}
 	}
 	return false
-}
-
-// CompletionMergeBase names the merge base a completion merge reasons
-// from. A history where each side merged the other has two bases; the
-// target's plan projection reasons from the target's own history, so the
-// base on the target's first-parent chain (the target state the incoming
-// side merged) is the one, and a history with none or several bases on
-// that chain refuses. The plan command's prepare-merge and the gate's
-// merge completion derive their base here.
-func CompletionMergeBase(ctx context.Context, repository, target, incoming string) (string, error) {
-	output, err := gitCompletionCommand(ctx, repository, "merge-base", "--all", target, incoming)
-	if err != nil {
-		return "", fmt.Errorf("derive completion merge base: %w", err)
-	}
-	bases := strings.Fields(string(output))
-	if len(bases) == 1 {
-		return bases[0], nil
-	}
-	chainOutput, err := gitCompletionCommand(ctx, repository, "rev-list", "--first-parent", target)
-	if err != nil {
-		return "", fmt.Errorf("derive completion merge base: %w", err)
-	}
-	chain := map[string]bool{}
-	for revision := range strings.FieldsSeq(string(chainOutput)) {
-		chain[revision] = true
-	}
-	var selected []string
-	for _, base := range bases {
-		if chain[base] {
-			selected = append(selected, base)
-		}
-	}
-	if len(selected) != 1 {
-		return "", fmt.Errorf("completion merge requires one merge base on the target's first-parent chain, found %d of %d", len(selected), len(bases))
-	}
-	return selected[0], nil
 }
 
 func gitCompletionCommand(ctx context.Context, repository string, arguments ...string) ([]byte, error) {

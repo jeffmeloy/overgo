@@ -384,34 +384,22 @@ func interruptedCompletionRecorded(
 	if err != nil {
 		return false, err
 	}
-	verify := ""
+	var required plan.Step
 	for _, candidateItem := range document.Items {
 		if candidateItem.ID != item {
 			continue
 		}
 		for _, candidateStep := range candidateItem.Steps {
 			if candidateStep.ID == step && candidateStep.Status == plan.StatusOpen {
-				verify = candidateStep.Verify
+				required = candidateStep
 				break
 			}
 		}
 	}
-	if verify == "" {
+	if required.Verify == "" {
 		return false, errors.New("gate: interrupted completion row is absent from its recorded plan")
 	}
-	acceptance := []runrecord.GateStep{}
-	for _, gateStep := range verification.Gate.Steps {
-		if gateStep.Name == "acceptance" &&
-			(gateStep.Outcome == runrecord.StepSucceeded || gateStep.Outcome == runrecord.StepReused) {
-			acceptance = append(acceptance, gateStep)
-		}
-	}
-	if len(acceptance) != 1 {
-		return false, nil
-	}
-	if err := runrecord.VerifyCompletionAcceptanceEvidence(
-		acceptance[0].Evidence, intent.PlanRef, verify,
-	); err != nil {
+	if err := plan.VerifyPreparedStepAcceptance(ctx, store, verification, matches[0], intent.PlanRef, required); err != nil {
 		return false, nil
 	}
 	return true, nil

@@ -11,10 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/strictjson"
 )
 
 func main() {
@@ -29,6 +31,8 @@ func run(args []string, output io.Writer) error {
 	contentPath := flags.String("root", "", "dataset content root")
 	register := flags.String("register", "", "register one directory dataset under this name (with -root)")
 	modality := flags.String("modality", "", "explicit primary modality for -register; empty derives it from the corpus")
+	speechSpec := flags.String("speech-spec", "", "materialize row-addressed speech references from an existing inventory version and this JSON specification")
+	memoryBytes := flags.Uint64("memory", 0, "required source workspace and per-shard reference-metadata byte bound with -speech-spec")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -44,6 +48,33 @@ func run(args []string, output io.Writer) error {
 		repositoryRoot = roots.Store
 	}
 	contentRoot := filepath.Clean(strings.TrimSpace(*contentPath))
+	if strings.TrimSpace(*speechSpec) != "" {
+		if contentRoot == "." || *memoryBytes == 0 || strings.TrimSpace(*register) != "" || strings.TrimSpace(*legacyPath) != "" || strings.TrimSpace(*modality) != "" {
+			return errors.New("dataset-catalog: -speech-spec requires -root and -memory, without -register, -legacy or -modality")
+		}
+		data, err := artifact.ReadContentFile(*speechSpec)
+		if err != nil {
+			return err
+		}
+		var spec dataset.SpeechMaterializationSpec
+		if err := strictjson.DecodeBytes(data, &spec); err != nil {
+			return err
+		}
+		store, err := overgodb.Open(repositoryRoot)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		result, err := dataset.MaterializeSpeechDataset(context.Background(), store, contentRoot, spec, *memoryBytes)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(output, "speech dataset=%s profile=%s shards=%d physical_rows=%d reference_records=%d rejected=%d; source hashes verified; audio decode, model inference and training did not run\n", result.Dataset, result.Profile, result.Shards, result.Rows, result.Records, result.Rejected)
+		return err
+	}
+	if *memoryBytes != 0 {
+		return errors.New("dataset-catalog: -memory requires -speech-spec")
+	}
 	if name := strings.TrimSpace(*register); name != "" {
 		if contentRoot == "." {
 			return errors.New("dataset-catalog: -register requires -root")

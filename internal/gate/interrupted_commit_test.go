@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,9 @@ const (
 )
 
 func TestRecoverInterruptedCommitRestoresParentAndFinalizesCancellation(t *testing.T) {
+	// Each parallel recovery fixture owns its repository and store. Tests that
+	// mutate process-wide failure hooks remain serial and finish before these.
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 
 	preparation, err := recoverInterruptedCommit(fixture.repo, fixture.storePath)
@@ -331,6 +335,7 @@ func TestGateGitStateProcessGuardRefusesNestedTransaction(t *testing.T) {
 }
 
 func TestRecoverInterruptedCommitFinalizesMatchingHeartbeat(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	heartbeat := runrecord.GateHeartbeat{
 		Version: artifact.InitialDocumentVersion, State: runrecord.HeartbeatRunning,
@@ -357,6 +362,7 @@ func TestRecoverInterruptedCommitFinalizesMatchingHeartbeat(t *testing.T) {
 }
 
 func TestRecoverInterruptedCommitClearsStaleIntentAfterSuccessfulAttempt(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	attempt := publishSuccessfulInterruptedAttempt(t, fixture, true)
 
@@ -404,6 +410,7 @@ func TestRecoverInterruptedCommitClearsStaleIntentAfterSuccessfulAttempt(t *test
 }
 
 func TestRecoverInterruptedCommitRollsBackIncompleteSuccessfulFinalization(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var retryIntent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &retryIntent); err != nil {
@@ -457,6 +464,7 @@ func TestRecoverInterruptedCommitRollsBackIncompleteSuccessfulFinalization(t *te
 }
 
 func TestReconcileGateDebtRetainsRollbackAuthorityForIncompleteSuccess(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -490,6 +498,7 @@ func TestReconcileGateDebtRetainsRollbackAuthorityForIncompleteSuccess(t *testin
 }
 
 func TestReconcileGateDebtAcceptsExactSuccessfulChain(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -543,6 +552,7 @@ func TestReconcileGateDebtAcceptsExactSuccessfulChain(t *testing.T) {
 }
 
 func TestRecoverInterruptedCommitRefusesDifferentBranchAtSameCommit(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	runGitFixture(t, fixture.repo, "checkout", "-q", "-b", "other-recovery-branch")
 
@@ -556,6 +566,7 @@ func TestRecoverInterruptedCommitRefusesDifferentBranchAtSameCommit(t *testing.T
 }
 
 func TestRecoverInterruptedCommitRefusesUnboundAdvancedHead(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -579,6 +590,7 @@ func TestRecoverInterruptedCommitRefusesUnboundAdvancedHead(t *testing.T) {
 }
 
 func TestInterruptedRollbackCASPreservesAdvancedCommit(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -597,6 +609,7 @@ func TestInterruptedRollbackCASPreservesAdvancedCommit(t *testing.T) {
 }
 
 func TestRecoverInterruptedCommitRefusesUnboundPreCASIndex(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -1349,6 +1362,7 @@ func TestRecoverInterruptedCommitPreservesPlanChangedBeforeRestore(t *testing.T)
 }
 
 func TestPostCommitTrailerMutationIsRefusedAndRecovered(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixtureWithHook(t, []byte(
 		"#!/bin/sh\n"+
 			"grep -v '^Overgo-Code-Manifest:' \"$1\" > \"$1.overgo-test\" || exit 1\n"+
@@ -1398,6 +1412,7 @@ func TestPostCommitTrailerMutationIsRefusedAndRecovered(t *testing.T) {
 }
 
 func TestPostCommitForeignAuthorityTupleIsRefused(t *testing.T) {
+	t.Parallel()
 	foreign := testutil.ArtifactID(t, artifact.KindProfile, "foreign completion code manifest")
 	fixture := newInterruptedCommitFixtureWithHook(t, []byte(
 		"#!/bin/sh\n"+
@@ -1415,6 +1430,7 @@ func TestPostCommitForeignAuthorityTupleIsRefused(t *testing.T) {
 }
 
 func TestInterruptedCommitRejectsDeletedBaselinePlan(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -1438,6 +1454,7 @@ func TestInterruptedCommitRejectsDeletedBaselinePlan(t *testing.T) {
 }
 
 func TestInterruptedCompletionRequiresPreparationReceipt(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	publishSuccessfulInterruptedAttempt(t, fixture, true)
 	var intent gateCommitIntent
@@ -1458,6 +1475,7 @@ func TestInterruptedCompletionRequiresPreparationReceipt(t *testing.T) {
 }
 
 func TestInterruptedCommitInspectionRejectsReplacementRefs(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -1482,6 +1500,7 @@ func TestInterruptedCommitInspectionRejectsReplacementRefs(t *testing.T) {
 }
 
 func TestRecoverInterruptedCommitRejectsLegacyGrafts(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	graftsPath := recoveryGit(
 		t,
@@ -1543,7 +1562,7 @@ func newInterruptedCommitFixture(t *testing.T) interruptedCommitFixture {
 	return newInterruptedCommitFixtureWithHook(t, nil)
 }
 
-func newInterruptedCommitFixtureWithHook(t *testing.T, commitMessageHook []byte) interruptedCommitFixture {
+func newInterruptedCommitFixtureWithHook(t *testing.T, commitMessageHook []byte, batches ...*plan.VerificationBatch) interruptedCommitFixture {
 	t.Helper()
 	repo := t.TempDir()
 	storePath := "store"
@@ -1570,6 +1589,12 @@ func newInterruptedCommitFixtureWithHook(t *testing.T, commitMessageHook []byte)
 				}},
 			},
 		},
+	}
+	if len(batches) > 1 {
+		t.Fatal("interrupted fixture accepts one verification batch")
+	}
+	if len(batches) == 1 {
+		document.Items[0].Steps[0].VerificationBatch = batches[0]
 	}
 	planPath := filepath.Join(repo, filepath.FromSlash(plan.Path))
 	if err := plan.Save(planPath, document); err != nil {
@@ -1633,15 +1658,23 @@ func newInterruptedCommitFixtureWithHook(t *testing.T, commitMessageHook []byte)
 
 	codeManifest := testutil.ArtifactID(t, artifact.KindProfile, "completion code manifest")
 	baseManifest := testutil.ArtifactID(t, artifact.KindProfile, "completion base manifest")
+	var invocations []automationcheck.Invocation
+	if batch := document.Items[0].Steps[0].VerificationBatch; batch != nil {
+		for _, checkpoint := range batch.Checkpoints {
+			invocations = append(invocations, automationcheck.Invocation{
+				ID:    testutil.ArtifactID(t, artifact.KindRecipe, checkpoint.GateCheckName()),
+				Check: automationcheck.Descriptor{Name: checkpoint.GateCheckName(), Phase: runrecord.PhaseTest, Always: true},
+			})
+		}
+	}
+	invocations = append(invocations, automationcheck.Invocation{
+		ID:    testutil.ArtifactID(t, artifact.KindRecipe, "completion invocation"),
+		Check: automationcheck.Descriptor{Name: "commit", Phase: runrecord.PhasePackage},
+	})
 	manifest, err := automationcheck.BindManifestPlan(
 		baseManifest, codeManifest, strings.Repeat("b", 64), preparation.TreeKey,
 		automationcheck.Surface{Identity: "interrupted completion fixture"}, automationcheck.Impact{},
-		[]automationcheck.Invocation{{
-			ID: testutil.ArtifactID(t, artifact.KindRecipe, "completion invocation"),
-			Check: automationcheck.Descriptor{
-				Name: "commit", Phase: runrecord.PhasePackage,
-			},
-		}},
+		invocations,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1787,6 +1820,7 @@ func successfulAttemptBatchForReference(
 	item, step, verify string,
 	includeAttempt bool,
 	key string,
+	members ...runrecord.GateStep,
 ) (runrecord.AttemptRecord, artifact.Batch) {
 	t.Helper()
 	acceptance, err := runrecord.FormatCompletionAcceptanceEvidence(
@@ -1797,10 +1831,10 @@ func successfulAttemptBatchForReference(
 	}
 	record, err := runrecord.NewGateRecord(
 		fixture.recipe, fixture.environment.ID, fixture.commit, runrecord.OutcomeSucceeded, "", 2,
-		[]runrecord.GateStep{
+		append(slices.Clone(members), []runrecord.GateStep{
 			{Name: "acceptance", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1, Evidence: acceptance},
 			{Name: "commit", Phase: runrecord.PhasePackage, Outcome: runrecord.StepSucceeded, DurationNS: 1},
-		},
+		}...),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -1846,7 +1880,7 @@ func successfulAttemptBatchForReference(
 				Base: fixture.manifest.BaseManifest.String(), Candidate: fixture.manifest.CandidateManifest.String(),
 			},
 			fixture.manifest, automationcheck.SelectionMetrics{},
-			automationcheck.MeasureManifest(1, 1, 0, 0, 1, 0, 0, 0),
+			automationcheck.MeasureManifest(len(fixture.manifest.Invocations), len(fixture.manifest.Invocations), 0, 0, 1, 0, 0, 0),
 		)
 		if err != nil {
 			t.Fatal(err)

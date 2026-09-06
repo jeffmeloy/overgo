@@ -32,12 +32,19 @@ func run() error {
 	storePath := flag.String("store", "overgodb-store", "OvergoDB containing the active training recipe and policies")
 	recipeID := flag.String("recipe", "", "active training recipe artifact ID")
 	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish, verify, and activate a token-training recipe for the model weights file at this path, then exit")
+	previewDataset := flag.String("preview-dataset", "", "validate one speech training example from a source/split/policy JSON manifest without loading a model or updating parameters")
 	flag.Parse()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	if *previewDataset != "" {
+		if *bootstrapRecipe != "" || *recipeID != "" || *model != "" || *output != "" || *resume != "" {
+			return fmt.Errorf("train: -preview-dataset cannot be combined with model execution or recipe bootstrap")
+		}
+		return previewTrainingData(context.Background(), store, *previewDataset, os.Stdout)
+	}
 	if *bootstrapRecipe != "" {
 		return bootstrapTrainingRecipe(store, *bootstrapRecipe, *dataset)
 	}

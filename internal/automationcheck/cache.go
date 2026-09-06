@@ -80,14 +80,17 @@ func (cache *EvidenceCache) Record(invocation Invocation, input artifact.ID, evi
 
 // PackageInvocation identifies one package/mode pair independently of its
 // changing transitive inputs, so each pair owns exactly one replaceable slot.
+// Its policy excludes historical group-level passes lacking complete package
+// evidence; those entries must be reverified under per-package admission.
 func PackageInvocation(packagePath, mode string) (artifact.ID, error) {
 	if packagePath == "" || mode == "" {
 		return artifact.ID{}, fmt.Errorf("automation check: package invocation requires package and mode")
 	}
 	return artifact.JSONID(artifact.KindRecipe, struct {
+		Policy  string `json:"policy"`
 		Package string `json:"package"`
 		Mode    string `json:"mode"`
-	}{packagePath, mode})
+	}{"go-test-complete-package/v1", packagePath, mode})
 }
 
 // PackageReusable reports whether an exact package input already passed.

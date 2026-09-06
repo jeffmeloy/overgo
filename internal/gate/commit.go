@@ -925,6 +925,32 @@ func (g *gateContext) completionMessageFile(document plan.Plan) (string, error) 
 	return file.Name(), nil
 }
 
+// Preflight uses the same receipt derivation as final admission. The receipt
+// is discarded: the locked commit boundary must recheck current store authority.
+func (g *gateContext) preflightProjectedMergeCompletion() error {
+	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
+	if err != nil {
+		return err
+	}
+	item, step, found := strings.Cut(g.planRef, "/")
+	if !found {
+		return errors.New("projected merge preflight requires a completion reference")
+	}
+	child, err := plan.Advance(document, item, step)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.OpenReadOnly(filepath.Join(g.repo, g.storePath))
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	if _, err := g.deriveProjectedMergeAuthority(document, child, store); err != nil {
+		return fmt.Errorf("projected merge preflight: %w", err)
+	}
+	return nil
+}
+
 func (g *gateContext) deriveProjectedMergeAuthority(
 	preAdvance, child plan.Plan,
 	targetStore *overgodb.Store,

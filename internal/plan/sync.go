@@ -3,6 +3,7 @@ package plan
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -206,6 +207,15 @@ func mergeItem(base, local, upstream Item, completed func(string) bool) (Item, e
 		if step.Outcome, err = mergeSlice("step "+base.ID+"/"+id+" outcome", baseStep.Outcome, localStep.Outcome, upstreamStep.Outcome); err != nil {
 			return Item{}, err
 		}
+		switch {
+		case reflect.DeepEqual(localStep.VerificationBatch, upstreamStep.VerificationBatch),
+			reflect.DeepEqual(upstreamStep.VerificationBatch, baseStep.VerificationBatch):
+			step.VerificationBatch = localStep.VerificationBatch
+		case reflect.DeepEqual(localStep.VerificationBatch, baseStep.VerificationBatch):
+			step.VerificationBatch = upstreamStep.VerificationBatch
+		default:
+			return Item{}, fmt.Errorf("plan document: concurrent step %s/%s verification batch edits conflict", base.ID, id)
+		}
 		merged.Steps = append(merged.Steps, step)
 	}
 	if slices.ContainsFunc(merged.Steps, func(step Step) bool { return step.Status == StatusOpen }) {
@@ -272,5 +282,5 @@ func sameStep(left, right Step) bool {
 	return left.ID == right.ID && left.Title == right.Title && left.Status == right.Status &&
 		left.Verify == right.Verify && left.Rationale == right.Rationale &&
 		slices.Equal(left.DependsOn, right.DependsOn) && slices.Equal(left.Capabilities, right.Capabilities) &&
-		bytes.Equal(left.Outcome, right.Outcome)
+		bytes.Equal(left.Outcome, right.Outcome) && reflect.DeepEqual(left.VerificationBatch, right.VerificationBatch)
 }

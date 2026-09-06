@@ -293,6 +293,17 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	if lines := plan.FormatBlocked(plan.BlockedRows(document, frontier, authority)); lines != "" {
 		fmt.Fprintln(output, lines)
 	}
+	// Declared lanes: every ready row is charged in frontier order or
+	// waits with the reason.
+	if len(document.Lanes) != 0 {
+		assignments, err := plan.AssignSlots(document.Lanes, nil, plan.FrontierDemands(document, frontier))
+		if err != nil {
+			return err
+		}
+		if lines := plan.FormatSlotAssignments(assignments); lines != "" {
+			fmt.Fprintln(output, lines)
+		}
+	}
 	proceeding := 0
 	for _, row := range dispositions {
 		if row.Disposition == plan.DispositionProceed {

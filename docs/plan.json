@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "slot-cost-and-labels",
-          "title": "Declare slot cost in device and host units on rows and operations, and labels with capacity on lanes",
-          "status": "open",
-          "verify": "test -f internal/plan/capacity_test.go \u0026\u0026 go test ./internal/plan -run '^TestSlotCostAndLabelAssignment$' -count=1",
-          "rationale": "Design record E3. plan.Resources becomes the declaration the scheduler charges: a row reserves its cost on one lane, a lane declares labels and capacity, and a required label that no lane holds leaves the row waiting with that reason.",
-          "depends_on": [
-            "conditional-plan-rows/frontier-conditions"
-          ],
-          "capabilities": [
-            "slot-cost",
-            "lane-labels"
-          ]
-        },
-        {
           "id": "weighted-and-sticky-assignment",
           "title": "Assign by required labels, order by weight, break ties round-robin, and keep dependent rows sticky to the lane holding their resident model",
           "status": "open",

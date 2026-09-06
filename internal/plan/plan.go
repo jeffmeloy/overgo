@@ -64,6 +64,10 @@ type Step struct {
 	AcceptsRefusal []string `json:"accepts_refusal,omitempty"`
 	// Refusal: the recorded skip or cancel of this row.
 	Refusal *RowRefusal `json:"refusal,omitempty"`
+	// SlotCost: the units this row charges on the lane it is assigned to;
+	// Labels: its lane label demands (see capacity.go).
+	SlotCost *SlotCost          `json:"slot_cost,omitempty"`
+	Labels   []LabelRequirement `json:"labels,omitempty"`
 }
 
 // Item is one rung of the ladder.
@@ -80,7 +84,9 @@ type Plan struct {
 	Campaign string       `json:"campaign"`
 	Doctrine string       `json:"doctrine"`
 	Census   *artifact.ID `json:"census_evidence,omitempty"`
-	Items    []Item       `json:"items"`
+	// Lanes: the declared lanes rows are charged on; absent, no assignment.
+	Lanes []LaneCapacity `json:"lanes,omitempty"`
+	Items []Item         `json:"items"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -145,6 +151,9 @@ func validatePlanGraph(d Plan) error {
 	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
 		return errors.New("plan: census authority is not evidence")
 	}
+	if err := validateLanes(d.Lanes); err != nil {
+		return err
+	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
 		if !validPlanID(item.ID) || items[item.ID] {
@@ -179,6 +188,9 @@ func validatePlanGraph(d Plan) error {
 				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
 			}
 			if err := validateRefusal(step); err != nil {
+				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
+			}
+			if err := validateStepSlot(step); err != nil {
 				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
 			}
 		}

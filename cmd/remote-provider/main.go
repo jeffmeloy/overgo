@@ -27,15 +27,6 @@ import (
 // bound the server's generation catalog reads under.
 const catalogListingLimit = 256
 
-// declaration is the file form of one provider and the models it serves.
-type declaration struct {
-	Name           string   `json:"name"`
-	Endpoint       string   `json:"endpoint"`
-	KeyEnvironment string   `json:"key_environment"`
-	Models         []string `json:"models"`
-	ContextLength  uint32   `json:"context_length,omitzero"`
-}
-
 func main() {
 	clioptions.Main(func() error { return run(os.Args[1:], os.Stdout) })
 }
@@ -59,7 +50,7 @@ func run(args []string, output io.Writer) error {
 	defer store.Close()
 	ctx := context.Background()
 	if *declare != "" {
-		var document declaration
+		var document remoteprovider.Document
 		if err := jsonfile.DecodeStrict(*declare, &document); err != nil {
 			return err
 		}
@@ -67,17 +58,11 @@ func run(args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		for _, model := range document.Models {
-			declared, err := remoteprovider.Declare(ctx, store, remoteprovider.Provider{
-				Name: document.Name, Endpoint: document.Endpoint, KeyEnvironment: document.KeyEnvironment,
-				Model: model, ContextLength: document.ContextLength,
-			}, commit)
-			if err != nil {
-				return err
-			}
+		declarations, err := remoteprovider.DeclareDocument(ctx, store, document, commit)
+		for _, declared := range declarations {
 			fmt.Fprintf(output, "declared %s model=%s recipe=%s %s\n", declared.Location, declared.Model, declared.Recipe.ID, servability(declared.Provider))
 		}
-		return nil
+		return err
 	}
 	if *retire != "" {
 		commit, err := runrecord.ExecutableCodeCommit(".")

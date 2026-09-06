@@ -114,6 +114,38 @@ func Declare(ctx context.Context, store artifact.Repository, provider Provider, 
 	return declaration, nil
 }
 
+// Document is a provider declaration as the CLI file and the library
+// route carry it: one provider, the model ids it serves.
+type Document struct {
+	Name           string   `json:"name"`
+	Endpoint       string   `json:"endpoint"`
+	KeyEnvironment string   `json:"key_environment"`
+	Models         []string `json:"models"`
+	ContextLength  uint32   `json:"context_length,omitzero"`
+}
+
+// DeclareDocument declares every model of a document (each its own
+// manifest and activation over the one provider) and returns the
+// declarations in the document's order; a document naming no model is
+// refused.
+func DeclareDocument(ctx context.Context, store artifact.Repository, document Document, codeCommit string) ([]Declaration, error) {
+	if len(document.Models) == 0 {
+		return nil, errors.New("remote provider: the declaration names no model")
+	}
+	declarations := make([]Declaration, 0, len(document.Models))
+	for _, model := range document.Models {
+		declared, err := Declare(ctx, store, Provider{
+			Name: document.Name, Endpoint: document.Endpoint, KeyEnvironment: document.KeyEnvironment,
+			Model: model, ContextLength: document.ContextLength,
+		}, codeCommit)
+		if err != nil {
+			return declarations, err
+		}
+		declarations = append(declarations, declared)
+	}
+	return declarations, nil
+}
+
 // stepDuration: step duration since started; floor 1ns (records need a
 // positive duration; clock may not advance).
 func stepDuration(started time.Time) uint64 {

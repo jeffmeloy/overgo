@@ -576,6 +576,13 @@ derived from the server, not from client configuration:
   before the request rides on to the running child, which holds it too.
   Nothing writes the key to the store or a log; it lives in process memory
   until the proxy exits. The picker relists and the model serves.
+  A provider is declared from the Library tab as well: its form (name,
+  endpoint, key variable, model ids, context length) posts the same
+  document the command's file carries to `/library/register` under the
+  provider kind, the server commits it through the launcher's provider
+  intake under the executable's source commit, and the answer names each
+  declared location with the refusal its key's absence carries; the
+  catalog relists and the picker offers the models.
 - **Attachments as artifacts.** In a mode whose request names an artifact
   (the VQA image, LiveEdit's source clip), a file attached to the composer
   is stored before it is used: the page posts its bytes under their media

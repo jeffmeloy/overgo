@@ -489,6 +489,75 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
 		t.Log("key-entry leg: the keyless declaration served after the key was entered on the page")
 	}
+	// 15. Declare from the page: the Library tab's provider form commits a
+	// third fake provider (its key already in the environment); the picker
+	// lists the model, it serves and answers.
+	if entryName != "" {
+		pageFake, _ := relaytest.Serve(t, "", "lane-key", []string{"Hello", " from the page's provider"})
+		t.Setenv("OVERGO_WEBUI_LANE_PAGE_KEY", "lane-key")
+		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#library"; return true; })()`)
+		settle("the library tab shows the provider form", `!!document.querySelector("input[aria-label='provider name']")`)
+		// Registered before the form submits: a run that fails after the
+		// declaration still retires it, so no dead endpoint lingers under
+		// the location the next run declares.
+		t.Cleanup(func() { retireLaneRemote(t, store, "remote://webui-lane-page/lane/page-model") })
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      const fill = (label, value) => { document.querySelector("input[aria-label='provider " + label + "']").value = value; };
+      fill("name", "webui-lane-page"); fill("endpoint", `+strconv.Quote(pageFake.URL)+`); fill("key variable", "OVERGO_WEBUI_LANE_PAGE_KEY"); fill("model ids (comma-separated)", "lane/page-model");
+      [...document.querySelectorAll("button")].find((button) => button.textContent === "declare a hosted provider").click(); return true; })()`)
+		// A declaration is a store claim bound to the serving binary's source
+		// commit: a binary built from a modified tree is refused, so a lane
+		// run over a dirty tree sees the refusal on the page; the gate's clean
+		// candidate tree sees the declared location and serves it.
+		const declaredTag = `[...document.querySelectorAll(".tag")].some((tag) => tag.textContent.startsWith("remote://webui-lane-page/lane/page-model"))`
+		settle("the declaration answers with its location or the modified-tree refusal", declaredTag+` ||
+      [...document.querySelectorAll(".note")].some((note) => note.textContent.includes("worktree is dirty"))`)
+		var declaredOnPage bool
+		if err := browser.Evaluate(ctx, declaredTag, &declaredOnPage); err != nil {
+			t.Fatal(err)
+		}
+		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#chat"; return true; })()`)
+		settle("back on the front page", `!!document.querySelector("#panel-chat.active .composer textarea")`)
+		if !declaredOnPage {
+			t.Log("declare-from-page leg: the declaration was refused on a modified tree; the serve is proven on a clean tree")
+		} else {
+			switchTo("page-model")
+			say(t, ctx, browser, "hello from the page")
+			settle("the page-declared model answers", `!document.querySelector(".composer .btn").disabled &&
+      (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").includes("from the page's provider") &&
+      document.querySelectorAll("#panel-chat .msg.error").length === 0`)
+			t.Log("declare-from-page leg: a provider declared on the Library tab served a turn through the relay")
+		}
+	}
+}
+
+// retireLaneRemote retires every lane-store declaration at a location
+// once the journey ends (an earlier run that failed mid-leg may have left
+// one under the same location), so the catalog stops offering the fakes;
+// a location with no declaration is nothing to retire.
+func retireLaneRemote(t *testing.T, storePath, location string) {
+	t.Helper()
+	commit, err := runrecord.HeadCommit(testutil.RepoRoot(t))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	laneStore, err := overgodb.Open(storePath)
+	if err != nil {
+		t.Errorf("retire %s: %v", location, err)
+		return
+	}
+	defer laneStore.Close()
+	for {
+		err := remoteprovider.Retire(context.WithoutCancel(t.Context()), laneStore, 256, location, commit, "the browser lane's fake provider closed with the journey")
+		if err == nil {
+			continue
+		}
+		if !strings.Contains(err.Error(), "no declared model") {
+			t.Errorf("retire %s: %v", location, err)
+		}
+		return
+	}
 }
 
 // declareLaneRemote: declare a remote model (fake loopback provider
@@ -519,17 +588,7 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 		t.Logf("remote leg not taken: the store cannot take the declaration: %v", err)
 		return ""
 	}
-	t.Cleanup(func() {
-		laneStore, err := overgodb.Open(storePath)
-		if err != nil {
-			t.Errorf("retire the lane's remote declaration: %v", err)
-			return
-		}
-		defer laneStore.Close()
-		if err := remoteprovider.Retire(context.WithoutCancel(t.Context()), laneStore, 256, declaration.Location, commit, "the browser lane's fake provider closed with the journey"); err != nil {
-			t.Errorf("retire the lane's remote declaration: %v", err)
-		}
-	})
+	t.Cleanup(func() { retireLaneRemote(t, storePath, declaration.Location) })
 	return path.Base(declaration.Location)
 }
 

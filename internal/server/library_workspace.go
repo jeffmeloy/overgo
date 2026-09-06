@@ -46,6 +46,30 @@ type LibraryIntake struct {
 	ModelFiles func(path, explicitProjector string) (model, projectorPath string, err error)
 	Register   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (map[string]any, error)
 	Validate   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string, prompts []string, maxTokens int) (artifact.ID, operation.Executor, error)
+	// DeclareProvider declares a hosted provider's models in the store as
+	// the provider command does; absent, the provider kind answers that it
+	// needs it.
+	DeclareProvider func(ctx context.Context, repository *overgodb.Store, declaration ProviderDeclaration) ([]DeclaredProvider, error)
+}
+
+// ProviderDeclaration is a hosted provider and the model ids it serves,
+// as the library route takes it.
+type ProviderDeclaration struct {
+	Name           string
+	Endpoint       string
+	KeyEnvironment string
+	Models         []string
+	ContextLength  uint32
+}
+
+// DeclaredProvider is one declared hosted model the route answers: its
+// location, model and recipe identities, and the refusal its key's
+// absence carries now.
+type DeclaredProvider struct {
+	Location string `json:"location"`
+	Model    string `json:"model"`
+	Recipe   string `json:"recipe"`
+	Refusal  string `json:"refusal,omitzero"`
 }
 
 func (intake LibraryIntake) assembled() bool {
@@ -70,6 +94,12 @@ type libraryRegisterRequest struct {
 	Directory string `json:"directory,omitzero"`
 	Name      string `json:"name,omitzero"`
 	Modality  string `json:"modality,omitzero"`
+	// A provider declaration: the endpoint, the key's variable, the
+	// model ids and the declared context length.
+	Endpoint       string   `json:"endpoint,omitzero"`
+	KeyEnvironment string   `json:"key_environment,omitzero"`
+	Models         []string `json:"models,omitzero"`
+	ContextLength  uint32   `json:"context_length,omitzero"`
 }
 
 type libraryValidateRequest struct {
@@ -129,8 +159,22 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 			"kind": body.Kind, "name": body.Name, "dataset": registered.Dataset, "commit": registered.Commit,
 			"files": registered.Files, "bytes": registered.Bytes, "changed": registered.Changed,
 		})
+	case "provider":
+		declare := h.config.LibraryIntake.DeclareProvider
+		if declare == nil {
+			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider declaration needs the launcher's provider intake")
+			return
+		}
+		declared, err := declare(context.WithoutCancel(request.Context()), h.repository, ProviderDeclaration{
+			Name: body.Name, Endpoint: body.Endpoint, KeyEnvironment: body.KeyEnvironment, Models: body.Models, ContextLength: body.ContextLength,
+		})
+		if err != nil {
+			writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, map[string]any{"kind": body.Kind, "name": body.Name, "declared": declared})
 	default:
-		writeInvalidRequest(response, errors.New("library: kind must be model or dataset"))
+		writeInvalidRequest(response, errors.New("library: kind must be model, dataset or provider"))
 	}
 }
 

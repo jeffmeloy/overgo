@@ -398,6 +398,25 @@ What the rows established, each a record rather than a statement:
   and reads its answer. `TestModelSwapProxyTakesProviderKeys`,
   `TestProviderKeyRouteTakesTheLauncherIntake` and
   `TestSetKeyPlacesTheKeyInTheEnvironment` pin the three owners.
+- Declaration from the page (openrouter-declare-from-page):
+  `remoteprovider.Document` and `DeclareDocument` are the one owner of a
+  provider declaration, shared by `cmd/remote-provider -declare` and the
+  library route's provider kind; `LibraryIntake.DeclareProvider` is the
+  launcher-injected intake (`cmd/server` binds it under the executable's
+  source commit, answering each `DeclaredProvider` with its refusal), so
+  the server package names no provider type of its own. The Library tab's
+  "Hosted providers" form posts the document and shows each declared
+  location; the catalog relists. The lane's leg 15 opens the Library tab
+  by hash, fills the form for a third fake provider whose key is already
+  in the environment, reads the declared location, returns to the front
+  page, serves the model through the picker and reads its answer. A
+  declaration is a store claim bound to the serving binary's source commit
+  (`runrecord.ExecutableCodeCommit`, the command's rule): a binary built
+  from a modified tree is refused with that reason on the page, so the
+  leg proves the serve only on a clean tree, the gate's candidate, and
+  reads the refusal on a developer's dirty tree. The lane retires every
+  declaration it makes, including one an earlier failed run left under
+  the same location.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

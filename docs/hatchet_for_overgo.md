@@ -400,3 +400,25 @@ lane's measured run. Host rows land first.
 
 A row whose measurement shows no gain is closed with that outcome recorded;
 the campaign does not require every element to win.
+
+## Master pause and the batch-control checkpoints
+
+Master paused development on 2026-09-06 with a validation-batch-control row
+uncommitted. That row named four checkpoints, and each is one of the elements
+above applied to the gate:
+
+| Master checkpoint | Lane element and row |
+| --- | --- |
+| Persist terminal check successes and recover every outstanding check after a restart | E1 applied to the gate: `batch-flush-contracts/checkpoint-memo` |
+| Accept cumulative checkpoint promotion with measured savings | E7 with the memo: `batch-flush-contracts/gate-batch-cost` |
+| Enforce physical GPU ownership across worktrees and stores | E3, the host-wide device claim: `declared-capacity/exclusive-device-cost` |
+| Prove change selection against full-gate counterexamples | Measured by the gate cost record; selection itself stays with the gate's compiler-graph scope |
+
+The lane implements them on the existing gate and loop owners, additively and
+minimally, so that the later lane-to-master merge is small. Master's
+uncommitted work is not imported. The checkpoint memo is keyed by the candidate
+tree identity, the batch key and the checkpoint identifier; a changed candidate
+or key never matches, so reuse cannot admit stale evidence. The gate's own
+history in this lane motivates the row: five bootstrap gate runs and four
+flush-declaration runs each re-executed every phase from protection through
+the browser lane, when only the failing phase had changed.

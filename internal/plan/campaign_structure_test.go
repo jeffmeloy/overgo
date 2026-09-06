@@ -445,7 +445,7 @@ func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 		}
 	}
 	campaign := map[string]bool{
-		"campaign-definition": true, "durable-attempt-log": true, "deadlines-and-requeue": true,
+		"campaign-replan": true, "durable-attempt-log": true, "deadlines-and-requeue": true,
 		"conditional-plan-rows": true, "batch-flush-contracts": true, "declared-capacity": true,
 		"eviction-and-release": true, "keyed-admission": true, "schedule-pause": true,
 		"queue-observability": true, "serving-load-lane": true, "operator-references": true,

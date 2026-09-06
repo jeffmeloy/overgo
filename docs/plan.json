@@ -1,6 +1,6 @@
 {
   "campaign": "Hatchet-derived workflow contracts: durable attempts, declared capacity, keyed admission and conditional plan rows on existing Go owners",
-  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. docs/hatchet_for_overgo.md is the design record for this campaign and names, for every element, the observed Hatchet mechanism, the Overgo gap, the contract, the owner and the acceptance. No Hatchet source is copied, translated or vendored; every element is a contract restated on the existing Go owner that holds the neighbouring authority, and no parallel runtime, queue or expression language is added. Each row's verify names one acceptance test in the owning package guarded by the test file's existence; the acceptance names are planned work, not claims that the tests exist, and a row closes only when its named test executes and passes through the gate. Host rows land first; device tests are limited to eviction on the real device and the load lane's measured run, and a device verify carries its own OVERGO_CUDA_TEST and OVERGO_DATA_ROOT bindings. The lane cycle, in this order and repeated: merge current master into the lane except master's docs/plan.json, which never enters the lane; update this plan from the merged repository and its measured performance; execute the dispatched row; commit through the gate. Do not chase master during a row. One writer owns a plan edit and gates it. Findings outside the dispatched row are parked with cmd/finding, not folded in. Rows are ranked by their expected reduction of automation cost and their gain in development pace: gate wall per accepted row, re-executed work after interruption, and rows dispatched without operator intervention come before request-level admission, observability and serving measurement; a row's outcome records the measured change in those quantities. Audit language in code, evidence and commit messages is objective. Every element records the measurement that decides it: restart re-execution count, gate cost per accepted checkpoint, device idle time during host phases, and queued-to-first-token latency at declared concurrency; a row whose measurement shows no gain closes with that outcome recorded.",
+  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. docs/hatchet_for_overgo.md is the design record for this campaign and names, for every element, the observed Hatchet mechanism, the Overgo gap, the contract, the owner and the acceptance. No Hatchet source is copied, translated or vendored; every element is a contract restated on the existing Go owner that holds the neighbouring authority, and no parallel runtime, queue or expression language is added. Each row's verify names one acceptance test in the owning package guarded by the test file's existence; the acceptance names are planned work, not claims that the tests exist, and a row closes only when its named test executes and passes through the gate. Host rows land first; device tests are limited to eviction on the real device and the load lane's measured run, and a device verify carries its own OVERGO_CUDA_TEST and OVERGO_DATA_ROOT bindings. The lane cycle, in this order and repeated: merge current master into the lane except master's docs/plan.json, which never enters the lane; update this plan from the merged repository and its measured performance; execute the dispatched row; commit through the gate. Do not chase master during a row. One writer owns a plan edit and gates it. Findings outside the dispatched row are parked with cmd/finding, not folded in. Rows are ranked by their expected reduction of automation cost and their gain in development pace: gate wall per accepted row, re-executed work after interruption, and rows dispatched without operator intervention come before request-level admission, observability and serving measurement; a row's outcome records the measured change in those quantities. Audit language in code, evidence and commit messages is objective. Every element records the measurement that decides it: restart re-execution count, gate cost per accepted checkpoint, device idle time during host phases, and queued-to-first-token latency at declared concurrency; a row whose measurement shows no gain closes with that outcome recorded. Master paused development on 2026-09-06; this lane is the active development line. Gate mechanisms that master's paused validation-batch-control row also named, namely accepted-checkpoint evidence reuse across gate runs, gate wall per accepted checkpoint, and a host-wide exclusive device claim across worktrees and stores, are implemented here on the existing gate and loop owners, additively and minimally, so the later lane-to-master merge stays small; master's uncommitted work is never imported. Rows that subdivide declare a verification batch with a flush declaration of their own, so the campaign measures the mechanism it ships.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
@@ -9,13 +9,27 @@
       "status": "open",
       "steps": [
         {
-          "id": "gate-batch-cost",
-          "title": "Record gate cost per accepted checkpoint before and after batch flushing",
+          "id": "checkpoint-memo",
+          "title": "Persist accepted checkpoint evidence per candidate identity and batch key so a re-run of the same candidate reuses it",
           "status": "open",
-          "verify": "test -f internal/gate/batch_cost_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchedGateCostEvidence$' -count=1",
-          "rationale": "The measurement that decides this element is wall time per accepted checkpoint. The gate records it as evidence for the same declared batch before and after flushing, and the row closes with the comparison recorded whatever its sign.",
+          "verify": "test -f internal/gate/checkpoint_memo_test.go \u0026\u0026 go test ./internal/gate -run '^TestCheckpointEvidenceReuseAcrossRuns$' -count=1",
+          "rationale": "Design record E1 applied to the gate: each accepted checkpoint is a memo keyed by the candidate tree identity, the batch key and the checkpoint id. A gate run of the same candidate reads the memo instead of re-executing the checkpoint and records the reuse; a changed candidate or key never matches. This is the paused master terminal-evidence-resume and cumulative-promotion checkpoints on the existing evidence cache owner.",
           "depends_on": [
             "batch-flush-contracts/flush-conditions"
+          ],
+          "capabilities": [
+            "checkpoint-memo",
+            "restart-safe-verification"
+          ]
+        },
+        {
+          "id": "gate-batch-cost",
+          "title": "Record gate wall per accepted checkpoint and the re-run savings from checkpoint reuse, before and after",
+          "status": "open",
+          "verify": "test -f internal/gate/batch_cost_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchedGateCostEvidence$' -count=1",
+          "rationale": "The measurement that decides E7 and the memo: wall per accepted checkpoint from the stored gate result steps, and the wall a re-run saved by reusing memoised checkpoints, recorded as evidence for the same declared batch before and after. The row closes with the comparison recorded whatever its sign.",
+          "depends_on": [
+            "batch-flush-contracts/checkpoint-memo"
           ],
           "capabilities": [
             "gate-cost-evidence"
@@ -186,6 +200,40 @@
       ]
     },
     {
+      "id": "operator-references",
+      "title": "Diagnose and replay one plan row from its records",
+      "status": "open",
+      "steps": [
+        {
+          "id": "diagnose-row",
+          "title": "Render a state-keyed diagnosis of one plan row from its attempt records and evidence tails",
+          "status": "open",
+          "verify": "test -f cmd/plan/diagnose_test.go \u0026\u0026 go test ./cmd/plan -run '^TestDiagnoseRowReference$' -count=1",
+          "rationale": "Design record E11. The command prints the row's state, its attempt records in order, bounded evidence tails, and the next action keyed on the observed state, so an operator or an agent diagnoses a stuck or failed row from one tool.",
+          "depends_on": [
+            "durable-attempt-log/attempt-identity"
+          ],
+          "capabilities": [
+            "row-diagnosis"
+          ]
+        },
+        {
+          "id": "replay-attempt",
+          "title": "Replay one attempt from its receipt with the same or new inputs",
+          "status": "open",
+          "verify": "test -f internal/loop/replay_test.go \u0026\u0026 go test ./internal/loop -run '^TestReplayAttemptFromReceipt$' -count=1",
+          "rationale": "A recorded attempt is re-run from its receipt under a new invocation count, reading memoised results where the inputs are unchanged and executing where they differ, which is the replay reference an agent uses after a diagnosis.",
+          "depends_on": [
+            "operator-references/diagnose-row",
+            "durable-attempt-log/memo-replay"
+          ],
+          "capabilities": [
+            "attempt-replay"
+          ]
+        }
+      ]
+    },
+    {
       "id": "declared-capacity",
       "title": "Declare slot cost, lane labels and sticky assignment on the existing schedulers",
       "status": "open",
@@ -220,51 +268,18 @@
         },
         {
           "id": "exclusive-device-cost",
-          "title": "Express exclusive device rows as full device cost and admit host rows beside them",
+          "title": "Admit exclusive device rows through one host-wide device claim across worktrees and stores, and run host rows beside them",
           "status": "open",
-          "verify": "test -f internal/loop/exclusive_device_test.go \u0026\u0026 go test ./internal/loop -run '^TestExclusiveDeviceRowsAdmitHostRows$' -count=1",
-          "rationale": "The rule that device timing runs alone becomes a cost equal to the lane's device capacity. The driver proves that host-only rows dispatch while an exclusive device row runs and that a second device row waits with the capacity reason recorded.",
+          "verify": "test -f internal/gate/device_claim_test.go \u0026\u0026 go test ./internal/gate -run '^TestHostWideDeviceClaim$' -count=1 \u0026\u0026 test -f internal/loop/exclusive_device_test.go \u0026\u0026 go test ./internal/loop -run '^TestExclusiveDeviceRowsAdmitHostRows$' -count=1",
+          "rationale": "A device row's cost equals the lane's device capacity, and the claim it takes is host-wide: recorded where every worktree and store can see it, so two lanes cannot both time on the device. The driver proves host-only rows dispatch beside an exclusive device row and a second device row waits with the claim holder recorded. This is the paused master exclusive-gpu-admission checkpoint on the existing gate device phase.",
           "depends_on": [
             "declared-capacity/weighted-and-sticky-assignment",
             "deadlines-and-requeue/schedule-and-execution-deadlines"
           ],
           "capabilities": [
             "exclusive-device-by-cost",
+            "host-wide-device-claim",
             "parallel-host-rows"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "operator-references",
-      "title": "Diagnose and replay one plan row from its records",
-      "status": "open",
-      "steps": [
-        {
-          "id": "diagnose-row",
-          "title": "Render a state-keyed diagnosis of one plan row from its attempt records and evidence tails",
-          "status": "open",
-          "verify": "test -f cmd/plan/diagnose_test.go \u0026\u0026 go test ./cmd/plan -run '^TestDiagnoseRowReference$' -count=1",
-          "rationale": "Design record E11. The command prints the row's state, its attempt records in order, bounded evidence tails, and the next action keyed on the observed state, so an operator or an agent diagnoses a stuck or failed row from one tool.",
-          "depends_on": [
-            "durable-attempt-log/attempt-identity"
-          ],
-          "capabilities": [
-            "row-diagnosis"
-          ]
-        },
-        {
-          "id": "replay-attempt",
-          "title": "Replay one attempt from its receipt with the same or new inputs",
-          "status": "open",
-          "verify": "test -f internal/loop/replay_test.go \u0026\u0026 go test ./internal/loop -run '^TestReplayAttemptFromReceipt$' -count=1",
-          "rationale": "A recorded attempt is re-run from its receipt under a new invocation count, reading memoised results where the inputs are unchanged and executing where they differ, which is the replay reference an agent uses after a diagnosis.",
-          "depends_on": [
-            "operator-references/diagnose-row",
-            "durable-attempt-log/memo-replay"
-          ],
-          "capabilities": [
-            "attempt-replay"
           ]
         }
       ]
@@ -482,7 +497,45 @@
           "capabilities": [
             "measured-closeout",
             "readme-manifest"
-          ]
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/gate",
+              "internal/agentloop",
+              "internal/plan",
+              "cmd/load-lane"
+            ],
+            "rationale": "The closeout's four measurements are independent acceptances that accumulate under the campaign's own flush declaration.",
+            "reopen_when": "Any measured element is re-run or a measurement owner changes.",
+            "checkpoints": [
+              {
+                "id": "gate-cost",
+                "title": "Gate wall per accepted checkpoint before and after",
+                "verify": "go test ./internal/gate -run '^TestBatchedGateCostEvidence$' -count=1"
+              },
+              {
+                "id": "checkpoint-reuse",
+                "title": "Re-run savings from checkpoint reuse",
+                "verify": "go test ./internal/gate -run '^TestCheckpointEvidenceReuseAcrossRuns$' -count=1"
+              },
+              {
+                "id": "restart-reexecution",
+                "title": "Tool calls replay without re-execution",
+                "verify": "go test ./internal/agentloop -run '^TestToolCallsReplayAsChildAttempts$' -count=1"
+              },
+              {
+                "id": "load-floors",
+                "title": "Serving load collector and floors",
+                "verify": "go test ./cmd/load-lane -run '^TestLoadLaneTimingCollector$' -count=1"
+              }
+            ],
+            "flush": {
+              "key": "measurement",
+              "max_size": 4,
+              "max_interval": "1h",
+              "max_bytes": 1048576
+            }
+          }
         }
       ]
     },

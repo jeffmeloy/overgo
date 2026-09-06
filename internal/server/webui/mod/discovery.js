@@ -137,15 +137,27 @@
       // ---- a hosted provider: the declaration the CLI file carries, committed through the library route; the catalog relists ----
       const providerFields = ["name", "endpoint", "key variable", "model ids (comma-separated)", "context length (optional)"].map((placeholder) => el("input", { class: "text", placeholder, "aria-label": "provider " + placeholder }));
       const providerNote = el("span", { class: "note" });
+      const providerListing = el("span", { class: "row" });
+      const providerValues = () => providerFields.map((field) => field.value.trim());
       const providerButton = el("button", { class: "btn alt", text: "declare a hosted provider", onclick: async () => {
-        const [name, endpoint, keyEnvironment, models, contextLength] = providerFields.map((field) => field.value.trim());
+        const [name, endpoint, keyEnvironment, models, contextLength] = providerValues();
         try {
           const declared = await overgo.api.post("/library/register", { kind: "provider", name, endpoint, key_environment: keyEnvironment, models: models.split(",").map((id) => id.trim()).filter(Boolean), context_length: Number(contextLength) || 0 });
           providerNote.replaceChildren(...(declared.declared || []).map((item) => el("span", { class: "tag", title: item.recipe, text: item.location + (item.refusal ? " · " + item.refusal : "") })));
           refreshCatalog();
         } catch (err) { providerNote.textContent = overgo.friendlyError(err); }
       } });
-      panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, providerButton), providerNote);
+      // The provider's own listing (its key gates it): a listed model picked here fills the model ids and its declared context length.
+      const listButton = el("button", { class: "btn alt", text: "list the provider's models", onclick: async () => {
+        const [, endpoint, keyEnvironment] = providerValues();
+        try {
+          const listed = await overgo.api.get("/library/providers/models?endpoint=" + encodeURIComponent(endpoint) + "&key_environment=" + encodeURIComponent(keyEnvironment));
+          providerListing.replaceChildren(...(listed.models || []).map((model) => el("button", { class: "btn alt", text: model.id + (model.context_length ? " · " + model.context_length : ""), title: model.name || model.id, onclick: () => {
+            providerFields[3].value = [...providerFields[3].value.split(",").map((id) => id.trim()).filter(Boolean), model.id].join(", "); if (model.context_length) providerFields[4].value = String(model.context_length);
+          } })));
+        } catch (err) { providerNote.textContent = overgo.friendlyError(err); }
+      } });
+      panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote);
 
       refreshCatalog();
       this.onActivate = () => jobPoller.start();

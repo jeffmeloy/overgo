@@ -582,7 +582,19 @@ derived from the server, not from client configuration:
   provider kind, the server commits it through the launcher's provider
   intake under the executable's source commit, and the answer names each
   declared location with the refusal its key's absence carries; the
-  catalog relists and the picker offers the models.
+  catalog relists and the picker offers the models. The form also asks
+  the provider for the models it serves: `/library/providers/models`
+  fetches the endpoint's models listing under the key its variable holds
+  (the OpenAI-compatible listing carries each id; OpenRouter's adds the
+  name and context length), and a listed model picked on the page fills
+  the model ids and the declared context length, so a declaration names
+  only models the provider lists. The form also asks
+  the provider for its own model listing (`GET
+  /library/providers/models`, the provider's models route under the key
+  its variable holds, so the key gates it): each listed model is offered
+  with the context length it declares, and picking one fills the model
+  ids and that context length, so a declaration made from the page names
+  only models the provider lists.
 - **Attachments as artifacts.** In a mode whose request names an artifact
   (the VQA image, LiveEdit's source clip), a file attached to the composer
   is stored before it is used: the page posts its bytes under their media

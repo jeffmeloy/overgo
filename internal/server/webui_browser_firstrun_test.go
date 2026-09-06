@@ -68,6 +68,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// Leg 14's keyless model: declared with its variable empty; the page
 	// enters the key, which the proxy (this process) and the child take.
 	t.Setenv("OVERGO_WEBUI_LANE_ENTRY_KEY", "")
+	// Leg 15's page-declared provider: its key set before any child launches, so the running child can list and serve it.
+	t.Setenv("OVERGO_WEBUI_LANE_PAGE_KEY", "lane-key")
 	entryName := declareLaneRemote(t, store, "webui-lane-entry", "OVERGO_WEBUI_LANE_ENTRY_KEY", "", []string{"Hello", " after the key"})
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
 	if err != nil {
@@ -493,17 +495,24 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// third fake provider (its key already in the environment); the picker
 	// lists the model, it serves and answers.
 	if entryName != "" {
-		pageFake, _ := relaytest.Serve(t, "", "lane-key", []string{"Hello", " from the page's provider"})
-		t.Setenv("OVERGO_WEBUI_LANE_PAGE_KEY", "lane-key")
+		pageFake, _ := relaytest.ServeListing(t, "", "lane-key", []string{"Hello", " from the page's provider"}, []relaytest.Model{{ID: "lane/page-model", Name: "Page model", ContextLength: 4096}})
 		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#library"; return true; })()`)
 		settle("the library tab shows the provider form", `!!document.querySelector("input[aria-label='provider name']")`)
 		// Registered before the form submits: a run that fails after the
 		// declaration still retires it, so no dead endpoint lingers under
 		// the location the next run declares.
 		t.Cleanup(func() { retireLaneRemote(t, store, "remote://webui-lane-page/lane/page-model") })
+		// The provider's own listing fills the model id and its context
+		// length; the page never types a model id it did not see listed.
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       const fill = (label, value) => { document.querySelector("input[aria-label='provider " + label + "']").value = value; };
-      fill("name", "webui-lane-page"); fill("endpoint", `+strconv.Quote(pageFake.URL)+`); fill("key variable", "OVERGO_WEBUI_LANE_PAGE_KEY"); fill("model ids (comma-separated)", "lane/page-model");
+      fill("name", "webui-lane-page"); fill("endpoint", `+strconv.Quote(pageFake.URL)+`); fill("key variable", "OVERGO_WEBUI_LANE_PAGE_KEY");
+      [...document.querySelectorAll("button")].find((button) => button.textContent === "list the provider's models").click(); return true; })()`)
+		settle("the provider lists its model", `[...document.querySelectorAll("button")].some((button) => button.textContent === "lane/page-model · 4096")`)
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      [...document.querySelectorAll("button")].find((button) => button.textContent === "lane/page-model · 4096").click();
+      const value = (label) => document.querySelector("input[aria-label='provider " + label + "']").value;
+      if (value("model ids (comma-separated)") !== "lane/page-model" || value("context length (optional)") !== "4096") return false;
       [...document.querySelectorAll("button")].find((button) => button.textContent === "declare a hosted provider").click(); return true; })()`)
 		// A declaration is a store claim bound to the serving binary's source
 		// commit: a binary built from a modified tree is refused, so a lane

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"overgo/internal/libraryintake"
@@ -85,6 +86,20 @@ func declareProvider(ctx context.Context, store *overgodb.Store, declaration lla
 	return declared, err
 }
 
+// listProviderModels is the library route's listing intake: the provider
+// at the endpoint lists its models under the key its variable holds.
+func listProviderModels(ctx context.Context, endpoint, keyEnvironment string) ([]llamaserver.ProviderModel, error) {
+	listed, err := remoterelay.ListModels(ctx, remoteprovider.Provider{Endpoint: strings.TrimRight(endpoint, "/"), KeyEnvironment: keyEnvironment}, nil)
+	if err != nil {
+		return nil, err
+	}
+	models := make([]llamaserver.ProviderModel, 0, len(listed))
+	for _, model := range listed {
+		models = append(models, llamaserver.ProviderModel{ID: model.ID, Name: model.Name, ContextLength: model.ContextLength})
+	}
+	return models, nil
+}
+
 // providerKeys is the server's provider-key intake: the key the page
 // enters for a hosted model lands in this process's environment (never
 // on disk); the variable's name comes back.
@@ -127,7 +142,7 @@ func serveRemote(ctx context.Context, remote *remoteServing, options remoteServe
 		MaxStoredResponses: options.storedResponses, ResponseStoreBytes: options.responseStoreBytes,
 		OvergoDBPath: options.repository, Repository: workspaceStore, Environment: environment,
 		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: options.hubRoot, WebUIDir: options.webuiDir,
-		LibraryIntake: llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate, DeclareProvider: declareProvider},
+		LibraryIntake: llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate, DeclareProvider: declareProvider, ListProviderModels: listProviderModels},
 		ProviderKeys:  providerKeys,
 	}, &remoteRuntime{Generator: generator, WorkflowWorkspaceAPI: llamaserver.WorkflowWorkspaceSet{generation}})
 	if err != nil {

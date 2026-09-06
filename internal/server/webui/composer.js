@@ -262,9 +262,7 @@
     // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
     function openPicker() { picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
     const attach = accept.length ? el("button", { class: "btn alt", onclick: openPicker }, options.attachLabel || "attach") : null;
-    const modeSelect = options.modes && options.modes.length > 1
-      ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label })))
-      : null;
+    const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
     const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, modeHost, ...(options.controls || []));
@@ -274,11 +272,8 @@
     function renderAttachments() {
       attachmentHost.replaceChildren(...attachments.map((item, index) => {
         const remove = el("button", { class: "btn alt", text: "×", onclick: () => { attachments.splice(index, 1); renderAttachments(); } });
-        const preview = item.refusal ? el("span", { class: "tag control", text: "refused" })
-          : item.kind === "image" ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-            : item.kind === "video" ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-              : item.kind === "audio" ? el("audio", { src: item.dataURL, controls: "" })
-                : el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
+        const preview = item.refusal ? el("span", { class: "tag control", text: "refused" }) : item.kind === "image" ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
+          : item.kind === "video" ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" }) : item.kind === "audio" ? el("audio", { src: item.dataURL, controls: "" }) : el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
         return el("span", { class: "card" + (item.refusal ? " refused" : "") }, preview, " " + item.name + " ",
           item.refusal ? el("span", { class: "note", text: item.refusal }) : item.artifact ? el("span", { class: "note" }, "stored as ", overgo.artifactLink(item.artifact)) : null, remove);
       }));

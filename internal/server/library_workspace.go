@@ -50,6 +50,18 @@ type LibraryIntake struct {
 	// the provider command does; absent, the provider kind answers that it
 	// needs it.
 	DeclareProvider func(ctx context.Context, repository *overgodb.Store, declaration ProviderDeclaration) ([]DeclaredProvider, error)
+	// ListProviderModels asks a hosted provider for the models it serves,
+	// under the key its variable holds; absent, the listing route answers
+	// that it needs it.
+	ListProviderModels func(ctx context.Context, endpoint, keyEnvironment string) ([]ProviderModel, error)
+}
+
+// ProviderModel is one model a hosted provider lists: its id, a display
+// name when listed, and the context length it declares (zero unstated).
+type ProviderModel struct {
+	ID            string `json:"id"`
+	Name          string `json:"name,omitzero"`
+	ContextLength uint32 `json:"context_length,omitzero"`
 }
 
 // ProviderDeclaration is a hosted provider and the model ids it serves,
@@ -176,6 +188,32 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 	default:
 		writeInvalidRequest(response, errors.New("library: kind must be model, dataset or provider"))
 	}
+}
+
+// libraryProviderModels answers GET /library/providers/models: the
+// provider named by endpoint and key variable lists its models through
+// the launcher's intake, so the page declares from the provider's own
+// listing with each model's declared context length.
+func (h *Handler) libraryProviderModels(response http.ResponseWriter, request *http.Request) {
+	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	endpoint, variable := strings.TrimSpace(request.URL.Query().Get("endpoint")), strings.TrimSpace(request.URL.Query().Get("key_environment"))
+	if endpoint == "" || variable == "" {
+		writeInvalidRequestMessage(response, "library: endpoint and key_environment are required")
+		return
+	}
+	list := h.config.LibraryIntake.ListProviderModels
+	if list == nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider listing needs the launcher's provider intake")
+		return
+	}
+	models, err := list(request.Context(), endpoint, variable)
+	if err != nil {
+		writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"endpoint": endpoint, "models": models})
 }
 
 // libraryValidate answers POST /library/validate: the validation runs as an

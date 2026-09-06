@@ -409,7 +409,7 @@ func run() error {
 		Evaluation:         evaluationWorkspace,
 		AgentEmbedder:      agentRetrieval,
 		AgentReranker:      agentRetrieval,
-		LibraryIntake:      llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate, DeclareProvider: declareProvider},
+		LibraryIntake:      llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate, DeclareProvider: declareProvider, ListProviderModels: listProviderModels},
 		ProviderKeys:       providerKeys,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,

@@ -65,9 +65,7 @@
       const maxTokens = el("input", { class: "keyfield", type: "number", value: params.max_tokens, max: contextLength, style: "width:90px" });
       const reset = el("button", { class: "btn alt", onclick: () => overgo.openConversation(null) }, "new");
 
-      panel.append(
-        el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system),
-        facts);
+      panel.append(el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system), facts);
       // artifactField: the mode's artifact-typed control, if any. A media card re-enters the composer as the next
       // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
       // a fresh attachment in such a mode stores through the intake route and fills the control.
@@ -81,9 +79,7 @@
         intake: (file) => { const field = artifactField(); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => (field.input.value = stored.id)) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; renderMode(mode); },
-        controls: [reset,
-          el("span", { class: "note", text: "temp" }), temperature,
-          el("span", { class: "note", text: "max tokens" }), maxTokens],
+        controls: [reset, el("span", { class: "note", text: "temp" }), temperature, el("span", { class: "note", text: "max tokens" }), maxTokens],
       });
       panel.insertBefore(agentHost, composer.element);
 
@@ -126,9 +122,7 @@
         el("h2", { text: capabilities.name || modelID }),
         el("div", { class: "note", text: (served && overgo.evidenceLine(served)) || "no committed evidence yet" }),
         el("div", null, ...declared.map((label) => el("span", { class: "tag", text: label }))),
-        el("div", { class: "starters" },
-          el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() }),
-          el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
+        el("div", { class: "starters" }, el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() }), el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
           el("button", { class: "btn alt", text: "Switch model", onclick: () => document.getElementById("model-pill").click() })));
       panel.insertBefore(welcome, thread.node);
 
@@ -160,9 +154,7 @@
         return [{ role: "user", content: parts.length ? content : text }];
       }
 
-      function streamTurn(path, body, method) {
-        return overgo.api.stream(path, body, { signal: controller.signal, method });
-      }
+      function streamTurn(path, body, method) { return overgo.api.stream(path, body, { signal: controller.signal, method }); }
 
       // consumeTurn drives one streamed turn: the created id is noted so a reload can reattach, the completion id becomes latest.
       async function consumeTurn(response, assistant, inputTokens) {

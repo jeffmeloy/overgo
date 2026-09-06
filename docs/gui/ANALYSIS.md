@@ -417,6 +417,17 @@ What the rows established, each a record rather than a statement:
   reads the refusal on a developer's dirty tree. The lane retires every
   declaration it makes, including one an earlier failed run left under
   the same location.
+- The provider's own listing (openrouter-model-listing):
+  `remoterelay.ListModels` reads the provider's models route under the
+  key (the OpenAI-compatible `data[].id`, with OpenRouter's name and
+  context length), bounded and with the provider's refusal as the error;
+  `LibraryIntake.ListProviderModels` is the launcher-injected intake
+  behind `GET /library/providers/models?endpoint=&key_environment=`; the
+  Library form's "list the provider's models" renders each listed model as
+  a control that fills the model ids and the declared context length.
+  `relaytest.ServeListing` gives the fake a models route; the lane's leg
+  15 now lists the fake's model, picks it (the form's fields fill from
+  the listing) and declares from that.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

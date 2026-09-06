@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "flush-conditions",
-          "title": "Declare keyed verification and evaluation batches with size, interval and byte flush bounds",
-          "status": "open",
-          "verify": "test -f internal/plan/batch_flush_test.go \u0026\u0026 go test ./internal/plan -run '^TestBatchFlushDeclarations$' -count=1",
-          "rationale": "Design record E7. A batch flushes deterministically when it reaches its maximum size, its maximum interval since the last flush, or its byte bound; keys never mix. The existing VerificationBatch gains the flush declaration rather than a new batch owner.",
-          "depends_on": [
-            "campaign-definition/author-plan"
-          ],
-          "capabilities": [
-            "keyed-batch-flush",
-            "deterministic-flush"
-          ]
-        },
-        {
           "id": "gate-batch-cost",
           "title": "Record gate cost per accepted checkpoint before and after batch flushing",
           "status": "open",

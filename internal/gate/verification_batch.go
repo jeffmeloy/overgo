@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
-	"time"
 
 	"overgo/internal/automationcheck"
 	"overgo/internal/plan"
@@ -44,13 +43,10 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 		return nil, errors.New("acceptance: batch requires the parent integration check")
 	}
 	parent := &checks[index].Descriptor
-	// Declared flush bounds: accepted checkpoints accumulate per key; the
-	// decision and its reason join the audit so gate cost per flushed batch is
-	// attributable. Absent declaration -> no accumulation.
-	var accumulator *plan.BatchAccumulator
+	// Declared flush bounds are validated here; the flush itself is decided
+	// by the parent acceptance over durable obligations.
 	if batch.Flush != nil {
-		var err error
-		if accumulator, err = plan.NewBatchAccumulator(*batch.Flush); err != nil {
+		if _, err := plan.NewBatchAccumulator(*batch.Flush); err != nil {
 			return nil, fmt.Errorf("acceptance: %w", err)
 		}
 	}
@@ -61,6 +57,7 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 		return nil, fmt.Errorf("acceptance: %w", err)
 	}
 	g.checkpointMemos = memos
+	g.verificationBatch = batch
 	g.audit = append(g.audit, fmt.Sprintf("checkpoint memo: key=%s checkpoints=%d", checkpointMemoKey(g.planRef, batch), len(memos)))
 	var added []automationcheck.Check
 	for _, checkpoint := range batch.Checkpoints {
@@ -75,14 +72,6 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 				return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
 			}
 			g.stepEvidence[checkpoint.GateCheckName()] = evidence
-			if accumulator != nil {
-				state, flush, reason, err := accumulator.Add(batch.Flush.Key, int64(len(evidence)), time.Now())
-				if err != nil {
-					return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
-				}
-				g.audit = append(g.audit, fmt.Sprintf("batch flush: checkpoint=%s key=%s size=%d bytes=%d flush=%t reason=%q",
-					checkpoint.ID, state.Key, state.Size, state.Bytes, flush, reason))
-			}
 			return false, nil
 		})
 		// Run subordinate verifiers serially: each owns the temporary worktree

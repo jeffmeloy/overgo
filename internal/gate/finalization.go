@@ -192,6 +192,11 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	// Cost per accepted checkpoint and reuse saving against this row's prior
 	// gate results; advisory audit, derived from stored results only.
 	g.batchCostAudit(context.Background(), store, g.steps)
+	// Accepted checkpoints persist as obligations on every outcome; a flush
+	// promotes them with this result.
+	if err := g.appendCheckpointObligations(&batch, record.Result.ID, outcome); err != nil {
+		return g.oweRecord(batch, err)
+	}
 	if err := requireSoleCurrentGatePreparation(
 		context.Background(), store, g.preparation, g.preparationCommit,
 	); err != nil {

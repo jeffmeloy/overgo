@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-checkpoints",
-      "title": "Make checkpoint reuse durable, complete, selection-safe and governed",
-      "status": "open",
-      "steps": [
-        {
-          "id": "governed-promotion",
-          "title": "Make a flush declaration a durable deferred obligation with governed checkpoint promotion",
-          "status": "open",
-          "verify": "test -f internal/gate/batch_promotion_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchPromotionControl$' -count=1",
-          "rationale": "Review finding 4, first part. Recording flush decisions in an audit line does not control an integration boundary. Accepted checkpoints under a declared flush become durable obligations in the store; a flush promotes the accumulated obligations through the full gate once, and an unflushed obligation survives restart and cannot be promoted by a stale candidate. The name matches the paused master checkpoint.",
-          "depends_on": [
-            "gate-checkpoints/cost-report-scope"
-          ],
-          "capabilities": [
-            "durable-obligations",
-            "governed-promotion"
-          ]
-        }
-      ]
-    },
-    {
       "id": "device-exclusion",
       "title": "Enforce physical device exclusion across worktrees and stores",
       "status": "open",

@@ -1168,6 +1168,14 @@ func (g *gateContext) stepAcceptance() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	// Flush governance precedes the parent verifier: accepted checkpoints
+	// are obligations either way; completion needs the flush.
+	if err := g.decideCheckpointPromotion(context.Background(), time.Now()); err != nil {
+		return false, err
+	}
+	if err := g.requireFlushedPromotion(); err != nil {
+		return false, err
+	}
 	if err := g.verifyAcceptedCandidate(contract.verify, true); err != nil {
 		return false, err
 	}

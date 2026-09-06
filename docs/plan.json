@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "hosted-evaluation-coverage",
-      "title": "Cover the hosted-evaluation contract extensions for shared-owner acceptance: evaluation.PromptingHostedChat with the generated-letter-hosted method, modelrecipe.PublishRemoteModelDefinition, discovery remote catalog entries and inference.Usage with OnUsage get protocol tests at their package boundaries, and docs/gui/ANALYSIS.md records each extension, its owning package and its acceptance, so HTTP usability work does not silently define master model-validation policy",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cover the hosted-evaluation contract extensions for shared-owner acceptance: evaluation.PromptingHostedChat with the generated-letter-hosted method, modelrecipe.PublishRemoteModelDefinition, discovery remote catalog entries and inference.Usage with OnUsage get protocol tests at their package boundaries, and docs/gui/ANALYSIS.md records each extension, its owning package and its acceptance, so HTTP usability work does not silently define master model-validation policy",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "integrate-to-master",
       "title": "Integrate the settled lane into master preserving master plan: merge the lane branch into master with master docs/plan.json untouched (the lane plan never merges), the merge gate green on master, and the lane rebased on the merged master; executed from the master worktree only with the owner go-ahead",
       "owner": "professional_overgo_gui",

@@ -37,6 +37,12 @@ func TestPromptingIsAPlanAuthority(t *testing.T) {
 	if hostedPlan.Identity() == templatedPlan.Identity() || hostedPlan.Execution() == templatedPlan.Execution() || hostedPlan.Identity() == rawPlan.Identity() {
 		t.Fatal("hosted prompting did not change the plan identity")
 	}
+	// The scorer authority is the protocol's own: a hosted record binds a
+	// scorer distinct from the templated and the likelihood scorers, so it
+	// can never be read as either.
+	if hostedPlan.body.Scorer == templatedPlan.body.Scorer || hostedPlan.body.Scorer == rawPlan.body.Scorer || templatedPlan.body.Scorer == rawPlan.body.Scorer {
+		t.Fatalf("scorer authorities coincide: hosted %s templated %s raw %s", hostedPlan.body.Scorer, templatedPlan.body.Scorer, rawPlan.body.Scorer)
+	}
 	invalid := raw
 	invalid.Execution.Prompting = "few-shot"
 	if _, err := BindMultipleChoice(compiled, invalid); err == nil {

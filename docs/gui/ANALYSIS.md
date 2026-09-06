@@ -490,3 +490,23 @@ Additional facts for the master merge:
   cfe9a4a2.
 - The runtime event stream reconnects while anyone listens and an operation
   wait falls back to `/operations/wait` when the stream breaks under a swap.
+
+## Hosted-evaluation contract extensions (2026-09-06)
+
+The hosted-provider rows (relay, page, evals, key entry, declaration,
+listing, usage, retirement) extended contracts beyond the HTTP package.
+Each extension is listed with its owning package, the test that pins it
+there, and what master's owner accepts at integration; none of them
+changes a local model's validation policy, and every hosted record is
+marked as not reproducible from the store.
+
+| Extension | Owner package | Pinned by | Accepted at integration |
+|-----------|---------------|-----------|-------------------------|
+| `PromptingHostedChat` prompting protocol and its scorer method `generated-letter-hosted` | `internal/evaluation` | `TestPromptingIsAPlanAuthority` (plan identity, execution policy and scorer authority all distinct from the templated and likelihood plans) | a hosted multiple-choice record is a plan of its own; it never aggregates with a local record of the same suite |
+| Hosted session scoring through the relay (chat protocol only; continuation scoring refused) | `cmd/evaluate` | `TestHostedSessionScoresThroughRelay`, `TestServableModelsListHostedModels` | `evaluate -all` admits a keyed hosted model beside local ones and refuses long-form admission for it |
+| `PublishRemoteModelDefinition` (a model definition document for a remote recipe, accepted by `RequireModelDefinitionBinding`) | `internal/modelrecipe` | `TestPublishRemoteModelDefinitionBindsRelayRecipe` | a remote model definition binds the relay recipe; it carries no tensor inventory |
+| Remote catalog entries with the key refusal (`CatalogEntry.KeyEnvironment`, `remote://` locations present without bytes) | `internal/discovery` | `TestServableListsRemoteModelsWithTheirRefusal` | a declared hosted model lists as servable while its key is absent, with the refusal, and is never stat-checked on disk |
+| `GenerateOptions.OnUsage` with `inference.Usage` (the provider's token accounting) | `internal/inference` (data and an optional callback; the local runner reports none) | `TestGeneratorRelaysTheConversationAndStreams` in `internal/remoterelay`; the relayed usage assertion in `internal/server/remote_relay_test.go` | a hosted turn's counts are the provider's; a local turn's stay its own token ids |
+| Relay stream completion (terminal marker, provider error event, cancellation) | `internal/remoterelay` | `TestGeneratorRefusesTruncatedCancelledAndErroredStreams` | a truncated hosted answer is an error, never a complete one |
+| The credential-less admission shared by the server and the swap proxy | `internal/apimanifest` | `TestAdmitCredentialless`, `TestModelSwapProxyAdmitsAsTheServerDoes`, `TestCrossOriginMutationProtection` | the proxy admits exactly as the server does, before any mutation of its own |
+| The E4B acceptance request (`OVERGO_E4B_VALIDATION` names the producer's document) | `cmd/compatibility` | `TestE4BAcceptanceIsRequestedExplicitly` | master's `modality-verification` verifies name the document explicitly; a requested acceptance with a missing document fails |

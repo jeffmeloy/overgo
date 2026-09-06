@@ -422,3 +422,44 @@ or key never matches, so reuse cannot admit stale evidence. The gate's own
 history in this lane motivates the row: five bootstrap gate runs and four
 flush-declaration runs each re-executed every phase from protection through
 the browser lane, when only the failing phase had changed.
+
+## Owner review of 2026-09-06
+
+The owner reviewed the landed and planned gate work and found six defects.
+Each is recorded here with the row that closes it, in the review's order.
+
+1. **Checkpoint reuse was not interruption-safe.** Successful checks entered
+   the retry cache in memory and the cache was written only after the whole
+   verification DAG returned, so a killed process lost them. Every terminal
+   success now persists before the next check runs, and a helper process
+   killed after its first persisted success proves recovery.
+   Row `batch-flush-contracts/durable-checkpoint-persistence`.
+2. **The memo input covered only the first `go test` command.** A compound
+   verifier's later packages could change without invalidating the memo. The
+   memo covers every command's packages or the verifier is not cached.
+   Row `batch-flush-contracts/complete-memo-identity`.
+3. **Cost reporting does not prove safe selection.** The earlier mapping of
+   master's selection-shadow checkpoint onto the cost record conflated two
+   obligations: timing establishes expense; counterexamples establish that
+   selective verification misses no required check. Both stay.
+   Row `batch-flush-contracts/selection-shadow`.
+4. **Flush decisions were audited, not enforced, and the cost line omitted
+   failed checks and other phases.** Accepted checkpoints under a flush
+   declaration become durable deferred obligations promoted through the full
+   gate once; the cost line reports total wall, failed and non-acceptance
+   phases, accepted cost and the estimated saving as separate labelled
+   quantities. Rows `batch-flush-contracts/cost-report-scope` and
+   `batch-flush-contracts/governed-promotion`.
+5. **Skip and cancel need a strict acceptance boundary.** A refusal may
+   resolve a decision branch, but a skipped required validation must not
+   satisfy a dependency that requires successful evidence. A dependency
+   declares whether it accepts a refusal, and both cases are tested.
+   Row `conditional-plan-rows/skipped-and-cancelled-completion`.
+6. **Progress-refreshed deadlines need an absolute ceiling.** A refresh
+   extends liveness only under a ceiling that an operator budget bounds.
+   Row `deadlines-and-requeue/deadline-refresh`.
+
+The mapping table above is corrected accordingly: master's selection-shadow
+checkpoint maps to its own row, not to the cost record. Physical device
+exclusion moves ahead of conditional workflows, placement and scheduling as
+its own item, `device-exclusion/host-wide-claim`.

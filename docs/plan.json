@@ -1,8 +1,99 @@
 {
   "campaign": "Hatchet-derived workflow contracts: durable attempts, declared capacity, keyed admission and conditional plan rows on existing Go owners",
-  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. docs/hatchet_for_overgo.md is the design record for this campaign and names, for every element, the observed Hatchet mechanism, the Overgo gap, the contract, the owner and the acceptance. No Hatchet source is copied, translated or vendored; every element is a contract restated on the existing Go owner that holds the neighbouring authority, and no parallel runtime, queue or expression language is added. Each row's verify names one acceptance test in the owning package guarded by the test file's existence; the acceptance names are planned work, not claims that the tests exist, and a row closes only when its named test executes and passes through the gate. Host rows land first; device tests are limited to eviction on the real device and the load lane's measured run, and a device verify carries its own OVERGO_CUDA_TEST and OVERGO_DATA_ROOT bindings. The lane cycle, in this order and repeated: merge current master into the lane except master's docs/plan.json, which never enters the lane; update this plan from the merged repository and its measured performance; execute the dispatched row; commit through the gate. Do not chase master during a row. One writer owns a plan edit and gates it. Findings outside the dispatched row are parked with cmd/finding, not folded in. Rows are ranked by their expected reduction of automation cost and their gain in development pace: gate wall per accepted row, re-executed work after interruption, and rows dispatched without operator intervention come before request-level admission, observability and serving measurement; a row's outcome records the measured change in those quantities. Audit language in code, evidence and commit messages is objective. Every element records the measurement that decides it: restart re-execution count, gate cost per accepted checkpoint, device idle time during host phases, and queued-to-first-token latency at declared concurrency; a row whose measurement shows no gain closes with that outcome recorded. Master paused development on 2026-09-06; this lane is the active development line. Gate mechanisms that master's paused validation-batch-control row also named, namely accepted-checkpoint evidence reuse across gate runs, gate wall per accepted checkpoint, and a host-wide exclusive device claim across worktrees and stores, are implemented here on the existing gate and loop owners, additively and minimally, so the later lane-to-master merge stays small; master's uncommitted work is never imported. Rows that subdivide declare a verification batch with a flush declaration of their own, so the campaign measures the mechanism it ships.",
+  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. docs/hatchet_for_overgo.md is the design record for this campaign and names, for every element, the observed Hatchet mechanism, the Overgo gap, the contract, the owner and the acceptance. No Hatchet source is copied, translated or vendored; every element is a contract restated on the existing Go owner that holds the neighbouring authority, and no parallel runtime, queue or expression language is added. Each row's verify names one acceptance test in the owning package guarded by the test file's existence; the acceptance names are planned work, not claims that the tests exist, and a row closes only when its named test executes and passes through the gate. Host rows land first; device tests are limited to eviction on the real device and the load lane's measured run, and a device verify carries its own OVERGO_CUDA_TEST and OVERGO_DATA_ROOT bindings. The lane cycle, in this order and repeated: merge current master into the lane except master's docs/plan.json, which never enters the lane; update this plan from the merged repository and its measured performance; execute the dispatched row; commit through the gate. Do not chase master during a row. One writer owns a plan edit and gates it. Findings outside the dispatched row are parked with cmd/finding, not folded in. Rows are ranked by their expected reduction of automation cost and their gain in development pace: gate wall per accepted row, re-executed work after interruption, and rows dispatched without operator intervention come before request-level admission, observability and serving measurement; a row's outcome records the measured change in those quantities. Audit language in code, evidence and commit messages is objective. Every element records the measurement that decides it: restart re-execution count, gate cost per accepted checkpoint, device idle time during host phases, and queued-to-first-token latency at declared concurrency; a row whose measurement shows no gain closes with that outcome recorded. Master paused development on 2026-09-06; this lane is the active development line. Gate mechanisms that master's paused validation-batch-control row also named, namely accepted-checkpoint evidence reuse across gate runs, gate wall per accepted checkpoint, and a host-wide exclusive device claim across worktrees and stores, are implemented here on the existing gate and loop owners, additively and minimally, so the later lane-to-master merge stays small; master's uncommitted work is never imported. Rows that subdivide declare a verification batch with a flush declaration of their own, so the campaign measures the mechanism it ships. Owner review 2026-09-06 ranks the gate work: reuse that a process kill can lose is not reuse, so every terminal success persists before the next check runs; a memo input covers every command of a verifier or the verifier is not cached; timing establishes expense while counterexamples establish selection safety, and both obligations stay separate; a flush declaration becomes a durable deferred obligation with governed promotion before it counts as batching; a skipped or cancelled row never satisfies a dependency that requires successful evidence unless that dependency declares it accepts the refusal; a progress refresh extends liveness only under an absolute budget ceiling that an operator budget always bounds. Rows follow that order: persistence, complete identities, shadow verification, physical device exclusion, governed promotion, then conditional workflows, placement and scheduling.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "gate-checkpoints",
+      "title": "Make checkpoint reuse durable, complete, selection-safe and governed",
+      "status": "open",
+      "steps": [
+        {
+          "id": "durable-checkpoint-persistence",
+          "title": "Persist every terminal check success before the next check runs and recover it after a process kill",
+          "status": "open",
+          "verify": "test -f internal/gate/checkpoint_persistence_test.go \u0026\u0026 go test ./internal/gate -run '^TestCheckpointPersistenceSurvivesKill$' -count=1",
+          "rationale": "Review finding 1. Successful checks entered the retry cache in memory and were written only after the whole verification DAG returned, so a kill lost them. Each terminal success is written atomically as it lands. A helper process runs the fixture batch, is killed after its first persisted success, and the parent proves the cache holds that entry and a rerun reuses it.",
+          "capabilities": [
+            "durable-check-evidence",
+            "kill-recovery"
+          ]
+        },
+        {
+          "id": "complete-memo-identity",
+          "title": "Cover every command of a verifier in the checkpoint memo input, or refuse to cache the verifier",
+          "status": "open",
+          "verify": "test -f internal/gate/checkpoint_identity_test.go \u0026\u0026 go test ./internal/gate -run '^TestCheckpointMemoCoversEveryCommand$' -count=1",
+          "rationale": "Review finding 2. The memo input parsed only the first go test command, so a compound verifier's later packages could change without invalidating the memo. Every go test segment contributes its packages; a verifier with a non-test segment or a package outside the input graph is not cached and the refusal is audited.",
+          "depends_on": [
+            "gate-checkpoints/durable-checkpoint-persistence"
+          ],
+          "capabilities": [
+            "complete-cache-identity"
+          ]
+        },
+        {
+          "id": "selection-shadow",
+          "title": "Prove change selection against full-gate counterexamples",
+          "status": "open",
+          "verify": "test -f internal/gate/change_selection_shadow_test.go \u0026\u0026 go test ./internal/gate -run '^TestChangeSelectiveVerificationShadow$' -count=1",
+          "rationale": "Review finding 3. Cost reporting establishes expense; only counterexamples establish that selective verification misses no required check. For a set of recorded candidate changes the full-gate check set is computed and the selected set must contain every check that would have failed; a selection that omits one is a counterexample the test pins. The name matches the paused master checkpoint so the lane-to-master merge joins them.",
+          "depends_on": [
+            "gate-checkpoints/complete-memo-identity"
+          ],
+          "capabilities": [
+            "selection-safety"
+          ]
+        },
+        {
+          "id": "cost-report-scope",
+          "title": "Report failed checks and total gate wall separately from accepted cost and estimated saving",
+          "status": "open",
+          "verify": "test -f internal/gate/batch_cost_scope_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchedGateCostReportScope$' -count=1",
+          "rationale": "Review finding 4, second part. The landed cost line excluded failed checks and other phases and did not label the saving as an estimate. The audit reports total gate wall, failed and executed non-acceptance phases, accepted checkpoint cost, and the estimated saving, each labelled.",
+          "depends_on": [
+            "gate-checkpoints/selection-shadow"
+          ],
+          "capabilities": [
+            "labelled-cost-report"
+          ]
+        },
+        {
+          "id": "governed-promotion",
+          "title": "Make a flush declaration a durable deferred obligation with governed checkpoint promotion",
+          "status": "open",
+          "verify": "test -f internal/gate/batch_promotion_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchPromotionControl$' -count=1",
+          "rationale": "Review finding 4, first part. Recording flush decisions in an audit line does not control an integration boundary. Accepted checkpoints under a declared flush become durable obligations in the store; a flush promotes the accumulated obligations through the full gate once, and an unflushed obligation survives restart and cannot be promoted by a stale candidate. The name matches the paused master checkpoint.",
+          "depends_on": [
+            "gate-checkpoints/cost-report-scope"
+          ],
+          "capabilities": [
+            "durable-obligations",
+            "governed-promotion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "device-exclusion",
+      "title": "Enforce physical device exclusion across worktrees and stores",
+      "status": "open",
+      "steps": [
+        {
+          "id": "host-wide-claim",
+          "title": "Admit exclusive device work through one host-wide device claim visible across worktrees and stores",
+          "status": "open",
+          "verify": "test -f internal/gate/device_claim_test.go \u0026\u0026 go test ./internal/gate -run '^TestHostWideDeviceClaim$' -count=1",
+          "rationale": "Review priority 4 and the paused master exclusive-gpu-admission checkpoint. A device claim is recorded where every worktree and store can see it, so two lanes cannot both time on the device; a second claimant waits with the holder recorded, and a claim released or expired by its holder's death frees the device. The existing gate device phase is the owner.",
+          "depends_on": [
+            "gate-checkpoints/durable-checkpoint-persistence"
+          ],
+          "capabilities": [
+            "host-wide-device-claim"
+          ]
+        }
+      ]
+    },
     {
       "id": "conditional-plan-rows",
       "title": "Evaluate typed skip, cancel and wait conditions over recorded outcomes",
@@ -10,16 +101,17 @@
       "steps": [
         {
           "id": "skipped-and-cancelled-completion",
-          "title": "Record skipped and cancelled rows as completion authority with reasons",
+          "title": "Record skipped and cancelled rows with reasons, and let them satisfy only dependencies that declare they accept a refusal",
           "status": "open",
           "verify": "test -f internal/plan/skipped_completion_test.go \u0026\u0026 go test ./internal/plan -run '^TestSkippedAndCancelledRowAuthority$' -count=1",
-          "rationale": "A skipped row leaves the plan through the same completion path as a done row, carrying its reason, so dependents resolve without a manual edit and the history shows why the row did not run.",
+          "rationale": "Review finding 5. A terminal refusal can resolve a decision branch, but a skipped required validation must not satisfy a dependency that requires successful evidence. A dependency declares whether it accepts a refusal; the completion authority records the skip or cancel with its reason and resolves each dependent by that declaration. The acceptance tests both the accepted and the refused case.",
           "depends_on": [
             "conditional-plan-rows/outcome-predicates"
           ],
           "capabilities": [
             "skipped-completion",
-            "recorded-reasons"
+            "recorded-reasons",
+            "explicit-required-outcome"
           ]
         },
         {
@@ -60,15 +152,16 @@
         },
         {
           "id": "deadline-refresh",
-          "title": "Extend the execution deadline from progress reports with buffered, bounded flushes",
+          "title": "Extend the execution deadline from progress reports under an absolute budget ceiling",
           "status": "open",
           "verify": "test -f internal/operation/deadline_refresh_test.go \u0026\u0026 go test ./internal/operation -run '^TestProgressExtendsExecutionDeadline$' -count=1",
-          "rationale": "A long device row extends its own budget by reporting progress rather than by a generous static bound. Refreshes are accumulated per operation and flushed at a bounded interval so the store is not written per report.",
+          "rationale": "Review finding 6. A progress report extends liveness, never the budget: every operation carries an absolute ceiling that refreshes cannot exceed, an operator budget bounds that ceiling, and a refresh past the ceiling cancels with the reason recorded. Refreshes are buffered and flushed at a bounded interval.",
           "depends_on": [
             "deadlines-and-requeue/schedule-and-execution-deadlines"
           ],
           "capabilities": [
-            "progress-refreshed-deadline",
+            "progress-refreshed-liveness",
+            "absolute-budget-ceiling",
             "buffered-refresh"
           ]
         },
@@ -220,17 +313,16 @@
         },
         {
           "id": "exclusive-device-cost",
-          "title": "Admit exclusive device rows through one host-wide device claim across worktrees and stores, and run host rows beside them",
+          "title": "Express exclusive device rows as full device cost over the host-wide claim and admit host rows beside them",
           "status": "open",
-          "verify": "test -f internal/gate/device_claim_test.go \u0026\u0026 go test ./internal/gate -run '^TestHostWideDeviceClaim$' -count=1 \u0026\u0026 test -f internal/loop/exclusive_device_test.go \u0026\u0026 go test ./internal/loop -run '^TestExclusiveDeviceRowsAdmitHostRows$' -count=1",
-          "rationale": "A device row's cost equals the lane's device capacity, and the claim it takes is host-wide: recorded where every worktree and store can see it, so two lanes cannot both time on the device. The driver proves host-only rows dispatch beside an exclusive device row and a second device row waits with the claim holder recorded. This is the paused master exclusive-gpu-admission checkpoint on the existing gate device phase.",
+          "verify": "test -f internal/loop/exclusive_device_test.go \u0026\u0026 go test ./internal/loop -run '^TestExclusiveDeviceRowsAdmitHostRows$' -count=1",
+          "rationale": "A device row's cost equals the lane's device capacity and its admission takes the host-wide claim. The driver proves host-only rows dispatch beside an exclusive device row and a second device row waits with the claim holder recorded.",
           "depends_on": [
             "declared-capacity/weighted-and-sticky-assignment",
-            "deadlines-and-requeue/schedule-and-execution-deadlines"
+            "device-exclusion/host-wide-claim"
           ],
           "capabilities": [
             "exclusive-device-by-cost",
-            "host-wide-device-claim",
             "parallel-host-rows"
           ]
         }
@@ -438,13 +530,14 @@
           "depends_on": [
             "durable-attempt-log/agent-tool-children",
             "deadlines-and-requeue/backoff-and-idle-intervals",
-            "batch-flush-contracts/gate-batch-cost",
             "declared-capacity/exclusive-device-cost",
             "eviction-and-release/measured-device-eviction",
             "keyed-admission/swap-coalescing",
             "schedule-pause/pause-policy",
             "serving-load-lane/measured-floors",
-            "operator-references/replay-attempt"
+            "operator-references/replay-attempt",
+            "gate-checkpoints/governed-promotion",
+            "device-exclusion/host-wide-claim"
           ],
           "capabilities": [
             "measured-closeout",

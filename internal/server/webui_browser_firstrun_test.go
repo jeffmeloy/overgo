@@ -64,14 +64,19 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// Leg 13's remote model: fake loopback provider declared in the lane
 	// store before the proxy child opens it; key in this environment (child
 	// inherits); retired after the journey.
-	remoteName := declareLaneRemote(t, store)
+	remoteName := declareLaneRemote(t, store, "webui-lane", "OVERGO_WEBUI_LANE_REMOTE_KEY", "lane-key", []string{"Hello", " from the relay"})
+	// Leg 14's keyless model: declared with its variable empty; the page
+	// enters the key, which the proxy (this process) and the child take.
+	t.Setenv("OVERGO_WEBUI_LANE_ENTRY_KEY", "")
+	entryName := declareLaneRemote(t, store, "webui-lane-entry", "OVERGO_WEBUI_LANE_ENTRY_KEY", "", []string{"Hello", " after the key"})
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer supervisor.Close()
+	resolver := &modelswap.CatalogResolver{Store: store, Limit: 256}
 	proxy := &modelswap.Proxy{
-		Supervisor: supervisor, Resolver: &modelswap.CatalogResolver{Store: store, Limit: 256},
+		Supervisor: supervisor, Resolver: resolver, Keys: resolver,
 		Default: modelswap.Servable{Name: modelName, Location: modelLocation},
 	}
 	front := httptest.NewServer(proxy)
@@ -465,15 +470,37 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
 		t.Log("remote leg: the declared remote model answered through the relay with its marker")
 	}
+	// 14. Key entry: the keyless model lists refused with a key field; the
+	// entered key lifts the refusal (proxy and child hold it in memory),
+	// the model serves and answers.
+	if entryName != "" {
+		openPicker()
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(entryName)+`);
+      const key = row && row.querySelector("input[type=password]"), use = row && [...row.querySelectorAll("button")].find((button) => button.textContent === "use key");
+      if (!key || !use || !row.textContent.includes("is not set")) return false;
+      key.value = "lane-key"; use.click(); return true; })()`)
+		settle("the entered key lifts the refusal", `[...document.querySelectorAll(".topbar .card .row")].some((row) =>
+      row.querySelector(".mono") && row.querySelector(".mono").textContent === `+strconv.Quote(entryName)+` && [...row.querySelectorAll("button")].some((button) => button.textContent === "serve"))`)
+		switchTo(entryName)
+		say(t, ctx, browser, "hello again")
+		settle("the keyed model answers", `!document.querySelector(".composer .btn").disabled &&
+      (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").includes("Hello after the key") &&
+      document.querySelectorAll("#panel-chat .msg.error").length === 0`)
+		t.Log("key-entry leg: the keyless declaration served after the key was entered on the page")
+	}
 }
 
-// declareLaneRemote: declare a remote model (fake loopback provider) in the
-// lane store, retire on cleanup; returns the picker name, "" when the store
-// refuses the declaration.
-func declareLaneRemote(t *testing.T, storePath string) string {
+// declareLaneRemote: declare a remote model (fake loopback provider
+// answering pieces under the key "lane-key") in the lane store, retire on
+// cleanup; the variable is set to value when given; returns the picker
+// name, "" when the store refuses the declaration.
+func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pieces []string) string {
 	t.Helper()
-	fake, _ := relaytest.Serve(t, "", "lane-key", []string{"Hello", " from the relay"})
-	t.Setenv("OVERGO_WEBUI_LANE_REMOTE_KEY", "lane-key")
+	fake, _ := relaytest.Serve(t, "", "lane-key", pieces)
+	if value != "" {
+		t.Setenv(variable, value)
+	}
 	commit, err := runrecord.HeadCommit(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -483,7 +510,7 @@ func declareLaneRemote(t *testing.T, storePath string) string {
 		t.Fatal(err)
 	}
 	declaration, err := remoteprovider.Declare(t.Context(), laneStore, remoteprovider.Provider{
-		Name: "webui-lane", Endpoint: fake.URL, KeyEnvironment: "OVERGO_WEBUI_LANE_REMOTE_KEY", Model: "lane/relay-model",
+		Name: name, Endpoint: fake.URL, KeyEnvironment: variable, Model: "lane/" + name + "-model",
 	}, commit)
 	if closeErr := laneStore.Close(); closeErr != nil {
 		t.Fatal(closeErr)

@@ -42,7 +42,7 @@ func run() error {
 		return err
 	}
 	defer supervisor.Close()
-	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver}
+	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver, Keys: resolver}
 	if *defaultModel != "" {
 		if fileExists(*defaultModel) {
 			// An on-disk model file is launchable directly -- no store

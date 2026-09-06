@@ -32,6 +32,26 @@ type Proxy struct {
 	Resolver   Resolver
 	// Default serves model-less requests when nothing is running yet.
 	Default Servable
+	// Keys takes a hosted provider's key for this process, so every child
+	// launched from now on inherits it; the request then rides on to the
+	// running child, which takes it for itself. Nil refuses the route.
+	Keys ProviderKeys
+}
+
+// ProviderKeys places a hosted provider's key in the proxy's process for
+// the model a reference names.
+type ProviderKeys interface {
+	SetKey(ctx context.Context, reference, key string) error
+}
+
+// providerKeyPath is the server's provider-key route, intercepted here
+// so the proxy holds the key before the child does.
+const providerKeyPath = "/providers/key"
+
+// providerKeyRequest mirrors the server route's body.
+type providerKeyRequest struct {
+	Location string `json:"location"`
+	Key      string `json:"key"`
 }
 
 // ServeHTTP implements the swap routing.
@@ -39,6 +59,28 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if p.Supervisor == nil || p.Resolver == nil {
 		http.Error(response, "model swap proxy is not configured", http.StatusServiceUnavailable)
 		return
+	}
+	if request.URL.Path == providerKeyPath && request.Method == http.MethodPost {
+		if p.Keys == nil {
+			http.Error(response, "model swap proxy takes no provider keys", http.StatusNotImplemented)
+			return
+		}
+		raw, err := io.ReadAll(io.LimitReader(request.Body, maxRoutedBodyBytes))
+		if err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
+			return
+		}
+		var entry providerKeyRequest
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := p.Keys.SetKey(request.Context(), entry.Location, entry.Key); err != nil {
+			http.Error(response, err.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+		request.Body = io.NopCloser(bytes.NewReader(raw))
+		request.ContentLength = int64(len(raw))
 	}
 	servable, body, err := p.routeServable(request)
 	if err != nil {

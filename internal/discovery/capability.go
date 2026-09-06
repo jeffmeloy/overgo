@@ -30,6 +30,10 @@ type CatalogEntry struct {
 	Location     string
 	Present      bool
 	Capabilities []Capability
+	// KeyEnvironment names the variable a hosted model's provider key
+	// lives in (empty for a local model), so a page can take the key when
+	// the entry is refused for its absence.
+	KeyEnvironment string
 }
 
 // CapabilityCatalog lists every model with any active recipe alias,
@@ -168,8 +172,11 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 				if task == recipe.TaskInference && found {
 					if provider, remote, err := remoteprovider.Resolve(ctx, store, manifest); err != nil {
 						capability.Stale = fmt.Sprintf("not servable: %v", err)
-					} else if refusal := remoteprovider.Refusal(provider); remote && refusal != "" {
-						capability.Stale = "not servable: " + refusal
+					} else if remote {
+						entry.KeyEnvironment = provider.KeyEnvironment
+						if refusal := remoteprovider.Refusal(provider); refusal != "" {
+							capability.Stale = "not servable: " + refusal
+						}
 					}
 				}
 			}

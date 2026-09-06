@@ -569,6 +569,13 @@ derived from the server, not from client configuration:
   Without the key the session is refused by the variable's name. The
   benchmark command refuses a hosted reference: there is no local decode
   to measure.
+  The key can be entered on the page: a keyless hosted entry in the picker
+  names its variable and takes the key beside its refusal; the page posts
+  it to `/providers/key`, which the swap proxy intercepts to hold the key
+  in its own process (every child it launches from then on inherits it)
+  before the request rides on to the running child, which holds it too.
+  Nothing writes the key to the store or a log; it lives in process memory
+  until the proxy exits. The picker relists and the model serves.
 - **Attachments as artifacts.** In a mode whose request names an artifact
   (the VQA image, LiveEdit's source clip), a file attached to the composer
   is stored before it is used: the page posts its bytes under their media

@@ -39,7 +39,7 @@ func TestServableListsRemoteModelsWithTheirRefusal(t *testing.T) {
 	catalog, _, err := CapabilityCatalog(t.Context(), store, 16, nil)
 	if err != nil || len(catalog) != 1 || !catalog[0].Present || catalog[0].Location != declaration.Location ||
 		len(catalog[0].Capabilities) != 1 || catalog[0].Capabilities[0].Task != recipe.TaskInference ||
-		!strings.Contains(catalog[0].Capabilities[0].Stale, "OVERGO_REMOTE_DISCOVERY_TEST_KEY is not set") {
+		!strings.Contains(catalog[0].Capabilities[0].Stale, "OVERGO_REMOTE_DISCOVERY_TEST_KEY is not set") || catalog[0].KeyEnvironment != "OVERGO_REMOTE_DISCOVERY_TEST_KEY" {
 		t.Fatalf("keyless catalog = %+v, %v", catalog, err)
 	}
 	t.Setenv("OVERGO_REMOTE_DISCOVERY_TEST_KEY", "secret")

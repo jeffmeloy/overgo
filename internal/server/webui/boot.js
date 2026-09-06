@@ -503,31 +503,29 @@
         // Every activated entry with bytes on disk is listed: a servable one with its evidence, declared
         // task capabilities and a serve control; a stale activation with the loader's reason and no control.
         const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
-        if (!entries.length) {
-          panel.textContent = "no activated models in the store";
-          return;
-        }
+        if (!entries.length) { panel.textContent = "no activated models in the store"; return; }
         let remembered = "";
         try { remembered = localStorage.getItem(MODEL_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
-        panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" +
-          (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
+        panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
           ...entries.map((item) => {
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
             const row = el("div", { class: "row" }, el("span", { class: "mono", text: name }));
             if ((item.location || "").startsWith("remote://")) row.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
             const facts = evidenceLine(item);
             if (facts) row.appendChild(el("span", { class: "note", text: facts }));
-            for (const capability of item.capabilities || []) {
-              row.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
-            }
+            for (const capability of item.capabilities || []) row.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
             if (item.stale) {
               row.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
+              // A keyless hosted model takes its key here; the proxy and the served child hold it in memory only, and the picker relists.
+              if (item.key_environment) {
+                const key = el("input", { class: "keyfield", type: "password", placeholder: item.key_environment, "aria-label": "provider key" });
+                row.append(key, el("button", { class: "btn alt", text: "use key", onclick: async () => {
+                  try { await api.post("/providers/key", { location: item.location, key: key.value }); modelPill.click(); modelPill.click(); } catch (err) { panel.textContent = friendlyError(err); }
+                } }));
+              }
               return row;
             }
-            const swap = el("button", { class: "btn alt", text: "serve" });
-            swap.addEventListener("click", () => swapModel(item, name, swap));
-            row.appendChild(swap);
-            return row;
+            row.appendChild(el("button", { class: "btn alt", text: "serve", onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
       } catch (err) { panel.textContent = friendlyError(err); }
     });
@@ -542,8 +540,7 @@
   // a highlighted field instead of every tab failing on its own with a raw bearer-token error.
   function showAuthNotice(show) {
     if (authNoticeEl) authNoticeEl.style.display = show ? "" : "none";
-    const key = document.getElementById("api-key");
-    if (key) key.classList.toggle("needs-key", show);
+    const key = document.getElementById("api-key"); if (key) key.classList.toggle("needs-key", show);
   }
 
   function tabSupported(tab) {

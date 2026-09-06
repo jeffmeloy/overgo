@@ -383,6 +383,21 @@ What the rows established, each a record rather than a statement:
   two-case suite against the loopback fake (accuracy 0.5 from a fixed "B"),
   checks the execution policy, the non-reproducible remote environment,
   the definition binding and the keyless refusal.
+- Key entry on the page (openrouter-key-entry): `discovery.CatalogEntry`
+  carries `KeyEnvironment` for a hosted model, the catalog route passes it
+  as `key_environment`, and the picker renders a password field and a "use
+  key" control beside a refused hosted entry. `POST /providers/key` places
+  the key through the launcher's `Config.ProviderKeys` intake
+  (`remoteprovider.SetKey`: the variable the declaration names, in this
+  process's environment only) and answers the variable; the swap proxy
+  intercepts the same route (`Proxy.Keys`, the catalog resolver's
+  `SetKey`) so the proxy process holds the key for every later child, then
+  forwards the request to the running child. The picker relists after
+  the answer. The lane's leg 14 declares a second, keyless fake provider,
+  enters the key on the page, watches the refusal lift, serves the model
+  and reads its answer. `TestModelSwapProxyTakesProviderKeys`,
+  `TestProviderKeyRouteTakesTheLauncherIntake` and
+  `TestSetKeyPlacesTheKeyInTheEnvironment` pin the three owners.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

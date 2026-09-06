@@ -11,6 +11,7 @@
 package remoteprovider
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
 
@@ -91,6 +93,28 @@ func Location(provider Provider) string {
 // model rather than bytes on disk.
 func IsRemoteLocation(reference string) bool {
 	return strings.HasPrefix(reference, locationScheme)
+}
+
+// SetKey places a declared model's provider key in this process's
+// environment, never on disk: from now on the catalog lists the model
+// servable and the relay signs with the key. The reference names the
+// model by location or identity; the provider is returned so the caller
+// can name the variable that now holds the key.
+func SetKey(ctx context.Context, store *overgodb.Store, limit int, reference, key string) (Provider, error) {
+	if strings.TrimSpace(key) == "" {
+		return Provider{}, errors.New("remote provider: key is empty")
+	}
+	provider, _, remote, err := Reference(ctx, store, limit, reference)
+	if err != nil {
+		return Provider{}, err
+	}
+	if !remote {
+		return Provider{}, fmt.Errorf("remote provider: %s names no declared model", reference)
+	}
+	if err := os.Setenv(provider.KeyEnvironment, key); err != nil {
+		return Provider{}, err
+	}
+	return provider, nil
 }
 
 // Refusal names why the provider cannot serve now: its key is absent from

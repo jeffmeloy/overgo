@@ -61,6 +61,14 @@ type remoteServeOptions struct {
 	repository, hubRoot, webuiDir                                 string
 }
 
+// providerKeys is the server's provider-key intake: the key the page
+// enters for a hosted model lands in this process's environment (never
+// on disk); the variable's name comes back.
+func providerKeys(ctx context.Context, store *overgodb.Store, reference, key string) (string, error) {
+	provider, err := remoteprovider.SetKey(ctx, store, generationCatalogLimit, reference, key)
+	return provider.KeyEnvironment, err
+}
+
 // remoteRuntime is the relay with the store's workflow workspaces beside
 // it, the way the local runtime carries the runner.
 type remoteRuntime struct {
@@ -96,6 +104,7 @@ func serveRemote(ctx context.Context, remote *remoteServing, options remoteServe
 		OvergoDBPath: options.repository, Repository: workspaceStore, Environment: environment,
 		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: options.hubRoot, WebUIDir: options.webuiDir,
 		LibraryIntake: llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate},
+		ProviderKeys:  providerKeys,
 	}, &remoteRuntime{Generator: generator, WorkflowWorkspaceAPI: llamaserver.WorkflowWorkspaceSet{generation}})
 	if err != nil {
 		return err

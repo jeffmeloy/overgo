@@ -548,6 +548,8 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"composer-artifact-intake/do",
 		"transcription-mode/do",
 		"openrouter-evals/do",
+		"openrouter-key-entry/do",
+		"openrouter-declare-from-page/do",
 		"audio-staged-surface/do",
 		"merge-4e0b9a670603/do",
 		"merge-b3977f8cff14/do",

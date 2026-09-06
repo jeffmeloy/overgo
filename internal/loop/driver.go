@@ -12,7 +12,9 @@ package loop
 import (
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"strings"
+	"time"
 )
 
 // Step identifies one dispatched unit of plan work.
@@ -70,6 +72,15 @@ type Config struct {
 	// SaturationLimit supports the compatibility proposal source when no
 	// evidence-bound Closure is configured.
 	SaturationLimit int `json:"saturation_limit,omitzero"`
+	// Requeue delays each retry of the same step with jittered exponential
+	// backoff; a zero declaration retries at once.
+	Requeue Backoff `json:"requeue,omitzero"`
+}
+
+// RequeueWorld is the optional world extension that can wait between
+// attempts on the same step; a world without it retries at once.
+type RequeueWorld interface {
+	Wait(delay time.Duration, attempt int)
 }
 
 // ClosureConfig bounds evidence-gated proposal consumption after the plan
@@ -145,6 +156,9 @@ const (
 func Run(world World, config Config) (Outcome, error) {
 	if config.MaxAttemptsPerStep <= 0 || config.MaxInvocations <= 0 {
 		return Outcome{}, errors.New("loop: attempt and invocation budgets are required")
+	}
+	if err := config.Requeue.Validate(); err != nil {
+		return Outcome{}, err
 	}
 	outcome := Outcome{}
 	var proposals uint64
@@ -249,6 +263,12 @@ func Run(world World, config Config) (Outcome, error) {
 		prompt, err := world.Prompt(step)
 		if err != nil {
 			return outcome, fmt.Errorf("loop: render prompt: %w", err)
+		}
+		// A retry of the same step backs off; the first attempt never waits.
+		if waiter, waits := world.(RequeueWorld); waits && attempts > 0 {
+			if delay := config.Requeue.Delay(attempts, rand.Float64()); delay > 0 {
+				waiter.Wait(delay, attempts)
+			}
 		}
 		tail, err := world.RunWorker(step, prompt, feedback)
 		outcome.Invocations++

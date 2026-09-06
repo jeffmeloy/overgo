@@ -11,6 +11,7 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
+	"overgo/internal/loop"
 	"overgo/internal/runrecord"
 )
 
@@ -74,6 +75,12 @@ func createDeviceClaim(path string, claim deviceClaim) (bool, error) {
 func acquireDeviceClaim(
 	ctx context.Context, path string, claim deviceClaim, wait, poll time.Duration, audit func(string),
 ) (func() error, error) {
+	// The holder check backs off while the device stays held, bounded by
+	// the stale window so an expired holder is never missed for longer.
+	interval, err := loop.NewIdleInterval(poll, max(poll, runrecord.DefaultHeartbeatStaleAfter))
+	if err != nil {
+		return nil, fmt.Errorf("device claim: %w", err)
+	}
 	waitingSince := time.Time{}
 	for {
 		now := time.Now()
@@ -119,7 +126,7 @@ func acquireDeviceClaim(
 		select {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("device claim: %w", ctx.Err())
-		case <-time.After(poll):
+		case <-time.After(interval.Next(false)):
 		}
 	}
 }

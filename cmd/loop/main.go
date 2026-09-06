@@ -243,6 +243,12 @@ func (w *execWorld) Verify(loop.Step) (string, error) {
 	return tailOf(out, 4000), nil
 }
 
+// Wait sleeps the requeue backoff before a retry of the same step.
+func (w *execWorld) Wait(delay time.Duration, attempt int) {
+	fmt.Println("loop: requeue attempt", attempt, "after", delay)
+	time.Sleep(delay)
+}
+
 func (w *execWorld) Park(step loop.Step, reason string) error {
 	out, err := runTool("go", "run", "./cmd/finding",
 		"-title", "loop parked "+step.Key()+" after exhausted worker attempts",

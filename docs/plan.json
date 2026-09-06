@@ -4,27 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "deadlines-and-requeue",
-      "title": "Bound waiting and running separately and back off requeues",
-      "status": "open",
-      "steps": [
-        {
-          "id": "backoff-and-idle-intervals",
-          "title": "Requeue with jittered exponential backoff and back off idle periodic controllers",
-          "status": "open",
-          "verify": "test -f internal/loop/backoff_test.go \u0026\u0026 go test ./internal/loop -run '^TestRequeueBackoffAndIdleIntervals$' -count=1",
-          "rationale": "Requeue delay doubles per attempt with jitter, a maximum and an overflow guard. A periodic controller doubles its interval while it finds no work and resets when it does, which removes polling cost from quiet periods.",
-          "depends_on": [
-            "campaign-definition/author-plan"
-          ],
-          "capabilities": [
-            "jittered-backoff",
-            "idle-interval-backoff"
-          ]
-        }
-      ]
-    },
-    {
       "id": "durable-attempt-log",
       "title": "Bind durable attempts to invocation counts and a keyed memo log",
       "status": "open",

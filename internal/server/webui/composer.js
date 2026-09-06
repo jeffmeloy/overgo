@@ -379,7 +379,7 @@
   // the bound; results are the thread's tool cards and a refusal re-renders the decision.
   function toolStep(host, options) {
     const api = overgo.api;
-    const select = el("select", { class: "text" });
+    const select = el("select", { class: "text", "aria-label": "tool" });
     const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
     const decisionHost = el("div");
     const guard = el("span", { class: "note", "aria-label": "guardrails" });

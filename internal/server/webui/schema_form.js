@@ -43,7 +43,7 @@
     function buildInput(field) {
       let input;
       if (field.type === "enum" || field.type === "boolean") {
-        input = el("select", { class: "text" }, el("option", { value: "", text: "Select" }));
+        input = el("select", { class: "text", "aria-label": field.label }, el("option", { value: "", text: "Select" }));
         const options = field.type === "boolean" ?
           [{ value: "true", label: "True" }, { value: "false", label: "False" }] : field.options;
         for (const option of options || []) input.appendChild(el("option", { value: option.value, text: option.label }));
@@ -51,7 +51,7 @@
         input = el("textarea", { class: "text", rows: "4", placeholder: "One value per line" });
       } else {
         input = el("input", {
-          class: "text", type: field.type === "integer" || field.type === "number" ? "number" : "text",
+          class: "text", "aria-label": field.label, type: field.type === "integer" || field.type === "number" ? "number" : "text",
           step: field.type === "integer" ? "1" : (field.type === "number" ? "any" : null),
           pattern: field.pattern || null, min: field.minimum, max: field.maximum,
           "data-identity-kind": field.identity_kind || null,

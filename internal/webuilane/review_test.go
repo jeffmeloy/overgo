@@ -20,6 +20,14 @@ const five = el("input", { type: "file" });
 const six = el("button", { class: "btn" });
 const seven = el("button", { class: "btn", text: "go" });
 const eight = el("button", { class: "btn" }, "go");
+const nine = el("button", { class: "btn", text, onclick: () => go(item) });
+const ten = el("button", { class: "btn", onclick: () => {
+  go();
+} }, "go");
+const eleven = el("input", {
+  class: "text", placeholder: "spans lines",
+});
+const twelve = el("button", { class: "btn" }, options.sendLabel || "send");
 const styled = el("div", { style: "width:80px" });
 const nested = a ? b ? 1 : 2 : 3;
 setTimeout(tick, 1000); setInterval(poll, interval);

@@ -300,7 +300,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       picker.dispatchEvent(new Event("change"));
       return picker.value === "lane-agent";
     })()`)
-	assertBrowserPredicate(t, ctx, browser, `[...document.querySelector(".agent-session select:not([aria-label])").options].some((option) => option.value === "store.head")`)
+	assertBrowserPredicate(t, ctx, browser, `[...document.querySelector(".agent-session select[aria-label='tool']").options].some((option) => option.value === "store.head")`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const execute = [...document.querySelectorAll(".agent-session button")].find((button) => button.textContent === "Execute inspection");
       if (!execute || execute.disabled) return false;

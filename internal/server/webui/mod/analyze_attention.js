@@ -13,7 +13,7 @@
       clear(panel);
 
       const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
-      const maxPos = el("input", { class: "keyfield", type: "number", value: "32", min: "2", max: "48", style: "width:80px" });
+      const maxPos = el("input", { class: "keyfield", type: "number", value: "32", min: "2", max: "48", style: "width:80px", "aria-label": "positions" });
       let current = null; // last response, kept so the head selector can redraw.
       const { prompt, out } = overgo.analysisSurface(panel, seed, {
         defaultPrompt: "The quick brown fox jumps over the lazy dog", runLabel: "capture", busy: "capturing…",
@@ -44,7 +44,7 @@
           el("span", { class: "note", text: data.heads + " heads · " + data.kv_heads + " kv heads" + groupNote }),
           el("span", { class: "note", text: "scale " + data.scale.toFixed(4) })));
 
-        const head = el("select", { class: "keyfield", style: "width:110px", onchange: draw });
+        const head = el("select", { class: "keyfield", style: "width:110px", "aria-label": "head", onchange: draw });
         for (let h = 0; h < data.heads; h++) head.appendChild(el("option", { value: String(h) }, "head " + h));
         out.appendChild(el("div", { class: "row", style: "margin:8px 0" },
           el("span", { class: "note", text: "head" }), head));

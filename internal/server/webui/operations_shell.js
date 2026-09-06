@@ -35,7 +35,7 @@
     const active = values.filter((item) => !terminal(item.state)).length;
     const blocked = values.filter((item) => item.state === "blocked").length;
     const failed = values.filter((item) => item.state === "failed").length;
-    const strip = el("div", { class: "operation-strip" },
+    const strip = el("div", { class: "operation-strip", "aria-live": "polite" },
       el("span", { class: "operation-strip-label", text: "Operations" }),
       el("span", { class: "note", text: active + " active / " + blocked + " blocked / " + failed + " failed" }));
     for (const item of values) {

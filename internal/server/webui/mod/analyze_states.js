@@ -13,13 +13,13 @@
       const { el, clear, displayToken } = overgo;
       clear(panel);
 
-      const metric = el("select", { class: "keyfield", style: "width:150px" },
+      const metric = el("select", { class: "keyfield", style: "width:150px", "aria-label": "metric" },
         el("option", { value: "spearman" }, "spearman (rank)"),
         el("option", { value: "cosine" }, "cosine"),
         el("option", { value: "euclidean" }, "euclidean"));
       const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
       const k = el("input", { class: "keyfield", type: "number", placeholder: "auto", min: "1", max: "20", style: "width:80px" });
-      const maxPos = el("input", { class: "keyfield", type: "number", value: "48", min: "2", max: "64", style: "width:80px" });
+      const maxPos = el("input", { class: "keyfield", type: "number", value: "48", min: "2", max: "64", style: "width:80px", "aria-label": "positions" });
       const { prompt, out } = overgo.analysisSurface(panel, seed, {
         defaultPrompt: "The quick brown fox jumps over the lazy dog", runLabel: "capture", busy: "capturing…",
         fields: [["metric", metric], ["layer", layer], ["k", k], ["max tokens", maxPos]],

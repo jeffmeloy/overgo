@@ -63,8 +63,8 @@
 
       const system = el("textarea", { class: "text", placeholder: "system prompt (optional)", style: "min-height:52px" });
       const facts = el("div", { class: "statgrid", "aria-label": "context meter" });
-      const temperature = el("input", { class: "keyfield", type: "number", value: params.temperature, style: "width:80px" });
-      const maxTokens = el("input", { class: "keyfield", type: "number", value: params.max_tokens, max: contextLength, style: "width:90px" });
+      const temperature = el("input", { class: "keyfield", type: "number", value: params.temperature, style: "width:80px", "aria-label": "temperature" });
+      const maxTokens = el("input", { class: "keyfield", type: "number", value: params.max_tokens, max: contextLength, style: "width:90px", "aria-label": "max tokens" });
       const reset = el("button", { class: "btn alt", onclick: () => overgo.openConversation(null) }, "new");
 
       panel.append(el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system), facts);

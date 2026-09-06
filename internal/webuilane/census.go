@@ -43,7 +43,7 @@ type Review struct {
 	SilentFallbacks int `json:"silent_fallbacks"` // .catch swallowing to null/{}/[]/false without a reviewed comment after it
 	WindowDialogs   int `json:"window_dialogs"`   // alert/confirm/prompt calls
 	UnnamedControls int `json:"unnamed_controls"` // el("input"/"select") without aria-label, placeholder, a file/checkbox/hidden type or a wrapping label on the line
-	UnnamedButtons  int `json:"unnamed_buttons"`  // el("button", {...}) closed on its attributes without text, aria-label or title
+	UnnamedButtons  int `json:"unnamed_buttons"`  // el("button", {...}) closed on its attributes without text, aria-label, title or a child
 	InlineStyles    int `json:"inline_styles"`    // style: "..." attributes in el() calls
 	NestedTernaries int `json:"nested_ternaries"` // a ternary inside a ternary's branch on one line
 	TimerLiterals   int `json:"timer_literals"`   // setTimeout/setInterval with a numeric literal
@@ -53,8 +53,10 @@ type Review struct {
 var (
 	silentFallbackPattern = regexp.MustCompile(`\.catch\(\([^)]*\) => (?:null|\{\s*\}|\[\]|false|undefined|""|0)\)(\s*/\*)?`)
 	windowDialogPattern   = regexp.MustCompile(`(?:^|[\s(=!&|,])(?:window\.)?(?:alert|confirm|prompt)\(`)
-	controlPattern        = regexp.MustCompile(`el\("(?:input|select)"[^\n]*`)
-	buttonPattern         = regexp.MustCompile(`el\("button", \{[^}]*\}\)`)
+	controlPattern        = regexp.MustCompile(`el\("(?:input|select)"`)
+	buttonPattern         = regexp.MustCompile(`el\("button"`)
+	namedControlPattern   = regexp.MustCompile(`aria-label|placeholder|type: "(?:file|checkbox|hidden)"`)
+	namedButtonPattern    = regexp.MustCompile(`aria-label|title:|\btext[:,}]|\}, \S`)
 	inlineStylePattern    = regexp.MustCompile(`style: "`)
 	nestedTernaryPattern  = regexp.MustCompile(`\?[^:\n]*\?[^:\n]*:`)
 	timerLiteralPattern   = regexp.MustCompile(`set(?:Timeout|Interval)\([^\n]*?,\s*\d+\)`)
@@ -70,17 +72,18 @@ func ReviewMeasures(source string) Review {
 		}
 	}
 	review.WindowDialogs = len(windowDialogPattern.FindAllString(source, everyMatch))
-	for line := range strings.SplitSeq(source, "\n") {
-		for _, at := range controlPattern.FindAllStringIndex(line, everyMatch) {
-			call, before := line[at[0]:at[1]], line[:at[0]]
-			if !strings.Contains(call, "aria-label") && !strings.Contains(call, "placeholder") && !strings.Contains(call, `type: "file"`) &&
-				!strings.Contains(call, `type: "checkbox"`) && !strings.Contains(call, `type: "hidden"`) && !strings.Contains(before, `el("label"`) {
-				review.UnnamedControls++
-			}
+	for _, at := range controlPattern.FindAllStringIndex(source, everyMatch) {
+		// before: the call's own line up to the call, where a wrapping label would be written.
+		call, before := elCall(source, at[0]), source[:at[0]]
+		if lineStart := strings.LastIndexByte(before, '\n'); lineStart >= 0 {
+			before = before[lineStart:]
+		}
+		if !namedControlPattern.MatchString(call) && !strings.Contains(before, `el("label"`) {
+			review.UnnamedControls++
 		}
 	}
-	for _, call := range buttonPattern.FindAllString(source, everyMatch) {
-		if !strings.Contains(call, "text:") && !strings.Contains(call, "aria-label") && !strings.Contains(call, "title:") {
+	for _, at := range buttonPattern.FindAllStringIndex(source, everyMatch) {
+		if !namedButtonPattern.MatchString(elCall(source, at[0])) {
 			review.UnnamedButtons++
 		}
 	}
@@ -89,6 +92,23 @@ func ReviewMeasures(source string) Review {
 	review.TimerLiterals = len(timerLiteralPattern.FindAllString(source, everyMatch))
 	review.DebtMarkers = len(debtMarkerPattern.FindAllString(source, everyMatch))
 	return review
+}
+
+// elCall returns the el(...) call text starting at start, to its balanced closing
+// parenthesis (the whole call, however many lines it spans).
+func elCall(source string, start int) string {
+	depth := 0
+	for index := start; index < len(source); index++ {
+		switch source[index] {
+		case '(':
+			depth++
+		case ')':
+			if depth--; depth == 0 {
+				return source[start : index+1]
+			}
+		}
+	}
+	return source[start:]
 }
 
 // add sums another source's measures into this review.

@@ -28,7 +28,7 @@
   }
 
   function pairInspector(overgo, observations) {
-    const select = overgo.el("select", { class: "text" });
+    const select = overgo.el("select", { class: "text", "aria-label": "observation step" });
     observations.forEach((observation, index) => select.appendChild(overgo.el("option", {
       value: index, text: "step " + observation.step,
     })));

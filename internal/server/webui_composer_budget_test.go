@@ -24,7 +24,7 @@ const (
 // webuiReviewCeiling: the review criteria webuilane.ReviewMeasures counts, each at its
 // measured value when the census landed (webui-quality-census); they only tighten.
 var webuiReviewCeiling = webuilane.Review{
-	SilentFallbacks: 0, WindowDialogs: 0, UnnamedControls: 19, UnnamedButtons: 2,
+	SilentFallbacks: 0, WindowDialogs: 0, UnnamedControls: 0, UnnamedButtons: 0,
 	InlineStyles: 67, NestedTernaries: 3, TimerLiterals: 6, DebtMarkers: 0,
 }
 

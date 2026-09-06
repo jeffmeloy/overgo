@@ -17,7 +17,7 @@
     async mount(panel, overgo) {
       const { api, el, clear, fmt } = overgo;
       clear(panel);
-      const model = el("select", { class: "text" });
+      const model = el("select", { class: "text", "aria-label": "model" });
       const suiteHost = el("div", { class: "control-grid" });
       const run = el("button", { class: "btn", text: "Run" });
       const cancel = el("button", { class: "btn alt", text: "Cancel", style: "display:none" });

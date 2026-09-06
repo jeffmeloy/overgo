@@ -156,7 +156,7 @@ a { color:var(--acc); }
 .pill {
   display:inline-flex; align-items:center; gap:6px;
   font:11px var(--mono); color:var(--dim); background:var(--bg2);
-  border:1px solid var(--line-soft); border-radius:999px; padding:4px 10px; max-width:34ch;
+  border:1px solid var(--line-soft); border-radius:999px; padding:4px 10px; max-width:34ch; min-height:24px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .pill.ok { color:var(--ok); }
@@ -232,7 +232,7 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .composition-graph { display:grid; grid-template-columns:repeat(8,minmax(80px,auto)); gap:8px; align-items:center; overflow-x:auto; margin:12px 0; }
 .artifact img, .artifact video { display:block; width:100%; aspect-ratio:1; object-fit:contain; background:var(--bg2); margin-bottom:8px; border-radius:5px; }
 .artifact audio { display:block; width:100%; margin-bottom:8px; }
-.link-button { border:0; padding:0; background:none; color:var(--acc); cursor:pointer; }
+.link-button { border:0; padding:0; background:none; color:var(--acc); cursor:pointer; min-height:24px; display:inline-flex; align-items:center; }
 .dataset-example { border-top:1px solid var(--line); padding:10px 0; }
 .preview-text { white-space:pre-wrap; overflow-wrap:anywhere; font:12px var(--mono); }
 textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }

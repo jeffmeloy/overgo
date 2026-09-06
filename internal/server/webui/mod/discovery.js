@@ -38,7 +38,7 @@
 
       // ---- hub search ----
       const query = el("input", { class: "text", placeholder: "search the Hugging Face hub" });
-      const kind = el("select", { class: "text", style: "width:130px" }, el("option", { value: "models", text: "models" }), el("option", { value: "datasets", text: "datasets" }));
+      const kind = el("select", { class: "text", style: "width:130px", "aria-label": "search kind" }, el("option", { value: "models", text: "models" }), el("option", { value: "datasets", text: "datasets" }));
       const searchNote = el("span", { class: "note" });
       const resultsBody = el("tbody");
       const searchButton = el("button", { class: "btn" }, "search");

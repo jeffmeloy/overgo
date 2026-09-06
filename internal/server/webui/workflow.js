@@ -65,7 +65,7 @@
       // choice, never a free input; a boolean is one too.
       const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
       if (choices) {
-        input = el("select", { class: "text" },
+        input = el("select", { class: "text", "aria-label": control.label || control.name },
           el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
       } else {
@@ -128,7 +128,7 @@
       async mount(panel, overgo) {
         const { api, el, clear, fmt } = overgo;
         clear(panel);
-        const capabilitySelect = el("select", { class: "text" });
+        const capabilitySelect = el("select", { class: "text", "aria-label": "capability" });
         const controls = el("div", { class: "control-grid" });
         const status = el("div", { class: "note" });
         const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, style: "display:none" });

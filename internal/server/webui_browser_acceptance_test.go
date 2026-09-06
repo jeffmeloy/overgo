@@ -92,6 +92,16 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form")`); err != nil {
 		t.Fatal(err)
 	}
+	// Every control mounted so far (the chat, library and automations tabs, the
+	// shell) has an accessible name: its label, aria-label, text, placeholder or
+	// title; the status strip announces politely and a banner is an alert.
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const named = (node) => node.getAttribute("aria-label") || node.textContent.trim() || node.placeholder || node.title ||
+        (node.closest("label") && node.closest("label").textContent.trim()) || (node.id && document.querySelector("label[for='" + node.id + "']"));
+      const unnamed = [...document.querySelectorAll("input:not([type=file]):not([type=hidden]), select, textarea, button")].filter((node) => !named(node));
+      if (unnamed.length) { console.error("unnamed controls", unnamed.map((node) => node.outerHTML.slice(0, 80))); return false; }
+      return document.querySelector(".operation-strip").getAttribute("aria-live") === "polite";
+    })()`)
 
 	if err := browser.SetViewport(ctx, 1280, 900); err != nil {
 		t.Fatal(err)

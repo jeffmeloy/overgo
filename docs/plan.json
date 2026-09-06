@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-accessible-names",
-      "title": "Give every control an accessible name and every status a live region (WCAG 2.2 name-role-value, target size, live updates): inputs and selects without a wrapping label take aria-label, the two unnamed buttons take names, the operation strip and the error banners announce as polite live regions, pills meet the 24px minimum target, and the acceptance lane asserts on every tab it visits that each input, select and button has an accessible name; the unnamed ceilings drop to zero",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give every control an accessible name and every status a live region (WCAG 2.2 name-role-value, target size, live updates): inputs and selects without a wrapping label take aria-label, the two unnamed buttons take names, the operation strip and the error banners announce as polite live regions, pills meet the 24px minimum target, and the acceptance lane asserts on every tab it visits that each input, select and button has an accessible name; the unnamed ceilings drop to zero",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "webui-media-input-slots",
       "title": "Media input slots and an intake history (concept from Open-Generative-AI: per-model media input profiles with labeled slots such as first frame, last frame and reference, an upload picker with recent uploads as thumbnails and a maximum count): a capability declares its artifact inputs with a role label and a count, the composer renders one labeled slot per declared input instead of one untyped artifact control, a strip of recent intakes (from the store's intake records, not browser storage) fills a slot with one click, and a Go test pins the declaration-to-slot mapping while the journey fills a slot from the strip",
       "owner": "professional_overgo_gui",

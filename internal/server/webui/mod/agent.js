@@ -216,7 +216,7 @@
 
       function renderAutomations() {
         const agent = activeAgent();
-        const select = el("select", { class: "text" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
+        const select = el("select", { class: "text", "aria-label": "automation" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
         const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", placeholder }));
         const inputs = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON inputs" });
         const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });

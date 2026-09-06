@@ -486,7 +486,15 @@ derived from the server, not from client configuration:
 - **Model pill.** The header names the served model beside its measured
   evidence. The picker lists every servable model in the store; choosing one
   switches the served model live through the swap proxy (`cmd/swap`), and
-  the page reports the switch as an operation chip.
+  the page reports the switch as an operation chip. The proxy started
+  without a default model (`overgo_gui.bat` with no argument) answers the
+  shell itself until a child serves: the client, health naming no model,
+  the workspace manifest with every tab refused, and the store's catalog
+  for the picker; every other route refuses with the reason. The pill
+  says no model serves, the front page carries the one control that opens
+  the picker, and the chosen model's serve launches the first child, after
+  which the page continues as over any served model. The browser lane
+  opens its journey from the cold proxy.
 - **Conversations owned by the server.** Conversations are listed, resumed,
   labelled, and reattached to a turn in flight from the interaction records;
   the browser holds no state a reload would lose.

@@ -240,9 +240,7 @@
     return el("audio", { controls: "", src: url });
   }
 
-  function mediaKind(mime) {
-    return mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : "document";
-  }
+  function mediaKind(mime) { return mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : "document"; }
 
   // ---- composer: the input surface: one prompt box (Enter sends, Shift+Enter newline), attach, drop or
   // paste the kinds the capability document accepts, an attachment strip with previews and refusals, send
@@ -345,9 +343,7 @@
   }
 
   // userLine: the user's turn as the thread shows it, attachments named.
-  function userLine(text, attachments) {
-    return attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text;
-  }
+  function userLine(text, attachments) { return attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text; }
 
   // generate: one request per composer mode beyond chat, answered in the event
   // vocabulary; the front page's modes and the generation tabs share it. A

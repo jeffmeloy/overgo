@@ -58,6 +58,11 @@ var webuiContentTypes = map[string]string{
 // uses hash routing, so no server-side SPA fallback is needed and an unknown
 // path returns the same 404 the router used to emit.
 func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request) {
+	serveWebUIAssets(response, request, h.config.WebUIDir)
+}
+
+// serveWebUIAssets: the client from the embed, or from dir when set (development: disk on every request, caching off).
+func serveWebUIAssets(response http.ResponseWriter, request *http.Request, dir string) {
 	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return
@@ -78,10 +83,8 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 		name = "index.html"
 	}
 	assets, cache := fs.FS(webuiFS), "no-cache"
-	if h.config.WebUIDir != "" {
-		// Development: the client is read from disk on every request with
-		// caching off, so an edit shows on reload without a rebuild.
-		assets, cache = os.DirFS(h.config.WebUIDir), "no-store"
+	if dir != "" {
+		assets, cache = os.DirFS(dir), "no-store"
 	}
 	data, err := fs.ReadFile(assets, name)
 	if err != nil {

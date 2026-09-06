@@ -77,9 +77,10 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	}
 	defer supervisor.Close()
 	resolver := &modelswap.CatalogResolver{Store: store, Limit: 256}
+	// No default: the journey opens on the cold proxy, as overgo_gui.bat
+	// without a model does, and chooses the first model from the picker.
 	proxy := &modelswap.Proxy{
-		Supervisor: supervisor, Resolver: resolver, Keys: resolver,
-		Default: modelswap.Servable{Name: modelName, Location: modelLocation},
+		Supervisor: supervisor, Resolver: resolver, Keys: resolver, Idle: &IdleShell{Catalog: resolver.Catalog},
 	}
 	front := httptest.NewServer(proxy)
 	defer front.Close()
@@ -160,8 +161,23 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       (window.overgo.capabilities() || {}).id !== `+strconv.Quote(previous)+``)
 	}
 
-	// 1. First run: the default model serves, the pill names it, the proxy dot is on.
-	settle("front page over the served model", `!!document.querySelector("#panel-chat.active .composer textarea") &&
+	// 0. Cold start: the proxy serves the shell with no child; the pill names
+	// no model, the front page says how to choose, and the picker's serve
+	// launches the first child.
+	settle("cold page over the proxy with no child", `document.querySelector("#model-pill").textContent === "no model serves" &&
+      !!document.querySelector("#cold-start") && !document.querySelector("#panel-chat.active") &&
+      document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector("#cold-start button").click(); return true; })()`)
+	settle("picker lists the store's models on the cold page", `document.querySelectorAll(".topbar .card .row .mono").length > 0`)
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(modelName)+`);
+      if (!row) return false;
+      [...row.querySelectorAll("button")].find((button) => button.textContent === "serve").click();
+      return true;
+    })()`)
+
+	// 1. First run: the chosen model serves, the pill names it, the proxy dot is on, the cold card is gone.
+	settle("front page over the served model", `!document.querySelector("#cold-start") && !!document.querySelector("#panel-chat.active .composer textarea") &&
       document.querySelector("#model-pill").textContent === `+strconv.Quote(modelName)+` &&
       document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
 

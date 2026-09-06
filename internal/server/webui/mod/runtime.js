@@ -7,18 +7,14 @@
 
   function present(value, format) { return value == null ? "unknown" : String(format ? format(value) : value); }
 
-  function activateRuntime() {
-    if (!runtimeUnsubscribe && runtimeView) runtimeUnsubscribe = window.overgo.runtimeEvents.subscribe(runtimeView);
-  }
+  function activateRuntime() { if (!runtimeUnsubscribe && runtimeView) runtimeUnsubscribe = window.overgo.runtimeEvents.subscribe(runtimeView); }
 
   function deactivateRuntime() {
     if (runtimeUnsubscribe) runtimeUnsubscribe();
     runtimeUnsubscribe = null;
   }
 
-  function activateActivity() {
-    if (!activityUnsubscribe && activityView) activityUnsubscribe = window.overgo.runtimeEvents.subscribe(activityView);
-  }
+  function activateActivity() { if (!activityUnsubscribe && activityView) activityUnsubscribe = window.overgo.runtimeEvents.subscribe(activityView); }
 
   function deactivateActivity() {
     if (activityUnsubscribe) activityUnsubscribe();
@@ -101,9 +97,7 @@
 	  const current = new Map();
 
 	  // A decision rides the strip's binding path (operations_shell.js): it names the request advertised now.
-	  function decide(operation, tool, answer) {
-		overgo.decideOperation(operation, tool, answer).catch((err) => error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))));
-	  }
+	  function decide(operation, tool, answer) { overgo.decideOperation(operation, tool, answer).catch((err) => error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)))); }
 
 	  const dagHost = el("div");
 	  // The DAG view is the recipe graph joined with durable stage

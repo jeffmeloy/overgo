@@ -277,9 +277,7 @@
         } catch (err) { showError(err); }
       }
 
-      function renderAll() {
-        renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations();
-      }
+      function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations(); }
 
       tools = (await api.get("/agent/tools")).tools || [];
       inventory = await api.get("/agents");

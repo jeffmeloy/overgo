@@ -198,9 +198,7 @@
       timer = null;
       if (controller) controller.abort();
     }
-    function schedule() {
-      if (active && !document.hidden) timer = setTimeout(tick, interval);
-    }
+    function schedule() { if (active && !document.hidden) timer = setTimeout(tick, interval); }
     async function tick() {
       if (!active || document.hidden || controller) return;
       const current = new AbortController();
@@ -322,9 +320,7 @@
   function sectionsPresent() { return workspaceManifest.sections.filter((s) => tabs.some((t) => tabSection(t) === s.id)); }
 
   // Sidebar navigation shows every section at once; the active section header highlights the active tab group.
-  function syncSectionUI() {
-    for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection);
-  }
+  function syncSectionUI() { for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection); }
 
   // remountActive: the active tab reloads under a new key, a newly served model or a
   // changed store, from the capability document re-read for it.
@@ -333,10 +329,25 @@
     for (const tab of tabs) {
       if (tab.onDeactivate) tab.onDeactivate();
       tab.mounted = false;
+      // The newly served model's refusals replace the last one's, so the nav shows what works now.
+      const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
+      if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; }
     }
+    applyCapabilities();
     const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
-    if (current) activate(current);
+    if (current && tabs.some(tabSupported)) activate(current);
+    syncColdStart();
     refreshStatus();
+  }
+
+  // syncColdStart: the front page while no model serves (the proxy answers alone, every tab refused); the picker is the way on.
+  function syncColdStart() {
+    const existing = document.getElementById("cold-start");
+    if (tabs.some(tabSupported)) { if (existing) existing.remove(); return; }
+    if (existing) return;
+    document.getElementById("panels").appendChild(el("div", { class: "card front-empty", id: "cold-start" }, el("h2", { text: "no model serves" }),
+      el("div", { class: "note", text: (tabs[0] && tabs[0].refusal) || "choose a model from the model pill" }),
+      el("div", { class: "starters" }, el("button", { class: "btn", text: "Choose a model", onclick: () => document.getElementById("model-pill").click() }))));
   }
 
   function activate(id) {
@@ -407,14 +418,16 @@
     const statusPill = document.getElementById("status-pill");
     const modelPill = document.getElementById("model-pill");
     try {
-      const health = await api.get("/health", { onHeaders: (headers) => dot("proxy-dot", headers.has("X-Overgo-Swap-Proxy") ? "ok" : "off",
-        headers.has("X-Overgo-Swap-Proxy") ? "swap proxy serving " + headers.get("X-Overgo-Swap-Proxy") : "no swap proxy: served directly") });
+      // The proxy names its child in the header; an empty name is the proxy with no child (the cold start).
+      const health = await api.get("/health", { onHeaders: (headers) => { const via = headers.get("X-Overgo-Swap-Proxy");
+        dot("proxy-dot", via == null ? "off" : "ok", via ? "swap proxy serving " + via : via == null ? "no swap proxy: served directly" : "swap proxy running; no model serves"); } });
       statusPill.textContent = "online";
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
+      // The proxy with no child names no model; the pill says so rather than keeping the last name.
+      modelPill.textContent = (health && health.model) || "no model serves";
       if (health && health.model) {
-        modelPill.textContent = health.model;
         const catalog = await api.get("/catalog/models").catch(() => null);
         servedEntry = ((catalog && catalog.models) || []).find((item) =>
           (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
@@ -687,9 +700,10 @@
       setInterval(refreshStatus, 10000);
     }
     const start = location.hash.slice(1);
-    activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
-    refreshStatus();
     applyCapabilities();
+    if (tabs.some(tabSupported)) activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
+    syncColdStart();
+    refreshStatus();
     refreshConversations();
   }
   let shellWired = false;

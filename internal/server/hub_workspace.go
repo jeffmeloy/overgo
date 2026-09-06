@@ -50,6 +50,13 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		log.Printf("catalog: persist identity memo: %v", err)
 	}
 	evidence := h.catalogEvidence(request.Context(), h.workspaceSuiteNames(request.Context()))
+	writeJSON(response, http.StatusOK, map[string]any{
+		"models": catalogListing(entries, evidence), "truncated": truncated, "coverage": h.catalogCoverage(request.Context()),
+	})
+}
+
+// catalogListing: the wire rows for catalogued entries with their evidence; the idle shell lists the same rows without evidence.
+func catalogListing(entries []discovery.CatalogEntry, evidence evaluation.EvidenceIndex) []catalogModel {
 	listed := make([]catalogModel, 0, len(entries))
 	for _, entry := range entries {
 		model := catalogModel{
@@ -70,9 +77,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		}
 		listed = append(listed, model)
 	}
-	writeJSON(response, http.StatusOK, map[string]any{
-		"models": listed, "truncated": truncated, "coverage": h.catalogCoverage(request.Context()),
-	})
+	return listed
 }
 
 // catalogCoverage reports the registered denominators beside the

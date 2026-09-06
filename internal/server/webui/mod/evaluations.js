@@ -3,9 +3,7 @@
 
   const artifactLink = (overgo, id, label) => overgo.artifactLink(id, label, true);
 
-  function metricTable(overgo, metrics) {
-    return overgo.table(["metric", "value", "direction"], (metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : ""), metric.direction || "-"]), "metric-grid");
-  }
+  function metricTable(overgo, metrics) { return overgo.table(["metric", "value", "direction"], (metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : ""), metric.direction || "-"]), "metric-grid"); }
   function valueText(value) {
     if (value == null) return "-";
     return typeof value === "object" ? JSON.stringify(value) : String(value);
@@ -46,9 +44,7 @@
       for (const id of models) model.appendChild(el("option", { value: id, text: fmt.shortID(id) }));
       const fields = new Map();
 
-      function selectedCapabilities() {
-        return capabilities.filter((item) => item.model === model.value);
-      }
+      function selectedCapabilities() { return capabilities.filter((item) => item.model === model.value); }
 
       function renderCapabilities() {
         fields.clear();

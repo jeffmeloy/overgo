@@ -36,7 +36,14 @@ type Proxy struct {
 	// launched from now on inherits it; the request then rides on to the
 	// running child, which takes it for itself. Nil refuses the route.
 	Keys ProviderKeys
+	// Idle answers a model-less request while no child runs and no default
+	// is set (the cold start: the shell, its boot routes, the catalog the
+	// picker chooses from). Nil refuses such a request instead.
+	Idle http.Handler
 }
+
+// errNothingServes: a model-less request with no child running and no default.
+var errNothingServes = errors.New("model swap: no model named, none running, and no default configured")
 
 // ProviderKeys places a hosted provider's key in the proxy's process for
 // the model a reference names.
@@ -83,6 +90,12 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		request.ContentLength = int64(len(raw))
 	}
 	servable, body, err := p.routeServable(request)
+	if errors.Is(err, errNothingServes) && p.Idle != nil {
+		// The header names the proxy with no model, so the shell shows the proxy present and nothing served.
+		response.Header().Set("X-Overgo-Swap-Proxy", "")
+		p.Idle.ServeHTTP(response, request)
+		return
+	}
 	if err != nil {
 		http.Error(response, err.Error(), http.StatusUnprocessableEntity)
 		return
@@ -158,5 +171,5 @@ func (p *Proxy) routeServable(request *http.Request) (Servable, []byte, error) {
 	if p.Default.Name != "" {
 		return p.Default, body, nil
 	}
-	return Servable{}, nil, errors.New("model swap: no model named, none running, and no default configured")
+	return Servable{}, nil, errNothingServes
 }

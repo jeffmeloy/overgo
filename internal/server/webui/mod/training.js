@@ -162,9 +162,7 @@
         } catch (err) { detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
-      function outcomeClass(outcome) {
-        return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : "");
-      }
+      function outcomeClass(outcome) { return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : ""); }
       async function load() {
         host.replaceChildren(el("div", { class: "note", text: "loading /runs" }));
         let data;

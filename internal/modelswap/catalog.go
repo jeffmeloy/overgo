@@ -69,6 +69,19 @@ func (r *CatalogResolver) SetKey(ctx context.Context, reference, key string) err
 	return err
 }
 
+// Catalog lists the store's activations for the idle shell's picker. The
+// store reopens each time: with no child running, the CLI is what changes
+// it, and a declaration made since must list.
+func (r *CatalogResolver) Catalog(ctx context.Context) ([]discovery.CatalogEntry, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	store, err := r.open(ctx, true)
+	if err != nil {
+		return nil, false, err
+	}
+	return discovery.CapabilityCatalog(ctx, store, r.Limit, r.memo)
+}
+
 // Resolve maps one requested name to a launchable servable. A name the
 // cached catalog does not know triggers one reopen, so artifacts
 // committed after the cache was built stay servable.

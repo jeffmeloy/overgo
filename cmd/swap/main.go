@@ -17,6 +17,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/modelswap"
+	"overgo/internal/server"
 )
 
 func main() {
@@ -42,7 +43,8 @@ func run() error {
 		return err
 	}
 	defer supervisor.Close()
-	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver, Keys: resolver}
+	// The cold start: with no default and no child the proxy serves the shell itself, and the picker launches the first child.
+	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver, Keys: resolver, Idle: &server.IdleShell{Catalog: resolver.Catalog}}
 	if *defaultModel != "" {
 		if fileExists(*defaultModel) {
 			// An on-disk model file is launchable directly -- no store

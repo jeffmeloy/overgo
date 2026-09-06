@@ -33,9 +33,10 @@ import (
 
 func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck.Check {
 	generated := automationcheck.GeneratedChecks(g.repo, command)
-	device := automationcheck.DeviceCheck(g.repo, g.paths, devicePackages, command)
+	// Exclusive-device checks run under the host-wide claim.
+	device := g.withDeviceClaim(automationcheck.DeviceCheck(g.repo, g.paths, devicePackages, command))
 	published := automationcheck.PublishedCheck(g.repo, command)
-	webui := automationcheck.WebUICheck(g.repo, command)
+	webui := g.withDeviceClaim(automationcheck.WebUICheck(g.repo, command))
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),

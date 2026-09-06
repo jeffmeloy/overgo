@@ -4,26 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "device-exclusion",
-      "title": "Enforce physical device exclusion across worktrees and stores",
-      "status": "open",
-      "steps": [
-        {
-          "id": "host-wide-claim",
-          "title": "Admit exclusive device work through one host-wide device claim visible across worktrees and stores",
-          "status": "open",
-          "verify": "test -f internal/gate/device_claim_test.go \u0026\u0026 go test ./internal/gate -run '^TestHostWideDeviceClaim$' -count=1",
-          "rationale": "Review priority 4 and the paused master exclusive-gpu-admission checkpoint. A device claim is recorded where every worktree and store can see it, so two lanes cannot both time on the device; a second claimant waits with the holder recorded, and a claim released or expired by its holder's death frees the device. The existing gate device phase is the owner.",
-          "depends_on": [
-            "gate-checkpoints/durable-checkpoint-persistence"
-          ],
-          "capabilities": [
-            "host-wide-device-claim"
-          ]
-        }
-      ]
-    },
-    {
       "id": "conditional-plan-rows",
       "title": "Evaluate typed skip, cancel and wait conditions over recorded outcomes",
       "status": "open",

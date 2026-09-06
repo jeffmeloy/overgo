@@ -1,8 +1,505 @@
 {
-  "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Owner-directed replanning on 2026-09-04: validate the existing integrated capabilities before simplification, preserving the capability freeze enforced by structure. docs/plan.json is the sole live execution plan. Retain open row identities and gated historical completion references. No new model family, workflow, optimizer or general orchestration framework is admitted. Limit construction to reproduced defects, missing acceptance in existing owners, regression protection and evidence-backed simplification. The operator explicitly resumed implementation on 2026-09-04: gate this revision first, then execute ready steps through the existing dispatcher. This instruction supersedes the earlier user-stop; future operator stops still take precedence.\n\nDocument order ranks ready work; depends_on is the authority for prerequisites. Publish current-surface long-form admission records and run remaining benchmark and modality evidence now, without waiting for unrelated fixes or simplification. Preserve current-surface evidence as the before picture. Incorrect or unavailable capabilities remain explicit gaps, not passing evidence. A demonstrated defect blocks only affected claims. On an explicit resume, independent work may overlap through existing conflict-checked worktree/resource leases; shared files and exclusive GPU timing require resource coordination, not artificial capability dependencies. One writer owns a plan edit and gates it before any dispatch.\n\nThe existing long-form record already binds corpus-at-commit, floors, model and inference surface. Extend only the missing cross-revision guarantees: identical corpus/token inputs and explicit accepted baseline IDs, plus bounded cancellation in the existing longform command. These additions gate regression-baseline acceptance, not existing benchmark admission or modality runs. Raw instruction-model NLL alone is not an accuracy defect; preserve the observed chat ranking, add the chat-shaped rung and use matched-checkpoint references for published comparisons. Diagnostic regressions must not become accepted baselines.\n\nRetain existing parity tests, longform tests and report checks as useful lower bounds. Before implementing or measuring a dispatched row, use plan -setverify to add its missing quantitative, coverage or runtime assertion to those checks; never replace useful checks with blanket exit-1 placeholders. New fixtures name an exact test and require its file; absent, skipped or zero-matching tests cannot pass. A build or successful listing alone does not establish capability, and report freshness is only a freshness check. Every acceptance names its model/task/case denominator, protocols, evidence identities, thresholds and exclusions. Extend the existing command/test owner only where an assertion is missing. UNAVAILABLE stays visible with a finding/disposition and is never successful capability evidence.\n\nUse scoped host/kernel tests while fixing, a small recipe-derived execution-coverage set for each execution change, then full final verification of invalidated capabilities. Coverage includes operator path, weight type, head geometry, cache policy and modality; one model per weight type is insufficient. Publish a small accepted immutable guard baseline and enforce the regression gate before broad execution changes. The 2026-09-05 measurements establish a narrow prerequisite exception: complete-coverage corrects missing fixed-budget fingerprint coverage and repair-throughput corrects the reproduced Qwen rate-floor failure before healthy baseline acceptance. These repairs retain exact failed before records, CPU/device parity, isolated resident-cache timing and unchanged thresholds; failed measurements never become healthy references. Commit each producer or repair before clean-tree model publication. Unrelated defect optimization, modality expansion and simplification retain their accepted-guard prerequisites. Expand and re-accept the full catalog after fixes and modality evidence; preserve original records and refuse to normalize known failures. All simplification follows the initial modality report and small-model benchmark pass. Compare quality, throughput and peak/retained memory on identical inputs with declared reference bounds and repeated isolated timing; no aggregate gain hides a required regression. Reuse exact unaffected evidence with recorded independence, rerunning only invalidated slices.\n\nEvery evaluate pass carries an explicit measured -budget. Run small models first; the full 27B MMLU-Pro pass is operator-launched with -budget 3h and must not be started by another row. Keep all 12032 cases and both protocols; incomplete bounded runs remain incomplete. MATH is excluded. Publish evidence only from a clean worktree after implementation lands. Gates read exact accepted evidence for long campaigns rather than launching hours of publication. Store paths resolve the intended canonical store under OVERGO_DATA_ROOT. Extend longform's missing aggregate budget before its full regression-baseline campaign; existing per-rung admission remains usable now.\n\nReproduce findings through cmd/finding with affected claims. Correctness, security, data-loss or invalid-measurement defects interrupt affected work and receive explicit prerequisites; independent validation continues. Preserve historical evidence and checkpoint content identities. Relocation must verify the destination and rollback before retiring the original. Simplification must remove measured maintenance cost while preserving capability. Closeout joins every terminal branch, includes post-change modality revalidation where affected, and cannot clear an explicit user stop.\n\nOptimize capability per wall-hour by simplifying existing implementation: remove redundant transfers, copies, cache ownership, branching and duplicate numerical paths before adding mechanisms. Rank admitted changes by measured throughput/memory/reliability gain or recurring maintenance cost removed. Each slice identifies before evidence, behavior retained, mechanism deleted and executable counterexample. Prefer existing generic owners and one derived policy; no extra controllers, compatibility wrappers or parallel report formats. File splitting and command-count reductions alone are not capability gains. Keep unrelated validation off each slice and reuse exact unaffected evidence.\n\nFix as you go: a failed check creates an immediate repair obligation in its existing owner. Reproduce the failure, correct its cause, and rerun the affected checks before closing the step. Findings and failed records track unfinished repairs; recording, acknowledging or deferring an in-scope defect is not completion. Preserve original failing evidence and declared thresholds; do not weaken assertions, reclassify failures as passes, or accept degraded measurements as a healthy baseline. Repair an invalid prerequisite order when it prevents the fix needed to satisfy it. Only prerequisites that genuinely require unavailable external input can remain blocked, with the affected step open; independent authorized work continues. Preserve the existing distinction between demonstrated runtime defects and expected instruction-model behavior.\n\nOwner directive 2026-09-05: finish E4B across every supported inference modality before switching models, then validate each remaining model across all its supported modalities. The unit of work is a complete model validation bundle, not one repeat, modality probe or evidence-binding edit per commit. Derive each bundle from the union of artifact/projector declarations, recipe facts, compatibility claims and existing oracle fixtures; a text-only activation census must not hide image, audio or video inputs. Distinguish accepted text guards, numerical projector parity, end-to-end task quality and complete model validation. For each model: bind its entire input/output modality denominator and quantitative oracles, run CPU contracts before GPU parity, then full task outputs, chat/mixed-media/API behavior and isolated quality/rate/peak-retained-memory/recovery checks. Finish all repeats and local failure diagnosis for that bundle before an acceptance gate. Reuse exact unaffected records, publish each run durably to the store, and batch evidence bindings and generated reports into one acceptance commit per complete model or a larger settled group. Do not add standalone commits for every control readmission, repeat, listing or report refresh. Implementation repairs still require a coherent tested producer commit before clean-tree publication; collect related repairs with scoped checks before that gate and readmit only affected evidence afterward. No commit-count target justifies mixing unrelated behavioral changes or accepting dirty-source measurements. The E4B bundle may validate and repair its existing paths under the accepted Qwen/E4B controls without waiting for unrelated model acquisition; broad execution changes retain coverage obligations. Existing modality and benchmark rows aggregate these per-model records and run only missing or invalidated cells. Do not invent image/audio generation for an input-only model. Unsupported output modes require an artifact-bound exclusion; missing supported modes remain open repair obligations. Keep full benchmark denominators and the operator-owned27B boundary unchanged.\n\nRSI batch promotion control: extend the existing gate/manifest/evidence owners, not a bypass switch or second orchestration framework. An authorized batch binds its base tree, plan objective, allowed scope, required acceptance and recovery checkpoint. Edits inside the batch run affected cheap checks; dependency changes invalidate only affected exact evidence. Freeze the candidate for isolated device/performance evidence and promote only after the complete required gate succeeds. Never advance plan completion for an intermediate checkpoint, stale candidate or incomplete batch. Scope expansion and failed checks reopen obligations; they cannot lower checks. Preserve clean committed producers for publication and avoid new standalone gates solely to update batch bookkeeping.\n\nOwner-directed audio integration on2026-09-05 is an explicit capability-freeze exception for the already-developed audio worktree and its exact used Granite/Nemotron/FireRed artifacts, not permission for unrelated architectures. After the next E4B serving producer commit, immediately prepare and gate that finalized worktree into master, reconcile all remaining source obligations and register its used local models. Registration, activation, CPU parity, native streaming, training and CUDA remain distinct claims.\n\nOwner directive 2026-09-05: consolidate the API as validation touches each owner. Reuse task-specific model lookup and inventory publication; migrate every caller and remove displaced exports, wrappers and duplicate branches in the same batch. Record the command, route and exported-symbol delta from existing census owners, alongside behavior retained and relevant parity. Capability-preserving consolidation inside a validation or intake repair need not wait for a separate cleanup commit; broad execution restructuring retains its existing regression and modality prerequisites. Avoid adding another executable or orchestration layer for artifact registration. Keep the independently evolving audio plan in its own worktree; master retains only exact intake and integration acceptance obligations.\n\nGUI validation handoff after landed integration 090fbc1f0d54abe700d985d7a67395c6a93e314f: retain master as the validation-plan authority; professional_overgo_gui owns HTTP, browser and transport implementation. Its uncommitted work was not imported. Master owns model numerics, admission contracts, dataset quality and resource evidence. Share modelintake and mediacapability owners; HTTP callers must not fork a verification engine. The merged library registers projector candidates but cannot promote one by opening it. Complete executed media-suite support through the existing admission owner before GUI promotion; preserve the CLI's exact full-mode coverage meanwhile. The integration also fixes a reproduced conversation completion race and gate rename-scope omission. Required concurrency and gate-policy checks remain immediate. Gate scope must include both rename paths independently of Git presentation. The 101-command,133-route,311-document merged manifest describes available surface, not proof of quality. Consolidate overlapping behavior when touching an owner and retain the 9964 duplicate-excess ceiling (9935 measured at this integration). Do not add unrelated infrastructure ahead of E4B.\n\nAudio validation integration: reuse the landed independent package evidence cache and step-local verification_batch contract. A failed, skipped, unfinished or empty package earns no credit; successful independent packages remain reusable across failure and restart only with exact transitive source, fixtures, mode and environment. The merge receipt is preflighted before expensive verification and rechecked under the final commit lock. Do not rebuild these mechanisms in a new controller.\n\nExecute validation as one capability bundle per model. Diagnose with owning-package CPU tests, then required GPU correctness, then isolated quality/resource measurements; fix failures immediately and rerun only invalidated evidence. Collect related implementation changes before one integration gate. Model checkpoints below are mandatory lower bounds, not final model acceptance. The parent acceptance must join source-bound quality, all declared modalities/protocols and resource evidence. Publish canonical model measurements from clean committed source and freeze held-out selection/oracles before measurement. Preserve recoverable work without claiming incomplete rows complete; reduced checkpoint gates remain unavailable until the existing batch-promotion row establishes durable cumulative obligations and escalation. Missing required models, datasets, tools or assertions must be located, acquired or implemented, not silently skipped.",
+  "campaign": "Hatchet-derived workflow contracts: durable attempts, declared capacity, keyed admission and conditional plan rows on existing Go owners",
+  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. docs/hatchet_for_overgo.md is the design record for this campaign and names, for every element, the observed Hatchet mechanism, the Overgo gap, the contract, the owner and the acceptance. No Hatchet source is copied, translated or vendored; every element is a contract restated on the existing Go owner that holds the neighbouring authority, and no parallel runtime, queue or expression language is added. Each row's verify names one acceptance test in the owning package guarded by the test file's existence; the acceptance names are planned work, not claims that the tests exist, and a row closes only when its named test executes and passes through the gate. Host rows land first; device tests are limited to eviction on the real device and the load lane's measured run, and a device verify carries its own OVERGO_CUDA_TEST and OVERGO_DATA_ROOT bindings. The lane cycle, in this order and repeated: merge current master into the lane except master's docs/plan.json, which never enters the lane; update this plan from the merged repository and its measured performance; execute the dispatched row; commit through the gate. Do not chase master during a row. One writer owns a plan edit and gates it. Findings outside the dispatched row are parked with cmd/finding, not folded in. Rows are ranked by their expected reduction of automation cost and their gain in development pace: gate wall per accepted row, re-executed work after interruption, and rows dispatched without operator intervention come before request-level admission, observability and serving measurement; a row's outcome records the measured change in those quantities. Audit language in code, evidence and commit messages is objective. Every element records the measurement that decides it: restart re-execution count, gate cost per accepted checkpoint, device idle time during host phases, and queued-to-first-token latency at declared concurrency; a row whose measurement shows no gain closes with that outcome recorded.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "batch-flush-contracts",
+      "title": "Declare when keyed batches flush and measure the gate cost they save",
+      "status": "open",
+      "steps": [
+        {
+          "id": "flush-conditions",
+          "title": "Declare keyed verification and evaluation batches with size, interval and byte flush bounds",
+          "status": "open",
+          "verify": "test -f internal/plan/batch_flush_test.go \u0026\u0026 go test ./internal/plan -run '^TestBatchFlushDeclarations$' -count=1",
+          "rationale": "Design record E7. A batch flushes deterministically when it reaches its maximum size, its maximum interval since the last flush, or its byte bound; keys never mix. The existing VerificationBatch gains the flush declaration rather than a new batch owner.",
+          "depends_on": [
+            "campaign-definition/author-plan"
+          ],
+          "capabilities": [
+            "keyed-batch-flush",
+            "deterministic-flush"
+          ]
+        },
+        {
+          "id": "gate-batch-cost",
+          "title": "Record gate cost per accepted checkpoint before and after batch flushing",
+          "status": "open",
+          "verify": "test -f internal/gate/batch_cost_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchedGateCostEvidence$' -count=1",
+          "rationale": "The measurement that decides this element is wall time per accepted checkpoint. The gate records it as evidence for the same declared batch before and after flushing, and the row closes with the comparison recorded whatever its sign.",
+          "depends_on": [
+            "batch-flush-contracts/flush-conditions"
+          ],
+          "capabilities": [
+            "gate-cost-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conditional-plan-rows",
+      "title": "Evaluate typed skip, cancel and wait conditions over recorded outcomes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "outcome-predicates",
+          "title": "Declare skip-if, cancel-if and wait-for conditions as typed field comparisons over parent outcomes",
+          "status": "open",
+          "verify": "test -f internal/plan/conditions_test.go \u0026\u0026 go test ./internal/plan -run '^TestConditionalRowsOverRecordedOutcomes$' -count=1",
+          "rationale": "Design record E6. A condition is a field, an operator and a literal evaluated against the recorded outcome of a parent row, or a wait on a recorded event or elapsed duration. No expression language is embedded; the plan owns the evaluator.",
+          "depends_on": [
+            "campaign-definition/author-plan"
+          ],
+          "capabilities": [
+            "typed-row-conditions",
+            "no-expression-language"
+          ]
+        },
+        {
+          "id": "skipped-and-cancelled-completion",
+          "title": "Record skipped and cancelled rows as completion authority with reasons",
+          "status": "open",
+          "verify": "test -f internal/plan/skipped_completion_test.go \u0026\u0026 go test ./internal/plan -run '^TestSkippedAndCancelledRowAuthority$' -count=1",
+          "rationale": "A skipped row leaves the plan through the same completion path as a done row, carrying its reason, so dependents resolve without a manual edit and the history shows why the row did not run.",
+          "depends_on": [
+            "conditional-plan-rows/outcome-predicates"
+          ],
+          "capabilities": [
+            "skipped-completion",
+            "recorded-reasons"
+          ]
+        },
+        {
+          "id": "frontier-conditions",
+          "title": "Dispatch only rows whose conditions hold and report waiting rows with their reasons",
+          "status": "open",
+          "verify": "test -f cmd/plan/frontier_conditions_test.go \u0026\u0026 go test ./cmd/plan -run '^TestFrontierReportsConditionOutcomes$' -count=1",
+          "rationale": "ReadyFrontier evaluates conditions and the frontier report names each waiting row with the condition it waits on, so an operator reads the plan's state from the tool rather than from rationale text.",
+          "depends_on": [
+            "conditional-plan-rows/outcome-predicates",
+            "conditional-plan-rows/skipped-and-cancelled-completion"
+          ],
+          "capabilities": [
+            "condition-aware-frontier",
+            "waiting-row-report"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "deadlines-and-requeue",
+      "title": "Bound waiting and running separately and back off requeues",
+      "status": "open",
+      "steps": [
+        {
+          "id": "schedule-and-execution-deadlines",
+          "title": "Carry a schedule deadline and an execution deadline on every dispatched operation",
+          "status": "open",
+          "verify": "test -f internal/operation/deadlines_test.go \u0026\u0026 go test ./internal/operation -run '^TestScheduleAndExecutionDeadlines$' -count=1",
+          "rationale": "Design record E5. A schedule deadline that elapses cancels the operation with a recorded reason before it runs; an execution deadline bounds the run. Waiting on a contested device becomes a measured, cancellable state instead of an unrecorded delay.",
+          "depends_on": [
+            "campaign-definition/author-plan"
+          ],
+          "capabilities": [
+            "schedule-deadline",
+            "execution-deadline"
+          ]
+        },
+        {
+          "id": "deadline-refresh",
+          "title": "Extend the execution deadline from progress reports with buffered, bounded flushes",
+          "status": "open",
+          "verify": "test -f internal/operation/deadline_refresh_test.go \u0026\u0026 go test ./internal/operation -run '^TestProgressExtendsExecutionDeadline$' -count=1",
+          "rationale": "A long device row extends its own budget by reporting progress rather than by a generous static bound. Refreshes are accumulated per operation and flushed at a bounded interval so the store is not written per report.",
+          "depends_on": [
+            "deadlines-and-requeue/schedule-and-execution-deadlines"
+          ],
+          "capabilities": [
+            "progress-refreshed-deadline",
+            "buffered-refresh"
+          ]
+        },
+        {
+          "id": "backoff-and-idle-intervals",
+          "title": "Requeue with jittered exponential backoff and back off idle periodic controllers",
+          "status": "open",
+          "verify": "test -f internal/loop/backoff_test.go \u0026\u0026 go test ./internal/loop -run '^TestRequeueBackoffAndIdleIntervals$' -count=1",
+          "rationale": "Requeue delay doubles per attempt with jitter, a maximum and an overflow guard. A periodic controller doubles its interval while it finds no work and resets when it does, which removes polling cost from quiet periods.",
+          "depends_on": [
+            "campaign-definition/author-plan"
+          ],
+          "capabilities": [
+            "jittered-backoff",
+            "idle-interval-backoff"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "durable-attempt-log",
+      "title": "Bind durable attempts to invocation counts and a keyed memo log",
+      "status": "open",
+      "steps": [
+        {
+          "id": "attempt-identity",
+          "title": "Record attempt identity as the durable unit and its invocation count, with keyed memo, wait and child entries",
+          "status": "open",
+          "verify": "test -f internal/runrecord/durable_attempt_test.go \u0026\u0026 go test ./internal/runrecord -run '^TestDurableAttemptInvocationContract$' -count=1",
+          "rationale": "Design record E1. One record contract replaces three recovery derivations: a memo entry is keyed by a caller key bound to the attempt, a wait or child is an ordinal entry, and each completion is recorded once. Invocation counts increase monotonically per durable unit and a stale count is refused at its first request.",
+          "depends_on": [
+            "campaign-definition/author-plan"
+          ],
+          "capabilities": [
+            "durable-attempt-identity",
+            "keyed-memo-log"
+          ]
+        },
+        {
+          "id": "memo-replay",
+          "title": "Replay a workflow graph from its keyed log without re-executing memoised stages",
+          "status": "open",
+          "verify": "test -f internal/workflowruntime/durable_replay_test.go \u0026\u0026 go test ./internal/workflowruntime -run '^TestDurableLogReplayAcceptance$' -count=1",
+          "rationale": "The workflow runtime's recovery of completed stages becomes a replay of the attempt log through the existing AttemptRecorder boundary. The test interrupts after a memoised stage, resumes under a new invocation count, and proves the stage result is read, not recomputed.",
+          "depends_on": [
+            "durable-attempt-log/attempt-identity"
+          ],
+          "capabilities": [
+            "log-replay",
+            "no-re-execution"
+          ]
+        },
+        {
+          "id": "divergence-and-eviction",
+          "title": "Refuse divergent replays with a typed failure and refuse stale invocations",
+          "status": "open",
+          "verify": "test -f internal/agentloop/durable_divergence_test.go \u0026\u0026 go test ./internal/agentloop -run '^TestDurableInvocationDivergenceAndEviction$' -count=1",
+          "rationale": "A replay whose next request differs from the recorded entry is a determinism defect, not a retry. The session recovery owner records the divergence as a typed failure and an invocation superseded by a newer count cannot complete.",
+          "depends_on": [
+            "durable-attempt-log/memo-replay"
+          ],
+          "capabilities": [
+            "replay-divergence-refusal",
+            "stale-invocation-eviction"
+          ]
+        },
+        {
+          "id": "agent-tool-children",
+          "title": "Run agent tool calls as memoised child attempts that replay from their receipts",
+          "status": "open",
+          "verify": "test -f internal/agentloop/tool_child_attempts_test.go \u0026\u0026 go test ./internal/agentloop -run '^TestToolCallsReplayAsChildAttempts$' -count=1",
+          "rationale": "Tool calls are the side effects an agent loop must not repeat after interruption. Each call is a child attempt with its own receipt; a resumed session reads completed receipts and only executes calls the log has not recorded.",
+          "depends_on": [
+            "durable-attempt-log/divergence-and-eviction"
+          ],
+          "capabilities": [
+            "tool-calls-as-child-attempts",
+            "receipt-replay"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "declared-capacity",
+      "title": "Declare slot cost, lane labels and sticky assignment on the existing schedulers",
+      "status": "open",
+      "steps": [
+        {
+          "id": "slot-cost-and-labels",
+          "title": "Declare slot cost in device and host units on rows and operations, and labels with capacity on lanes",
+          "status": "open",
+          "verify": "test -f internal/plan/capacity_test.go \u0026\u0026 go test ./internal/plan -run '^TestSlotCostAndLabelAssignment$' -count=1",
+          "rationale": "Design record E3. plan.Resources becomes the declaration the scheduler charges: a row reserves its cost on one lane, a lane declares labels and capacity, and a required label that no lane holds leaves the row waiting with that reason.",
+          "depends_on": [
+            "conditional-plan-rows/frontier-conditions"
+          ],
+          "capabilities": [
+            "slot-cost",
+            "lane-labels"
+          ]
+        },
+        {
+          "id": "weighted-and-sticky-assignment",
+          "title": "Assign by required labels, order by weight, break ties round-robin, and keep dependent rows sticky to the lane holding their resident model",
+          "status": "open",
+          "verify": "test -f internal/plan/sticky_assignment_test.go \u0026\u0026 go test ./internal/plan -run '^TestWeightedStickyLaneAssignment$' -count=1",
+          "rationale": "The locality scheduler already filters lanes on artifact locality; it gains weight ordering, round-robin ties and soft or hard sticky modes so that rows reusing one resident session are assigned by declaration rather than by hand.",
+          "depends_on": [
+            "declared-capacity/slot-cost-and-labels"
+          ],
+          "capabilities": [
+            "weighted-assignment",
+            "sticky-assignment"
+          ]
+        },
+        {
+          "id": "exclusive-device-cost",
+          "title": "Express exclusive device rows as full device cost and admit host rows beside them",
+          "status": "open",
+          "verify": "test -f internal/loop/exclusive_device_test.go \u0026\u0026 go test ./internal/loop -run '^TestExclusiveDeviceRowsAdmitHostRows$' -count=1",
+          "rationale": "The rule that device timing runs alone becomes a cost equal to the lane's device capacity. The driver proves that host-only rows dispatch while an exclusive device row runs and that a second device row waits with the capacity reason recorded.",
+          "depends_on": [
+            "declared-capacity/weighted-and-sticky-assignment",
+            "deadlines-and-requeue/schedule-and-execution-deadlines"
+          ],
+          "capabilities": [
+            "exclusive-device-by-cost",
+            "parallel-host-rows"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "operator-references",
+      "title": "Diagnose and replay one plan row from its records",
+      "status": "open",
+      "steps": [
+        {
+          "id": "diagnose-row",
+          "title": "Render a state-keyed diagnosis of one plan row from its attempt records and evidence tails",
+          "status": "open",
+          "verify": "test -f cmd/plan/diagnose_test.go \u0026\u0026 go test ./cmd/plan -run '^TestDiagnoseRowReference$' -count=1",
+          "rationale": "Design record E11. The command prints the row's state, its attempt records in order, bounded evidence tails, and the next action keyed on the observed state, so an operator or an agent diagnoses a stuck or failed row from one tool.",
+          "depends_on": [
+            "durable-attempt-log/attempt-identity"
+          ],
+          "capabilities": [
+            "row-diagnosis"
+          ]
+        },
+        {
+          "id": "replay-attempt",
+          "title": "Replay one attempt from its receipt with the same or new inputs",
+          "status": "open",
+          "verify": "test -f internal/loop/replay_test.go \u0026\u0026 go test ./internal/loop -run '^TestReplayAttemptFromReceipt$' -count=1",
+          "rationale": "A recorded attempt is re-run from its receipt under a new invocation count, reading memoised results where the inputs are unchanged and executing where they differ, which is the replay reference an agent uses after a diagnosis.",
+          "depends_on": [
+            "operator-references/diagnose-row",
+            "durable-attempt-log/memo-replay"
+          ],
+          "capabilities": [
+            "attempt-replay"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "eviction-and-release",
+      "title": "Evict waiting sessions by declared policy and release device claims after the device phase",
+      "status": "open",
+      "steps": [
+        {
+          "id": "eviction-policy",
+          "title": "Declare TTL, capacity and priority eviction on resident session leases and waiting operations",
+          "status": "open",
+          "verify": "test -f internal/capabilityruntime/eviction_policy_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestSessionEvictionPolicy$' -count=1",
+          "rationale": "Design record E2. The ModelSessionDirector evicts by policy when an admission needs capacity: after a waiting TTL, under capacity pressure when permitted, and in priority order among candidates, recording the reason. A fake capacity model proves the order without a device.",
+          "depends_on": [
+            "declared-capacity/slot-cost-and-labels",
+            "deadlines-and-requeue/deadline-refresh"
+          ],
+          "capabilities": [
+            "eviction-policy",
+            "recorded-eviction-reason"
+          ]
+        },
+        {
+          "id": "device-release",
+          "title": "Release the device claim after the device phase while the host phase continues under the same attempt",
+          "status": "open",
+          "verify": "test -f internal/capabilityruntime/device_release_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestDeviceClaimReleaseDuringHostWork$' -count=1",
+          "rationale": "A row that generates on the device and scores on the host holds the device through scoring today. Release is a recorded transition; the claim cannot be reacquired without a new admission; the host phase completes under the same attempt identity.",
+          "depends_on": [
+            "eviction-and-release/eviction-policy"
+          ],
+          "capabilities": [
+            "device-claim-release",
+            "host-phase-continuation"
+          ]
+        },
+        {
+          "id": "measured-device-eviction",
+          "title": "Evict and resume a resident session on the real device within the retained-memory bound",
+          "status": "open",
+          "verify": "test -f internal/capabilityruntime/device_eviction_windows_test.go \u0026\u0026 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./internal/capabilityruntime -run '^TestDeviceEvictionRecovery$' -count=1 -timeout=10m",
+          "rationale": "The device measurement that decides E2: a second admission evicts a waiting resident session under memory pressure, the evicted session resumes by replay, and retained device memory stays within the bound the long-form guard records. Device idle time during the host phase is recorded before and after release.",
+          "depends_on": [
+            "eviction-and-release/device-release",
+            "durable-attempt-log/memo-replay"
+          ],
+          "capabilities": [
+            "measured-device-eviction",
+            "retained-memory-bound"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "keyed-admission",
+      "title": "Admit requests by declared key with recorded strategies and idempotency holds",
+      "status": "open",
+      "steps": [
+        {
+          "id": "concurrency-strategies",
+          "title": "Derive a group key from declared request facts and apply round-robin, cancel-in-progress, cancel-newest and cancel-queued-except-newest strategies",
+          "status": "open",
+          "verify": "test -f internal/server/keyed_admission_test.go \u0026\u0026 go test ./internal/server -run '^TestKeyedConcurrencyStrategies$' -count=1",
+          "rationale": "Design record E4. A new turn in the same conversation supersedes the in-flight one, one served model is shared fairly across users by a declared limit, and every cancellation records its reason. The key is derived from the conversation, model or workspace identity the request already carries.",
+          "depends_on": [
+            "deadlines-and-requeue/schedule-and-execution-deadlines"
+          ],
+          "capabilities": [
+            "keyed-concurrency",
+            "recorded-cancellation"
+          ]
+        },
+        {
+          "id": "swap-coalescing",
+          "title": "Coalesce queued model swaps to the newest request per endpoint and drain with recorded reasons",
+          "status": "open",
+          "verify": "test -f internal/modelswap/coalesce_test.go \u0026\u0026 go test ./internal/modelswap -run '^TestSwapRequestsCoalesceToNewest$' -count=1",
+          "rationale": "The swap supervisor drains by a grace period today. Cancel-queued-except-newest applied to swap requests keeps only the latest requested model per endpoint and records why the superseded requests were dropped.",
+          "depends_on": [
+            "keyed-admission/concurrency-strategies"
+          ],
+          "capabilities": [
+            "swap-coalescing"
+          ]
+        },
+        {
+          "id": "status-idempotency",
+          "title": "Hold one in-flight automation run per idempotency key with a fallback TTL",
+          "status": "open",
+          "verify": "test -f internal/workflowruntime/idempotency_test.go \u0026\u0026 go test ./internal/workflowruntime -run '^TestStatusIdempotencyKeys$' -count=1",
+          "rationale": "A duplicate webhook or schedule trigger with the same key collides while the owning run is not terminal and is admitted once it is; the fallback TTL bounds a key whose run never reaches a terminal state.",
+          "depends_on": [
+            "keyed-admission/concurrency-strategies"
+          ],
+          "capabilities": [
+            "status-idempotency",
+            "fallback-ttl"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "queue-observability",
+      "title": "Record cancellation reasons and publish queue statistics per key",
+      "status": "open",
+      "steps": [
+        {
+          "id": "cancellation-reasons",
+          "title": "Record a typed cancellation reason on every cancelled operation and row",
+          "status": "open",
+          "verify": "test -f internal/operation/cancellation_reason_test.go \u0026\u0026 go test ./internal/operation -run '^TestCancellationReasonRecorded$' -count=1",
+          "rationale": "Design record E9. Schedule timeout, execution timeout, superseded by key, evicted, operator stop and dependency cancelled are the closed reasons; a cancellation without one is refused.",
+          "depends_on": [
+            "deadlines-and-requeue/schedule-and-execution-deadlines"
+          ],
+          "capabilities": [
+            "typed-cancellation-reason"
+          ]
+        },
+        {
+          "id": "queue-statistics",
+          "title": "Publish queued and running counts with oldest age per key for operations and lanes",
+          "status": "open",
+          "verify": "test -f internal/server/queue_statistics_test.go \u0026\u0026 go test ./internal/server -run '^TestQueueStatisticsEndpoint$' -count=1",
+          "rationale": "The front page and the lane dispatcher read the same statistics: counts per state, the distribution per key, and the age of the oldest queued item, derived from operation records rather than from logs.",
+          "depends_on": [
+            "queue-observability/cancellation-reasons",
+            "keyed-admission/concurrency-strategies"
+          ],
+          "capabilities": [
+            "queue-statistics"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "schedule-pause",
+      "title": "Pause one automation with declared behaviour for its due slots",
+      "status": "open",
+      "steps": [
+        {
+          "id": "pause-policy",
+          "title": "Pause one automation with queue-or-drop behaviour for due schedule slots and a queue TTL",
+          "status": "open",
+          "verify": "test -f internal/workflowruntime/automation_pause_test.go \u0026\u0026 go test ./internal/workflowruntime -run '^TestAutomationPauseQueueOrDrop$' -count=1",
+          "rationale": "Design record E8. In-flight runs continue, new runs queue under a TTL or the due slot is dropped as declared, expired queued runs cancel with the reason recorded, and unpausing requeues the rest. The recorded operator stop remains the whole-plan pause.",
+          "depends_on": [
+            "keyed-admission/status-idempotency"
+          ],
+          "capabilities": [
+            "automation-pause",
+            "queue-or-drop"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "serving-load-lane",
+      "title": "Measure serving under concurrent load and ratchet its floors",
+      "status": "open",
+      "steps": [
+        {
+          "id": "timing-collector",
+          "title": "Add a load lane that drives the served model at declared concurrency and collects timings with bounded fetch concurrency and a pending TTL",
+          "status": "open",
+          "verify": "test -f cmd/load-lane/collector_test.go \u0026\u0026 go test ./cmd/load-lane -run '^TestLoadLaneTimingCollector$' -count=1",
+          "rationale": "Design record E10. Queued-to-first-token latency and throughput through the swap proxy are unmeasured. The collector fetches run timings concurrently under a bound and abandons a run whose timings never arrive after a TTL, so a broken run cannot stall the lane.",
+          "depends_on": [
+            "queue-observability/queue-statistics"
+          ],
+          "capabilities": [
+            "serving-load-lane",
+            "bounded-timing-collection"
+          ]
+        },
+        {
+          "id": "measured-floors",
+          "title": "Publish one measured load run and ratchet latency and throughput floors from it",
+          "status": "open",
+          "verify": "test -f cmd/load-lane/floors_windows_test.go \u0026\u0026 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/load-lane -run '^TestServingLoadFloors$' -count=1 -timeout=15m",
+          "rationale": "The first floors are the measured values of the smallest served text model at the declared concurrency; later runs may only tighten them, as the clone baseline ratchets. The record binds the model, recipe, concurrency and inference surface.",
+          "depends_on": [
+            "serving-load-lane/timing-collector"
+          ],
+          "capabilities": [
+            "load-floors-ratchet"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hatchet-closeout",
+      "title": "Publish the measurements that decide the campaign and record the workflow contracts in the README",
+      "status": "open",
+      "steps": [
+        {
+          "id": "measured-closeout",
+          "title": "Publish restart re-execution, gate cost per checkpoint, device idle during host phases and load floors before and after, and document the adopted contracts",
+          "status": "open",
+          "verify": "test -f internal/plan/hatchet_closeout_test.go \u0026\u0026 go test ./internal/plan -run '^TestHatchetCampaignCloseout$' -count=1",
+          "rationale": "The closeout binds each element to its recorded measurement, records the elements that showed no gain with their outcome, and updates the README's workflow sections to describe the contracts as they exist. It depends on every terminal row.",
+          "depends_on": [
+            "durable-attempt-log/agent-tool-children",
+            "deadlines-and-requeue/backoff-and-idle-intervals",
+            "batch-flush-contracts/gate-batch-cost",
+            "declared-capacity/exclusive-device-cost",
+            "eviction-and-release/measured-device-eviction",
+            "keyed-admission/swap-coalescing",
+            "schedule-pause/pause-policy",
+            "serving-load-lane/measured-floors",
+            "operator-references/replay-attempt"
+          ],
+          "capabilities": [
+            "measured-closeout",
+            "readme-manifest"
+          ]
+        }
+      ]
+    },
     {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",

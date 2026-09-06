@@ -79,6 +79,10 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		assertAudioCapabilityCampaign(t, document)
 		return
 	}
+	if strings.Contains(document.Campaign, "Hatchet-derived") {
+		assertHatchetWorkflowCampaign(t, document)
+		return
+	}
 	// Each campaign pins its own structure ratchet, keyed by campaign
 	// identity the way the grounded doctrine binding already is: the
 	// integrated-RSI snapshot binds to the RSI control-plane campaign, and
@@ -424,6 +428,52 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	assertCampaignFrontier(t, document,
 		"deterministic-rollout/promotion-binding",
 		"live-safety/circuit-breaker")
+}
+
+// assertHatchetWorkflowCampaign: overgo_hatchet lane ratchet; doctrine phrases
+// bound -> campaign rows open + file-guarded verifier in owning package ->
+// contract items before consumers -> first frontier parallel; retained master
+// items keep own verifiers.
+func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
+	t.Helper()
+	for _, required := range []string{
+		"docs/hatchet_for_overgo.md is the design record", "No Hatchet source is copied",
+		"one acceptance test in the owning package", "Host rows land first",
+	} {
+		if !strings.Contains(document.Doctrine, required) {
+			t.Errorf("hatchet campaign doctrine omits %q", required)
+		}
+	}
+	campaign := map[string]bool{
+		"campaign-definition": true, "durable-attempt-log": true, "deadlines-and-requeue": true,
+		"conditional-plan-rows": true, "batch-flush-contracts": true, "declared-capacity": true,
+		"eviction-and-release": true, "keyed-admission": true, "schedule-pause": true,
+		"queue-observability": true, "serving-load-lane": true, "operator-references": true,
+		"hatchet-closeout": true,
+	}
+	for _, item := range document.Items {
+		if !campaign[item.ID] {
+			continue
+		}
+		for _, step := range item.Steps {
+			if step.Status != StatusOpen || !strings.HasPrefix(step.Verify, "test -f ") {
+				t.Errorf("hatchet campaign step %s/%s lacks an open file-guarded verifier", item.ID, step.ID)
+			}
+		}
+	}
+	for _, order := range [][2]string{
+		{"durable-attempt-log", "eviction-and-release"},
+		{"deadlines-and-requeue", "keyed-admission"},
+		{"conditional-plan-rows", "declared-capacity"},
+		{"declared-capacity", "eviction-and-release"},
+		{"keyed-admission", "schedule-pause"},
+		{"queue-observability", "serving-load-lane"},
+	} {
+		assertCampaignOrder(t, document, order[0], order[1])
+	}
+	assertCampaignFrontier(t, document,
+		"durable-attempt-log/attempt-identity", "deadlines-and-requeue/schedule-and-execution-deadlines",
+		"conditional-plan-rows/outcome-predicates", "batch-flush-contracts/flush-conditions")
 }
 
 // assertAudioCapabilityCampaign admits the branch-specific audio campaign

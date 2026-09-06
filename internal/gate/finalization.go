@@ -33,7 +33,9 @@ func (g *gateContext) recordPackagePasses(report testevidence.GoTestReport, pack
 		credited++
 	}
 	if credited != 0 {
-		g.saveRetryCache(*g.retryCache)
+		if err := g.saveRetryCache(*g.retryCache); err != nil {
+			return err
+		}
 	}
 	g.audit = append(g.audit, fmt.Sprintf("package evidence retained: %d/%d %s packages; incomplete or empty evidence not credited", credited, len(packages), mode))
 	return nil

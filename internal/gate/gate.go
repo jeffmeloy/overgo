@@ -150,6 +150,7 @@ var (
 	gateRecoveryBeforeLockHook   func(string)
 	gateRecoveryLockedHook       func(string)
 	gateRecoveryAfterStepHook    func(string, string)
+	gateCheckPersistedHook       func(string)
 )
 
 func (transaction *gatePreparedReferenceTransaction) exchange(command, expected string) error {

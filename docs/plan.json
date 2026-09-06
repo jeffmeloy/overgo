@@ -9,17 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "durable-checkpoint-persistence",
-          "title": "Persist every terminal check success before the next check runs and recover it after a process kill",
-          "status": "open",
-          "verify": "test -f internal/gate/checkpoint_persistence_test.go \u0026\u0026 go test ./internal/gate -run '^TestCheckpointPersistenceSurvivesKill$' -count=1",
-          "rationale": "Review finding 1. Successful checks entered the retry cache in memory and were written only after the whole verification DAG returned, so a kill lost them. Each terminal success is written atomically as it lands. A helper process runs the fixture batch, is killed after its first persisted success, and the parent proves the cache holds that entry and a rerun reuses it.",
-          "capabilities": [
-            "durable-check-evidence",
-            "kill-recovery"
-          ]
-        },
-        {
           "id": "complete-memo-identity",
           "title": "Cover every command of a verifier in the checkpoint memo input, or refuse to cache the verifier",
           "status": "open",

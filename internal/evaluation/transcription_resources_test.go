@@ -11,7 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/modelrecipetest"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
@@ -252,9 +252,12 @@ func testTranscriptionResourcesModelMismatch(t *testing.T) {
 	fixture := newTranscriptionResourceFixture(t)
 	other := testutil.ArtifactID(t, artifact.KindModel, "foreign model")
 	if _, err := EvaluateTranscriptionResources(t.Context(), fixture.store, fixture.compiled, fixture.plan,
-		other, fixture.inputs, TranscriptionResourceOptions{TimedRuns: 1}, 1<<20); err == nil ||
-		!strings.Contains(err.Error(), "model definition differs") {
+		other, fixture.inputs, TranscriptionResourceOptions{TimedRuns: 1}, 1<<20); err == nil {
 		t.Fatalf("model mismatch: %v", err)
+	}
+	if err := modelrecipe.RequireModelDefinitionBinding(t.Context(), fixture.store, fixture.plan.body.ModelDefinition,
+		fixture.model, testutil.ArtifactID(t, artifact.KindRecipe, "foreign execution")); err == nil {
+		t.Fatal("task definition accepted a different runtime recipe")
 	}
 	if _, err := EvaluateTranscriptionResources(t.Context(), fixture.store, fixture.compiled, fixture.plan,
 		fixture.model, fixture.inputs, TranscriptionResourceOptions{TimedRuns: 1}, 0); err == nil {
@@ -287,7 +290,7 @@ func newTranscriptionResourceFixture(t *testing.T) transcriptionResourceFixture 
 		}
 	})
 	fixture := speechrecognitiontest.Publish(t, store, "../speechrecognition/testdata/encoder.json")
-	metadata, err := modelrecipetest.PublishModelDefinition(t.Context(), store, "resource-fixture/metadata", fixture.Definition.Model)
+	metadata, err := modelrecipe.PublishTaskModelDefinition(t.Context(), store, fixture.Definition.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +339,7 @@ func newTranscriptionResourceFixture(t *testing.T) transcriptionResourceFixture 
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BindTranscription(compiled, ExactAuthorities{ModelDefinition: metadata.Document.ID, RuntimeRecipe: fixture.Definition.ID,
+	plan, err := BindTranscription(compiled, ExactAuthorities{ModelDefinition: metadata, RuntimeRecipe: fixture.Definition.ID,
 		CodeCommit: transcriptionTestCommit, Environment: environmentID, Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
 	if err != nil {
 		t.Fatal(err)

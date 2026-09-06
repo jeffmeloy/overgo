@@ -47,23 +47,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-closed-loop-proof",
-          "title": "Record a real pinned CPU quality and resource baseline before training",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRCPUBaselineAcceptance$' -count=1 -v",
-          "rationale": "Invoke the concrete admitted recipe through evaluate's existing transcription resource manifest on a nonempty source-addressed LibriSpeech split plus explicit negative controls. Require fresh attempts, source/model/recipe/environment identities, WER/CER, complete failure denominators and corrected resource availability. Report cold load and warm execution separately. Faked executors and stored transcripts cannot establish inference performance. This baseline supplies later training and benchmarking; do not recreate it for each consumer. Reuse master's exact Granite speech 5.0 470M Turbo CTC registration through modelartifact's shared inventory publication and task-specific lookup. Keep source/specification, tensor inventory and license lineage bound to the same physical checkpoint. Reject the obsolete Granite 3.3 assumption. The registered-model fixture is the identity authority, not a runtime dispatch table. Reuse only verified matching records across stores; missing local lineage remains an explicit prerequisite.",
-          "depends_on": [
-            "asr-training/dataset-materialization",
-            "asr-serving/sync-transcriptions-route",
-            "asr-reference/offline-recipe"
-          ],
-          "capabilities": [
-            "real-corpus-baseline",
-            "target-isolated-inference",
-            "resource-quality-evidence"
-          ]
-        },
-        {
           "id": "sync-trainable-graph",
           "title": "Bind CTC loss and gradients to the universal trainer's existing objective owner",
           "status": "open",

@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
@@ -147,7 +148,7 @@ func EvaluateTranscriptionResources(
 	if err := plan.ValidateIdentity(); err != nil {
 		return TranscriptionResourceReport{}, err
 	}
-	if err := requireEvaluationModelDefinition(ctx, repository, plan.body.ModelDefinition, model); err != nil {
+	if err := modelrecipe.RequireModelDefinitionBinding(ctx, repository, plan.body.ModelDefinition, model, plan.body.RuntimeRecipe); err != nil {
 		return TranscriptionResourceReport{}, err
 	}
 	definition, err := recipe.RequireDefinition(ctx, repository, plan.body.RuntimeRecipe)

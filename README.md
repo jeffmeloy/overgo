@@ -759,7 +759,12 @@ The workbench tabs remain behind the front page:
 `go run ./cmd/webui-lane` runs the real-browser acceptance lane the gate
 selects for every web UI change: the workbench acceptance steps, the front
 page's keyboard, motion, colour, and width contract, and a first-run journey
-against a served model through the real swap proxy. The journey proves, in
+against a served model through the real swap proxy. The lane is the only
+way a browser test is evidence: outside it every browser test skips, so a
+plan verify that names one through `go test` alone is refused as vacuous,
+and a verify names the lane instead (`-run` selects the tests, `-require`
+names a journey line the run must write; a named test that skips, a run
+in which nothing passed, or a missing line fails the lane). The journey proves, in
 order, that the page boots once the default model serves, that the first
 message streams a reply and fills the context meter, that the inspector
 opens over the turn with its run record, that an agent created through the

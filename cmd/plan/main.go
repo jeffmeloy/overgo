@@ -46,6 +46,7 @@ import (
 	"overgo/internal/planverify"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
+	"overgo/internal/webuilane"
 )
 
 func main() {
@@ -183,6 +184,9 @@ func run(c cli, args []string) error {
 	case c.setverify:
 		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
+		}
+		if browserVerifyOutsideLane(c.verifyCmd) {
+			return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -require in the verify")
 		}
 		return setStepVerify(".", args[0], args[1], c.verifyCmd, role)
 	case c.stop:
@@ -757,6 +761,11 @@ RULES skill.md; only this task; port-first; park off-scope findings with cmd/fin
 		}
 		fmt.Fprintln(output, "BATCH declarations add required acceptance; full gating and parent completion remain mandatory.")
 	}
+}
+
+// browserVerifyOutsideLane: a verify naming a browser acceptance test without the lane runner that makes it run.
+func browserVerifyOutsideLane(command string) bool {
+	return strings.Contains(command, webuilane.BrowserTestPrefix) && !strings.Contains(command, "cmd/webui-lane")
 }
 
 // runVerify executes the step's verify command; its exit code is the verdict.

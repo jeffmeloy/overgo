@@ -1,11 +1,13 @@
 package webuilane
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"overgo/internal/apimanifest"
@@ -105,6 +107,36 @@ func MeasureTree(root, label string) (Census, error) {
 	}
 	census.Routes, census.BearerRoutes = len(distinct), len(bearer)
 	return census, nil
+}
+
+// BrowserTestPrefix names the browser acceptance tests: the lane runs them
+// by this prefix, and a plan verify naming one without the lane is refused.
+const BrowserTestPrefix = "TestWebUIBrowser"
+
+// LaneVerdict judges one lane run from its output: a test the run skipped
+// or a run in which no test passed is no evidence, and every required
+// line (a journey leg's log) must have been written; nil is the pass.
+func LaneVerdict(output string, required []string) error {
+	proven, _ := LaneObservations(output)
+	passed := 0
+	for line := range strings.SplitSeq(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if skipped, ok := strings.CutPrefix(trimmed, "--- SKIP: "); ok {
+			return fmt.Errorf("webui lane: %s was skipped, so it proves nothing", skipped)
+		}
+		if strings.HasPrefix(trimmed, "--- PASS: ") {
+			passed++
+		}
+	}
+	if passed == 0 {
+		return errors.New("webui lane: no browser test passed")
+	}
+	for _, text := range required {
+		if !slices.ContainsFunc(proven, func(line string) bool { return strings.Contains(line, text) }) {
+			return fmt.Errorf("webui lane: the run did not write the required evidence %q", text)
+		}
+	}
+	return nil
 }
 
 // LaneObservations reads the lane's own output: the tests that passed and

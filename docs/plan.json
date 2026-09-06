@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "lane-verify-browser-evidence",
-      "title": "Make browser acceptance non-vacuous in the plan: cmd/webui-lane takes -run for the tests it prepares and fails when a named test skipped or did not run, every lane row verify names its journey through cmd/webui-lane rather than go test alone (which returns without a browser when the lane is unset), and the cold-proxy journey verify requires evidence that the cold page, the picker choice and the served model executed",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make browser acceptance non-vacuous in the plan: cmd/webui-lane takes -run for the tests it prepares and fails when a named test skipped or did not run, every lane row verify names its journey through cmd/webui-lane rather than go test alone (which returns without a browser when the lane is unset), and the cold-proxy journey verify requires evidence that the cold page, the picker choice and the served model executed",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "e4b-acceptance-scope",
       "title": "Keep E4B acceptance failing when its document is absent: cmd/compatibility accepted-E4B test fails again on a missing docs/verification/e4b-validation.json (no tree holds the document today; master modality-verification/e4b-validation-producer row writes it), and the lane gate excludes that check through explicit scope until the producer lands, instead of a skip that weakens master acceptance",
       "status": "open",

@@ -26,6 +26,7 @@ import (
 	"overgo/internal/remoterelay"
 	"overgo/internal/remoterelay/relaytest"
 	"overgo/internal/runrecord"
+	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -50,7 +51,7 @@ import (
 // the image-in leg.
 func TestWebUIBrowserFirstRun(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		return
+		t.Skip(testevidence.ShortIntegrationSkip + ": the journey runs through cmd/webui-lane")
 	}
 	binary, store := os.Getenv("OVERGO_WEBUI_LANE_SERVER"), os.Getenv("OVERGO_WEBUI_LANE_STORE")
 	modelName, modelLocation := os.Getenv("OVERGO_WEBUI_LANE_MODEL"), os.Getenv("OVERGO_WEBUI_LANE_MODEL_LOCATION")
@@ -211,6 +212,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	settle("front page over the served model", `!document.querySelector("#cold-start") && !!document.querySelector("#panel-chat.active .composer textarea") &&
       document.querySelector("#model-pill").textContent === `+strconv.Quote(modelName)+` &&
       document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
+	t.Logf("cold-start leg: the picker served %s from the cold page and the front page followed", modelName)
 
 	// 2. The first message streams a reply and fills the context meter.
 	say(t, ctx, browser, "Reply with the single word hello.")

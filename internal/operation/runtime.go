@@ -60,6 +60,7 @@ type Status struct {
 	Failure        string                   `json:"failure,omitzero"`
 	Recovery       *operatoraction.Block    `json:"recovery,omitempty"`
 	WorkspaceClaim *WorkspaceClaimLifecycle `json:"workspace_claim,omitempty"`
+	Deadline       *DeadlineState           `json:"deadline,omitempty"`
 }
 
 type Request struct {
@@ -67,6 +68,8 @@ type Request struct {
 	Recipe artifact.ID
 	Lease  *plan.WorkLease
 	Effect *agenttool.InvocationEffect
+	// Deadlines: the two-phase bounds; nil leaves the operation unbounded.
+	Deadlines *Deadlines
 }
 
 // WorkspaceClaimState names one stage of a workspace claim lifecycle.
@@ -125,14 +128,18 @@ type Manager struct {
 	watchID    uint64
 	eventID    uint64
 	repository artifact.Reader
+	// now: the clock deadlines read; tests substitute a settable one.
+	now  func() time.Time
+	stop chan struct{}
 }
 
 type entry struct {
-	status  Status
-	request Request
-	execute Executor
-	cancel  context.CancelFunc
-	done    chan struct{}
+	status   Status
+	request  Request
+	execute  Executor
+	cancel   context.CancelFunc
+	done     chan struct{}
+	deadline *deadlineTimer
 }
 
 type ticket struct {
@@ -158,10 +165,14 @@ func newManager(limit int, repository artifact.Reader) (*Manager, error) {
 	if limit <= 0 {
 		return nil, errors.New("operation: retention limit must be positive")
 	}
-	manager := &Manager{entries: make(map[artifact.ID]*entry), limit: limit, watchers: make(map[uint64]chan Event), repository: repository}
+	manager := &Manager{
+		entries: make(map[artifact.ID]*entry), limit: limit, watchers: make(map[uint64]chan Event), repository: repository,
+		now: time.Now, stop: make(chan struct{}),
+	}
 	if _, err := rand.Read(manager.salt[:]); err != nil {
 		return nil, fmt.Errorf("operation: initialize identity: %w", err)
 	}
+	go manager.deadlineLoop(deadlineFlushInterval)
 	return manager, nil
 }
 
@@ -197,6 +208,13 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 	if !request.Task.Valid() || request.Recipe.Kind() != artifact.KindRecipe {
 		return artifact.ID{}, errors.New("operation: invalid task or recipe")
 	}
+	var timer *deadlineTimer
+	if request.Deadlines != nil {
+		if err := request.Deadlines.Validate(); err != nil {
+			return artifact.ID{}, err
+		}
+		timer = &deadlineTimer{deadlines: *request.Deadlines, state: *newDeadlineState(*request.Deadlines, manager.now())}
+	}
 	claim, claimErr := manager.admitWorkspaceClaim(parent, request, recover)
 	if claimErr != nil {
 		return artifact.ID{}, claimErr
@@ -231,11 +249,15 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 		}
 	}
 	manager.entries[id] = &entry{
-		status:  Status{ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted, WorkspaceClaim: claim},
-		request: request,
-		execute: execute,
-		cancel:  cancel,
-		done:    make(chan struct{}),
+		status: Status{
+			ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted, WorkspaceClaim: claim,
+			Deadline: deadlineStatus(timer),
+		},
+		request:  request,
+		execute:  execute,
+		cancel:   cancel,
+		done:     make(chan struct{}),
+		deadline: timer,
 	}
 	if !slices.Contains(manager.order, id) {
 		manager.order = append(manager.order, id)
@@ -478,6 +500,9 @@ func (manager *Manager) Close() {
 		return
 	}
 	manager.mu.Lock()
+	if !manager.closed {
+		close(manager.stop)
+	}
 	manager.closed = true
 	for _, current := range manager.entries {
 		if current.cancel != nil && !terminal(current.status.State) {
@@ -564,6 +589,10 @@ func cloneStatus(status Status) Status {
 		claim := *status.WorkspaceClaim
 		status.WorkspaceClaim = &claim
 	}
+	if status.Deadline != nil {
+		deadline := *status.Deadline
+		status.Deadline = &deadline
+	}
 	return status
 }
 
@@ -600,6 +629,11 @@ func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 		if total != nil {
 			value := *total
 			current.status.Progress.Total = &value
+		}
+		// A report starts or refreshes the execution deadline.
+		if current.deadline != nil {
+			current.deadline.report(reporter.manager.now())
+			current.status.Deadline = deadlineStatus(current.deadline)
 		}
 		reporter.manager.publishLocked(current.status)
 	}

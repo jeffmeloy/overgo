@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "schedule-and-execution-deadlines",
-          "title": "Carry a schedule deadline and an execution deadline on every dispatched operation",
-          "status": "open",
-          "verify": "test -f internal/operation/deadlines_test.go \u0026\u0026 go test ./internal/operation -run '^TestScheduleAndExecutionDeadlines$' -count=1",
-          "rationale": "Design record E5. A schedule deadline that elapses cancels the operation with a recorded reason before it runs; an execution deadline bounds the run. Waiting on a contested device becomes a measured, cancellable state instead of an unrecorded delay.",
-          "depends_on": [
-            "campaign-definition/author-plan"
-          ],
-          "capabilities": [
-            "schedule-deadline",
-            "execution-deadline"
-          ]
-        },
-        {
           "id": "deadline-refresh",
           "title": "Extend the execution deadline from progress reports under an absolute budget ceiling",
           "status": "open",

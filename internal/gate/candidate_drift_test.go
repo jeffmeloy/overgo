@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
@@ -660,5 +661,44 @@ func runGitFixture(t *testing.T, repo string, arguments ...string) {
 	command.Dir = repo
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v: %s", arguments, err, output)
+	}
+}
+
+// TestGateStartIndexAdoptsStatRefreshUnderSameTree pins: a status refresh
+// that rewrites the index's stat cache without changing the staged tree is
+// adopted as the exact write-ahead state instead of refusing the commit.
+func TestGateStartIndexAdoptsStatRefreshUnderSameTree(t *testing.T) {
+	repo, _, _ := newIndexCASFixture(t)
+	steady := filepath.Join(repo, "steady.txt")
+	if err := os.WriteFile(steady, []byte("steady\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, repo, "add", "--", "steady.txt")
+	runGitFixture(t, repo, "commit", "-q", "-m", "steady")
+	before, err := captureGateIndex(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refreshed := time.Now().Add(24 * time.Hour).Truncate(time.Second)
+	if err := os.Chtimes(steady, refreshed, refreshed); err != nil {
+		t.Fatal(err)
+	}
+	gateBeforeCommitStateHook = func(repository string) {
+		runGitFixture(t, repository, "status", "--porcelain=v1", "--untracked-files=no")
+	}
+	t.Cleanup(func() { gateBeforeCommitStateHook = nil })
+	gate := gateContext{repo: repo, indexBefore: before}
+	if err := gate.requireGateStartState(); err != nil {
+		t.Fatalf("stat refresh under the same tree was refused: %v", err)
+	}
+	after, err := captureGateIndex(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Tree != before.Tree || !bytes.Equal(gate.indexBefore.Data, after.Data) {
+		t.Fatalf("adopted snapshot does not match the refreshed index: tree %s vs %s", gate.indexBefore.Tree, after.Tree)
+	}
+	if bytes.Equal(after.Data, before.Data) {
+		t.Log("the status refresh left the index bytes unchanged; adoption was not exercised")
 	}
 }

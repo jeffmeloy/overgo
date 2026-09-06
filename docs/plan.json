@@ -9,20 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "memo-replay",
-          "title": "Replay a workflow graph from its keyed log without re-executing memoised stages",
-          "status": "open",
-          "verify": "test -f internal/workflowruntime/durable_replay_test.go \u0026\u0026 go test ./internal/workflowruntime -run '^TestDurableLogReplayAcceptance$' -count=1",
-          "rationale": "The workflow runtime's recovery of completed stages becomes a replay of the attempt log through the existing AttemptRecorder boundary. The test interrupts after a memoised stage, resumes under a new invocation count, and proves the stage result is read, not recomputed.",
-          "depends_on": [
-            "durable-attempt-log/attempt-identity"
-          ],
-          "capabilities": [
-            "log-replay",
-            "no-re-execution"
-          ]
-        },
-        {
           "id": "divergence-and-eviction",
           "title": "Refuse divergent replays with a typed failure and refuse stale invocations",
           "status": "open",

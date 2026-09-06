@@ -1236,9 +1236,14 @@ func (g *gateContext) requireGateStartState() error {
 	if err != nil {
 		return err
 	}
-	if index.Tree != g.indexBefore.Tree || index.Mode.Perm() != g.indexBefore.Mode.Perm() ||
-		!bytes.Equal(index.Data, g.indexBefore.Data) {
+	if index.Tree != g.indexBefore.Tree || index.Mode.Perm() != g.indexBefore.Mode.Perm() {
 		return errors.New("commit admission: Git index moved after the gate-start snapshot")
+	}
+	if !bytes.Equal(index.Data, g.indexBefore.Data) {
+		// Same staged tree in refreshed bytes: a status refresh rewrote the
+		// stat cache. The refreshed bytes become the exact write-ahead state.
+		g.audit = append(g.audit, "commit admission: Git index bytes refreshed under the gate-start tree; adopted")
+		g.indexBefore = index
 	}
 	if !sameGateMergeState(merge, g.mergeBefore) {
 		return errors.New("commit admission: pending merge moved after the gate-start snapshot")

@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "complete-memo-identity",
-          "title": "Cover every command of a verifier in the checkpoint memo input, or refuse to cache the verifier",
-          "status": "open",
-          "verify": "test -f internal/gate/checkpoint_identity_test.go \u0026\u0026 go test ./internal/gate -run '^TestCheckpointMemoCoversEveryCommand$' -count=1",
-          "rationale": "Review finding 2. The memo input parsed only the first go test command, so a compound verifier's later packages could change without invalidating the memo. Every go test segment contributes its packages; a verifier with a non-test segment or a package outside the input graph is not cached and the refusal is audited.",
-          "depends_on": [
-            "gate-checkpoints/durable-checkpoint-persistence"
-          ],
-          "capabilities": [
-            "complete-cache-identity"
-          ]
-        },
-        {
           "id": "selection-shadow",
           "title": "Prove change selection against full-gate counterexamples",
           "status": "open",

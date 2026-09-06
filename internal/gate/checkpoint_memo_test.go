@@ -15,7 +15,8 @@ import (
 
 // TestCheckpointEvidenceReuseAcrossRuns pins: memo slots per checkpoint; an
 // executed checkpoint is reused on the same input with Reused set; a changed
-// key or changed package source misses; a verify without a package is refused.
+// key or changed package source misses; a verify without a package is refused
+// with an audited reason and no memo.
 func TestCheckpointEvidenceReuseAcrossRuns(t *testing.T) {
 	g, batch, tree := verificationBatchFixture(t, "pass")
 	batch.Flush = &plan.BatchFlush{Key: "fixture", MaxSize: 2, MaxInterval: "1m", MaxBytes: 1 << 20}
@@ -110,7 +111,9 @@ func TestCheckpointEvidenceReuseAcrossRuns(t *testing.T) {
 
 	bad := *batch
 	bad.Checkpoints = []plan.VerificationCheckpoint{{ID: "bare", Title: "Bare", Verify: "go test -run '^TestProducer$' -count=1"}}
-	if _, err := g.checkpointMemoInputs(&bad); err == nil {
-		t.Fatal("verify without a package produced a memo")
+	g.audit = nil
+	memos, err := g.checkpointMemoInputs(&bad)
+	if err != nil || len(memos) != 0 || len(g.audit) != 1 || !strings.Contains(g.audit[0], "bare: go test segment names no package") {
+		t.Fatalf("verify without a package: memos=%v err=%v audit=%v; want an audited refusal", memos, err, g.audit)
 	}
 }

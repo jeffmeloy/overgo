@@ -55,6 +55,7 @@ type Gemma4VideoOutput struct {
 
 type Gemma4Runner struct {
 	projectorResources
+	mediaPreprocessOwner
 	spec Gemma4Spec
 }
 

@@ -67,6 +67,10 @@ func loadProjectedTranscription(ctx context.Context, repository artifact.Reposit
 		return nil, errors.Join(err, loaded.Close())
 	}
 	boundProcessor, hasProcessor := definition.PrimaryDependency(recipe.DependencyProcessorProfile)
+	processor, err = projector.ResolvePreprocessProfile(ctx, repository, definition, processor)
+	if err != nil {
+		return nil, errors.Join(err, loaded.Close())
+	}
 	if inventory.Manifest.ID != projectorID || hasProcessor != (processor != nil) || processor != nil && processor.ID != boundProcessor {
 		return nil, errors.Join(errors.New("evaluation: projector or preprocessing differs from recipe"), loaded.Close())
 	}
@@ -78,7 +82,7 @@ func loadProjectedTranscription(ctx context.Context, repository artifact.Reposit
 	if err != nil {
 		return nil, errors.Join(err, loaded.Close())
 	}
-	projection, err := projector.OpenSession(ctx, projectorPath, projector.OpenOptions{CUDA: true})
+	projection, err := projector.OpenSession(ctx, projectorPath, projector.OpenOptions{CUDA: true, MediaPreprocess: processor})
 	if err != nil {
 		return nil, errors.Join(err, runner.Close())
 	}
@@ -122,10 +126,14 @@ func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, in
 	phases := []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: elapsedResourceNanoseconds(started)}}
 	inputs := []artifact.ID{runtime.plan, runtime.model, runtime.projector, runtime.decodeRecipe, runtime.runner.RuntimePolicy().ID, binding.Dataset, binding.Split,
 		inspection.Signal.Source.Audio, inspection.Signal.Source.Profile, inspection.SignalID, inspection.PolicyID, inspection.DecisionID}
+	policyContent, err := runtime.runner.RuntimePolicy().Content()
+	if err != nil {
+		return recipecontract.Transcription{}, runrecord.Run{}, err
+	}
 	finish := func(result recipecontract.Transcription, failure string, cause error) (recipecontract.Transcription, runrecord.Run, error) {
 		outcome := runrecord.OutcomeFailed
 		var outputs []artifact.ID
-		var contents []artifact.Content
+		contents := []artifact.Content{policyContent}
 		if cause == nil {
 			if err := result.Validate(); err != nil {
 				return result, runrecord.Run{}, err

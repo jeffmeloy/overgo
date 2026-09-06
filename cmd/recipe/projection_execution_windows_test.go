@@ -10,6 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
+	"overgo/internal/modelintake"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/sampling"
@@ -49,6 +50,10 @@ func TestProjectionExecutionE4B(t *testing.T) {
 		}
 		paths = append(paths, path)
 	}
+	candidate, err := modelintake.PrepareProjectionCandidate(t.Context(), store, paths[0], paths[1])
+	if err != nil {
+		t.Fatal(err)
+	}
 	runner, err := clioptions.OpenRunner(t.Context(), roots.Store, paths[0], inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +62,7 @@ func TestProjectionExecutionE4B(t *testing.T) {
 		runner.Close()
 		t.Fatal(err)
 	}
-	projection, err := projector.OpenSession(t.Context(), paths[1], projector.OpenOptions{CUDA: true})
+	projection, err := projector.OpenSession(t.Context(), paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor})
 	if err != nil {
 		runner.Close()
 		t.Fatal(err)

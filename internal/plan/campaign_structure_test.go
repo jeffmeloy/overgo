@@ -702,6 +702,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/capability-census-owner",
 		"modality-verification/e4b-all-modalities",
 		"modality-verification/e4b-validation-producer",
+		"modality-verification/e4b-media-resource-producer",
 		"modality-verification/e4b-protocol-parity-repair",
 		"modality-verification/e4b-resource-recovery",
 		"modality-verification/e4b-scored-audio-producer",

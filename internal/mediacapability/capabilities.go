@@ -10,10 +10,10 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
-	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/projector"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
@@ -110,39 +110,33 @@ func thoughtBankCapability() Capability {
 
 // Projection is the projection capability for one projector file: the model
 // and the projector bind into a projection recipe (no executor).
-func Projection(projectorPath string) Capability {
+func Projection(ctx context.Context, store overgodb.DocumentReader, projectorPath string) Capability {
 	return Capability{Resolve: func(modelPath string) (Source, error) {
-		file, err := gguf.Open(modelPath)
+		candidate, err := modelintake.PrepareProjectionCandidate(ctx, store, modelPath, projectorPath)
 		if err != nil {
 			return Source{}, err
 		}
-		modelInventory, inventoryErr := modelartifact.FromGGUF(file, artifact.KindModel)
-		inventoryErr = errors.Join(inventoryErr, file.Close())
-		if inventoryErr != nil {
-			return Source{}, inventoryErr
-		}
-		projectorInventory, media, processor, err := projector.InspectProjection(context.Background(), projectorPath)
-		if err != nil {
-			return Source{}, err
-		}
-		return Source{
-			Inventory: modelInventory,
-			Related:   []modelartifact.Inventory{projectorInventory},
+		return Source{Inventory: candidate.Model, Related: []modelartifact.Inventory{candidate.Projector},
 			Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
-				var processorID artifact.ID
+				if modelID != candidate.Model.Manifest.ID {
+					return recipe.Definition{}, nil, errors.New("projection model identity changed")
+				}
 				var contents []artifact.Content
-				if processor != nil {
-					processorID = processor.ID
-					content, err := processor.Content()
+				if candidate.Processor != nil {
+					content, err := candidate.Processor.Content()
 					if err != nil {
 						return recipe.Definition{}, nil, err
 					}
 					contents = append(contents, content)
 				}
-				definition, err := modelrecipe.ProjectionDefinition(
-					modelID, projectorInventory.Manifest.ID, processorID, media...,
-				)
-				return definition, contents, err
+				if candidate.Config != nil {
+					content, err := candidate.Config.Content()
+					if err != nil {
+						return recipe.Definition{}, nil, err
+					}
+					contents = append(contents, content)
+				}
+				return candidate.Definition, contents, nil
 			},
 		}, nil
 	}}

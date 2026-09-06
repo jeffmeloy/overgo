@@ -27,8 +27,11 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/inference"
 	"overgo/internal/media"
+	"overgo/internal/modelintake"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -55,6 +58,16 @@ func (r *e4bServingTrace) Generate(ctx context.Context, prompt string, options i
 // complete outputs come from the independent native SDPA captures, not this server.
 func TestE4BHTTPModalities(t *testing.T) {
 	cudatest.Require(t)
+	started := time.Now()
+	publish := os.Getenv("OVERGO_E4B_PUBLISH_PROTOCOL") == "1"
+	var revision string
+	if publish {
+		var err error
+		revision, err = runrecord.VerifyingCommit(testutil.RepoRoot(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	root := testutil.RepoRoot(t)
 	oracleBytes, err := os.ReadFile(testutil.FixturePath(t, "e4b_multimodal_golden.json"))
 	if err != nil {
@@ -100,6 +113,10 @@ func TestE4BHTTPModalities(t *testing.T) {
 		}
 		paths = append(paths, path)
 	}
+	projectionCandidate, err := modelintake.PrepareProjectionCandidate(ctx, store, paths[0], paths[1])
+	if err != nil {
+		t.Fatal(err)
+	}
 	runner, err := clioptions.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +132,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 	if err := runner.RuntimePolicy().ValidateIdentity(); err != nil {
 		t.Fatal(err)
 	}
-	projection, err := projector.OpenSession(ctx, paths[1], projector.OpenOptions{CUDA: true})
+	projection, err := projector.OpenSession(ctx, paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: projectionCandidate.Processor})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,4 +354,32 @@ func TestE4BHTTPModalities(t *testing.T) {
 		}
 	}
 	t.Log("producer only: exact full outputs over 18 requests; corpus-wide quality, long context, resource soak and canonical projection activation remain separate acceptance obligations")
+	if publish && !t.Failed() {
+		current, err := runrecord.VerifyingCommit(root)
+		if err != nil || current != revision {
+			t.Fatalf("protocol producer source changed: %v", err)
+		}
+		loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, paths[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		identity, err := loaded.Identity()
+		if err != nil {
+			t.Fatal(err)
+		}
+		writer, err := overgodb.Open(roots.Store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer writer.Close()
+		if err := modelintake.RegisterProjectionCandidate(ctx, writer, projectionCandidate); err != nil {
+			t.Fatal(err)
+		}
+		evidence := fmt.Sprintf("contract=e4b-http-modalities;oracle_sha256=%x;model_definition=%s;cases=18", sha256.Sum256(oracleBytes), identity.Definition)
+		proof, err := modelintake.PublishVerification(ctx, writer, projectionCandidate.Definition, revision, time.Since(started), "cuda:0", "cuda", evidence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("published complete HTTP protocol proof: gate=%s run=%s recipe=%s; projection remains unpromoted", proof.Gate, proof.Run, projectionCandidate.Definition.ID)
+	}
 }

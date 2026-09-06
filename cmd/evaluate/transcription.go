@@ -164,15 +164,18 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 			Reference: dataset.AudioPayloadReference{Path: resolveEvaluationPath(base, input.Path), Audio: audio, Origin: input.Origin},
 		}
 	}
-	compiled, err := evaluation.CompileTranscription(suite)
-	if err != nil {
-		return err
-	}
 	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	if err := prepareTranscriptionSelection(ctx, store, &suite, inputs, manifest.MemoryBytes); err != nil {
+		return err
+	}
+	compiled, err := evaluation.CompileTranscription(suite)
+	if err != nil {
+		return err
+	}
 	prompting := evaluation.PromptingRawCompletion
 	if suite.Prompt != "" {
 		prompting = evaluation.PromptingChatTemplate

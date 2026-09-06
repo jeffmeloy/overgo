@@ -9,87 +9,14 @@
       "status": "open",
       "steps": [
         {
-          "id": "e4b-validation-producer",
-          "title": "Land one complete E4B validation producer before clean-source measurement",
+          "id": "e4b-media-resource-producer",
+          "title": "Measure and persist recovery and memory across all E4B media modes",
           "status": "open",
-          "verify": "go run ./cmd/compatibility -check",
-          "rationale": "The final model acceptance requires clean committed producers; it cannot also be the only route for committing their repairs. Collect the remaining E4B validation implementation into this one producer boundary. First inspect the registered split and existing materialization/publication owners. Reproduce the source-inventory-as-split lineage cycle in a scratch store, derive an independent selected-split artifact with exact container/physical-row/payload identities, and prove publication and exact replay without a cycle, changed targets or duplicate records. Consolidate existing owners rather than adding an evaluator or script-only publication path. Add bounded preparation and actionable prerequisite checks before model loading: actual resolved roots, model/projector bytes, source container/hash/schema/rows, native fixture identities, requested output budget and resource ownership. A missing required fixture must be found, acquired or implemented; report its resolved path and affected acceptance. Implement the final read-only TestAcceptedE4BModalities join in the compatibility owner in this same batch, with fixture-backed negative coverage for missing modes, stale identities, incomplete outputs and failed resource/quality checks. TestE4BValidationProducer exercises the actual publication path and these counterexamples without requiring canonical held-out measurements. Preserve existing source, numerical, protocol and recovery checks in the subordinate batch. Related in-scope repairs land together; do not run or promote the held-out campaign on dirty source. Closing this producer row establishes executable validation machinery, not model quality. After this commit, publish from its clean source and close e4b-all-modalities using stored evidence only. HTTP route development and native audio training/streaming remain with their respective lanes.",
+          "verify": "test -f internal/server/e4b_resource_windows_test.go \u0026\u0026 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./internal/server -run '^TestE4BMediaResourceRecovery$' -count=1 -timeout=12m \u0026\u0026 go test ./cmd/compatibility -run '^TestE4BValidationAcceptanceContract$' -count=1",
+          "rationale": "Inspection of the existing resource owners found that isolated exact-evaluation summaries record wall time, projected transcription reports explicitly exclude GPU peak and recovery counters, and TestE4BResourceRecovery covers text only. These records cannot satisfy six modality resource cells. Correct this producer gap before clean-source publication, using existing server/projector, runrecord resource observations and evaluation acceptance owners. Reuse the six-mode HTTP fixture preparation and resource recovery loop instead of another evaluator or controller. Measure actual peak and retained device bytes/allocations, repeated cancellation and consumer-error recovery, and reload/release for text, image, multi-image, audio, ordered video and mixed history; compare complete outputs to pinned native references and retention to the first complete warm cycle. Preserve the separate 32768-token text guard. Publish observed counters and exact recipe/config/source/environment/input bindings, and make read-only acceptance rederive summaries from those observations. Do not manufacture metrics merely to satisfy the checker. Permit one coherent run to supply independent quality/resource fields only when exact workload and repetition scope agree. Add negative acceptance for omitted modes, fabricated or mismatched counters, stale bindings, missing GPU measurements and growth. This is one coherent resource-producer commit followed by clean-source measurement; it does not reopen or repeat unaffected mask and protocol proofs.",
           "depends_on": [
-            "model-validation-batching/do",
-            "model-regression-gate/readmit-pool-controls",
-            "modality-verification/capability-census",
-            "audio-worktree-integration/register-models",
-            "modality-verification/e4b-serving-admission",
-            "gui-worktree-integration/merge",
-            "gui-validation-handoff/do",
-            "modality-verification/e4b-protocol-parity-repair",
-            "modality-verification/e4b-resource-recovery",
-            "modality-verification/e4b-scored-audio-producer",
-            "merge-a9561f6703a8/do",
-            "validation-integration-replan/do"
-          ],
-          "verification_batch": {
-            "scope": [
-              "cmd/evaluate",
-              "cmd/longform",
-              "cmd/compatibility",
-              "internal/evaluation",
-              "internal/inference",
-              "internal/projector",
-              "internal/server",
-              "internal/dataset",
-              "fixtures"
-            ],
-            "rationale": "One producer integration boundary checks compile/CPU contracts, real source identity and publication/replay failures before GPU protocol, audio and recovery checks. The later e4b-all-modalities row joins clean-source task-quality and resource records; this batch establishes the producer, not final model quality.",
-            "reopen_when": "Reopen affected evidence when source, model/projector, dataset, selected rows, tokenizer, preprocessing, prompt, protocol, numerical policy or hardware changes. Proven-independent immutable records may be reused; all invalidated mandatory checks must pass again.",
-            "checkpoints": [
-              {
-                "id": "host-contracts",
-                "title": "Verify transcription provenance, resource accounting and truncation refusal",
-                "verify": "go vet ./... \u0026\u0026 go test ./internal/evaluation -run '^(TestTranscriptionResourceEvidenceContract|TestProjectedTranscriptionBindsPromptAndBudget|TestProjectedTranscriptionRefusesTruncation)$' -count=1"
-              },
-              {
-                "id": "source-contracts",
-                "title": "Verify real source rows, hashes, bounded decoding and replay before GPU work",
-                "verify": "OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store go test ./internal/dataset -run '^TestSpeechMaterializationAcceptance$' -count=1 -timeout=3m",
-                "depends_on": [
-                  "host-contracts"
-                ]
-              },
-              {
-                "id": "publication-contracts",
-                "title": "Reject bad preparation and prove exact split publication before GPU work",
-                "verify": "test -f cmd/evaluate/e4b_validation_producer_test.go \u0026\u0026 go test ./cmd/evaluate -run '^TestE4BValidationProducer$' -count=1",
-                "depends_on": [
-                  "source-contracts"
-                ]
-              },
-              {
-                "id": "protocol-parity",
-                "title": "Verify six complete input modes across three protocols",
-                "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./internal/server -run '^TestE4BHTTPModalities$' -count=1 -timeout=10m",
-                "depends_on": [
-                  "publication-contracts"
-                ]
-              },
-              {
-                "id": "audio-quality-controls",
-                "title": "Verify full native transcripts, source-bound audio and truncation controls",
-                "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/evaluate -run '^TestE4BProjectedTranscription$' -count=1 -timeout=6m",
-                "depends_on": [
-                  "publication-contracts"
-                ]
-              },
-              {
-                "id": "text-recovery",
-                "title": "Verify 32768-token capacity and repeated cancellation, error, reload and non-growth",
-                "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestE4BResourceRecovery$' -count=1 -timeout=12m",
-                "depends_on": [
-                  "publication-contracts"
-                ]
-              }
-            ]
-          }
+            "modality-verification/e4b-validation-producer"
+          ]
         },
         {
           "id": "e4b-all-modalities",
@@ -109,7 +36,8 @@
             "modality-verification/e4b-resource-recovery",
             "modality-verification/e4b-scored-audio-producer",
             "merge-a9561f6703a8/do",
-            "modality-verification/e4b-validation-producer"
+            "modality-verification/e4b-validation-producer",
+            "modality-verification/e4b-media-resource-producer"
           ]
         },
         {

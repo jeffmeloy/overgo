@@ -103,7 +103,7 @@ func Register(ctx context.Context, repository *overgodb.Store, path, projectorPa
 	// candidate: the model's image, audio or video input, servable once
 	// validated with the model.
 	if projectorPath != "" {
-		projection, err := modelintake.PrepareProjectionCandidate(ctx, path, projectorPath)
+		projection, err := modelintake.PrepareProjectionCandidate(ctx, repository, path, projectorPath)
 		if err != nil {
 			return nil, refusal{err}
 		}

@@ -79,7 +79,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	if err = modelrecipetest.PublishActivation(ctx, store, "transcription-fixture/inference", candidate.Definition); err != nil {
 		t.Fatal(err)
 	}
-	projection, err := modelintake.PrepareProjectionCandidate(ctx, modelPath, projectorPath)
+	projection, err := modelintake.PrepareProjectionCandidate(ctx, canonical, modelPath, projectorPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,9 +110,8 @@ func TestE4BProjectedTranscription(t *testing.T) {
 		t.Fatal("native validation denominator differs")
 	}
 	container := parse("file:sha256:" + oracle.ContainerSHA)
-	// The Parquet container is the exact selected validation shard. Its bytes
-	// stay external; this isolated test only needs the registered identities.
-	split := testutil.ArtifactID(t, artifact.KindDatasetShard, "e4b native validation eight/"+container.String())
+	// Source bytes stay external; production preparation derives an independent
+	// selected membership rather than treating this container as the split.
 	environment, err := runrecord.CurrentEnvironment("cuda:0", "hybrid-native")
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +120,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: datasetID}, artifact.Descriptor{ID: split}, artifact.Descriptor{ID: container})
+	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: datasetID}, artifact.Descriptor{ID: container})
 	if _, err = artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +164,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	defer source.Close()
 	suite := evaluation.TranscriptionSuite{Kind: evaluation.TranscriptionKind, Schema: "overgo/e4b-audio-validation/v1",
 		Source:  "Eight pinned LibriSpeech validation cases; native FP32/BF16 SDPA full-transcript oracle; held-out excluded",
-		Dataset: datasetID, Split: split, Prompt: oracle.Prompt, MaxTokens: oracle.MaxTokens, DecodeRecipe: candidate.Definition.ID,
+		Dataset: datasetID, Prompt: oracle.Prompt, MaxTokens: oracle.MaxTokens, DecodeRecipe: candidate.Definition.ID,
 		Normalization: []evaluation.TranscriptionNormalization{evaluation.TranscriptionLowercase, evaluation.TranscriptionStripPunctuation, evaluation.TranscriptionCollapseWhitespace}}
 	expected := make(map[string][]string)
 	for index, input := range inputs {
@@ -192,6 +191,9 @@ func TestE4BProjectedTranscription(t *testing.T) {
 		suite.Cases = append(suite.Cases, evaluation.TranscriptionCase{Name: row.Name, Group: "validation", Source: inspection.Signal.Source,
 			Reference: row.Reference, SampleCount: row.Samples, SampleRate: inspection.Signal.Format.SampleRate})
 		expected[row.Name] = row.Outputs
+	}
+	if err := prepareTranscriptionSelection(ctx, store, &suite, inputs, sourceMemoryBytes); err != nil {
+		t.Fatal(err)
 	}
 	compiled, err := evaluation.CompileTranscription(suite)
 	if err != nil {

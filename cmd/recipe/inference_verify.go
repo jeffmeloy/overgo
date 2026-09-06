@@ -251,7 +251,7 @@ func verifyProjection(repository, path, projectorPath, input string) error {
 		return err
 	}
 	defer store.Close()
-	_, definition, err := prepareCapability(ctx, store, path, recipe.TaskProjection, mediacapability.Projection(projectorPath))
+	_, definition, err := prepareCapability(ctx, store, path, recipe.TaskProjection, mediacapability.Projection(ctx, store, projectorPath))
 	if err != nil {
 		return err
 	}
@@ -281,7 +281,15 @@ func verifyProjection(repository, path, projectorPath, input string) error {
 	if err != nil {
 		return errors.Join(err, loaded.Close())
 	}
-	projection, err := projector.OpenSession(ctx, projectorPath, projector.OpenOptions{CUDA: true})
+	_, _, declaredProcessor, err := projector.InspectProjection(ctx, projectorPath)
+	if err != nil {
+		return errors.Join(err, runner.Close())
+	}
+	processor, err := projector.ResolvePreprocessProfile(ctx, store, definition, declaredProcessor)
+	if err != nil {
+		return errors.Join(err, runner.Close())
+	}
+	projection, err := projector.OpenSession(ctx, projectorPath, projector.OpenOptions{CUDA: true, MediaPreprocess: processor})
 	if err != nil {
 		return errors.Join(err, runner.Close())
 	}

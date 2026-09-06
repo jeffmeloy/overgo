@@ -5,8 +5,7 @@
 
   async function readTrace(overgo, id) {
     const trace = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(id));
-    return trace && (Array.isArray(trace.dpo) || Array.isArray(trace.grpo)) ? trace : null;
-  }
+    return trace && (Array.isArray(trace.dpo) || Array.isArray(trace.grpo)) ? trace : null; }
 
   async function traceFromRun(overgo, run) {
     for (const edge of run.children || []) {

@@ -6,8 +6,32 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/latentvideo"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/vqaserve"
 )
+
+// TestBoundsBindToTheirControls pins the bounds' binding: a declared bound
+// lands on the control of its name and reports as one tuple; a control
+// without one reports none.
+func TestBoundsBindToTheirControls(t *testing.T) {
+	controls := []Control{{Name: "width", Type: ControlInteger}, {Name: "prompt", Type: ControlText}}
+	applyBounds(controls, map[string]Bounds{"width": {Default: 832, Step: 16}, "frames": {Default: 81, Step: 4, Rate: 16}})
+	if defaultValue, step, rate, declared := controls[0].Bounded(); !declared || defaultValue != 832 || step != 16 || rate != 0 {
+		t.Fatalf("width bounds = %d %d %d %v", defaultValue, step, rate, declared)
+	}
+	if _, _, _, declared := controls[1].Bounded(); declared {
+		t.Fatal("a text control took bounds")
+	}
+	plain, refusal := Controls(modelrecipe.ModuleLatentVideoPrepare, "")
+	if refusal != "" {
+		t.Fatal(refusal)
+	}
+	for _, control := range plain {
+		if control.Bounds != nil {
+			t.Fatalf("a directory-less control carries bounds: %+v", control)
+		}
+	}
+}
 
 // TestArtifactControlsDeclareTheirSlot pins the slot an artifact field
 // declares through its tags: the label a page shows and the media kind it

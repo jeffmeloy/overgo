@@ -43,6 +43,18 @@ type WorkflowControl struct {
 	// lists matching intakes beside it and routes an attachment to it.
 	Label string `json:"label,omitzero"`
 	Media string `json:"media,omitzero"`
+	// Bounds are a numeric control's declared default, step and rate, from
+	// which a page derives its presets (aspect ratios, durations).
+	Bounds *WorkflowControlBounds `json:"bounds,omitempty"`
+}
+
+// WorkflowControlBounds is a numeric control's declared default, the step a
+// valid value moves by (zero when any value is valid) and, for a frame
+// count, the frames one second holds.
+type WorkflowControlBounds struct {
+	Default int `json:"default"`
+	Step    int `json:"step,omitzero"`
+	Rate    int `json:"rate,omitzero"`
 }
 
 // slotMedia: the media kinds an artifact slot may declare.
@@ -239,7 +251,8 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 		seen[capability.Recipe] = true
 		fields := make(map[string]bool, len(capability.Controls))
 		for _, control := range capability.Controls {
-			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] {
+			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] ||
+				control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) {
 				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
 			}
 			fields[control.Name] = true

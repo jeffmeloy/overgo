@@ -53,16 +53,10 @@
         inventoryHost.replaceChildren(table);
       }
 
-      async function refreshInventory() {
-        inventory = await api.get("/automations");
-        renderInventory();
-      }
+      async function refreshInventory() { inventory = await api.get("/automations"); renderInventory(); }
 
       publish.addEventListener("click", async () => {
-        if (!definitionForm.validate() || !triggerForm.validate() || !deliveryForm.validate()) {
-          status.textContent = "Complete every applicable field";
-          return;
-        }
+        if (!definitionForm.validate() || !triggerForm.validate() || !deliveryForm.validate()) { status.textContent = "Complete every applicable field"; return; }
         try {
           const definition = definitionForm.value();
           const created = await api.post("/automations/definitions", {

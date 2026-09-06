@@ -221,10 +221,7 @@
               break;
           }
         }
-      } finally {
-        thinking(false);
-        if (assistant) renderMessage(assistant, false);
-      }
+      } finally { thinking(false); if (assistant) renderMessage(assistant, false); }
       return terminal;
     }
 

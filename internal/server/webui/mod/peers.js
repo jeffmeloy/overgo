@@ -83,10 +83,7 @@
         renderDetail();
       }
 
-      async function refreshInventory() {
-        inventory = await api.get("/peers");
-        renderInventory();
-      }
+      async function refreshInventory() { inventory = await api.get("/peers"); renderInventory(); }
 
       async function transition(peer, state) {
         try {
@@ -97,10 +94,7 @@
       }
 
       enroll.addEventListener("click", async () => {
-        if (!enrollmentForm.validate()) {
-          status.textContent = "Complete every enrollment field";
-          return;
-        }
+        if (!enrollmentForm.validate()) { status.textContent = "Complete every enrollment field"; return; }
         try {
           const result = await api.post("/peers/enroll", enrollmentForm.value());
           enrollmentForm.markSaved();
@@ -121,10 +115,7 @@
       }
 
       compile.addEventListener("click", async () => {
-        if (!placementForm.validate()) {
-          status.textContent = "Complete every applicable placement field";
-          return;
-        }
+        if (!placementForm.validate()) { status.textContent = "Complete every applicable placement field"; return; }
         try {
           compiledPlan = await api.post("/peers/placement", placementRequest(placementForm.value()));
           placementForm.markSaved();

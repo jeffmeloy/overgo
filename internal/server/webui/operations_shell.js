@@ -133,10 +133,7 @@
     const links = el("div", { class: "row" });
     if (status.run) links.appendChild(artifactLink(status.run, "run " + fmt.shortID(status.run)));
     for (const output of status.outputs || []) links.appendChild(artifactLink(output, "output " + fmt.shortID(output)));
-    for (const document of projection.interactions || []) {
-      const trace = document.value && document.value.trace;
-      if (trace) links.appendChild(artifactLink(trace, "trace " + fmt.shortID(trace)));
-    }
+    for (const document of projection.interactions || []) { const trace = document.value && document.value.trace; if (trace) links.appendChild(artifactLink(trace, "trace " + fmt.shortID(trace))); }
 
     const attempts = (projection.serving || []).map((document) => [document.value.attempt, el("span", { text: document.value.outcome }),
       (Number(document.value.measured_ns || 0) / 1e6).toFixed(2) + " ms", artifactLink(document.id)])
@@ -214,10 +211,7 @@
         for (const [id, item] of operations) if (!item.local) operations.delete(id);
         for (const item of value || []) operations.set(item.id, item);
         renderStrip(host);
-        if (!selected) {
-          host.lastElementChild.hidden = true;
-          host.lastElementChild.replaceChildren();
-        }
+        if (!selected) { host.lastElementChild.hidden = true; host.lastElementChild.replaceChildren(); }
       }
       if (name === "operation") {
         operations.set(value.status.id, value.status);

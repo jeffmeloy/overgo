@@ -66,17 +66,42 @@
           el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
       } else {
+        // A declared bound prefills the default and steps the field by the model's stride.
+        const bounds = control.bounds || {};
         input = el(control.type === "text" ? "textarea" : "input", {
           class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
-          step: control.type === "integer" ? "1" : "any", required: control.required,
+          step: bounds.step || (control.type === "integer" ? "1" : "any"), required: control.required, value: control.bounds ? String(bounds.default) : null,
         });
       }
       fields.set(control.name, { control, input });
       const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
       host.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name }), input, slot));
     }
+    const chips = presetChips(fields);
+    if (chips) host.appendChild(chips);
     return fields;
   };
+
+  // Presets derived from declared bounds alone: aspect ratios keep the default's pixel area over the
+  // width and height strides; durations take whole seconds at the frame count's declared rate.
+  const aspectPresets = [["1:1", 1, 1], ["4:3", 4, 3], ["3:2", 3, 2], ["16:9", 16, 9], ["9:16", 9, 16]];
+  const durationPresets = [1, 2, 3, 5];
+  function presetChips(fields) {
+    const el = window.overgo.el;
+    const bounded = (name) => { const field = fields.get(name); return field && field.control.bounds && field.control.bounds.step ? field : null; };
+    const snap = (field, value) => { const { default: base, step } = field.control.bounds; return base + Math.round((value - base) / step) * step; };
+    const chip = (text, apply) => el("button", { class: "chip", type: "button", text, onclick: apply });
+    const width = bounded("width"), height = bounded("height"), frames = bounded("frames");
+    const chips = [];
+    if (width && height) {
+      const area = width.control.bounds.default * height.control.bounds.default;
+      chips.push(...aspectPresets.map(([text, horizontal, vertical]) => chip(text, () => {
+        const w = snap(width, Math.sqrt(area * horizontal / vertical)); width.input.value = w; height.input.value = snap(height, area / w);
+      })));
+    }
+    if (frames && frames.control.bounds.rate) chips.push(...durationPresets.map((seconds) => chip(seconds + " s", () => { frames.input.value = snap(frames, seconds * frames.control.bounds.rate); })));
+    return chips.length ? el("div", { class: "preset-chips", "aria-label": "presets" }, ...chips) : null;
+  }
 
   // intakeStrip: the store's recent stored files of the slot's media kind (attachments the
   // composer stored, media that came out of a capability), one click filling the slot.

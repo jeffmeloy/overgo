@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-declared-presets",
-      "title": "Declared presets for size, aspect ratio and duration (concept from Open-Generative-AI: aspect-ratio and resolution options derived from each model's size capability; overgo derives them from the recipe's declared control bounds, never from a model list): mediacapability derives preset chips (aspect ratios within the declared width and height bounds and step, durations from the declared frame bounds and frame rate) from the control declarations alone, the composer shows the chips beside the numeric fields and a chosen chip fills them, and a Go test pins the derivation over declared bounds",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declared presets for size, aspect ratio and duration (concept from Open-Generative-AI: aspect-ratio and resolution options derived from each model's size capability; overgo derives them from the recipe's declared control bounds, never from a model list): mediacapability derives preset chips (aspect ratios within the declared width and height bounds and step, durations from the declared frame bounds and frame rate) from the control declarations alone, the composer shows the chips beside the numeric fields and a chosen chip fills them, and a Go test pins the derivation over declared bounds",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "webui-media-gallery",
       "title": "Media gallery from the store (concept from Open-Generative-AI: a generation history rail with thumbnails that re-opens a result, downloads it and feeds it back as input; overgo owns it in the store, never in browser storage): the Generate mode lists the store's generated image, video and audio artifacts newest first with thumbnails decoded through the artifact content decoders, filtered by kind and by the capability that made them, each opening its request record (controls, seed, model) and offering use-as-input and download; a route lists them with bounded paging, a Go test pins the listing and the journey proves a generated image reappears in the gallery after a reload",
       "owner": "professional_overgo_gui",

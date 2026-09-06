@@ -9,17 +9,11 @@
 
   function activateRuntime() { if (!runtimeUnsubscribe && runtimeView) runtimeUnsubscribe = window.overgo.runtimeEvents.subscribe(runtimeView); }
 
-  function deactivateRuntime() {
-    if (runtimeUnsubscribe) runtimeUnsubscribe();
-    runtimeUnsubscribe = null;
-  }
+  function deactivateRuntime() { if (runtimeUnsubscribe) runtimeUnsubscribe(); runtimeUnsubscribe = null; }
 
   function activateActivity() { if (!activityUnsubscribe && activityView) activityUnsubscribe = window.overgo.runtimeEvents.subscribe(activityView); }
 
-  function deactivateActivity() {
-    if (activityUnsubscribe) activityUnsubscribe();
-    activityUnsubscribe = null;
-  }
+  function deactivateActivity() { if (activityUnsubscribe) activityUnsubscribe(); activityUnsubscribe = null; }
 
   window.overgo.registerTab({
     id: "runtime",
@@ -193,10 +187,7 @@
 		  for (const item of value) current.set(item.id, item);
 		  renderOperations();
 		}
-		if (name === "operation") {
-		  current.set(value.status.id, value.status);
-		  renderOperations();
-		}
+		if (name === "operation") { current.set(value.status.id, value.status); renderOperations(); }
 		if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value)));
 	  };
 	  activateActivity();

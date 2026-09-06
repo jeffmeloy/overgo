@@ -664,6 +664,14 @@ derived from the server, not from client configuration:
   opens the Library tab on its form with the first field focused. The
   acceptance lane proves the welcome card, the picker, and the path to
   the hosted form in the real browser.
+- **Presets from declared bounds.** A numeric request field can declare
+  its default, the step a valid value moves by and, for a frame count, the
+  frames one second holds; the video capability derives them from its
+  profile's generation policy and the model's strides (the VAE stride
+  times the patch size per axis). A form with such bounds prefills the
+  defaults, steps the fields by the stride, and offers aspect-ratio chips
+  that keep the default's pixel area and duration chips in whole seconds,
+  every value snapped to the stride. No ratio or size is typed for a model.
 - **Media input slots.** A capability's artifact inputs are declared on
   its request (a label and a media kind per field), so a mode renders one
   labeled slot per input rather than an untyped artifact control, a strip

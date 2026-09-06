@@ -426,6 +426,22 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		settle("clip out as an artifact card", `!document.querySelector(".composer .btn").disabled &&
       !!document.querySelector("#panel-chat .msg.media video") && !!document.querySelector("#panel-chat .msg.media .note a")`)
 		t.Log("clip-out leg: a clip landed as an artifact card")
+		// Presets from declared bounds: the Wan prompt form prefills the profile's
+		// geometry, and an aspect chip moves width and height by the stride
+		// while keeping the pixel area; the leg never runs the generation.
+		if generationMode("video-gen", "model.latent-video-prepare") {
+			settle("the Wan form prefills the declared geometry with preset chips", `(() => {
+      const field = (name) => [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith(name));
+      const width = field("width") && field("width").querySelector("input");
+      return !!width && Number(width.value) > 0 && document.querySelectorAll(".mode-controls .preset-chips .chip").length > 0; })()`)
+			assertBrowserPredicate(t, ctx, browser, `(() => {
+      const field = (name) => [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith(name)).querySelector("input");
+      const before = Number(field("width").value) * Number(field("height").value), step = Number(field("width").step);
+      [...document.querySelectorAll(".mode-controls .preset-chips .chip")].find((chip) => chip.textContent === "9:16").click();
+      const width = Number(field("width").value), height = Number(field("height").value);
+      return width % step === 0 && height % step === 0 && height > width && Math.abs(width * height - before) < before / 10; })()`)
+			t.Log("presets leg: the Wan form's aspect chip moved the declared geometry by its stride")
+		}
 		if generationMode("video-gen", "model.reference-video-prepare") {
 			assertBrowserPredicate(t, ctx, browser, `(() => {
       const card = [...document.querySelectorAll("#panel-chat .msg.media")].find((card) => card.querySelector("video"));

@@ -42,6 +42,8 @@ func BindGenerationCatalog[
 		Declared() (name, kind string, required bool, choices []string)
 		// Slot reports an artifact control's label and media kind (empty for a typed field).
 		Slot() (label, media string)
+		// Bounded reports a numeric control's declared default, step and rate; declared is false without them.
+		Bounded() (defaultValue, step, rate int, declared bool)
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -60,7 +62,11 @@ func BindGenerationCatalog[
 			for _, control := range declared {
 				name, kind, required, choices := control.Declared()
 				label, media := control.Slot()
-				bound = append(bound, WorkflowControl{Name: name, Type: WorkflowControlType(kind), Required: required, Choices: choices, Label: label, Media: media})
+				wire := WorkflowControl{Name: name, Type: WorkflowControlType(kind), Required: required, Choices: choices, Label: label, Media: media}
+				if defaultValue, step, rate, declared := control.Bounded(); declared {
+					wire.Bounds = &WorkflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
+				}
+				bound = append(bound, wire)
 			}
 			return bound, refusal
 		},

@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "e4b-acceptance-scope",
-      "title": "Keep E4B acceptance failing when its document is absent: cmd/compatibility accepted-E4B test fails again on a missing docs/verification/e4b-validation.json (no tree holds the document today; master modality-verification/e4b-validation-producer row writes it), and the lane gate excludes that check through explicit scope until the producer lands, instead of a skip that weakens master acceptance",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep E4B acceptance failing when its document is absent: cmd/compatibility accepted-E4B test fails again on a missing docs/verification/e4b-validation.json (no tree holds the document today; master modality-verification/e4b-validation-producer row writes it), and the lane gate excludes that check through explicit scope until the producer lands, instead of a skip that weakens master acceptance",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "lane-plan-boundary",
       "title": "Enforce the lane boundary mechanically: a plan item carries its owning lane and plan -next in a worktree whose branch is not that lane never dispatches it, the stop gate does not count another lane open rows, and the retained master rows (long-context-collapse through campaign-closeout) are marked master, so the boundary is held by the tool rather than by prose while the lane own rows stay dispatchable",
       "status": "open",

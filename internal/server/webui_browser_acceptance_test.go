@@ -70,6 +70,27 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The empty store: the catalog lists nothing servable, so the welcome
+	// card's control opens the picker, the picker names the two ways in, and
+	// the hosted one opens the Library tab on the provider form with its
+	// first field focused.
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "chat"; return true; })()`)
+	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .card.front-empty button")`); err != nil {
+		t.Fatal(err)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => { const add = [...document.querySelectorAll("#panel-chat .card.front-empty button")].find((b) => b.textContent === "Add a model"); if (add) add.click(); return !!add; })()`)
+	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card button")].map((b) => b.textContent).join("|") === "register a local model|declare a hosted provider"`); err != nil {
+		t.Fatal(err)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll(".topbar .card button")].pop().click(); return true; })()`)
+	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-library.active") && document.activeElement.getAttribute("aria-label") === "provider name"`); err != nil {
+		t.Fatal(err)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".topbar .card").remove(); location.hash = "automations"; return true; })()`)
+	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form")`); err != nil {
+		t.Fatal(err)
+	}
+
 	if err := browser.SetViewport(ctx, 1280, 900); err != nil {
 		t.Fatal(err)
 	}

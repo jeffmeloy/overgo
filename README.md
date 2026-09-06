@@ -636,6 +636,13 @@ derived from the server, not from client configuration:
   wraps inside it, so nothing scrolls sideways; the acceptance lane proves
   the keyboard path, the stop, and the phone-width conversation in the
   real browser.
+- **The empty store.** When the catalog lists nothing servable the
+  welcome card's model control reads "Add a model" and opens the picker,
+  and the picker names the two ways a model enters: register a local
+  model, or declare a hosted provider and enter its key. Each control
+  opens the Library tab on its form with the first field focused. The
+  acceptance lane proves the welcome card, the picker, and the path to
+  the hosted form in the real browser.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

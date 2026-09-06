@@ -105,10 +105,7 @@
   // /analyze/model serves the Model tab and the lens; one cached promise per
   // page load, cleared on rejection and on a key change.
   let modelPromise = null;
-  function modelInfo() {
-    if (!modelPromise) modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; });
-    return modelPromise;
-  }
+  function modelInfo() { return modelPromise || (modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; })); }
   function invalidateModel() { modelPromise = null; }
 
   // Minimal hyperscript: el("div", {class:"x"}, child, child...).
@@ -231,15 +228,12 @@
   }
 
   function stat(label, value, unit) {
-    return el("div", { class: "stat" },
-      el("div", { class: "k", text: label }),
-      el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
+    return el("div", { class: "stat" }, el("div", { class: "k", text: label }), el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
   }
 
   // fold: a collapsible section, closed unless open is passed.
   function fold(title, open, ...children) {
-    const details = el("details", { class: "fold" },
-      el("summary", { class: "section-title", text: title }), ...children);
+    const details = el("details", { class: "fold" }, el("summary", { class: "section-title", text: title }), ...children);
     if (open) details.setAttribute("open", "");
     return details;
   }
@@ -402,10 +396,7 @@
       if (result && typeof result.catch === "function") result.catch((err) => renderMountError(tab, err));
     } catch (err) { renderMountError(tab, err); }
   }
-  function renderMountError(tab, err) {
-    clear(tab.panel);
-    tab.panel.appendChild(errorBanner(String(err && err.message || err)));
-  }
+  function renderMountError(tab, err) { tab.panel.replaceChildren(errorBanner(String(err && err.message || err))); }
 
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {
@@ -438,6 +429,13 @@
 
   // The served model shows on every page as the banner pill; clicking it lists the servable models, and behind
   // the swap proxy choosing one swaps the serving child live while every page keeps working.
+  // libraryStarters: the two ways a model enters an empty store, each a control that opens the Library tab
+  // on its form (the local registration row, the hosted provider form) once the tab has mounted.
+  function libraryStarters() {
+    const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, 50); }; focus(); };
+    return [el("button", { class: "btn alt", text: "register a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
+      el("button", { class: "btn alt", text: "declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
+  }
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
@@ -496,7 +494,8 @@
         // Every activated entry with bytes on disk is listed: a servable one with its evidence, declared
         // task capabilities and a serve control; a stale activation with the loader's reason and no control.
         const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
-        if (!entries.length) { panel.textContent = "no activated models in the store"; return; }
+        // An empty store names the two ways in; each opens the Library tab's form.
+        if (!entries.length) { panel.replaceChildren(el("div", { class: "note", text: "no activated models in the store — register a local model, or declare a hosted provider and enter its key" }), el("div", { class: "row" }, ...libraryStarters())); return; }
         let remembered = "";
         try { remembered = localStorage.getItem(MODEL_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
         panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
@@ -544,9 +543,7 @@
     const key = document.getElementById("api-key"); if (key) key.classList.toggle("needs-key", show);
   }
 
-  function tabSupported(tab) {
-    return tab.enabled;
-  }
+  function tabSupported(tab) { return tab.enabled; }
 
   function applyCapabilities() {
     for (const tab of tabs) {
@@ -594,11 +591,7 @@
   }
   async function loadWorkspaceModules(manifest) {
     for (const src of libraries) await loadScript(src);
-    const modules = [];
-    for (const declaration of manifest.tabs) {
-      const module = declaration.module || declaration.id;
-      if (!modules.includes(module)) modules.push(module);
-    }
+    const modules = [...new Set(manifest.tabs.map((declaration) => declaration.module || declaration.id))];
     await Promise.all(modules.map((module) => loadScript("/mod/" + module + ".js")));
   }
 

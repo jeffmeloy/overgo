@@ -126,7 +126,8 @@
         el("div", { class: "note", text: (served && overgo.evidenceLine(served)) || "no committed evidence yet" }),
         el("div", null, ...declared.map((label) => el("span", { class: "tag", text: label }))),
         el("div", { class: "starters" }, el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() }), el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
-          el("button", { class: "btn alt", text: "Switch model", onclick: () => document.getElementById("model-pill").click() })));
+          // With nothing catalogued the same control reads as the way in; the picker names the two paths.
+          el("button", { class: "btn alt", text: served ? "Switch model" : "Add a model", onclick: () => document.getElementById("model-pill").click() })));
       panel.insertBefore(welcome, thread.node);
 
       function renderFacts(inputTokens, usage, timings) {

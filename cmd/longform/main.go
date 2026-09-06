@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -493,10 +494,9 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		return longform.Result{}, err
 	}
 	reportMemory(output, "short", shape.Measure.Memory)
-	// A rung doubles the cache the last rung added; the ladder stops
-	// when that growth would not fit the device's memory, since a rung
-	// past it thrashed the E4B at its 65536 rung with the device full.
-	previous := uint64(0)
+	// A rung doubles the last rung's growth. Include temporary peaks:
+	// retained buffers alone admitted E4B's 65536 rung and filled the device.
+	previous := driver.MemoryStats{}
 	climbed, stop, err := longform.Ladder(ctx, runner, corpus, rungs, floors, protocol, func(rung longform.Rung) string {
 		measure := rung.Measure
 		reportMemory(output, fmt.Sprintf("rung %d: prompt %.1f tok/s, decode %.1f tok/s, gain %.3f", measure.PromptTokens,
@@ -505,13 +505,10 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		if options.deviceInfo.TotalMemoryBytes == 0 {
 			return ""
 		}
-		growth := uint64(0)
-		if previous != 0 && memory.CurrentBytes > previous {
-			growth = memory.CurrentBytes - previous
-		}
-		previous = memory.CurrentBytes
-		if next := memory.CurrentBytes + 2*growth; next > options.deviceInfo.TotalMemoryBytes/deviceFitDenominator*deviceFitNumerator {
-			return fmt.Sprintf("the device holds %d MiB of %d and the next rung would take it to %d", memory.CurrentBytes>>20, options.deviceInfo.TotalMemoryBytes>>20, next>>20)
+		next := nextRungMemory(previous, memory)
+		previous = memory
+		if next > options.deviceInfo.TotalMemoryBytes/deviceFitDenominator*deviceFitNumerator {
+			return fmt.Sprintf("the device retains %d MiB with a %d MiB peak of %d; the next rung predicts %d MiB", memory.CurrentBytes>>20, memory.PeakBytes>>20, options.deviceInfo.TotalMemoryBytes>>20, next>>20)
 		}
 		return ""
 	})
@@ -550,6 +547,22 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 	}
 	result.Verdict = longform.Judge(result.Measure, result.Short, floors)
 	return result, nil
+}
+
+func nextRungMemory(previous, current driver.MemoryStats) uint64 {
+	var next uint64
+	for _, pair := range [][2]uint64{{previous.CurrentBytes, current.CurrentBytes}, {previous.PeakBytes, current.PeakBytes}} {
+		before, now := pair[0], pair[1]
+		growth := uint64(0)
+		if before != 0 && now > before {
+			growth = now - before
+		}
+		if growth > (math.MaxUint64-now)/2 {
+			return math.MaxUint64
+		}
+		next = max(next, now+2*growth)
+	}
+	return next
 }
 
 func publish(ctx context.Context, repository string, model artifact.ID, result longform.Result) (artifact.ID, error) {

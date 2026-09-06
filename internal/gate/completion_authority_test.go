@@ -486,7 +486,7 @@ func TestProspectiveGateCompletionRejectsAmbiguousMergeBase(t *testing.T) {
 		!strings.Contains(err.Error(), "locked authority store") {
 		t.Fatalf("criss-cross prospective merge error = %v", err)
 	}
-	if selected, err := projectedMergeBase(repository, leftMerge, rightMerge); err != nil || selected != left {
+	if selected, err := plan.CompletionMergeBase(t.Context(), repository, leftMerge, rightMerge); err != nil || selected != left {
 		t.Fatalf("criss-cross merge base = %q, %v; want the target's first-parent base %q", selected, err, left)
 	}
 	// A target whose first-parent chain holds none of the bases refuses.

@@ -558,9 +558,12 @@ func (h *Handler) preparePrompt(
 	if !tokenizeText || prompt.TokenIDs != nil {
 		return result, nil
 	}
+	// A generator without a tokenizer (a relay to a remote provider)
+	// carries the text itself; the prompt passes through untokenized and
+	// the counts that need its tokens report their absence.
 	tokenizerAPI, ok := h.generator.(TokenizationAPI)
 	if !ok {
-		return preparedPrompt{}, errors.New("server: generator cannot tokenize prepared prompt")
+		return result, nil
 	}
 	tokens, err := tokenizerAPI.TokenizeText(prompt.Text, true, true)
 	if err != nil {

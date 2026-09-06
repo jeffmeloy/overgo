@@ -12,6 +12,24 @@
       }
     },
     {
+      "package": "overgo/internal/remoterelay/relaytest",
+      "name": "Serve",
+      "reason": "Shared fake OpenAI-compatible provider the relay and the server relay tests drive; it is test-consumed by design and adds no serving API. The bound finding records the consumers.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:d17d172dacb36b1ec883777799225b84ecd0a16ebbf2511720119061f1b7cc87"
+      }
+    },
+    {
+      "package": "overgo/internal/remoterelay/relaytest",
+      "name": "Received",
+      "reason": "The request the shared fake provider recorded, read by the relay and the server relay tests; test-consumed by design.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:d17d172dacb36b1ec883777799225b84ecd0a16ebbf2511720119061f1b7cc87"
+      }
+    },
+    {
       "package": "overgo/internal/capabilityruntime",
       "name": "OpenAudioStream",
       "reason": "Bounded chunk, cancellation and restart contracts precede native streaming integration, which continues in the separate audio lane. Master's integration intake must remove this declaration when a landed production consumer is verified, or preserve the unresolved obligation under an explicit master validation step before completing registration. The audio task list is not imported and contract tests do not establish native streaming parity.",

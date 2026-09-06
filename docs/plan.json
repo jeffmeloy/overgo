@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "openrouter-relay",
-      "title": "Serve OpenRouter models through a declared remote provider: a remote inference recipe declares the endpoint and model ids, a net/http relay speaks the OpenAI-compatible chat completions protocol with streaming, the key comes from OVERGO_OPENROUTER_KEY, a provider without its key lists as refused with that reason, and run records mark remote provenance as non-reproducible",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Serve OpenRouter models through a declared remote provider: a remote inference recipe declares the endpoint and model ids, a net/http relay speaks the OpenAI-compatible chat completions protocol with streaming, the key comes from OVERGO_OPENROUTER_KEY, a provider without its key lists as refused with that reason, and run records mark remote provenance as non-reproducible",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "openrouter-page",
       "title": "Offer remote models on the front page and the Generate workspace: the picker lists remote models with a remote marker and their refusal, every remote turn carries the marker, the swap proxy routes to the relay, and the browser lane proves it against a local fake endpoint",
       "status": "open",

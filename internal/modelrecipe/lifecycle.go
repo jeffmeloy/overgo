@@ -610,6 +610,14 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 		return Activation{}, false, fmt.Errorf("model recipe: active recipe lacks verified evidence: %w", err)
 	}
 	tier := recipe.EvidenceVerified
+	// Evidence produced at a remote backend verifies nothing the store can
+	// reproduce, so such an activation reads as experimental whatever its
+	// decisions claim.
+	if environment, err := runrecord.RequireEnvironment(ctx, store, verified.Gate.Environment); err != nil {
+		return Activation{}, false, fmt.Errorf("model recipe: active recipe evidence environment: %w", err)
+	} else if !environment.Reproducible() {
+		tier = recipe.EvidenceExperimental
+	}
 	accepted := false
 	for _, decision := range decisions {
 		verification := Verification{Gate: verified.Gate.ID, Run: verified.Run.ID}

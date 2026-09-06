@@ -162,6 +162,34 @@ func run() error {
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	modelReference, _ := checked.First(flag.Args())
+	// A reference the store declares as a remote model serves through the
+	// relay; every other reference is a local model path the runner opens.
+	repositoryPath, err := modelFlags.RepositoryPath()
+	if err != nil {
+		return err
+	}
+	remote, err := resolveRemoteServing(shutdownContext, repositoryPath, modelReference)
+	if err != nil {
+		return err
+	}
+	if remote != nil {
+		serving := remote.policy.Serving
+		clioptions.ApplyDefault(explicit, "model-id", modelID, remote.provider.Model)
+		clioptions.ApplyDefault(explicit, "max-tokens", maxTokens, serving.MaxTokens)
+		clioptions.ApplyDefault(explicit, "max-concurrent", maxConcurrent, serving.MaxConcurrent)
+		clioptions.ApplyDefault(explicit, "response-store-entries", responseStoreEntries, serving.StoredResponses)
+		clioptions.ApplyDefault(explicit, "response-store-bytes", responseStoreBytes, serving.ResponseStoreBytes)
+		hubRoot := ""
+		if roots, rootsErr := dataroot.ResolveCurrent(); rootsErr == nil {
+			hubRoot = roots.Models
+		}
+		return serveRemote(shutdownContext, remote, remoteServeOptions{
+			address: *address, apiKey: apiKey, modelID: *modelID,
+			maxTokens: *maxTokens, maxConcurrent: *maxConcurrent,
+			storedResponses: *responseStoreEntries, responseStoreBytes: *responseStoreBytes,
+			requestTimeout: *requestTimeout, repository: repositoryPath, hubRoot: hubRoot, webuiDir: *webuiDir,
+		})
+	}
 	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)
 	if err != nil {
 		return err
@@ -369,34 +397,40 @@ func run() error {
 		return err
 	}
 	defer handler.Close()
+	log.Printf("serving model %q on http://%s", *modelID, *address)
+	return serve(shutdownContext, *address, handler)
+}
+
+// serve runs the handler on the address until the context ends, then
+// drains the connections within the shutdown timeout.
+func serve(ctx context.Context, address string, handler http.Handler) error {
 	httpServer := &http.Server{
-		Addr:              *address,
+		Addr:              address,
 		Handler:           handler,
 		ReadHeaderTimeout: serverReadHeaderTimeout,
 		ReadTimeout:       serverReadTimeout,
 		IdleTimeout:       serverIdleTimeout,
 		MaxHeaderBytes:    serverMaxHeaderBytes,
 	}
-	log.Printf("serving model %q on http://%s", *modelID, *address)
 	serverError := make(chan error, 1)
 	go func() {
 		serverError <- httpServer.ListenAndServe()
 	}()
 	select {
-	case err = <-serverError:
+	case err := <-serverError:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 		return err
-	case <-shutdownContext.Done():
+	case <-ctx.Done():
 	}
 	log.Print("shutting down")
-	deadline, cancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
+	deadline, cancel := context.WithTimeoutCause(context.Background(), serverShutdownTimeout, errors.New("server: shutdown deadline elapsed"))
 	defer cancel()
 	if err := httpServer.Shutdown(deadline); err != nil {
 		return fmt.Errorf("server shutdown: %w", err)
 	}
-	err = <-serverError
+	err := <-serverError
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

@@ -1557,19 +1557,14 @@ func completionTransitionPlans(
 			)
 		}
 		if parentCount == completionParentCount {
-			output, err := gitCompletionCommand(
-				ctx, repository, "merge-base", "--all",
-				commit.parents[completionLocalParentIndex], commit.parents[completionIncomingParentIndex],
+			base, err := CompletionMergeBase(
+				ctx, repository, commit.parents[completionLocalParentIndex], commit.parents[completionIncomingParentIndex],
 			)
 			if err != nil {
-				return nil, fmt.Errorf("derive completion merge base: %w", err)
+				return nil, err
 			}
-			bases := strings.Fields(string(output))
-			if len(bases) != 1 {
-				return nil, fmt.Errorf("completion merge requires exactly one merge base, found %d", len(bases))
-			}
-			mergeBases[commit.hash] = bases[0]
-			appendRevision(bases[0])
+			mergeBases[commit.hash] = base
+			appendRevision(base)
 		}
 	}
 	plans, err := gitCompletionPlans(ctx, repository, revisions)
@@ -1726,6 +1721,42 @@ func planHasItem(document Plan, itemID string) bool {
 		}
 	}
 	return false
+}
+
+// CompletionMergeBase names the merge base a completion merge reasons
+// from. A history where each side merged the other has two bases; the
+// target's plan projection reasons from the target's own history, so the
+// base on the target's first-parent chain (the target state the incoming
+// side merged) is the one, and a history with none or several bases on
+// that chain refuses. The plan command's prepare-merge and the gate's
+// merge completion derive their base here.
+func CompletionMergeBase(ctx context.Context, repository, target, incoming string) (string, error) {
+	output, err := gitCompletionCommand(ctx, repository, "merge-base", "--all", target, incoming)
+	if err != nil {
+		return "", fmt.Errorf("derive completion merge base: %w", err)
+	}
+	bases := strings.Fields(string(output))
+	if len(bases) == 1 {
+		return bases[0], nil
+	}
+	chainOutput, err := gitCompletionCommand(ctx, repository, "rev-list", "--first-parent", target)
+	if err != nil {
+		return "", fmt.Errorf("derive completion merge base: %w", err)
+	}
+	chain := map[string]bool{}
+	for revision := range strings.FieldsSeq(string(chainOutput)) {
+		chain[revision] = true
+	}
+	var selected []string
+	for _, base := range bases {
+		if chain[base] {
+			selected = append(selected, base)
+		}
+	}
+	if len(selected) != 1 {
+		return "", fmt.Errorf("completion merge requires one merge base on the target's first-parent chain, found %d of %d", len(selected), len(bases))
+	}
+	return selected[0], nil
 }
 
 func gitCompletionCommand(ctx context.Context, repository string, arguments ...string) ([]byte, error) {

@@ -280,6 +280,25 @@ What the rows established, each a record rather than a statement:
   and renders the answer as the assistant's turn. `TestVQAActivation`
   proves the canonical RxBrain case through the catalog's executor on the
   device.
+- Remote providers (openrouter-relay): `internal/remoteprovider` declares a
+  hosted model in the store (provider document, model manifest at a
+  `remote://<provider>/<model>` location, `modelrecipe.RemoteInferenceDefinition`
+  with one host relay node under a request-scoped session, activated at
+  the experimental tier from a declaration gate record whose environment
+  is the remote backend); `internal/discovery` lists it present at its
+  remote location and refused by the key's variable name while the
+  environment lacks the key; `cmd/server` serves a remote reference through
+  `internal/remoterelay`, the generator that forwards the conversation
+  (its chat formatter's JSON form) to the provider's OpenAI-compatible
+  chat completions endpoint and streams deltas as token events; a
+  generator without a tokenizer passes its prompt through untokenized and
+  the count routes refuse; an activation whose verifying evidence ran at
+  a remote backend reads as experimental whatever its decisions claim; the
+  turn inspection reports `reproducible`. The gate's merge completion and
+  the plan's completion audit share `plan.CompletionMergeBase`, which takes
+  the merge base on the target's first-parent chain when each lane has
+  merged the other. The page's remote marker, the swap proxy route and
+  the browser proof are the next row (openrouter-page).
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

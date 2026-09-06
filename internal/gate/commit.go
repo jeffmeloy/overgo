@@ -959,7 +959,7 @@ func (g *gateContext) deriveProjectedMergeAuthority(
 	if err != nil {
 		return nil, err
 	}
-	mergeBaseRevision, err := projectedMergeBase(g.repo, g.planHead, incomingRevision)
+	mergeBaseRevision, err := plan.CompletionMergeBase(context.Background(), g.repo, g.planHead, incomingRevision)
 	if err != nil {
 		return nil, err
 	}
@@ -2096,41 +2096,6 @@ func gitCompletionFile(repo, revision, path string) ([]byte, error) {
 	return gitAuthorityOutput(repo, "show", revision+":"+path)
 }
 
-// projectedMergeBase names the merge base a merge completion reasons
-// from. A history where each side merged the other has two bases; the
-// target's plan projection reasons from the target's own history, so the
-// base on the target's first-parent chain (the target state the incoming
-// side merged) is the one, and a history with none or several bases on
-// that chain refuses.
-func projectedMergeBase(repo, target, incoming string) (string, error) {
-	baseOutput, err := gitAuthorityOutput(repo, "merge-base", "--all", target, incoming)
-	if err != nil {
-		return "", err
-	}
-	bases := strings.Fields(string(baseOutput))
-	if len(bases) == 1 {
-		return bases[0], nil
-	}
-	chainOutput, err := gitAuthorityOutput(repo, "rev-list", "--first-parent", target)
-	if err != nil {
-		return "", err
-	}
-	chain := map[string]bool{}
-	for revision := range strings.FieldsSeq(string(chainOutput)) {
-		chain[revision] = true
-	}
-	var selected []string
-	for _, base := range bases {
-		if chain[base] {
-			selected = append(selected, base)
-		}
-	}
-	if len(selected) != 1 {
-		return "", fmt.Errorf("gate: merge requires one merge base on the target's first-parent chain, found %d of %d", len(selected), len(bases))
-	}
-	return selected[0], nil
-}
-
 func gitAuthorityOutput(repo string, arguments ...string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
 	cmd := newGateGitReaderCommand(repo, arguments...)
@@ -2206,9 +2171,9 @@ func verifyProspectiveGateCompletion(
 	}
 	var mergeBase *plan.Plan
 	if intent.Merge != nil {
-		mergeBaseRevision, err := projectedMergeBase(repo, intent.Parent, mergeParent)
+		mergeBaseRevision, err := plan.CompletionMergeBase(context.Background(), repo, intent.Parent, mergeParent)
 		if err != nil {
-			return err
+			return fmt.Errorf("gate: %w", err)
 		}
 		data, err := gitCompletionFile(repo, mergeBaseRevision, plan.Path)
 		if err != nil {

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/remoteprovider"
 )
 
 type Entry struct {
@@ -95,6 +96,13 @@ func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, mem
 		if _, err := modelrecipe.ResolveRuntimePolicy(ctx, store, activation.Definition); err != nil {
 			entry.Stale = fmt.Sprintf("not servable: %v (recipe policy <model> binds it)", err)
 		}
+		// A remote model lists with its provider's refusal: the key its
+		// declaration names is absent from the environment.
+		if provider, remote, err := remoteprovider.Resolve(ctx, store, manifest); err != nil {
+			entry.Stale = fmt.Sprintf("not servable: %v", err)
+		} else if refusal := remoteprovider.Refusal(provider); remote && refusal != "" {
+			entry.Stale = "not servable: " + refusal
+		}
 		entries = append(entries, entry)
 	}
 	return entries, nil
@@ -149,6 +157,11 @@ func presence(
 		}
 		matched := false
 		for _, location := range locations {
+			// A remote model's bytes live with its provider: the remote
+			// location is its serving location and its presence.
+			if location.Kind == artifact.LocationRemote {
+				return location.Value, true
+			}
 			if location.Kind != artifact.LocationFile {
 				continue
 			}

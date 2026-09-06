@@ -525,6 +525,19 @@ derived from the server, not from client configuration:
   (`internal/vqaserve`: the processor, the device vision tower, merger,
   chained prefill and decode, and the two-stage recipe execution), so the
   page answers with the activation the harness proved.
+- **Remote providers.** A hosted model enters the store as a declaration,
+  never as code: `go run ./cmd/remote-provider -declare docs/remote_providers/openrouter.json`
+  commits a provider document (the service name, its OpenAI-compatible API
+  endpoint, the environment variable holding the key) and, per model id, a
+  model manifest at a remote location with an active remote inference
+  recipe at the experimental tier. The servable catalog lists such a model
+  beside local ones; while the environment lacks the key the entry is
+  refused by the variable's name, and with it the server serves the model
+  through a relay (`internal/remoterelay`) that carries each conversation
+  to the provider's chat completions endpoint and streams the answer back.
+  The relay forwards text only and counts no tokens (the provider does);
+  its environment records the remote backend, so every interaction and
+  observation under it is marked as not reproducible from the store.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

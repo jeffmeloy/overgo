@@ -10,6 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/remoteprovider"
 )
 
 // Capability reports one task activation on a catalogued model. Stale
@@ -160,6 +161,15 @@ func capabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 				} else if supported {
 					if _, err := modelrecipe.ResolveRuntimePolicy(ctx, store, activation.Definition); err != nil {
 						capability.Stale = fmt.Sprintf("not servable: %v (recipe policy <model> binds it)", err)
+					}
+				}
+				// A remote model's inference lists with its provider's
+				// refusal: the key its declaration names is absent.
+				if task == recipe.TaskInference && found {
+					if provider, remote, err := remoteprovider.Resolve(ctx, store, manifest); err != nil {
+						capability.Stale = fmt.Sprintf("not servable: %v", err)
+					} else if refusal := remoteprovider.Refusal(provider); remote && refusal != "" {
+						capability.Stale = "not servable: " + refusal
 					}
 				}
 			}

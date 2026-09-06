@@ -545,6 +545,8 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"gui-vqa-executor/do",
 		"openrouter-relay/do",
 		"openrouter-page/do",
+		"composer-artifact-intake/do",
+		"transcription-mode/do",
 		"openrouter-evals/do",
 		"audio-staged-surface/do",
 		"merge-4e0b9a670603/do",

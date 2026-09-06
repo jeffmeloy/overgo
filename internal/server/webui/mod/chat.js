@@ -74,7 +74,7 @@
       const thread = overgo.thread(panel, { reuse: (file, artifact) => {
         const field = [...generation.fields.values()].find((field) => field.control.type === "artifact");
         if (field && artifact) field.input.value = artifact; else composer.addFile(file);
-      } });
+      }, marker: capabilities.remote ? "remote" : "" });
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: () => { if (controller) controller.abort(); },
@@ -116,14 +116,11 @@
         agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker],
         onError: (err) => thread.errorRow(overgo.friendlyError(err)),
       }) : null;
-      if (toolSurface) {
-        toolSurface.setAgent(agents[0], tools);
-        agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools));
-      }
+      if (toolSurface) { toolSurface.setAgent(agents[0], tools); agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools)); }
 
       // The empty conversation is the getting-started card.
       const served = overgo.servedModel();
-      const declared = Object.keys(capabilities.modalities || {}).filter((kind) => capabilities.modalities[kind]).concat((capabilities.modes || []).filter((mode) => mode.enabled).map((mode) => mode.label));
+      const declared = Object.keys(capabilities.modalities || {}).filter((kind) => capabilities.modalities[kind]).concat((capabilities.modes || []).filter((mode) => mode.enabled).map((mode) => mode.label)).concat(capabilities.remote ? ["remote"] : []);
       const welcome = el("div", { class: "card front-empty" },
         el("h2", { text: capabilities.name || modelID }),
         el("div", { class: "note", text: (served && overgo.evidenceLine(served)) || "no committed evidence yet" }),
@@ -138,10 +135,7 @@
         const cards = [];
         if (inputTokens != null) {
           cards.push(overgo.stat("Input", fmt.grouped(inputTokens), "tokens"));
-          if (contextLength != null) {
-            cards.push(overgo.stat("Available", fmt.grouped(Number(contextLength) - Number(inputTokens)), "tokens"));
-            cards.push(overgo.stat("Context ratio", inputTokens + " / " + contextLength));
-          }
+          if (contextLength != null) cards.push(overgo.stat("Available", fmt.grouped(Number(contextLength) - Number(inputTokens)), "tokens"), overgo.stat("Context ratio", inputTokens + " / " + contextLength));
         }
         if (usage && usage.completion_tokens != null) cards.push(overgo.stat("Completion", fmt.grouped(usage.completion_tokens), "tokens"));
         if (timings) {
@@ -221,9 +215,10 @@
           if (system.value.trim()) request.instructions = system.value.trim();
           if (temperature.value !== "") request.temperature = Number(temperature.value);
           if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
-          const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal });
-          renderFacts(count.input_tokens, null, null);
-          await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count.input_tokens);
+          // Remote model: provider tokenizes; count route refuses -> meter stays empty.
+          const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null);
+          renderFacts(count ? count.input_tokens : null, null, null);
+          await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count ? count.input_tokens : null);
         } catch (err) {
           if (err.name === "AbortError" && assistant) {
             assistant.content += (assistant.content ? "\n" : "") + "[stopped]";

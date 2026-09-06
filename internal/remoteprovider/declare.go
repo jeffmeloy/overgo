@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"overgo/internal/artifact"
@@ -85,10 +86,7 @@ func Declare(ctx context.Context, store artifact.Repository, provider Provider, 
 	if err != nil {
 		return Declaration{}, err
 	}
-	// The declaration's own duration is the step's measure; a record needs a
-	// positive one, and the smallest positive duration bounds a clock that
-	// did not advance.
-	duration := max(uint64(time.Since(started).Nanoseconds()), 1)
+	duration := stepDuration(started)
 	record, err := runrecord.NewGateRecord(
 		definition.ID, environment.ID, codeCommit, runrecord.OutcomeSucceeded, "", duration,
 		[]runrecord.GateStep{{
@@ -114,6 +112,68 @@ func Declare(ctx context.Context, store artifact.Repository, provider Provider, 
 		return Declaration{}, fmt.Errorf("remote provider: activate %s: %w", location, err)
 	}
 	return declaration, nil
+}
+
+// stepDuration: step duration since started; floor 1ns (records need a
+// positive duration; clock may not advance).
+func stepDuration(started time.Time) uint64 {
+	return max(uint64(time.Since(started).Nanoseconds()), 1)
+}
+
+// retirementStep: retirement step name + failed record's failure code;
+// prose reason goes in step evidence.
+const retirementStep = "remote-provider-retirement"
+
+// Retire records a failed gate under the remote environment (reason =
+// endpoint gone, key withdrawn) -> evidence-backed retirement -> alias
+// released; declaration stays in history, catalog stops listing.
+func Retire(ctx context.Context, store *overgodb.Store, limit int, location, codeCommit, reason string) error {
+	started := time.Now()
+	declared, err := List(ctx, store, limit)
+	if err != nil {
+		return err
+	}
+	index := slices.IndexFunc(declared, func(model Declared) bool { return model.Location == location })
+	if index < 0 {
+		return fmt.Errorf("remote provider: no declared model at %s", location)
+	}
+	model := declared[index]
+	definition, err := modelrecipe.RemoteInferenceDefinition(model.Model, model.Provider.ID)
+	if err != nil {
+		return err
+	}
+	environment, err := Environment(model.Provider)
+	if err != nil {
+		return err
+	}
+	environmentContent, err := environment.Content()
+	if err != nil {
+		return err
+	}
+	duration := stepDuration(started)
+	record, err := runrecord.NewGateRecord(
+		definition.ID, environment.ID, codeCommit, runrecord.OutcomeFailed, retirementStep, duration,
+		[]runrecord.GateStep{{
+			Name: retirementStep, Phase: runrecord.PhaseLoad,
+			Outcome: runrecord.StepFailed, DurationNS: duration, Evidence: reason,
+		}},
+	)
+	if err != nil {
+		return err
+	}
+	batch, err := record.Batch("remote-provider/retirement/" + definition.ID.String() + "/" + record.Result.ID.String())
+	if err != nil {
+		return err
+	}
+	batch.Contents = append(batch.Contents, environmentContent)
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		return err
+	}
+	if err := modelrecipe.RetireActiveCapability(ctx, store, definition, modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}, reason); err != nil {
+		return err
+	}
+	// No successor: release the alias so the model leaves the catalog.
+	return modelrecipe.ReleaseRetiredAlias(ctx, store, model.Model, recipe.TaskInference)
 }
 
 // Resolve reads the provider a model manifest declares; remote is false
@@ -147,7 +207,8 @@ type Declared struct {
 	Location string
 }
 
-// List reads every remote model the store declares.
+// List reads declared remote models with an active inference recipe;
+// retired declarations stay in history, unlisted.
 func List(ctx context.Context, store *overgodb.Store, limit int) ([]Declared, error) {
 	result, err := store.Query(ctx, overgodb.Query{
 		Kind: artifact.KindModel, MaxResults: limit, Projection: overgodb.ProjectManifests,
@@ -164,7 +225,12 @@ func List(ctx context.Context, store *overgodb.Store, limit int) ([]Declared, er
 		if err != nil {
 			return nil, err
 		}
-		if remote {
+		if !remote {
+			continue
+		}
+		if active, err := modelrecipe.HasActiveRecipe(ctx, store, manifest.ID, recipe.TaskInference); err != nil {
+			return nil, err
+		} else if active {
 			declared = append(declared, Declared{Provider: provider, Model: manifest.ID, Location: Location(provider)})
 		}
 	}

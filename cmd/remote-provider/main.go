@@ -45,6 +45,8 @@ func run(args []string, output io.Writer) error {
 	flags.SetOutput(output)
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	declare := flags.String("declare", "", "strict JSON declaration: name, endpoint, key_environment, models, context_length")
+	retire := flags.String("retire", "", "remote location (remote://<provider>/<model>) whose activation retires")
+	reason := flags.String("reason", "", "with -retire: why the model leaves the catalog (the endpoint gone, the key withdrawn)")
 	list := flags.Bool("list", false, "list the store's remote models with their refusals")
 	limit := flags.Int("limit", catalogListingLimit, "maximum models the listing reads")
 	if err := flags.Parse(args); err != nil {
@@ -77,8 +79,19 @@ func run(args []string, output io.Writer) error {
 		}
 		return nil
 	}
+	if *retire != "" {
+		commit, err := runrecord.ExecutableCodeCommit(".")
+		if err != nil {
+			return err
+		}
+		if err := remoteprovider.Retire(ctx, store, *limit, *retire, commit, *reason); err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "retired %s\n", *retire)
+		return nil
+	}
 	if !*list {
-		return fmt.Errorf("remote-provider: usage: remote-provider [-repo <store>] -declare <file> | -list")
+		return fmt.Errorf("remote-provider: usage: remote-provider [-repo <store>] -declare <file> | -retire <location> -reason <text> | -list")
 	}
 	declared, err := remoteprovider.List(ctx, store, *limit)
 	if err != nil {

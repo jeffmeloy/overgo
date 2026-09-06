@@ -297,8 +297,38 @@ What the rows established, each a record rather than a statement:
   turn inspection reports `reproducible`. The gate's merge completion and
   the plan's completion audit share `plan.CompletionMergeBase`, which takes
   the merge base on the target's first-parent chain when each lane has
-  merged the other. The page's remote marker, the swap proxy route and
-  the browser proof are the next row (openrouter-page).
+  merged the other.
+- Remote models on the page (openrouter-page): the capabilities document
+  carries `remote` (the served generator's architecture is the remote
+  backend); `boot.js` tags a picker entry whose location is `remote://`
+  beside its evidence line and stale refusal; `chat.js` names `remote`
+  among the welcome card's declared facts and passes it as the thread's
+  turn marker, which `composer.js` renders on every assistant turn; the
+  count route's refusal (the provider tokenizes) leaves the meter empty
+  and the turn proceeds. The proxy's `matchServable` already resolves a
+  present remote entry by the location's last segment or the model id
+  (`TestMatchServableRoutesRemoteLocations`). `remoteprovider.Retire`
+  commits a failed gate record under the remote environment, retires the
+  activation through `modelrecipe.RetireActiveCapability` and releases the
+  alias through the new `modelrecipe.ReleaseRetiredAlias` (the
+  evidence-backed retirement keeps the alias for `RollbackActivation`; a
+  retirement with no successor releases it, so the catalog drops the model
+  instead of reporting an alias naming a refused recipe);
+  `remoteprovider.List` lists only declarations with an active inference
+  recipe, so a retired model leaves `-list`, `Reference` and the server's
+  remote resolution as well. The browser lane's journey (leg 13) declares
+  a fake provider on loopback in the lane store with its key in the test
+  environment, serves it through the real proxy, proves the picker tag,
+  the welcome tag, a streamed answer from the fake and the turn's marker,
+  and retires the declaration on cleanup. The lane's first pass found the
+  remote turn answered but not stored ("interaction authority is
+  unavailable"): the relay's runtime description carried no interaction
+  scope. `modelrecipe.DescribeDefinition` now compiles a definition into
+  its description with the first output node's interaction scope, shared
+  by `Describe` (serving plans) and the relay;
+  `TestResponsesRelayStoresInteraction` pins a relayed response's stored
+  interaction through a repository-backed handler. The Generate workspace
+  lists no remote model: a declaration carries the inference task only.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card

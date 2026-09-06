@@ -71,8 +71,10 @@ func TestGeneratorRelaysTheConversationAndStreams(t *testing.T) {
 	if properties.Name != "fake/model" || properties.Path != "remote://fake/fake/model" || properties.ContextLength != 4096 {
 		t.Fatalf("properties = %+v", properties)
 	}
+	// Interaction scope valid: the server stores each response's interaction under it.
 	description, err := generator.RecipeRuntimeDescription(recipe.TaskInference)
-	if err != nil || description.Identity.Model != definition.Model || description.Identity.Recipe != definition.ID {
+	if err != nil || description.Identity.Model != definition.Model || description.Identity.Recipe != definition.ID ||
+		!description.Interaction.Valid() || description.Interaction.Node != "relay" {
 		t.Fatalf("description = %+v, %v", description, err)
 	}
 	// A plain prompt (the completions route's) travels as one user message.

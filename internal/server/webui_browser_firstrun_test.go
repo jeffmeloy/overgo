@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,6 +20,11 @@ import (
 	"time"
 
 	"overgo/internal/modelswap"
+	"overgo/internal/overgodb"
+	"overgo/internal/remoteprovider"
+	"overgo/internal/remoterelay/relaytest"
+	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
 
@@ -54,6 +60,10 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Leg 13's remote model: fake loopback provider declared in the lane
+	// store before the proxy child opens it; key in this environment (child
+	// inherits); retired after the journey.
+	remoteName := declareLaneRemote(t, store)
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -92,6 +102,18 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
 	}
+	// openPicker: picker open over the catalog rows. A picker left open after
+	// a swap shows the swap's note, not rows: a click closes it, a second
+	// opens it afresh.
+	openPicker := func() {
+		t.Helper()
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+      const pill = document.querySelector("#model-pill");
+      if (!document.querySelector(".topbar .card .row .mono")) { pill.click(); if (!document.querySelector(".topbar .card")) pill.click(); }
+      return true;
+    })()`)
+		settle("picker lists the servable models", `document.querySelectorAll(".topbar .card .row .mono").length > 0`)
+	}
 	// switchTo serves another model through the picker and waits for the
 	// pill to name it and the composer to re-derive from its capabilities.
 	switchTo := func(name string) {
@@ -102,15 +124,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		}
 		// The page re-derives by remounting: the composer in place before the
 		// switch is marked, and the switch has landed once a new one stands.
-		// A picker left open after a swap shows the swap's note, not rows: a
-		// click closes it and a second one opens it afresh over the catalog.
-		assertBrowserPredicate(t, ctx, browser, `(() => {
-      document.querySelector(".composer").dataset.laneBefore = "1";
-      const pill = document.querySelector("#model-pill");
-      if (!document.querySelector(".topbar .card .row .mono")) { pill.click(); if (!document.querySelector(".topbar .card")) pill.click(); }
-      return true;
-    })()`)
-		settle("picker lists the servable models", `document.querySelectorAll(".topbar .card .row .mono").length > 0`)
+		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer").dataset.laneBefore = "1"; return true; })()`)
+		openPicker()
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(name)+`);
       if (!row) return false;
@@ -377,6 +392,60 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	} else {
 		t.Log("vqa leg not taken: the store declares no VQA model")
 	}
+	// 13. Remote turn: picker marks the remote model; serving it swaps the
+	// child to the relay; welcome + assistant turns carry the marker; answer
+	// from the fake provider, no input-token count.
+	if remoteName != "" {
+		openPicker()
+		settle("the picker marks the remote model", `[...document.querySelectorAll(".topbar .card .row")].some((row) =>
+      row.querySelector(".mono") && row.querySelector(".mono").textContent === `+strconv.Quote(remoteName)+` && [...row.querySelectorAll(".tag")].some((tag) => tag.textContent === "remote"))`)
+		switchTo(remoteName)
+		say(t, ctx, browser, "hello relay")
+		settle("the remote turn answers with its marker", `!document.querySelector(".composer .btn").disabled &&
+      (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").includes("Hello from the relay") &&
+      [...document.querySelectorAll("#panel-chat .msg.assistant .role .tag")].some((tag) => tag.textContent === "remote") &&
+      document.querySelectorAll("#panel-chat .msg.error").length === 0`)
+		t.Log("remote leg: the declared remote model answered through the relay with its marker")
+	}
+}
+
+// declareLaneRemote: declare a remote model (fake loopback provider) in the
+// lane store, retire on cleanup; returns the picker name, "" when the store
+// refuses the declaration.
+func declareLaneRemote(t *testing.T, storePath string) string {
+	t.Helper()
+	fake, _ := relaytest.Serve(t, "", "lane-key", []string{"Hello", " from the relay"})
+	t.Setenv("OVERGO_WEBUI_LANE_REMOTE_KEY", "lane-key")
+	commit, err := runrecord.HeadCommit(testutil.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	laneStore, err := overgodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	declaration, err := remoteprovider.Declare(t.Context(), laneStore, remoteprovider.Provider{
+		Name: "webui-lane", Endpoint: fake.URL, KeyEnvironment: "OVERGO_WEBUI_LANE_REMOTE_KEY", Model: "lane/relay-model",
+	}, commit)
+	if closeErr := laneStore.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if err != nil {
+		t.Logf("remote leg not taken: the store cannot take the declaration: %v", err)
+		return ""
+	}
+	t.Cleanup(func() {
+		laneStore, err := overgodb.Open(storePath)
+		if err != nil {
+			t.Errorf("retire the lane's remote declaration: %v", err)
+			return
+		}
+		defer laneStore.Close()
+		if err := remoteprovider.Retire(context.WithoutCancel(t.Context()), laneStore, 256, declaration.Location, commit, "the browser lane's fake provider closed with the journey"); err != nil {
+			t.Errorf("retire the lane's remote declaration: %v", err)
+		}
+	})
+	return path.Base(declaration.Location)
 }
 
 // say types one message into the composer through the browser's input

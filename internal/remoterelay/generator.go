@@ -186,18 +186,16 @@ func (g *Generator) ModelProperties() inference.ModelProperties {
 	}
 }
 
-// RecipeRuntimeDescription names the served recipe and model, so serving
-// observations bind to the remote activation.
+// RecipeRuntimeDescription binds served recipe + model + the relay node's
+// interaction scope, so observations and stored interactions attach to the
+// remote activation.
 func (g *Generator) RecipeRuntimeDescription(task recipe.Task) (modelrecipe.RuntimeDescription, error) {
 	if task != recipe.TaskInference {
 		return modelrecipe.RuntimeDescription{}, fmt.Errorf("remote relay: active %s recipe is unavailable", task)
 	}
 	profile, _ := g.definition.PrimaryDependency(recipe.DependencyProfile)
-	return modelrecipe.RuntimeDescription{
-		Identity: modelrecipe.ProgramIdentity{
-			Model: g.definition.Model, Profile: profile, Definition: g.definition.ID, Recipe: g.definition.ID,
-			Placement: recipe.PlacementHost,
-		},
-		Task: recipe.TaskInference, Inputs: g.definition.Inputs, Outputs: g.definition.Outputs,
-	}, nil
+	return modelrecipe.DescribeDefinition(modelrecipe.ProgramIdentity{
+		Model: g.definition.Model, Profile: profile, Definition: g.definition.ID, Recipe: g.definition.ID,
+		Placement: recipe.PlacementHost,
+	}, g.definition, nil)
 }

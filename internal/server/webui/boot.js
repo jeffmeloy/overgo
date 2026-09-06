@@ -522,6 +522,7 @@
           ...entries.map((item) => {
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
             const row = el("div", { class: "row" }, el("span", { class: "mono", text: name }));
+            if ((item.location || "").startsWith("remote://")) row.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
             const facts = evidenceLine(item);
             if (facts) row.appendChild(el("span", { class: "note", text: facts }));
             for (const capability of item.capabilities || []) {

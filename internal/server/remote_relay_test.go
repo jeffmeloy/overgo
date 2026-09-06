@@ -1,27 +1,27 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay"
 	"overgo/internal/remoterelay/relaytest"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
-// TestChatCompletionsRelayToRemoteProvider pins the served relay: a chat
-// completion over a handler whose generator is the remote relay reaches
-// the provider's endpoint as the conversation, the streamed deltas come
-// back as the protocol's chunks, the declared environment says the
-// provider's runs are not reproducible, and the count route refuses (the
-// provider tokenizes) rather than reporting zero tokens.
-func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
-	provider, received := relaytest.Serve(t, "", "relay-key", []string{"Hel", "lo"})
+// newRelayGenerator: relay over a fake provider answering pieces, its
+// remote environment, the provider's received-request record.
+func newRelayGenerator(t *testing.T, pieces []string) (*remoterelay.Generator, runrecord.Environment, *relaytest.Received) {
+	t.Helper()
+	provider, received := relaytest.Serve(t, "", "relay-key", pieces)
 	t.Setenv("OVERGO_SERVER_RELAY_TEST_KEY", "relay-key")
 	declared, err := remoteprovider.New(remoteprovider.Provider{
 		Name: "fake", Endpoint: provider.URL, KeyEnvironment: "OVERGO_SERVER_RELAY_TEST_KEY", Model: "vendor/model",
@@ -33,10 +33,6 @@ func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	policy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
-	if err != nil || !supported {
-		t.Fatalf("inference runtime policy = %v supported=%v", err, supported)
-	}
 	generator, err := remoterelay.New(declared, definition, provider.Client())
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +40,65 @@ func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
 	environment, err := remoteprovider.Environment(declared)
 	if err != nil {
 		t.Fatal(err)
+	}
+	return generator, environment, received
+}
+
+// TestResponsesRelayStoresInteraction: repository-backed handler stores a
+// relayed response's interaction (relay description carries the relay
+// node's interaction scope); the front page's remote turns depend on it.
+func TestResponsesRelayStoresInteraction(t *testing.T) {
+	generator, environment, _ := newRelayGenerator(t, []string{"Hello"})
+	policy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !supported {
+		t.Fatalf("inference runtime policy = %v supported=%v", err, supported)
+	}
+	repository, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = repository.Close() })
+	// The interaction's lineage names the served recipe: declared in the store, as a declaration commits it.
+	description, err := generator.RecipeRuntimeDescription(recipe.TaskInference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repository.Commit(t.Context(), artifact.Batch{
+		Key: "test/serving-recipe/" + description.Identity.Recipe.String(), Artifacts: []artifact.Descriptor{{ID: description.Identity.Recipe}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := New(Config{
+		RuntimePolicy: policy, ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
+		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Environment: environment, Repository: repository,
+	}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer handler.Close()
+	response := serveTestRequest(handler, http.MethodPost, "/v1/responses", `{"model":"`+testModelID+`","input":"hi","max_output_tokens":4}`)
+	var stored struct {
+		ID string `json:"id"`
+	}
+	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &stored) != nil || stored.ID == "" {
+		t.Fatalf("relayed response status=%d body=%s", response.Code, response.Body.String())
+	}
+	if _, found, err := runrecord.ResolveInteraction(t.Context(), repository, stored.ID); err != nil || !found {
+		t.Fatalf("stored interaction for %s: found=%v err=%v", stored.ID, found, err)
+	}
+}
+
+// TestChatCompletionsRelayToRemoteProvider pins the served relay: a chat
+// completion over a handler whose generator is the remote relay reaches
+// the provider's endpoint as the conversation, the streamed deltas come
+// back as the protocol's chunks, the declared environment says the
+// provider's runs are not reproducible, and the count route refuses (the
+// provider tokenizes) rather than reporting zero tokens.
+func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
+	generator, environment, received := newRelayGenerator(t, []string{"Hel", "lo"})
+	policy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !supported {
+		t.Fatalf("inference runtime policy = %v supported=%v", err, supported)
 	}
 	handler, err := New(Config{
 		RuntimePolicy: policy, ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
@@ -72,5 +127,31 @@ func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
 	count := serveTestRequest(handler, http.MethodPost, "/v1/chat/completions/input_tokens", body)
 	if count.Code != http.StatusNotImplemented || !strings.Contains(count.Body.String(), "token counting is unavailable") {
 		t.Fatalf("relayed token count status=%d body=%s", count.Code, count.Body.String())
+	}
+	// Capabilities document declares remote serving -> page marks it.
+	manifest := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
+	if manifest.Code != http.StatusOK || !strings.Contains(manifest.Body.String(), `"remote":true`) {
+		t.Fatalf("manifest status=%d body=%s", manifest.Code, manifest.Body.String())
+	}
+}
+
+// TestFrontPageRemoteTurns: page remote marks (picker entry, welcome card,
+// assistant turns) + turn proceeds when the count route refuses (provider
+// tokenizes).
+func TestFrontPageRemoteTurns(t *testing.T) {
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
+	defer handler.Close()
+	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }
+	if boot := get("/boot.js"); !strings.Contains(boot, `startsWith("remote://")`) || !strings.Contains(boot, `text: "remote"`) {
+		t.Error("the picker does not mark remote entries")
+	}
+	if composer := get("/composer.js"); !strings.Contains(composer, "options.marker") {
+		t.Error("the thread renders no turn marker")
+	}
+	chat := get("/mod/chat.js")
+	for _, needle := range []string{`marker: capabilities.remote`, `capabilities.remote ? ["remote"] : []`, `.catch(() => null)`, `count ? count.input_tokens : null`} {
+		if !strings.Contains(chat, needle) {
+			t.Errorf("the chat page lacks %q", needle)
+		}
 	}
 }

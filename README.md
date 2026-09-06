@@ -538,6 +538,22 @@ derived from the server, not from client configuration:
   The relay forwards text only and counts no tokens (the provider does);
   its environment records the remote backend, so every interaction and
   observation under it is marked as not reproducible from the store.
+  The front page lists a remote model in its picker under the model id's
+  last segment with a `remote` tag beside its evidence line and, while the
+  key is absent, its refusal; the capabilities document declares `remote`,
+  so the welcome card and every assistant turn from the model carry the
+  tag, and the composer sends a turn without an input-token count when the
+  count route refuses. The swap proxy resolves the entry to its remote
+  location, which the server serves through the relay. The Generate
+  workspace lists no remote model, since a declaration carries the
+  inference task only. A withdrawn provider retires by location
+  (`go run ./cmd/remote-provider -retire remote://<provider>/<model> -reason <text>`):
+  a failed gate record under the remote environment retires the
+  activation and releases the model's active alias, so the catalog and the
+  provider listing stop offering it while the declaration stays in the
+  store's history. The browser lane declares a fake provider on loopback,
+  proves a remote turn with its marker through the real proxy, and retires
+  the declaration when the journey ends.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

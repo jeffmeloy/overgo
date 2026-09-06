@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"overgo/internal/media"
+	"overgo/internal/runrecord"
 )
 
 // The capability document (professional GUI campaign, gui-simplify/
@@ -22,6 +23,9 @@ type workspaceModelCapabilities struct {
 	Modalities    map[string]bool          `json:"modalities"`
 	Media         workspaceMediaLimits     `json:"media"`
 	Modes         []workspaceMode          `json:"modes"`
+	// Remote: served through the relay at a hosted provider; the page marks
+	// its turns (not reproducible from the store).
+	Remote bool `json:"remote"`
 }
 
 // workspaceMediaLimits: the media kinds the served model accepts as prompt
@@ -92,6 +96,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		ID:            h.config.ModelID,
 		Name:          model.Name,
 		ContextLength: model.ContextLength,
+		Remote:        model.Architecture == runrecord.BackendRemote,
 		Generation:    h.defaultSamplingParams(),
 		Modalities:    map[string]bool{"text": true, "image": image, "audio": audio, "video": video, "document": true},
 		Media: workspaceMediaLimits{

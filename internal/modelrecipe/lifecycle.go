@@ -207,6 +207,37 @@ func RetireActiveCapability(
 	return err
 }
 
+// ReleaseRetiredAlias removes the active alias a successor-less retirement
+// leaves. RetireActiveCapability keeps it for RollbackActivation to
+// supersede; with nothing to restore (remote provider withdrawn) the alias
+// is released so the catalog drops the model instead of reporting an alias
+// naming a refused recipe. Precondition: alias names a superseded/refused
+// recipe; active -> retire through the evidence-backed path first.
+func ReleaseRetiredAlias(ctx context.Context, store artifact.Repository, model artifact.ID, task recipe.Task) error {
+	alias := activeAlias(model, task)
+	retiredID, bound, err := artifact.ResolveAlias(ctx, store, alias)
+	if err != nil {
+		return err
+	}
+	if !bound {
+		return errors.New("model recipe: no active alias to release")
+	}
+	status, published, err := Status(ctx, store, retiredID)
+	if err != nil {
+		return err
+	}
+	if !published || status != recipe.StatusSuperseded && status != recipe.StatusRefused {
+		return errors.New("model recipe: the active alias names a recipe that is not retired; retire it through the evidence-backed path first")
+	}
+	_, err = artifact.CommitBatch(ctx, store, artifact.Batch{
+		Key: "recipe/released-alias/" + retiredID.String(),
+		Aliases: []artifact.AliasBinding{{
+			Name: alias, Target: retiredID, Previous: &retiredID, Remove: true,
+		}},
+	})
+	return err
+}
+
 // RetireOrphanedActivation retires an activation whose own trust check
 // fails -- a stale alias left behind when a schema migration changed
 // the model identity, or an activation whose verifier evidence never

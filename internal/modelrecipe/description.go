@@ -19,28 +19,36 @@ type RuntimeDescription struct {
 	Interaction   recipe.InteractionScope `json:"-"`
 }
 
+// Describe: runtime description of a validated serving plan.
 func Describe(plan Plan) (RuntimeDescription, error) {
 	if err := plan.ValidateServing(); err != nil {
 		return RuntimeDescription{}, err
 	}
-	program, err := recipe.CompileProgram(plan.Recipe, catalog)
+	return DescribeDefinition(plan.Identity, plan.Recipe, plan.Evidence)
+}
+
+// DescribeDefinition compiles definition into its runtime description
+// under identity; interaction scope = the first output's node. Shared by
+// serving plans (Describe) and the remote relay (no model plan to validate).
+func DescribeDefinition(identity ProgramIdentity, definition recipe.Definition, evidence []artifact.ID) (RuntimeDescription, error) {
+	program, err := recipe.CompileProgram(definition, catalog)
 	if err != nil {
 		return RuntimeDescription{}, err
 	}
-	definition := program.Definition()
-	interaction, err := program.InteractionScope(definition.Outputs[0].Source.Node)
+	compiled := program.Definition()
+	interaction, err := program.InteractionScope(compiled.Outputs[0].Source.Node)
 	if err != nil {
 		return RuntimeDescription{}, err
 	}
 	return RuntimeDescription{
-		Identity:      plan.Identity,
-		Task:          definition.Task,
+		Identity:      identity,
+		Task:          compiled.Task,
 		Stages:        program.Stages(),
-		RequiredFacts: slices.Clone(definition.Dependencies),
-		Inputs:        slices.Clone(definition.Inputs),
-		Outputs:       slices.Clone(definition.Outputs),
-		Evidence:      slices.Clone(plan.Evidence),
-		CacheIdentity: plan.Identity.Recipe,
+		RequiredFacts: slices.Clone(compiled.Dependencies),
+		Inputs:        slices.Clone(compiled.Inputs),
+		Outputs:       slices.Clone(compiled.Outputs),
+		Evidence:      slices.Clone(evidence),
+		CacheIdentity: identity.Recipe,
 		Interaction:   interaction,
 	}, nil
 }

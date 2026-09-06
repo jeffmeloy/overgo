@@ -11,11 +11,10 @@ import (
 
 const remoteTestCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
-// TestServableListsRemoteModelsWithTheirRefusal pins the remote branch
-// of the servable predicate and the capability catalog: a declared remote
-// model is present at its remote location without bytes on disk, listed
-// refused by its key's variable name while the environment lacks the key
-// and servable once it holds it, in both listings.
+// TestServableListsRemoteModelsWithTheirRefusal: remote branch of Servable
+// + CapabilityCatalog. Declared remote model: present at its remote
+// location, no bytes on disk; refused by key variable name without the
+// key; servable with it; retired -> gone from both listings.
 func TestServableListsRemoteModelsWithTheirRefusal(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -51,5 +50,19 @@ func TestServableListsRemoteModelsWithTheirRefusal(t *testing.T) {
 	catalog, _, err = CapabilityCatalog(t.Context(), store, 16, nil)
 	if err != nil || len(catalog) != 1 || catalog[0].Capabilities[0].Stale != "" {
 		t.Fatalf("keyed catalog = %+v, %v", catalog, err)
+	}
+	// Retired: out of both listings; history kept.
+	if err := remoteprovider.Retire(t.Context(), store, 16, declaration.Location, remoteTestCodeCommit, "the provider endpoint closed"); err != nil {
+		t.Fatal(err)
+	}
+	if entries, err := Servable(t.Context(), store, 16); err != nil || len(entries) != 0 {
+		t.Fatalf("retired servable = %+v, %v", entries, err)
+	}
+	if catalog, _, err := CapabilityCatalog(t.Context(), store, 16, nil); err != nil || len(catalog) != 0 {
+		t.Fatalf("retired catalog = %+v, %v", catalog, err)
+	}
+	if err := remoteprovider.Retire(t.Context(), store, 16, "remote://nobody/model", remoteTestCodeCommit, "absent"); err == nil ||
+		!strings.Contains(err.Error(), "no declared model") {
+		t.Fatalf("retiring an undeclared model: %v", err)
 	}
 }

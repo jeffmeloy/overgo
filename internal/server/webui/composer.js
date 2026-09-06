@@ -71,7 +71,7 @@
   }
 
   // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows);
-  // options.reuse(file) takes a media output back as the next turn's input. ----
+  // options.reuse(file): media output -> next turn's input; options.marker: tag on every assistant turn ("remote"). ----
   function thread(host, options) {
     const reuse = options && options.reuse;
     const log = el("div", { class: "chat-log" });
@@ -90,6 +90,7 @@
         if (streaming) body.appendChild(el("span", { class: "cursor", text: "|" }));
       }
       const head = el("div", { class: "role" }, message.role);
+      if (message.role === "assistant" && options && options.marker) head.appendChild(el("span", { class: "tag", text: options.marker }));
       if (message.role === "assistant" && !streaming && message.content) {
         head.appendChild(overgo.copyButton(message.content, "copy"));
         if (message.response && overgo.inspectTurn) head.appendChild(el("button", { class: "link-button", text: "inspect", onclick: () => overgo.inspectTurn(message.response) }));

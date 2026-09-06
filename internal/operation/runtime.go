@@ -131,6 +131,8 @@ type Manager struct {
 	// now: the clock deadlines read; tests substitute a settable one.
 	now  func() time.Time
 	stop chan struct{}
+	// budget: the operator bound on any declared ceiling; zero is unbounded.
+	budget time.Duration
 }
 
 type entry struct {
@@ -208,12 +210,9 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 	if !request.Task.Valid() || request.Recipe.Kind() != artifact.KindRecipe {
 		return artifact.ID{}, errors.New("operation: invalid task or recipe")
 	}
-	var timer *deadlineTimer
-	if request.Deadlines != nil {
-		if err := request.Deadlines.Validate(); err != nil {
-			return artifact.ID{}, err
-		}
-		timer = &deadlineTimer{deadlines: *request.Deadlines, state: *newDeadlineState(*request.Deadlines, manager.now())}
+	timer, err := manager.admitDeadlines(request.Deadlines)
+	if err != nil {
+		return artifact.ID{}, err
 	}
 	claim, claimErr := manager.admitWorkspaceClaim(parent, request, recover)
 	if claimErr != nil {

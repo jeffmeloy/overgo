@@ -9,21 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "deadline-refresh",
-          "title": "Extend the execution deadline from progress reports under an absolute budget ceiling",
-          "status": "open",
-          "verify": "test -f internal/operation/deadline_refresh_test.go \u0026\u0026 go test ./internal/operation -run '^TestProgressExtendsExecutionDeadline$' -count=1",
-          "rationale": "Review finding 6. A progress report extends liveness, never the budget: every operation carries an absolute ceiling that refreshes cannot exceed, an operator budget bounds that ceiling, and a refresh past the ceiling cancels with the reason recorded. Refreshes are buffered and flushed at a bounded interval.",
-          "depends_on": [
-            "deadlines-and-requeue/schedule-and-execution-deadlines"
-          ],
-          "capabilities": [
-            "progress-refreshed-liveness",
-            "absolute-budget-ceiling",
-            "buffered-refresh"
-          ]
-        },
-        {
           "id": "backoff-and-idle-intervals",
           "title": "Requeue with jittered exponential backoff and back off idle periodic controllers",
           "status": "open",

@@ -222,20 +222,23 @@ type Config struct {
 	APIKey             string
 	ContextShift       bool
 	RequestTimeout     time.Duration
-	SPMInfill          bool
-	Qwen3VLProjector   projector.Session
-	ImageProjector     projector.Session
-	AudioProjector     projector.Session
-	RemoteMediaPolicy  *RemoteMediaPolicy
-	ResponseFiles      ResponseFileResolver
-	ToolProgram        recipe.Program
-	ToolAdapter        func(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
-	MaxStoredResponses int
-	ResponseStoreBytes int
-	DatasetPreview     DatasetPreviewAPI
-	FFmpegPath         string
-	VideoFPS           float64
-	VideoMaxFrames     int
+	// OperationDeadlineBudget bounds the ceiling any operation may declare;
+	// zero leaves ceilings unbounded.
+	OperationDeadlineBudget time.Duration
+	SPMInfill               bool
+	Qwen3VLProjector        projector.Session
+	ImageProjector          projector.Session
+	AudioProjector          projector.Session
+	RemoteMediaPolicy       *RemoteMediaPolicy
+	ResponseFiles           ResponseFileResolver
+	ToolProgram             recipe.Program
+	ToolAdapter             func(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
+	MaxStoredResponses      int
+	ResponseStoreBytes      int
+	DatasetPreview          DatasetPreviewAPI
+	FFmpegPath              string
+	VideoFPS                float64
+	VideoMaxFrames          int
 	// OvergoDBPath enables read-only catalog browsing (runs, artifacts,
 	// datasets) when Repository is absent; the dataset catalog itself is
 	// read from the store, never from a filesystem manifest.
@@ -474,6 +477,9 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if config.DefaultTopP == 0 {
 		config.DefaultTopP = defaults.Sampling.TopP
 	}
+	if config.OperationDeadlineBudget < 0 {
+		return nil, errors.New("server: operation deadline budget must be non-negative")
+	}
 	if config.RequestTimeout < 0 {
 		return nil, errors.New("server: request timeout must be non-negative")
 	}
@@ -608,6 +614,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 		_ = handler.Close()
 		return nil, err
 	}
+	handler.operations.BoundDeadlines(config.OperationDeadlineBudget)
 	if config.ToolAdapter != nil {
 		if repository == nil {
 			_ = handler.Close()

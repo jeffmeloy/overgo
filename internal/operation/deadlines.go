@@ -147,6 +147,35 @@ func deadlineStatus(timer *deadlineTimer) *DeadlineState {
 	return new(timer.state)
 }
 
+// BoundDeadlines sets the operator budget: no request may declare a ceiling
+// above it; a non-positive budget leaves ceilings unbounded.
+func (manager *Manager) BoundDeadlines(budget time.Duration) {
+	if manager == nil {
+		return
+	}
+	manager.mu.Lock()
+	manager.budget = budget
+	manager.mu.Unlock()
+}
+
+// admitDeadlines: a declaration validated against the operator budget and
+// turned into its timer; nil declares nothing.
+func (manager *Manager) admitDeadlines(deadlines *Deadlines) (*deadlineTimer, error) {
+	if deadlines == nil {
+		return nil, nil
+	}
+	if err := deadlines.Validate(); err != nil {
+		return nil, err
+	}
+	manager.mu.RLock()
+	budget := manager.budget
+	manager.mu.RUnlock()
+	if budget > 0 && deadlines.Ceiling > budget {
+		return nil, fmt.Errorf("operation: ceiling %s exceeds the operator budget %s", deadlines.Ceiling, budget)
+	}
+	return &deadlineTimer{deadlines: *deadlines, state: *newDeadlineState(*deadlines, manager.now())}, nil
+}
+
 // deadlineLoop: the flush at a bounded interval until the manager closes.
 func (manager *Manager) deadlineLoop(interval time.Duration) {
 	ticker := time.Tick(interval)

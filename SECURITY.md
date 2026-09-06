@@ -7,6 +7,14 @@ loopback (`127.0.0.1`) by default. They are not hardened for exposure to
 untrusted networks; placing them behind a reverse proxy on a shared network
 is the operator's decision and the operator's responsibility.
 
+A credential-less request is admitted by one rule the server and the swap
+proxy share (`internal/apimanifest.AdmitCredentialless`): on a real
+listener the Host must be loopback, since a matching Origin alone cannot
+stop DNS rebinding, and the browser's cross-origin protection applies. The
+proxy applies the rule before anything of its own changes: a foreign
+origin can neither place a provider key in the proxy's environment nor
+launch a child, and it never reaches the idle shell.
+
 ## API keys
 
 - The server accepts an optional bearer key; when configured, every API

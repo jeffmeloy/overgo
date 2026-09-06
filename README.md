@@ -500,7 +500,10 @@ derived from the server, not from client configuration:
   opens for the write while no child holds it; validation waits for a
   served model, and the download surface says so. The browser lane opens
   its journey from the cold proxy and declares its page provider there
-  before the first model serves.
+  before the first model serves. The proxy admits a request exactly as the
+  credential-less server does (a loopback Host on the listener, the
+  browser's cross-origin protection), before a key is placed in its
+  environment or a child is launched, so a foreign origin turns nothing.
 - **Conversations owned by the server.** Conversations are listed, resumed,
   labelled, and reattached to a turn in flight from the interaction records;
   the browser holds no state a reload would lose.

@@ -4,19 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "proxy-request-admission",
-      "title": "Admit a request at the proxy as the server does before any proxy mutation: the server loopback-Host and cross-origin checks (server.go ServeHTTP on a credential-less transport) become one shared admission the proxy applies before a provider key is placed in its environment and before a child is acquired, so a foreign-origin request can neither set a key nor launch a model; tests with foreign Origin and foreign Host counterexamples against the proxy and the idle shell",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Admit a request at the proxy as the server does before any proxy mutation: the server loopback-Host and cross-origin checks (server.go ServeHTTP on a credential-less transport) become one shared admission the proxy applies before a provider key is placed in its environment and before a child is acquired, so a foreign-origin request can neither set a key nor launch a model; tests with foreign Origin and foreign Host counterexamples against the proxy and the idle shell",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "relay-stream-completion",
       "title": "Reject a hosted stream that ends without its terminal marker: remoterelay.Generate treats EOF without the [DONE] marker or a finish reason as a truncated answer rather than success, a provider error event in the stream becomes the error, and cancellation returns the context error; tests for truncation, cancellation and the provider error event through relaytest",
       "status": "open",

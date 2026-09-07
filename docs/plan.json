@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "preflight",
-          "title": "Run the validate phases on the working tree in one command without admission",
-          "status": "open",
-          "verify": "test -f internal/gate/preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestPreflightReportsValidateFindings$' -count=1",
-          "rationale": "Style, magics, modern-Go, profile and architecture findings were each discovered inside a gate run today, costing one to three minutes of admission plus a rerun per finding. gate -preflight -paths \u003ccsv\u003e runs protection, scope, architecture, profile, fmt, style, magics and modern-go against the working tree with no store writes, no lifecycle preparation and no candidate worktree, prints every finding at once, and exits non-zero on the first blocker; the loop worker and the operator run it before every gate.",
-          "depends_on": [
-            "gate-wall/replan"
-          ],
-          "capabilities": [
-            "gate-cost"
-          ]
-        },
-        {
           "id": "identity-literal-triage",
           "title": "Classify identity literals as mathematical facts without a manual triage row",
           "status": "open",

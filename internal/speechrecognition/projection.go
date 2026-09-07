@@ -5,12 +5,14 @@ import (
 	"errors"
 
 	"overgo/internal/adaptertrain"
+	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
+	"overgo/internal/hostmath"
 	"overgo/internal/trainingprogram"
 )
 
-// Project applies the frozen output projection to unpadded hidden features.
+// Project applies the optional input adapter and frozen output projection to unpadded hidden features.
 // Encode prepares the workspace; returned logits borrow its storage. Keeping
 // this boundary separate lets adapter training reuse encoded features without
 // computing an unused base projection or retaining an encoder backward tape.
@@ -33,13 +35,45 @@ func (e *Encoder) Project(ctx context.Context, hidden []float32, frames int, w *
 		}
 	}
 	logits := w.logits[:outputs]
-	e.output.forward(logits, hidden, frames)
+	if len(e.inputProjection) == 0 {
+		e.output.forward(logits, hidden, frames)
+	} else {
+		if len(w.branch) < features || checked.SlicesOverlap(hidden, w.branch) {
+			return nil, errors.New("encoder: adapted projection scratch or overlap differs")
+		}
+		hostmath.LinearInputProjection(logits, w.branch[:features], hidden, e.inputProjection,
+			e.output.weight, e.output.bias, frames, e.output.in, e.output.out)
+	}
 	for _, value := range logits {
 		if !checked.Finite32(value) {
 			return nil, errors.New("encoder: non-finite projection output")
 		}
 	}
 	return logits, ctx.Err()
+}
+
+// WithOutputProjection loads one immutable adapter without copying the base.
+// Only Project uses it; tied intermediate output/feedback weights stay frozen.
+// The new encoder requires its own workspace and includes adapter numeric bytes
+// in admission. Existing branch scratch holds projected final features.
+func (e *Encoder) WithOutputProjection(ctx context.Context, directory string, binding adaptertrain.InputProjectionBinding, weights artifact.ID) (*Encoder, error) {
+	if ctx == nil || e == nil || len(e.blocks) == 0 || len(e.inputProjection) != 0 || e.weightBytes > e.memoryBytes {
+		return nil, errors.New("encoder: invalid output projection binding")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	projection, err := adaptertrain.LoadInputProjection(directory, binding, weights, e.output.in, e.memoryBytes-e.weightBytes)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	adapted := *e
+	adapted.inputProjection = projection
+	adapted.weightBytes += uint64(len(projection)) * binaryschema.Uint32Bytes
+	return &adapted, nil
 }
 
 // NewOutputAdapter binds the shared CPU input-projection/CTC component to this
@@ -49,7 +83,7 @@ func (e *Encoder) Project(ctx context.Context, hidden []float32, frames int, w *
 // Memory admission includes frozen weights, retained encoder capacities, the
 // input projection, all loss/gradient buffers and the shared optimizer state.
 func (e *Encoder) NewOutputAdapter(ctx context.Context, w *Workspace, maxFrames, maxTargets, blank int, policy trainingprogram.OptimizerPolicy) (*adaptertrain.LinearCTC, error) {
-	if ctx == nil || e == nil || len(e.blocks) == 0 || w == nil || w.owner != nil && w.owner != e || w.adapter != nil || maxFrames <= 0 {
+	if ctx == nil || e == nil || len(e.blocks) == 0 || len(e.inputProjection) != 0 || w == nil || w.owner != nil && w.owner != e || w.adapter != nil || maxFrames <= 0 {
 		return nil, errors.New("encoder: invalid output-adapter binding")
 	}
 	if err := ctx.Err(); err != nil {

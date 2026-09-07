@@ -57,6 +57,7 @@ type LinearCTC struct {
 	sequence                                        uint64
 	phase                                           trainingprogram.OperatorPhase
 	frames                                          int
+	checkpointReady                                 bool
 }
 
 // NewLinearCTC admits all numeric storage before allocation and initializes
@@ -78,7 +79,7 @@ func NewLinearCTC(spec LinearCTCSpec) (*LinearCTC, error) {
 			return nil, errors.New("linear CTC: non-finite frozen projection")
 		}
 	}
-	plan, err := optimizer.CompilePlan(parameters, []optimizer.GroupSpec{{Name: "input-projection", End: parameters, Rows: spec.Width, Cols: spec.Width}})
+	plan, err := optimizer.CompilePlan(parameters, []optimizer.GroupSpec{{Name: inputProjectionTensor, End: parameters, Rows: spec.Width, Cols: spec.Width}})
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +120,7 @@ func NewLinearCTC(spec LinearCTCSpec) (*LinearCTC, error) {
 		weights: make([]float32, parameters), gradients: make([]float32, parameters),
 		projected: make([]float32, featureCount), dProjected: make([]float32, featureCount),
 		logits: make([]float32, logitCount), dLogits: make([]float32, logitCount), scratch: make([]float64, ctcCount),
+		checkpointReady: true,
 	}
 	for index := range spec.Width {
 		m.weights[index*spec.Width+index] = 1
@@ -153,6 +155,7 @@ func (m *LinearCTC) Bind(ctx context.Context) (trainingprogram.Execution[LinearC
 	return trainingprogram.BindObjective(m.program,
 		func(example *LinearCTCExample) error {
 			m.phase = ""
+			m.checkpointReady = false
 			example.Loss, example.Logits, example.Gradient, example.Update = 0, nil, nil, optimizer.StepResult{}
 			if err := ctx.Err(); err != nil {
 				return err
@@ -214,6 +217,7 @@ func (m *LinearCTC) Bind(ctx context.Context) (trainingprogram.Execution[LinearC
 				return errors.New("linear CTC: non-finite input-projection update")
 			}
 			example.Update = result
+			m.checkpointReady = true
 			return nil
 		})
 }

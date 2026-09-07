@@ -60,6 +60,50 @@
   {
    "evidence": [
     {
+     "contains": "func PublishInputProjection(",
+     "path": "internal/trainingworkflow/input_projection.go",
+     "role": "source",
+     "identity": "file:sha256:e2816a31091854f4ae9a6cac32b833c38a0d7b33e35447e1b3f5e0daf29828ad"
+    },
+    {
+     "contains": "func TestASRAdapterPublicationAcceptance(",
+     "path": "internal/audioparity/adapter_lifecycle_test.go",
+     "role": "artifact",
+     "identity": "evidence:sha256:b16e143e3aef02978af11048ce660e2bd32b909c54e5d57024c4aa47951eb4ba"
+    }
+   ],
+   "id": "asr-cpu-adapter-publication",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+   "verify": "go test ./internal/audioparity -run '^TestASRAdapterPublicationAcceptance$' -count=1 -v",
+   "status": "implemented",
+   "summary": "A pinned CPU CTC adapter publishes 1,048,576 trainable parameters through universal checkpoints, reloads bit-identical logits without copying the frozen base, and produces the same transcript through a stored candidate recipe. Exact base, placement and explicit target-case bindings are required. No activation, HTTP, held-out WER or GPU claim."
+  },
+  {
+   "evidence": [
+    {
+     "contains": "func RestoreInputProjection(",
+     "path": "internal/trainingworkflow/input_projection.go",
+     "role": "source",
+     "identity": "file:sha256:e2816a31091854f4ae9a6cac32b833c38a0d7b33e35447e1b3f5e0daf29828ad"
+    },
+    {
+     "contains": "func TestASRExactResumeAcceptance(",
+     "path": "internal/audioparity/adapter_lifecycle_test.go",
+     "role": "artifact",
+     "identity": "evidence:sha256:b16e143e3aef02978af11048ce660e2bd32b909c54e5d57024c4aa47951eb4ba"
+    }
+   ],
+   "id": "asr-cpu-exact-adapter-resume",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+   "verify": "go test ./internal/audioparity -run '^TestASRExactResumeAcceptance$' -count=1 -v",
+   "status": "implemented",
+   "summary": "A fresh process resumes the pinned CPU CTC adapter after update 1 and reproduces updates 2 and 3 exactly: next-batch identity, raw targets, loss, parameters, Muon momentum, constant scheduler, RNG declarations and stream cursor. One LibriSpeech train.100 row; no shuffle, stochastic augmentation, held-out quality, production training command or GPU claim."
+  },
+  {
+   "evidence": [
+    {
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",

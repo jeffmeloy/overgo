@@ -25,6 +25,7 @@ import (
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
 
@@ -49,10 +50,22 @@ type ctcTrainingRecord struct {
 	SampleRate      uint64 `json:"sample_rate"`
 }
 
-// TestASRFrozenAdapterAcceptance performs one CPU update on an independently
-// pinned training record. It proves the native training boundary, not WER,
-// general tokenizer coverage, checkpoint reload, or a deployed adapted recipe.
-func TestASRFrozenAdapterAcceptance(t *testing.T) {
+type ctcTrainingFixture struct {
+	root, storeRoot, modelRoot string
+	election                   Election
+	record                     ctcTrainingRecord
+	frontend                   audiodsp.FrontendConfig
+	grouping                   audiodsp.GroupedFeatureConfig
+	declaration                speechrecognition.Declaration
+	encoder                    *speechrecognition.Encoder
+	features                   []float32
+	frames, blank              int
+	targets                    []int
+	payload                    []byte
+}
+
+func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
+	t.Helper()
 	root := testutil.RepoRoot(t)
 	storeRoot := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), filepath.Join(root, "overgodb-store"))
 	store, err := overgodb.OpenReadOnly(storeRoot)
@@ -116,7 +129,14 @@ func TestASRFrozenAdapterAcceptance(t *testing.T) {
 	if err != nil || !slices.Equal(sourceTargets, record.SourceTargetIDs) {
 		t.Fatalf("raw source tokenization differs: %v", err)
 	}
-	targetText := strings.ToLower(*row["text"])
+	transform, err := trainingdata.NewTextTransform(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetText, err := transform.Apply(*row["text"])
+	if err != nil {
+		t.Fatal(err)
+	}
 	if targetText != record.TargetText {
 		t.Fatal("declared target normalization differs")
 	}
@@ -165,9 +185,22 @@ func TestASRFrozenAdapterAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return ctcTrainingFixture{root: root, storeRoot: storeRoot, modelRoot: modelRoot, election: election, record: record,
+		frontend: frontendConfig, grouping: grouping, declaration: declaration, encoder: encoder,
+		features: features, frames: frames, blank: int(recipe.Config.PadTokenID), targets: targets, payload: payload}
+}
+
+// TestASRFrozenAdapterAcceptance performs one CPU update on an independently
+// pinned training record. It proves the native training boundary, not WER,
+// general tokenizer coverage, checkpoint reload, or a deployed adapted recipe.
+func TestASRFrozenAdapterAcceptance(t *testing.T) {
+	fixture := loadCTCTrainingFixture(t)
+	root, election, record := fixture.root, fixture.election, fixture.record
+	encoder, features, frames, targets := fixture.encoder, fixture.features, fixture.frames, fixture.targets
+	sourceTargets, declaration := record.SourceTargetIDs, fixture.declaration
 	var ew speechrecognition.Workspace
 	policy := trainingprogram.BuiltinOptimizerPolicy()
-	adapter, err := encoder.NewOutputAdapter(t.Context(), &ew, frames, len(targets), int(recipe.Config.PadTokenID), policy)
+	adapter, err := encoder.NewOutputAdapter(t.Context(), &ew, frames, len(targets), fixture.blank, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,11 +216,11 @@ func TestASRFrozenAdapterAcceptance(t *testing.T) {
 	beforeHidden, beforeBase, beforeAdapter := slices.Clone(hidden), slices.Clone(base), adapter.WeightSnapshot()
 	// The source's uppercase tokenization is a real impossible-alignment
 	// negative control. Do not silently zero its loss or modify decoder semantics.
-	ctcSize, err := trainingprogram.CTCLossWorkspaceSize(outputFrames, int(recipe.Config.VocabSize), len(sourceTargets))
+	ctcSize, err := trainingprogram.CTCLossWorkspaceSize(outputFrames, encoder.VocabularySize(), len(sourceTargets))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := trainingprogram.CTCLossF32(t.Context(), nil, base, sourceTargets, outputFrames, int(recipe.Config.VocabSize), int(recipe.Config.PadTokenID), make([]float64, ctcSize)); err == nil {
+	if _, err := trainingprogram.CTCLossF32(t.Context(), nil, base, sourceTargets, outputFrames, encoder.VocabularySize(), fixture.blank, make([]float64, ctcSize)); err == nil {
 		t.Fatal("impossible raw-source alignment was admitted")
 	}
 	execution, err := adapter.Bind(t.Context())
@@ -237,8 +270,8 @@ func TestASRFrozenAdapterAcceptance(t *testing.T) {
 }
 
 // Store immutable observation identities, not a new checkpoint format. The
-// snapshots below identify raw row-major F32 values; publication/reload remains
-// the next plan step. This isolated store tests the shared lineage contract.
+// snapshots below identify raw row-major F32 values. The separate lifecycle
+// acceptance tests loadable publication; this test covers observation lineage.
 func retainFrozenAdapterObservation(t *testing.T, root string, base, program artifact.ID, policy trainingprogram.OptimizerPolicy, placement artifact.Content, record ctcTrainingRecord, before, after []float32, beforeLoss, afterLoss float64, numericBytes uint64, elapsed time.Duration) {
 	t.Helper()
 	snapshot := func(values []float32) artifact.Descriptor {

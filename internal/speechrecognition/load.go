@@ -50,6 +50,7 @@ type Encoder struct {
 	ffScale                  float32
 	lnEpsilon, bnEpsilon     float64
 	weightBytes, memoryBytes uint64
+	inputProjection          []float32
 }
 
 // InputWidth returns the declared feature width consumed by each frame.

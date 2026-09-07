@@ -10,46 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-exact-resume",
-          "title": "Publish, reload and exactly resume CPU adapters",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRExactResumeAcceptance$' -count=1 -v",
-          "rationale": "Group adapter-lifecycle; implement asr-training/sync-exact-resume, asr-training/exact-resume together. Publish base, adapter, placement, tied-parameter and normalization identities through existing checkpoint/artifact owners. Reload identical logits/transcripts without copying the frozen base. Refuse digest mismatch, missing tensors, wrong placement and incomplete publication. Replace observation-only adapter hashes with loadable artifacts; preserve raw transcript provenance.",
-          "depends_on": [
-            "asr-training/trainable-graph",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "adapter-publication",
-            "shared-checkpoint-format"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/adaptertrain",
-              "internal/speechrecognition",
-              "internal/trainingprogram",
-              "internal/trainingworkflow",
-              "internal/trainingdata",
-              "internal/modelrecipe",
-              "internal/modelartifact",
-              "internal/audioparity",
-              "internal/safetensors",
-              "internal/optimizer",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group adapter-lifecycle: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-exact-resume",
-                "title": "Publish and reload the adapted recipe through existing checkpoint and artifact owners",
-                "verify": "go test ./internal/audioparity -run '^TestASRAdapterPublicationAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
           "id": "exact-resume",
           "title": "Verify: Prove interrupted and uninterrupted adapter training follow the same trajectory",
           "status": "open",

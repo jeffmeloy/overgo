@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "identity-literal-triage",
-          "title": "Classify identity literals as mathematical facts without a manual triage row",
-          "status": "open",
-          "verify": "test -f cmd/closure-scan/identity_literals_test.go \u0026\u0026 go test ./cmd/closure-scan -run '^TestIdentityLiteralsClassifyAsMathematicalFacts$' -count=1",
-          "rationale": "Zero, one, the decimal radix and integer bit widths in strconv calls were each triaged by hand today through propose, fill and triage, once per gate run. The scanner recognises these restated facts, records a mathematical-fact closure with an audit line naming the rule, and leaves every other literal to review; a triage that names one of them is refused as already classified.",
-          "depends_on": [
-            "gate-wall/replan"
-          ],
-          "capabilities": [
-            "closure-authority"
-          ]
-        },
-        {
           "id": "phase-wall-table",
           "title": "Print the per-phase wall table at the end of every gate",
           "status": "open",

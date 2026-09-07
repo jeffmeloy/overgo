@@ -38,6 +38,11 @@ func proposeTriageRows(
 	for _, name := range names {
 		candidate, found := index[name]
 		if !found {
+			if identity, classified, err := identityCandidate(snapshot, name); err != nil {
+				return triageFile{}, err
+			} else if classified {
+				return triageFile{}, refuseIdentityTriage(identity)
+			}
 			return triageFile{}, fmt.Errorf(
 				"triage candidate %q not found by scan; current unclassified candidates: %s",
 				name, strings.Join(current, ", "),

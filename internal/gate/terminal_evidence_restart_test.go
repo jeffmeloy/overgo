@@ -3,6 +3,7 @@ package gate
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -13,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
@@ -39,6 +41,7 @@ func TestTerminalEvidenceProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = ledger.store.Close() })
 	if err := ledger.prepare(t.Context(), []string{"fixture/good", "fixture/pending"}, "complete", inputs, g.retryCache); err != nil {
 		t.Fatal(err)
 	}
@@ -64,6 +67,82 @@ func TestTerminalEvidenceProcess(t *testing.T) {
 }
 
 func TestTerminalEvidenceRestart(t *testing.T) {
+	t.Run("publication cost and identical durable results", testPackageLedgerCost)
+	for _, failure := range []string{"closed store", "competing revocation"} {
+		t.Run("publication refuses "+failure, func(t *testing.T) {
+			root := t.TempDir()
+			g, inputs := terminalEvidenceFixture(t, root)
+			ledger, err := g.openPackageEvidence()
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = ledger.store.Close() })
+			packages := []string{"fixture/good"}
+			if err := ledger.prepare(t.Context(), packages, "complete", inputs, g.retryCache); err != nil {
+				t.Fatal(err)
+			}
+			want := overgodb.ErrClosed
+			if failure == "closed store" {
+				if err := ledger.store.Close(); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				other, _ := terminalEvidenceFixture(t, root)
+				competitor, err := other.openPackageEvidence()
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = competitor.store.Close() })
+				if err := competitor.prepare(t.Context(), packages, "complete", inputs, other.retryCache); err != nil {
+					t.Fatal(err)
+				}
+				if err := competitor.record(t.Context(), "fixture/good", false); err != nil {
+					t.Fatal(err)
+				}
+				want = overgodb.ErrAliasConflict
+			}
+			if err := g.packagePassObserver(t.Context(), ledger, "complete", inputs)("fixture/good", true); !errors.Is(err, want) {
+				t.Fatalf("publication error=%v want=%v", err, want)
+			}
+			pending, reused, err := g.packageCachePartition(packages, "complete", inputs)
+			if err != nil || reused != 0 || !slices.Equal(pending, packages) {
+				t.Fatalf("failed publication received credit: %v, %d, %v", pending, reused, err)
+			}
+			requireStoredPackageObligation(t, filepath.Join(root, StorePath), ledger.obligations["fixture/good"].ID)
+		})
+	}
+	t.Run("receipt waits for a live transaction", func(t *testing.T) {
+		root := t.TempDir()
+		g, inputs := terminalEvidenceFixture(t, root)
+		ledger, err := g.openPackageEvidence()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = ledger.store.Close() })
+		if err := ledger.prepare(t.Context(), []string{"fixture/good"}, "complete", inputs, g.retryCache); err != nil {
+			t.Fatal(err)
+		}
+		lock, err := processlock.Acquire(filepath.Join(root, StorePath, "overgodb.lock"), 0o644)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lock.Close()
+		ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Second, errors.New("receipt transaction did not finish"))
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- ledger.record(ctx, "fixture/good", true) }()
+		select {
+		case err := <-done:
+			t.Fatalf("publication returned while a live writer holds the transaction: %v", err)
+		case <-time.After(20 * time.Millisecond):
+		}
+		if err := lock.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	})
 	root := t.TempDir()
 	initial, initialInputs := terminalEvidenceFixture(t, root)
 	store, err := overgodb.Open(filepath.Join(root, StorePath))
@@ -82,6 +161,7 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = initialLedger.store.Close() })
 	if err := initialLedger.prepare(t.Context(), []string{"fixture/good", "fixture/pending"}, "complete", initialInputs, initial.retryCache); err != nil {
 		t.Fatalf("published typed environment must retain its descriptor: %v", err)
 	}
@@ -129,6 +209,7 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = ledger.store.Close() })
 	packages := []string{"fixture/good", "fixture/pending"}
 	if err := ledger.prepare(t.Context(), packages, "complete", inputs, g.retryCache); err != nil {
 		t.Fatal(err)
@@ -137,7 +218,7 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 	if err != nil || reused != 1 || !slices.Equal(pending, []string{"fixture/pending"}) {
 		t.Fatalf("restart pending=%v reused=%d error=%v", pending, reused, err)
 	}
-	requireStoredPackageObligation(t, ledger.root, ledger.obligations["fixture/pending"].ID)
+	requireStoredPackageObligation(t, filepath.Join(root, StorePath), ledger.obligations["fixture/pending"].ID)
 	if err := g.packagePassObserver(t.Context(), ledger, "complete", inputs)("fixture/good", false); err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +239,7 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 	if old == ledger.obligations["fixture/good"].ID {
 		t.Fatal("changed inputs retained obligation identity")
 	}
-	requireStoredPackageObligation(t, ledger.root, old)
+	requireStoredPackageObligation(t, filepath.Join(root, StorePath), old)
 	if pending, reused, err = g.packageCachePartition(packages, "complete", inputs); err != nil || reused != 0 || !slices.Equal(pending, packages) {
 		t.Fatalf("expanded scope pending=%v reused=%d error=%v", pending, reused, err)
 	}
@@ -168,6 +249,68 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 		t.Fatalf("cancellation discarded an observed terminal fact: %v", err)
 	}
 	t.Log("kill/restart: one terminal receipt recovered without tmp cache; incomplete, revoked, changed and new obligations remain uncredited")
+}
+
+func testPackageLedgerCost(t *testing.T) {
+	const receipts, seedArtifacts = 32, 1024
+	var expected artifact.CommitID
+	for _, reopen := range []bool{true, false} {
+		root := t.TempDir()
+		store, err := overgodb.Open(filepath.Join(root, StorePath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		seed := artifact.Batch{Key: "ledger-cost/seed"}
+		for index := range seedArtifacts {
+			seed.Artifacts = append(seed.Artifacts, artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, fmt.Sprintf("seed/%d", index))})
+		}
+		_, err = artifact.CommitBatch(t.Context(), store, seed)
+		if err := errors.Join(err, store.Close()); err != nil {
+			t.Fatal(err)
+		}
+		g, inputs := terminalEvidenceFixture(t, root)
+		ledger, err := g.openPackageEvidence()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = ledger.store.Close() })
+		var packages []string
+		for index := range receipts {
+			pkg := fmt.Sprintf("fixture/package/%d", index)
+			packages = append(packages, pkg)
+			inputs[pkg] = testutil.ArtifactID(t, artifact.KindEvidence, pkg)
+		}
+		if err := ledger.prepare(t.Context(), packages, "complete", inputs, g.retryCache); err != nil {
+			t.Fatal(err)
+		}
+		opened := 1
+		started := time.Now()
+		for _, pkg := range packages {
+			if reopen {
+				if err := ledger.store.Close(); err != nil {
+					t.Fatal(err)
+				}
+				ledger.store, err = overgodb.Open(filepath.Join(root, StorePath))
+				if err != nil {
+					t.Fatal(err)
+				}
+				opened++
+			}
+			if err := ledger.record(t.Context(), pkg, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		wall := time.Since(started)
+		head, sequence := ledger.store.Head()
+		if sequence != receipts+2 {
+			t.Fatalf("publication denominator=%d want=%d", sequence, receipts+2)
+		}
+		if expected.Valid() && head != expected {
+			t.Fatalf("retained handle changed durable results: %s != %s", head, expected)
+		}
+		expected = head
+		t.Logf("reopen_per_receipt=%t seeded_artifacts=%d receipts=%d store_opens=%d publication_wall=%s head=%s", reopen, seedArtifacts, receipts, opened, wall, head)
+	}
 }
 
 func requireStoredPackageObligation(t *testing.T, root string, id artifact.ID) {

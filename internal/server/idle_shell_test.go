@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
@@ -113,7 +114,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 	}
 	defer lock.Close()
 	shell := &IdleShell{
-		OpenStore: func(context.Context) (*overgodb.Store, error) { return overgodb.Open(root) },
+		Repository: writer,
 		Intake: LibraryIntake{
 			ModelFiles: func(path, projector string) (string, string, error) { return path, projector, nil },
 			Register: func(_ context.Context, _ *overgodb.Store, path, _ string) (map[string]any, error) {
@@ -126,9 +127,9 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 			},
 		},
 	}
-	requestWrite := func() *httptest.ResponseRecorder {
+	requestWrite := func(ctx context.Context) *httptest.ResponseRecorder {
 		response := httptest.NewRecorder()
-		shell.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/library/register", strings.NewReader(`{"kind":"model","path":"local.gguf"}`)))
+		shell.ServeHTTP(response, httptest.NewRequestWithContext(ctx, http.MethodPost, "/library/register", strings.NewReader(`{"kind":"model","path":"local.gguf"}`)))
 		return response
 	}
 	// A competing writer does not prevent the idle workbench from answering.
@@ -137,14 +138,16 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("idle health with another writer = %d", response.Code)
 	}
-	busy := requestWrite()
+	ctx, cancel := context.WithTimeoutCause(t.Context(), 20*time.Millisecond, errors.New("contended request expired"))
+	defer cancel()
+	busy := requestWrite(ctx)
 	if busy.Code != http.StatusServiceUnavailable || !strings.Contains(busy.Body.String(), `"store_busy"`) {
 		t.Fatalf("live contention = %d %s", busy.Code, busy.Body)
 	}
 	if err := lock.Close(); err != nil {
 		t.Fatal(err)
 	}
-	refused := requestWrite()
+	refused := requestWrite(t.Context())
 	if strings.Contains(refused.Body.String(), `"store_busy"`) || !strings.Contains(refused.Body.String(), "intake refused") {
 		t.Fatalf("retry after writer closes = %d %s", refused.Code, refused.Body)
 	}
@@ -156,8 +159,8 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
-	shell.OpenStore = func(context.Context) (*overgodb.Store, error) { return nil, errors.New("repository unreadable") }
-	unavailable := requestWrite()
+	shell.Repository = writer
+	unavailable := requestWrite(t.Context())
 	if !strings.Contains(unavailable.Body.String(), `"store_unavailable"`) || strings.Contains(unavailable.Body.String(), `"store_busy"`) {
 		t.Fatalf("non-lock error misclassified = %d %s", unavailable.Code, unavailable.Body)
 	}
@@ -165,13 +168,18 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 
 // TestIdleShellLibraryWritesOverTheOpenedStore pins the cold page's
 // library: a declaration, a listing and a retirement go through the
-// intake over the store the shell opens for each write, and a local
+// intake over the borrowed store, and a local
 // registration reaches the model intake without a validation step.
 func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 	root := t.TempDir()
-	var opened, declared, retired, registered int
+	repository, err := overgodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repository.Close()
+	var declared, retired, registered int
 	shell := &IdleShell{
-		OpenStore: func(context.Context) (*overgodb.Store, error) { opened++; return overgodb.Open(root) },
+		Repository: repository,
 		Intake: LibraryIntake{
 			ModelFiles: func(path, projector string) (string, string, error) { return path, projector, nil },
 			Register: func(_ context.Context, store *overgodb.Store, path, projector string) (map[string]any, error) {
@@ -214,8 +222,8 @@ func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
 	if registration := post(t, front.URL+"/library/register", `{"kind":"model","path":"C:/models/local.gguf"}`); registration.StatusCode != http.StatusOK {
 		t.Fatalf("registration = %d", registration.StatusCode)
 	}
-	if opened != 3 || declared != 1 || retired != 1 || registered != 1 {
-		t.Fatalf("opened=%d declared=%d retired=%d registered=%d", opened, declared, retired, registered)
+	if declared != 1 || retired != 1 || registered != 1 {
+		t.Fatalf("declared=%d retired=%d registered=%d", declared, retired, registered)
 	}
 	if invalid := post(t, front.URL+"/library/register", `{"kind":"other"}`); invalid.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unknown kind = %d", invalid.StatusCode)

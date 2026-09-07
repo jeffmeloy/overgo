@@ -953,6 +953,7 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	defer ledger.store.Close()
 	if err := ledger.prepare(ctx, direct, "short", directInputs, g.retryCache); err != nil {
 		return false, err
 	}

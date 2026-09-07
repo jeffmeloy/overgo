@@ -1,6 +1,7 @@
 package processlock
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,7 +9,43 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+func TestAcquireContextContentionIdentity(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "process.lock")
+	ctx, stop := context.WithCancelCause(t.Context())
+	stop(errors.New("cancelled before acquisition"))
+	if lock, err := AcquireContext(ctx, path, 0o600); !errors.Is(err, context.Canceled) || errors.Is(err, ErrBusy) {
+		_ = lock.Close()
+		t.Fatalf("cancelled before acquisition = %v; want cancellation without contention", err)
+	}
+	owner, err := Acquire(path, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	ctx, cancel := context.WithTimeoutCause(t.Context(), 50*time.Millisecond, errors.New("contended acquisition deadline"))
+	defer cancel()
+	if lock, err := AcquireContext(ctx, path, 0o600); !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrBusy) {
+		_ = lock.Close()
+		t.Fatalf("cancelled contended acquisition = %v; want deadline and contention", err)
+	}
+	if lock, err := Acquire(path, 0o600); !errors.Is(err, ErrBusy) {
+		_ = lock.Close()
+		t.Fatalf("cancelled waiter disturbed owner: %v", err)
+	}
+	if err := owner.Close(); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := AcquireContext(t.Context(), path, 0o600)
+	if err != nil {
+		t.Fatalf("released owner left a waiter behind: %v", err)
+	}
+	if err := lock.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestAcquireIsExclusiveAndReleasedByClose(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "process.lock")

@@ -52,19 +52,21 @@ func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, 
 	// flock has no context-aware wait. Bound retry latency without busy-spinning;
 	// this cadence affects scheduling only, never ownership or stale-lock expiry.
 	const retryInterval = time.Millisecond
+	var contention error
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, errors.Join(err, contention)
 		}
 		lock, err := Acquire(path, mode)
 		if !errors.Is(err, ErrBusy) {
 			return lock, err
 		}
+		contention = ErrBusy
 		timer := time.NewTimer(retryInterval)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return nil, ctx.Err()
+			return nil, errors.Join(ctx.Err(), contention)
 		case <-timer.C:
 		}
 	}

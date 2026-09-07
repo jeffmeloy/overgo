@@ -111,7 +111,8 @@ func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, 
 	var reserved, high uintptr
 	result, _, callErr := procLockFileEx.Call(uintptr(handle), lockfileExclusiveLock, reserved,
 		firstByteLockLength, high, uintptr(unsafe.Pointer(&lock.overlapped)))
-	if result == 0 && errors.Is(callErr, syscall.ERROR_IO_PENDING) {
+	contended := result == 0 && errors.Is(callErr, syscall.ERROR_IO_PENDING)
+	if contended {
 		cancelled := make(chan struct{})
 		stop := context.AfterFunc(ctx, func() {
 			_ = syscall.CancelIoEx(handle, &lock.overlapped)
@@ -128,6 +129,9 @@ func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, 
 	if result == 0 {
 		_ = syscall.CloseHandle(handle)
 		if err := ctx.Err(); err != nil {
+			if contended {
+				return nil, errors.Join(err, ErrBusy)
+			}
 			return nil, err
 		}
 		return nil, &os.PathError{Op: "lock", Path: path, Err: callErr}

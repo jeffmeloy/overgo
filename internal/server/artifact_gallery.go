@@ -157,16 +157,14 @@ func encodeNextCursor(cursor *overgodb.QueryCursor) (string, error) {
 }
 
 func (h *Handler) browseStore(ctx context.Context) (*overgodb.Store, error) {
-	if h.repository != nil {
-		return h.repository, nil
-	}
-	if h.browseRepository == nil {
+	store := cmp.Or(h.repository, h.browseRepository)
+	if store == nil {
 		return nil, errBrowseRepositoryUnavailable
 	}
-	if err := h.browseRepository.Refresh(ctx); err != nil {
+	if err := store.Refresh(ctx); err != nil {
 		return nil, err
 	}
-	return h.browseRepository, nil
+	return store, nil
 }
 
 func (h *Handler) requireBrowseStore(response http.ResponseWriter, request *http.Request) (*overgodb.Store, bool) {

@@ -42,7 +42,7 @@ var packageReceiptCodec = artifact.JSONDocumentCodec(
 )
 
 type packageEvidenceLedger struct {
-	root        string
+	store       *overgodb.Store
 	environment artifact.ID
 	obligations map[string]runrecord.AgentObligation
 	previous    map[string]artifact.ID
@@ -56,18 +56,21 @@ func (g *gateContext) openPackageEvidence() (*packageEvidenceLedger, error) {
 		cache := g.loadRetryCache()
 		g.retryCache = &cache
 	}
-	return &packageEvidenceLedger{root: filepath.Join(g.repo, g.storePath), environment: g.environment.ID,
+	store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
+	if err != nil {
+		return nil, err
+	}
+	return &packageEvidenceLedger{store: store, environment: g.environment.ID,
 		obligations: map[string]runrecord.AgentObligation{}, previous: map[string]artifact.ID{}}, nil
 }
 
 // prepare persists every required package before execution, then rebuilds the
 // cache projection from exact store receipts. A tmp file is never authority.
 func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []string, mode string, inputs map[string]artifact.ID, cache *automationcheck.EvidenceCache) error {
-	store, err := overgodb.Open(ledger.root)
-	if err != nil {
+	store := ledger.store
+	if err := store.Refresh(ctx); err != nil {
 		return err
 	}
-	defer store.Close()
 	batch := artifact.Batch{}
 	var identities []artifact.ID
 	for _, pkg := range packages {
@@ -135,11 +138,6 @@ func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, pas
 	if !found {
 		return fmt.Errorf("package evidence: undeclared package %q", pkg)
 	}
-	store, err := overgodb.Open(ledger.root)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
 	previous := ledger.previous[pkg]
 	receipt, err := packageReceiptCodec.NewInitial(packageReceipt{Obligation: obligation.ID, Previous: previous, Passed: passed})
 	if err != nil {
@@ -155,7 +153,7 @@ func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, pas
 		alias.Previous = &previous
 		parents = append(parents, previous)
 	}
-	_, err = artifact.CommitBatch(ctx, store, artifact.Batch{
+	_, err = artifact.CommitBatch(ctx, ledger.store, artifact.Batch{
 		Key: packageReceiptAlias + receipt.ID.String(), Contents: []artifact.Content{content},
 		Lineage: artifact.DependencyLineage(receipt.ID, parents...), Aliases: []artifact.AliasBinding{alias},
 	})

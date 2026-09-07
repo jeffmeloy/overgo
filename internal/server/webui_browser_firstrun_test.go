@@ -79,12 +79,17 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer supervisor.Close()
-	resolver := &modelswap.CatalogResolver{Store: store, Limit: 256}
+	repository, err := overgodb.Open(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = repository.Close() })
+	resolver := &modelswap.CatalogResolver{Store: repository, Limit: 256}
 	// No default: the journey opens on the cold proxy, as overgo_gui.bat
 	// without a model does, and chooses the first model from the picker.
 	proxy := &modelswap.Proxy{
 		Supervisor: supervisor, Resolver: resolver, Keys: resolver,
-		Idle: &IdleShell{Catalog: resolver.Catalog, OpenStore: func(context.Context) (*overgodb.Store, error) { return overgodb.Open(store) }, Intake: laneIdleIntake()},
+		Idle: &IdleShell{Catalog: resolver.Catalog, Repository: repository, Intake: laneIdleIntake()},
 	}
 	front := httptest.NewServer(proxy)
 	defer front.Close()

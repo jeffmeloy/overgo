@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
@@ -45,14 +46,27 @@ func run() error {
 	forkLabel := flags.String("fork-label", "", "the fork tree's commit, naming it in the report")
 	headLabel := flags.String("head-label", "", "this tree's commit, naming it in the report")
 	run := flags.String("run", "^"+webuilane.BrowserTestPrefix, "the browser tests to run, as go test -run takes them; a named test that skips fails the lane")
+	screens := flags.String("screens", "", "write the captures (every tab and the picker, desktop and phone) as PNGs into this directory")
+	pageURL := flags.String("url", "", "capture and audit a running server's page at this address instead of running the tests")
 	var required []string
 	flags.Func("require", "a journey line the run must write (repeatable); its absence fails the lane", func(text string) error { required = append(required, text); return nil })
 	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 || (*report != "") != (*fork != "") {
-		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
+		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-screens <dir>] [-url <address>] [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
+	}
+	if *pageURL != "" {
+		return captureLive(os.Stdout, *pageURL, *screens)
 	}
 	var captured bytes.Buffer
 	stdout := io.MultiWriter(os.Stdout, &captured)
-	ran, err := runLane(stdout, *run)
+	var extra []string
+	if *screens != "" {
+		absolute, err := filepath.Abs(*screens)
+		if err != nil {
+			return err
+		}
+		extra = append(extra, "OVERGO_WEBUI_LANE_SCREENS="+absolute)
+	}
+	ran, err := runLane(stdout, *run, extra)
 	if err != nil {
 		return err
 	}
@@ -82,10 +96,43 @@ func run() error {
 	return nil
 }
 
+// liveSettle bounds a live server's tab request before its capture.
+const liveSettle = 8 * time.Second
+
+// captureLive captures and audits a running server's page: every tab and
+// the picker at each viewport, the captures written when dir is set, the
+// findings listed; a finding is the error.
+func captureLive(stdout io.Writer, pageURL, dir string) error {
+	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 5*time.Minute, errors.New("webui lane: the live capture did not complete"))
+	defer cancel()
+	page, err := webuilane.Open(ctx, browser, pageURL)
+	if err != nil {
+		return err
+	}
+	defer page.Close()
+	states, findings, err := webuilane.CaptureStates(ctx, page, dir, liveSettle)
+	if err != nil {
+		return err
+	}
+	for _, finding := range findings {
+		fmt.Fprintln(stdout, finding)
+	}
+	fmt.Fprintln(stdout, webuilane.CaptureSummary(states, findings))
+	if len(findings) > 0 {
+		return fmt.Errorf("webui lane: %d layout finding(s) at %s", len(findings), pageURL)
+	}
+	return nil
+}
+
 // runLane runs the browser self-check and the acceptance tests run names,
 // writing the lane's observations to stdout; ran reports whether the
 // tests ran at all (no browser leaves the lane UNAVAILABLE, not failed).
-func runLane(stdout io.Writer, run string) (ran bool, err error) {
+// extra carries the screens test's capture directory and page address.
+func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error) {
 	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE no browser: %v\n", err)
@@ -107,15 +154,17 @@ func runLane(stdout io.Writer, run string) (ran bool, err error) {
 		return false, fmt.Errorf("browser transport self-check returned title %q", title)
 	}
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser)
+	env = append(env, extra...)
 	journey, unavailable := firstRunEnvironment(context.Background())
 	if unavailable != "" {
 		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE first-run journey: %s\n", unavailable)
 	} else {
 		env = append(env, journey...)
 	}
+	// The lane package's own browser test (the layout audit over a synthetic page) runs beside the server's.
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   "go",
-		Args:   []string{"test", "./internal/server", "-run", run, "-count=1", "-timeout=10m", "-v"},
+		Args:   []string{"test", "./internal/server", "./internal/webuilane", "-run", run, "-count=1", "-timeout=10m", "-v"},
 		Env:    env,
 		Stdout: stdout,
 		Stderr: os.Stderr,

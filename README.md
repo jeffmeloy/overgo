@@ -824,6 +824,22 @@ functions or values rather than nested ternaries, and every timer reads
 a named constant in its module. The model picker leaves once a swap
 serves, its receipt on the operation chip, and closes on Escape.
 
+How the page looks is captured, never guessed. The screens test opens
+every workbench tab and the model picker at a desktop and a phone
+viewport, captures each state through the browser's own screenshot
+command, and audits its layout from the browser's geometry and computed
+styles: the document held to the viewport's width, every control and
+card inside it, fixed and sticky surfaces apart, single-line text uncut
+unless an ellipsis is designed, controls at least 24px on each side (an
+input reached through its label measured by the label), and text against
+its background at the level-AA contrast ratio. A finding fails the test,
+so the audit holds at zero. `go run ./cmd/webui-lane -run
+'^TestWebUIBrowserScreens$' -screens <dir>` writes the captures as PNGs
+for a reader, and `go run ./cmd/webui-lane -url <address> -screens
+<dir>` walks a running server's page the same way without the tests,
+listing its findings. The audit itself is pinned over a synthetic page
+built to fault in every measured way.
+
 `go run ./cmd/webui-lane` runs the real-browser acceptance lane the gate
 selects for every web UI change: the workbench acceptance steps, the front
 page's keyboard, motion, colour, and width contract, and a first-run journey

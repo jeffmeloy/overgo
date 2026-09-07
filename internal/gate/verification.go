@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"overgo/internal/artifact"
@@ -117,45 +116,18 @@ func (g *gateContext) pipeline() error {
 	for _, exclusion := range impact.Exclusions {
 		satisfied[exclusion.Check] = true
 	}
-	var cacheMutex sync.Mutex
-	var terminalMutex sync.Mutex
-	results, err := automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
-		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
-		if planned.manifest != nil {
-			if driftErr := g.requireCandidateTree(planned.manifest.CandidateTree); driftErr != nil {
-				return automationcheck.Evidence{}, driftErr
-			}
-		}
-		input, hasInput := inputs[check.ID]
-		cacheCheck := cacheable(check.Check.Name) && hasInput
-		if cacheCheck {
-			cacheMutex.Lock()
-			evidence, reused := cache.Lookup(check, input)
-			cacheMutex.Unlock()
-			if reused {
-				terminalMutex.Lock()
-				g.terminal[check.Check.Name] = evidence
-				terminalMutex.Unlock()
-				return evidence, nil
-			}
-		}
-		evidence, runErr := automationcheck.Run(ctx, check)
-		if runErr == nil && cacheCheck {
-			cacheMutex.Lock()
-			cache.Record(check, input, evidence)
-			cacheMutex.Unlock()
-		}
-		if evidence.ID.Valid() {
-			terminalMutex.Lock()
-			g.terminal[check.Check.Name] = evidence
-			terminalMutex.Unlock()
-		}
-		return evidence, runErr
-	})
+	var drift func() error
+	if planned.manifest != nil {
+		tree := planned.manifest.CandidateTree
+		drift = func() error { return g.requireCandidateTree(tree) }
+	}
+	results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift)
 	if err != nil {
 		return err
 	}
-	g.saveRetryCache(cache)
+	if saveErr := g.saveRetryCache(cache); saveErr != nil {
+		g.audit = append(g.audit, "retry cache not saved: "+saveErr.Error())
+	}
 	byName := make(map[string]automationcheck.DAGResult, len(results))
 	for _, result := range results {
 		if result.Invocation.ID.Valid() {
@@ -660,10 +632,16 @@ func (g *gateContext) loadRetryCache() automationcheck.EvidenceCache {
 	return cache
 }
 
-func (g *gateContext) saveRetryCache(cache automationcheck.EvidenceCache) {
-	if cache.Environment.Valid() {
-		_ = writeJSON(g.repo, gateRetryFile, cache, clioptions.OutputFileMode)
+// saveRetryCache writes the cache atomically; the tmp directory is created so
+// a fresh candidate tree persists too; an unbound environment writes nothing.
+func (g *gateContext) saveRetryCache(cache automationcheck.EvidenceCache) error {
+	if !cache.Environment.Valid() {
+		return nil
 	}
+	if err := os.MkdirAll(filepath.Join(g.repo, filepath.Dir(filepath.FromSlash(gateRetryFile))), gatePrivateDirectoryMode); err != nil {
+		return err
+	}
+	return writeJSON(g.repo, gateRetryFile, cache, clioptions.OutputFileMode)
 }
 
 func (g *gateContext) phaseInputFingerprint(phase string) (artifact.ID, error) {

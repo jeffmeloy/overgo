@@ -87,6 +87,7 @@ type gateContext struct {
 	stepEvidence        map[string]string
 	cachePaths          []string
 	retryCache          *automationcheck.EvidenceCache
+	checkpointMemos     map[string]checkpointMemoEntry
 	structural          *codeprofile.FunctionImpact
 	packageGraph        *packageInputGraph
 	selection           automationcheck.SelectionMetrics
@@ -149,6 +150,7 @@ var (
 	gateRecoveryBeforeLockHook   func(string)
 	gateRecoveryLockedHook       func(string)
 	gateRecoveryAfterStepHook    func(string, string)
+	gateCheckPersistedHook       func(string)
 )
 
 func (transaction *gatePreparedReferenceTransaction) exchange(command, expected string) error {

@@ -824,6 +824,19 @@ functions or values rather than nested ternaries, and every timer reads
 a named constant in its module. The model picker leaves once a swap
 serves, its receipt on the operation chip, and closes on Escape.
 
+The shell reads one spacing scale and one type scale, declared as
+tokens beside the colours and used by the top bar, the operations
+strip, section titles, tables, tags, inputs, stat cards, the composer
+and the front page; the front page is one column whose welcome card,
+thread and composer share a width; the composer's send, attach and mode
+controls stand on one line with the parameters grouped beside them; the
+conversation rail shows one line per conversation with its actions
+revealed on hover or focus; the model picker lists one line per model
+with its facts and the serve control at the end; the operations strip
+is one quiet line until an operation runs; and on a phone the key field
+takes its own row. The captures before and after this pass are kept
+under docs/gui/screens.
+
 How the page looks is captured, never guessed. The screens test opens
 every workbench tab and the model picker at a desktop and a phone
 viewport, captures each state through the browser's own screenshot

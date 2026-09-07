@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-polish",
-      "title": "Polish from the captures (owner: the interface reads unpolished): with the screen captures as the evidence, bring the shell to one visual rhythm: a typographic scale and spacing scale declared as tokens and used everywhere, the top bar, sidebar and cards aligned to it, the composer and its mode controls laid out as one block, empty states and notes styled as one kind, tables and stat grids given consistent density, phone layout without overflow; every change re-captured and the audit at zero, the before and after captures kept under docs/gui/screens for the owner's review",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Polish from the captures (owner: the interface reads unpolished): with the screen captures as the evidence, bring the shell to one visual rhythm: a typographic scale and spacing scale declared as tokens and used everywhere, the top bar, sidebar and cards aligned to it, the composer and its mode controls laid out as one block, empty states and notes styled as one kind, tables and stat grids given consistent density, phone layout without overflow; every change re-captured and the audit at zero, the before and after captures kept under docs/gui/screens for the owner's review",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "integrate-to-master",
       "title": "Integrate the settled lane into master preserving master's plan: master merges the lane head from its own worktree (as merge-6ad5668fabed did at 5752876c) with the owner's go-ahead and master's docs/plan.json untouched; the lane never writes master and never takes master's rows; the row closes when master's head contains the lane's last landed row and the lane has merged that master back",
       "owner": "professional_overgo_gui",

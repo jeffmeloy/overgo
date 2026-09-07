@@ -139,8 +139,8 @@
         intake: (file) => { const field = artifactField(file); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => { field.input.value = stored.id; field.input.dispatchEvent(new Event("intake")); return stored.id; }) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; return renderMode(mode); },
-        controls: [reset, el("span", { class: "note", text: "temp" }), temperature, el("span", { class: "note", text: "max tokens" }), maxTokens,
-          el("button", { class: "btn alt", text: "enhance", onclick: () => enhancePrompt() })],
+        controls: [el("span", { class: "row composer-params" }, reset, el("span", { class: "note", text: "temp" }), temperature, el("span", { class: "note", text: "max tokens" }), maxTokens,
+          el("button", { class: "btn alt", text: "enhance", onclick: () => enhancePrompt() }))],
       });
       panel.insertBefore(agentHost, composer.element);
       // Prompt enhancement: the served model rewrites the typed prompt under the server's fixed

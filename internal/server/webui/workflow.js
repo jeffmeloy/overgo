@@ -31,9 +31,7 @@
 
   function subscribe(handler) {
     subscribers.add(handler);
-    queueMicrotask(() => {
-      if (subscribers.has(handler)) for (const [name, value] of latest) handler(name, value);
-    });
+    queueMicrotask(() => { if (subscribers.has(handler)) for (const [name, value] of latest) handler(name, value); });
     if (!streamController) connect();
     return function unsubscribe() {
       subscribers.delete(handler);
@@ -58,7 +56,7 @@
       // choice, never a free input; a boolean is one too.
       const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
       if (choices) {
-        input = el("select", { class: "text", "aria-label": control.label || control.name },
+        input = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") },
           el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
       } else {
@@ -71,7 +69,7 @@
       }
       fields.set(control.name, { control, input });
       const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
-      host.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name }), input, slot));
+      host.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name.replace(/_/g, " ") }), input, slot));
     }
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);

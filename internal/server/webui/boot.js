@@ -421,8 +421,7 @@
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
-    let panel = null;
-    modelPill.classList.add("clickable");
+    let panel = null; modelPill.classList.add("clickable");
     modelPill.title = "click to switch the served model";
     // close: the picker leaves after a served swap and on Escape; a click on the pill toggles it.
     const close = () => { if (panel) { panel.remove(); panel = null; } }; document.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
@@ -487,16 +486,17 @@
               if (event.key === "Enter") { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "serve"); if (serve) serve.click(); }
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...panel.querySelectorAll(".row")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
             } }, el("span", { class: "mono", text: name }));
-            if ((item.location || "").startsWith("remote://")) row.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
-            const facts = evidenceLine(item);
-            if (facts) row.appendChild(el("span", { class: "note", text: facts }));
-            for (const capability of item.capabilities || []) row.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
+            const facts = el("span", { class: "row picker-facts" }); row.appendChild(facts); // the model's facts on their own line under the name
+            if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
+            const evidence = evidenceLine(item);
+            if (evidence) facts.appendChild(el("span", { class: "note", text: evidence }));
+            for (const capability of item.capabilities || []) facts.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
             if (item.stale) {
-              row.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
+              facts.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
               // A keyless hosted model takes its key here; the proxy and the served child hold it in memory only, and the picker relists.
               if (item.key_environment) {
                 const key = el("input", { class: "keyfield", type: "password", placeholder: item.key_environment, "aria-label": "provider key" });
-                row.append(key, el("button", { class: "btn alt", text: "use key", onclick: async () => {
+                facts.append(key, el("button", { class: "btn alt", text: "use key", onclick: async () => {
                   try { await api.post("/providers/key", { location: item.location, key: key.value }); modelPill.click(); modelPill.click(); } catch (err) { panel.textContent = friendlyError(err); }
                 } }));
               }

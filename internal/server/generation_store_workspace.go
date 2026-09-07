@@ -205,19 +205,22 @@ func (workspace *StoreGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if err != nil {
 		return operation.Completion{}, err
 	}
+	// The submission's sources (a prompt enhancement the page accepted) are
+	// the run's inputs beside its request, so the original stays its source.
+	sources := workflowSources(ctx)
 	output, err := workspace.catalog.Execute[task](ctx, workspace.store, path, selection, string(raw))
 	if err != nil {
-		return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", err)
+		return failWorkflow(ctx, workspace.store, recipeID, sources, "generation_failed", err)
 	}
 	content, err := workspace.catalog.OutputContent(capabilityruntime.Unwrap(output))
 	if err != nil {
-		return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", err)
+		return failWorkflow(ctx, workspace.store, recipeID, sources, "generation_failed", err)
 	}
 	// The recorded request is the run's input: the record a gallery opens.
-	var inputs []artifact.ID
+	inputs := slices.Clone(sources)
 	request, recorded := recordedInput(output)
 	if recorded {
-		inputs = []artifact.ID{request.Descriptor.ID}
+		inputs = append(inputs, request.Descriptor.ID)
 	}
 	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{content.Descriptor.ID}, "")
 	if err != nil {

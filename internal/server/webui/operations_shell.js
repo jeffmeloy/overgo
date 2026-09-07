@@ -167,12 +167,7 @@
     selected = id;
     updateRoute(id, replace);
     renderStrip(host);
-    if (!id) {
-      if (detailRequest) detailRequest.abort();
-      host.lastElementChild.hidden = true;
-      host.lastElementChild.replaceChildren();
-      return;
-    }
+    if (!id) { if (detailRequest) detailRequest.abort(); host.lastElementChild.hidden = true; host.lastElementChild.replaceChildren(); return; }
     loadDetail(host, id);
   }
 

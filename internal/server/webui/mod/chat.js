@@ -85,7 +85,7 @@
         catch (err) { card.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
         const runLine = (verb, run, items) => el("div", {}, verb + " ", overgo.artifactLink(run.run, "run " + fmt.shortID(run.run)), " " + run.outcome + " · ",
           ...items.map((item) => el("span", {}, item.name, overgo.artifactLink(item.id), " ")));
-        const inputName = (input) => input.schema && input.schema.endsWith("-input.v1") ? "request " : "";
+        const inputName = (input) => { const schema = input.schema || ""; if (schema.endsWith("-input.v1")) return "request "; return schema.startsWith("overgo/prompt-enhancement/") ? "prompt " : ""; };
         const block = el("div", { class: "record lineage" },
           ...lineage.producers.map((run) => runLine("made by", run, run.inputs.map((input) => ({ id: input.id, name: inputName(input) })))),
           ...lineage.consumers.map((run) => runLine("used by", run, run.outputs.map((id) => ({ id, name: "" })))),
@@ -94,6 +94,14 @@
         card.querySelector(".lineage") ? card.querySelector(".lineage").replaceWith(block) : card.appendChild(block);
       }
       // openStep: the composer in the step's mode with its model picked and the artifact in the declared slot.
+      // requestOf: the request document the run that made an artifact cites (its input under an input
+      // schema; a run's inputs stand in identity order), read from the artifact's lineage.
+      async function requestOf(artifact, run) {
+        const lineage = await overgo.api.get("/artifacts/lineage?id=" + encodeURIComponent(artifact));
+        const made = lineage.producers.find((item) => item.run === run) || lineage.producers[0];
+        const input = made && made.inputs.find((item) => (item.schema || "").endsWith("-input.v1"));
+        return input && overgo.api.get("/artifacts/content?id=" + encodeURIComponent(input.id));
+      }
       async function openStep(step, artifact) {
         await composer.setMode(step.task);
         if (generation.picker) { generation.picker.value = step.recipe; generation.picker.dispatchEvent(new Event("change")); }
@@ -112,8 +120,8 @@
           const run = await overgo.api.get("/runs?id=" + encodeURIComponent(event.run));
           const capability = generation.capabilities.find((item) => item.recipe === run.recipe && !item.refusal);
           if (!capability) throw new Error("the capability that made it is no longer active");
-          if (!(run.inputs || []).length) throw new Error("the run records no request");
-          const request = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(run.inputs[0]));
+          const request = await requestOf(event.artifact, run.id);
+          if (!request) throw new Error("the run records no request");
           if (label === "vary") {
             if (!capability.controls.some((control) => control.name === "seed")) throw new Error("the request declares no seed to vary");
             request.seed = crypto.getRandomValues(new Uint32Array(1))[0];
@@ -131,9 +139,29 @@
         intake: (file) => { const field = artifactField(file); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => { field.input.value = stored.id; field.input.dispatchEvent(new Event("intake")); return stored.id; }) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; return renderMode(mode); },
-        controls: [reset, el("span", { class: "note", text: "temp" }), temperature, el("span", { class: "note", text: "max tokens" }), maxTokens],
+        controls: [reset, el("span", { class: "note", text: "temp" }), temperature, el("span", { class: "note", text: "max tokens" }), maxTokens,
+          el("button", { class: "btn alt", text: "enhance", onclick: () => enhancePrompt() })],
       });
       panel.insertBefore(agentHost, composer.element);
+      // Prompt enhancement: the served model rewrites the typed prompt under the server's fixed
+      // instruction; the rewrite stands beside the original until accepted, and an accepted rewrite
+      // makes the stored enhancement record the next generation run's source.
+      const enhancement = { record: "", enhanced: "" };
+      const enhanceHost = el("div", { class: "enhancement" });
+      panel.insertBefore(enhanceHost, composer.element);
+      async function enhancePrompt() {
+        const prompt = composer.input.value.trim();
+        if (!prompt) { thread.errorRow("type a prompt to enhance"); return; }
+        enhanceHost.replaceChildren(el("span", { class: "note", text: "rewriting through " + modelID }));
+        try {
+          const answer = await overgo.api.post("/generation/enhance", { prompt });
+          const accept = el("button", { class: "btn", text: "accept", onclick: () => {
+            composer.input.value = answer.enhanced; enhancement.record = answer.record || ""; enhancement.enhanced = answer.enhanced; enhanceHost.replaceChildren(); } });
+          const keep = el("button", { class: "btn alt", text: "keep original", onclick: () => enhanceHost.replaceChildren() });
+          enhanceHost.replaceChildren(el("div", { class: "card" }, el("div", { class: "note", text: "original: " + answer.original }),
+            el("div", { class: "rewrite", text: answer.enhanced }), el("div", { class: "row" }, accept, keep)));
+        } catch (err) { enhanceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+      }
 
       // A generation mode renders what its capability declares: the models
       // activated for the task (a refused one says why) and the request's
@@ -190,8 +218,7 @@
       async function openRecord(item, run, name, url) {
         const card = thread.mediaCard({ kind: overgo.mediaKind(item.descriptor.media_type), url, artifact: item.descriptor.id, mime: item.descriptor.media_type, bytes: item.descriptor.size, caption: name, run: run.id });
         let request = {};
-        try { if ((run.inputs || []).length) request = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(run.inputs[0])); }
-        catch (err) { card.appendChild(overgo.errorBanner(overgo.friendlyError(err))); }
+        try { request = await requestOf(item.descriptor.id, run.id) || {}; } catch (err) { card.appendChild(overgo.errorBanner(overgo.friendlyError(err))); }
         card.appendChild(el("div", { class: "record" }, overgo.table(["control", "value"], Object.entries(request).map(([control, value]) => [control, String(value)])),
           el("div", { class: "row" }, overgo.artifactLink(run.id, "run " + fmt.shortID(run.id)), el("a", { class: "btn alt", href: url, download: "", text: "download" }))));
       }
@@ -282,7 +309,10 @@
             return;
           }
           if (mode && mode !== "chat") {
-            const selection = generation.capability ? { capability: generation.capability, fields: generation.fields } : null;
+            // An accepted rewrite sent unchanged cites its enhancement record as the run's source.
+            const sources = enhancement.record && text === enhancement.enhanced ? [enhancement.record] : [];
+            enhancement.record = enhancement.enhanced = "";
+            const selection = generation.capability ? { capability: generation.capability, fields: generation.fields, sources } : null;
             await thread.consume(overgo.generate(mode, text, parts, controller.signal, selection));
             return;
           }

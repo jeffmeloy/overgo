@@ -136,12 +136,7 @@
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
       let unsubscribe = function () {};
-      function finish(current) {
-        if (observe) observe(current);
-        if (!terminal(current.state)) return;
-        unsubscribe();
-        resolve(current);
-      }
+      function finish(current) { if (observe) observe(current); if (!terminal(current.state)) return; unsubscribe(); resolve(current); }
       unsubscribe = subscribe((name, value) => {
         if (name === "operation" && value.status.id === id) finish(value.status);
         if (name === "operation.snapshot") { const current = value.find((item) => item.id === id); if (current) finish(current); }
@@ -214,12 +209,7 @@
           const capability = selected();
           if (!capability) return;
           const { input, missing } = overgo.controlValues(fields);
-          if (missing.size) {
-            const [name] = missing;
-            fields.get(name).input.focus();
-            status.textContent = name + " is required";
-            return;
-          }
+          if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return; }
           run.disabled = true;
           cancel.disabled = false;
           cancel.style.display = "";
@@ -232,12 +222,7 @@
             status.textContent = "running / " + fmt.shortID(operation);
             const completed = await overgo.waitOperation(operation, renderOperation);
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
-          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally {
-            operation = null;
-            run.disabled = false;
-            cancel.disabled = false;
-            cancel.style.display = "none";
-          }
+          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.style.display = "none"; }
         });
       },
     });

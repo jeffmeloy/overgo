@@ -32,8 +32,8 @@
 
   // run: one request of a declared capability through the generic run route, answered as the
   // operation's outputs (artifact URLs) once it completes, or thrown as its failure.
-  async function run(capability, input, signal) {
-    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input }, { signal });
+  async function run(capability, input, signal, sources) {
+    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal });
     const completed = await overgo.waitOperation(accepted.operation, null, signal);
     if (completed.state !== "completed") throw new Error(completed.failure || completed.state);
     return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) };
@@ -63,7 +63,7 @@
     if (textControl) { input[textControl.name] = text; missing.delete(textControl.name); }
     if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
     let completed;
-    try { completed = await run(capability, input, signal); } catch (err) { if (err.name === "AbortError") throw err; yield { type: "error", message: err.message }; return; }
+    try { completed = await run(capability, input, signal, selection.sources); } catch (err) { if (err.name === "AbortError") throw err; yield { type: "error", message: err.message }; return; }
     if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
     // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
     for (const output of completed.data) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
@@ -212,12 +212,7 @@
               assistant.content += event.text;
               renderMessage(assistant, true);
               break;
-            case "tool_start": {
-              thinking(false);
-              const id = event.id || event.name + ":" + open.size;
-              open.set(id, toolCard(event));
-              break;
-            }
+            case "tool_start": { thinking(false); const id = event.id || event.name + ":" + open.size; open.set(id, toolCard(event)); break; }
             case "tool_end": {
               const id = event.id || event.name + ":" + (open.size - 1);
               const card = open.get(id) || toolCard(event);

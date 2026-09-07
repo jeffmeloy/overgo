@@ -145,11 +145,7 @@
           const checkpoint = (run.outputs || []).find((value) => String(value).startsWith("checkpoint:"));
           const record = found && { id: found.id, trace: found.trace, checkpoint, run: run.id };
           const evidence = el("div");
-          const pin = record && el("button", { class: "btn alt", text: "Set comparison baseline", onclick: () => {
-            baseline = record;
-            pin.textContent = "Comparison baseline";
-            pin.disabled = true;
-          }});
+          const pin = record && el("button", { class: "btn alt", text: "Set comparison baseline", onclick: () => { baseline = record; pin.textContent = "Comparison baseline"; pin.disabled = true; } });
           detail.replaceChildren(
             el("div", { class: "section-title", text: "Run detail" }),
             el("div", { class: "statgrid" },

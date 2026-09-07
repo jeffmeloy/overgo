@@ -395,7 +395,20 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	}
 	mediaCards := `document.querySelectorAll("#panel-chat .msg.media").length`
 	if generationMode("image-gen", "model.oscillator-image-prepare") {
-		say(t, ctx, browser, "a test image")
+		// 7b. Enhance the prompt first: the served chat model rewrites the
+		// typed prompt under the server's instruction, the rewrite stands
+		// beside the original, and accepting it fills the composer; the run
+		// that follows cites the enhancement record as its source.
+		assertBrowserPredicate(t, ctx, browser, `(() => { const input = document.querySelector(".composer textarea"); input.value = "a test image"; input.focus(); return true; })()`)
+		assertBrowserPredicate(t, ctx, browser, `(() => { const enhance = [...document.querySelectorAll(".composer .chat-controls button")].find((button) => button.textContent === "enhance"); if (!enhance) return false; enhance.click(); return true; })()`)
+		settle("the rewrite stands beside the original", `(() => { const card = document.querySelector("#panel-chat .enhancement .card");
+      return !!card && card.textContent.includes("original: a test image") && (card.querySelector(".rewrite") || {}).textContent.trim().length > 0; })()`)
+		var rewrite string
+		if err := browser.Evaluate(ctx, `(() => { document.querySelector("#panel-chat .enhancement .card .btn").click(); return document.querySelector(".composer textarea").value; })()`, &rewrite); err != nil || rewrite == "" || rewrite == "a test image" {
+			t.Fatalf("accepted rewrite = %q, %v", rewrite, err)
+		}
+		t.Logf("enhance leg: the served model rewrote the prompt to %q", rewrite)
+		pressKey(t, ctx, browser, "Enter", 13)
 		settle("image out as an artifact card", mediaCards+` === 1 && !!document.querySelector("#panel-chat .msg.media img") &&
       !!document.querySelector("#panel-chat .msg.media .note a") && !document.querySelector(".composer .btn").disabled`)
 		t.Log("media-out leg: an image landed as an artifact card")
@@ -448,7 +461,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		// that mode with the image in the slot.
 		assertBrowserPredicate(t, ctx, browser, `(() => { const open = [...document.querySelector("#panel-chat .msg.media").querySelectorAll("button")].find((button) => button.textContent === "lineage"); if (!open) return false; open.click(); return true; })()`)
 		settle("the image card shows the run that made it", `(() => { const block = document.querySelector("#panel-chat .msg.media .lineage");
-      return !!block && block.textContent.includes("made by run") && block.textContent.includes("request "); })()`)
+      return !!block && block.textContent.includes("made by run") && block.textContent.includes("request ") && block.textContent.includes("prompt "); })()`)
 		var steps []string
 		if err := browser.Evaluate(ctx, `[...document.querySelectorAll("#panel-chat .msg.media .lineage [aria-label='next steps'] .chip")].map((chip) => chip.textContent)`, &steps); err != nil {
 			t.Fatal(err)

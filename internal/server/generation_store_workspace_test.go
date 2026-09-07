@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -179,6 +180,23 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	request, err := requireRecordedRequest(ctx, store, completion.Run)
 	if err != nil || request.Schema != requestContract.Schema {
 		t.Fatalf("request record = %+v, %v", request, err)
+	}
+	// A submission's sources (a prompt enhancement the page accepted) are
+	// the run's inputs beside the request, so the original stays its source.
+	enhancement, err := artifact.JSONContract(artifact.KindFile, promptEnhancementSchema).ContentBytes([]byte(`{"original":"a square","enhanced":"a red square"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "fixture/generation/enhancement", Contents: []artifact.Content{enhancement}}); err != nil {
+		t.Fatal(err)
+	}
+	sourced, err := workspace.ExecuteWorkflow(withWorkflowSources(ctx, []artifact.ID{enhancement.Descriptor.ID}), WorkflowGeneration, recipe.TaskImageGen, capability.Recipe, json.RawMessage(`{"class":1,"seed":8}`), reporter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := runrecord.RequireRun(ctx, store, sourced.Run)
+	if err != nil || len(run.Inputs) != 2 || !slices.Contains(run.Inputs, enhancement.Descriptor.ID) || slices.Contains(run.Inputs, request.ID) {
+		t.Fatalf("sourced run = %+v, %v", run, err)
 	}
 	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskSpeech, capability.Recipe, json.RawMessage(`{}`), reporter); err == nil {
 		t.Fatal("a recipe ran under a task it does not serve")

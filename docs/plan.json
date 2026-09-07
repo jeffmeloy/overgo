@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-prompt-enhance",
-      "title": "Prompt enhancement through the served model (concept from Open-Generative-AI: an enhance-prompt step and quick prompts before generation; overgo uses the served chat model, model-agnostic): the composer's enhance control sends the prompt with a fixed instruction through the served model, shows the rewrite beside the original for acceptance, and the accepted prompt is what the request records with the original kept as its source; a Go test pins the instruction and the record, the journey enhances a prompt before an oscillator image",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prompt enhancement through the served model (concept from Open-Generative-AI: an enhance-prompt step and quick prompts before generation; overgo uses the served chat model, model-agnostic): the composer's enhance control sends the prompt with a fixed instruction through the served model, shows the rewrite beside the original for acceptance, and the accepted prompt is what the request records with the original kept as its source; a Go test pins the instruction and the record, the journey enhances a prompt before an oscillator image",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "webui-style-consistency",
       "title": "Bring the client to one style, last among the review rows because it pays ceilings rather than adding capability: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the census ceilings drop accordingly",
       "owner": "professional_overgo_gui",

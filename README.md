@@ -690,6 +690,16 @@ derived from the server, not from client configuration:
   its one input, so the record is the store's, never a second copy. The
   journey reloads the page after generating an image and finds it first
   in the rail, then opens its record.
+- **Prompt enhancement.** The composer's "enhance" control sends the typed
+  prompt through the served chat model under one fixed instruction the
+  server owns, and shows the rewrite beside the original for acceptance.
+  Every enhancement is stored as a record with the instruction, the
+  original, the rewrite and the model. An accepted rewrite sent unchanged
+  makes the record a source of the generation run: the run's request
+  document records the accepted prompt, and the run cites the record as
+  an input beside it, so the original stays its source and the lineage
+  shows both. A Go test pins the instruction and the record, and the
+  journey enhances a prompt before the oscillator image.
 - **Lineage and next steps.** A media card's "lineage" reads the store's
   records around its artifact: the runs that made it, each with its
   request document and media inputs, and the runs that used it, each

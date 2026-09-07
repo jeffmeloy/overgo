@@ -355,12 +355,7 @@
   }
 
   // embed: a registered tab mounted into another host with a seed (the inspector opens analysis tabs over one turn).
-  function embed(id, host, seed) {
-    const tab = tabs.find((t) => t.id === id);
-    if (!tab) throw new Error("no workspace tab " + id);
-    clear(host);
-    return tab.mount(host, window.overgo, seed);
-  }
+  function embed(id, host, seed) { const tab = tabs.find((t) => t.id === id); if (!tab) throw new Error("no workspace tab " + id); clear(host); return tab.mount(host, window.overgo, seed); }
   // analysisSurface: the shared inspector head (seeded prompt, labelled fields, run/cancel, output host).
   function analysisSurface(panel, seed, options) {
     const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });

@@ -103,6 +103,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/evaluations/compare", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).evaluationCompare},
 	{Path: "/generation/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Workflow: WorkflowGeneration, WorkflowAction: workflowCapabilitiesAction},
 	{Path: "/generation/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Workflow: WorkflowGeneration, WorkflowAction: workflowRunAction},
+	{Path: "/generation/enhance", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).promptEnhance},
 	{Path: "/training/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Workflow: WorkflowTraining, WorkflowAction: workflowCapabilitiesAction},
 	{Path: "/training/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Workflow: WorkflowTraining, WorkflowAction: workflowRunAction},
 	{Path: "/model-builder/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Workflow: WorkflowModelBuild, WorkflowAction: workflowCapabilitiesAction},

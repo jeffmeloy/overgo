@@ -321,6 +321,10 @@
     window.visualViewport.addEventListener("resize", resize); resize();
   }
   let servedEntry = null;
+  let modelSwitchPending = false;
+  let modelSwitchBlocked = false;
+  function modelSwitching() { return modelSwitchBlocked; }
+  function setModelSwitchBlocked(value) { modelSwitchBlocked = value; document.dispatchEvent(new Event("overgo-model-switch")); }
   function servedModel() { return servedEntry; }
 
   // ---- conversations: the server lists stored-response chains; the rail opens, renames or archives one ----
@@ -365,7 +369,7 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
@@ -385,8 +389,10 @@
 
   // remountActive: the active tab reloads under a new key, a newly served model or a
   // changed store, from the capability document re-read for it.
-  async function remountActive() {
-    try { workspaceManifest = await api.get("/workspace/manifest"); capabilityDocument = workspaceManifest.model || null; } catch (_) { /* the shell stays on what it has */ }
+  async function remountActive(manifest) {
+    const next = manifest || await api.get("/workspace/manifest");
+    workspaceManifest = next;
+    capabilityDocument = next.model || null;
     for (const tab of tabs) {
       if (tab.onDeactivate) tab.onDeactivate();
       tab.mounted = false;
@@ -396,9 +402,11 @@
     }
     applyCapabilities();
     const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
-    if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) activate(current);
+    if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) {
+      if (!await activate(current)) throw new Error("The selected workspace could not load. Choose the model again to retry.");
+    }
     syncColdStart();
-    refreshStatus();
+    await refreshStatus();
   }
 
   // syncColdStart: the landing while no model serves (no capability document: the proxy answers alone) and no tab
@@ -432,6 +440,7 @@
     syncSectionUI();
     syncColdStart();
     if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
+    return tab.ready || Promise.resolve(true);
   }
 
   // selectSection: switch to a section, keeping the current tab if it already
@@ -463,10 +472,13 @@
     return surface;
   }
   function safeMount(tab) {
+    const attempt = {};
+    tab.mountAttempt = attempt;
+    const failed = (err) => { if (tab.mountAttempt === attempt) renderMountError(tab, err); return false; };
     try {
       const result = tab.mount(tab.panel, window.overgo);
-      if (result && typeof result.catch === "function") result.catch((err) => renderMountError(tab, err));
-    } catch (err) { renderMountError(tab, err); }
+      tab.ready = Promise.resolve(result).then(() => tab.mountAttempt === attempt, failed);
+    } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
   function renderMountError(tab, err) { tab.panel.replaceChildren(errorBanner(String(err && err.message || err))); }
 
@@ -475,13 +487,16 @@
     const node = document.getElementById(id);
     if (node) { node.className = "dot " + state; node.title = title; }
   }
+  let statusAttempt = 0;
   async function refreshStatus() {
+    const attempt = ++statusAttempt;
     const statusPill = document.getElementById("status-pill");
     const modelPill = document.getElementById("model-pill");
     try {
       // The proxy names its child in the header; an empty name is the proxy with no child (the cold start).
-      const health = await api.get("/health", { onHeaders: (headers) => { const via = headers.get("X-Overgo-Swap-Proxy");
+      const health = await api.get("/health", { onHeaders: (headers) => { if (attempt !== statusAttempt) return; const via = headers.get("X-Overgo-Swap-Proxy");
         dot("proxy-dot", via == null ? "off" : "ok", via ? "swap proxy serving " + via : via == null ? "no swap proxy: served directly" : "swap proxy running; no model serves"); } });
+      if (attempt !== statusAttempt) return;
       statusPill.textContent = "online";
       document.getElementById("connection-alert").hidden = true;
       statusPill.className = "pill ok";
@@ -496,10 +511,11 @@
       if (health && health.model) {
         // A catalog that fails to list says so under the pill instead of an empty evidence line.
         const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
+        if (attempt !== statusAttempt) return;
         servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
         document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || "";
       }
-    } catch (err) { statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); document.getElementById("connection-alert").hidden = false; }
+    } catch (err) { if (attempt !== statusAttempt) return; statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); document.getElementById("connection-alert").hidden = false; }
   }
 
   // The served model shows on every page as the banner pill; clicking it lists the servable models, and behind
@@ -522,24 +538,27 @@
     // swapModel routes one health probe through the swap proxy with the swap query parameter; the proxy swaps
     // the child to answer it, then the capability document is re-read and the active surface re-mounted.
     async function swapModel(item, name, button) {
+      if (modelSwitchPending) return;
+      modelSwitchPending = true;
+      setModelSwitchBlocked(true);
       const currentPanel = panel;
-      const before = modelPill.textContent;
+      const before = capabilityDocument;
       const started = Date.now();
       const chip = { id: "swap-" + name, task: "model switch " + name, state: "running", progress: {} };
       window.overgo.localOperation(chip);
       button.disabled = true;
+      for (const choice of currentPanel.querySelectorAll('[data-serve]')) choice.disabled = true;
       const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
         await api.get("/health?swap=" + encodeURIComponent(name));
         invalidateModel();
-        await refreshStatus();
-        if (modelPill.textContent !== before) {
+        const manifest = await api.get("/workspace/manifest");
+        if (manifest.model && manifest.model.recipe === item.recipe) {
           try { localStorage.setItem(MODEL_STORAGE, name); } catch (_) { /* storage unavailable */ }
-          workspaceManifest = await api.get("/workspace/manifest");
-          capabilityDocument = workspaceManifest.model || null;
           // Reopening history can request its original model; other switches start a fresh chain.
-          if (!selectedConversation || !servedEntry || selectedConversation.model !== servedEntry.model) rememberConversation(null);
-          remountActive();
+          if (!selectedConversation || selectedConversation.model !== manifest.model.model) rememberConversation(null);
+          await remountActive(manifest);
+          setModelSwitchBlocked(false);
           // The served swap is the operation chip's receipt; the picker has done its work and leaves.
           const elapsed = Math.round((Date.now() - started) / 1000);
           window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served " + modelPill.textContent + " after " + elapsed + "s" +
@@ -547,7 +566,8 @@
           if (panel === currentPanel) close();
           return;
         }
-        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "no swap proxy" }));
+        if (before && manifest.model && before.recipe === manifest.model.recipe) setModelSwitchBlocked(false);
+        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
         const command = 'overgo_gui.bat "' + (item.location || name) + '"';
         const copy = el("button", { class: "btn alt", text: "copy launch" });
         copy.addEventListener("click", () => navigator.clipboard.writeText(command));
@@ -556,9 +576,22 @@
           el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
           el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
       } catch (err) {
+        // A refused swap may leave the original model usable. Confirm its
+        // recipe before releasing Send; an unknown model stays blocked.
+        try {
+          const current = await api.get("/workspace/manifest");
+          if (before && current.model && before.recipe === current.model.recipe) {
+            await remountActive(current);
+            setModelSwitchBlocked(false);
+          }
+        } catch (_) { /* choose a model again to resolve its unknown state */ }
         window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: friendlyError(err) }));
-        if (panel === currentPanel) panel.replaceChildren(errorBanner(friendlyError(err)));
-      } finally { clearInterval(timer); button.disabled = false; button.textContent = "serve"; }
+        if (panel === currentPanel) panel.replaceChildren(errorBanner(friendlyError(err)), el("button", { class: "btn alt", text: "Choose model again", onclick: () => { close(); modelPill.click(); } }), el("button", { class: "btn alt", text: "Close", onclick: close }));
+      } finally {
+        modelSwitchPending = false;
+        clearInterval(timer); button.textContent = "serve";
+        if (panel) for (const choice of panel.querySelectorAll('[data-serve]')) choice.disabled = false;
+      }
     }
 
     modelPill.addEventListener("click", async () => {
@@ -609,7 +642,7 @@
               }
               return row;
             }
-            row.appendChild(el("button", { class: "btn alt", text: "serve", onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
+            row.appendChild(el("button", { class: "btn alt", text: "serve", "data-serve": "", disabled: modelSwitchPending, onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
         const first = panel.querySelector(".row"); if (first) first.focus();
       } catch (err) { if (panel === currentPanel) panel.textContent = friendlyError(err); }
@@ -745,7 +778,7 @@
       keyInput.addEventListener("change", () => {
         setKey(keyInput.value.trim(), keyRemember.checked);
         invalidateModel(); // the cached model was fetched under the old key
-        remountActive();
+        remountActive().catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
       });
       window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the

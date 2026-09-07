@@ -288,6 +288,7 @@
     const attachments = [];
     let busy = false;
     let readOnly = false;
+    let sendBlocked = false;
     const attachmentHost = el("div", { class: "row attachment-strip" });
     // Accepted media and its bounds come from the capability document, never
     // from a list typed into a surface; a surface may narrow it to kinds.
@@ -309,6 +310,7 @@
 
     // attachmentPreview: the strip's thumbnail per attachment kind, a refusal tag first.
     function attachmentPreview(item) {
+      if (item.needsReattach) return el("span", { class: "note", text: "Reattach this file, or remove it to continue." });
       if (item.refusal) return el("span", { class: "tag control", text: "refused" });
       if (item.pending) return el("span", { class: "note", text: "Loading…" });
       if (item.kind === "image") return el("img", { src: item.dataURL, alt: item.name, class: "thumb-preview" });
@@ -323,6 +325,7 @@
           item.refusal ? el("span", { class: "note", text: item.refusal }) : item.pending || item.storing ? el("span", { class: "note", text: "Loading…" }) : item.artifact ? el("span", { class: "note" }, "stored as ", overgo.artifactLink(item.artifact)) : null, remove);
       }));
       setBusy(busy);
+      if (options.onChange) options.onChange();
     }
     function refusal(file, kind) {
       const refusals = media.refusals || {};
@@ -336,7 +339,8 @@
       const stored = options.intake ? options.intake(file) : null;
       const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: stored ? "" : refusal(file, kind), storing: !!stored, pending: true };
       if (stored) stored.then((id) => { item.artifact = id; }, (err) => { item.refusal = overgo.friendlyError(err); }).then(() => { item.storing = false; renderAttachments(); });
-      attachments.push(item);
+      const missing = attachments.findIndex(saved => saved.needsReattach && saved.name === item.name && saved.size === item.size && saved.mime === item.mime);
+      if (missing < 0) attachments.push(item); else attachments.splice(missing, 1, item);
       renderAttachments();
       if (item.refusal) { item.pending = false; return; }
       const reader = new FileReader();
@@ -374,7 +378,7 @@
         return { type: "input_file", filename: item.name, file_data: item.dataURL };
       });
     }
-    function setBusy(value, stopping = stop.disabled) { busy = value; stop.disabled = !!(busy && stopping); stop.textContent = stop.disabled ? "Stopping…" : "Stop"; send.disabled = readOnly || busy || attachments.some((item) => item.pending || item.refusal || item.storing); send.hidden = busy; stop.hidden = !busy; }
+    function setBusy(value, stopping = stop.disabled) { busy = value; stop.disabled = !!(busy && stopping); stop.textContent = stop.disabled ? "Stopping…" : "Stop"; send.disabled = readOnly || sendBlocked || busy || attachments.some((item) => item.needsReattach || item.pending || item.refusal || item.storing); send.hidden = busy; stop.hidden = !busy; }
     async function submit() {
       const text = input.value.trim();
       if (!text && !attachments.length) return;
@@ -387,8 +391,10 @@
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); submit(); }
     });
+    input.addEventListener("input", () => { if (options.onChange) options.onChange(); });
     return {
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost,
+      setSendBlocked(value) { sendBlocked = value; setBusy(busy); },
       setReadOnly(value) { readOnly = value; input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
       clearAttachments() { attachments.length = 0; renderAttachments(); },
       restoreAttachments(items) { attachments.push(...items); renderAttachments(); },

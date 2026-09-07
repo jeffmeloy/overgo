@@ -5,7 +5,11 @@
 (function () {
   "use strict";
   const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
+  const DRAFT_STORAGE = "overgo.draft:";
+  const drafts = new Map();
   let disposeChat = () => {};
+  let saveChat = () => {};
+  window.addEventListener("pagehide", () => saveChat());
 
   // inspectTurn: the side panel over one assistant turn: its run record, then any inspector embedded over it.
   document.addEventListener("keydown", (event) => { // Escape closes the inspector and stops a running turn from anywhere on the page
@@ -40,16 +44,21 @@
 
   window.overgo.registerTab({
     id: "chat",
+    onDeactivate() { saveChat(); },
     async mount(panel, overgo) {
       disposeChat();
       let disposed = false;
+      let saveDraft = () => {};
+      let updateSwitch = () => {};
       let controller = null;
       let activeTurn = null;
       let recoveryRow = null;
       const selected = overgo.conversation();
       let conversationRoot = selected ? selected.root : "";
       disposeChat = () => {
+        saveDraft();
         disposed = true;
+        document.removeEventListener("overgo-model-switch", updateSwitch);
         // A queued explicit Stop still needs the incoming ID. Keep only that
         // acknowledgement alive across navigation, then cancel its execution.
         if (controller && !(activeTurn && activeTurn.stopRequested && !activeTurn.response)) controller.abort();
@@ -60,9 +69,21 @@
       if (!capabilities) { panel.appendChild(overgo.errorBanner("the served model declares no capabilities yet")); return; }
       const modelID = capabilities.id;
       const served = overgo.servedModel();
-      const otherModel = selected && selected.model && served && selected.model !== served.model;
+      const servedModel = capabilities.model || (served && served.model);
+      const otherModel = selected && selected.model && servedModel && selected.model !== servedModel;
       const params = capabilities.generation;
       const contextLength = capabilities.context_length;
+      const tokenLimit = capabilities.max_output_tokens;
+      // Without a declared recipe, never reuse a draft under a display name.
+      const draftScope = capabilities.recipe || crypto.randomUUID();
+      const draftKey = () => DRAFT_STORAGE + JSON.stringify([draftScope, conversationRoot]);
+      let storageUnavailable = !capabilities.recipe;
+      let draft = drafts.get(draftKey());
+      if (!draft) {
+        try { if (capabilities.recipe) draft = JSON.parse(sessionStorage.getItem(draftKey()) || "null"); }
+        catch (_) { storageUnavailable = true; }
+      }
+      if (!draft || typeof draft !== "object") draft = {};
       let lastResponseID = "";
 
       // Agent mode: the active definitions the store holds; a turn runs the same thread through /agents/chat
@@ -80,10 +101,15 @@
 
       const system = el("textarea", { class: "text system-prompt", placeholder: "system prompt (optional)" });
       const facts = el("div", { class: "statgrid", "aria-label": "context meter" });
-      const temperature = el("input", { class: "keyfield w-80", type: "number", value: params.temperature, "aria-label": "temperature" });
-      const maxTokens = el("input", { class: "keyfield w-90", type: "number", value: params.max_tokens, max: contextLength, "aria-label": "max tokens" });
+      const temperature = el("input", { class: "keyfield w-80", type: "number", min: 0, step: "any", value: params.temperature, "aria-label": "temperature", "data-draft-setting": "temperature" });
+      const maxTokens = el("input", { class: "keyfield w-90", type: "number", min: 1, step: 1, value: Math.min(params.max_tokens, tokenLimit), max: tokenLimit, "aria-label": "max tokens", "data-draft-setting": "tokens" });
+      system.dataset.draftSetting = "system";
+      system.value = typeof draft.system === "string" ? draft.system : "";
+      if (draft.temperature !== "" && Number.isFinite(Math.fround(Number(draft.temperature))) && Number(draft.temperature) >= 0) temperature.value = draft.temperature;
+      if (draft.tokens !== "" && Number.isFinite(Number(draft.tokens)) && Number(draft.tokens) >= 1) maxTokens.value = Math.min(Math.floor(Number(draft.tokens)), tokenLimit);
 
       const settings = document.getElementById("conversation-settings");
+      const focusedSetting = settings.contains(document.activeElement) && document.activeElement.dataset.draftSetting;
       settings.replaceChildren(el("section", { class: "settings-section" }, el("h3", { text: "Conversation" }),
         el("label", { class: "setting-field" }, "System prompt", system),
         el("div", { class: "settings-fields" }, el("label", { class: "setting-field" }, "Temperature", temperature), el("label", { class: "setting-field" }, "Maximum output tokens", maxTokens)),
@@ -162,6 +188,7 @@
         if (!prompt || disposed || composer.input.value || composer.attachments.length) return;
         composer.input.value = prompt.text;
         composer.restoreAttachments(prompt.attachments || []);
+        saveDraft();
       }
       function showRecovery(err, turn) {
         if (recoveryRow) recoveryRow.remove();
@@ -198,12 +225,44 @@
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: overgo.stopTurn,
+        onChange: () => saveDraft(),
         takesAny: () => !!artifactField(),
         intake: (file) => { const field = artifactField(file); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => { field.input.value = stored.id; field.input.dispatchEvent(new Event("intake")); return stored.id; }) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
-        onMode: (mode) => { agentHost.hidden = mode !== "agent"; return renderMode(mode); },
+        onMode: (mode) => { agentHost.hidden = mode !== "agent"; saveDraft(); return renderMode(mode); },
         controls: [],
       });
+      composer.input.value = typeof draft.text === "string" ? draft.text : "";
+      if (Array.isArray(draft.attachments)) composer.restoreAttachments(draft.attachments.filter(item => item && typeof item.name === "string" && typeof item.mime === "string" && Number.isFinite(item.size) && item.size >= 0).map(item => ({ name: item.name, mime: item.mime, size: item.size, kind: overgo.mediaKind(item.mime), needsReattach: true })));
+      const draftNotice = el("div", { class: "note", role: "status", hidden: true });
+      composer.element.appendChild(draftNotice);
+      const modelNotice = el("div", { class: "note", role: "status", hidden: true }, "Confirming the selected model… Choose a model again if loading fails.");
+      composer.element.appendChild(modelNotice);
+      function persistDraft(key, value) {
+        drafts.set(key, value);
+        try { if (capabilities.recipe) sessionStorage.setItem(key, JSON.stringify(value)); }
+        catch (_) { storageUnavailable = true; }
+        draftNotice.hidden = !storageUnavailable || !(value.text || value.system || value.attachments.length || value.temperature !== String(params.temperature) || value.tokens !== String(Math.min(params.max_tokens, tokenLimit)));
+        draftNotice.textContent = capabilities.recipe ? "Draft kept for this page only. Browser storage is unavailable; reloading may lose it." : "Draft cannot be restored: the server has not declared this model's recipe.";
+      }
+      saveDraft = () => {
+        if (disposed) return;
+        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, mode: composer.mode(),
+          attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size })) });
+      };
+      saveChat = saveDraft;
+      for (const field of [system, temperature, maxTokens]) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
+      updateSwitch = () => { modelNotice.hidden = !overgo.modelSwitching(); composer.setSendBlocked(overgo.modelSwitching()); };
+      document.addEventListener("overgo-model-switch", updateSwitch);
+      updateSwitch();
+      saveDraft();
+      function moveDraft(root) {
+        if (conversationRoot === root) return;
+        saveDraft();
+        persistDraft(draftKey(), { ...drafts.get(draftKey()), text: "", attachments: [] });
+        conversationRoot = root;
+        saveDraft();
+      }
       settings.firstChild.appendChild(el("button", { class: "btn alt", text: "Enhance current prompt", onclick: () => { document.getElementById("settings-dialog").close(); enhancePrompt(); } }));
       panel.insertBefore(agentHost, composer.element);
       // Prompt enhancement: the served model rewrites the typed prompt under the server's fixed
@@ -237,7 +296,7 @@
         try {
           if (!generation.capabilities) generation.capabilities = await overgo.api.get("/generation/capabilities");
         } catch (err) { composer.modeHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
-        if (composer.mode() !== mode) return;
+        if (disposed || composer.mode() !== mode) return;
         const declared = generation.capabilities.filter((capability) => capability.task === mode);
         if (!declared.length) return;
         const controlsHost = el("span", { class: "row" });
@@ -346,8 +405,9 @@
               latest = turn.response = event.id;
             }
             if (event.type === "created") {
-              const root = conversationRoot || (conversationRoot = event.id);
-              overgo.rememberConversation({ root, latest: event.id, model: served && served.model });
+              if (!conversationRoot) moveDraft(event.id);
+              const root = conversationRoot;
+              overgo.rememberConversation({ root, latest: event.id, model: servedModel });
               try { sessionStorage.setItem(INFLIGHT_STORAGE, JSON.stringify({ root, response: event.id, model: turn.model })); } catch (_) { /* storage unavailable */ }
               if (turn.stopRequested) cancelTurn(turn);
             }
@@ -358,7 +418,7 @@
         if (disposed) return;
         if (!terminal.status) throw new Error("The response has no confirmed result. Resume to check it.");
         lastResponseID = terminal.status === "failed" ? turn.previous : latest;
-        if (terminal.status === "failed" && !turn.previous) conversationRoot = "";
+        if (terminal.status === "failed" && !turn.previous) { moveDraft(""); overgo.rememberConversation(null); }
         if (latest && assistant) { assistant.response = latest; thread.renderMessage(assistant, false); }
         forgetTurn(turn);
         activeTurn = null;
@@ -378,7 +438,7 @@
           forgetTurn(turn);
           activeTurn = null;
           lastResponseID = turn.previous;
-          if (!lastResponseID) conversationRoot = "";
+          if (!lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
           restorePrompt(turn.prompt);
         }
         const unknown = turn && !turn.response && !err.status;
@@ -402,7 +462,8 @@
       }
 
       async function submit(text, attachments, mode) {
-        if (disposed || controller || activeTurn || otherModel) return;
+        if (disposed || controller || activeTurn || otherModel || overgo.modelSwitching()) return;
+        if (!temperature.reportValidity() || !maxTokens.reportValidity()) return;
         welcome.remove();
         const parts = composer.attachmentParts();
         composer.clearInput();
@@ -465,6 +526,8 @@
 
       // Server state can recover a running conversation even when another
       // conversation has replaced the tab's optional storage handle.
+      if ((capabilities.modes || []).some(mode => mode.enabled && mode.id === draft.mode)) await composer.setMode(draft.mode);
+      if (disposed) return;
       let saved = null;
       try { saved = JSON.parse(sessionStorage.getItem(INFLIGHT_STORAGE) || "null"); } catch (_) { /* storage unavailable */ }
       let inflight = selected && saved && selected.root === saved.root && (!saved.model || saved.model === modelID) ? saved.response : "";
@@ -484,7 +547,7 @@
             thread.renderMessage(shown, false);
           }
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
-          if (chain.status === "failed" && !lastResponseID) conversationRoot = "";
+          if (chain.status === "failed" && !lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
           if (!inflight && chain.failure) thread.errorRow(chain.failure);
         } catch (err) { if (!disposed) thread.errorRow(overgo.friendlyError(err)); }
       }
@@ -493,7 +556,7 @@
         const prompt = chain && (chain.messages || []).findLast(message => message.role === "user" && message.response === inflight);
         activeTurn = { response: inflight, model: modelID, previous: chain && chain.previous || "", assistant: thread.add("assistant", ""),
           prompt: prompt ? { text: prompt.content, attachments: [] } : null };
-        await resumeTurn(activeTurn);
+        resumeTurn(activeTurn);
       }
       if (!disposed) updateBusy();
       if (otherModel && !disposed) {
@@ -501,6 +564,9 @@
         thread.node.appendChild(el("div", { class: "note", role: "status" }, "This conversation belongs to another model. Choose its original model to continue, or start a new conversation. ",
           el("button", { class: "btn alt", text: "Choose model", onclick: () => document.getElementById("model-pill").click() }),
           el("button", { class: "btn alt", text: "New conversation", onclick: () => overgo.openConversation(null) })));
+      }
+      if (!disposed && focusedSetting && document.querySelector('#settings-dialog[open]') && document.activeElement === document.body) {
+        settings.querySelector('[data-draft-setting="' + focusedSetting + '"]').focus();
       }
     },
   });

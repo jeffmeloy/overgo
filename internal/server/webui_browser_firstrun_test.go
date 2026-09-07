@@ -187,6 +187,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		// conversation is empty, names the model by its own declared name.
 		settle("model switched and the composer re-derived", `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` &&
       !!document.querySelector("#panel-chat.active .composer textarea") && !document.querySelector(".composer").dataset.laneBefore &&
+      !window.overgo.modelSwitching() && !document.querySelector('dialog[aria-label="Choose a model"][open]') && !document.querySelector('.send-button').disabled &&
       (window.overgo.capabilities() || {}).id !== `+strconv.Quote(previous)+``)
 	}
 
@@ -236,6 +237,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// 1. First run: the chosen model serves, the pill names it, the proxy dot is on, the cold card is gone.
 	settle("front page over the served model", `!document.querySelector("#cold-start") && !!document.querySelector("#panel-chat.active .composer textarea") &&
       document.querySelector("#model-pill").textContent === `+strconv.Quote(modelName)+` &&
+      !window.overgo.modelSwitching() && !document.querySelector('dialog[aria-label="Choose a model"][open]') && !document.querySelector('.send-button').disabled &&
       document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
 	t.Logf("cold-start leg: the picker served %s from the cold page and the front page followed", modelName)
 

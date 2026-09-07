@@ -5,24 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-draft-lifecycle",
-      "title": "Preserve drafts and settings through navigation, reload and model changes",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Preserve drafts and settings through navigation, reload and model changes",
-          "status": "open",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserDraftLifecycle$' -count=1 -timeout=2m",
-          "rationale": "Chat mount rebuilds the composer and generation settings; unsent text is not persisted. Save text and supported generation settings per conversation/new-chat draft, validate settings against the selected recipe, and restore them across navigation, reload and model remount. Keep model selection pending until the new composer is usable; prevent stale async mounts and cross-model continuation. State clearly when browser file handles require reattachment. Do not put API keys or attachment bytes in draft storage; retain explicit credential persistence controls. Add TestWebUIBrowserDraftLifecycle for rapid navigation, reload, a delayed/failed swap, Settings focus, per-model limits and unavailable storage.",
-          "depends_on": [
-            "webui-polish-tabs/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-redesign-acceptance",
       "title": "Harden mobile layout, keyboard and accessible conversation controls",
       "owner": "professional_overgo_gui",

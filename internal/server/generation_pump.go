@@ -15,6 +15,9 @@ type generationPump struct {
 	output     strings.Builder
 	generated  int
 	completion int
+	// usage: the provider's accounting when the generator reports one (a
+	// hosted turn); nil for a local runner, whose ids are the count.
+	usage *inference.Usage
 }
 
 func newGenerationPump(stops []string, emit func(string) error) *generationPump {
@@ -73,6 +76,7 @@ func (h *Handler) generateWithPump(
 	pump := newGenerationPump(stops, emit)
 	options.StopSequences = stops
 	options.OnToken = pump.accept
+	options.OnUsage = func(usage inference.Usage) { pump.usage = &usage }
 	ids, _, err := h.generate(ctx, session, prompt, options)
 	if err != nil {
 		return ids, pump, err

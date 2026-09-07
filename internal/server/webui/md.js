@@ -17,9 +17,7 @@
       try {
         await navigator.clipboard.writeText(text);
         btn.textContent = "copied";
-      } catch (_) {
-        btn.textContent = "copy failed";
-      }
+      } catch (_) { btn.textContent = "copy failed"; }
       setTimeout(() => { btn.textContent = label; }, 1200);
     });
     return btn;

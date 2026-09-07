@@ -243,7 +243,7 @@ func (h *Handler) runNativeWorkflow(
 }
 
 func (h *Handler) waitNativeWorkflow(ctx context.Context, workspace WorkflowWorkspaceAPI, capability WorkflowCapability, input json.RawMessage) (operation.Status, error) {
-	id, err := h.submitWorkflow(ctx, workspace, WorkflowGeneration, capability, input)
+	id, err := h.submitWorkflow(ctx, workspace, WorkflowGeneration, capability, input, nil)
 	if err != nil {
 		return operation.Status{}, err
 	}

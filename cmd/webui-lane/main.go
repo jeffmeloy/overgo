@@ -44,16 +44,23 @@ func run() error {
 	fork := flags.String("fork", "", "tree measured as the campaign's fork for -report: a checkout or extracted slice holding internal/server/webui and docs/api_manifest.json")
 	forkLabel := flags.String("fork-label", "", "the fork tree's commit, naming it in the report")
 	headLabel := flags.String("head-label", "", "this tree's commit, naming it in the report")
+	run := flags.String("run", "^"+webuilane.BrowserTestPrefix, "the browser tests to run, as go test -run takes them; a named test that skips fails the lane")
+	var required []string
+	flags.Func("require", "a journey line the run must write (repeatable); its absence fails the lane", func(text string) error { required = append(required, text); return nil })
 	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 || (*report != "") != (*fork != "") {
-		return errors.New("usage: webui-lane [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
+		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
 	}
 	var captured bytes.Buffer
-	stdout := io.Writer(os.Stdout)
-	if *report != "" {
-		stdout = io.MultiWriter(os.Stdout, &captured)
-	}
-	if err := runLane(stdout); err != nil {
+	stdout := io.MultiWriter(os.Stdout, &captured)
+	ran, err := runLane(stdout, *run)
+	if err != nil {
 		return err
+	}
+	// The verdict is the run's own output: a plan verify naming the lane gets evidence, never a silent pass.
+	if ran {
+		if err := webuilane.LaneVerdict(captured.String(), required); err != nil {
+			return err
+		}
 	}
 	if *report == "" {
 		return nil
@@ -75,17 +82,18 @@ func run() error {
 	return nil
 }
 
-// runLane runs the browser self-check and the acceptance tests, writing
-// the lane's observations to stdout.
-func runLane(stdout io.Writer) error {
+// runLane runs the browser self-check and the acceptance tests run names,
+// writing the lane's observations to stdout; ran reports whether the
+// tests ran at all (no browser leaves the lane UNAVAILABLE, not failed).
+func runLane(stdout io.Writer, run string) (ran bool, err error) {
 	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE no browser: %v\n", err)
-		return nil
+		return false, nil
 	}
 	probe, err := webuilane.Open(context.Background(), browser, "data:text/html,<title>overgo-webui-lane</title>")
 	if err != nil {
-		return err
+		return false, err
 	}
 	var title string
 	if err := probe.SetViewport(context.Background(), len(browser), len(browser)); err == nil {
@@ -93,10 +101,10 @@ func runLane(stdout io.Writer) error {
 	}
 	_ = probe.Close()
 	if err != nil {
-		return fmt.Errorf("browser transport self-check failed: %w", err)
+		return false, fmt.Errorf("browser transport self-check failed: %w", err)
 	}
 	if title != "overgo-webui-lane" {
-		return fmt.Errorf("browser transport self-check returned title %q", title)
+		return false, fmt.Errorf("browser transport self-check returned title %q", title)
 	}
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser)
 	journey, unavailable := firstRunEnvironment(context.Background())
@@ -107,19 +115,19 @@ func runLane(stdout io.Writer) error {
 	}
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   "go",
-		Args:   []string{"test", "./internal/server", "-run", "^TestWebUIBrowser", "-count=1", "-timeout=10m", "-v"},
+		Args:   []string{"test", "./internal/server", "-run", run, "-count=1", "-timeout=10m", "-v"},
 		Env:    env,
 		Stdout: stdout,
 		Stderr: os.Stderr,
 	})
 	if err != nil {
-		return err
+		return true, err
 	}
 	if receipt.ExitCode != 0 {
-		return fmt.Errorf("webui lane: acceptance exited %d", receipt.ExitCode)
+		return true, fmt.Errorf("webui lane: acceptance exited %d", receipt.ExitCode)
 	}
 	fmt.Fprintf(stdout, "webui lane: PASS browser=%s\n", browser)
-	return nil
+	return true, nil
 }
 
 // firstRunEnvironment prepares the served-model journey: the server binary

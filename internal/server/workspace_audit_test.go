@@ -41,6 +41,8 @@ var workspaceFileAllowances = map[string][]string{
 	"analyze_vocab.go":               {"serving"},
 	"anthropic_tools.go":             {"serving"},
 	"artifact_gallery.go":            {"workbench"},
+	"artifact_lineage.go":            {"serving"},
+	"prompt_enhance.go":              {"serving", "workbench"},
 	"automation_routes.go":           {"operator", "serving"},
 	"automation_webhook.go":          {"operator", "serving"},
 	"capability_bundles.go":          {"operator"},

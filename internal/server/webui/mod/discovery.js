@@ -12,37 +12,33 @@
       clear(panel);
 
       // ---- local catalog ----
-      const catalogBody = el("tbody");
-      const catalogNote = el("div", { class: "note", text: "loading catalog…" });
+      const catalogBody = el("tbody"), catalogNote = el("div", { class: "note", text: "loading catalog…" });
       async function refreshCatalog() {
         try {
           const catalog = await overgo.api.get("/catalog/models");
           overgo.clear(catalogBody);
           const models = catalog.models || [];
           const { profiles = {}, datasets = {} } = catalog.coverage || {};
-          const parts = [
-            models.length && models.length + " activated model(s)",
-            profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
-            datasets.registered && "datasets " + datasets.available + "/" + datasets.registered + " on disk",
-            catalog.truncated && "listing truncated — not every activation is shown",
-          ].filter(Boolean);
+          const parts = [models.length && models.length + " activated model(s)", profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
+            datasets.registered && "datasets " + datasets.available + "/" + datasets.registered + " on disk", catalog.truncated && "listing truncated — not every activation is shown"].filter(Boolean);
           catalogNote.textContent = parts.length ? parts.join(" · ") :
             "No activated models yet — download one below, then activate it with cmd/reverify.";
           for (const entry of models) {
             const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
               class: "tag", style: "margin-right:4px", title: capability.stale || capability.recipe,
               text: capability.task + (capability.stale ? " · stale" : capability.tier ? " · " + capability.tier : "") })));
-            catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }),
-              capabilities, entry.present ? "" : el("span", { class: "tag", text: "missing bytes" })]));
+            // A hosted model retires from its row with the section's reason; the catalog relists without it.
+            const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "retire", onclick: async () => {
+              try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.textContent = overgo.friendlyError(err); }
+            } }) : "";
+            catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]));
           }
         } catch (err) { catalogNote.textContent = overgo.friendlyError(err); }
       }
 
       // ---- hub search ----
       const query = el("input", { class: "text", placeholder: "search the Hugging Face hub" });
-      const kind = el("select", { class: "text", style: "width:130px" },
-        el("option", { value: "models", text: "models" }),
-        el("option", { value: "datasets", text: "datasets" }));
+      const kind = el("select", { class: "text", style: "width:130px", "aria-label": "search kind" }, el("option", { value: "models", text: "models" }), el("option", { value: "datasets", text: "datasets" }));
       const searchNote = el("span", { class: "note" });
       const resultsBody = el("tbody");
       const searchButton = el("button", { class: "btn" }, "search");
@@ -60,13 +56,11 @@
           searchNote.textContent = results.length ? results.length + " result(s)" : "no results";
           for (const listing of results) {
             const download = el("button", { class: "btn alt", onclick: () => startDownload(listing.id) }, "download");
-            resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0),
-              listing.gated ? el("span", { class: "tag control", text: "gated" }) : download]));
+            resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0), listing.gated ? el("span", { class: "tag control", text: "gated" }) : download]));
           }
         });
       }
-      query.addEventListener("keydown", (event) => { if (event.key === "Enter") search(); });
-      searchButton.addEventListener("click", search);
+      query.addEventListener("keydown", (event) => { if (event.key === "Enter") search(); }); searchButton.addEventListener("click", search);
 
       // ---- downloads ----
       const jobsBody = el("tbody");
@@ -74,10 +68,7 @@
       const jobsNote = el("div", { class: "note" });
       async function startDownload(repository) {
         jobsNote.textContent = "starting " + repository + "…";
-        try {
-          await overgo.api.post("/hub/downloads", { kind: kind.value, repository: repository, revision: "", directory: "" });
-          jobsNote.textContent = "";
-        } catch (err) { jobsNote.textContent = overgo.friendlyError(err); }
+        try { await overgo.api.post("/hub/downloads", { kind: kind.value, repository: repository, revision: "", directory: "" }); jobsNote.textContent = ""; } catch (err) { jobsNote.textContent = overgo.friendlyError(err); }
       }
       // ---- the lifecycle after a download: register once the download succeeded, validate once the
       // store holds the registration; a model validates as an operation the strip shows, a dataset by preview ----
@@ -116,14 +107,13 @@
         return cell;
       }
       const jobPoller = overgo.poller(async (signal) => {
-        const listed = await overgo.api.get("/hub/downloads", { signal });
+        // A server with no download surface (the cold page) says so once; the tab remounts when a model serves.
+        const listed = await overgo.api.get("/hub/downloads", { signal }).catch((err) => { jobsNote.textContent = overgo.friendlyError(err); jobPoller.stop(); return null; });
+        if (!listed) return;
         jobsBody.replaceChildren(...(listed.downloads || []).map((job) => {
           const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
-          const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) :
-            job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) :
-              el("span", { class: "tag byte", text: progress || "running" });
-          return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""),
-            job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
+          const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) : el("span", { class: "tag byte", text: progress || "running" });
+          return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""), job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
         }));
       }, 1000);
 
@@ -142,12 +132,37 @@
       const localModel = el("input", { class: "text", placeholder: "model GGUF or directory on disk" });
       const localProjector = el("input", { class: "text", placeholder: "projector GGUF (optional)" });
       const localButton = el("button", { class: "btn alt", text: "register a local model", onclick: () => {
-        const path = localModel.value.trim();
-        if (!path) return;
+        const path = localModel.value.trim(); if (!path) return;
         const job = { id: "local:" + path, kind: "models", state: "succeeded", repository: path, destination: path, projector: localProjector.value.trim() };
         localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag user_defined", text: "local" }), job.projector, "", lifecycle(job)]));
       } });
       jobsNote.after(el("div", { class: "row" }, localModel, localProjector, localButton));
+
+      // ---- a hosted provider: the declaration the CLI file carries, committed through the library route; the catalog relists ----
+      const providerFields = ["name", "endpoint", "key variable", "model ids (comma-separated)", "context length (optional)"].map((placeholder) => el("input", { class: "text", placeholder, "aria-label": "provider " + placeholder }));
+      const providerNote = el("span", { class: "note" });
+      const providerListing = el("span", { class: "row" });
+      const providerReason = el("input", { class: "text", placeholder: "retirement reason (the endpoint gone, the key withdrawn)", "aria-label": "retirement reason" });
+      const providerValues = () => providerFields.map((field) => field.value.trim());
+      const providerButton = el("button", { class: "btn alt", text: "declare a hosted provider", onclick: async () => {
+        const [name, endpoint, keyEnvironment, models, contextLength] = providerValues();
+        try {
+          const declared = await overgo.api.post("/library/register", { kind: "provider", name, endpoint, key_environment: keyEnvironment, models: models.split(",").map((id) => id.trim()).filter(Boolean), context_length: Number(contextLength) || 0 });
+          providerNote.replaceChildren(...(declared.declared || []).map((item) => el("span", { class: "tag", title: item.recipe, text: item.location + (item.refusal ? " · " + item.refusal : "") })));
+          refreshCatalog();
+        } catch (err) { providerNote.textContent = overgo.friendlyError(err); }
+      } });
+      // The provider's own listing (its key gates it): a listed model picked here fills the model ids and its declared context length.
+      const listButton = el("button", { class: "btn alt", text: "list the provider's models", onclick: async () => {
+        const [, endpoint, keyEnvironment] = providerValues();
+        try {
+          const listed = await overgo.api.get("/library/providers/models?endpoint=" + encodeURIComponent(endpoint) + "&key_environment=" + encodeURIComponent(keyEnvironment));
+          providerListing.replaceChildren(...(listed.models || []).map((model) => el("button", { class: "btn alt", text: model.id + (model.context_length ? " · " + model.context_length : ""), title: model.name || model.id, onclick: () => {
+            providerFields[3].value = [...providerFields[3].value.split(",").map((id) => id.trim()).filter(Boolean), model.id].join(", "); if (model.context_length) providerFields[4].value = String(model.context_length);
+          } })));
+        } catch (err) { providerNote.textContent = overgo.friendlyError(err); }
+      } });
+      panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
 
       refreshCatalog();
       this.onActivate = () => jobPoller.start();

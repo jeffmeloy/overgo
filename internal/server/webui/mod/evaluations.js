@@ -3,13 +3,8 @@
 
   const artifactLink = (overgo, id, label) => overgo.artifactLink(id, label, true);
 
-  function metricTable(overgo, metrics) {
-    return overgo.table(["metric", "value", "direction"], (metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : ""), metric.direction || "-"]), "metric-grid");
-  }
-  function valueText(value) {
-    if (value == null) return "-";
-    return typeof value === "object" ? JSON.stringify(value) : String(value);
-  }
+  function metricTable(overgo, metrics) { return overgo.table(["metric", "value", "direction"], (metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : ""), metric.direction || "-"]), "metric-grid"); }
+  function valueText(value) { if (value == null) return "-"; return typeof value === "object" ? JSON.stringify(value) : String(value); }
   function recordTable(overgo, values) {
     return overgo.table(["field", "value"], Object.entries(values || {}).map(([name, value]) => [name, valueText(value)]));
   }
@@ -19,7 +14,7 @@
     async mount(panel, overgo) {
       const { api, el, clear, fmt } = overgo;
       clear(panel);
-      const model = el("select", { class: "text" });
+      const model = el("select", { class: "text", "aria-label": "model" });
       const suiteHost = el("div", { class: "control-grid" });
       const run = el("button", { class: "btn", text: "Run" });
       const cancel = el("button", { class: "btn alt", text: "Cancel", style: "display:none" });
@@ -37,18 +32,12 @@
 
       let capabilities;
       try { capabilities = await api.get("/evaluations/capabilities"); }
-      catch (err) {
-        status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        run.disabled = true;
-        return;
-      }
+      catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); run.disabled = true; return; }
       const models = [...new Set(capabilities.map((item) => item.model))];
       for (const id of models) model.appendChild(el("option", { value: id, text: fmt.shortID(id) }));
       const fields = new Map();
 
-      function selectedCapabilities() {
-        return capabilities.filter((item) => item.model === model.value);
-      }
+      function selectedCapabilities() { return capabilities.filter((item) => item.model === model.value); }
 
       function renderCapabilities() {
         fields.clear();
@@ -68,10 +57,7 @@
           (current.failure ? " / " + current.failure : "");
         const total = current.progress && current.progress.total;
         progress.style.display = total ? "" : "none";
-        if (total) {
-          progress.max = total;
-          progress.value = current.progress.completed;
-        }
+        if (total) { progress.max = total; progress.value = current.progress.completed; }
         liveMetrics.replaceChildren(...((current.metrics || []).length ? [metricTable(overgo, current.metrics)] : []));
       }
 
@@ -99,11 +85,7 @@
 
       let baseline = null;
       async function compare(entry) {
-        if (!baseline) {
-          baseline = entry;
-          status.textContent = "baseline / " + fmt.shortID(entry.evaluation);
-          return;
-        }
+        if (!baseline) { baseline = entry; status.textContent = "baseline / " + fmt.shortID(entry.evaluation); return; }
         try {
           const comparison = await api.get("/evaluations/compare?left=" + encodeURIComponent(baseline.evaluation) +
             "&right=" + encodeURIComponent(entry.evaluation));
@@ -133,10 +115,7 @@
       });
       run.addEventListener("click", async () => {
         const plans = [...fields].filter(([, input]) => input.checked).map(([plan]) => plan);
-        if (!plans.length) {
-          status.textContent = "select an evaluation";
-          return;
-        }
+        if (!plans.length) { status.textContent = "select an evaluation"; return; }
         run.disabled = true;
         cancel.style.display = "";
         try {
@@ -145,11 +124,7 @@
           const completed = await overgo.waitOperation(operation, renderOperation);
           renderOperation(completed);
           await loadHistory();
-        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally {
-          operation = null;
-          run.disabled = false;
-          cancel.style.display = "none";
-        }
+        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.style.display = "none"; }
       });
       model.addEventListener("change", () => { renderCapabilities(); loadHistory(); });
       renderCapabilities();

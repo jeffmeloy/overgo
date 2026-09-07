@@ -5,11 +5,7 @@
   "use strict";
   const NS = "http://www.w3.org/2000/svg";
   let legendSeq = 0; // unique gradient ids so multiple legends never collide
-  function svg(tag, attrs) {
-    const node = document.createElementNS(NS, tag);
-    for (const name in attrs) node.setAttribute(name, attrs[name]);
-    return node;
-  }
+  function svg(tag, attrs) { const node = document.createElementNS(NS, tag); for (const name in attrs) node.setAttribute(name, attrs[name]); return node; }
 
   // sparkline: one straight segment per adjacent measured pair, scaled to [0, max]; an optional
   // reference value (ln(vocab) for entropy) is drawn as a dashed ceiling, no curve fitting.
@@ -54,14 +50,8 @@
     const count = Math.max(1, ...series.map((item) => item.values.length));
     const x = (index) => pad + (count > 1 ? index / (count - 1) : 0.5) * (width - 2 * pad);
     const y = (value) => height - pad - ((value - min) / span) * (height - 2 * pad);
-    const node = svg("svg", {
-      class: "signed-series", viewBox: "0 0 " + width + " " + height,
-      width: "100%", height: height, preserveAspectRatio: "none",
-    });
-    node.appendChild(svg("line", {
-      class: "zero-axis", x1: 0, y1: y(0), x2: width, y2: y(0),
-      stroke: "var(--line)", "stroke-width": 1,
-    }));
+    const node = svg("svg", { class: "signed-series", viewBox: "0 0 " + width + " " + height, width: "100%", height: height, preserveAspectRatio: "none", });
+    node.appendChild(svg("line", { class: "zero-axis", x1: 0, y1: y(0), x2: width, y2: y(0), stroke: "var(--line)", "stroke-width": 1, }));
     series.forEach((item, seriesIndex) => {
       const color = item.color || ["var(--acc)", "var(--amber)", "var(--ok)", "var(--err)"][seriesIndex % 4];
       let path = "";
@@ -72,10 +62,7 @@
         d: path.trim(), fill: "none", stroke: color, "stroke-width": 1.5,
       }));
       item.values.forEach((value, index) => {
-        const dot = svg("circle", {
-          cx: x(index), cy: y(value), r: 2, fill: color,
-          "data-value": String(value),
-        });
+        const dot = svg("circle", { cx: x(index), cy: y(value), r: 2, fill: color, "data-value": String(value), });
         const title = document.createElementNS(NS, "title");
         title.textContent = item.label + " [" + index + "] = " + value;
         dot.appendChild(title);
@@ -130,11 +117,7 @@
   }
 
   // shortLabel: truncate a tick label so axis ticks stay legible.
-  function shortLabel(text, keep) {
-    text = String(text == null ? "" : text);
-    keep = keep || 7;
-    return text.length > keep ? text.slice(0, keep - 1) + "…" : text;
-  }
+  function shortLabel(text, keep) { text = String(text == null ? "" : text); keep = keep || 7; return text.length > keep ? text.slice(0, keep - 1) + "…" : text; }
 
   // colorScaleLegend: the value→color key for a heatmap. Reads the SAME ramp()
   // the cells use (sampled as gradient stops) with min/mid/max ticks, so a reader
@@ -176,11 +159,7 @@
     const marginTop = showTicks && colLabels ? 52 : 0;
     const grid = n * cell;
     const w = marginLeft + grid, h = marginTop + grid;
-    const node = svg("svg", {
-      viewBox: "0 0 " + w + " " + h,
-      width: Math.min(w, 480), height: Math.min(h, 480),
-      style: "max-width:100%",
-    });
+    const node = svg("svg", { viewBox: "0 0 " + w + " " + h, width: Math.min(w, 480), height: Math.min(h, 480), style: "max-width:100%" });
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         const value = matrix[i][j];

@@ -482,6 +482,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		var measured Measured
 		if executeErr == nil {
 			measured = measure(output, entry.model, walls)
+			measured.Input = content
 		}
 		if executeErr != nil {
 			err = c.retire(ctx, key, entry, executeErr)

@@ -23,17 +23,37 @@
   // artifactOf: the artifact identity an artifact content URL names, for provenance.
   function artifactOf(url) { return new URL(url, location.origin).searchParams.get("id") || ""; }
 
-  // media: a generation result whose data[] carries artifact URLs.
-  async function* media(kind, result, caption) {
-    for (const item of (result && result.data) || []) yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url) };
+  // media: a generation result whose data[] carries artifact URLs; record names the run and
+  // capability behind them so a card can replay the stored request.
+  async function* media(kind, result, caption, record) {
+    for (const item of (result && result.data) || []) yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url), ...record };
     yield { type: "done" };
+  }
+
+  // run: one request of a declared capability through the generic run route, answered as the
+  // operation's outputs (artifact URLs) once it completes, or thrown as its failure.
+  async function run(capability, input, signal, sources) {
+    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal });
+    const completed = await overgo.waitOperation(accepted.operation, null, signal);
+    if (completed.state !== "completed") throw new Error(completed.failure || completed.state);
+    return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) };
+  }
+
+  // replay: the stored request of a record resubmitted (unchanged, or varied by the page) as a new
+  // run; each output names its parent, and one identical to the parent says the store memoized it.
+  async function* replay(capability, input, signal, parent, label) {
+    const completed = await run(capability, input, signal);
+    for await (const event of media(outputKind(capability.task), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
+      if (event.type === "media" && event.artifact === parent) event.caption += " — the same output: the store memoized the unchanged request";
+      yield event;
+    }
   }
 
   // generation: one run of a declared capability through the generic run route:
   // the operation's outputs land as media events, each an artifact with provenance,
   // or as the assistant's text when the task answers in text; the output's kind
   // follows the server's task vocabulary, not a model list.
-  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" ? "text" : task.startsWith("video") ? "video" : "image";
+  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" || task === "transcription" ? "text" : task.startsWith("video") ? "video" : "image";
   // bodyControl: the declared text control the message body feeds (a prompt, a text, a question).
   const bodyControl = (controls) => (controls || []).find((control) => control.type === "text" && ["prompt", "text", "question"].includes(control.name));
   async function* generation(selection, text, signal) {
@@ -42,12 +62,11 @@
     const textControl = bodyControl(capability.controls);
     if (textControl) { input[textControl.name] = text; missing.delete(textControl.name); }
     if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
-    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input }, { signal });
-    const completed = await overgo.waitOperation(accepted.operation, null, signal);
-    if (completed.state !== "completed") { yield { type: "error", message: completed.failure || completed.state }; return; }
-    const outputs = (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) }));
-    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), { data: outputs }, text); return; }
-    for (const output of outputs) yield { type: "token", text: await (await overgo.api.blob(output.url)).text() };
+    let completed;
+    try { completed = await run(capability, input, signal, selection.sources); } catch (err) { if (err.name === "AbortError") throw err; yield { type: "error", message: err.message }; return; }
+    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
+    // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
+    for (const output of completed.data) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
     yield { type: "done" };
   }
 
@@ -71,9 +90,10 @@
   }
 
   // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows);
-  // options.reuse(file) takes a media output back as the next turn's input. ----
+  // options.reuse(file): media output -> next turn's input; options.marker: tag on every assistant turn ("remote"). ----
   function thread(host, options) {
     const reuse = options && options.reuse;
+    const replay = options && options.replay; // replay(event, "regenerate" | "vary"): the page resubmits the card's stored request
     const log = el("div", { class: "chat-log" });
     host.appendChild(log);
     const messages = [];
@@ -90,6 +110,7 @@
         if (streaming) body.appendChild(el("span", { class: "cursor", text: "|" }));
       }
       const head = el("div", { class: "role" }, message.role);
+      if (message.role === "assistant" && options && options.marker) head.appendChild(el("span", { class: "tag", text: options.marker }));
       if (message.role === "assistant" && !streaming && message.content) {
         head.appendChild(overgo.copyButton(message.content, "copy"));
         if (message.response && overgo.inspectTurn) head.appendChild(el("button", { class: "link-button", text: "inspect", onclick: () => overgo.inspectTurn(message.response) }));
@@ -157,9 +178,12 @@
           reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }), event.artifact);
         } catch (err) { errorRow(overgo.friendlyError(err)); }
       } }) : null;
+      // A card behind a run replays its stored request: unchanged, or with a fresh seed.
+      const replays = replay && event.run ? ["regenerate", "vary"].map((label) => el("button", { class: "btn alt", text: label, onclick: () => replay(event, label) })) : [];
+      const lineage = options && options.lineage && event.artifact ? el("button", { class: "btn alt", text: "lineage", onclick: () => options.lineage(event, card) }) : null;
       const card = el("div", { class: "artifact msg media" }, player,
         el("div", { class: "note" }, [event.caption, facts.join(" · ")].filter(Boolean).join(" — "),
-          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again));
+          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again, ...replays, lineage));
       log.appendChild(card);
       scroll();
       return card;
@@ -188,12 +212,7 @@
               assistant.content += event.text;
               renderMessage(assistant, true);
               break;
-            case "tool_start": {
-              thinking(false);
-              const id = event.id || event.name + ":" + open.size;
-              open.set(id, toolCard(event));
-              break;
-            }
+            case "tool_start": { thinking(false); const id = event.id || event.name + ":" + open.size; open.set(id, toolCard(event)); break; }
             case "tool_end": {
               const id = event.id || event.name + ":" + (open.size - 1);
               const card = open.get(id) || toolCard(event);
@@ -219,10 +238,7 @@
               break;
           }
         }
-      } finally {
-        thinking(false);
-        if (assistant) renderMessage(assistant, false);
-      }
+      } finally { thinking(false); if (assistant) renderMessage(assistant, false); }
       return terminal;
     }
 
@@ -238,9 +254,7 @@
     return el("audio", { controls: "", src: url });
   }
 
-  function mediaKind(mime) {
-    return mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : "document";
-  }
+  function mediaKind(mime) { return mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : "document"; }
 
   // ---- composer: the input surface: one prompt box (Enter sends, Shift+Enter newline), attach, drop or
   // paste the kinds the capability document accepts, an attachment strip with previews and refusals, send
@@ -257,10 +271,10 @@
     const picker = el("input", { type: "file", style: "display:none", multiple: options.multiple !== false, accept: accept.join(",") });
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", style: "display:none" }, "stop");
-    const attach = accept.length ? el("button", { class: "btn alt", onclick: () => picker.click() }, options.attachLabel || "attach") : null;
-    const modeSelect = options.modes && options.modes.length > 1
-      ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label })))
-      : null;
+    // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
+    function openPicker() { picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
+    const attach = accept.length ? el("button", { class: "btn alt", onclick: openPicker }, options.attachLabel || "attach") : null;
+    const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
     const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, modeHost, ...(options.controls || []));
@@ -269,15 +283,11 @@
 
     function renderAttachments() {
       attachmentHost.replaceChildren(...attachments.map((item, index) => {
-        const remove = el("button", { class: "btn alt", text: "×" });
-        remove.addEventListener("click", () => { attachments.splice(index, 1); renderAttachments(); });
-        const preview = item.refusal ? el("span", { class: "tag control", text: "refused" })
-          : item.kind === "image" ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-            : item.kind === "video" ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-              : item.kind === "audio" ? el("audio", { src: item.dataURL, controls: "" })
-                : el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
+        const remove = el("button", { class: "btn alt", text: "×", onclick: () => { attachments.splice(index, 1); renderAttachments(); } });
+        const preview = item.refusal ? el("span", { class: "tag control", text: "refused" }) : item.kind === "image" ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
+          : item.kind === "video" ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" }) : item.kind === "audio" ? el("audio", { src: item.dataURL, controls: "" }) : el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
         return el("span", { class: "card" + (item.refusal ? " refused" : "") }, preview, " " + item.name + " ",
-          item.refusal ? el("span", { class: "note", text: item.refusal }) : null, remove);
+          item.refusal ? el("span", { class: "note", text: item.refusal }) : item.artifact ? el("span", { class: "note" }, "stored as ", overgo.artifactLink(item.artifact)) : null, remove);
       }));
     }
     function refusal(file, kind) {
@@ -288,7 +298,10 @@
     }
     function addFile(file) {
       const kind = mediaKind(file.type);
-      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: refusal(file, kind) };
+      // options.intake(file): a surface storing the file as an artifact returns the id's promise; the server's refusal is the card's, and the card sends no part.
+      const stored = options.intake ? options.intake(file) : null;
+      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: stored ? "" : refusal(file, kind), storing: !!stored };
+      if (stored) stored.then((id) => { item.artifact = id; }, (err) => { item.refusal = overgo.friendlyError(err); }).then(() => { item.storing = false; renderAttachments(); });
       attachments.push(item);
       const reader = new FileReader();
       reader.onload = () => {
@@ -314,21 +327,18 @@
     element.addEventListener("drop", (event) => { event.preventDefault(); element.classList.remove("drop"); addFiles(event.dataTransfer.files); });
     input.addEventListener("paste", (event) => { if (event.clipboardData.files.length) { event.preventDefault(); addFiles(event.clipboardData.files); } });
     function attachmentParts() {
-      return attachments.filter((item) => item.dataURL && !item.refusal).map((item) => {
+      return attachments.filter((item) => item.dataURL && !item.refusal && !item.artifact && !item.storing).map((item) => {
         if (item.kind === "image") return { type: "image_url", image_url: { url: item.dataURL } };
         if (item.kind === "audio") return { type: "input_audio", input_audio: { data: item.dataURL.split(",").pop(), format: "wav" } };
         if (item.kind === "video") return { type: "input_video", input_video: { data: item.dataURL } };
         return { type: "input_file", filename: item.name, file_data: item.dataURL };
       });
     }
-    function setBusy(busy) {
-      send.disabled = busy;
-      stop.style.display = busy ? "" : "none";
-    }
+    function setBusy(busy) { send.disabled = busy; stop.style.display = busy ? "" : "none"; }
     async function submit() {
       const text = input.value.trim();
       if (!text && !attachments.length) return;
-      if (send.disabled || attachments.some((item) => item.refusal)) return;
+      if (send.disabled || attachments.some((item) => item.refusal || item.storing)) return;
       if (options.onSubmit) await options.onSubmit(text, attachments.slice(), modeSelect ? modeSelect.value : "");
     }
     send.addEventListener("click", submit);
@@ -340,16 +350,15 @@
     return {
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost,
       clearAttachments() { attachments.length = 0; renderAttachments(); },
-      openPicker() { picker.click(); },
+      openPicker,
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },
+      setMode(id) { if (!modeSelect) return null; modeSelect.value = id; return options.onMode ? options.onMode(id) : null; },
     };
   }
 
   // userLine: the user's turn as the thread shows it, attachments named.
-  function userLine(text, attachments) {
-    return attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text;
-  }
+  function userLine(text, attachments) { return attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text; }
 
   // generate: one request per composer mode beyond chat, answered in the event
   // vocabulary; the front page's modes and the generation tabs share it. A
@@ -385,7 +394,7 @@
   // the bound; results are the thread's tool cards and a refusal re-renders the decision.
   function toolStep(host, options) {
     const api = overgo.api;
-    const select = el("select", { class: "text" });
+    const select = el("select", { class: "text", "aria-label": "tool" });
     const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
     const decisionHost = el("div");
     const guard = el("span", { class: "note", "aria-label": "guardrails" });
@@ -440,10 +449,11 @@
 
   overgo.thread = thread;
   overgo.composer = composer;
-  overgo.streams = { reply, media, responses };
+  overgo.streams = { reply, media, responses, replay };
   overgo.userLine = userLine;
   overgo.generate = generate;
   overgo.bodyControl = bodyControl;
+  overgo.outputKind = outputKind;
   overgo.toolStep = toolStep;
   overgo.mediaPlayer = mediaPlayer;
   overgo.mediaKind = mediaKind;

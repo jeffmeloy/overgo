@@ -280,6 +280,187 @@ What the rows established, each a record rather than a statement:
   and renders the answer as the assistant's turn. `TestVQAActivation`
   proves the canonical RxBrain case through the catalog's executor on the
   device.
+- Remote providers (openrouter-relay): `internal/remoteprovider` declares a
+  hosted model in the store (provider document, model manifest at a
+  `remote://<provider>/<model>` location, `modelrecipe.RemoteInferenceDefinition`
+  with one host relay node under a request-scoped session, activated at
+  the experimental tier from a declaration gate record whose environment
+  is the remote backend); `internal/discovery` lists it present at its
+  remote location and refused by the key's variable name while the
+  environment lacks the key; `cmd/server` serves a remote reference through
+  `internal/remoterelay`, the generator that forwards the conversation
+  (its chat formatter's JSON form) to the provider's OpenAI-compatible
+  chat completions endpoint and streams deltas as token events; a
+  generator without a tokenizer passes its prompt through untokenized and
+  the count routes refuse; an activation whose verifying evidence ran at
+  a remote backend reads as experimental whatever its decisions claim; the
+  turn inspection reports `reproducible`. The gate's merge completion and
+  the plan's completion audit share `plan.CompletionMergeBase`, which takes
+  the merge base on the target's first-parent chain when each lane has
+  merged the other.
+- Remote models on the page (openrouter-page): the capabilities document
+  carries `remote` (the served generator's architecture is the remote
+  backend); `boot.js` tags a picker entry whose location is `remote://`
+  beside its evidence line and stale refusal; `chat.js` names `remote`
+  among the welcome card's declared facts and passes it as the thread's
+  turn marker, which `composer.js` renders on every assistant turn; the
+  count route's refusal (the provider tokenizes) leaves the meter empty
+  and the turn proceeds. The proxy's `matchServable` already resolves a
+  present remote entry by the location's last segment or the model id
+  (`TestMatchServableRoutesRemoteLocations`). `remoteprovider.Retire`
+  commits a failed gate record under the remote environment, retires the
+  activation through `modelrecipe.RetireActiveCapability` and releases the
+  alias through the new `modelrecipe.ReleaseRetiredAlias` (the
+  evidence-backed retirement keeps the alias for `RollbackActivation`; a
+  retirement with no successor releases it, so the catalog drops the model
+  instead of reporting an alias naming a refused recipe);
+  `remoteprovider.List` lists only declarations with an active inference
+  recipe, so a retired model leaves `-list`, `Reference` and the server's
+  remote resolution as well. The browser lane's journey (leg 13) declares
+  a fake provider on loopback in the lane store with its key in the test
+  environment, serves it through the real proxy, proves the picker tag,
+  the welcome tag, a streamed answer from the fake and the turn's marker,
+  and retires the declaration on cleanup. The lane's first pass found the
+  remote turn answered but not stored ("interaction authority is
+  unavailable"): the relay's runtime description carried no interaction
+  scope. `modelrecipe.DescribeDefinition` now compiles a definition into
+  its description with the first output node's interaction scope, shared
+  by `Describe` (serving plans) and the relay;
+  `TestResponsesRelayStoresInteraction` pins a relayed response's stored
+  interaction through a repository-backed handler. The Generate workspace
+  lists no remote model: a declaration carries the inference task only.
+- Attachments as artifacts (composer-artifact-intake): `POST
+  /artifacts/intake` takes a file's bytes under their media type, accepts
+  every type the server decodes (`acceptedMedia(true, true, true)`, the
+  same rule the capability document narrows by loaded projectors), bounds
+  them by the media limits and decodes images against the image bounds,
+  and commits a `file` document (`overgo/attachment/v1`, media type the
+  file's own, identity the bytes, so a second upload is the same
+  document); the answer is the id an artifact-typed control validates.
+  The composer's `addFile` asks the surface's `intake(file)` first: the
+  chat page stores a file when the current mode has an artifact-typed
+  control (`artifactField`), fills the control with the id, and the card
+  says "stored as" with the link; a stored card sends no part and a
+  refusal from the route is the card's. `takesAny` widens the file dialog
+  in such a mode. The journey's leg 12b attaches the red square in vqa
+  mode while Qwen2.5-0.5B (no projector) serves, proves the control
+  filled with a new id and the answer about the upload.
+- Transcription as a mode (transcription-mode): `TranscriptionWorkspace`
+  declares its audio control artifact-typed (the intake's file documents
+  are what its executor already required) and completes with the
+  transcript's text under `modelrecipe.TextAnswerContract` (moved from
+  mediacapability so the server and the media executors share one owner)
+  beside the run's transcription document; the capability document lists
+  the mode (`workflow.transcription`); the page's text path yields only
+  `text/*` outputs. `cmd/server` loads `transcription_policy.json` beside
+  the store when the flag is absent, logging a refused workspace rather
+  than failing the server, so a proxy-launched child can serve the mode.
+  `TestTranscriptionModeRunsThroughGenericRoute` drives manifest,
+  capabilities, intake, run, wait and both outputs over the fixture
+  transcriber. The lane's leg 12c attaches a one-second tone and is taken
+  only when the lane store holds an active transcription recipe: no store
+  does, since no production path activates one (`cmd/recipe
+  verify/activate` refuses the task; the ASR baseline harness publishes
+  the Granite candidate and evaluates without activating); parked as a
+  finding for the audio lane.
+- Hosted models in the evaluation harness (openrouter-evals):
+  `cmd/evaluate` opens a hosted session for a `remote://` reference
+  (`hosted.go`): the key gates it (`remoteprovider.Key`), the relay
+  generator is the runtime (`ShapeChatPrompt` returns the prompt, the
+  provider owns its template; `ScoreContinuations` refuses), the campaign
+  binds `modelrecipe.PublishRemoteModelDefinition` (a `model-definition`
+  document of model + provider profile + relay recipe, accepted by
+  `RequireModelDefinitionBinding` under its own schema) and the remote
+  environment, and runs under `evaluation.PromptingHostedChat`, whose
+  multiple-choice scorer method is `generated-letter-hosted`, a distinct
+  plan authority from the templated method. `servableModels` lists a keyed
+  hosted declaration without stat-ing its location (the relay row had left
+  `-all` failing on such an entry) and takes no long-form admission for it;
+  derived evaluation campaigns multiple-choice suites only and names the
+  rest. `EvalSummary.Reproducible` reads the run's environment, and the
+  picker's evidence line marks a hosted score. `cmd/benchmark` refuses a
+  hosted reference. `TestHostedSessionScoresThroughRelay` scores a
+  two-case suite against the loopback fake (accuracy 0.5 from a fixed "B"),
+  checks the execution policy, the non-reproducible remote environment,
+  the definition binding and the keyless refusal.
+- Key entry on the page (openrouter-key-entry): `discovery.CatalogEntry`
+  carries `KeyEnvironment` for a hosted model, the catalog route passes it
+  as `key_environment`, and the picker renders a password field and a "use
+  key" control beside a refused hosted entry. `POST /providers/key` places
+  the key through the launcher's `Config.ProviderKeys` intake
+  (`remoteprovider.SetKey`: the variable the declaration names, in this
+  process's environment only) and answers the variable; the swap proxy
+  intercepts the same route (`Proxy.Keys`, the catalog resolver's
+  `SetKey`) so the proxy process holds the key for every later child, then
+  forwards the request to the running child. The picker relists after
+  the answer. The lane's leg 14 declares a second, keyless fake provider,
+  enters the key on the page, watches the refusal lift, serves the model
+  and reads its answer. `TestModelSwapProxyTakesProviderKeys`,
+  `TestProviderKeyRouteTakesTheLauncherIntake` and
+  `TestSetKeyPlacesTheKeyInTheEnvironment` pin the three owners.
+- Declaration from the page (openrouter-declare-from-page):
+  `remoteprovider.Document` and `DeclareDocument` are the one owner of a
+  provider declaration, shared by `cmd/remote-provider -declare` and the
+  library route's provider kind; `LibraryIntake.DeclareProvider` is the
+  launcher-injected intake (`cmd/server` binds it under the executable's
+  source commit, answering each `DeclaredProvider` with its refusal), so
+  the server package names no provider type of its own. The Library tab's
+  "Hosted providers" form posts the document and shows each declared
+  location; the catalog relists. The lane's leg 15 opens the Library tab
+  by hash, fills the form for a third fake provider whose key is already
+  in the environment, reads the declared location, returns to the front
+  page, serves the model through the picker and reads its answer. A
+  declaration is a store claim bound to the serving binary's source commit
+  (`runrecord.ExecutableCodeCommit`, the command's rule): a binary built
+  from a modified tree is refused with that reason on the page, so the
+  leg proves the serve only on a clean tree, the gate's candidate, and
+  reads the refusal on a developer's dirty tree. The lane retires every
+  declaration it makes, including one an earlier failed run left under
+  the same location.
+- The provider's own listing (openrouter-model-listing):
+  `remoterelay.ListModels` reads the provider's models route under the
+  key (the OpenAI-compatible `data[].id`, with OpenRouter's name and
+  context length), bounded and with the provider's refusal as the error;
+  `LibraryIntake.ListProviderModels` is the launcher-injected intake
+  behind `GET /library/providers/models?endpoint=&key_environment=`; the
+  Library form's "list the provider's models" renders each listed model as
+  a control that fills the model ids and the declared context length.
+  `relaytest.ServeListing` gives the fake a models route; the lane's leg
+  15 now lists the fake's model, picks it (the form's fields fill from
+  the listing) and declares from that.
+- Keyboard and phone paths (gui-keyboard-and-phone): the picker's rows
+  are focusable (`tabindex`), serve on Enter and move with the arrows;
+  the first row takes focus when the picker opens; Alt+M opens it from
+  anywhere (`aria-keyshortcuts` on the pill). `overgo.stopTurn` is the
+  chat page's abort, shared by the composer's stop control and the
+  document's Escape handler beside the inspector's close. `.msg` is
+  bounded by `min(80ch, 100%)` and its body and code blocks wrap
+  anywhere. `TestWebUIBrowserFrontPage` now runs over a repository with
+  a declared hosted model (a picker row) and a generator that holds every
+  turn open: Alt+M focuses the row, Enter reaches the swap path (the
+  proxy-less note), Escape stops a running turn, and at 390 px an
+  unbroken 360-character line stays inside its bubble with no horizontal
+  scroll. The cannot-do list's item 8 is answered for the front page.
+- Hosted turn usage (hosted-turn-usage): `inference.GenerateOptions`
+  gains `OnUsage`, the accounting a generator that tokenizes elsewhere
+  reports; the relay requests `stream_options.include_usage` and hands the
+  provider's usage chunk on; the generation pump keeps it and the
+  protocol results (`promptTokens`, `outputTokens`, `completionTokens`)
+  prefer it over the id counts, so the responses and chat completions
+  routes report the provider's numbers; the page's facts take the usage's
+  prompt count when the count route refused. `relaytest` emits the usage
+  chunk when asked (prompt 7, completion = pieces). The lane's remote leg
+  reads the Input fact after the hosted turn.
+- Retirement from the page (openrouter-retire-from-page): `POST
+  /library/providers/retire` takes a location and a reason and retires
+  through the launcher-injected `LibraryIntake.RetireProvider`
+  (`remoteprovider.Retire` under the executable's source commit, the
+  command's rule); the Library catalog's hosted rows carry a "retire"
+  control that posts the section's reason and relists. The lane's leg 16
+  retires the key-entry model from its row; a modified tree sees the
+  refusal, a clean tree sees the row leave; the lane's own cleanup then
+  finds nothing to retire. `TestLibraryProviderRetireRetiresThroughTheIntake`
+  pins the route.
 - The front page renders every generation mode from the declaration (models
   by name, refusals, controls, exported choices such as voices), runs
   through `/generation/run` and the operation wait, and every media card
@@ -309,3 +490,30 @@ Additional facts for the master merge:
   cfe9a4a2.
 - The runtime event stream reconnects while anyone listens and an operation
   wait falls back to `/operations/wait` when the stream breaks under a swap.
+
+## Hosted-evaluation contract extensions (2026-09-06)
+
+The hosted-provider rows (relay, page, evals, key entry, declaration,
+listing, usage, retirement) extended contracts beyond the HTTP package.
+Each extension is listed with its owning package, the test that pins it
+there, and what master's owner accepts at integration; none of them
+changes a local model's validation policy, and every hosted record is
+marked as not reproducible from the store.
+
+| Extension | Owner package | Pinned by | Accepted at integration |
+|-----------|---------------|-----------|-------------------------|
+| `PromptingHostedChat` prompting protocol and its scorer method `generated-letter-hosted` | `internal/evaluation` | `TestPromptingIsAPlanAuthority` (plan identity, execution policy and scorer authority all distinct from the templated and likelihood plans) | a hosted multiple-choice record is a plan of its own; it never aggregates with a local record of the same suite |
+| Hosted session scoring through the relay (chat protocol only; continuation scoring refused) | `cmd/evaluate` | `TestHostedSessionScoresThroughRelay`, `TestServableModelsListHostedModels` | `evaluate -all` admits a keyed hosted model beside local ones and refuses long-form admission for it |
+| `PublishRemoteModelDefinition` (a model definition document for a remote recipe, accepted by `RequireModelDefinitionBinding`) | `internal/modelrecipe` | `TestPublishRemoteModelDefinitionBindsRelayRecipe` | a remote model definition binds the relay recipe; it carries no tensor inventory |
+| Remote catalog entries with the key refusal (`CatalogEntry.KeyEnvironment`, `remote://` locations present without bytes) | `internal/discovery` | `TestServableListsRemoteModelsWithTheirRefusal` | a declared hosted model lists as servable while its key is absent, with the refusal, and is never stat-checked on disk |
+| `GenerateOptions.OnUsage` with `inference.Usage` (the provider's token accounting) | `internal/inference` (data and an optional callback; the local runner reports none) | `TestGeneratorRelaysTheConversationAndStreams` in `internal/remoterelay`; the relayed usage assertion in `internal/server/remote_relay_test.go` | a hosted turn's counts are the provider's; a local turn's stay its own token ids |
+| Relay stream completion (terminal marker, provider error event, cancellation) | `internal/remoterelay` | `TestGeneratorRefusesTruncatedCancelledAndErroredStreams` | a truncated hosted answer is an error, never a complete one |
+| The credential-less admission shared by the server and the swap proxy | `internal/apimanifest` | `TestAdmitCredentialless`, `TestModelSwapProxyAdmitsAsTheServerDoes`, `TestCrossOriginMutationProtection` | the proxy admits exactly as the server does, before any mutation of its own |
+| The E4B acceptance request (`OVERGO_E4B_VALIDATION` names the producer's document) | `cmd/compatibility` | `TestE4BAcceptanceIsRequestedExplicitly` | master's `modality-verification` verifies name the document explicitly; a requested acceptance with a missing document fails |
+| Declared media input slots (`Control.Label`, `Control.Media` from the request field's `label` and `media` tags; `WorkflowControl.Label`, `.Media`) | `internal/mediacapability`, `internal/server` | `TestArtifactControlsDeclareTheirSlot`, `TestTranscriptionModeRunsThroughGenericRoute` | a request declares what each artifact input is called and what kind of file it takes; the page renders from the declaration alone |
+| `Store.RecentArtifacts` (a kind's artifacts newest first with payload presence; a query pages by identity) | `internal/overgodb` | `TestRecentArtifactsWalkNewestFirst`, `TestArtifactGalleryListsNewestFirstByMedia` | the one recency read over the catalog; the gallery's `newest` listing and the slot strips stand on it |
+| Declared control bounds (`latentvideo.ProfileControlBounds` from the profile's generation policy and the denoiser's strides; `mediacapability.Bounds`; `WorkflowControlBounds`) | `internal/latentvideo`, `internal/mediacapability`, `internal/server` | `TestProfileControlBoundsFollowTheStrides`, `TestBoundsBindToTheirControls` | a page's presets derive from the model's own declarations; no ratio, size or duration is typed for a model |
+| `capabilityruntime.Measured.Input` (the request document the runtime recorded for an executed output) and the generation run citing it as its input; `RecentArtifact.Producers` on the `newest` gallery listing | `internal/capabilityruntime`, `internal/server`, `internal/overgodb` | `TestGenerationWorkspaceListsAndRunsStoreActivations`, `TestRecentArtifactsWalkNewestFirst`, `TestArtifactGalleryListsNewestFirstByMedia` | a generated output's record is the runtime's own input document, never a second copy under another schema; the gallery names the run that made each output |
+| Request replay (the recorded request resubmitted unchanged answers with the same output behind the same request document; another seed answers with another output) | `internal/server`, `internal/capabilityruntime` | `TestGenerationWorkspaceServesStoreMedia` | a page's regenerate and vary stand on the run key over the request document; no page state enters the request |
+| `/artifacts/lineage` (producers and consumers of an artifact from the store's run records, with each run's inputs described) and `nextSteps` (capabilities whose declared slot media takes the artifact's type) | `internal/server` | `TestArtifactLineageListsProducersAndConsumers`, `TestNextStepsFollowDeclaredSlots` | chained workflows follow the store's lineage and the declared slots; no image-to-video or clip-to-edit chain is typed for a model |
+| `/generation/enhance` (`PromptEnhanceInstruction`, the stored `overgo/prompt-enhancement/v1` record) and run sources (`workflowRequest.Sources` validated against the repository, carried to the workspace and cited as run inputs beside the request) | `internal/server` | `TestPromptEnhanceRewritesUnderTheInstruction`, `TestGenerationWorkspaceListsAndRunsStoreActivations` | the instruction is Go-owned and recorded, never typed on a page; an accepted rewrite keeps its original as the run's source through lineage |

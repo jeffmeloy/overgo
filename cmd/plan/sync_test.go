@@ -278,8 +278,16 @@ func TestPrepareMergeRejectsAmbiguousMergeBaseBeforeProjection(t *testing.T) {
 	leftMerge := commitTree("left merge", left, right)
 	rightMerge := commitTree("right merge", right, left)
 
-	_, err := uniqueMergeBase(repository, leftMerge, rightMerge)
-	if err == nil || !strings.Contains(err.Error(), "exactly one merge base, found 2") {
+	// A criss-cross history (each side merged the other) has two bases;
+	// prepare-merge takes the one on the local side's first-parent chain.
+	if base, err := uniqueMergeBase(repository, leftMerge, rightMerge); err != nil || base != left {
+		t.Fatalf("criss-cross prepare-merge base = %q, %v; want %q", base, err, left)
+	}
+	// A local side whose first-parent chain holds none of the bases refuses.
+	fork := commitTree("fork", root)
+	forkMerge := commitTree("fork merge", fork, leftMerge)
+	if _, err := uniqueMergeBase(repository, forkMerge, rightMerge); err == nil ||
+		!strings.Contains(err.Error(), "first-parent chain, found 0 of 2") {
 		t.Fatalf("ambiguous prepare-merge base error = %v", err)
 	}
 }

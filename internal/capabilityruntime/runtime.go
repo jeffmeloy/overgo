@@ -66,6 +66,7 @@ func JSONScalar[Input, Model, Output any](
 		var measured Measured
 		if executeErr == nil {
 			measured = measure(output, model, walls)
+			measured.Input = content
 		}
 		executeErr = errors.Join(executeErr, closeModel(context.WithoutCancel(ctx), model))
 		if executeErr != nil {

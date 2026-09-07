@@ -12,13 +12,9 @@
   let detailRequest = null;
   let shellHost = null;
 
-  function terminal(state) {
-    return state === "completed" || state === "cancelled" || state === "failed";
-  }
+  function terminal(state) { return state === "completed" || state === "cancelled" || state === "failed"; }
 
-  function routeOperation() {
-    return new URL(window.location.href).searchParams.get("operation") || "";
-  }
+  function routeOperation() { return new URL(window.location.href).searchParams.get("operation") || ""; }
 
   function updateRoute(id, replace) {
     const url = new URL(window.location.href);
@@ -39,7 +35,7 @@
     const active = values.filter((item) => !terminal(item.state)).length;
     const blocked = values.filter((item) => item.state === "blocked").length;
     const failed = values.filter((item) => item.state === "failed").length;
-    const strip = el("div", { class: "operation-strip" },
+    const strip = el("div", { class: "operation-strip", "aria-live": "polite" },
       el("span", { class: "operation-strip-label", text: "Operations" }),
       el("span", { class: "note", text: active + " active / " + blocked + " blocked / " + failed + " failed" }));
     for (const item of values) {
@@ -79,11 +75,7 @@
     } catch (err) { renderDetailError(host, err); }
   }
 
-  function renderDetailError(host, err) {
-    const detail = host.lastElementChild;
-    detail.hidden = false;
-    detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-  }
+  function renderDetailError(host, err) { const detail = host.lastElementChild; detail.hidden = false; detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
 
   // tail: the live event tail of one operation, newest last, each event time-stamped here.
   function tail(id) {
@@ -137,10 +129,7 @@
     const links = el("div", { class: "row" });
     if (status.run) links.appendChild(artifactLink(status.run, "run " + fmt.shortID(status.run)));
     for (const output of status.outputs || []) links.appendChild(artifactLink(output, "output " + fmt.shortID(output)));
-    for (const document of projection.interactions || []) {
-      const trace = document.value && document.value.trace;
-      if (trace) links.appendChild(artifactLink(trace, "trace " + fmt.shortID(trace)));
-    }
+    for (const document of projection.interactions || []) { const trace = document.value && document.value.trace; if (trace) links.appendChild(artifactLink(trace, "trace " + fmt.shortID(trace))); }
 
     const attempts = (projection.serving || []).map((document) => [document.value.attempt, el("span", { text: document.value.outcome }),
       (Number(document.value.measured_ns || 0) / 1e6).toFixed(2) + " ms", artifactLink(document.id)])
@@ -171,21 +160,14 @@
       // A local chip has no durable evidence; its detail is the chip's own facts.
       const projection = status && status.local ? { id, operation: status } : await api.get("/operations/evidence?id=" + encodeURIComponent(id), { signal: controller.signal });
       if (selected === id) renderDetail(host, projection);
-    } catch (err) { if (!err || err.name !== "AbortError") renderDetailError(host, err); } finally {
-      if (detailRequest === controller) detailRequest = null;
-    }
+    } catch (err) { if (!err || err.name !== "AbortError") renderDetailError(host, err); } finally { if (detailRequest === controller) detailRequest = null; }
   }
 
   function selectOperation(host, id, replace) {
     selected = id;
     updateRoute(id, replace);
     renderStrip(host);
-    if (!id) {
-      if (detailRequest) detailRequest.abort();
-      host.lastElementChild.hidden = true;
-      host.lastElementChild.replaceChildren();
-      return;
-    }
+    if (!id) { if (detailRequest) detailRequest.abort(); host.lastElementChild.hidden = true; host.lastElementChild.replaceChildren(); return; }
     loadDetail(host, id);
   }
 
@@ -220,10 +202,7 @@
         for (const [id, item] of operations) if (!item.local) operations.delete(id);
         for (const item of value || []) operations.set(item.id, item);
         renderStrip(host);
-        if (!selected) {
-          host.lastElementChild.hidden = true;
-          host.lastElementChild.replaceChildren();
-        }
+        if (!selected) { host.lastElementChild.hidden = true; host.lastElementChild.replaceChildren(); }
       }
       if (name === "operation") {
         operations.set(value.status.id, value.status);
@@ -233,10 +212,7 @@
       }
       if (name === "stream.error") renderDetailError(host, value);
     });
-    window.addEventListener("popstate", () => {
-      const id = routeOperation();
-      if (id !== selected) selectOperation(host, id, true);
-    });
+    window.addEventListener("popstate", () => { const id = routeOperation(); if (id !== selected) selectOperation(host, id, true); });
     const key = document.getElementById("api-key");
     if (key) key.addEventListener("change", () => overgo.runtimeEvents.restart());
     const badge = document.getElementById("inbox-count");

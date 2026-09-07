@@ -4,9 +4,7 @@
   const latest = new Map();
   let streamController = null;
 
-  function terminal(state) {
-    return state === "completed" || state === "cancelled" || state === "failed";
-  }
+  function terminal(state) { return state === "completed" || state === "cancelled" || state === "failed"; }
 
   function publish(name, value) {
     if (name === "operation") {
@@ -39,18 +37,11 @@
     if (!streamController) connect();
     return function unsubscribe() {
       subscribers.delete(handler);
-      if (!subscribers.size && streamController) {
-        streamController.abort();
-        streamController = null;
-      }
+      if (!subscribers.size && streamController) { streamController.abort(); streamController = null; }
     };
   }
 
-  function restart() {
-    if (streamController) streamController.abort();
-    streamController = null;
-    if (subscribers.size) connect();
-  }
+  function restart() { if (streamController) streamController.abort(); streamController = null; if (subscribers.size) connect(); }
 
   window.overgo.runtimeEvents = { subscribe, restart };
   // controlInputs renders a capability's declared controls into host: one
@@ -67,20 +58,66 @@
       // choice, never a free input; a boolean is one too.
       const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
       if (choices) {
-        input = el("select", { class: "text" },
+        input = el("select", { class: "text", "aria-label": control.label || control.name },
           el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
       } else {
+        // A declared bound prefills the default and steps the field by the model's stride.
+        const bounds = control.bounds || {};
         input = el(control.type === "text" ? "textarea" : "input", {
           class: "text", type: control.type === "integer" || control.type === "number" ? "number" : null,
-          step: control.type === "integer" ? "1" : "any", required: control.required,
+          step: bounds.step || (control.type === "integer" ? "1" : "any"), required: control.required, value: control.bounds ? String(bounds.default) : null,
         });
       }
       fields.set(control.name, { control, input });
-      host.appendChild(el("label", { class: "control" }, el("span", { text: control.name }), input));
+      const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
+      host.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name }), input, slot));
     }
+    const chips = presetChips(fields);
+    if (chips) host.appendChild(chips);
     return fields;
   };
+
+  // Presets derived from declared bounds alone: aspect ratios keep the default's pixel area over the
+  // width and height strides; durations take whole seconds at the frame count's declared rate.
+  const aspectPresets = [["1:1", 1, 1], ["4:3", 4, 3], ["3:2", 3, 2], ["16:9", 16, 9], ["9:16", 9, 16]];
+  const durationPresets = [1, 2, 3, 5];
+  function presetChips(fields) {
+    const el = window.overgo.el;
+    const bounded = (name) => { const field = fields.get(name); return field && field.control.bounds && field.control.bounds.step ? field : null; };
+    const snap = (field, value) => { const { default: base, step } = field.control.bounds; return base + Math.round((value - base) / step) * step; };
+    const chip = (text, apply) => el("button", { class: "chip", type: "button", text, onclick: apply });
+    const width = bounded("width"), height = bounded("height"), frames = bounded("frames");
+    const chips = [];
+    if (width && height) {
+      const area = width.control.bounds.default * height.control.bounds.default;
+      chips.push(...aspectPresets.map(([text, horizontal, vertical]) => chip(text, () => {
+        const w = snap(width, Math.sqrt(area * horizontal / vertical)); width.input.value = w; height.input.value = snap(height, area / w);
+      })));
+    }
+    if (frames && frames.control.bounds.rate) chips.push(...durationPresets.map((seconds) => chip(seconds + " s", () => { frames.input.value = snap(frames, seconds * frames.control.bounds.rate); })));
+    return chips.length ? el("div", { class: "preset-chips", "aria-label": "presets" }, ...chips) : null;
+  }
+
+  // intakeStrip: the store's recent stored files of the slot's media kind (attachments the
+  // composer stored, media that came out of a capability), one click filling the slot.
+  function intakeStrip(control, input) {
+    const el = window.overgo.el;
+    const strip = el("div", { class: "intake-strip", "aria-label": "recent " + (control.media || "stored files") });
+    const kind = control.media ? control.media + "/" : "";
+    const load = () => window.overgo.api.get("/artifacts?kind=file&newest=1&media=" + encodeURIComponent(kind) + "&limit=" + window.overgo.intakeStripLimit).then((listed) => {
+      strip.replaceChildren(...(listed.artifacts || []).filter((item) => item.payload).map((item) => {
+        const id = item.descriptor.id, source = "/artifacts/content?id=" + encodeURIComponent(id);
+        const preview = item.descriptor.media_type.startsWith("image/") ? el("img", { src: source, alt: "" }) : el("span", { class: "mono", text: item.descriptor.media_type });
+        return el("button", { class: "intake-thumb", type: "button", "data-id": id, title: id, "aria-label": "use " + window.overgo.fmt.shortID(id), onclick: () => { input.value = id; input.dispatchEvent(new Event("change", { bubbles: true })); } }, preview);
+      }));
+    }).catch((err) => strip.replaceChildren(el("span", { class: "note", text: window.overgo.friendlyError(err) })));
+    input.addEventListener("intake", load); // a fresh attachment stored into the slot relists the strip
+    load();
+    return strip;
+  }
+  // intakeStripLimit bounds the stored files a slot lists (the newest first).
+  window.overgo.intakeStripLimit = 12;
 
   // controlValues reads the typed inputs back as the request's fields and
   // names the required ones left empty.
@@ -99,18 +136,10 @@
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
       let unsubscribe = function () {};
-      function finish(current) {
-        if (observe) observe(current);
-        if (!terminal(current.state)) return;
-        unsubscribe();
-        resolve(current);
-      }
+      function finish(current) { if (observe) observe(current); if (!terminal(current.state)) return; unsubscribe(); resolve(current); }
       unsubscribe = subscribe((name, value) => {
         if (name === "operation" && value.status.id === id) finish(value.status);
-        if (name === "operation.snapshot") {
-          const current = value.find((item) => item.id === id);
-          if (current) finish(current);
-        }
+        if (name === "operation.snapshot") { const current = value.find((item) => item.id === id); if (current) finish(current); }
         if (name === "stream.error") {
           // The event stream can break under a model swap; the operation's
           // durable status still answers from the server's own wait route.
@@ -130,7 +159,7 @@
       async mount(panel, overgo) {
         const { api, el, clear, fmt } = overgo;
         clear(panel);
-        const capabilitySelect = el("select", { class: "text" });
+        const capabilitySelect = el("select", { class: "text", "aria-label": "capability" });
         const controls = el("div", { class: "control-grid" });
         const status = el("div", { class: "note" });
         const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, style: "display:none" });
@@ -145,11 +174,7 @@
 
         let capabilities;
         try { capabilities = await api.get("/" + definition.scope + "/capabilities"); }
-        catch (err) {
-          status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-          run.disabled = true;
-          return;
-        }
+        catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); run.disabled = true; return; }
         // A task is served by every model activated for it: the recipe is the
         // identity, the model's name the label, and a refused one says why.
         for (const capability of capabilities) {
@@ -160,10 +185,7 @@
         }
         let fields = new Map();
         function selected() { return capabilities.find((item) => item.recipe === capabilitySelect.value); }
-        function renderControls() {
-          const capability = selected();
-          fields = overgo.controlInputs(controls, capability ? capability.controls : []);
-        }
+        function renderControls() { const capability = selected(); fields = overgo.controlInputs(controls, capability ? capability.controls : []); }
         capabilitySelect.addEventListener("change", renderControls);
         renderControls();
 
@@ -179,10 +201,7 @@
           status.textContent = current.state + suffix + (current.failure ? " / " + current.failure : "");
           const total = current.progress && current.progress.total;
           progress.style.display = total ? "" : "none";
-          if (total) {
-            progress.max = total;
-            progress.value = current.progress.completed;
-          }
+          if (total) { progress.max = total; progress.value = current.progress.completed; }
           const table = overgo.table(["measurement", "value"], (current.metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : "")]), "metric-grid");
           metrics.replaceChildren(...((current.metrics || []).length ? [table] : []));
         }
@@ -190,12 +209,7 @@
           const capability = selected();
           if (!capability) return;
           const { input, missing } = overgo.controlValues(fields);
-          if (missing.size) {
-            const [name] = missing;
-            fields.get(name).input.focus();
-            status.textContent = name + " is required";
-            return;
-          }
+          if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return; }
           run.disabled = true;
           cancel.disabled = false;
           cancel.style.display = "";
@@ -208,12 +222,7 @@
             status.textContent = "running / " + fmt.shortID(operation);
             const completed = await overgo.waitOperation(operation, renderOperation);
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
-          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally {
-            operation = null;
-            run.disabled = false;
-            cancel.disabled = false;
-            cancel.style.display = "none";
-          }
+          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.style.display = "none"; }
         });
       },
     });

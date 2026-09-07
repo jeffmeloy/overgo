@@ -17,6 +17,7 @@ import (
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/remoteprovider"
 	"overgo/internal/runrecord"
 )
 
@@ -27,6 +28,9 @@ import (
 type servableModel struct {
 	path string
 	text bool
+	// remote: a hosted model scored through the relay; no bytes on disk,
+	// no long-form admission over a local inference surface.
+	remote bool
 }
 
 // servableModels derives the evaluation targets from the store: every
@@ -46,30 +50,38 @@ func servableModels(ctx context.Context, repository string, limit int) ([]servab
 		return nil, err
 	}
 	type sized struct {
-		path  string
-		bytes int64
-		text  bool
+		path   string
+		bytes  int64
+		text   bool
+		remote bool
 	}
 	models := make([]sized, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.Present || entry.Stale != "" || entry.Location == "" {
 			continue
 		}
-		info, err := os.Stat(entry.Location)
-		if err != nil {
-			return nil, err
+		// A hosted model (listed present once its key is set) has no bytes
+		// on disk: it sorts first and its long-form admission is not taken.
+		remote := remoteprovider.IsRemoteLocation(entry.Location)
+		var bytes int64
+		if !remote {
+			info, err := os.Stat(entry.Location)
+			if err != nil {
+				return nil, err
+			}
+			bytes = info.Size()
 		}
 		domains, declared, err := evaluation.EvalDomains(ctx, store, entry.Model)
 		if err != nil {
 			return nil, err
 		}
 		models = append(models, sized{
-			path: entry.Location, bytes: info.Size(),
-			text: !declared || slices.Contains(domains, evaluation.DomainText),
+			path: entry.Location, bytes: bytes, remote: remote,
+			text: !remote && (!declared || slices.Contains(domains, evaluation.DomainText)),
 		})
 	}
 	if len(models) == 0 {
-		return nil, errors.New("evaluate: the store holds no servable local model")
+		return nil, errors.New("evaluate: the store holds no servable model")
 	}
 	// Smallest model first (owner rule 2026-09-01): the cheapest models
 	// calibrate the pass and surface a broken suite in seconds, and the
@@ -81,7 +93,7 @@ func servableModels(ctx context.Context, repository string, limit int) ([]servab
 	})
 	targets := make([]servableModel, len(models))
 	for index, model := range models {
-		targets[index] = servableModel{path: model.path, text: model.text}
+		targets[index] = servableModel{path: model.path, text: model.text, remote: model.remote}
 	}
 	return targets, nil
 }
@@ -235,14 +247,19 @@ func runAllWorkerPass(ctx context.Context, repository string, device int, family
 	if err != nil {
 		return err
 	}
-	native, ok := session.(*nativeSession)
+	derived, ok := session.(derivedEvaluator)
 	if !ok {
-		return errors.Join(errors.New("evaluate: derived evaluation needs the native session"), session.Close())
+		return errors.Join(errors.New("evaluate: derived evaluation needs a session over the store's suites"), session.Close())
 	}
-	if err := native.EvaluateDerived(ctx, family); err != nil {
+	if err := derived.EvaluateDerived(ctx, family); err != nil {
 		return errors.Join(err, session.Close())
 	}
 	return session.Close()
+}
+
+// derivedEvaluator: a session that campaigns the store's derived suites.
+type derivedEvaluator interface {
+	EvaluateDerived(context.Context, string) error
 }
 
 // admitLongForm reads the model's latest long-form record through a
@@ -337,6 +354,17 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 			return err
 		}
 	}
+	selected, err := campaignDerivedSuites(ctx, s.campaign, suites, skipped, family, nil)
+	if err != nil {
+		return err
+	}
+	return familyFilterOutcome(selected, declared, domains, family)
+}
+
+// campaignDerivedSuites campaigns the derived suites of one family (every
+// family when blank); admit names why a suite is not taken (nil admits
+// all) and the count of campaigned suites is returned.
+func campaignDerivedSuites(ctx context.Context, campaign *evaluation.Campaign, suites []evaluation.CompiledSuite, skipped map[string]int, family string, admit func(evaluation.SuiteDescriptor) string) (int, error) {
 	for name, dropped := range skipped {
 		fmt.Printf("suite %s: %d case(s) outside the exact vocabulary skipped\n", name, dropped)
 	}
@@ -346,17 +374,23 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 		if family != "" && !strings.HasSuffix(descriptor.Source, "/"+family) {
 			continue
 		}
+		if admit != nil {
+			if refusal := admit(descriptor); refusal != "" {
+				fmt.Printf("suite %s (%s): not taken; %s\n", descriptor.Source, descriptor.Kind, refusal)
+				continue
+			}
+		}
 		selected++
 		fmt.Printf("suite %s (%s, %d cases)\n", descriptor.Source, descriptor.Kind, descriptor.Cases)
-		result, err := s.campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), suite)
+		result, err := campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), suite)
 		if err != nil {
-			return fmt.Errorf("evaluate: %s: %w", descriptor.Source, err)
+			return selected, fmt.Errorf("evaluate: %s: %w", descriptor.Source, err)
 		}
 		for _, metric := range result.Metrics {
 			fmt.Printf("  %s = %v %s\n", metric.Name, metric.Value, metric.Unit)
 		}
 	}
-	return familyFilterOutcome(selected, declared, domains, family)
+	return selected, nil
 }
 
 // familyFilterOutcome decides an empty family selection: a model whose

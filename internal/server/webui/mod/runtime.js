@@ -5,27 +5,15 @@
   let activityView = null;
   let activityUnsubscribe = null;
 
-  function present(value, format) {
-    return value == null ? "unknown" : String(format ? format(value) : value);
-  }
+  function present(value, format) { return value == null ? "unknown" : String(format ? format(value) : value); }
 
-  function activateRuntime() {
-    if (!runtimeUnsubscribe && runtimeView) runtimeUnsubscribe = window.overgo.runtimeEvents.subscribe(runtimeView);
-  }
+  function activateRuntime() { if (!runtimeUnsubscribe && runtimeView) runtimeUnsubscribe = window.overgo.runtimeEvents.subscribe(runtimeView); }
 
-  function deactivateRuntime() {
-    if (runtimeUnsubscribe) runtimeUnsubscribe();
-    runtimeUnsubscribe = null;
-  }
+  function deactivateRuntime() { if (runtimeUnsubscribe) runtimeUnsubscribe(); runtimeUnsubscribe = null; }
 
-  function activateActivity() {
-    if (!activityUnsubscribe && activityView) activityUnsubscribe = window.overgo.runtimeEvents.subscribe(activityView);
-  }
+  function activateActivity() { if (!activityUnsubscribe && activityView) activityUnsubscribe = window.overgo.runtimeEvents.subscribe(activityView); }
 
-  function deactivateActivity() {
-    if (activityUnsubscribe) activityUnsubscribe();
-    activityUnsubscribe = null;
-  }
+  function deactivateActivity() { if (activityUnsubscribe) activityUnsubscribe(); activityUnsubscribe = null; }
 
   window.overgo.registerTab({
     id: "runtime",
@@ -49,10 +37,7 @@
         error.replaceChildren();
         const session = data.session;
 		const authority = data.authority || null;
-		if (authority) {
-			identity.textContent = [authority.model, authority.recipe,
-				authority.runtime, authority.residency].map(fmt.shortID).join("  ");
-		}
+		if (authority) { identity.textContent = [authority.model, authority.recipe, authority.runtime, authority.residency].map(fmt.shortID).join("  "); }
         summary.replaceChildren(
           overgo.stat("Active sessions", session.active),
           overgo.stat("Available", session.available),
@@ -78,10 +63,7 @@
         slots.replaceChildren(table);
       }
 
-      runtimeView = (name, value) => {
-        if (name === "runtime.sessions") render(value);
-        if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value)));
-      };
+      runtimeView = (name, value) => { if (name === "runtime.sessions") render(value); if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value))); };
       activateRuntime();
     },
   });
@@ -103,9 +85,7 @@
 	  const current = new Map();
 
 	  // A decision rides the strip's binding path (operations_shell.js): it names the request advertised now.
-	  function decide(operation, tool, answer) {
-		overgo.decideOperation(operation, tool, answer).catch((err) => error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))));
-	  }
+	  function decide(operation, tool, answer) { overgo.decideOperation(operation, tool, answer).catch((err) => error.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)))); }
 
 	  const dagHost = el("div");
 	  // The DAG view is the recipe graph joined with durable stage
@@ -196,15 +176,8 @@
 
 	  activityView = (name, value) => {
 		if (name === "runtime.activity") render(value);
-		if (name === "operation.snapshot") {
-		  current.clear();
-		  for (const item of value) current.set(item.id, item);
-		  renderOperations();
-		}
-		if (name === "operation") {
-		  current.set(value.status.id, value.status);
-		  renderOperations();
-		}
+		if (name === "operation.snapshot") { current.clear(); for (const item of value) current.set(item.id, item); renderOperations(); }
+		if (name === "operation") { current.set(value.status.id, value.status); renderOperations(); }
 		if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value)));
 	  };
 	  activateActivity();

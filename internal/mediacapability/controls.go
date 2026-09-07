@@ -25,6 +25,31 @@ type Control struct {
 	// Choices are the values the model's own artifact exports for the
 	// field (a speech model's voices); empty when any value may be typed.
 	Choices []string
+	// Label names an artifact slot the way a page shows it (the request
+	// field's label tag); Media is the kind of artifact it takes (the
+	// media tag: image, video or audio), so a page offers the right stored
+	// files and routes an attachment to the slot of its kind.
+	Label, Media string
+	// Bounds are a numeric field's declared default, step and rate (the
+	// model's profile and strides), from which a page derives its presets.
+	Bounds *Bounds
+}
+
+// Bounds is a numeric control's declared default, the step a valid value
+// moves by (zero when any value is valid) and, for a frame count, the
+// frames one second holds.
+type Bounds struct {
+	Default, Step, Rate int
+}
+
+// Bounded reports a control's bounds as one tuple; declared is false for a
+// control without them.
+func (control Control) Bounded() (defaultValue, step, rate int, declared bool) {
+	if control.Bounds == nil {
+		var none Bounds
+		return none.Default, none.Step, none.Rate, false
+	}
+	return control.Bounds.Default, control.Bounds.Step, control.Bounds.Rate, true
 }
 
 // Declared reports the control's fields as one tuple, so a consumer with
@@ -32,6 +57,9 @@ type Control struct {
 func (control Control) Declared() (name, kind string, required bool, choices []string) {
 	return control.Name, control.Type, control.Required, control.Choices
 }
+
+// Slot reports an artifact control's label and media kind (empty for a typed field).
+func (control Control) Slot() (label, media string) { return control.Label, control.Media }
 
 // choiceProviders name, per entry module, the request fields whose values
 // the model directory exports; the provider reads them from the artifact.
@@ -84,18 +112,52 @@ func Controls(entry recipe.ModuleID, directory string) ([]Control, string) {
 		return nil, fmt.Sprintf("entry module %s declares no page request", entry)
 	}
 	controls, refusal := describe(reflect.TypeOf(request))
-	provider, provides := choiceProviders[entry]
-	if refusal != "" || !provides || directory == "" {
+	if refusal != "" || directory == "" {
 		return controls, refusal
 	}
-	choices, err := provider(directory)
-	if err != nil {
-		return nil, fmt.Sprintf("the model directory exports no choices: %v", err)
+	if provider, provides := choiceProviders[entry]; provides {
+		choices, err := provider(directory)
+		if err != nil {
+			return nil, fmt.Sprintf("the model directory exports no choices: %v", err)
+		}
+		for index := range controls {
+			controls[index].Choices = choices[controls[index].Name]
+		}
 	}
-	for index := range controls {
-		controls[index].Choices = choices[controls[index].Name]
+	if provider, provides := boundsProviders[entry]; provides {
+		bounds, err := provider(directory)
+		if err != nil {
+			return nil, fmt.Sprintf("the model directory declares no bounds: %v", err)
+		}
+		applyBounds(controls, bounds)
 	}
 	return controls, ""
+}
+
+// boundsProviders name, per entry module, the request fields whose bounds
+// the model's profile and strides declare; the provider reads them from
+// the model directory.
+var boundsProviders = map[recipe.ModuleID]func(directory string) (map[string]Bounds, error){
+	modelrecipe.ModuleLatentVideoPrepare: func(directory string) (map[string]Bounds, error) {
+		declared, err := latentvideo.ControlBounds(directory)
+		if err != nil {
+			return nil, err
+		}
+		bounds := make(map[string]Bounds, len(declared))
+		for name, bound := range declared {
+			bounds[name] = Bounds{Default: bound.Default, Step: bound.Step, Rate: bound.Rate}
+		}
+		return bounds, nil
+	},
+}
+
+// applyBounds binds each declared bound to the control of its name.
+func applyBounds(controls []Control, bounds map[string]Bounds) {
+	for index := range controls {
+		if bound, declared := bounds[controls[index].Name]; declared {
+			controls[index].Bounds = &bound
+		}
+	}
 }
 
 // describe derives the page's controls from the request's exported JSON
@@ -117,6 +179,7 @@ func describe(request reflect.Type) ([]Control, string) {
 		// attaches), which a page fills from a media card rather than types.
 		if field.Type == reflect.TypeOf(artifact.ID{}) {
 			control.Type, control.Required = ControlArtifact, !optional
+			control.Label, control.Media = field.Tag.Get("label"), field.Tag.Get("media")
 			controls = append(controls, control)
 			continue
 		}

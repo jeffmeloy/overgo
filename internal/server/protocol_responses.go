@@ -250,8 +250,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.pump.generated,
-			TotalTokens:       promptTokens + result.pump.generated,
+			OutputTokens:      result.outputTokens(),
+			TotalTokens:       promptTokens + result.outputTokens(),
 			InputTokenDetails: responseInputTokenDetails{},
 		},
 	})
@@ -594,8 +594,8 @@ func (h *Handler) streamResponses(
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.pump.generated,
-			TotalTokens:       promptTokens + result.pump.generated,
+			OutputTokens:      result.outputTokens(),
+			TotalTokens:       promptTokens + result.outputTokens(),
 			InputTokenDetails: responseInputTokenDetails{},
 		},
 	}

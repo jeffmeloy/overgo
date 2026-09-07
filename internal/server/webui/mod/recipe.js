@@ -15,9 +15,7 @@
 	  try {
 		const bundleData = await overgo.api.get("/capabilities/bundles");
 		bundles = bundleData.bundles || [];
-	  } catch (_) {
-		bundles = [];
-	  }
+	  } catch (_) { bundles = []; }
       clear(panel);
       if (!data.admitted) {
         panel.append(

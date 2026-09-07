@@ -44,6 +44,10 @@ type turnInspection struct {
 	Run        artifact.ID        `json:"run,omitzero"`
 	Prompt     string             `json:"prompt"`
 	Completion string             `json:"completion"`
+	// Reproducible is false for a turn served at a remote provider: its
+	// environment records the remote backend, and nothing about the
+	// hosted model can be replayed from the store.
+	Reproducible bool `json:"reproducible"`
 }
 
 // turnFailureStatus reads a failed turn's message into the vocabulary.
@@ -67,7 +71,7 @@ func (h *Handler) conversationInspect(response http.ResponseWriter, request *htt
 		return
 	}
 	responseID := request.URL.Query().Get("response")
-	result := turnInspection{Response: responseID, Statuses: turnStatuses}
+	result := turnInspection{Response: responseID, Statuses: turnStatuses, Reproducible: h.environment.Reproducible()}
 	if turn, found := h.inflight.lookup(responseID); found {
 		text, done, final, failed, _ := turn.snapshot()
 		result.Completion, result.Status = text, turnStatusRunning

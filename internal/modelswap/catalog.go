@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/remoteprovider"
 )
 
 // CatalogResolver resolves model names against the store's servable
@@ -29,6 +30,58 @@ type CatalogResolver struct {
 	memo   *discovery.Memo
 }
 
+// open replays the store once (read-only) and caches the catalog memo;
+// reopen drops the cached handle first so newer artifacts are seen.
+func (r *CatalogResolver) open(ctx context.Context, reopen bool) (*overgodb.Store, error) {
+	if reopen && r.opened != nil {
+		_ = r.opened.Close()
+		r.opened = nil
+	}
+	if r.opened == nil {
+		store, err := overgodb.OpenReadOnly(r.Store)
+		if err != nil {
+			return nil, err
+		}
+		r.opened = store
+		// Persisted identity evidence spares the resolver re-hashing
+		// the model bytes the serving child already identified.
+		r.memo = discovery.LoadMemo(ctx, store)
+	}
+	return r.opened, nil
+}
+
+// SetKey places a hosted provider's key in this process for the model the
+// reference names; a reference the cached catalog does not know reopens
+// once, as Resolve does.
+func (r *CatalogResolver) SetKey(ctx context.Context, reference, key string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var err error
+	for _, reopen := range []bool{false, true} {
+		store, openErr := r.open(ctx, reopen)
+		if openErr != nil {
+			return openErr
+		}
+		if _, err = remoteprovider.SetKey(ctx, store, r.Limit, reference, key); err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+// Catalog lists the store's activations for the idle shell's picker. The
+// store reopens each time: with no child running, the CLI is what changes
+// it, and a declaration made since must list.
+func (r *CatalogResolver) Catalog(ctx context.Context) ([]discovery.CatalogEntry, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	store, err := r.open(ctx, true)
+	if err != nil {
+		return nil, false, err
+	}
+	return discovery.CapabilityCatalog(ctx, store, r.Limit, r.memo)
+}
+
 // Resolve maps one requested name to a launchable servable. A name the
 // cached catalog does not know triggers one reopen, so artifacts
 // committed after the cache was built stay servable.
@@ -36,23 +89,11 @@ func (r *CatalogResolver) Resolve(ctx context.Context, name string) (Servable, b
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, reopen := range []bool{false, true} {
-		if reopen {
-			if r.opened != nil {
-				_ = r.opened.Close()
-				r.opened = nil
-			}
+		store, err := r.open(ctx, reopen)
+		if err != nil {
+			return Servable{}, false, err
 		}
-		if r.opened == nil {
-			store, err := overgodb.OpenReadOnly(r.Store)
-			if err != nil {
-				return Servable{}, false, err
-			}
-			r.opened = store
-			// Persisted identity evidence spares the resolver re-hashing
-			// the model bytes the serving child already identified.
-			r.memo = discovery.LoadMemo(ctx, store)
-		}
-		entries, _, err := discovery.CapabilityCatalog(ctx, r.opened, r.Limit, r.memo)
+		entries, _, err := discovery.CapabilityCatalog(ctx, store, r.Limit, r.memo)
 		if err != nil {
 			return Servable{}, false, err
 		}

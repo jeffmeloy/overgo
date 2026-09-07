@@ -16,6 +16,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/model"
 	"overgo/internal/recipe"
+	"overgo/internal/remoteprovider"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -200,6 +201,9 @@ func run(args []string) error {
 	options, err := parseOptions(args)
 	if err != nil {
 		return err
+	}
+	if remoteprovider.IsRemoteLocation(options.Model) {
+		return errors.New("benchmark: a hosted model has no local decode to measure; evaluate scores it through the relay")
 	}
 	if options.CPUProfile != "" {
 		profile, profileErr := os.Create(options.CPUProfile)

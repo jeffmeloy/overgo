@@ -63,13 +63,13 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:19474067db6ce62313ea8365716dd354f39e34fdd020be250f4479ae0cf502ea"
+     "identity": "file:sha256:65cfba8c4e398c45aba3b169067bd0c0efda908c0b104ac8b63afdf596146c35"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
      "path": "internal/server/audio_transcriptions_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b76836ed21421e9b2b6f13a47f221fe6cbc13c1abe7e82b3517f478d10469b39"
+     "identity": "evidence:sha256:6bd1d0903313a9c3bbaf5ffe0d9319056084a05d557fd0c52714fd31ed61d003"
     }
    ],
    "id": "openai-audio-transcriptions",
@@ -267,7 +267,7 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:57c821aec32ccbf28d010bcaa4d99e53e747cbfe1bc663f4369711ed9433d4c3"
+     "identity": "file:sha256:5943e8add2e25ccb38a172dac296d8abff8b8c818c621f53ef0efe64f3de12e1"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
@@ -752,7 +752,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:02870ac7c150df10561e3b74c4c085cb6bfa76bdbb5faf133c54f57d06974985"
+     "identity": "file:sha256:4aab996ede3cb894dc05962da841c9b96d980bc93ec025afeb53163372239c3c"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -773,13 +773,13 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:57c821aec32ccbf28d010bcaa4d99e53e747cbfe1bc663f4369711ed9433d4c3"
+     "identity": "file:sha256:5943e8add2e25ccb38a172dac296d8abff8b8c818c621f53ef0efe64f3de12e1"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:61808979424dbf6ac9ac739665d9149b18d5453c98de3249835886fdc77b32c3"
+     "identity": "file:sha256:cf5aa32fa1fd86c132dbc8878242651af4cfcc576a389e253a2f91454b088df0"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -821,7 +821,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:89d15090446854a0f5c13821c9f166a84060c84f7ba83bfbbe6ca75b2fe7ae4a"
+     "identity": "file:sha256:9b190ae87580f3cb62dde1e4f58f80fa987d8778e15c3ad0cbd839ae5e1f015c"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -905,7 +905,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:02870ac7c150df10561e3b74c4c085cb6bfa76bdbb5faf133c54f57d06974985"
+     "identity": "file:sha256:4aab996ede3cb894dc05962da841c9b96d980bc93ec025afeb53163372239c3c"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

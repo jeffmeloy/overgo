@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -38,7 +40,27 @@ type WorkflowControl struct {
 	// Choices are the values the model's artifact exports for the field;
 	// a page offers them instead of a free input.
 	Choices []string `json:"choices,omitempty"`
+	// Label and Media describe an artifact slot: what a page calls it and
+	// the kind of stored file it takes (image, video, audio), so the page
+	// lists matching intakes beside it and routes an attachment to it.
+	Label string `json:"label,omitzero"`
+	Media string `json:"media,omitzero"`
+	// Bounds are a numeric control's declared default, step and rate, from
+	// which a page derives its presets (aspect ratios, durations).
+	Bounds *WorkflowControlBounds `json:"bounds,omitempty"`
 }
+
+// WorkflowControlBounds is a numeric control's declared default, the step a
+// valid value moves by (zero when any value is valid) and, for a frame
+// count, the frames one second holds.
+type WorkflowControlBounds struct {
+	Default int `json:"default"`
+	Step    int `json:"step,omitzero"`
+	Rate    int `json:"rate,omitzero"`
+}
+
+// slotMedia: the media kinds an artifact slot may declare.
+var slotMedia = map[string]bool{"": true, "image": true, "video": true, "audio": true}
 
 type WorkflowCapability struct {
 	Task     recipe.Task       `json:"task"`
@@ -124,10 +146,52 @@ type workflowRequest struct {
 	Task   recipe.Task     `json:"task"`
 	Recipe artifact.ID     `json:"recipe"`
 	Input  json.RawMessage `json:"input"`
+	// Sources are stored documents the run cites as inputs beside its
+	// request: a prompt enhancement the page accepted keeps the original
+	// prompt as the request's source. Each must be an artifact the
+	// repository holds.
+	Sources []artifact.ID `json:"sources,omitempty"`
 }
 
 type workflowResponse struct {
 	Operation artifact.ID `json:"operation"`
+}
+
+// workflowSourcesKey carries a submission's sources to the workspace that
+// records the run, since the workflow API takes the request bytes alone.
+type workflowSourcesKey struct{}
+
+// withWorkflowSources binds the sources a run cites to the context its
+// execution receives.
+func withWorkflowSources(ctx context.Context, sources []artifact.ID) context.Context {
+	if len(sources) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, workflowSourcesKey{}, slices.Clone(sources))
+}
+
+// workflowSources reads the sources bound to an execution's context.
+func workflowSources(ctx context.Context) []artifact.ID {
+	sources, _ := ctx.Value(workflowSourcesKey{}).([]artifact.ID)
+	return sources
+}
+
+// validateWorkflowSources requires every source to be an artifact the
+// repository holds.
+func validateWorkflowSources(ctx context.Context, repository *overgodb.Store, sources []artifact.ID) error {
+	if len(sources) > 0 && repository == nil {
+		return errors.New("workflow workspace: sources need a durable repository")
+	}
+	for _, source := range sources {
+		_, found, err := repository.Artifact(ctx, source)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("workflow workspace: source %s is not stored", source)
+		}
+	}
+	return nil
 }
 
 func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
@@ -176,7 +240,11 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 		writeInvalidRequest(response, err)
 		return
 	}
-	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input)
+	if err := validateWorkflowSources(request.Context(), h.repository, body.Sources); err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input, body.Sources)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -190,6 +258,7 @@ func (h *Handler) submitWorkflow(
 	kind WorkflowKind,
 	capability WorkflowCapability,
 	input json.RawMessage,
+	sources []artifact.ID,
 ) (artifact.ID, error) {
 	if h.repository == nil {
 		return artifact.ID{}, errors.New("workflow workspace: durable repository required")
@@ -201,7 +270,8 @@ func (h *Handler) submitWorkflow(
 		Task    recipe.Task     `json:"task"`
 		Recipe  artifact.ID     `json:"recipe"`
 		Input   json.RawMessage `json:"input"`
-	}{artifact.InitialDocumentVersion, kind, capability.Task, capability.Recipe, input})
+		Sources []artifact.ID   `json:"sources,omitempty"`
+	}{artifact.InitialDocumentVersion, kind, capability.Task, capability.Recipe, input, sources})
 	if err != nil {
 		return artifact.ID{}, err
 	}
@@ -210,7 +280,7 @@ func (h *Handler) submitWorkflow(
 			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 				return operation.ExecuteReentrant(ctx, h.repository, reporter, request, intent,
 					func(ctx context.Context) (operation.Completion, error) {
-						return workspace.ExecuteWorkflow(ctx, kind, capability.Task, capability.Recipe, input, reporter)
+						return workspace.ExecuteWorkflow(withWorkflowSources(ctx, sources), kind, capability.Task, capability.Recipe, input, reporter)
 					})
 			})
 	}
@@ -231,7 +301,8 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 		seen[capability.Recipe] = true
 		fields := make(map[string]bool, len(capability.Controls))
 		for _, control := range capability.Controls {
-			if control.Name == "" || !control.Type.valid() || fields[control.Name] {
+			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] ||
+				control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) {
 				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
 			}
 			fields[control.Name] = true

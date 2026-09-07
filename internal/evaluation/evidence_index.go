@@ -29,30 +29,39 @@ type EvalSummary struct {
 	Prompting string             `json:"prompting"`
 	Record    artifact.ID        `json:"record,omitzero"`
 	Metrics   map[string]float64 `json:"metrics"`
+	// Reproducible: the run's environment is one the store can reproduce;
+	// false for a hosted model scored through the relay.
+	Reproducible bool `json:"reproducible"`
 }
 
-// recordPrompting reads the prompting protocol an evaluation record ran
-// under: its run's plan input binds the execution policy. A record whose
-// plan cannot be read reports the raw anchor, the only protocol earlier
-// records could have run.
-func recordPrompting(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) Prompting {
+// recordExecution reads the prompting protocol an evaluation record ran
+// under (its run's plan input binds the execution policy) and whether its
+// environment is reproducible. A record whose plan cannot be read reports
+// the raw anchor, the only protocol earlier records could have run; a run
+// whose environment cannot be read reports it reproducible, as every
+// earlier environment was.
+func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) (Prompting, bool) {
 	bound, err := runrecord.RequireRun(ctx, store, record.Run)
 	if err != nil || len(bound.Inputs) == 0 {
-		return PromptingRawCompletion
+		return PromptingRawCompletion, true
+	}
+	reproducible := true
+	if environment, err := runrecord.RequireEnvironment(ctx, store, bound.Environment); err == nil {
+		reproducible = environment.Reproducible()
 	}
 	content, found, err := artifact.ReadContent(ctx, store, bound.Inputs[0])
 	if err != nil || !found {
-		return PromptingRawCompletion
+		return PromptingRawCompletion, reproducible
 	}
 	plan, err := ParsePlan(content.Data)
 	if err != nil {
-		return PromptingRawCompletion
+		return PromptingRawCompletion, reproducible
 	}
 	policy, err := ReadExecutionPolicy(ctx, store, plan.Execution())
 	if err != nil {
-		return PromptingRawCompletion
+		return PromptingRawCompletion, reproducible
 	}
-	return policy.Prompting
+	return policy.Prompting, reproducible
 }
 
 // EvidenceIndex joins the store's committed evidence back onto models:
@@ -144,7 +153,8 @@ func LatestEvidence(
 		if !named {
 			return nil
 		}
-		prompting := recordPrompting(ctx, store, record).Label()
+		protocol, reproducible := recordExecution(ctx, store, record)
+		prompting := protocol.Label()
 		if seenSuite[record.Recipe] == nil {
 			seenSuite[record.Recipe] = map[string]bool{}
 		}
@@ -158,7 +168,7 @@ func LatestEvidence(
 			metrics[metric.Name] = metric.Value
 		}
 		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], EvalSummary{
-			Suite: suite, Prompting: prompting, Record: record.ID, Metrics: metrics,
+			Suite: suite, Prompting: prompting, Record: record.ID, Metrics: metrics, Reproducible: reproducible,
 		})
 		return nil
 	})

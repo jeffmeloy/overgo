@@ -93,7 +93,8 @@ func TestGemma4ArtifactAdmitsAudioContract(t *testing.T) {
 
 func TestGemma4MultipleImagePrompt(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
+	profile := fixtureMediaAttention(t, "vision").preprocess
+	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{MediaPreprocess: &profile})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +182,8 @@ func compareExactFloat32(t *testing.T, name string, got, want []float32) {
 
 func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
+	profile := fixtureMediaAttention(t, "vision").preprocess
+	runner, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{MediaPreprocess: &profile})
 	if err != nil {
 		t.Fatal(err)
 	}

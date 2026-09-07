@@ -25,6 +25,10 @@ type ServerLauncher struct {
 	Binary string
 	// Store is the OvergoDB root every child serves over.
 	Store string
+	// Dir is the working directory the child runs in; empty inherits the
+	// launcher's, which must be the repository root the server reads its
+	// policy documents from.
+	Dir string
 }
 
 // Launch starts one child server for the servable and returns before
@@ -50,6 +54,7 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
 		Path:   l.Binary,
 		Args:   []string{"-listen", address, "-repo", l.Store, "-model-id", servable.Name, servable.Location},
+		Dir:    l.Dir,
 		Stdout: os.Stderr,
 		Stderr: os.Stderr,
 	})

@@ -39,6 +39,15 @@ func SignedUnitF32ToU8(value float32) uint8 {
 	return unitFloat64ToU8(max(lower, min(normalized, upper)))
 }
 
+// U8ToSignedUnitF32 maps one unsigned byte back to a signed-unit sample,
+// the inverse of SignedUnitF32ToU8 up to the byte quantization.
+func U8ToSignedUnitF32(value uint8) float32 {
+	byteMaximum := float64(^uint8(tensor.FirstOffset))
+	upper := float64(tensor.SingletonExtent)
+	centerScale := upper / float64(tensor.PairedExtent)
+	return float32(float64(value)/byteMaximum/centerScale - upper)
+}
+
 // UnitF32ToU8 maps one unit-interval sample to an unsigned byte.
 func UnitF32ToU8(value float32) uint8 {
 	lower := float64(tensor.FirstOffset)

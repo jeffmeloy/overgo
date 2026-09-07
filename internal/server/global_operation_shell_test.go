@@ -22,15 +22,17 @@ func TestGlobalOperationShell(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
 	app := serveTestRequest(handler, http.MethodGet, "/app.html", "").Body.String()
+	boot := serveTestRequest(handler, http.MethodGet, "/boot.js", "").Body.String()
 	shell := serveTestRequest(handler, http.MethodGet, "/operations_shell.js", "").Body.String()
-	for _, expected := range []string{"global-operation-shell", "/operations_shell.js"} {
-		if !strings.Contains(app, expected) {
-			t.Errorf("app shell lacks %q", expected)
-		}
+	if !strings.Contains(app, "global-operation-shell") {
+		t.Error("app shell lacks the global operation shell host")
+	}
+	if !strings.Contains(boot, "/operations_shell.js") {
+		t.Error("boot.js does not load the operations shell library")
 	}
 	for _, expected := range []string{
 		"runtimeEvents.subscribe", "/operations/evidence?id=", "/operations/cancel", "/operations/decision",
-		"searchParams.set(\"operation\"", "Recovery decision", "Outputs and traces", "/artifacts/content?id=",
+		"searchParams.set(\"operation\"", "Recovery decision", "Outputs and traces", "artifactLink",
 	} {
 		if !strings.Contains(shell, expected) {
 			t.Errorf("global operation shell lacks %q", expected)

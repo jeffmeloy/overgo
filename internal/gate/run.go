@@ -18,9 +18,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// Options carries the parsed command surface into the one gate
-// transaction path. cmd/gate owns the flags; this package owns everything
-// after them.
+// Options binds command flags to the gate transaction.
 type Options struct {
 	MessageFile        string
 	PathsCSV           string
@@ -36,7 +34,9 @@ type Options struct {
 	AdmitReview        string
 	Watchdog           bool
 	InspectPlan        bool
-	StaleAfter         time.Duration
+	// Preflight diagnoses validation failures without admission.
+	Preflight  bool
+	StaleAfter time.Duration
 }
 
 // Run executes the single gate transaction path for one parsed option set.
@@ -55,6 +55,11 @@ func Run(options Options) error {
 	admitReview := &options.AdmitReview
 	watchdog := &options.Watchdog
 	inspectPlan := &options.InspectPlan
+	preflight := &options.Preflight
+	if *inspectPlan && *preflight {
+		return errors.New("gate: -inspect-plan and -preflight are mutually exclusive")
+	}
+	readOnlyPlan := *inspectPlan || *preflight
 	staleAfter := &options.StaleAfter
 	repo, err := os.Getwd()
 	if err != nil {
@@ -68,7 +73,7 @@ func Run(options Options) error {
 		return errors.New("gate: store path must stay below the repository root")
 	}
 	if err := requireExclusiveGateMode(
-		*reconcile, *recordFailure, *recoverInterrupted, *admitReview != "", *watchdog, *inspectPlan, *merge,
+		*reconcile, *recordFailure, *recoverInterrupted, *admitReview != "", *watchdog, readOnlyPlan, *merge,
 	); err != nil {
 		return err
 	}
@@ -80,9 +85,9 @@ func Run(options Options) error {
 	if err != nil {
 		return err
 	}
-	mutating := *reconcile || *recordFailure || *recoverInterrupted || *admitReview != "" || !*watchdog && !*inspectPlan
+	mutating := *reconcile || *recordFailure || *recoverInterrupted || *admitReview != "" || !*watchdog && !readOnlyPlan
 	writesGit := gateWritesGit(
-		*reconcile, *recordFailure, *recoverInterrupted, *admitReview != "", *watchdog, *inspectPlan, *merge,
+		*reconcile, *recordFailure, *recoverInterrupted, *admitReview != "", *watchdog, readOnlyPlan, *merge,
 	)
 	if writesGit {
 		if err := gitauthority.RequireWriterSupport(context.Background(), repo); err != nil {
@@ -137,10 +142,10 @@ func Run(options Options) error {
 	if *watchdog {
 		return printGateWatchdog(repo, *staleAfter)
 	}
-	if *inspectPlan && *merge {
-		return errors.New("gate: -inspect-plan requires explicit -paths and cannot inspect an in-progress merge")
+	if readOnlyPlan && *merge {
+		return errors.New("gate: -inspect-plan and -preflight require explicit -paths and cannot inspect an in-progress merge")
 	}
-	if (*pathsCSV == "" && !*merge) || (!*inspectPlan && *messageFile == "") {
+	if (*pathsCSV == "" && !*merge) || (!readOnlyPlan && *messageFile == "") {
 		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
 	}
 	// Every commit -- including a merge finalize -- is bound to the plan's current
@@ -156,7 +161,7 @@ func Run(options Options) error {
 			_ = admissionStore.Close()
 		}
 	}()
-	if !*inspectPlan {
+	if !readOnlyPlan {
 		err = reportGateAdmissionPhase("capture candidate state", func() error {
 			mergeBefore, indexBefore, err = captureGateStartState(repo)
 			return err
@@ -236,7 +241,7 @@ func Run(options Options) error {
 			}
 			g.mergeSourceStore = registered
 		}
-		staged, err := gitLines(repo, "diff", "--cached", "--name-only")
+		staged, err := stagedPaths(repo)
 		if err != nil {
 			return err
 		}
@@ -271,6 +276,9 @@ func Run(options Options) error {
 			return err
 		}
 		return writeGatePlanReport(os.Stdout, planned)
+	}
+	if *preflight {
+		return g.Preflight(os.Stdout)
 	}
 	err = reportGateAdmissionPhase("discover verification environment", func() error {
 		g.environment, err = discoverEnvironment(repo)

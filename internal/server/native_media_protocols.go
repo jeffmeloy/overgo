@@ -161,6 +161,7 @@ func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusInternalServerError, "invalid_output", "speech output is not an audio artifact")
 		return
 	}
+	response.Header().Set("X-Overgo-Artifact", status.Outputs[0].String()) // the audio artifact, for provenance
 	response.Header().Set("Content-Type", descriptor.MediaType)
 	response.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(response, reader)
@@ -215,7 +216,7 @@ func selectNativeWorkflowCapability(
 		return WorkflowCapability{}, err
 	}
 	for _, capability := range capabilities {
-		if capability.Task == task && (model == "" || model == capability.Recipe.String()) {
+		if capability.Task == task && capability.Refusal == "" && (model == "" || model == capability.Recipe.String()) {
 			return capability, nil
 		}
 	}
@@ -242,7 +243,7 @@ func (h *Handler) runNativeWorkflow(
 }
 
 func (h *Handler) waitNativeWorkflow(ctx context.Context, workspace WorkflowWorkspaceAPI, capability WorkflowCapability, input json.RawMessage) (operation.Status, error) {
-	id, err := h.submitWorkflow(ctx, workspace, WorkflowGeneration, capability, input)
+	id, err := h.submitWorkflow(ctx, workspace, WorkflowGeneration, capability, input, nil)
 	if err != nil {
 		return operation.Status{}, err
 	}

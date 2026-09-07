@@ -9,9 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
-	"net"
 	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,6 +18,7 @@ import (
 	"time"
 
 	"overgo/internal/agentloop"
+	"overgo/internal/apimanifest"
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/checked"
@@ -247,11 +246,22 @@ type Config struct {
 	HubEndpoint     string
 	HubToken        string
 	HubDownloadRoot string
-	Environment     runrecord.Environment
-	Evaluation      EvaluationWorkspaceAPI
-	Analysis        AnalysisPolicy
-	AgentEmbedder   dataset.AgentEmbeddingProvider
-	AgentReranker   dataset.AgentRerankProvider
+	// WebUIDir serves the workbench client from this directory instead of the
+	// embedded copy, with caching disabled; development only, empty in production.
+	WebUIDir      string
+	Environment   runrecord.Environment
+	Evaluation    EvaluationWorkspaceAPI
+	Analysis      AnalysisPolicy
+	AgentEmbedder dataset.AgentEmbeddingProvider
+	AgentReranker dataset.AgentRerankProvider
+	// LibraryIntake is the model intake the library routes drive, assembled
+	// by the launcher; absent, those routes answer that they need it.
+	LibraryIntake LibraryIntake
+	// ProviderKeys places a hosted provider's key in this process for the
+	// model a reference names and returns the variable that holds it;
+	// assembled by the launcher, absent the key route answers that it
+	// needs it.
+	ProviderKeys func(ctx context.Context, store *overgodb.Store, reference, key string) (string, error)
 }
 
 type slotRuntimeStats struct {
@@ -402,6 +412,7 @@ type workbenchWorkspace struct {
 // declares, so no workspace silently reaches the entire handler.
 type Handler struct {
 	config             Config
+	inflight           inflightRegistry
 	started            time.Time
 	requestsTotal      atomic.Uint64
 	requestsActive     atomic.Int64
@@ -712,20 +723,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		)
 		return
 	}
+	// The credential-less CLI only binds loopback; the admission the swap proxy shares refuses a foreign Host or origin.
 	if h.config.APIKey == "" {
-		// The credential-less CLI only binds loopback. On a real HTTP transport,
-		// reject foreign Host names as well: matching Origin alone cannot stop
-		// DNS rebinding. Embedded Handler callers have no listener authority.
-		if request.Context().Value(http.LocalAddrContextKey) != nil {
-			host := (&url.URL{Host: request.Host}).Hostname()
-			if !strings.EqualFold(host, "localhost") && !net.ParseIP(host).IsLoopback() {
-				writeError(response, http.StatusForbidden, "invalid_host", "credential-less requests require a loopback Host")
-				return
-			}
-		}
-		var protection http.CrossOriginProtection
-		if err := protection.Check(request); err != nil {
-			writeError(response, http.StatusForbidden, "cross_origin_request", err.Error())
+		if refusal := apimanifest.AdmitCredentialless(request); refusal != nil {
+			writeError(response, http.StatusForbidden, refusal.Type, refusal.Message)
 			return
 		}
 	}

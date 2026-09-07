@@ -88,7 +88,7 @@ func BuildGroupSplit(
 	}
 	partitionViews := make([]Partition, len(canonicalPartitions))
 	for index, partition := range canonicalPartitions {
-		membership, err := newMembership(source, seed, partition.Name, partitionRecords[index])
+		membership, err := NewMembership(source, seed, partition.Name, partitionRecords[index])
 		if err != nil {
 			return SplitPlan{}, err
 		}
@@ -208,7 +208,9 @@ func DuplicateLineage(duplicate, canonical artifact.ID) (artifact.Lineage, error
 	return edge, nil
 }
 
-func newMembership(source artifact.ID, seed uint64, partition string, records []Record) (Membership, error) {
+// NewMembership binds an explicit selection to its source without making the
+// source inventory a child of the dataset. Records are canonicalized by identity.
+func NewMembership(source artifact.ID, seed uint64, partition string, records []Record) (Membership, error) {
 	membership := Membership{
 		Version: MembershipVersion, Source: source, Seed: seed,
 		Partition: partition, Records: slices.Clone(records),

@@ -5,6 +5,7 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
 	"strings"
 )
@@ -57,50 +58,11 @@ var webuiContentTypes = map[string]string{
 // uses hash routing, so no server-side SPA fallback is needed and an unknown
 // path returns the same 404 the router used to emit.
 func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request) {
-	if request.URL.Path == "/workspace/manifest" {
-		h.workspaceManifest(response, request)
-		return
-	}
-	if request.URL.Path == "/workspace/schema" {
-		h.workspaceSchema(response, request)
-		return
-	}
-	if request.URL.Path == "/operations/evidence" {
-		if !h.authorized(request) {
-			response.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(response, http.StatusUnauthorized, "invalid_api_key", "missing or invalid bearer token")
-			return
-		}
-		h.operationEvidence(response, request)
-		return
-	}
-	if strings.HasPrefix(request.URL.Path, "/automations") {
-		if !h.authorized(request) {
-			response.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(response, http.StatusUnauthorized, "invalid_api_key", "missing or invalid bearer token")
-			return
-		}
-		h.automationWorkspace(response, request)
-		return
-	}
-	if strings.HasPrefix(request.URL.Path, "/peers") {
-		if !h.authorized(request) {
-			response.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(response, http.StatusUnauthorized, "invalid_api_key", "missing or invalid bearer token")
-			return
-		}
-		h.peerWorkspace(response, request)
-		return
-	}
-	if strings.HasPrefix(request.URL.Path, "/agents") {
-		if !h.authorized(request) {
-			response.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(response, http.StatusUnauthorized, "invalid_api_key", "missing or invalid bearer token")
-			return
-		}
-		h.agentControl(response, request)
-		return
-	}
+	serveWebUIAssets(response, request, h.config.WebUIDir)
+}
+
+// serveWebUIAssets: the client from the embed, or from dir when set (development: disk on every request, caching off).
+func serveWebUIAssets(response http.ResponseWriter, request *http.Request, dir string) {
 	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return
@@ -114,7 +76,17 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return
 	}
-	data, err := fs.ReadFile(webuiFS, name)
+	// One shell: the historical workbench address keeps working and serves
+	// the same document, so bookmarks, the launcher and the acceptance lane
+	// need no change.
+	if name == "app.html" {
+		name = "index.html"
+	}
+	assets, cache := fs.FS(webuiFS), "no-cache"
+	if dir != "" {
+		assets, cache = os.DirFS(dir), "no-store"
+	}
+	data, err := fs.ReadFile(assets, name)
 	if err != nil {
 		writeError(response, http.StatusNotFound, "not_found", "route not found")
 		return
@@ -122,14 +94,15 @@ func (h *Handler) serveWebUI(response http.ResponseWriter, request *http.Request
 	if contentType, ok := webuiContentTypes[strings.ToLower(path.Ext(name))]; ok {
 		response.Header().Set("Content-Type", contentType)
 	}
-	response.Header().Set("Cache-Control", "no-cache")
+	response.Header().Set("Cache-Control", cache)
 	// The client is fully self-contained (no external hosts) and carries no inline
-	// scripts — index.html's probe lives in probe.js and DOM handlers are attached
-	// via addEventListener — so a strict CSP holds: script from same origin only,
-	// no plugins, no framing. Inline STYLE attributes are used throughout (el()
-	// and SVG), so style keeps 'unsafe-inline' (style injection is far lower risk
-	// than script). This is defense in depth over the markdown renderer's own
-	// DOM-only, scheme-checked output.
+	// scripts — the shell lists one script, boot.js, which loads the libraries
+	// and the manifest's modules from the same origin, and DOM handlers are
+	// attached via addEventListener — so a strict CSP holds: script from same
+	// origin only, no plugins, no framing. Inline STYLE attributes are used
+	// throughout (el() and SVG), so style keeps 'unsafe-inline' (style injection
+	// is far lower risk than script). This is defense in depth over the markdown
+	// renderer's own DOM-only, scheme-checked output.
 	response.Header().Set("Content-Security-Policy", webuiContentSecurityPolicy)
 	response.Header().Set("X-Content-Type-Options", "nosniff")
 	response.Header().Set("Referrer-Policy", "no-referrer")

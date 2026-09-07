@@ -2,55 +2,35 @@
    prompt tokens and show their distribution-free structure — a distance matrix
    (heatmap) and a kNN neighbor graph laid out by non-metric MDS.
 
-   The dissimilarity is an explicit choice, defaulting to Spearman rank
-   correlation (invariant to any monotone per-coordinate transform — no scale or
-   Euclidean assumption). The matrix and neighbor graph are the primary,
-   least-assumptive views; the 2D scatter is only a rank-preserving summary whose
-   faithfulness is reported as MDS stress. No PCA, no t-SNE. */
+   The dissimilarity is an explicit choice, defaulting to Spearman rank correlation (no scale or
+   Euclidean assumption); the matrix and neighbor graph are primary, the 2D scatter a rank-preserving
+   summary whose faithfulness is reported as MDS stress. No PCA, no t-SNE. */
 (function () {
   "use strict";
   window.overgo.registerTab({
     id: "states",
-    async mount(panel, overgo) {
+    async mount(panel, overgo, seed) {
       const { el, clear, displayToken } = overgo;
       clear(panel);
 
-      const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
-      prompt.value = "The quick brown fox jumps over the lazy dog";
-      const metric = el("select", { class: "keyfield", style: "width:150px" },
+      const metric = el("select", { class: "keyfield", style: "width:150px", "aria-label": "metric" },
         el("option", { value: "spearman" }, "spearman (rank)"),
         el("option", { value: "cosine" }, "cosine"),
         el("option", { value: "euclidean" }, "euclidean"));
       const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
       const k = el("input", { class: "keyfield", type: "number", placeholder: "auto", min: "1", max: "20", style: "width:80px" });
-      const maxPos = el("input", { class: "keyfield", type: "number", value: "48", min: "2", max: "64", style: "width:80px" });
-      const run = el("button", { class: "btn", onclick: execute }, "capture");
-      const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
-      panel.append(
-        prompt,
-        el("div", { class: "row", style: "margin:10px 0" },
-          el("span", { class: "note", text: "metric" }), metric,
-          el("span", { class: "note", text: "layer" }), layer,
-          el("span", { class: "note", text: "k" }), k,
-          el("span", { class: "note", text: "max tokens" }), maxPos,
-          run, cancel),
-        el("div", { class: "note", text: "Distribution-free: the metric is explicit (default = rank correlation); the layout uses only the rank order of distances (no PCA/t-SNE)." }));
-      const out = el("div");
-      panel.appendChild(out);
-      const runAction = overgo.runner(run, cancel, {
-        onError: (err) => out.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))),
-        onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
-      });
-
-      function execute() {
-        out.replaceChildren(el("div", { class: "note", text: "capturing…" }));
-        runAction(async (signal) => {
+      const maxPos = el("input", { class: "keyfield", type: "number", value: "48", min: "2", max: "64", style: "width:80px", "aria-label": "positions" });
+      const { prompt, out } = overgo.analysisSurface(panel, seed, {
+        defaultPrompt: "The quick brown fox jumps over the lazy dog", runLabel: "capture", busy: "capturing…",
+        fields: [["metric", metric], ["layer", layer], ["k", k], ["max tokens", maxPos]],
+        note: "Distribution-free: the metric is explicit (default = rank correlation); the layout uses only the rank order of distances (no PCA/t-SNE).",
+        execute: async (signal) => {
           const request = { prompt: prompt.value, metric: metric.value, max_positions: Number(maxPos.value) || 48 };
           if (layer.value !== "") request.layer = Number(layer.value);
           if (k.value !== "") request.k = Number(k.value);
           render(await overgo.api.post("/analyze/states", request, { signal }));
-        });
-      }
+        },
+      });
 
       function render(data) {
         clear(out);

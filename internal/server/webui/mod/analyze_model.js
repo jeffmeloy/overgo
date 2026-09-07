@@ -12,11 +12,7 @@
       let data;
       try {
         data = await overgo.modelInfo();
-      } catch (err) {
-        clear(panel);
-        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
+      } catch (err) { clear(panel); panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
       const m = data.model, d = data.derived;
       clear(panel);
 
@@ -42,13 +38,9 @@
       panel.appendChild(el("div", { class: "section-title", text: "Derived (exact ratios)" }));
       const derived = el("div", { class: "statgrid" });
       if (d.head_dim != null) derived.appendChild(overgo.stat("Head dim", d.head_dim, "= embd / heads"));
-      if (d.kv_group_size != null) {
-        derived.appendChild(overgo.stat("KV group size", d.kv_group_size, d.grouped_query ? "GQA" : "MHA"));
-      }
+      if (d.kv_group_size != null) derived.appendChild(overgo.stat("KV group size", d.kv_group_size, d.grouped_query ? "GQA" : "MHA"));
       if (d.params_per_block != null) derived.appendChild(overgo.stat("Params / block", fmt.compact(d.params_per_block)));
-      if (d.avg_bits_per_weight != null) {
-        derived.appendChild(overgo.stat("Avg bits / weight", d.avg_bits_per_weight.toFixed(2), "measured"));
-      }
+      if (d.avg_bits_per_weight != null) derived.appendChild(overgo.stat("Avg bits / weight", d.avg_bits_per_weight.toFixed(2), "measured"));
       panel.appendChild(derived);
 
       // --- capabilities ------------------------------------------------------

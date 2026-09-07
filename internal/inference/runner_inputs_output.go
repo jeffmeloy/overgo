@@ -16,6 +16,7 @@ func (r *Runner) preparePerLayerInputs(
 	ctx context.Context,
 	activation reference.Value,
 	rows []uint32,
+	projected projectedRequestPlan,
 ) ([]reference.Value, error) {
 	if !r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		return nil, nil
@@ -23,6 +24,10 @@ func (r *Runner) preparePerLayerInputs(
 	if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 		r.weights.PerLayerProjectionNorm == nil {
 		return nil, errors.New("inference: per-layer input weights are incomplete")
+	}
+	rows, err := projected.perLayerEmbeddingRows(rows, r.vocab.PAD)
+	if err != nil {
+		return nil, err
 	}
 	selected, err := r.gatherTensor(ctx, *r.weights.PerLayerTokenEmbedding, rows)
 	if err != nil {

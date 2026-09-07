@@ -158,7 +158,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			if attempt != 0 {
 				want = "package test evidence: 1 reused + 2 executed"
 			}
-			if !slices.Contains(g.audit, want) || !slices.Contains(g.audit, "dependent fixture evidence not credited: 1 skipped, 0 unavailable") {
+			if !slices.Contains(g.audit, want) || !slices.Contains(g.audit, "dependent fixture evidence not credited: 1 skipped [example/app: TestRequired], 0 unavailable []") {
 				t.Fatalf("dependent skip/reuse denominator: %v", g.audit)
 			}
 		}

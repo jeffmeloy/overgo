@@ -20,7 +20,9 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
@@ -144,7 +146,16 @@ func testGemma4InputParity(t *testing.T) {
 	if decodeErr != nil || closeErr != nil {
 		t.Fatal(errors.Join(decodeErr, closeErr))
 	}
-	runner, err := projector.OpenAs[*projector.Gemma4Runner](t.Context(), projectorPath, projector.OpenOptions{CUDA: true})
+	store, err := overgodb.OpenReadOnly(roots.Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	candidate, err := modelintake.PrepareProjectionCandidate(t.Context(), store, modelPath, projectorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runner, err := projector.OpenAs[*projector.Gemma4Runner](t.Context(), projectorPath, projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor})
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Gemma4 projector or CUDA absent; parity NOT verified: %v", err)
 	}

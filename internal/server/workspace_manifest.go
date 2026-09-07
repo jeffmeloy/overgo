@@ -25,6 +25,34 @@ type workspaceTabDeclaration struct {
 	Label      string `json:"label"`
 	Section    string `json:"section"`
 	Capability string `json:"capability"`
+	// Module names the client file under webui/mod/ that registers the tab;
+	// empty means the file is named after the tab. The shell's loader reads
+	// it, so a tab is a manifest entry plus a module file and nothing else.
+	Module string `json:"module,omitzero"`
+}
+
+// module returns the client module file name (without directory or
+// extension) that registers the tab.
+func (tab workspaceTabDeclaration) module() string {
+	if tab.Module != "" {
+		return tab.Module
+	}
+	return tab.ID
+}
+
+// validWorkspaceModule: a module file name is lower-case letters, digits and
+// underscores, the shape of every file under webui/mod/.
+func validWorkspaceModule(name string) bool {
+	if name == "" {
+		return false
+	}
+	for index := range len(name) {
+		character := name[index]
+		if !(character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 type workspaceManifestDeclaration struct {
@@ -37,14 +65,16 @@ type workspaceTab struct {
 	ID      string `json:"id"`
 	Label   string `json:"label"`
 	Section string `json:"section"`
+	Module  string `json:"module"`
 	Enabled bool   `json:"enabled"`
 	Refusal string `json:"refusal,omitzero"`
 }
 
 type workspaceManifestResponse struct {
-	Version  uint16             `json:"version"`
-	Sections []workspaceSection `json:"sections"`
-	Tabs     []workspaceTab     `json:"tabs"`
+	Version  uint16                      `json:"version"`
+	Sections []workspaceSection          `json:"sections"`
+	Tabs     []workspaceTab              `json:"tabs"`
+	Model    *workspaceModelCapabilities `json:"model,omitempty"`
 }
 
 func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.Request) {
@@ -63,8 +93,11 @@ func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.
 	for index, tab := range declaration.Tabs {
 		enabled, refusal := h.workspaceCapability(request.Context(), tab.Capability)
 		result.Tabs[index] = workspaceTab{
-			ID: tab.ID, Label: tab.Label, Section: tab.Section, Enabled: enabled, Refusal: refusal,
+			ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), Enabled: enabled, Refusal: refusal,
 		}
+	}
+	if document, ok := h.workspaceModelCapabilities(request.Context()); ok {
+		result.Model = &document
 	}
 	writeJSON(response, http.StatusOK, result)
 }
@@ -92,6 +125,9 @@ func parseWorkspaceManifest() (workspaceManifestDeclaration, error) {
 		_, sectionFound := sections[tab.Section]
 		if !textcheck.LowerIdentifier(tab.ID, len(tab.ID)) || tab.Label == "" || tab.Capability == "" || !sectionFound {
 			return workspaceManifestDeclaration{}, errors.New("server: invalid workspace tab")
+		}
+		if !validWorkspaceModule(tab.module()) {
+			return workspaceManifestDeclaration{}, errors.New("server: invalid workspace tab module")
 		}
 		if _, duplicate := tabs[tab.ID]; duplicate {
 			return workspaceManifestDeclaration{}, errors.New("server: duplicate workspace tab")
@@ -121,6 +157,12 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = h.agentCoordinator != nil
 	case "repository", "operations":
 		supported = h.repository != nil
+	case "embeddings":
+		supported = slices.Contains(h.modelCapabilities(), "embedding")
+	case "rerank":
+		supported = slices.Contains(h.modelCapabilities(), "rerank")
+	case "explorer":
+		supported = true
 	case "evaluation":
 		_, supported = h.generator.(EvaluationWorkspaceAPI)
 	case "automation":
@@ -143,6 +185,10 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoEdit)
 	case "workflow.speech":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskSpeech)
+	case "workflow.vqa":
+		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVQA)
+	case "workflow.transcription":
+		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskTranscription)
 	}
 	if supported {
 		return true, ""

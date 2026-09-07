@@ -22,7 +22,7 @@
       "budget": "internal-imports",
       "subject": "internal/server",
       "limit": 42,
-      "reason": "The server is the assembly root: it composes workspace dependencies explicitly, with each handler constrained by the workspace-boundary audit. Native CPU transcription adds speechrecognition for inference and gitauthority for exact source-identity validation to the prior 40 dependencies. This exact two-owner increase admits no duplicate audio runtime; retire the exception when workspace assembly moves out of the HTTP package."
+      "reason": "The server is the assembly root: it composes workspace dependencies explicitly, with each handler constrained by the workspace-boundary audit. Native CPU transcription adds speechrecognition for inference and gitauthority for exact source-identity validation to the prior 40 dependencies. This exact two-owner increase admits no duplicate audio runtime; retire the exception when workspace assembly moves out of the HTTP package. The professional GUI lane's generation and library workspaces take their media executor catalog and their model intake from the launcher (GenerationCatalog, LibraryIntake), so neither package is named here."
     },
     {
       "budget": "command-files",

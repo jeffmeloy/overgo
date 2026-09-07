@@ -135,8 +135,32 @@ func (plan *protocolBatchGenerationPlan) run(
 	return nil
 }
 
+// promptTokens: the prompt's count; the provider's when the generator
+// reported one (a hosted turn tokenizes at the provider), else the ids
+// beyond the generated ones.
 func (result protocolGenerationResult) promptTokens() int {
+	if result.pump.usage != nil {
+		return result.pump.usage.PromptTokens
+	}
 	return len(result.ids) - result.pump.generated
+}
+
+// outputTokens: the completion's count; the provider's when reported,
+// else the generated ids.
+func (result protocolGenerationResult) outputTokens() int {
+	if result.pump.usage != nil {
+		return result.pump.usage.CompletionTokens
+	}
+	return result.pump.generated
+}
+
+// completionTokens: the chat completion's count; the provider's when
+// reported, else the ids the completion kept past its stop.
+func (result protocolGenerationResult) completionTokens() int {
+	if result.pump.usage != nil {
+		return result.pump.usage.CompletionTokens
+	}
+	return result.pump.completion
 }
 
 func (h *Handler) prepareProtocolGenerationPlan(

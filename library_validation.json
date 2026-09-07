@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "doc": "The prompts a library validation records from a freshly registered model's greedy output and replays exactly before activating the model; generic prompts, no model knowledge. max_tokens bounds each recorded case.",
+  "prompts": [
+    "The capital of France is",
+    "Write one sentence about the sea.",
+    "List three prime numbers:"
+  ],
+  "max_tokens": 16
+}

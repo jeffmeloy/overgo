@@ -23,6 +23,7 @@ import (
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/vqaserve"
 )
 
 // runDevice: device terminal parity + measurement.
@@ -30,7 +31,7 @@ func runDevice(l *campaignContext) error {
 	ctx := context.Background()
 	l.Log("DEVICE terminal parity START")
 
-	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
+	cfg, err := routedlm.LoadConfig(l.modelDir, vqaserve.Binding)
 	if err != nil {
 		return err
 	}
@@ -39,7 +40,7 @@ func runDevice(l *campaignContext) error {
 		return err
 	}
 	defer src.Close()
-	terminal, err := routedlm.LoadTerminalWeights(src, cfg, binding)
+	terminal, err := routedlm.LoadTerminalWeights(src, cfg, vqaserve.Binding)
 	if err != nil {
 		return err
 	}

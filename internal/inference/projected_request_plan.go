@@ -3,10 +3,32 @@ package inference
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/model"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/tokenizer"
 )
+
+// Raw scaled media embeddings replace the main input, while their per-layer
+// token-identity component comes from the declared padding token. Preserve
+// caller prompt IDs and the media embeddings used by the context projection.
+func (p projectedRequestPlan) perLayerEmbeddingRows(rows []uint32, padding tokenizer.TokenID) ([]uint32, error) {
+	if p.overridePolicy != model.EmbeddingOverrideRawScaled || len(p.overrides) == 0 {
+		return rows, nil
+	}
+	if padding < 0 {
+		return nil, errors.New("inference: projected per-layer inputs require a declared padding token")
+	}
+	selected := slices.Clone(rows)
+	for _, override := range p.overrides {
+		if uint64(override.TokenIndex) >= uint64(len(selected)) {
+			return nil, errors.New("inference: projected per-layer token index is out of range")
+		}
+		selected[override.TokenIndex] = uint32(padding)
+	}
+	return selected, nil
+}
 
 type projectedRequestPlan struct {
 	overridePolicy    model.EmbeddingOverridePolicy

@@ -1,0 +1,10 @@
+{
+  "name": "openrouter",
+  "endpoint": "https://openrouter.ai/api/v1",
+  "key_environment": "OVERGO_OPENROUTER_KEY",
+  "models": [
+    "openai/gpt-4o-mini",
+    "anthropic/claude-sonnet-4",
+    "google/gemini-2.5-flash"
+  ]
+}

@@ -10,6 +10,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	"overgo/internal/apimanifest"
 )
 
 // maxRoutedBodyBytes bounds the request body the router buffers to
@@ -32,6 +34,33 @@ type Proxy struct {
 	Resolver   Resolver
 	// Default serves model-less requests when nothing is running yet.
 	Default Servable
+	// Keys takes a hosted provider's key for this process, so every child
+	// launched from now on inherits it; the request then rides on to the
+	// running child, which takes it for itself. Nil refuses the route.
+	Keys ProviderKeys
+	// Idle answers a model-less request while no child runs and no default
+	// is set (the cold start: the shell, its boot routes, the catalog the
+	// picker chooses from). Nil refuses such a request instead.
+	Idle http.Handler
+}
+
+// errNothingServes: a model-less request with no child running and no default.
+var errNothingServes = errors.New("model swap: no model named, none running, and no default configured")
+
+// ProviderKeys places a hosted provider's key in the proxy's process for
+// the model a reference names.
+type ProviderKeys interface {
+	SetKey(ctx context.Context, reference, key string) error
+}
+
+// providerKeyPath is the server's provider-key route, intercepted here
+// so the proxy holds the key before the child does.
+const providerKeyPath = "/providers/key"
+
+// providerKeyRequest mirrors the server route's body.
+type providerKeyRequest struct {
+	Location string `json:"location"`
+	Key      string `json:"key"`
 }
 
 // ServeHTTP implements the swap routing.
@@ -40,7 +69,48 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		http.Error(response, "model swap proxy is not configured", http.StatusServiceUnavailable)
 		return
 	}
+	// The proxy carries no credential and mutates its own process (a key, a launch) before the child
+	// sees the request, so it admits exactly as the credential-less server does, first.
+	if refusal := apimanifest.AdmitCredentialless(request); refusal != nil {
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"message": refusal.Message, "type": refusal.Type}})
+		return
+	}
+	if request.URL.Path == providerKeyPath && request.Method == http.MethodPost {
+		if p.Keys == nil {
+			http.Error(response, "model swap proxy takes no provider keys", http.StatusNotImplemented)
+			return
+		}
+		raw, err := io.ReadAll(io.LimitReader(request.Body, maxRoutedBodyBytes))
+		if err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
+			return
+		}
+		var entry providerKeyRequest
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := p.Keys.SetKey(request.Context(), entry.Location, entry.Key); err != nil {
+			http.Error(response, err.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+		request.Body = io.NopCloser(bytes.NewReader(raw))
+		request.ContentLength = int64(len(raw))
+	}
 	servable, body, err := p.routeServable(request)
+	if body != nil {
+		// The body read for its model field is handed on whole, to the child or to the idle handler.
+		request.Body = io.NopCloser(bytes.NewReader(body))
+		request.ContentLength = int64(len(body))
+	}
+	if errors.Is(err, errNothingServes) && p.Idle != nil {
+		// The header names the proxy with no model, so the shell shows the proxy present and nothing served.
+		response.Header().Set("X-Overgo-Swap-Proxy", "")
+		p.Idle.ServeHTTP(response, request)
+		return
+	}
 	if err != nil {
 		http.Error(response, err.Error(), http.StatusUnprocessableEntity)
 		return
@@ -56,10 +126,9 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		http.Error(response, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if body != nil {
-		request.Body = io.NopCloser(bytes.NewReader(body))
-		request.ContentLength = int64(len(body))
-	}
+	// Every proxied answer names the proxy, so a shell behind it can show the
+	// swap capability and a shell served directly can say it is absent.
+	response.Header().Set("X-Overgo-Swap-Proxy", servable.Name)
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
 	proxy.FlushInterval = -1
 	proxy.ServeHTTP(response, request)
@@ -113,5 +182,5 @@ func (p *Proxy) routeServable(request *http.Request) (Servable, []byte, error) {
 	if p.Default.Name != "" {
 		return p.Default, body, nil
 	}
-	return Servable{}, nil, errors.New("model swap: no model named, none running, and no default configured")
+	return Servable{}, body, errNothingServes
 }

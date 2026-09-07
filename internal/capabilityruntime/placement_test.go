@@ -7,13 +7,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
 func TestExactCapabilityPlacementAndReceipt(t *testing.T) {
 	store, modelID, program := capabilityFixture(t, "exact-capability-placement")
-	selection := candidateExecution(t, store, program)
+	selection := modelrecipetest.CandidateExecution(t, store, program)
 	schema := testutil.ArtifactID(t, artifact.KindProfile, "exact-model-schema")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
 		Key: "capability/placement/schema", Artifacts: []artifact.Descriptor{{ID: schema}},

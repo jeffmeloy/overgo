@@ -5,15 +5,10 @@
   "use strict";
   const NS = "http://www.w3.org/2000/svg";
   let legendSeq = 0; // unique gradient ids so multiple legends never collide
-  function svg(tag, attrs) {
-    const node = document.createElementNS(NS, tag);
-    for (const name in attrs) node.setAttribute(name, attrs[name]);
-    return node;
-  }
+  function svg(tag, attrs) { const node = document.createElementNS(NS, tag); for (const name in attrs) node.setAttribute(name, attrs[name]); return node; }
 
-  // sparkline: one straight segment per adjacent measured pair, scaled to
-  // [0, max]. An optional reference value (e.g. ln(vocab) for entropy) is drawn
-  // as a dashed line so the reader sees the ceiling without any curve fitting.
+  // sparkline: one straight segment per adjacent measured pair, scaled to [0, max]; an optional
+  // reference value (ln(vocab) for entropy) is drawn as a dashed ceiling, no curve fitting.
   function sparkline(values, opts) {
     opts = opts || {};
     const height = opts.height || 48;
@@ -55,14 +50,8 @@
     const count = Math.max(1, ...series.map((item) => item.values.length));
     const x = (index) => pad + (count > 1 ? index / (count - 1) : 0.5) * (width - 2 * pad);
     const y = (value) => height - pad - ((value - min) / span) * (height - 2 * pad);
-    const node = svg("svg", {
-      class: "signed-series", viewBox: "0 0 " + width + " " + height,
-      width: "100%", height: height, preserveAspectRatio: "none",
-    });
-    node.appendChild(svg("line", {
-      class: "zero-axis", x1: 0, y1: y(0), x2: width, y2: y(0),
-      stroke: "var(--line)", "stroke-width": 1,
-    }));
+    const node = svg("svg", { class: "signed-series", viewBox: "0 0 " + width + " " + height, width: "100%", height: height, preserveAspectRatio: "none", });
+    node.appendChild(svg("line", { class: "zero-axis", x1: 0, y1: y(0), x2: width, y2: y(0), stroke: "var(--line)", "stroke-width": 1, }));
     series.forEach((item, seriesIndex) => {
       const color = item.color || ["var(--acc)", "var(--amber)", "var(--ok)", "var(--err)"][seriesIndex % 4];
       let path = "";
@@ -73,10 +62,7 @@
         d: path.trim(), fill: "none", stroke: color, "stroke-width": 1.5,
       }));
       item.values.forEach((value, index) => {
-        const dot = svg("circle", {
-          cx: x(index), cy: y(value), r: 2, fill: color,
-          "data-value": String(value),
-        });
+        const dot = svg("circle", { cx: x(index), cy: y(value), r: 2, fill: color, "data-value": String(value), });
         const title = document.createElementNS(NS, "title");
         title.textContent = item.label + " [" + index + "] = " + value;
         dot.appendChild(title);
@@ -131,11 +117,7 @@
   }
 
   // shortLabel: truncate a tick label so axis ticks stay legible.
-  function shortLabel(text, keep) {
-    text = String(text == null ? "" : text);
-    keep = keep || 7;
-    return text.length > keep ? text.slice(0, keep - 1) + "…" : text;
-  }
+  function shortLabel(text, keep) { text = String(text == null ? "" : text); keep = keep || 7; return text.length > keep ? text.slice(0, keep - 1) + "…" : text; }
 
   // colorScaleLegend: the value→color key for a heatmap. Reads the SAME ramp()
   // the cells use (sampled as gradient stops) with min/mid/max ticks, so a reader
@@ -146,9 +128,7 @@
     const node = svg("svg", { viewBox: "0 0 " + width + " " + height, width: width, height: height });
     const defs = svg("defs", {});
     const grad = svg("linearGradient", { id: gid, x1: "0", y1: "0", x2: "1", y2: "0" });
-    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
-      grad.appendChild(svg("stop", { offset: (t * 100) + "%", "stop-color": ramp(t) }));
-    }
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) grad.appendChild(svg("stop", { offset: (t * 100) + "%", "stop-color": ramp(t) }));
     defs.appendChild(grad);
     node.appendChild(defs);
     node.appendChild(svg("rect", { x: 0, y: 0, width: width, height: barH, rx: 2, fill: "url(#" + gid + ")" }));
@@ -161,11 +141,9 @@
     return node;
   }
 
-  // heatmap: an N×N matrix as a grid of colored cells (e.g. a distance matrix or
-  // attention weights). Color encodes magnitude in [min, max] via ramp(). Returns
-  // a wrapper holding the grid plus a color-scale legend; optional opts.rowLabels
-  // / opts.colLabels add axis ticks when the matrix is small enough to stay
-  // legible. Values are shown as-is — no smoothing.
+  // heatmap: an N×N matrix as a grid of colored cells; color encodes magnitude in [min, max] via ramp().
+  // Returns the grid plus a color-scale legend; optional row/col labels add axis ticks when the matrix
+  // is small enough to stay legible. Values are shown as-is, no smoothing.
   function heatmap(matrix, opts) {
     opts = opts || {};
     const n = matrix.length;
@@ -181,11 +159,7 @@
     const marginTop = showTicks && colLabels ? 52 : 0;
     const grid = n * cell;
     const w = marginLeft + grid, h = marginTop + grid;
-    const node = svg("svg", {
-      viewBox: "0 0 " + w + " " + h,
-      width: Math.min(w, 480), height: Math.min(h, 480),
-      style: "max-width:100%",
-    });
+    const node = svg("svg", { viewBox: "0 0 " + w + " " + h, width: Math.min(w, 480), height: Math.min(h, 480), style: "max-width:100%" });
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         const value = matrix[i][j];

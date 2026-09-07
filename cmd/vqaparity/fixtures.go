@@ -57,10 +57,9 @@ type measurementBudget struct {
 }
 
 type evidencePolicy struct {
-	Version        uint16                                 `json:"version"`
-	Acceptance     map[acceptanceClass]numericAcceptance  `json:"acceptance"`
-	Measurement    map[measurementStage]measurementBudget `json:"measurement"`
-	DecodeMaxSteps int                                    `json:"decode_max_steps"`
+	Version     uint16                                 `json:"version"`
+	Acceptance  map[acceptanceClass]numericAcceptance  `json:"acceptance"`
+	Measurement map[measurementStage]measurementBudget `json:"measurement"`
 }
 
 //go:embed evidence_policy.json
@@ -69,8 +68,7 @@ var evidencePolicyJSON []byte
 var campaignEvidence = func() evidencePolicy {
 	var policy evidencePolicy
 	if err := json.Unmarshal(evidencePolicyJSON, &policy); err != nil || policy.Version != artifact.InitialDocumentVersion ||
-		len(policy.Acceptance) != len(acceptanceClasses) || len(policy.Measurement) != len(measurementStages) ||
-		!checked.PositiveInts(policy.DecodeMaxSteps) {
+		len(policy.Acceptance) != len(acceptanceClasses) || len(policy.Measurement) != len(measurementStages) {
 		panic("vqaparity: invalid evidence policy")
 	}
 	for _, class := range acceptanceClasses {

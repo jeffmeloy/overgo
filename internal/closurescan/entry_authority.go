@@ -218,7 +218,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				"cmd/smoke-lane/main.go":                       "smoke lane tooling; execution-semantics migration",
 				"cmd/eval-lane/main.go":                        "eval lane tooling; execution-semantics migration",
 				"cmd/sbom/main.go":                             "read-only go toolchain fact reads; execution-semantics migration",
-				"cmd/recipe/main.go":                           "read-only git fact reads; execution-semantics migration",
 				"cmd/advisories/main.go":                       "read-only git fact reads; execution-semantics migration",
 				"cmd/compatibility/training.go":                "training lane tooling; execution-semantics migration",
 				"cmd/composite-generation-lane/run_windows.go": "generation lane tooling; execution-semantics migration",

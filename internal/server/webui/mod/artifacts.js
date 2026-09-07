@@ -44,9 +44,7 @@
             el("div", { class: "mono", title: item.descriptor.id, text: fmt.shortID(item.descriptor.id) }),
             el("div", { class: "note", text: (item.descriptor.media_type || item.descriptor.id.split(":", 1)[0]) + " / " + fmt.bytes(item.descriptor.size) }),
             el("div", { class: "note", text: (item.producers || []).map(fmt.shortID).join(", ") || "producer unavailable" }))));
-        } catch (err) {
-          gallery.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { gallery.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
       loadButton.addEventListener("click", () => { cursor = ""; prior = []; load(); });
       next.addEventListener("click", () => { prior.push(cursor); cursor = nextCursor; load(); });

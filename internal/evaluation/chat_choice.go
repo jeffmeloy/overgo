@@ -25,6 +25,11 @@ type ChatChoiceRuntime interface {
 // candidate letter in the generated text.
 const chatChoiceInstruction = "\nAnswer with the letter only."
 
+// hostedChoiceMethod: the generated-letter method under the hosted-chat
+// protocol; the opener rides the user message (a hosted API owns its
+// template), a distinct scorer authority from the templated one.
+const hostedChoiceMethod = "generated-letter-hosted"
+
 // chatAnswerOpener opens the model turn so the letter is the next
 // thing the model writes (protocol decision 2026-09-03, measured on
 // the BBH chat pass): under the instruction alone gemma-4 reasons for
@@ -89,7 +94,7 @@ func answerChoiceByGeneration(
 	if err != nil {
 		return ChoiceObservation{}, err
 	}
-	result, err := generateText(ctx, runtime, testCase.Name, shaped+chatAnswerOpener, chatAnswerTokens)
+	result, err := Record(ctx, runtime, testCase.Name, shaped+chatAnswerOpener, chatAnswerTokens)
 	if err != nil {
 		return ChoiceObservation{}, err
 	}

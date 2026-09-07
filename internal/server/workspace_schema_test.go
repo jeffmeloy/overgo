@@ -46,7 +46,7 @@ func TestWorkspaceFormRenderer(t *testing.T) {
 			t.Errorf("schema form renderer lacks %q", expected)
 		}
 	}
-	app := serveTestRequest(handler, http.MethodGet, "/app.html", "").Body.String()
+	app := serveTestRequest(handler, http.MethodGet, "/boot.js", "").Body.String()
 	if !strings.Contains(app, "/schema_form.js") {
 		t.Fatal("workspace shell does not load schema form renderer")
 	}

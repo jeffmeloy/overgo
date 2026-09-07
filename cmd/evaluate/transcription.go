@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
@@ -93,10 +94,14 @@ func evaluateTranscriptionManifest(ctx context.Context, repository, path string)
 		return err
 	}
 	defer store.Close()
+	prompting := evaluation.PromptingRawCompletion
+	if suite.Prompt != "" {
+		prompting = evaluation.PromptingChatTemplate
+	}
 	plan, err := bindTranscriptionPlan(ctx, store, compiled, evaluation.ExactAuthorities{
 		ModelDefinition: manifest.ModelDefinition, RuntimeRecipe: manifest.RuntimeRecipe,
 		CodeCommit: strings.TrimSpace(manifest.CodeCommit), Environment: manifest.Environment,
-		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident, Prompting: prompting},
 	})
 	if err != nil {
 		return err
@@ -136,6 +141,15 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 	if err = strictjson.DecodeBytes(suiteData, &suite); err != nil {
 		return fmt.Errorf("evaluate: decode transcription resource suite: %w", err)
 	}
+	if suite.Prompt != "" {
+		revision, err := modelintake.CleanRevision(ctx)
+		if err != nil {
+			return err
+		}
+		if manifest.CodeCommit != revision {
+			return errors.New("evaluate: transcription execution commit differs from clean producer")
+		}
+	}
 	inputs := make([]evaluation.TranscriptionResourceInput, len(manifest.Inputs))
 	for index, input := range manifest.Inputs {
 		var audio artifact.ID
@@ -150,19 +164,26 @@ func evaluateTranscriptionResourceManifest(ctx context.Context, repository, path
 			Reference: dataset.AudioPayloadReference{Path: resolveEvaluationPath(base, input.Path), Audio: audio, Origin: input.Origin},
 		}
 	}
-	compiled, err := evaluation.CompileTranscription(suite)
-	if err != nil {
-		return err
-	}
 	store, err := overgodb.Open(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	if err := prepareTranscriptionSelection(ctx, store, &suite, inputs, manifest.MemoryBytes); err != nil {
+		return err
+	}
+	compiled, err := evaluation.CompileTranscription(suite)
+	if err != nil {
+		return err
+	}
+	prompting := evaluation.PromptingRawCompletion
+	if suite.Prompt != "" {
+		prompting = evaluation.PromptingChatTemplate
+	}
 	plan, err := bindTranscriptionPlan(ctx, store, compiled, evaluation.ExactAuthorities{
 		ModelDefinition: manifest.ModelDefinition, RuntimeRecipe: manifest.RuntimeRecipe,
 		CodeCommit: strings.TrimSpace(manifest.CodeCommit), Environment: manifest.Environment,
-		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+		Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident, Prompting: prompting},
 	})
 	if err != nil {
 		return err

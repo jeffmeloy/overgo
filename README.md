@@ -471,44 +471,334 @@ reads the same store the command line and the automation read, so a result
 shown in the workbench is the same durable record a gate or a script would
 see.
 
-### Surfaces
+### Front page
 
-- **Chat and media.** Multimodal conversation against the served model:
-  text, image, and audio attachments flow through the same bounded media
-  policy the APIs enforce, projected media and token counts survive in
-  earlier turns of the formatted history, and conversations continue across
-  server restarts because the interaction record — not the browser — owns
-  the state. Dedicated image, video, and speech generation workspaces drive
-  the corresponding model recipes.
+The default page is a conversation against the served model. Its shape is
+derived from the server, not from client configuration:
+
+- **Capability document.** `/workspace/manifest` declares, for the served
+  recipe, the modes the composer offers (chat, images, video, video edit,
+  speech, embeddings, rerank, and agent), each enabled or carrying the reason
+  it is refused, together with the media types the model accepts and the
+  byte, dimension, and pixel bounds the media policy enforces. The composer
+  derives itself from this document and re-derives when the served model
+  changes.
+- **Model pill.** The header names the served model beside its measured
+  evidence. The picker lists every servable model in the store; choosing one
+  switches the served model live through the swap proxy (`cmd/swap`), and
+  the page reports the switch as an operation chip. The proxy started
+  without a default model (`overgo_gui.bat` with no argument) answers the
+  shell itself until a child serves: the client, health naming no model,
+  the workspace manifest with every tab refused, and the store's catalog
+  for the picker; every other route refuses with the reason. The pill
+  says no model serves, the front page carries the one control that opens
+  the picker, and the chosen model's serve launches the first child, after
+  which the page continues as over any served model. The Library is the
+  one tab the cold page serves: a hosted provider lists and declares
+  there and a local model registers there through the same intake the
+  launcher binds (`internal/providerintake`), over the store the proxy
+  opens for the write while no child holds it; validation waits for a
+  served model, and the download surface says so. The browser lane opens
+  its journey from the cold proxy and declares its page provider there
+  before the first model serves. The proxy admits a request exactly as the
+  credential-less server does (a loopback Host on the listener, the
+  browser's cross-origin protection), before a key is placed in its
+  environment or a child is launched, so a foreign origin turns nothing.
+- **Conversations owned by the server.** Conversations are listed, resumed,
+  labelled, and reattached to a turn in flight from the interaction records;
+  the browser holds no state a reload would lose.
+- **Media import.** Images, audio, video, and documents attach by button,
+  drop, or paste. An attachment the served capability does not accept is
+  refused before upload with the declared reason; accepted media flow
+  through the same bounded media policy the APIs enforce. A model whose
+  store holds a projection activation serves its projector's media without
+  a command-line flag: the server resolves the projector's bytes from the
+  activation, so the swap proxy, the launcher, and the lane all serve
+  image, audio, and video input for every model that declares it.
+- **Generation from declarations.** A generation mode (images, video,
+  video edit, speech) reads the store's generation capabilities: every
+  model activated for the task is offered by name, a model whose request
+  no page can type is listed with the reason, and the request's own fields
+  render as controls, with the choices a model's artifact exports (a speech
+  model's voices) offered as a select. A request field the runtime resolves
+  from the typed ones is omitted rather than refused: Wan takes a prompt, a
+  negative prompt and a seed, and its runtime derives the conditioning
+  contexts through the model's own text encoder and the noise plan from the
+  seed on the device, with every generation parameter left blank taken from
+  the model's profile. LiveEdit takes a prompt, a seed and the artifact id
+  of a source clip: the capability decodes the clip's GIF into the planar
+  source video, derives the text context through the base model's text
+  pipeline, and compiles the condition from the declared edit schedule
+  (chunking, denoising timesteps, flow sigmas), refusing a clip whose
+  latent frames the schedule cannot chunk. The run goes through the generic run
+  route as an operation the strip shows, and its outputs land in the thread
+  as media artifacts (PNG, GIF, WAV) with their provenance. A question about
+  an image runs the same way: the vqa mode lists the models activated for
+  visual question answering with an image control (a stored artifact) and a
+  question control (the message body), the decode budget left blank is the
+  serving declaration's, and the answer lands in the thread as the
+  assistant's text, published as a plain-text output artifact behind the run
+  record. The serving pipeline is the one the parity harness verifies
+  (`internal/vqaserve`: the processor, the device vision tower, merger,
+  chained prefill and decode, and the two-stage recipe execution), so the
+  page answers with the activation the harness proved.
+- **Remote providers.** A hosted model enters the store as a declaration,
+  never as code: `go run ./cmd/remote-provider -declare docs/remote_providers/openrouter.json`
+  commits a provider document (the service name, its OpenAI-compatible API
+  endpoint, the environment variable holding the key) and, per model id, a
+  model manifest at a remote location with an active remote inference
+  recipe at the experimental tier. The servable catalog lists such a model
+  beside local ones; while the environment lacks the key the entry is
+  refused by the variable's name, and with it the server serves the model
+  through a relay (`internal/remoterelay`) that carries each conversation
+  to the provider's chat completions endpoint and streams the answer back.
+  A stream that ends before its terminal marker (the `[DONE]` event or a
+  finish reason) is refused as a truncated answer rather than returned as
+  a complete one, a provider's error event inside the stream is the
+  turn's error, and the caller's cancellation comes back as its own error.
+  The relay forwards text only and counts no tokens (the provider does);
+  its environment records the remote backend, so every interaction and
+  observation under it is marked as not reproducible from the store.
+  The front page lists a remote model in its picker under the model id's
+  last segment with a `remote` tag beside its evidence line and, while the
+  key is absent, its refusal; the capabilities document declares `remote`,
+  so the welcome card and every assistant turn from the model carry the
+  tag, and the composer sends a turn without an input-token count when the
+  count route refuses. The swap proxy resolves the entry to its remote
+  location, which the server serves through the relay. The Generate
+  workspace lists no remote model, since a declaration carries the
+  inference task only. The relay asks the provider's stream for its usage
+  chunk, so a hosted turn's response and its facts carry the provider's
+  prompt and completion counts where a local turn carries its own, and the
+  stored response keeps them. A withdrawn provider retires by location
+  (`go run ./cmd/remote-provider -retire remote://<provider>/<model> -reason <text>`):
+  a failed gate record under the remote environment retires the
+  activation and releases the model's active alias, so the catalog and the
+  provider listing stop offering it while the declaration stays in the
+  store's history. The browser lane declares a fake provider on loopback,
+  proves a remote turn with its marker through the real proxy, and retires
+  the declaration when the journey ends.
+  A hosted model is scored beside local ones: `go run ./cmd/evaluate -all`
+  lists a declared model whose key is set as a target without bytes on
+  disk, and a worker given its `remote://` reference evaluates it through
+  the relay under the hosted-chat protocol, in which each question travels
+  as the user message with the answer opener (the provider owns its
+  template) and multiple-choice suites score by the generated letter;
+  likelihood-scored suites are named and not taken, since a hosted
+  completion exposes no continuation likelihoods. The records are the
+  same evaluation records local models produce, bound to a remote model
+  definition (model, provider profile, relay recipe) in place of an
+  architecture, and to the remote environment, so every one reads as not
+  reproducible; the picker's evidence line marks such a score "hosted".
+  Without the key the session is refused by the variable's name. The
+  benchmark command refuses a hosted reference: there is no local decode
+  to measure.
+  The key can be entered on the page: a keyless hosted entry in the picker
+  names its variable and takes the key beside its refusal; the page posts
+  it to `/providers/key`, which the swap proxy intercepts to hold the key
+  in its own process (every child it launches from then on inherits it)
+  before the request rides on to the running child, which holds it too.
+  Nothing writes the key to the store or a log; it lives in process memory
+  until the proxy exits. The picker relists and the model serves.
+  A provider is declared from the Library tab as well: its form (name,
+  endpoint, key variable, model ids, context length) posts the same
+  document the command's file carries to `/library/register` under the
+  provider kind, the server commits it through the launcher's provider
+  intake under the executable's source commit, and the answer names each
+  declared location with the refusal its key's absence carries; the
+  catalog relists and the picker offers the models. The form also asks
+  the provider for the models it serves: `/library/providers/models`
+  fetches the endpoint's models listing under the key its variable holds
+  (the OpenAI-compatible listing carries each id; OpenRouter's adds the
+  name and context length), and a listed model picked on the page fills
+  the model ids and the declared context length, so a declaration names
+  only models the provider lists. A declared hosted model's row in the
+  Library catalog retires it with the section's reason through
+  `/library/providers/retire`, exactly as `cmd/remote-provider -retire`
+  does (a failed gate record under the remote environment, the active
+  alias released), and the catalog and the picker stop offering it. The form also asks
+  the provider for its own model listing (`GET
+  /library/providers/models`, the provider's models route under the key
+  its variable holds, so the key gates it): each listed model is offered
+  with the context length it declares, and picking one fills the model
+  ids and that context length, so a declaration made from the page names
+  only models the provider lists.
+- **Attachments as artifacts.** In a mode whose request names an artifact
+  (the VQA image, LiveEdit's source clip), a file attached to the composer
+  is stored before it is used: the page posts its bytes under their media
+  type to `/artifacts/intake`, the server accepts every type it decodes
+  (images against the image bounds, all media against the byte limits)
+  whatever the served chat model's projectors, commits a file document of
+  that type whose identity is the bytes, and answers its id; the card names
+  the stored artifact and the control takes the id, so the executor behind
+  the control accepts or refuses the document by its type. The file dialog
+  in such a mode is not narrowed to the chat model's types. In every other
+  mode an attachment travels inline with the turn as before.
+- **Transcription as a mode.** A server whose store holds the active CPU
+  transcription recipe of its transcription policy lists "Transcribe"
+  beside chat; the capability declares one artifact-typed audio control,
+  which an attached clip fills through the intake route and a stored
+  card's "use as input" fills directly; the generic run route executes the
+  transcription workspace under its resource bounds and completes with the
+  run's transcription document and the transcript's text as a plain-text
+  output, which the page renders as the assistant's turn. The policy comes
+  from `-transcription-policy` or, for a server the swap proxy launches,
+  from `transcription_policy.json` beside the store; a declared policy
+  whose recipe is not active is logged and the mode is absent. No
+  production path activates a transcription recipe yet (parked as a
+  finding), so a store activated by the ASR baseline harness is the only
+  one that lists the mode.
+- **Keyboard and phone paths.** Alt+M opens the model picker from anywhere
+  on the front page; its rows take focus, the arrows move between them and
+  Enter serves the focused row, the same path the mouse takes. Escape stops
+  a running turn from anywhere on the page, as the composer's stop control
+  does, and closes the turn inspector. At a phone width a message bubble is
+  bounded by the conversation's width and an unbroken line or a code block
+  wraps inside it, so nothing scrolls sideways; the acceptance lane proves
+  the keyboard path, the stop, and the phone-width conversation in the
+  real browser.
+- **The empty store.** When the catalog lists nothing servable the
+  welcome card's model control reads "Add a model" and opens the picker,
+  and the picker names the two ways a model enters: register a local
+  model, or declare a hosted provider and enter its key. Each control
+  opens the Library tab on its form with the first field focused. The
+  acceptance lane proves the welcome card, the picker, and the path to
+  the hosted form in the real browser.
+- **Presets from declared bounds.** A numeric request field can declare
+  its default, the step a valid value moves by and, for a frame count, the
+  frames one second holds; the video capability derives them from its
+  profile's generation policy and the model's strides (the VAE stride
+  times the patch size per axis). A form with such bounds prefills the
+  defaults, steps the fields by the stride, and offers aspect-ratio chips
+  that keep the default's pixel area and duration chips in whole seconds,
+  every value snapped to the stride. No ratio or size is typed for a model.
+- **Media input slots.** A capability's artifact inputs are declared on
+  its request (a label and a media kind per field), so a mode renders one
+  labeled slot per input rather than an untyped artifact control, a strip
+  of the store's recent files of that kind (attachments the composer
+  stored, media a capability made) fills a slot with one click, and a fresh
+  attachment goes to the slot of its kind. The store, not browser storage,
+  is the history. The journey fills the VQA image slot from its strip.
+- **Media gallery.** A generation mode lists the store's outputs of its
+  kind (image, video or audio) newest first as a rail of thumbnails, each
+  named by the capability that made it, with a filter to the picked
+  model. A thumbnail opens the output as a media card with the record
+  that made it: the run's request document as control and value rows
+  (the seed among them), the run, a download of the bytes, and "use as
+  input". A generation run cites the request document the runtime
+  recorded (the decoded request under the capability's input schema) as
+  its one input, so the record is the store's, never a second copy. The
+  journey reloads the page after generating an image and finds it first
+  in the rail, then opens its record.
+- **Prompt enhancement.** The composer's "enhance" control sends the typed
+  prompt through the served chat model under one fixed instruction the
+  server owns, and shows the rewrite beside the original for acceptance.
+  Every enhancement is stored as a record with the instruction, the
+  original, the rewrite and the model. An accepted rewrite sent unchanged
+  makes the record a source of the generation run: the run's request
+  document records the accepted prompt, and the run cites the record as
+  an input beside it, so the original stays its source and the lineage
+  shows both. A Go test pins the instruction and the record, and the
+  journey enhances a prompt before the oscillator image.
+- **Lineage and next steps.** A media card's "lineage" reads the store's
+  records around its artifact: the runs that made it, each with its
+  request document and media inputs, and the runs that used it, each
+  with its outputs. Beneath them the next steps list every active
+  generation capability whose declared slot takes the artifact's kind,
+  derived from the capability declarations and nothing typed for a
+  model; one click opens that mode with the model picked and the
+  artifact in the slot. The lineage route and the derivation are pinned
+  by Go tests, and the journey continues the generated image into the
+  slot of the capability that accepts an image.
+- **Regenerate and vary.** A media card behind a run offers "regenerate"
+  and "vary": both read the run's stored request document and resubmit it
+  to the capability that made it, unchanged or with a fresh seed, so page
+  state plays no part in the request. The new card names its parent. An
+  unchanged request answers with the same output artifact, since the
+  runtime keys the run by the request document, and the card says the
+  store memoized it. A request without a declared seed control cannot be
+  varied and the card says so. The journey varies the oscillator image
+  from its record and regenerates it to the memoized output.
+- **Media back in.** Every media card offers "use as input": the artifact's
+  bytes re-enter the composer as a file of their own kind, accepted or
+  refused by the served capability like any attachment. When the chosen
+  generation mode's request names an artifact (LiveEdit's source clip),
+  the same button fills that control with the card's stored id instead, so
+  a clip the page just generated is the next edit's source without leaving
+  the store.
+- **Turn inspection.** Any turn opens in the inspector with its run record,
+  and the analysis inspectors run over that turn's exact prompt and
+  completion.
+- **Agent mode.** With an active agent definition, the composer runs the
+  agent from the same conversation: tool steps and chat turns appear inline,
+  and exceptional mutations queue in the approvals inbox.
+- **Operations strip.** Long operations appear under the header as chips with
+  progress, a live event tail, cancel, and the durable receipt: run, outputs,
+  traces, attempts, stages, and decisions. The header carries the server,
+  proxy, and device state and the count of approvals waiting.
+- **Keyboard, motion, colour, width.** Every control is reachable from the
+  keyboard, the inspector closes on Escape and returns focus, reduced-motion
+  and colour-scheme preferences are honoured, and the layout holds down to
+  phone width.
+
+### Library lifecycle
+
+The Library tab takes a model or dataset from the Hugging Face hub into the
+catalog in four stages, each offered only once the previous one is durable.
+Select searches the hub. Download fetches the files with verified digests.
+Register publishes a model's resolved facts and a candidate recipe (known to
+the store, not yet servable), or registers a dataset's downloaded directory
+under its name. Validate runs a model as an operation the strip shows with
+its steps: an exact suite is recorded from the model's own greedy output over
+the prompts in `library_validation.json`, replayed exactly, published as gate
+and run evidence, and the recipe is activated with that evidence, after which
+the catalog serves the model as verified. This replay checks consistency,
+not independent task accuracy; a dataset validates by the preview
+the datasets route answers. Every stage reports its receipt as the store's
+identities. A projector beside the model, or one named with it, registers as
+the model's projection candidate: the files sort by what each declares,
+never by name. Projector activation requires an executed exact media suite
+covering every declared input mode through the recipe CLI. The library's
+text-prompt validation currently refuses projector requests because it has
+no media fixtures; opening a projector cannot verify its outputs. A model
+already on disk, with an optional projector, can register from the same tab.
+
+### Retained workbench
+
+The workbench tabs remain behind the front page:
+
+- **Generate workspace.** One workflow tab over the store's generation
+  capabilities: every activated media model by name, a refused one marked
+  with its reason, the request's declared controls rendered by the same
+  helper the front page's modes use, and the run as an operation with its
+  receipt.
 - **Agent sessions.** Agent definitions bind a prompt, model configuration,
   tools, and policies immutably; sessions execute with native tool calling
   against the typed tool catalog. Layered authority maps bound what each
   session may touch, and every past interaction replays from its durable
   record for inspection.
-- **Approvals inbox.** Exceptional mutations — actions outside a session's
-  standing authority — queue as argument-bound approval requests. The
-  operator sees the exact tool identity and arguments that will run; a
-  durable receipt precedes the side effect, and nothing executes on a stale
-  approval.
+- **Approvals inbox.** Exceptional mutations queue as argument-bound approval
+  requests. The operator sees the exact tool identity and arguments that will
+  run; a durable receipt precedes the side effect, and a decision is bound to
+  the approval request the operation advertises, so nothing executes on a
+  stale approval.
 - **Models and data.** The model catalog is derived from the store: every
   locally present model with its active recipe, verified capability tier,
-  and measured evidence — benchmark throughput and evaluation scores appear
-  beside each entry in the picker, so choosing a model is choosing from
-  evidence rather than filenames. Dataset browsing reads the active catalog
+  and measured evidence. Benchmark throughput and evaluation scores appear
+  beside each entry in the picker. Dataset browsing reads the active catalog
   without payload access, and the model builder and recipe inspector expose
   construction and activation records.
 - **Analysis.** Structure, tensor, attention, logit, hidden-state, and
   vocabulary inspectors over the loaded artifact. The attention view replays
   bounded plain-causal attention on the host and refuses compiled score
-  policies it cannot reproduce exactly — the displayed weights are recomputed
-  evidence, not a screenshot of runtime state.
+  policies it cannot reproduce exactly; the displayed weights are recomputed
+  evidence, not a copy of runtime state.
 - **Training.** Session-supervised training: a session is leased, observed,
   and recorded; the observer captures a pre-training evaluation bracket on
   admission and publishes the post-training deltas on finish, so every
   session's measured effect is attributed to it in the store.
-- **Evaluation.** Suites derive from the benchmark catalog in the store —
-  no suite files — and route by each model's declared evaluation domains,
-  so a DNA model never meets English multiple choice. Results publish back
+- **Evaluation.** Suites derive from the benchmark catalog in the store and
+  route by each model's declared evaluation domains. Results publish back
   through the campaign ledger and reappear as the evidence beside the model
   in the picker.
 - **Workflows and runtime.** Typed workflow graphs with bounded admission,
@@ -519,23 +809,57 @@ see.
   records behind every displayed result, down to the content identities a
   claim cites.
 
+### Verification
+
+The client is held by measures, not by rule prose: the composer budget
+test ratchets the JavaScript line count and the review criteria the lane
+census measures (silent fallbacks, window dialogs, controls and buttons
+without an accessible name, inline style attributes, nested ternaries,
+timer literals, debt markers, the largest file), each at its measured
+value and only tightening; `go run ./cmd/webui-lane -report` prints
+them beside the size measures.
+
+`go run ./cmd/webui-lane` runs the real-browser acceptance lane the gate
+selects for every web UI change: the workbench acceptance steps, the front
+page's keyboard, motion, colour, and width contract, and a first-run journey
+against a served model through the real swap proxy. The lane is the only
+way a browser test is evidence: outside it every browser test skips, so a
+plan verify that names one through `go test` alone is refused as vacuous,
+and a verify names the lane instead (`-run` selects the tests, `-require`
+names a journey line the run must write; a named test that skips, a run
+in which nothing passed, or a missing line fails the lane). The journey proves, in
+order, that the page boots once the default model serves, that the first
+message streams a reply and fills the context meter, that the inspector
+opens over the turn with its run record, that an agent created through the
+API runs a tool step and a chat turn from the same composer, that an image
+attachment reaches a grounded reply from the smallest model whose store
+declares a projector (the journey switches to it by declaration) or is
+refused with the declared reason when none is declared, that the served
+model switches through the picker and the composer re-derives, that a
+running turn stops from the composer, that an image comes out of the
+cheapest declared image model as an artifact card and goes back in as the
+next attachment, and that a speech clip comes out of the declared speech
+model with a voice its artifact exports. A leg whose prerequisite is absent
+(a browser, the built server, a servable model with bytes on disk) reports
+UNAVAILABLE rather than failing what it cannot observe.
+
 ### Usage
 
 Launch the server with a model (see Quick start) and open the listen
-address; the workbench is the default page. A typical serving session:
-pick a model in the catalog — the evidence line under each entry shows its
-measured throughput and evaluation scores — then chat, attach media, or
-open a generation workspace. A typical measurement session: open the
-evaluation workspace, run the store-derived suites for the served model,
-and watch the results land in the picker as published evidence. A typical
-training session: start a supervised session from the training workspace
-and read its bracket when it finishes — the pre/post deltas are the
-session's measured effect, not an impression.
+address; the front page is the default page. A typical serving session:
+pick a model from the pill, then chat, attach media, or choose a generation
+mode. A typical intake session: search the hub in the Library tab, download,
+register, and validate, and watch the model appear in the pill as verified.
+A typical measurement session: open the evaluation workspace, run the
+store-derived suites for the served model, and watch the results land in the
+picker as published evidence. A typical training session: start a supervised
+session from the training workspace and read its bracket when it finishes;
+the pre/post deltas are the session's measured effect.
 
 Interventions follow the same shape everywhere: inspect the record first,
 act through a bounded control, and find the durable receipt in the store
-afterward. Steering from the workbench — goals, priorities, interventions,
-approvals, rollback — enters through the same bounded interface the RSI
+afterward. Steering from the workbench (goals, priorities, interventions,
+approvals, rollback) enters through the same bounded interface the RSI
 path uses. Nothing is reachable from the browser that is not equally
 reachable, and equally checked, from the deterministic control plane.
 
@@ -677,7 +1001,14 @@ store-recorded:
 The sole live backlog and dependency queue is [docs/plan.json](docs/plan.json).
 Imported branch plans, design records, staged-surface inventory, and historical
 Git snapshots are evidence only; distinct requirements from them are mapped
-into that canonical plan instead of maintained as parallel checklists.
+into that canonical plan instead of maintained as parallel checklists. A
+plan names its lane (`lane`) and an item its owner (`owner`); dispatch in a
+lane takes the lane's own rows first and then unowned rows, never another
+lane's, so a worktree that carries rows retained from another lane cannot
+dispatch them, and the stop gate counts only what the lane can dispatch.
+`go run ./cmd/plan -assign <item> -owner <lane>` and `-set-lane <lane>`
+record the ownership; an explicit `-role` or `OVERGO_AUTOMATION_ROLE`
+still takes precedence over the plan's lane.
 
 Human steering remains a supported operating mode throughout: human and model
 steering submit goals through the same bounded interface, and deterministic
@@ -716,7 +1047,7 @@ Requirements:
 - NVIDIA CUDA driver
 - A model artifact supported by an available configuration
 
-Start the operator workbench:
+Start the front page (builds the server and the swap proxy, then opens the browser):
 
 ```bat
 overgo_gui.bat "D:\models\model.gguf"

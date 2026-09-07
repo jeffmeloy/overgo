@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/mediacapability"
+	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -12,33 +14,20 @@ import (
 	"overgo/internal/testutil"
 )
 
-func candidateCapabilityExecution(
-	t testing.TB,
-	store artifact.Reader,
-	program recipe.Program,
-) modelrecipe.CapabilityEvidenceSelection {
-	t.Helper()
-	execution, err := modelrecipe.CompileCandidateExecution(t.Context(), store, program)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return execution
-}
-
 func TestCommandsRegisterExecutableCapabilities(t *testing.T) {
 	for _, task := range []recipe.Task{
 		recipe.TaskGeneration, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq,
 		recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen,
 	} {
 		t.Run(string(task), func(t *testing.T) {
-			capability, ok := capabilities[task]
-			if !ok || capability.resolve == nil || capability.execute == nil {
+			capability, ok := mediacapability.Catalog[task]
+			if !ok || capability.Resolve == nil || capability.Execute == nil {
 				t.Fatalf("capability = %+v", capability)
 			}
 		})
 	}
-	projection := projectionCapability("")
-	if projection.resolve == nil || projection.execute != nil {
+	projection := mediacapability.Projection(t.Context(), nil, "")
+	if projection.Resolve == nil || projection.Execute != nil {
 		t.Fatalf("projection capability = %+v", projection)
 	}
 }
@@ -59,7 +48,7 @@ func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/recipe-verifier/candidate", definition); err != nil {
 		t.Fatal(err)
 	}
-	verification, err := publishCapabilityVerification(
+	verification, err := modelintake.PublishVerification(
 		ctx, store, definition, "0123456789abcdef0123456789abcdef01234567", time.Millisecond,
 		"host", "go", "fixture output validated",
 	)

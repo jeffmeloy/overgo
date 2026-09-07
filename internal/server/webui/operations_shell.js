@@ -1,19 +1,20 @@
+/* operations_shell.js: the operations strip under the header on every page: each runtime operation as a chip
+   with progress, cancel, the live event tail and the durable receipt (/operations/evidence); the approvals
+   count in the header that opens the inbox; and local chips a page adds (a model switch). */
 (function () {
   "use strict";
 
   const overgo = window.overgo;
   const { api, el, fmt } = overgo;
   const operations = new Map();
+  const tails = new Map(); // operation id -> the last events the stream reported
   let selected = "";
   let detailRequest = null;
+  let shellHost = null;
 
-  function terminal(state) {
-    return state === "completed" || state === "cancelled" || state === "failed";
-  }
+  function terminal(state) { return state === "completed" || state === "cancelled" || state === "failed"; }
 
-  function routeOperation() {
-    return new URL(window.location.href).searchParams.get("operation") || "";
-  }
+  function routeOperation() { return new URL(window.location.href).searchParams.get("operation") || ""; }
 
   function updateRoute(id, replace) {
     const url = new URL(window.location.href);
@@ -22,12 +23,7 @@
     window.history[replace ? "replaceState" : "pushState"](null, "", url);
   }
 
-  function artifactLink(id, label) {
-    return el("a", {
-      class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), target: "_blank", rel: "noopener",
-      text: label || fmt.shortID(id),
-    });
-  }
+  const artifactLink = window.overgo.artifactLink;
 
   function operationProgress(status) {
     const progress = status && status.progress || {};
@@ -39,47 +35,53 @@
     const active = values.filter((item) => !terminal(item.state)).length;
     const blocked = values.filter((item) => item.state === "blocked").length;
     const failed = values.filter((item) => item.state === "failed").length;
-    const strip = el("div", { class: "operation-strip" },
+    const strip = el("div", { class: "operation-strip", "aria-live": "polite" },
       el("span", { class: "operation-strip-label", text: "Operations" }),
       el("span", { class: "note", text: active + " active / " + blocked + " blocked / " + failed + " failed" }));
     for (const item of values) {
       strip.appendChild(el("button", {
         class: "operation-chip " + item.state + (selected === item.id ? " active" : ""),
-        text: item.state + " / " + fmt.shortID(item.id),
+        text: item.state + " / " + (item.local ? item.task : fmt.shortID(item.id)) + (item.progress && item.progress.total != null ? " · " + operationProgress(item) : ""),
         title: item.task + " / " + item.id,
         onclick: () => selectOperation(host, item.id, false),
       }));
     }
     host.firstElementChild.replaceWith(strip);
+    // The approvals count: every blocked operation waiting on a decision.
+    const waiting = values.filter((item) => item.state === "blocked" && item.recovery).length;
+    const badge = document.getElementById("inbox-count");
+    if (badge) { badge.hidden = !waiting; badge.textContent = waiting + " waiting"; }
   }
 
   async function cancelOperation(host, id) {
     try {
       await api.post("/operations/cancel", { id });
-    } catch (err) {
-      renderDetailError(host, err);
-    }
+    } catch (err) { renderDetailError(host, err); }
+  }
+
+  // decide records one operator decision bound to the approval request the operation advertises now.
+  async function decide(id, tool, answer) {
+    const view = await api.get("/operations/decisions");
+    const blocked = (view.blocked || []).find((item) => item.operation === id);
+    const action = blocked && (blocked.actions || []).find((item) => item.code === tool);
+    if (!action || !action.request) throw new Error("operation no longer advertises this decision");
+    return api.post("/operations/decision", { operation: id, tool, answer, request: action.request });
   }
 
   async function decideOperation(host, id, tool, answer) {
     try {
-      // A decision must name the advertised approval request, so read the
-      // pending-decision view and grant exactly what it advertises now.
-      const view = await api.get("/operations/decisions");
-      const blocked = (view.blocked || []).find((item) => item.operation === id);
-      const action = blocked && (blocked.actions || []).find((item) => item.code === tool);
-      if (!action || !action.request) throw new Error("operation no longer advertises this decision");
-      await api.post("/operations/decision", { operation: id, tool, answer, request: action.request });
+      await decide(id, tool, answer);
       await loadDetail(host, id);
-    } catch (err) {
-      renderDetailError(host, err);
-    }
+    } catch (err) { renderDetailError(host, err); }
   }
 
-  function renderDetailError(host, err) {
-    const detail = host.lastElementChild;
-    detail.hidden = false;
-    detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
+  function renderDetailError(host, err) { const detail = host.lastElementChild; detail.hidden = false; detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+
+  // tail: the live event tail of one operation, newest last, each event time-stamped here.
+  function tail(id) {
+    const rows = tails.get(id) || [];
+    return overgo.table(["at", "state", "progress", "detail"], rows.map((event) => [
+      new Date(event.at).toLocaleTimeString(), el("span", { text: event.state }), event.progress, el("span", { text: event.detail || "" })]));
   }
 
   function renderDetail(host, projection) {
@@ -94,7 +96,7 @@
       el("strong", { class: "mono", text: projection.id }),
       el("span", { class: "grow" }),
       el("button", { class: "btn alt", text: "Close", onclick: () => selectOperation(host, "", false) }));
-    if (status.id && !terminal(status.state) && status.state !== "blocked") {
+    if (status.id && !status.local && !terminal(status.state) && status.state !== "blocked") {
       head.insertBefore(el("button", { class: "btn alt", text: "Cancel", onclick: () => cancelOperation(host, status.id) }), head.lastElementChild);
     }
 
@@ -123,51 +125,25 @@
       notices.append(el("div", { class: "section-title", text: "Recovery decision" }), actions);
     }
 
+    // The durable receipt: the run, its outputs and the traces behind it.
     const links = el("div", { class: "row" });
     if (status.run) links.appendChild(artifactLink(status.run, "run " + fmt.shortID(status.run)));
     for (const output of status.outputs || []) links.appendChild(artifactLink(output, "output " + fmt.shortID(output)));
-    for (const document of projection.interactions || []) {
-      const trace = document.value && document.value.trace;
-      if (trace) links.appendChild(artifactLink(trace, "trace " + fmt.shortID(trace)));
-    }
+    for (const document of projection.interactions || []) { const trace = document.value && document.value.trace; if (trace) links.appendChild(artifactLink(trace, "trace " + fmt.shortID(trace))); }
 
-    const attemptTable = el("table", { class: "grid" });
-    attemptTable.appendChild(el("tr", {}, el("th", { text: "attempt" }), el("th", { text: "outcome" }),
-      el("th", { text: "duration" }), el("th", { text: "evidence" })));
-    for (const document of projection.serving || []) {
-      const attempt = document.value;
-      attemptTable.appendChild(el("tr", {}, el("td", { class: "mono", text: attempt.attempt }),
-        el("td", { text: attempt.outcome }),
-        el("td", { class: "mono", text: (Number(attempt.measured_ns || 0) / 1e6).toFixed(2) + " ms" }),
-        el("td", {}, artifactLink(document.id))));
-    }
-    for (const attempt of status.attempts || []) attemptTable.appendChild(el("tr", {},
-      el("td", { class: "mono", text: "operation" }), el("td", { text: "recorded" }), el("td", {}),
-      el("td", {}, artifactLink(attempt))));
-
-    const stageTable = el("table", { class: "grid" });
-    stageTable.appendChild(el("tr", {}, el("th", { text: "stage" }), el("th", { text: "state" }),
-      el("th", { text: "attempt" }), el("th", { text: "failure" })));
-    for (const document of projection.stages || []) {
-      const stage = document.value;
-      stageTable.appendChild(el("tr", {}, el("td", { class: "mono", text: stage.node }),
-        el("td", { text: stage.state }), el("td", { class: "mono", text: stage.attempt }),
-        el("td", { text: stage.failure || "" })));
-    }
-
-    const decisionTable = el("table", { class: "grid" });
-    decisionTable.appendChild(el("tr", {}, el("th", { text: "answer" }), el("th", { text: "tool" }),
-      el("th", { text: "arguments" }), el("th", { text: "evidence" })));
-    for (const document of projection.decisions || []) {
-      const decision = document.value;
-      decisionTable.appendChild(el("tr", {}, el("td", { text: decision.answer }), el("td", { text: decision.tool }),
-        el("td", { class: "mono", text: (decision.arguments || []).join(" ") }),
-        el("td", {}, artifactLink(document.id))));
-    }
+    const attempts = (projection.serving || []).map((document) => [document.value.attempt, el("span", { text: document.value.outcome }),
+      (Number(document.value.measured_ns || 0) / 1e6).toFixed(2) + " ms", artifactLink(document.id)])
+      .concat((status.attempts || []).map((attempt) => ["operation", el("span", { text: "recorded" }), "", artifactLink(attempt)]));
+    const attemptTable = overgo.table(["attempt", "outcome", "duration", "evidence"], attempts);
+    const stageTable = overgo.table(["stage", "state", "attempt", "failure"], (projection.stages || []).map((document) => [
+      document.value.node, el("span", { text: document.value.state }), document.value.attempt, el("span", { text: document.value.failure || "" })]));
+    const decisionTable = overgo.table(["answer", "tool", "arguments", "evidence"], (projection.decisions || []).map((document) => [
+      document.value.answer, el("span", { text: document.value.tool }), (document.value.arguments || []).join(" "), artifactLink(document.id)]));
 
     detail.hidden = false;
     detail.replaceChildren(head, progress, stats, notices,
-      el("div", { class: "section-title", text: "Outputs and traces" }), links,
+      el("div", { class: "section-title", text: "Live events" }), tail(projection.id),
+      el("div", { class: "section-title", text: "Outputs and traces (the receipt)" }), links,
       el("div", { class: "operation-evidence-columns" },
         el("div", {}, el("div", { class: "section-title", text: "Attempts" }), attemptTable),
         el("div", {}, el("div", { class: "section-title", text: "Stages" }), stageTable),
@@ -180,62 +156,71 @@
     const controller = new AbortController();
     detailRequest = controller;
     try {
-      const projection = await api.get("/operations/evidence?id=" + encodeURIComponent(id), { signal: controller.signal });
+      const status = operations.get(id);
+      // A local chip has no durable evidence; its detail is the chip's own facts.
+      const projection = status && status.local ? { id, operation: status } : await api.get("/operations/evidence?id=" + encodeURIComponent(id), { signal: controller.signal });
       if (selected === id) renderDetail(host, projection);
-    } catch (err) {
-      if (!err || err.name !== "AbortError") renderDetailError(host, err);
-    } finally {
-      if (detailRequest === controller) detailRequest = null;
-    }
+    } catch (err) { if (!err || err.name !== "AbortError") renderDetailError(host, err); } finally { if (detailRequest === controller) detailRequest = null; }
   }
 
   function selectOperation(host, id, replace) {
     selected = id;
     updateRoute(id, replace);
     renderStrip(host);
-    if (!id) {
-      if (detailRequest) detailRequest.abort();
-      host.lastElementChild.hidden = true;
-      host.lastElementChild.replaceChildren();
-      return;
-    }
+    if (!id) { if (detailRequest) detailRequest.abort(); host.lastElementChild.hidden = true; host.lastElementChild.replaceChildren(); return; }
     loadDetail(host, id);
+  }
+
+  // note records one event in an operation's live tail, bounded to the last dozen.
+  function note(status, detail) {
+    const rows = tails.get(status.id) || [];
+    rows.push({ at: Date.now(), state: status.state, progress: operationProgress(status), detail: detail || status.failure || "" });
+    tails.set(status.id, rows.slice(-12));
+  }
+
+  // localOperation: a page reports work the runtime does not track (a model switch) as a chip.
+  function localOperation(status) {
+    status.local = true;
+    operations.set(status.id, status);
+    note(status, status.detail);
+    if (shellHost) {
+      renderStrip(shellHost);
+      if (selected === status.id) renderDetail(shellHost, { id: status.id, operation: status });
+    }
   }
 
   function start() {
     const host = document.getElementById("global-operation-shell");
     if (!host) return;
+    shellHost = host;
     host.replaceChildren(el("div", { class: "operation-strip" }), el("div", { class: "operation-detail", hidden: true }));
     selected = routeOperation();
     renderStrip(host);
     if (selected) loadDetail(host, selected);
     overgo.runtimeEvents.subscribe((name, value) => {
       if (name === "operation.snapshot") {
-        operations.clear();
+        for (const [id, item] of operations) if (!item.local) operations.delete(id);
         for (const item of value || []) operations.set(item.id, item);
         renderStrip(host);
-        if (!selected) {
-          host.lastElementChild.hidden = true;
-          host.lastElementChild.replaceChildren();
-        }
+        if (!selected) { host.lastElementChild.hidden = true; host.lastElementChild.replaceChildren(); }
       }
       if (name === "operation") {
         operations.set(value.status.id, value.status);
+        note(value.status, value.stage && value.stage.node ? "stage " + value.stage.node + " " + (value.stage.state || "") : "");
         renderStrip(host);
-        if (selected === value.status.id) {
-          loadDetail(host, selected);
-        }
+        if (selected === value.status.id) loadDetail(host, selected);
       }
       if (name === "stream.error") renderDetailError(host, value);
     });
-    window.addEventListener("popstate", () => {
-      const id = routeOperation();
-      if (id !== selected) selectOperation(host, id, true);
-    });
+    window.addEventListener("popstate", () => { const id = routeOperation(); if (id !== selected) selectOperation(host, id, true); });
     const key = document.getElementById("api-key");
     if (key) key.addEventListener("change", () => overgo.runtimeEvents.restart());
+    const badge = document.getElementById("inbox-count");
+    if (badge) badge.addEventListener("click", () => { location.hash = "inbox"; });
   }
 
+  window.overgo.localOperation = localOperation;
+  window.overgo.decideOperation = decide;
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();
 })();

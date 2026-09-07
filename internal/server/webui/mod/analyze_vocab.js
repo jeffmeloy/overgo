@@ -12,10 +12,7 @@
       let timer = null;
 
       clear(panel);
-      const search = el("input", {
-        class: "text", type: "search", placeholder: "search token text (substring, case-insensitive)…",
-        style: "max-width:420px",
-      });
+      const search = el("input", { class: "text", type: "search", placeholder: "search token text (substring, case-insensitive)…", style: "max-width:420px", });
       const status = el("span", { class: "note" });
       const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "‹ prev");
       const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "next ›");
@@ -35,15 +32,9 @@
         let data;
         try {
           data = await overgo.api.get("/analyze/vocab?" + params.toString());
-        } catch (err) {
-          host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-          return;
-        }
+        } catch (err) { host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
         // Clamp a past-the-end page back to the last populated window.
-        if (data.tokens.length === 0 && offset > 0 && data.matched > 0) {
-          offset = Math.max(0, Math.floor((data.matched - 1) / limit) * limit);
-          return load();
-        }
+        if (data.tokens.length === 0 && offset > 0 && data.matched > 0) { offset = Math.max(0, Math.floor((data.matched - 1) / limit) * limit); return load(); }
         const first = data.matched === 0 ? 0 : offset + 1;
         const last = offset + data.tokens.length;
         status.textContent = query
@@ -52,16 +43,8 @@
         prev.disabled = offset === 0;
         next.disabled = last >= data.matched;
 
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {},
-          el("th", { text: "id" }), el("th", { text: "token" }), el("th", { text: "type" }), el("th", { text: "score" })));
-        for (const token of data.tokens) {
-          table.appendChild(el("tr", {},
-            el("td", { class: "mono", text: String(token.id) }),
-            el("td", { class: "mono", text: token.text === "" ? "∅" : token.text }),
-            el("td", {}, el("span", { class: "tag " + token.type, text: token.type })),
-            el("td", { class: "mono", text: token.score ? token.score.toFixed(4) : "0" })));
-        }
+        const table = overgo.table(["id", "token", "type", "score"], data.tokens.map((token) => [String(token.id),
+          token.text === "" ? "∅" : token.text, el("span", { class: "tag " + token.type, text: token.type }), token.score ? token.score.toFixed(4) : "0"]));
         host.replaceChildren(table);
       }
 

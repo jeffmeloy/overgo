@@ -225,20 +225,37 @@ func (h *Handler) agentChat(response http.ResponseWriter, request *http.Request)
 	h.chatCompletions(response, forwarded)
 }
 
+// aliasNamesUnder pages the store's alias projection to every alias under a
+// root: a bounded first page hid every agent once the store grew past it.
+func (h *Handler) aliasNamesUnder(ctx context.Context, kind artifact.Kind, root string) ([]string, error) {
+	query := overgodb.Query{Kind: kind, MaxResults: h.config.MaxStoredResponses, Projection: overgodb.ProjectAliases}
+	var names []string
+	for {
+		result, err := h.repository.Query(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		for _, alias := range result.Aliases {
+			if name, found := strings.CutPrefix(alias.Name, root); found {
+				names = append(names, name)
+			}
+		}
+		if result.Next == nil {
+			return names, nil
+		}
+		query.Cursor = result.Next
+	}
+}
+
 func (h *Handler) agentInventory(ctx context.Context) ([]AgentInventoryEntry, error) {
-	result, err := h.repository.Query(ctx, overgodb.Query{
-		MaxResults: h.config.MaxStoredResponses, Projection: overgodb.ProjectAliases,
-	})
+	var anyKind artifact.Kind // every kind: activations are evidence, but the alias root is the authority
+	names, err := h.aliasNamesUnder(ctx, anyKind, runrecord.AgentActiveAliasRoot)
 	if err != nil {
 		return nil, err
 	}
 	authority := runrecord.AgentAuthority{Repository: h.repository}
 	entries := make([]AgentInventoryEntry, 0)
-	for _, alias := range result.Aliases {
-		name, found := strings.CutPrefix(alias.Name, runrecord.AgentActiveAliasRoot)
-		if !found {
-			continue
-		}
+	for _, name := range names {
 		active, resolved, resolveErr := authority.Resolve(ctx, name)
 		if resolveErr != nil || !resolved {
 			return nil, errors.Join(errors.New("server: agent active alias differs"), resolveErr)

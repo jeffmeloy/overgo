@@ -6,7 +6,8 @@
 //
 // Resolution order:
 //  1. OVERGO_DATA_ROOT env — one base directory holding overgodb-store/,
-//     models/, datasets/, checkpoints/.
+//     models/, datasets/, checkpoints/, or a local-models.json of its own
+//     that names where those live.
 //  2. local-models.json in the working directory — explicit per-root paths,
 //     which is how overgo points at data that lives in another repository's
 //     home without moving a byte (data never moves; code comes to the data).
@@ -49,21 +50,30 @@ func ResolveCurrent() (Roots, error) {
 	return Resolve(working)
 }
 
-// Resolve returns the data roots for the given working directory.
+// Resolve returns the data roots for the given working directory. The
+// OVERGO_DATA_ROOT base is itself resolved as a working directory: its own
+// local-models.json, when present, redirects the bulk roots the way a
+// checkout's does, so a base that keeps its store beside a config pointing
+// at data in another home resolves the same from any tree.
 func Resolve(workingDirectory string) (Roots, error) {
 	if base := strings.TrimSpace(os.Getenv(Env)); base != "" {
 		info, err := os.Stat(base)
 		if err != nil || !info.IsDir() {
 			return Roots{}, fmt.Errorf("dataroot: %s=%q is not a directory", Env, base)
 		}
-		return Roots{
-			Store:       filepath.Join(base, "overgodb-store"),
-			Models:      filepath.Join(base, "models"),
-			Datasets:    filepath.Join(base, "datasets"),
-			Checkpoints: filepath.Join(base, "checkpoints"),
-			Source:      Env,
-		}, nil
+		roots, err := resolveIn(base)
+		if err != nil {
+			return Roots{}, err
+		}
+		roots.Source = Env
+		return roots, nil
 	}
+	return resolveIn(workingDirectory)
+}
+
+// resolveIn resolves the roots a directory declares: its local-models.json
+// when present, else the directory's own default layout.
+func resolveIn(workingDirectory string) (Roots, error) {
 	configPath := filepath.Join(workingDirectory, ConfigFile)
 	raw, err := os.ReadFile(configPath)
 	if os.IsNotExist(err) {

@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "fc854bb2393ad0993537c779f5e4ccc132843d3cbb84b01e16165f5bf0558777",
+  "source_identity": "60b1a1b9e712bcdd064cde6401176f44ac3745113af6a2a7e0c6a443a58b5b24",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 2846,
-    "typed_files": 2782
+    "inspected_files": 3009,
+    "typed_files": 2945
   },
   "guidelines": [
     {
@@ -4733,17 +4733,6 @@
     },
     {
       "guideline": "context_timeout_deadline_cause",
-      "path": "cmd/server/main.go",
-      "symbol": "run",
-      "owner": "overgo/cmd/server",
-      "reason": "The owner preserves the established cancellation error identity or CancelFunc type and has no stable cause to publish.",
-      "oracle": "go test ./cmd/server -count=1",
-      "retirement": "Retire when the API can expose a stable cancellation cause without changing its cancel function or observed error contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "context_timeout_deadline_cause",
       "path": "internal/adaptiveparity/process_harness_windows_model_test.go",
       "symbol": "measureModelProcesses",
       "owner": "overgo/internal/adaptiveparity",
@@ -5161,5 +5150,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "e2402054cac6e8f5ab1afced38b8a47b803afa782d883761da84250c85db83e6"
+  "exceptions_sha256": "edd8993fd838cdb4573db9ea5aca84756b2a6767b4292a008d3dcd5abcd88cae"
 }

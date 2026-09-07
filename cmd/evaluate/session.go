@@ -15,6 +15,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/remoteprovider"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
 	"overgo/internal/tokenizer"
@@ -58,6 +59,13 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 	}
 	fail := func(cause error) (evaluationSession, error) {
 		return nil, errors.Join(cause, store.Close())
+	}
+	if remoteprovider.IsRemoteLocation(request.Path) {
+		session, err := openHostedSession(ctx, store, value, request.Path)
+		if err != nil {
+			return fail(err)
+		}
+		return session, nil
 	}
 	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, request.Path)
 	if err != nil {
@@ -151,15 +159,22 @@ func (r chatShapedRuntime) ScoreContinuations(
 }
 
 func (s *nativeSession) Evaluate(ctx context.Context, path string) error {
+	return evaluateSuiteFile(ctx, s.campaign, path)
+}
+
+// evaluateSuiteFile compiles the suite file under the campaign's
+// authorities and campaigns it; every session evaluates named suites
+// this way.
+func evaluateSuiteFile(ctx context.Context, campaign *evaluation.Campaign, path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	compiled, err := evaluation.CompileSuite(data, s.campaign.Authorities())
+	compiled, err := evaluation.CompileSuite(data, campaign.Authorities())
 	if err != nil {
 		return fmt.Errorf("evaluate: compile suite %q: %w", path, err)
 	}
-	_, err = s.campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), compiled)
+	_, err = campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), compiled)
 	return err
 }
 

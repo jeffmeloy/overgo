@@ -43,7 +43,7 @@ func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
 		positions["scope"] >= positions["architecture"] || positions["architecture"] >= positions["profile"] {
 		t.Fatalf("architecture dependency order = scope:%d architecture:%d profile:%d", positions["scope"], positions["architecture"], positions["profile"])
 	}
-	for _, expensive := range []string{"acceptance", "vet", "build", "test", "device"} {
+	for _, expensive := range []string{"acceptance", "vet", "build", "test", "device", automationcheck.WebUICheckName} {
 		if positions["architecture"] >= positions[expensive] {
 			t.Fatalf("architecture ratchet at %d follows %s at %d", positions["architecture"], expensive, positions[expensive])
 		}

@@ -17,22 +17,17 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		needle      string
 	}{
 		{"/", "text/html; charset=utf-8", "overgo"},
-		{"/index.html", "text/html; charset=utf-8", "probing /health"},
-		{"/probe.js", "text/javascript; charset=utf-8", "window.probe"},
-		{"/app.html", "text/html; charset=utf-8", "workbench"},
+		{"/index.html", "text/html; charset=utf-8", "workbench"},
 		{"/style.css", "text/css; charset=utf-8", "--acc"},
 		{"/boot.js", "text/javascript; charset=utf-8", "window.overgo"},
 		{"/viz.js", "text/javascript; charset=utf-8", "sparkline"},
 		{"/md.js", "text/javascript; charset=utf-8", "overgo.md"},
 		{"/workflow.js", "text/javascript; charset=utf-8", "workflowWorkspace"},
 		{"/schema_form.js", "text/javascript; charset=utf-8", "schemaForm"},
-		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/chat/completions"},
-		{"/mod/agent.js", "text/javascript; charset=utf-8", "/agents/step"},
+		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/responses"},
+		{"/mod/agent.js", "text/javascript; charset=utf-8", "overgo.toolStep("},
 		{"/mod/inbox.js", "text/javascript; charset=utf-8", "/operations/inbox"},
-		{"/mod/video.js", "text/javascript; charset=utf-8", "/v1/videos/generations"},
 		{"/mod/generation.js", "text/javascript; charset=utf-8", `scope: "generation"`},
-		{"/mod/image.js", "text/javascript; charset=utf-8", "/v1/images/generations"},
-		{"/mod/speech.js", "text/javascript; charset=utf-8", "/v1/audio/speech"},
 		{"/mod/discovery.js", "text/javascript; charset=utf-8", "/hub/search"},
 		{"/mod/runtime.js", "text/javascript; charset=utf-8", "runtimeEvents"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
@@ -82,7 +77,7 @@ func TestEvaluationWorkbenchUsesDeclaredCapabilities(t *testing.T) {
 			t.Errorf("evaluation workbench embeds benchmark %q", benchmark)
 		}
 	}
-	if !strings.Contains(serveTestRequest(handler, http.MethodGet, "/app.html", "").Body.String(), "/mod/evaluations.js") {
+	if !strings.Contains(serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "").Body.String(), `"id":"evaluations"`) {
 		t.Fatal("workbench shell does not load evaluation module")
 	}
 }
@@ -112,7 +107,7 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 			t.Errorf("boot lifecycle missing %q", token)
 		}
 	}
-	if !strings.Contains(get("/app.html"), "/mod/runtime.js") {
+	if !strings.Contains(get("/workspace/manifest"), `"id":"runtime"`) {
 		t.Error("app shell does not load runtime module")
 	}
 }
@@ -128,7 +123,7 @@ func TestWorkflowStageGUI(t *testing.T) {
 
 func TestToolDecisionGUI(t *testing.T) {
 	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, token := range []string{"/operations/decision", "item.recovery", "Grant ", "decline"} {
+	for _, token := range []string{"overgo.decideOperation(", "item.recovery", "Grant ", "decline"} {
 		if !strings.Contains(runtime, token) {
 			t.Errorf("tool decision GUI missing %q", token)
 		}
@@ -213,8 +208,8 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 	}
 	chat := get("/mod/chat.js")
 	for _, token := range []string{
-		`api.get("/props")`,
-		`api.post("/v1/chat/completions/input_tokens"`,
+		"overgo.capabilities(",
+		`api.post("/v1/responses/input_tokens"`,
 		"overgo.api.stream(",
 		"Context ratio",
 		"terminal.usage",
@@ -434,7 +429,7 @@ func TestWebUICancel(t *testing.T) {
 	}
 	for _, asset := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
 		body := get(asset)
-		if !strings.Contains(body, "overgo.runner(") {
+		if !strings.Contains(body, "overgo.runner(") && !strings.Contains(body, "overgo.analysisSurface(") {
 			t.Errorf("%s does not use the shared overgo.runner", asset)
 		}
 		if !strings.Contains(body, "{ signal }") {
@@ -474,16 +469,22 @@ func TestWebUIChatMarkdown(t *testing.T) {
 			t.Errorf("md.js missing %q", needle)
 		}
 	}
-	chat := get("/mod/chat.js")
+	// The thread renderer in composer.js owns assistant markdown and copy for
+	// every surface; chat.js reaches it through the shared thread.
+	composer := get("/composer.js")
 	for _, needle := range []string{"overgo.md(", "overgo.copyButton"} {
-		if !strings.Contains(chat, needle) {
-			t.Errorf("chat.js does not use %q", needle)
+		if !strings.Contains(composer, needle) {
+			t.Errorf("composer.js does not use %q", needle)
 		}
 	}
-	// md.js must load before chat.js so overgo.md exists when chat renders.
-	app := get("/app.html")
-	if strings.Index(app, "/md.js") < 0 || strings.Index(app, "/md.js") > strings.Index(app, "/mod/chat.js") {
-		t.Error("app.html must load /md.js before /mod/chat.js")
+	if !strings.Contains(get("/mod/chat.js"), "overgo.thread(") {
+		t.Error("chat.js does not render through the shared thread")
+	}
+	// md.js must load before any module so overgo.md exists when chat renders:
+	// the loader lists it among the libraries it awaits before the modules.
+	boot := get("/boot.js")
+	if strings.Index(boot, `"/md.js"`) < 0 || strings.Index(boot, `"/md.js"`) > strings.Index(boot, "loadWorkspaceModules(") {
+		t.Error("boot.js must list /md.js among the libraries loaded before the modules")
 	}
 }
 

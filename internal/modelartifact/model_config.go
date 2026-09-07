@@ -44,6 +44,9 @@ type GenerationEssentials struct {
 	EOSTokens     []int64             `json:"eos_tokens,omitempty"`
 	ContextLength uint64              `json:"context_length,omitzero"`
 	Sampling      *GenerationSampling `json:"sampling,omitempty"`
+	// ImageAttention preserves an explicit text-model declaration. Empty means
+	// absent; causal and vision are distinct from an omitted or unknown value.
+	ImageAttention string `json:"image_attention,omitzero"`
 }
 
 // GenerationSampling is the sampling a model ships with: the
@@ -273,10 +276,44 @@ func ReadModelConfigComponents(directory string) (*SequenceExtensionConfig, *Gen
 		return nil, nil, nil, err
 	} else if ok {
 		var declared struct {
-			MaxPositionEmbeddings *uint64 `json:"max_position_embeddings"`
+			MaxPositionEmbeddings *uint64         `json:"max_position_embeddings"`
+			ImageAttention        json.RawMessage `json:"use_bidirectional_attention"`
+			TextConfig            json.RawMessage `json:"text_config"`
 		}
 		if err := json.Unmarshal(data, &declared); err != nil {
 			return nil, nil, nil, fmt.Errorf("model config: parse config.json: %w", err)
+		}
+		if len(declared.TextConfig) != 0 && string(declared.TextConfig) != "null" {
+			var text struct {
+				MaxPositionEmbeddings *uint64         `json:"max_position_embeddings"`
+				ImageAttention        json.RawMessage `json:"use_bidirectional_attention"`
+			}
+			if err := json.Unmarshal(declared.TextConfig, &text); err != nil {
+				return nil, nil, nil, fmt.Errorf("model config: parse text_config: %w", err)
+			}
+			if len(declared.ImageAttention) != 0 && len(text.ImageAttention) != 0 {
+				outer, outerErr := imageAttentionDeclaration(declared.ImageAttention)
+				inner, innerErr := imageAttentionDeclaration(text.ImageAttention)
+				if err := errors.Join(outerErr, innerErr); err != nil {
+					return nil, nil, nil, err
+				}
+				if outer != inner {
+					return nil, nil, nil, errors.New("model config: contradictory image attention declarations")
+				}
+			}
+			if len(text.ImageAttention) != 0 {
+				declared.ImageAttention = text.ImageAttention
+			}
+			if text.MaxPositionEmbeddings != nil {
+				declared.MaxPositionEmbeddings = text.MaxPositionEmbeddings
+			}
+		}
+		if len(declared.ImageAttention) != 0 {
+			generation.ImageAttention, err = imageAttentionDeclaration(declared.ImageAttention)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			populated = true
 		}
 		if declared.MaxPositionEmbeddings != nil {
 			generation.ContextLength = *declared.MaxPositionEmbeddings
@@ -287,6 +324,20 @@ func ReadModelConfigComponents(directory string) (*SequenceExtensionConfig, *Gen
 		generation = nil
 	}
 	return sequence, generation, sources, nil
+}
+
+func imageAttentionDeclaration(raw json.RawMessage) (string, error) {
+	var value *string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", fmt.Errorf("model config: image attention declaration: %w", err)
+	}
+	if value == nil {
+		return "causal", nil
+	}
+	if *value != "vision" {
+		return "", errors.New("model config: unsupported image attention declaration")
+	}
+	return *value, nil
 }
 
 // tokenIDList accepts a scalar, list or null token-ID declaration.
@@ -314,6 +365,13 @@ func canonicalizeModelConfig(value *ModelConfigDocument) error {
 	}
 	if value.Sequence == nil && value.Generation == nil {
 		return errors.New("model config: document declares no components")
+	}
+	if value.Generation != nil {
+		switch value.Generation.ImageAttention {
+		case "", "causal", "vision":
+		default:
+			return errors.New("model config: invalid image attention policy")
+		}
 	}
 	if len(value.Sources) == 0 {
 		return errors.New("model config: document requires source provenance")

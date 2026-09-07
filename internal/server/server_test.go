@@ -27,6 +27,7 @@ import (
 	"overgo/internal/cuda/driver"
 
 	"overgo/internal/inference"
+	"overgo/internal/libraryintake"
 	"overgo/internal/modelrecipe"
 
 	"overgo/internal/overgodb"
@@ -178,6 +179,10 @@ func (fakeSessionStub) Capabilities() projector.SessionCapabilities {
 }
 
 func (fakeSessionStub) Close() error { return nil }
+
+func (fakeSessionStub) DeviceMemoryStats(context.Context, bool) (driver.MemoryStats, error) {
+	return driver.MemoryStats{}, errors.New("fake session: device accounting unsupported")
+}
 
 type fakeQwen3VLProjector struct {
 	fakeSessionStub
@@ -1031,6 +1036,7 @@ func newTestHandlerForRepository(t testing.TB, repository *overgodb.Store, gener
 		ModelID: testModelID, MaxTokens: testMaxTokens,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		Analysis: testAnalysisPolicy, Repository: repository,
+		LibraryIntake: LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate},
 	}, generator)
 	if err != nil {
 		t.Fatal(err)

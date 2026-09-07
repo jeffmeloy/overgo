@@ -69,10 +69,14 @@ type Item struct {
 
 // Plan is the whole campaign surface.
 type Plan struct {
-	Campaign string       `json:"campaign"`
-	Doctrine string       `json:"doctrine"`
-	Census   *artifact.ID `json:"census_evidence,omitempty"`
-	Items    []Item       `json:"items"`
+	Campaign string `json:"campaign"`
+	Doctrine string `json:"doctrine"`
+	// Lane names the worktree this plan dispatches for: under the unassigned
+	// role it is the role, so the lane's own rows come first, unowned rows
+	// after, and another lane's rows never.
+	Lane   string       `json:"lane,omitzero"`
+	Census *artifact.ID `json:"census_evidence,omitempty"`
+	Items  []Item       `json:"items"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -136,6 +140,9 @@ func Validate(d Plan) error {
 func validatePlanGraph(d Plan) error {
 	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
 		return errors.New("plan: census authority is not evidence")
+	}
+	if d.Lane != "" && !validAutomationText(d.Lane) {
+		return errors.New("plan: invalid lane")
 	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
@@ -301,6 +308,11 @@ func Current(d Plan, role string, authority CompletionAuthority) (Item, Step, bo
 
 func currentResolved(d Plan, role string, authority CompletionAuthority) (Item, Step, bool) {
 	role = normalizedRole(role)
+	// The plan's lane is the role nobody named: the rule reads the plan, so a
+	// worktree and the gate's candidate tree dispatch the same rows.
+	if role == UnassignedRole && d.Lane != "" {
+		role = d.Lane
+	}
 	if role != UnassignedRole {
 		if item, step, ok := currentOwned(d, role, authority); ok {
 			return item, step, true

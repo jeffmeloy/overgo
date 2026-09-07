@@ -25,85 +25,13 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/vqaserve"
 )
 
-// prefillContext: shared prompt state for the device prefill / full pipeline.
-type prefillContext struct {
-	cfg                routedlm.Config
-	src                *safetensors.Source
-	spec               patchtower.Spec
-	blockLast          []float32
-	merger             patchtower.MergerWeights
-	gridT              int
-	gridH              int
-	gridW              int
-	imageRows          int
-	inputIDs           []int
-	imageMaskPositions []int
-	mask               []int
-	promptLen          int
-	prefill            []float32 // host prefill embeds [tokens, H]
-	segments           [][2]int
-	blocks             []routedlm.PrefillAttnBlock
-	maskText           []float32 // [tokens] 1 at text rows
-	maskVis            []float32 // [tokens] 1 at vision rows
-}
-
-// newPrefillContext: builds the prompt state from processor-derived inputs
-// (input ids + image-mask positions + image grid) — the golden-free serving
-// path. The image-feature block_last and host prefill embeds are produced
-// on-device by the pipeline, so they are left nil here. imageRows is derived
-// from the grid and cross-checked against the image-token count.
-func newPrefillContext(modelDir string, inputIDs, imageMaskPositions []int, gridT, gridH, gridW int) (*prefillContext, error) {
-	spec, err := patchtower.LoadSpec(modelDir)
-	if err != nil {
-		return nil, err
-	}
-	cfg, err := routedlm.LoadConfig(modelDir, binding)
-	if err != nil {
-		return nil, err
-	}
-	src, err := safetensors.OpenSource(modelDir)
-	if err != nil {
-		return nil, err
-	}
-	merger, err := patchtower.LoadMergerWeights(src, spec)
-	if err != nil {
-		src.Close()
-		return nil, err
-	}
-	if gridH%spec.MergeSize != 0 || gridW%spec.MergeSize != 0 {
-		src.Close()
-		return nil, fmt.Errorf("prefill context: grid [%d,%d] not divisible by merge=%d", gridH, gridW, spec.MergeSize)
-	}
-	imageRows := gridT * (gridH / spec.MergeSize) * (gridW / spec.MergeSize)
-	if imageRows != len(imageMaskPositions) {
-		src.Close()
-		return nil, fmt.Errorf("prefill context: imageRows=%d != image-token count=%d", imageRows, len(imageMaskPositions))
-	}
-	promptLen := len(inputIDs)
-	mask := routedlm.ModalityMask(promptLen, imageMaskPositions)
-	segments := routedlm.VisualSegments(mask)
-	blocks := routedlm.PrefillAttnBlocks(segments, promptLen)
-	maskText := make([]float32, promptLen)
-	maskVis := make([]float32, promptLen)
-	for i, m := range mask {
-		if m == 0 {
-			maskText[i] = 1
-		} else {
-			maskVis[i] = 1
-		}
-	}
-	return &prefillContext{
-		cfg: cfg, src: src, spec: spec, merger: merger,
-		gridT: gridT, gridH: gridH, gridW: gridW, imageRows: imageRows,
-		inputIDs: inputIDs, imageMaskPositions: imageMaskPositions,
-		mask: mask, promptLen: promptLen, segments: segments, blocks: blocks,
-		maskText: maskText, maskVis: maskVis,
-	}, nil
-}
-
-func loadPrefillContext(l *campaignContext) (*prefillContext, error) {
+// loadPrefillContext builds the golden-seeded prompt state: the golden
+// block_last, the host merger rows spliced into the prefill embeds, and the
+// golden modality mask, for the ladder and the full pipeline's verifier.
+func loadPrefillContext(l *campaignContext) (*vqaserve.PrefillContext, error) {
 	vg, err := loadGoldenJSON[visionGolden](l.fixturesDir, "rxbrain_vqa_vision_golden.json")
 	if err != nil {
 		return nil, err
@@ -115,12 +43,12 @@ func loadPrefillContext(l *campaignContext) (*prefillContext, error) {
 	if len(vg.ImageGridTHW) != 3 {
 		return nil, fmt.Errorf("vision golden grid %v", vg.ImageGridTHW)
 	}
-	gridT, gridH, gridW := vg.ImageGridTHW[0], vg.ImageGridTHW[1], vg.ImageGridTHW[2]
+	gridT, gridH, gridW := vg.ImageGridTHW[tensor.FirstOffset], vg.ImageGridTHW[tensor.SingletonExtent], vg.ImageGridTHW[tensor.PairedExtent]
 	spec, err := patchtower.LoadSpec(l.modelDir)
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
+	cfg, err := routedlm.LoadConfig(l.modelDir, vqaserve.Binding)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +72,7 @@ func loadPrefillContext(l *campaignContext) (*prefillContext, error) {
 		return nil, err
 	}
 	scratch := patchtower.NewMergerScratch(spec)
-	prefill, err := routedlm.PrefillValues(src, cfg, binding, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, imageRows, func(dst []float32, ordinal int) error {
+	prefill, err := routedlm.PrefillValues(src, cfg, vqaserve.Binding, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, imageRows, func(dst []float32, ordinal int) error {
 		patchtower.MergerRowInto(dst, blockLast, ordinal, gridH, gridW, spec, merger, &scratch)
 		return nil
 	})
@@ -152,52 +80,14 @@ func loadPrefillContext(l *campaignContext) (*prefillContext, error) {
 		src.Close()
 		return nil, err
 	}
-	mask := fg.PrefillTensors.ModalityMask
-	promptLen := fg.PromptLen
-	segments := routedlm.VisualSegments(mask)
-	blocks := routedlm.PrefillAttnBlocks(segments, promptLen)
-	maskText := make([]float32, promptLen)
-	maskVis := make([]float32, promptLen)
-	for i, m := range mask {
-		if m == 0 {
-			maskText[i] = 1
-		} else {
-			maskVis[i] = 1
-		}
+	pc := &vqaserve.PrefillContext{
+		Cfg: cfg, Src: src, Spec: spec, BlockLast: blockLast, Merger: merger,
+		GridT: gridT, GridH: gridH, GridW: gridW, ImageRows: imageRows,
+		InputIDs: fg.InputIDs, ImageMaskPositions: fg.PrefillTensors.InputImageMaskPositions,
+		Mask: fg.PrefillTensors.ModalityMask, PromptLen: fg.PromptLen, Prefill: prefill,
 	}
-	return &prefillContext{
-		cfg: cfg, src: src, spec: spec, blockLast: blockLast, merger: merger,
-		gridT: gridT, gridH: gridH, gridW: gridW, imageRows: imageRows,
-		inputIDs: fg.InputIDs, imageMaskPositions: fg.PrefillTensors.InputImageMaskPositions,
-		mask: mask, promptLen: promptLen, prefill: prefill, segments: segments, blocks: blocks,
-		maskText: maskText, maskVis: maskVis,
-	}, nil
-}
-
-func bindPrefillBranch(ctx context.Context, allocations *device.AllocationSet, feeds map[*tensor.Tensor]driver.DevicePtr, nodes routedlm.DevicePrefillBranch,
-	inputNorm []float32, q, k, v, o routedlm.BF16Matrix, qNorm, kNorm, postNorm []float32, gate, up, down routedlm.BF16Matrix) error {
-	bindV := func(node *tensor.Tensor, val []float32) error {
-		ptr, e := allocations.Upload(ctx, driver.Bytes(val))
-		if e != nil {
-			return e
-		}
-		feeds[node] = ptr
-		return nil
-	}
-	bindM := func(node *tensor.Tensor, m routedlm.BF16Matrix) error {
-		ptr, e := allocations.Upload(ctx, driver.Bytes(m.Data))
-		if e != nil {
-			return e
-		}
-		feeds[node] = ptr
-		return nil
-	}
-	return firstErr(
-		bindV(nodes.InputNorm, inputNorm),
-		bindM(nodes.Q, q), bindM(nodes.K, k), bindM(nodes.V, v), bindM(nodes.O, o),
-		bindV(nodes.QNorm, qNorm), bindV(nodes.KNorm, kNorm), bindV(nodes.PostNorm, postNorm),
-		bindM(nodes.Gate, gate), bindM(nodes.Up, up), bindM(nodes.Down, down),
-	)
+	pc.BindMask()
+	return pc, nil
 }
 
 func runDevicePrefill(l *campaignContext) error {
@@ -208,12 +98,12 @@ func runDevicePrefill(l *campaignContext) error {
 	if err != nil {
 		return err
 	}
-	defer pc.src.Close()
-	cfg := pc.cfg
+	defer pc.Src.Close()
+	cfg := pc.Cfg
 	H := cfg.HiddenSize
-	l.Log(fmt.Sprintf("DEVICE prefill ctx prompt_len=%d image_rows=%d segments=%v blocks=%v", pc.promptLen, pc.imageRows, pc.segments, pc.blocks))
+	l.Log(fmt.Sprintf("DEVICE prefill ctx prompt_len=%d image_rows=%d segments=%v blocks=%v", pc.PromptLen, pc.ImageRows, pc.Segments, pc.Blocks))
 
-	g, err := routedlm.BuildDevicePrefillLayer(cfg, pc.promptLen, pc.blocks)
+	g, err := routedlm.BuildDevicePrefillLayer(cfg, pc.PromptLen, pc.Blocks)
 	if err != nil {
 		return err
 	}
@@ -233,19 +123,19 @@ func runDevicePrefill(l *campaignContext) error {
 	}
 	defer exe.Close()
 
-	rowShape := tensor.MustShape(uint64(H), uint64(pc.promptLen))
-	maskShape := tensor.MustShape(tensor.SingletonExtent, uint64(pc.promptLen))
+	rowShape := tensor.MustShape(uint64(H), uint64(pc.PromptLen))
+	maskShape := tensor.MustShape(tensor.SingletonExtent, uint64(pc.PromptLen))
 
 	// ---- ladder verification: each layer fed the previous GOLDEN boundary ---
 	allocations := device.NewAllocationSet(worker)
 	defer func() { _ = allocations.Close(ctx) }()
 	worstByLayer := make([]float64, cfg.NumHiddenLayers)
-	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		w, err := routedlm.LoadLayerWeights(pc.src, cfg, binding, layer)
+	for layer := range cfg.NumHiddenLayers {
+		w, err := routedlm.LoadLayerWeights(pc.Src, cfg, vqaserve.Binding, layer)
 		if err != nil {
 			return err
 		}
-		input := pc.prefill
+		input := pc.Prefill
 		if layer > 0 {
 			prev, err := loadGoldenJSON[motGolden](l.fixturesDir, "rxbrain_vqa_mot_layer"+strconv.Itoa(layer-1)+"_output_golden.json")
 			if err != nil {
@@ -258,20 +148,13 @@ func runDevicePrefill(l *campaignContext) error {
 			}
 		}
 		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := bindPrefillBranch(ctx, &allocations, feeds, g.Text,
-			w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
-			w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText); err != nil {
-			return err
-		}
-		if err := bindPrefillBranch(ctx, &allocations, feeds, g.Vision,
-			w.InputNorm.Vision, w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision,
-			w.QKV.QNorm[1], w.QKV.KNorm[1], w.Output.PostVision, w.Output.GateVision, w.Output.UpVision, w.Output.DownVision); err != nil {
+		if err := vqaserve.BindLayerBranches(ctx, &allocations, feeds, g.Text, g.Vision, w); err != nil {
 			return err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
 			g.Row:      {Shape: rowShape, Data: input},
-			g.MaskText: {Shape: maskShape, Data: pc.maskText},
-			g.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
+			g.MaskText: {Shape: maskShape, Data: pc.MaskText},
+			g.MaskVis:  {Shape: maskShape, Data: pc.MaskVis},
 		}
 		inputs := compiled.NewDeviceInputs()
 		for node, pointer := range feeds {
@@ -324,33 +207,26 @@ func runDevicePrefill(l *campaignContext) error {
 	l.Log(fmt.Sprintf("DEVICE prefill LADDER PASS 32/32 layers vs golden boundaries; worst|d|=%.3e at layer %d", worstAll, worstLayer))
 
 	// ---- chained: all 32 layers from host prefill embeds (no golden anchors)-
-	terminal, err := routedlm.LoadTerminalWeights(pc.src, cfg, binding)
+	terminal, err := routedlm.LoadTerminalWeights(pc.Src, cfg, vqaserve.Binding)
 	if err != nil {
 		return err
 	}
-	row := append([]float32(nil), pc.prefill...)
+	row := append([]float32(nil), pc.Prefill...)
 	var chainWorst float64
 	chainStart := time.Now()
-	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-		w, err := routedlm.LoadLayerWeights(pc.src, cfg, binding, layer)
+	for layer := range cfg.NumHiddenLayers {
+		w, err := routedlm.LoadLayerWeights(pc.Src, cfg, vqaserve.Binding, layer)
 		if err != nil {
 			return err
 		}
 		feeds := map[*tensor.Tensor]driver.DevicePtr{}
-		if err := bindPrefillBranch(ctx, &allocations, feeds, g.Text,
-			w.InputNorm.Text, w.QKV.QText, w.QKV.KText, w.QKV.VText, w.QKV.OText,
-			w.QKV.QNorm[0], w.QKV.KNorm[0], w.Output.PostText, w.Output.GateText, w.Output.UpText, w.Output.DownText); err != nil {
-			return err
-		}
-		if err := bindPrefillBranch(ctx, &allocations, feeds, g.Vision,
-			w.InputNorm.Vision, w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision,
-			w.QKV.QNorm[1], w.QKV.KNorm[1], w.Output.PostVision, w.Output.GateVision, w.Output.UpVision, w.Output.DownVision); err != nil {
+		if err := vqaserve.BindLayerBranches(ctx, &allocations, feeds, g.Text, g.Vision, w); err != nil {
 			return err
 		}
 		hostFeeds := map[*tensor.Tensor]reference.Value{
 			g.Row:      {Shape: rowShape, Data: row},
-			g.MaskText: {Shape: maskShape, Data: pc.maskText},
-			g.MaskVis:  {Shape: maskShape, Data: pc.maskVis},
+			g.MaskText: {Shape: maskShape, Data: pc.MaskText},
+			g.MaskVis:  {Shape: maskShape, Data: pc.MaskVis},
 		}
 		inputs := compiled.NewDeviceInputs()
 		for node, pointer := range feeds {
@@ -381,7 +257,7 @@ func runDevicePrefill(l *campaignContext) error {
 	chainWall := time.Since(chainStart)
 
 	// terminal top token from the chained last row.
-	lastRow := row[(pc.promptLen-1)*H : pc.promptLen*H]
+	lastRow := row[(pc.PromptLen-1)*H : pc.PromptLen*H]
 	topID, topLogit, err := routedlm.TerminalTopToken(lastRow, cfg, terminal, tensor.FirstOffset)
 	if err != nil {
 		return err

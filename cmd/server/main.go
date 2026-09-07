@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -16,6 +17,8 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/discovery"
+	"overgo/internal/mediacapability"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
@@ -30,6 +33,12 @@ const (
 	serverIdleTimeout       = 2 * time.Minute
 	serverShutdownTimeout   = 30 * time.Second
 	serverMaxHeaderBytes    = 1 << 20
+
+	// generationCatalogLimit bounds the activated models the generation workspace lists.
+	generationCatalogLimit = 256
+	// transcriptionPolicyDocument: the transcription policy declared beside
+	// the store (in its data root); found, it serves without the flag.
+	transcriptionPolicyDocument = "transcription_policy.json"
 
 	defaultAnalysisTensorSamples = 4096
 	defaultAnalysisTensorBytes   = 64 << 20
@@ -102,6 +111,7 @@ func run() error {
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
 	transcriptionPolicyPath := flag.String("transcription-policy", "", "strict JSON policy for an additional CPU transcription workflow; empty disables")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
+	webuiDir := flag.String("webui-dir", "", "serve the workbench client from this directory with caching disabled (development); empty serves the embedded client")
 	var evaluationSuites []string
 	flag.Func("evaluation-suite", "compiled evaluation suite JSON; repeatable", func(value string) error {
 		value = strings.TrimSpace(value)
@@ -155,6 +165,34 @@ func run() error {
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	modelReference, _ := checked.First(flag.Args())
+	// A reference the store declares as a remote model serves through the
+	// relay; every other reference is a local model path the runner opens.
+	repositoryPath, err := modelFlags.RepositoryPath()
+	if err != nil {
+		return err
+	}
+	remote, err := resolveRemoteServing(shutdownContext, repositoryPath, modelReference)
+	if err != nil {
+		return err
+	}
+	if remote != nil {
+		serving := remote.policy.Serving
+		clioptions.ApplyDefault(explicit, "model-id", modelID, remote.provider.Model)
+		clioptions.ApplyDefault(explicit, "max-tokens", maxTokens, serving.MaxTokens)
+		clioptions.ApplyDefault(explicit, "max-concurrent", maxConcurrent, serving.MaxConcurrent)
+		clioptions.ApplyDefault(explicit, "response-store-entries", responseStoreEntries, serving.StoredResponses)
+		clioptions.ApplyDefault(explicit, "response-store-bytes", responseStoreBytes, serving.ResponseStoreBytes)
+		hubRoot := ""
+		if roots, rootsErr := dataroot.ResolveCurrent(); rootsErr == nil {
+			hubRoot = roots.Models
+		}
+		return serveRemote(shutdownContext, remote, remoteServeOptions{
+			address: *address, apiKey: apiKey, modelID: *modelID,
+			maxTokens: *maxTokens, maxConcurrent: *maxConcurrent,
+			storedResponses: *responseStoreEntries, responseStoreBytes: *responseStoreBytes,
+			requestTimeout: *requestTimeout, repository: repositoryPath, hubRoot: hubRoot, webuiDir: *webuiDir,
+		})
+	}
 	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)
 	if err != nil {
 		return err
@@ -193,6 +231,21 @@ func run() error {
 		defer workspaceStore.Close()
 	}
 	var workflowWorkspaces llamaserver.WorkflowWorkspaceSet
+	// A transcription policy declared beside the store (the data root's
+	// transcription_policy.json) serves without the flag, so a server the
+	// swap proxy launches offers the store's active transcription recipe;
+	// its refusal (the recipe retired) is logged, not fatal.
+	discovered := false
+	if transcriptionPolicy == nil && repoPath != "" {
+		candidate := filepath.Join(filepath.Dir(repoPath), transcriptionPolicyDocument)
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			policy, err := llamaserver.LoadTranscriptionPolicy(candidate)
+			if err != nil {
+				return fmt.Errorf("load transcription policy: %w", err)
+			}
+			transcriptionPolicy, discovered = &policy, true
+		}
+	}
 	if transcriptionPolicy != nil {
 		if workspaceStore == nil {
 			return errors.New("transcription workspace requires a repository")
@@ -202,11 +255,15 @@ func run() error {
 			return fmt.Errorf("bind transcription source: %w", err)
 		}
 		workspace, err := llamaserver.NewTranscriptionWorkspace(shutdownContext, workspaceStore, *transcriptionPolicy, commit)
-		if err != nil {
+		switch {
+		case err != nil && discovered:
+			log.Printf("transcription workspace unavailable under the declared policy: %v", err)
+		case err != nil:
 			return fmt.Errorf("open transcription workspace: %w", err)
+		default:
+			defer workspace.Close(context.WithoutCancel(shutdownContext))
+			workflowWorkspaces = append(workflowWorkspaces, workspace)
 		}
-		defer workspace.Close(context.WithoutCancel(shutdownContext))
-		workflowWorkspaces = append(workflowWorkspaces, workspace)
 	}
 	if *trainingEnabled {
 		if rootsErr != nil {
@@ -224,6 +281,12 @@ func run() error {
 			return fmt.Errorf("open model builder workspace: %w", err)
 		}
 		workflowWorkspaces = append(workflowWorkspaces, workspace)
+	}
+	// Generation rides the store alone: every active media recipe with
+	// bytes on disk is a capability of any server opened over the store.
+	if workspaceStore != nil {
+		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore,
+			llamaserver.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), generationCatalogLimit))
 	}
 	if len(workflowWorkspaces) > 0 {
 		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workflowWorkspaces}
@@ -264,8 +327,11 @@ func run() error {
 			evaluationWorkspace = nil
 		}
 	}
+	// The projector comes from the command line or from the store: with no
+	// -mmproj, the model's active projection recipe names the projector
+	// bytes, so every launcher serves the modalities the store declares.
 	var vision, audio projector.Session
-	if *projectorPath != "" {
+	{
 		repository, repositoryErr := modelFlags.RepositoryPath()
 		if repositoryErr != nil {
 			return repositoryErr
@@ -274,16 +340,31 @@ func run() error {
 		if openErr != nil {
 			return fmt.Errorf("open model recipe repository: %w", openErr)
 		}
-		vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), *projectorPath, projector.OpenOptions{
-			CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
-		})
+		resolved := *projectorPath
+		if resolved == "" {
+			declared, ok, resolveErr := discovery.ActiveProjector(shutdownContext, store, runner.ModelID(), discovery.LoadMemo(shutdownContext, store))
+			if resolveErr != nil {
+				return errors.Join(fmt.Errorf("resolve declared projector: %w", resolveErr), store.Close())
+			}
+			if ok {
+				resolved = declared
+				log.Printf("serving the declared projector %s", resolved)
+			}
+		}
+		if resolved != "" {
+			vision, err = projector.OpenActiveSession(shutdownContext, store, runner.ModelID(), resolved, projector.OpenOptions{
+				CUDA: *projectorCUDA, DeviceOrdinal: *modelFlags.DeviceOrdinal,
+			})
+		}
 		err = errors.Join(err, store.Close())
 		if err != nil {
 			return fmt.Errorf("open multimodal projector: %w", err)
 		}
-		defer vision.Close()
-		if vision.Capabilities().Audio {
-			audio = vision
+		if vision != nil {
+			defer vision.Close()
+			if vision.Capabilities().Audio {
+				audio = vision
+			}
 		}
 	}
 	var mediaPolicy *llamaserver.RemoteMediaPolicy
@@ -323,9 +404,12 @@ func run() error {
 		Repository:         workspaceStore,
 		HubToken:           os.Getenv("OVERGO_HF_TOKEN"),
 		HubDownloadRoot:    hubRoot,
+		WebUIDir:           *webuiDir,
 		Evaluation:         evaluationWorkspace,
 		AgentEmbedder:      agentRetrieval,
 		AgentReranker:      agentRetrieval,
+		LibraryIntake:      serverLibraryIntake(),
+		ProviderKeys:       providerIntake.Keys,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,
 			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,
@@ -336,34 +420,40 @@ func run() error {
 		return err
 	}
 	defer handler.Close()
+	log.Printf("serving model %q on http://%s", *modelID, *address)
+	return serve(shutdownContext, *address, handler)
+}
+
+// serve runs the handler on the address until the context ends, then
+// drains the connections within the shutdown timeout.
+func serve(ctx context.Context, address string, handler http.Handler) error {
 	httpServer := &http.Server{
-		Addr:              *address,
+		Addr:              address,
 		Handler:           handler,
 		ReadHeaderTimeout: serverReadHeaderTimeout,
 		ReadTimeout:       serverReadTimeout,
 		IdleTimeout:       serverIdleTimeout,
 		MaxHeaderBytes:    serverMaxHeaderBytes,
 	}
-	log.Printf("serving model %q on http://%s", *modelID, *address)
 	serverError := make(chan error, 1)
 	go func() {
 		serverError <- httpServer.ListenAndServe()
 	}()
 	select {
-	case err = <-serverError:
+	case err := <-serverError:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 		return err
-	case <-shutdownContext.Done():
+	case <-ctx.Done():
 	}
 	log.Print("shutting down")
-	deadline, cancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
+	deadline, cancel := context.WithTimeoutCause(context.Background(), serverShutdownTimeout, errors.New("server: shutdown deadline elapsed"))
 	defer cancel()
 	if err := httpServer.Shutdown(deadline); err != nil {
 		return fmt.Errorf("server shutdown: %w", err)
 	}
-	err = <-serverError
+	err := <-serverError
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

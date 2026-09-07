@@ -19,31 +19,8 @@ import (
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/vqaserve"
 )
-
-// binding: RxBrain's `_v` branch naming contract.
-var binding = routedlm.RxBrainBinding()
-
-// Role literals of this checkpoint's prompt specials; sourced from its
-// tokenizer_config.json added_tokens_decoder role assignments (the reference
-// OvergoDB profile facts, derivation tokenizer-special-token-role/v1).
-var promptRoles = routedlm.PromptRoleLiterals{
-	BOS:        "<\uFF5Chy_begin\u2581of\u2581sentence\uFF5C>",
-	EOS:        "<\uFF5Chy_end\u2581of\u2581sentence\uFF5C>",
-	User:       "<\uFF5Chy_User\uFF5C>",
-	Assistant:  "<\uFF5Chy_Assistant\uFF5C>",
-	Think:      "<think>",
-	ThinkEnd:   "</think>",
-	Answer:     "<answer>",
-	AnswerEnd:  "</answer>",
-	NoThink:    "/no_think",
-	ImageStart: "<\uFF5Chy_place\u2581holder\u2581no\u2581666\uFF5C>",
-	ImageEnd:   "<\uFF5Chy_place\u2581holder\u2581no\u2581667\uFF5C>",
-	Image:      "<\uFF5Chy_place\u2581holder\u2581no\u2581669\uFF5C>",
-	Video:      "<\uFF5Chy_place\u2581holder\u2581no\u2581670\uFF5C>",
-	NewLine:    "<\uFF5Chy_place\u2581holder\u2581no\u2581671\uFF5C>",
-	FlowLatent: "<\uFF5Chy_place\u2581holder\u2581no\u2581672\uFF5C>",
-}
 
 type campaignContext struct {
 	*parity.Campaign
@@ -181,7 +158,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	if err != nil {
 		return err
 	}
-	cfg, err := routedlm.LoadConfig(l.modelDir, binding)
+	cfg, err := routedlm.LoadConfig(l.modelDir, vqaserve.Binding)
 	if err != nil {
 		return err
 	}
@@ -201,7 +178,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		if err != nil {
 			return "", err
 		}
-		specials, err := routedlm.LoadPromptSpecials(l.modelDir, promptRoles)
+		specials, err := routedlm.LoadPromptSpecials(l.modelDir, vqaserve.PromptRoles)
 		if err != nil {
 			return "", err
 		}
@@ -368,7 +345,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	var prefill []float32
 	buildPrefill := func() ([]float32, error) {
 		scratch := patchtower.NewMergerScratch(spec)
-		return routedlm.PrefillValues(src, cfg, binding, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, imageRows, func(dst []float32, ordinal int) error {
+		return routedlm.PrefillValues(src, cfg, vqaserve.Binding, fg.InputIDs, fg.PrefillTensors.InputImageMaskPositions, imageRows, func(dst []float32, ordinal int) error {
 			patchtower.MergerRowInto(dst, blockLast, ordinal, gridH, gridW, spec, merger, &scratch)
 			return nil
 		})
@@ -392,7 +369,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	// ---- MoT layer 0 sub-stages --------------------------------------
 	var layer0 *routedlm.PromptLayerState
 	gate("mot_layer0_sub_stages", func() (string, error) {
-		w, err := routedlm.LoadLayerWeights(src, cfg, binding, tensor.FirstOffset)
+		w, err := routedlm.LoadLayerWeights(src, cfg, vqaserve.Binding, tensor.FirstOffset)
 		if err != nil {
 			return "", err
 		}
@@ -485,7 +462,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			if err != nil {
 				return "", err
 			}
-			w, err := routedlm.LoadLayerWeights(src, cfg, binding, layer)
+			w, err := routedlm.LoadLayerWeights(src, cfg, vqaserve.Binding, layer)
 			if err != nil {
 				return "", err
 			}
@@ -499,7 +476,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	}
 
 	// ---- terminal -----------------------------------------------------
-	terminal, err := routedlm.LoadTerminalWeights(src, cfg, binding)
+	terminal, err := routedlm.LoadTerminalWeights(src, cfg, vqaserve.Binding)
 	if err != nil {
 		return err
 	}
@@ -568,7 +545,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 		resident := make([]*routedlm.ResidentKV, cfg.NumHiddenLayers)
 		weights := make([]routedlm.LayerWeights, cfg.NumHiddenLayers)
 		for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
-			w, err := routedlm.LoadLayerWeights(src, cfg, binding, layer)
+			w, err := routedlm.LoadLayerWeights(src, cfg, vqaserve.Binding, layer)
 			if err != nil {
 				return "", err
 			}
@@ -599,7 +576,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 			if step.Step != stepIndex || step.Position != promptLen+stepIndex || step.TokenIn != tokenID {
 				return "", fmt.Errorf("decode step %d golden pos=%d token_in=%d, have token=%d", stepIndex, step.Position, step.TokenIn, tokenID)
 			}
-			embedding, err := routedlm.EmbeddingRows(src, cfg, binding, []int{tokenID})
+			embedding, err := routedlm.EmbeddingRows(src, cfg, vqaserve.Binding, []int{tokenID})
 			if err != nil {
 				return "", err
 			}

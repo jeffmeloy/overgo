@@ -132,9 +132,15 @@ func auditCapabilityAndToolAuthorities(sources []productionAuthoritySource, repo
 	verifyAuthoritySites(report, "tool", "manualCodec.Require", manualRequire, []authorityAllowance{{
 		File: "internal/agenttool/manual.go", Function: "RequireManual", Count: oneAuthoritySite,
 	}})
-	verifyAuthoritySites(report, "capability", "ExecutorCatalog.Execute", executorCatalogExecute, []authorityAllowance{{
-		File: "internal/capabilityruntime/placement.go", Function: "ExecutorCatalog.ExecutePlaced", Count: oneAuthoritySite,
-	}})
+	// The recipe command's verify and run verbs execute a resolved local
+	// activation through the shared media capability catalog; each is one
+	// declared site. The server's store generation workspace receives one
+	// executor per task from the launcher and never reaches the catalog.
+	verifyAuthoritySites(report, "capability", "ExecutorCatalog.Execute", executorCatalogExecute, []authorityAllowance{
+		{File: "internal/capabilityruntime/placement.go", Function: "ExecutorCatalog.ExecutePlaced", Count: oneAuthoritySite},
+		{File: "cmd/recipe/main.go", Function: "verifyCapability", Count: oneAuthoritySite},
+		{File: "cmd/recipe/main.go", Function: "executeCapability", Count: oneAuthoritySite},
+	})
 	verifyAuthoritySites(report, "capability", "ExactCapabilityPlacement construction", placements, []authorityAllowance{{
 		File: "internal/capabilityruntime/placement.go", Function: "ResolveExactCapabilityPlacement", Count: oneAuthoritySite,
 	}})

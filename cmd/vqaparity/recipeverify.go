@@ -129,7 +129,8 @@ func verifyActivateVQA(l *campaignContext, repo, imagePath, question string) err
 	if err != nil {
 		return err
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	// A store that already records the inventory re-verifies over it.
+	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return err
 	}
 	program, err := modelrecipe.CompileCapability(definition)
@@ -145,7 +146,7 @@ func verifyActivateVQA(l *campaignContext, repo, imagePath, question string) err
 	if err := validateCanonicalVQA(l, verified, "VERIFY"); err != nil {
 		return err
 	}
-	verification, err := publishVQAVerification(ctx, store, definition, verified.result.e2eWall, verified.walls)
+	verification, err := publishVQAVerification(ctx, store, definition, verified.result.E2EWall, verified.walls)
 	if err != nil {
 		return err
 	}
@@ -179,7 +180,7 @@ func verifyActivateVQA(l *campaignContext, repo, imagePath, question string) err
 	l.Log(fmt.Sprintf(
 		"RECIPE verify LANE GREEN recipe=%s gate=%s run=%s verify=%s active=%s",
 		definition.ID, verification.Gate, verification.Run,
-		verified.result.e2eWall.Round(time.Millisecond), active.result.e2eWall.Round(time.Millisecond),
+		verified.result.E2EWall.Round(time.Millisecond), active.result.E2EWall.Round(time.Millisecond),
 	))
 	return nil
 }

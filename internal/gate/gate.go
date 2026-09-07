@@ -84,9 +84,11 @@ type gateContext struct {
 	baseSource          *repoanalysis.SourceSnapshot
 	profile             *codeprofile.Profile
 	profileDirty        bool
+	preflight           bool
 	stepEvidence        map[string]string
 	cachePaths          []string
 	retryCache          *automationcheck.EvidenceCache
+	checkpointMemos     map[string]checkpointMemoEntry
 	structural          *codeprofile.FunctionImpact
 	packageGraph        *packageInputGraph
 	selection           automationcheck.SelectionMetrics
@@ -149,6 +151,7 @@ var (
 	gateRecoveryBeforeLockHook   func(string)
 	gateRecoveryLockedHook       func(string)
 	gateRecoveryAfterStepHook    func(string, string)
+	gateCheckPersistedHook       func(string)
 )
 
 func (transaction *gatePreparedReferenceTransaction) exchange(command, expected string) error {
@@ -607,14 +610,25 @@ func commandEnvironment(dir string, environment []string, name string, args ...s
 	if name == "git" {
 		commandArgs = append([]string{"--no-replace-objects"}, args...)
 	}
-	cmd := exec.Command(name, commandArgs...)
-	cmd.Dir = dir
-	if name == "git" {
-		cmd.Env = gateGitEnvironment(gitauthority.ReaderEnvironment(), environment)
-	} else if environment != nil {
-		cmd.Env = environment
+	var out []byte
+	var err error
+	// A child that Windows could not start (its loader failed under the
+	// parallel test load) ran nothing; starting it again is a retry of the
+	// launch, not of the work, and the bound keeps a real fault visible.
+	for range processStartAttempts {
+		cmd := exec.Command(name, commandArgs...)
+		cmd.Dir = dir
+		if name == "git" {
+			cmd.Env = gateGitEnvironment(gitauthority.ReaderEnvironment(), environment)
+		} else if environment != nil {
+			cmd.Env = environment
+		}
+		out, err = cmd.CombinedOutput()
+		if !processStartFailed(err) {
+			break
+		}
+		time.Sleep(processStartRetryDelay)
 	}
-	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf(
 			"%s %s: %v: %s",
@@ -625,6 +639,21 @@ func commandEnvironment(dir string, environment []string, name string, args ...s
 		)
 	}
 	return string(out), nil
+}
+
+// Windows reports STATUS_DLL_INIT_FAILED when a process could not
+// initialise; under the gate's parallel test load a nested go test
+// occasionally ends this way before running anything.
+const (
+	windowsProcessStartFailure = 0xc0000142
+	processStartAttempts       = 3
+	processStartRetryDelay     = 2 * time.Second
+)
+
+// processStartFailed reports a child that Windows failed to start.
+func processStartFailed(err error) bool {
+	exit, ok := errors.AsType[*exec.ExitError](err)
+	return ok && exit.ExitCode() == windowsProcessStartFailure
 }
 
 func gateGitEnvironment(base, environment []string) []string {

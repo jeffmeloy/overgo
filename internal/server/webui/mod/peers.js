@@ -46,12 +46,7 @@
         window.dispatchEvent(new PopStateEvent("popstate"));
       }
 
-      function artifactLink(id) {
-        return el("a", {
-          class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id),
-          target: "_blank", rel: "noopener", text: fmt.shortID(id),
-        });
-      }
+      const artifactLink = overgo.artifactLink;
 
       function renderDetail() {
         const item = (inventory.peers || []).find((peer) => peer.peer === selectedPeer);
@@ -61,13 +56,8 @@
         }
         const state = item.state || {};
         const capacity = item.capacity || {};
-        const actions = el("div", { class: "row" });
-        if (state.state === "active") actions.appendChild(el("button", {
-          class: "btn alt", text: "Drain", onclick: () => transition(item.peer, "draining"),
-        }));
-        if (state.state === "draining") actions.appendChild(el("button", {
-          class: "btn alt", text: "Retire after drain", onclick: () => transition(item.peer, "retired"),
-        }));
+        const actions = el("div", { class: "row" }, ...[["active", "Drain", "draining"], ["draining", "Retire after drain", "retired"]]
+          .filter(([from]) => state.state === from).map(([, text, to]) => el("button", { class: "btn alt", text, onclick: () => transition(item.peer, to) })));
         detailHost.replaceChildren(el("div", { class: "card" },
           el("strong", { text: item.enrollment.name }), " / ", el("span", { text: state.state || "unknown" }),
           el("div", { class: "mono", text: item.peer }),
@@ -80,27 +70,20 @@
       }
 
       function renderInventory() {
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {}, el("th", { text: "label" }), el("th", { text: "state" }),
-          el("th", { text: "capacity" }), el("th", { text: "lease" }), el("th", { text: "authority" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["label", "state", "capacity", "lease", "authority"]));
         for (const item of inventory.peers || []) {
           const capacity = item.capacity || {};
-          table.appendChild(el("tr", { onclick: () => { selectedPeer = item.peer; renderDetail(); } },
-            el("td", {}, el("button", { class: "link-button", text: item.enrollment.name })),
-            el("td", { text: (item.state && item.state.state) || "unknown" }),
-            el("td", { text: (capacity.tasks || []).join(", ") || "none" }),
-            el("td", { text: capacity.available ? "available" : "unavailable" }),
-            el("td", { text: item.refusal || "eligible" })));
+          table.appendChild(overgo.tableRow([el("button", { class: "link-button", text: item.enrollment.name }),
+            (item.state && item.state.state) || "unknown", (capacity.tasks || []).join(", ") || "none",
+            capacity.available ? "available" : "unavailable", item.refusal || "eligible"],
+            { onclick: () => { selectedPeer = item.peer; renderDetail(); } }));
         }
         if (inventory.truncated) table.appendChild(el("caption", { text: "Projection truncated by server policy" }));
         inventoryHost.replaceChildren(table);
         renderDetail();
       }
 
-      async function refreshInventory() {
-        inventory = await api.get("/peers");
-        renderInventory();
-      }
+      async function refreshInventory() { inventory = await api.get("/peers"); renderInventory(); }
 
       async function transition(peer, state) {
         try {
@@ -111,10 +94,7 @@
       }
 
       enroll.addEventListener("click", async () => {
-        if (!enrollmentForm.validate()) {
-          status.textContent = "Complete every enrollment field";
-          return;
-        }
+        if (!enrollmentForm.validate()) { status.textContent = "Complete every enrollment field"; return; }
         try {
           const result = await api.post("/peers/enroll", enrollmentForm.value());
           enrollmentForm.markSaved();
@@ -125,28 +105,17 @@
       });
 
       function placementRequest(value) {
-        const peers = (value.peer_candidates || []).map((line) => {
-          const parts = line.split(/\s+/);
-          return { peer: parts[0], compatibility: parts[1] };
-        });
+        const policyFields = ["minimum_replicas", "maximum_replicas", "target_concurrency", "concurrency_per_replica",
+          "maximum_measured_ns", "maximum_device_bytes", "allow_local", "allow_peers"];
         return {
-          model: value.model, task: value.task, now_unix_ns: 0,
-          local_observation: value.local_observation,
-          policy: {
-            minimum_replicas: value.minimum_replicas, maximum_replicas: value.maximum_replicas,
-            target_concurrency: value.target_concurrency, concurrency_per_replica: value.concurrency_per_replica,
-            maximum_measured_ns: value.maximum_measured_ns, maximum_device_bytes: value.maximum_device_bytes,
-            allow_local: value.allow_local, allow_peers: value.allow_peers,
-          },
-          peers,
+          model: value.model, task: value.task, now_unix_ns: 0, local_observation: value.local_observation,
+          policy: Object.fromEntries(policyFields.map((field) => [field, value[field]])),
+          peers: (value.peer_candidates || []).map((line) => { const parts = line.split(/\s+/); return { peer: parts[0], compatibility: parts[1] }; }),
         };
       }
 
       compile.addEventListener("click", async () => {
-        if (!placementForm.validate()) {
-          status.textContent = "Complete every applicable placement field";
-          return;
-        }
+        if (!placementForm.validate()) { status.textContent = "Complete every applicable placement field"; return; }
         try {
           compiledPlan = await api.post("/peers/placement", placementRequest(placementForm.value()));
           placementForm.markSaved();
@@ -159,10 +128,7 @@
           for (const refusal of compiledPlan.refusals || []) replicaCards.push(overgo.errorBanner(refusal.reason + " / " + refusal.detail));
           evidenceHost.replaceChildren(...replicaCards);
           status.textContent = "placement compiled / " + fmt.shortID(compiledPlan.identity);
-        } catch (err) {
-          compiledPlan = null; reconcile.disabled = true;
-          status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        }
+        } catch (err) { compiledPlan = null; reconcile.disabled = true; status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       });
 
       reconcile.addEventListener("click", async () => {
@@ -181,29 +147,21 @@
       async function renderEvidence(operation) {
         const evidence = await api.get("/peers/evidence?operation=" + encodeURIComponent(operation));
         if (!(evidence.attempts || []).length) return;
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {}, el("th", { text: "phase" }), el("th", { text: "outcome" }),
-          el("th", { text: "attempt" }), el("th", { text: "failure / log" }), el("th", { text: "artifacts" })));
-        for (const document of evidence.attempts || []) {
-          const attempt = document.value;
-          table.appendChild(el("tr", {}, el("td", { text: attempt.phase }), el("td", { text: attempt.outcome }),
-            el("td", { text: String(attempt.attempt) }), el("td", { text: attempt.failure || "completed" }),
-            el("td", {}, ...((attempt.artifacts || []).map(artifactLink)))));
-        }
-        evidenceHost.replaceChildren(table);
+        evidenceHost.replaceChildren(overgo.table(["phase", "outcome", "attempt", "failure / log", "artifacts"], (evidence.attempts || []).map(({ value: attempt }) => [
+          attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed", el("span", {}, ...((attempt.artifacts || []).map(artifactLink)))])));
       }
 
+      // An evidence read that fails says so where the evidence would stand.
+      const showEvidence = (data) => { if (data.status && data.status.id) renderEvidence(data.status.id).catch((err) => evidenceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)))); };
       await refreshInventory();
       const stream = new AbortController();
       api.events("/peers/stream", (event, data) => {
         if (event === "peer.inventory") { inventory = data; renderInventory(); }
-        if (event === "operation" && data.status && data.status.id) renderEvidence(data.status.id).catch(() => {});
+        if (event === "operation") showEvidence(data);
       }, { signal: stream.signal }).catch((err) => {
         if (err.name !== "AbortError") status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
       });
-      overgo.runtimeEvents.subscribe((event, data) => {
-        if (event === "operation" && data.status && data.status.id) renderEvidence(data.status.id).catch(() => {});
-      });
+      overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
       return () => { stream.abort(); enrollmentForm.dispose(); placementForm.dispose(); };
     },
   });

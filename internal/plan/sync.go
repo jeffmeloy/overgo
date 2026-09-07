@@ -2,6 +2,7 @@ package plan
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"reflect"
 	"slices"
@@ -44,7 +45,8 @@ func mergeDocuments(base, local, upstream Plan, validate func(Plan) error, compl
 	}
 	itemID := func(item Item) string { return item.ID }
 	baseItems, localItems, upstreamItems := indexByID(base.Items, itemID), indexByID(local.Items, itemID), indexByID(upstream.Items, itemID)
-	merged := Plan{Campaign: campaign, Doctrine: doctrine, Census: census}
+	// The lane is the local plan's: a lane plan never takes another lane's identity.
+	merged := Plan{Campaign: campaign, Doctrine: doctrine, Lane: cmp.Or(local.Lane, upstream.Lane), Census: census}
 	for _, id := range unionOrder(itemID, base.Items, local.Items, upstream.Items) {
 		baseItem, inBase := baseItems[id]
 		localItem, inLocal := localItems[id]

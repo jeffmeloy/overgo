@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"overgo/internal/artifact"
@@ -36,6 +35,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	generated := automationcheck.GeneratedChecks(g.repo, command)
 	device := automationcheck.DeviceCheck(g.repo, g.paths, devicePackages, command)
 	published := automationcheck.PublishedCheck(g.repo, command)
+	webui := automationcheck.WebUICheck(g.repo, command)
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
@@ -51,14 +51,14 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 				return skipped, "", err
 			},
 		},
-		device, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
+		device, webui, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 	dependencies := map[string][]string{
 		"scope": {"protection"}, "architecture": {"scope"}, "profile": {"architecture"}, "fmt": {"profile"}, "style": {"fmt"},
 		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
 		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "modern-go": {"magics"}, "acceptance": {"modern-go"},
 		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
-		"device": {"test"}, "commit": {"test", "device"},
+		"device": {"test"}, automationcheck.WebUICheckName: {"test"}, "commit": {"test", "device", automationcheck.WebUICheckName},
 	}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
@@ -77,6 +77,11 @@ func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) aut
 }
 
 func (g *gateContext) pipeline() error {
+	if g.planProjection == plan.MergeProjectionFirstParentTarget {
+		if err := reportGateAdmissionPhase("preflight projected merge completion", g.preflightProjectedMergeCompletion); err != nil {
+			return err
+		}
+	}
 	planningStarted := time.Now()
 	planned, err := g.planPipeline()
 	if err != nil {
@@ -111,45 +116,18 @@ func (g *gateContext) pipeline() error {
 	for _, exclusion := range impact.Exclusions {
 		satisfied[exclusion.Check] = true
 	}
-	var cacheMutex sync.Mutex
-	var terminalMutex sync.Mutex
-	results, err := automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
-		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
-		if planned.manifest != nil {
-			if driftErr := g.requireCandidateTree(planned.manifest.CandidateTree); driftErr != nil {
-				return automationcheck.Evidence{}, driftErr
-			}
-		}
-		input, hasInput := inputs[check.ID]
-		cacheCheck := cacheable(check.Check.Name) && hasInput
-		if cacheCheck {
-			cacheMutex.Lock()
-			evidence, reused := cache.Lookup(check, input)
-			cacheMutex.Unlock()
-			if reused {
-				terminalMutex.Lock()
-				g.terminal[check.Check.Name] = evidence
-				terminalMutex.Unlock()
-				return evidence, nil
-			}
-		}
-		evidence, runErr := automationcheck.Run(ctx, check)
-		if runErr == nil && cacheCheck {
-			cacheMutex.Lock()
-			cache.Record(check, input, evidence)
-			cacheMutex.Unlock()
-		}
-		if evidence.ID.Valid() {
-			terminalMutex.Lock()
-			g.terminal[check.Check.Name] = evidence
-			terminalMutex.Unlock()
-		}
-		return evidence, runErr
-	})
+	var drift func() error
+	if planned.manifest != nil {
+		tree := planned.manifest.CandidateTree
+		drift = func() error { return g.requireCandidateTree(tree) }
+	}
+	results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift)
 	if err != nil {
 		return err
 	}
-	g.saveRetryCache(cache)
+	if saveErr := g.saveRetryCache(cache); saveErr != nil {
+		g.audit = append(g.audit, "retry cache not saved: "+saveErr.Error())
+	}
 	byName := make(map[string]automationcheck.DAGResult, len(results))
 	for _, result := range results {
 		if result.Invocation.ID.Valid() {
@@ -654,10 +632,16 @@ func (g *gateContext) loadRetryCache() automationcheck.EvidenceCache {
 	return cache
 }
 
-func (g *gateContext) saveRetryCache(cache automationcheck.EvidenceCache) {
-	if cache.Environment.Valid() {
-		_ = writeJSON(g.repo, gateRetryFile, cache, clioptions.OutputFileMode)
+// saveRetryCache writes the cache atomically; the tmp directory is created so
+// a fresh candidate tree persists too; an unbound environment writes nothing.
+func (g *gateContext) saveRetryCache(cache automationcheck.EvidenceCache) error {
+	if !cache.Environment.Valid() {
+		return nil
 	}
+	if err := os.MkdirAll(filepath.Join(g.repo, filepath.Dir(filepath.FromSlash(gateRetryFile))), gatePrivateDirectoryMode); err != nil {
+		return err
+	}
+	return writeJSON(g.repo, gateRetryFile, cache, clioptions.OutputFileMode)
 }
 
 func (g *gateContext) phaseInputFingerprint(phase string) (artifact.ID, error) {
@@ -987,8 +971,8 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.audit = append(g.audit, fmt.Sprintf(
-			"dependent fixture evidence not credited: %d skipped, %d unavailable",
-			len(report.Skipped), len(report.Unavailable),
+			"dependent fixture evidence not credited: %d skipped [%s], %d unavailable [%s]",
+			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
 		))
 	}
 	g.packageCacheAudit(directReused+dependentReused, len(directPending)+len(dependentPending))
@@ -1097,6 +1081,9 @@ func staleClosureAuthorityFailure(err error) bool {
 }
 
 func (g *gateContext) remediateStaleClosureBindings() error {
+	if g.preflight {
+		return fmt.Errorf("preflight: repair required; run `go run ./cmd/closure-scan -import-store %s` outside preflight", g.storePath)
+	}
 	started := time.Now()
 	out, err := g.runGateCommand("go", "run", "./cmd/closure-scan", "-import-store", gateStorePath)
 	if err != nil {

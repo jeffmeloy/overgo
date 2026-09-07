@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
@@ -37,6 +38,24 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 	query, limit, err := h.artifactQuery(request)
 	if err != nil {
 		writeInvalidRequest(response, err)
+		return
+	}
+	// newest: the kind's artifacts newest first (a query pages by identity), kept
+	// to the media-type prefix a slot or gallery asks for, each with the runs
+	// that produced it; no cursor, the limit is the page.
+	if media := request.URL.Query().Get("media"); request.URL.Query().Get("newest") != "" {
+		recent, err := store.RecentArtifacts(request.Context(), query.Kind, limit, func(descriptor artifact.Descriptor) bool {
+			return strings.HasPrefix(descriptor.MediaType, media)
+		})
+		if err != nil {
+			writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
+			return
+		}
+		items := make([]artifactSummary, 0, len(recent))
+		for _, item := range recent {
+			items = append(items, artifactSummary{Descriptor: item.Descriptor, Producers: item.Producers, Payload: item.Payload})
+		}
+		writeJSON(response, http.StatusOK, artifactGalleryResponse{Count: len(items), Limit: limit, Artifacts: items})
 		return
 	}
 	result, err := store.Query(request.Context(), query)

@@ -29,6 +29,8 @@ const (
 	GIFMediaType = "image/gif"
 	// MP4MediaType identifies MPEG-4 video content.
 	MP4MediaType = "video/mp4"
+	// PDFMediaType identifies a PDF document a file part carries.
+	PDFMediaType = "application/pdf"
 )
 
 // GIFFrameDelay converts frames per second to GIF centisecond delay units.

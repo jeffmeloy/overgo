@@ -30,10 +30,7 @@
 
       let inventory = [];
       function renderInventory() {
-        const table = el("table", { class: "grid" });
-        table.appendChild(el("tr", {},
-          el("th", { text: "name" }), el("th", { text: "definition" }),
-          el("th", { text: "state" }), el("th", { text: "actions" })));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["name", "definition", "state", "actions"]));
         for (const item of inventory) {
           const input = el("textarea", { class: "text", rows: "2", placeholder: '{"prompt":"hello"}' });
           const destination = el("input", { class: "text", placeholder: "allowlisted destination" });
@@ -51,30 +48,18 @@
           }
           run.addEventListener("click", () => execute("/automations/run"));
           schedule.addEventListener("click", () => execute("/automations/schedule"));
-          table.appendChild(el("tr", {},
-            el("td", { text: item.name }), el("td", { class: "mono", text: fmt.shortID(item.definition) }),
-            el("td", { text: item.refusal || "ready" }),
-            el("td", {}, input, destination, key, run, schedule)));
+          table.appendChild(overgo.tableRow([item.name, fmt.shortID(item.definition), el("span", { text: item.refusal || "ready" }), el("span", {}, input, destination, key, run, schedule)]));
         }
         inventoryHost.replaceChildren(table);
       }
 
-      async function refreshInventory() {
-        inventory = await api.get("/automations");
-        renderInventory();
-      }
+      async function refreshInventory() { inventory = await api.get("/automations"); renderInventory(); }
 
       publish.addEventListener("click", async () => {
-        if (!definitionForm.validate() || !triggerForm.validate() || !deliveryForm.validate()) {
-          status.textContent = "Complete every applicable field";
-          return;
-        }
+        if (!definitionForm.validate() || !triggerForm.validate() || !deliveryForm.validate()) { status.textContent = "Complete every applicable field"; return; }
         try {
           const definition = definitionForm.value();
-          const created = await api.post("/automations/definitions", {
-            name: definition.name, recipe: definition.recipe,
-            trigger: triggerForm.value(), delivery: deliveryForm.value(),
-          });
+          const created = await api.post("/automations/definitions", { name: definition.name, recipe: definition.recipe, trigger: triggerForm.value(), delivery: deliveryForm.value(), });
           await api.post("/automations/activate", { definition: created.ID || created.id });
           definitionForm.markSaved(); triggerForm.markSaved(); deliveryForm.markSaved();
           status.textContent = "activated / " + fmt.shortID(created.ID || created.id);

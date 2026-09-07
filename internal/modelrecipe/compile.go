@@ -451,7 +451,7 @@ func ReferenceVideoEditDefinition(modelID, profileID artifact.ID) (recipe.Defini
 
 func vqaDefinition(modelID artifact.ID) (recipe.Definition, error) {
 	prepare := recipe.Node{ID: "prepare", Module: ModuleVQAPrepare, Placement: recipe.PlacementHost}
-	generate := recipe.Node{ID: "generate", Module: ModuleVQAGenerate, Placement: recipe.PlacementDevice}
+	generate := recipe.Node{ID: "generate", Module: ModuleVQAGenerate, Placement: recipe.PlacementDevice, Session: recipe.SessionRequest}
 	return recipe.NewDefinitionWithDependencies(
 		recipe.TaskVQA,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
@@ -766,6 +766,12 @@ func mustCatalog() *recipe.Catalog {
 			Placements: []recipe.Placement{recipe.PlacementDevice},
 			Inputs:     []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "answer", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+		},
+		recipe.Module{
+			ID: ModuleRemoteRelay, Tasks: []recipe.Task{recipe.TaskInference},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "prompt", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "text", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 		},
 	)
 	catalog, err := recipe.NewCatalog(modules...)

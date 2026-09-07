@@ -45,11 +45,7 @@
       let data;
       try {
         data = await overgo.api.get("/analyze/tensors");
-      } catch (err) {
-        clear(panel);
-        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
+      } catch (err) { clear(panel); panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
       const rows = data.tensors || [];
       clear(panel);
 
@@ -155,10 +151,7 @@
             effrankText(t),
           ];
           for (const value of cells) {
-            tr.appendChild(el("td", {
-              text: value,
-              style: "padding:5px 8px;text-align:right;border-bottom:1px solid var(--line-soft)",
-            }));
+            tr.appendChild(el("td", { text: value, style: "padding:5px 8px;text-align:right;border-bottom:1px solid var(--line-soft)", }));
           }
           const entropyCell = el("td", { style: "padding:5px 8px;border-bottom:1px solid var(--line-soft)" });
           entropyCell.appendChild(bar(t.values.normalized_energy_entropy));

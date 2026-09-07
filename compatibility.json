@@ -63,13 +63,13 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:19474067db6ce62313ea8365716dd354f39e34fdd020be250f4479ae0cf502ea"
+     "identity": "file:sha256:65cfba8c4e398c45aba3b169067bd0c0efda908c0b104ac8b63afdf596146c35"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
      "path": "internal/server/audio_transcriptions_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b76836ed21421e9b2b6f13a47f221fe6cbc13c1abe7e82b3517f478d10469b39"
+     "identity": "evidence:sha256:6bd1d0903313a9c3bbaf5ffe0d9319056084a05d557fd0c52714fd31ed61d003"
     }
    ],
    "id": "openai-audio-transcriptions",
@@ -267,13 +267,13 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:57c821aec32ccbf28d010bcaa4d99e53e747cbfe1bc663f4369711ed9433d4c3"
+     "identity": "file:sha256:5943e8add2e25ccb38a172dac296d8abff8b8c818c621f53ef0efe64f3de12e1"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:69d6fa0dbdda30b4cfc0d3801b0451bf9ecdb6d4de46e6556209537890d7ed94"
+     "identity": "evidence:sha256:436c79fdb7d4f6b4d87af9d1b2a22f18f769e68e7e5907b38e00365332c28f9d"
     }
    ],
    "id": "bounded-server-media",
@@ -288,13 +288,13 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:f0f7407adf66ba4a1289e4003868faaf7473e568068cbcadb166b963c4a9d4ec"
+     "identity": "file:sha256:a767c533ff199ac23252d6b4200c565e241d934d138480fad1aedcea0e8331a7"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:f8f1b18f336bd14429bf2fdc1ceae4ce3643bce450afe55f1f8a00b8cf7fb38d"
+     "identity": "evidence:sha256:aab57c3e0bdd65cfaca4b3c90b8faf6c4a82fb67f8d47bee90dd929501792429"
     }
    ],
    "id": "gemma4-multimodal-oracle",
@@ -347,7 +347,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:f8f1b18f336bd14429bf2fdc1ceae4ce3643bce450afe55f1f8a00b8cf7fb38d"
+     "identity": "evidence:sha256:aab57c3e0bdd65cfaca4b3c90b8faf6c4a82fb67f8d47bee90dd929501792429"
     }
    ],
    "id": "gemma-e4b-image-language-oracle",
@@ -375,7 +375,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:f8f1b18f336bd14429bf2fdc1ceae4ce3643bce450afe55f1f8a00b8cf7fb38d"
+     "identity": "evidence:sha256:aab57c3e0bdd65cfaca4b3c90b8faf6c4a82fb67f8d47bee90dd929501792429"
     }
    ],
    "id": "qwen35-image-video-language-oracle",
@@ -391,7 +391,7 @@
      "contains": "func executeVQAProgram(",
      "path": "cmd/vqaparity/recipeserve.go",
      "role": "source",
-     "identity": "file:sha256:0e57a6efbf606072009231ddd010eafead1d2617b59b2665ba6e52fdee907053"
+     "identity": "file:sha256:90e89bd50dc1ade5facbc6d310abe6075f536095853480c28cd2b86d12777fa4"
     },
     {
      "contains": "func TestRxBrainProductionParity(",
@@ -605,7 +605,7 @@
      "contains": "func compileQwen3VLImagePrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:f0f7407adf66ba4a1289e4003868faaf7473e568068cbcadb166b963c4a9d4ec"
+     "identity": "file:sha256:a767c533ff199ac23252d6b4200c565e241d934d138480fad1aedcea0e8331a7"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -626,7 +626,7 @@
      "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:f0f7407adf66ba4a1289e4003868faaf7473e568068cbcadb166b963c4a9d4ec"
+     "identity": "file:sha256:a767c533ff199ac23252d6b4200c565e241d934d138480fad1aedcea0e8331a7"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -647,7 +647,7 @@
      "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:f0f7407adf66ba4a1289e4003868faaf7473e568068cbcadb166b963c4a9d4ec"
+     "identity": "file:sha256:a767c533ff199ac23252d6b4200c565e241d934d138480fad1aedcea0e8331a7"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -689,7 +689,7 @@
      "contains": "func LoadResponseFilePolicy(",
      "path": "internal/server/resource_policy.go",
      "role": "source",
-     "identity": "file:sha256:115c4a0fccebba8cacf7fe84c19e3853820b300cec4053a534da35a38c74be2d"
+     "identity": "file:sha256:388e297f84db06f76e05aa51f99b8eb504b1b9cad128c235bb7beb4dbb7e5d89"
     },
     {
      "contains": "func TestResponsesInputFileSources(",
@@ -731,7 +731,7 @@
      "contains": "func DecodeEncodedVideo(",
      "path": "internal/media/video.go",
      "role": "source",
-     "identity": "file:sha256:08f2501b8e0f634480204b7758b58fada9160af262021599f8937784f323fd09"
+     "identity": "file:sha256:58e8847a172f216f238ef93ec3b71ba60381c42fb089c816d6337d616ecf9b7b"
     },
     {
      "contains": "func TestChatAndResponsesEncodedVideoProjection(",
@@ -752,7 +752,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:05e8cff5c57809075b8d1c3837d730cc8174688f4ce3eb4f13c075122c59ab44"
+     "identity": "file:sha256:4aab996ede3cb894dc05962da841c9b96d980bc93ec025afeb53163372239c3c"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -773,13 +773,13 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:57c821aec32ccbf28d010bcaa4d99e53e747cbfe1bc663f4369711ed9433d4c3"
+     "identity": "file:sha256:5943e8add2e25ccb38a172dac296d8abff8b8c818c621f53ef0efe64f3de12e1"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:61808979424dbf6ac9ac739665d9149b18d5453c98de3249835886fdc77b32c3"
+     "identity": "file:sha256:cf5aa32fa1fd86c132dbc8878242651af4cfcc576a389e253a2f91454b088df0"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -821,7 +821,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:89d15090446854a0f5c13821c9f166a84060c84f7ba83bfbbe6ca75b2fe7ae4a"
+     "identity": "file:sha256:9b190ae87580f3cb62dde1e4f58f80fa987d8778e15c3ad0cbd839ae5e1f015c"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -905,7 +905,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:05e8cff5c57809075b8d1c3837d730cc8174688f4ce3eb4f13c075122c59ab44"
+     "identity": "file:sha256:4aab996ede3cb894dc05962da841c9b96d980bc93ec025afeb53163372239c3c"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -1132,9 +1132,9 @@
     },
     {
      "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",
-     "path": "cmd/recipe/image_cuda_windows.go",
+     "path": "internal/mediacapability/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:b69c0ca28741b3f1e27e86219148cbeb9107b4a24f13b32a1783bcf027c41cb3"
+     "identity": "file:sha256:c1d915e76ccfb5123a843366d88e6f20f88baac3873b051cf28923ccd8c9f682"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

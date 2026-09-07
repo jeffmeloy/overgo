@@ -20,17 +20,6 @@ import (
 	"overgo/internal/artifact"
 )
 
-type responsesTokenCountRequest struct {
-	Model              string                    `json:"model"`
-	Instructions       string                    `json:"instructions"`
-	Input              json.RawMessage           `json:"input"`
-	PreviousResponseID string                    `json:"previous_response_id"`
-	Tools              json.RawMessage           `json:"tools"`
-	ToolChoice         json.RawMessage           `json:"tool_choice"`
-	ParallelTools      *bool                     `json:"parallel_tool_calls"`
-	Reasoning          *responsesReasoningConfig `json:"reasoning"`
-}
-
 type responsesRequest struct {
 	Model              string                    `json:"model"`
 	Instructions       string                    `json:"instructions"`
@@ -97,6 +86,7 @@ type responsesResponse struct {
 	Output      []responseOutputItem `json:"output"`
 	Status      string               `json:"status"`
 	Usage       responseUsage        `json:"usage"`
+	Timings     *slotStatusTimings   `json:"timings,omitempty"`
 }
 
 func (h *Handler) responses(response http.ResponseWriter, request *http.Request) {
@@ -260,8 +250,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.pump.generated,
-			TotalTokens:       promptTokens + result.pump.generated,
+			OutputTokens:      result.outputTokens(),
+			TotalTokens:       promptTokens + result.outputTokens(),
 			InputTokenDetails: responseInputTokenDetails{},
 		},
 	})
@@ -296,6 +286,21 @@ func (h *Handler) streamResponses(
 	}); err != nil {
 		return
 	}
+	// A stored turn outlives its client: generation detaches from the
+	// request's cancellation, the text so far is held for a page that
+	// reattaches through /interactions/follow, and the interaction is
+	// published whether or not the first stream is still listening.
+	var turnBuffer *inflightTurn
+	if store {
+		turnBuffer = h.inflight.begin(responseID, h.config.MaxStoredResponses)
+		plan.request = request.WithContext(context.WithoutCancel(request.Context()))
+	}
+	detached := func(err error) error {
+		if err != nil && turnBuffer != nil {
+			return nil
+		}
+		return err
+	}
 
 	var output strings.Builder
 	var buffered strings.Builder
@@ -328,6 +333,9 @@ func (h *Handler) streamResponses(
 			textStarted = true
 		}
 		output.WriteString(piece)
+		if turnBuffer != nil {
+			turnBuffer.append(piece)
+		}
 		return writeEvent("response.output_text.delta", responsesStreamEvent{
 			Type: "response.output_text.delta", ItemID: messageID, Delta: piece,
 		})
@@ -434,16 +442,19 @@ func (h *Handler) streamResponses(
 				if streamErr := emitToolPiece(piece); streamErr != nil {
 					return streamErr
 				}
-				return request.Context().Err()
+				return detached(request.Context().Err())
 			}
 			if reasoningSummary {
 				buffered.WriteString(piece)
-				return request.Context().Err()
+				return detached(request.Context().Err())
 			}
-			return emitText(piece)
+			return detached(emitText(piece))
 		},
 	)
 	if err != nil {
+		if turnBuffer != nil {
+			turnBuffer.finish(nil, err.Error())
+		}
 		_ = emitNamedGenerationError(writeEvent, "response.failed", err)
 		return
 	}
@@ -583,16 +594,20 @@ func (h *Handler) streamResponses(
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.pump.generated,
-			TotalTokens:       promptTokens + result.pump.generated,
+			OutputTokens:      result.outputTokens(),
+			TotalTokens:       promptTokens + result.outputTokens(),
 			InputTokenDetails: responseInputTokenDetails{},
 		},
 	}
+	timings := h.slotStats[plan.session.ID].metrics(true).Timings
+	final.Timings = &timings
 	if store {
 		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage)); err != nil {
+			turnBuffer.finish(nil, err.Error())
 			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
 			return
 		}
+		turnBuffer.finish(final, "")
 	}
 	_ = writeEvent("response.completed", responsesStreamEvent{
 		Type: "response.completed", Response: final,
@@ -604,7 +619,9 @@ func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *ht
 	if !ok {
 		return
 	}
-	var body responsesTokenCountRequest
+	// The count takes the same request the turn will stream, so a page counts
+	// with the exact body it sends; generation-only fields are ignored here.
+	var body responsesRequest
 	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}

@@ -38,9 +38,20 @@ type PromptEvaluation struct {
 	Duration time.Duration
 }
 
+// Usage is the token accounting a generator that tokenizes elsewhere (a
+// hosted provider) reports for one generation; a local runner reports
+// none, its counts being the caller's own token ids.
+type Usage struct {
+	PromptTokens     int
+	CompletionTokens int
+}
+
 type GenerateOptions struct {
 	MaxNewTokens int
 	Sampler      *sampling.Sampler
+	// OnUsage receives the provider's token accounting when a generation
+	// carries one; absent for local runners.
+	OnUsage func(Usage)
 	// ContinueAfterEOG keeps sampled EOG tokens and continues to MaxNewTokens.
 	// Intended for fixed-budget measurements; callbacks, cancellation and explicit
 	// stop sequences still stop generation. The default preserves natural stopping.
@@ -640,7 +651,7 @@ func (r *Runner) forwardCachedProjectedChunkModeLocked(
 		}
 		embeddingSkip = activation
 	}
-	perLayerInputs, err := r.preparePerLayerInputs(ctx, activation, rows)
+	perLayerInputs, err := r.preparePerLayerInputs(ctx, activation, rows, projected)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}

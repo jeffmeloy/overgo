@@ -161,11 +161,14 @@ func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthoritie
 		Version: artifact.InitialDocumentVersion, Kind: MultipleChoiceKind,
 		Normalization: compiled.suite.Normalization, Aggregation: compiled.suite.Aggregation,
 	}
-	if authorities.Execution.Prompting == PromptingChatTemplate {
+	if prompting := authorities.Execution.Prompting; prompting == PromptingChatTemplate || prompting == PromptingHostedChat {
 		if err := validateChatChoiceSuite(compiled.suite.Cases); err != nil {
 			return Plan{}, err
 		}
 		scorer.Method = chatChoiceMethod
+		if prompting == PromptingHostedChat {
+			scorer.Method = hostedChoiceMethod
+		}
 	}
 	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }

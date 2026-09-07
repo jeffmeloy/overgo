@@ -134,6 +134,29 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 	if err != nil || loaded.ID != contract.ID {
 		t.Fatalf("loaded audio contract = %+v, %v", loaded, err)
 	}
+	checkpoint := audioParentContent(t, artifact.KindCheckpoint, "adapter")
+	adapted, err := AdaptedTranscriptionDefinition(definition, checkpoint.Descriptor.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CompileCapability(adapted); err != nil {
+		t.Fatal(err)
+	}
+	if actual, ok := adapted.PrimaryDependency(recipe.DependencyCheckpoint); !ok || actual != checkpoint.Descriptor.ID {
+		t.Fatal("adapted recipe lost checkpoint authority")
+	}
+	if _, err := AdaptedTranscriptionDefinition(adapted, checkpoint.Descriptor.ID); err == nil {
+		t.Fatal("already adapted base accepted")
+	}
+	if _, err := AdaptedTranscriptionDefinition(definition, artifact.ID{}); err == nil {
+		t.Fatal("absent checkpoint accepted")
+	}
+	altered := definition
+	altered.Nodes = slices.Clone(definition.Nodes)
+	altered.Nodes[0].Placement = recipe.PlacementDevice
+	if _, err := AdaptedTranscriptionDefinition(altered, checkpoint.Descriptor.ID); err == nil {
+		t.Fatal("mutated base topology accepted")
+	}
 }
 
 func TestAudioTaskDefinitionRejectsUnprovedContractLineage(t *testing.T) {

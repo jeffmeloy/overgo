@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"overgo/internal/adaptertrain"
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
 	"overgo/internal/checked"
@@ -20,6 +21,8 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scratch"
 	"overgo/internal/strictjson"
+	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 // TranscriptionSchema identifies persisted typed transcription output.
@@ -93,6 +96,11 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 		return nil, err
 	}
 	expectedDefinition, err := modelrecipe.TranscriptionDefinition(modelID, contractID, profileID, tokenizerID, inventoryID)
+	baseDefinition := expectedDefinition
+	checkpointID, adapted := definition.PrimaryDependency(recipe.DependencyCheckpoint)
+	if err == nil && adapted {
+		expectedDefinition, err = modelrecipe.AdaptedTranscriptionDefinition(baseDefinition, checkpointID)
+	}
 	if err != nil || expectedDefinition.ID != definition.ID {
 		return nil, errors.Join(errors.New("speech recognition: transcription recipe topology differs"), err)
 	}
@@ -154,6 +162,12 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	if encoder.InputWidth() != width || profile.BlankToken >= encoder.VocabularySize() {
 		return nil, errors.New("speech recognition: processor geometry differs from encoder")
 	}
+	if adapted {
+		encoder, err = loadCheckpointProjection(ctx, repository, checkpointID, baseDefinition, profileID, encoder)
+		if err != nil {
+			return nil, err
+		}
+	}
 	tokenizer, err := hfbpe.Load(modelPath)
 	if err != nil {
 		return nil, err
@@ -162,6 +176,50 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 		repository: repository, model: modelID, recipe: definition, contract: contract, profile: profile,
 		frontend: frontend, encoder: encoder, tokenizer: tokenizer,
 	}, nil
+}
+
+func loadCheckpointProjection(ctx context.Context, repository artifact.Repository, id artifact.ID, base recipe.Definition, profile artifact.ID, encoder *Encoder) (*Encoder, error) {
+	content, err := artifact.RequireTypedContent(ctx, repository, id)
+	if err != nil {
+		return nil, err
+	}
+	checkpoint, err := trainingprogram.ParseCheckpoint(content.Data)
+	parameters, ok := checked.MulInt(encoder.output.in, encoder.output.in)
+	if err != nil || checkpoint.ID() != id || checkpoint.Model != base.Model || !ok || checkpoint.ParameterCount != parameters ||
+		len(checkpoint.Processors) != 2 || !slices.Contains(checkpoint.Processors, profile) ||
+		!slices.Contains(checkpoint.Lineage, trainingprogram.LineageParent{Artifact: base.ID, Relation: artifact.RelationDependsOn}) {
+		return nil, errors.Join(errors.New("speech recognition: adapter checkpoint authority differs"), err)
+	}
+	var transformID artifact.ID
+	for _, processor := range checkpoint.Processors {
+		if processor != profile {
+			transformID = processor
+		}
+	}
+	if _, err := trainingdata.RequireTextTransform(ctx, repository, transformID); err != nil {
+		return nil, err
+	}
+	parents, err := repository.Parents(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	expectedParents := append(checkpoint.ArtifactLineage(), artifact.Lineage{Child: id, Parent: checkpoint.Weights, Relation: artifact.RelationContains})
+	for _, edge := range expectedParents {
+		if !slices.Contains(parents, edge) {
+			return nil, errors.New("speech recognition: checkpoint lineage is incomplete")
+		}
+	}
+	directory, err := artifact.AvailablePath(ctx, repository, id, artifact.LocationDirectory)
+	if err != nil {
+		return nil, err
+	}
+	loaded, err := trainingprogram.LoadCheckpoint(directory)
+	if err != nil || loaded.ID() != id {
+		return nil, errors.Join(errors.New("speech recognition: checkpoint publication differs"), err)
+	}
+	return encoder.WithOutputProjection(ctx, directory, adaptertrain.InputProjectionBinding{
+		BaseRecipe: base.ID, TargetTransform: transformID,
+	}, checkpoint.Weights)
 }
 
 // Transcribe admits, decodes, executes, and persists one bounded offline clip.
@@ -202,7 +260,11 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 			[]runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}, {Phase: runrecord.PhasePrepare, DurationNS: prepareDuration}}, err)
 	}
 	prefillStart := time.Now()
-	_, logits, outputFrames, err := transcriber.encoder.Forward(ctx, features, frames, &workspace.Encoder, nil)
+	hidden, outputFrames, err := transcriber.encoder.Encode(ctx, features, frames, &workspace.Encoder, nil)
+	var logits []float32
+	if err == nil {
+		logits, err = transcriber.encoder.Project(ctx, hidden, outputFrames, &workspace.Encoder)
+	}
 	prefillDuration := elapsedNanoseconds(prefillStart)
 	if err != nil {
 		return transcriber.failedExecution(ctx, binding, inputs, "transcription-inference-failed", started,

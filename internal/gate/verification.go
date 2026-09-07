@@ -96,7 +96,6 @@ func (g *gateContext) pipeline() error {
 	cache := g.loadRetryCache()
 	cache.Compact()
 	g.retryCache = &cache
-	cacheable := func(name string) bool { return phaseReusesEvidence(name) }
 	inputs := make(map[artifact.ID]artifact.ID, len(checks))
 	for index, check := range checks {
 		input, inputErr := g.phaseInputFingerprint(check.Check.Name)
@@ -138,7 +137,7 @@ func (g *gateContext) pipeline() error {
 	cacheHits := 0
 	cacheEligible := 0
 	for _, result := range results {
-		if cacheable(result.Invocation.Check.Name) {
+		if _, _, eligible := g.checkCacheKey(result.Invocation, inputs); eligible {
 			cacheEligible++
 		}
 		if result.Evidence.Reused {

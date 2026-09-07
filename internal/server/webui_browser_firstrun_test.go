@@ -678,6 +678,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       row.textContent.includes(`+strconv.Quote(entryName)+`) && [...row.querySelectorAll("button")].some((button) => button.textContent === "retire"))`)
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       document.querySelector("input[aria-label='retirement reason']").value = "the browser lane's fake provider closed";
+      const catalogNote = [...document.querySelectorAll("#panel-library > .section-title")].find((node) => node.textContent === "Local models").nextElementSibling;
+      catalogNote.textContent = ""; catalogNote.dataset.laneRetirement = "1";
       const row = [...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(`+strconv.Quote(entryName)+`));
       [...row.querySelectorAll("button")].find((button) => button.textContent === "retire").click(); return true; })()`)
 		retirement := `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(entryName) + `))`
@@ -685,10 +687,20 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// The child reports its embedded source identity, not the test worktree's.
+		// The child uses its embedded revision when present. Development
+		// binaries without one use the worktree, as ExecutableCodeCommit does.
+		stamped := false
+		modified := false
 		for _, setting := range build.Settings {
-			if setting.Key == "vcs.modified" && setting.Value == "true" {
-				retirement = `[...document.querySelectorAll("#panel-library .note")].some((note) => note.textContent === "executable was built from modified source; exact code revision unavailable")`
+			stamped = stamped || setting.Key == "vcs.revision" && setting.Value != ""
+			modified = modified || setting.Key == "vcs.modified" && setting.Value == "true"
+		}
+		if stamped && modified {
+			retirement = `document.querySelector("[data-lane-retirement]")?.textContent === "executable was built from modified source; exact code revision unavailable"`
+		}
+		if !stamped {
+			if _, err := runrecord.VerifyingCommit(testutil.RepoRoot(t)); err != nil {
+				retirement = `document.querySelector("[data-lane-retirement]")?.textContent === ` + strconv.Quote(err.Error())
 			}
 		}
 		settle("the retirement follows the served binary's source identity", retirement)

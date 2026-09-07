@@ -1,12 +1,72 @@
 package modelswap
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
+
+func TestCatalogRefreshPreservesMemo(t *testing.T) {
+	root := t.TempDir()
+	writer, err := overgodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	reader, err := overgodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	resolver := CatalogResolver{Store: reader, Limit: 100}
+	if _, _, err := resolver.Catalog(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	memo := resolver.memo
+	path := filepath.Join(t.TempDir(), "weights.bin")
+	if err := os.WriteFile(path, []byte("initial weights"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := discovery.WeightsIdentity(path, memo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/catalog-refresh-test/v1"), struct{ Value string }{"new declaration"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Commit(t.Context(), artifact.Batch{Key: "catalog/refresh", Contents: []artifact.Content{content}}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = resolver.Catalog(t.Context())
+	if err != nil || resolver.Store != reader || resolver.memo != memo {
+		t.Fatalf("refresh replaced resident state: reader=%t memo=%t error=%v", resolver.Store == reader, resolver.memo == memo, err)
+	}
+	if _, found, err := reader.Artifact(t.Context(), content.Descriptor.ID); err != nil || !found {
+		t.Fatalf("new committed declaration missing: found=%t error=%v", found, err)
+	}
+	if same, err := discovery.WeightsIdentity(path, resolver.memo); err != nil || same != before {
+		t.Fatalf("unchanged identity=%s want=%s error=%v", same, before, err)
+	}
+	if err := os.WriteFile(path, []byte("changed and longer weights"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if after, err := discovery.WeightsIdentity(path, resolver.memo); err != nil || after == before {
+		t.Fatalf("changed bytes reused stale identity: %s error=%v", after, err)
+	}
+	ctx, cancel := context.WithCancelCause(t.Context())
+	cancel(nil)
+	if _, _, err := resolver.Catalog(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled refresh: %v", err)
+	}
+}
 
 // TestMatchServableRoutesRemoteLocations: proxy remote route. Remote entry
 // matches by the location's last segment (case-insensitive) or the model

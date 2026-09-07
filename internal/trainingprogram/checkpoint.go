@@ -99,6 +99,50 @@ type checkpointDocument struct {
 
 func (c Checkpoint) ID() artifact.ID { return c.id }
 
+// Content returns the canonical checkpoint document with its existing identity.
+// Weight bytes remain in the separately identified Safetensors artifact.
+func (c Checkpoint) Content() (artifact.Content, error) {
+	if err := c.ValidateIdentity(); err != nil {
+		return artifact.Content{}, err
+	}
+	return artifact.JSONContent(artifact.JSONContract(artifact.KindCheckpoint, "overgo/training-checkpoint/v1"),
+		checkpointDocument{Version: artifact.InitialDocumentVersion, Checkpoint: c})
+}
+
+// Batch binds a complete on-disk checkpoint to its canonical document, weights,
+// lineage and locations. It does not copy weights or activate a model recipe.
+func (c Checkpoint) Batch(key, directory string) (artifact.Batch, error) {
+	loaded, err := LoadCheckpoint(directory)
+	if err != nil || loaded.ID() != c.ID() {
+		return artifact.Batch{}, errors.Join(errors.New("training checkpoint: publication differs"), err)
+	}
+	content, err := c.Content()
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	weightsPath := filepath.Join(directory, CheckpointWeights)
+	info, err := os.Stat(weightsPath)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	location, err := artifact.CanonicalLocalLocation(c.ID(), artifact.LocationDirectory, directory)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	weightsLocation, err := artifact.CanonicalLocalLocation(c.Weights, artifact.LocationFile, weightsPath)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{content}, c.ArtifactLineage(), nil)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	batch.Artifacts = []artifact.Descriptor{{ID: c.Weights, Size: uint64(info.Size()), MediaType: "application/vnd.safetensors"}}
+	batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: c.ID(), Parent: c.Weights, Relation: artifact.RelationContains})
+	batch.Locations = []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}, {Location: weightsLocation, Action: artifact.LocationAdd}}
+	return batch, batch.Validate()
+}
+
 func (c Checkpoint) ValidateIdentity() error {
 	copy := c
 	copy.id = artifact.ID{}

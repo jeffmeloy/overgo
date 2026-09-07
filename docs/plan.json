@@ -9,19 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "impact-exclusions",
-          "title": "Exclude owned device and browser checks when their owned surface is untouched",
-          "status": "open",
-          "verify": "test -f internal/automationcheck/ownership_exclusion_test.go \u0026\u0026 go test ./internal/automationcheck -run '^TestUntouchedOwnershipExcludesDeviceChecks$' -count=1",
-          "rationale": "Every gate today reports impact selection excluded=0/6 unresolved=6 and runs the device and web UI lanes (four to six minutes) on rows confined to internal/plan, internal/gate or internal/loop. The ownership impact must prove those checks independent when the change's reachable closure touches none of their owned packages or symbols, so a host-only row skips both lanes; a change inside internal/cuda or the web UI still runs them. Measured by the impact audit line and the ran= list of a plan-only gate.",
-          "depends_on": [
-            "gate-wall/replan"
-          ],
-          "capabilities": [
-            "selection-safety"
-          ]
-        },
-        {
           "id": "preflight",
           "title": "Run the validate phases on the working tree in one command without admission",
           "status": "open",

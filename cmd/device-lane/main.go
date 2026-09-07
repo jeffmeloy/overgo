@@ -114,9 +114,14 @@ func deviceProgress(step []string, index, total int, elapsed time.Duration) stri
 func deviceSteps(plan automationcheck.DeviceVerificationPlan) [][]string {
 	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
 	if plan.Full {
+		// The full plan tests exactly the packages the lane declares it owns.
+		full := []string{"./" + automationcheck.DeviceLanePackages[0] + "/..."}
+		for _, packagePath := range automationcheck.DeviceLanePackages[1 : len(automationcheck.DeviceLanePackages)-1] {
+			full = append(full, "./"+packagePath)
+		}
 		return append(steps,
-			deviceTestStep("./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath"),
-			deviceTestStep("-run", "Device", "./internal/densecausal"))
+			deviceTestStep(full...),
+			deviceTestStep("-run", "Device", "./"+automationcheck.DeviceLanePackages[len(automationcheck.DeviceLanePackages)-1]))
 	}
 	if len(plan.Packages) > 0 {
 		// One device owner: package concurrency invalidates wall and peak ratchets.

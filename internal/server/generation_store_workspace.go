@@ -128,7 +128,7 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 	// capability results: new activations and changed bytes remain visible.
 	workspace.mu.Lock()
 	defer workspace.mu.Unlock()
-	if err := ctx.Err(); err != nil {
+	if err := workspace.store.Refresh(ctx); err != nil {
 		return nil, err
 	}
 	if workspace.memo == nil {

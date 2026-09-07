@@ -80,7 +80,7 @@ func TestChangeSelectiveVerificationShadow(t *testing.T) {
 			}
 			g.paths = candidate.paths
 			roots := fixtureRootPackages(t, g)
-			full, err := runGoTests(t.Context(), g.repo, roots, false)
+			full, err := runGoTests(t.Context(), g.repo, roots, false, nil)
 			if err == nil || len(full.Failed) == 0 {
 				t.Fatalf("recorded change produced no full-gate failure: %v", err)
 			}

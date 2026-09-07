@@ -105,36 +105,30 @@ type snapshotDocument struct {
 // replays only the tail written after this maintenance point. A store
 // still carrying inline legacy content snapshots without sealing.
 func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
-	if err := contextError(ctx); err != nil {
-		return SnapshotInfo{}, err
-	}
-	if rotateErr := s.sealActiveSegment(); rotateErr != nil && !isSealRefusal(rotateErr) {
-		return SnapshotInfo{}, rotateErr
-	}
-	s.mu.RLock()
-	if err := s.ready(true); err != nil {
-		s.mu.RUnlock()
-		return SnapshotInfo{}, err
-	}
-	sequence, head, offset, root := s.sequence, s.head, s.replayEnd, s.root
-	if sequence == 0 {
-		s.mu.RUnlock()
-		return SnapshotInfo{}, errors.New("overgodb: cannot snapshot empty store")
-	}
-	anchor, err := s.log.anchorDigest(offset)
-	if err != nil {
-		s.mu.RUnlock()
-		return SnapshotInfo{}, err
-	}
-	path, err := writeSnapshot(ctx, root, sequence, head, offset, hex.EncodeToString(anchor[:]), s.state)
-	if err == nil {
-		err = writeProjectionCheckpoints(root, &s.state, sequence, head, offset, hex.EncodeToString(anchor[:]))
-	}
-	s.mu.RUnlock()
-	if err != nil {
-		return SnapshotInfo{}, err
-	}
-	return SnapshotInfo{Sequence: sequence, Head: head, Path: path}, nil
+	var info SnapshotInfo
+	err := s.writeTransaction(ctx, func() error {
+		if rotateErr := s.sealLocked(); rotateErr != nil && !isSealRefusal(rotateErr) {
+			return rotateErr
+		}
+		if s.sequence == 0 {
+			return errors.New("overgodb: cannot snapshot empty store")
+		}
+		anchor, err := s.log.anchorDigest(s.replayEnd)
+		if err != nil {
+			return err
+		}
+		digest := hex.EncodeToString(anchor[:])
+		path, err := writeSnapshot(ctx, s.root, s.sequence, s.head, s.replayEnd, digest, s.state)
+		if err != nil {
+			return err
+		}
+		if err := writeProjectionCheckpoints(s.root, &s.state, s.sequence, s.head, s.replayEnd, digest); err != nil {
+			return err
+		}
+		info = SnapshotInfo{Sequence: s.sequence, Head: s.head, Path: path}
+		return nil
+	})
+	return info, err
 }
 
 // isSealRefusal reports the sanctioned reasons a snapshot proceeds

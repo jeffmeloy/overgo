@@ -60,8 +60,13 @@ func TestFrontPageServedProjector(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer supervisor.Close()
+	repository, err := overgodb.OpenReadOnly(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = repository.Close() })
 	proxy := &modelswap.Proxy{
-		Supervisor: supervisor, Resolver: &modelswap.CatalogResolver{Store: store, Limit: 256},
+		Supervisor: supervisor, Resolver: &modelswap.CatalogResolver{Store: repository, Limit: 256},
 		Default: modelswap.Servable{Name: name, Location: location},
 	}
 	front := httptest.NewServer(proxy)

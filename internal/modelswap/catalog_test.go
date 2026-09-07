@@ -20,12 +20,15 @@ func TestCatalogRefreshPreservesMemo(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer writer.Close()
-	resolver := CatalogResolver{Store: root}
-	reader, err := resolver.open(t.Context(), false)
+	reader, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer reader.Close()
+	resolver := CatalogResolver{Store: reader}
+	if err := resolver.refresh(t.Context()); err != nil {
+		t.Fatal(err)
+	}
 	memo := resolver.memo
 	path := filepath.Join(t.TempDir(), "weights.bin")
 	if err := os.WriteFile(path, []byte("initial weights"), 0600); err != nil {
@@ -42,11 +45,10 @@ func TestCatalogRefreshPreservesMemo(t *testing.T) {
 	if _, err := writer.Commit(t.Context(), artifact.Batch{Key: "catalog/refresh", Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
-	updated, err := resolver.open(t.Context(), true)
-	if err != nil || updated != reader || resolver.memo != memo {
-		t.Fatalf("refresh replaced resident state: reader=%t memo=%t error=%v", updated == reader, resolver.memo == memo, err)
+	if err := resolver.refresh(t.Context()); err != nil || resolver.Store != reader || resolver.memo != memo {
+		t.Fatalf("refresh replaced resident state: reader=%t memo=%t error=%v", resolver.Store == reader, resolver.memo == memo, err)
 	}
-	if _, found, err := updated.Artifact(t.Context(), content.Descriptor.ID); err != nil || !found {
+	if _, found, err := resolver.Store.Artifact(t.Context(), content.Descriptor.ID); err != nil || !found {
 		t.Fatalf("new committed declaration missing: found=%t error=%v", found, err)
 	}
 	if same, err := discovery.WeightsIdentity(path, resolver.memo); err != nil || same != before {
@@ -60,8 +62,12 @@ func TestCatalogRefreshPreservesMemo(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(nil)
-	if _, err := resolver.open(ctx, true); !errors.Is(err, context.Canceled) {
+	if err := resolver.refresh(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled refresh: %v", err)
+	}
+	var unbound CatalogResolver
+	if err := unbound.refresh(t.Context()); err == nil {
+		t.Fatal("missing borrowed store accepted")
 	}
 }
 

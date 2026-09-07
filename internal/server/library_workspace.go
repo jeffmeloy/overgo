@@ -10,6 +10,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 	"overgo/internal/recipe"
 )
 
@@ -148,15 +149,30 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
-	if h.repository == nil {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library registration needs a store")
-		return
-	}
 	libraryRegisterRoute(response, request, h.repository, h.config.LibraryIntake, body)
 }
 
-// libraryRegisterRoute: the registration over one store and intake; the idle shell serves it over the store it opens.
+func requireLibraryStore(response http.ResponseWriter, request *http.Request, store *overgodb.Store) bool {
+	if store == nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library writes need the store")
+		return false
+	}
+	if err := store.Refresh(request.Context()); err != nil {
+		if errors.Is(err, processlock.ErrBusy) {
+			writeError(response, http.StatusServiceUnavailable, "store_busy", "another database writer holds access; retry when it releases access")
+		} else {
+			writeError(response, http.StatusServiceUnavailable, "store_unavailable", err.Error())
+		}
+		return false
+	}
+	return true
+}
+
+// libraryRegisterRoute shares registration and store admission across served and idle workbenches.
 func libraryRegisterRoute(response http.ResponseWriter, request *http.Request, repository *overgodb.Store, intake LibraryIntake, body libraryRegisterRequest) {
+	if !requireLibraryStore(response, request, repository) {
+		return
+	}
 	switch body.Kind {
 	case "model":
 		if intake.ModelFiles == nil || intake.Register == nil {
@@ -176,7 +192,7 @@ func libraryRegisterRoute(response http.ResponseWriter, request *http.Request, r
 		receipt["kind"] = body.Kind
 		writeJSON(response, http.StatusOK, receipt)
 	case "dataset":
-		registered, err := dataset.RegisterDirectoryDatasetAs(context.WithoutCancel(request.Context()), repository, strings.TrimSpace(body.Name), strings.TrimSpace(body.Directory), body.Modality)
+		registered, err := dataset.RegisterDirectoryDatasetAs(request.Context(), repository, strings.TrimSpace(body.Name), strings.TrimSpace(body.Directory), body.Modality)
 		if err != nil {
 			writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
 			return
@@ -191,7 +207,7 @@ func libraryRegisterRoute(response http.ResponseWriter, request *http.Request, r
 			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider declaration needs the launcher's provider intake")
 			return
 		}
-		declared, err := declare(context.WithoutCancel(request.Context()), repository, ProviderDeclaration{
+		declared, err := declare(request.Context(), repository, ProviderDeclaration{
 			Name: body.Name, Endpoint: body.Endpoint, KeyEnvironment: body.KeyEnvironment, Models: body.Models, ContextLength: body.ContextLength,
 		})
 		if err != nil {
@@ -256,7 +272,10 @@ func libraryProviderRetireRoute(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider retirement needs a store and the launcher's provider intake")
 		return
 	}
-	if err := retire(context.WithoutCancel(request.Context()), repository, body.Location, body.Reason); err != nil {
+	if !requireLibraryStore(response, request, repository) {
+		return
+	}
+	if err := retire(request.Context(), repository, body.Location, body.Reason); err != nil {
 		writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
 		return
 	}
@@ -274,6 +293,9 @@ func (h *Handler) libraryValidate(response http.ResponseWriter, request *http.Re
 	intake := h.config.LibraryIntake
 	if h.repository == nil || h.operations == nil || !intake.assembled() {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library validation needs a store, an operation runtime and the model intake")
+		return
+	}
+	if !requireLibraryStore(response, request, h.repository) {
 		return
 	}
 	var policy libraryValidationPolicy

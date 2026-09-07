@@ -18,6 +18,7 @@ import (
 
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/runrecord"
 )
 
@@ -52,6 +53,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := reserveDevices(); err != nil {
+		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
+	}
 	steps := deviceSteps(plan)
 	steps = append([][]string{{"go", "run", "./cmd/cuda-info"}}, steps...)
 	for index, step := range steps {
@@ -76,6 +80,24 @@ func run() error {
 		fmt.Printf("audit: device scope=full reason=%s\n", plan.Reason)
 	} else {
 		fmt.Printf("audit: device scope=packages(%d) functions(%d)\n", len(plan.Packages), len(plan.Functions))
+	}
+	return nil
+}
+
+// reserveDevices holds the physical namespace across every lane subprocess.
+// Context creation independently claims the same UUID before any GPU work.
+func reserveDevices() error {
+	library, err := driver.Open()
+	if err != nil {
+		return err
+	}
+	defer library.Close()
+	devices, err := library.ReserveDevices()
+	if err != nil {
+		return err
+	}
+	for _, info := range devices {
+		fmt.Printf("[device] physical resource=%s admission=exclusive-process-tree\n", info.UUID)
 	}
 	return nil
 }

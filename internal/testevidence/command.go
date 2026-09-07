@@ -11,7 +11,10 @@ import (
 
 // RunGoTestCommand drains a test process through the bounded evidence parser.
 // The caller owns command arguments, environment, diagnostic budget and verdict.
-func RunGoTestCommand(ctx context.Context, command processcontrol.Command, short bool, diagnosticBytes int) (GoTestReport, error) {
+func RunGoTestCommand(ctx context.Context, command processcontrol.Command, short bool, diagnosticBytes int, observe func(string, bool) error) (GoTestReport, error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	observe, flush := queuedPackageUpdates(observe)
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	command.Stdout, command.Stderr = writer, writer
@@ -24,8 +27,11 @@ func RunGoTestCommand(ctx context.Context, command processcontrol.Command, short
 		writer.Close()
 		finished <- err
 	}()
-	report, parseErr := GoTestJSONReader(reader, short, diagnosticBytes)
+	report, parseErr := GoTestJSONReader(reader, short, diagnosticBytes, observe)
+	if parseErr != nil {
+		cancel(parseErr)
+	}
 	// Even an oversized or unreadable event must not strand a writer on a full pipe.
 	_, drainErr := io.Copy(io.Discard, reader)
-	return report, errors.Join(parseErr, drainErr, <-finished)
+	return report, errors.Join(parseErr, drainErr, <-finished, flush())
 }

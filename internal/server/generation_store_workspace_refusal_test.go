@@ -39,12 +39,18 @@ func sessionlessVQADefinition(modelID artifact.ID) (recipe.Definition, error) {
 // the run refuses it, and the workspace keeps listing.
 func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T) {
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
+	root := t.TempDir()
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	modelID := activateModel(t, store, sessionlessVQADefinition)
+	publisher, err := overgodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer publisher.Close()
+	modelID := activateModel(t, publisher, sessionlessVQADefinition)
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskVQA: {
 		Execute: func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
 			t.Fatal("a refused capability executed")

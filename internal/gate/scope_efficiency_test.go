@@ -90,7 +90,7 @@ func TestGateScopePreservesAffectedCoverage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		report, err := runGoTests(t.Context(), g.repo, scope.dependent, false)
+		report, err := runGoTests(t.Context(), g.repo, scope.dependent, false, nil)
 		if err == nil {
 			t.Fatal("production regression passed selected consumers")
 		}

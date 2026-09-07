@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"unsafe"
+
+	"overgo/internal/processcontrol"
 )
 
 const cudaDeviceNameBytes = 256
@@ -58,6 +60,7 @@ type Library struct {
 	cuDeviceGetCount     *syscall.Proc
 	cuDeviceGet          *syscall.Proc
 	cuDeviceGetName      *syscall.Proc
+	cuDeviceGetUUID      *syscall.Proc
 	cuDeviceTotalMem     *syscall.Proc
 	cuDeviceGetAttribute *syscall.Proc
 	cuGetErrorName       *syscall.Proc
@@ -107,6 +110,7 @@ func Open() (*Library, error) {
 		{"cuDeviceGetCount", &lib.cuDeviceGetCount},
 		{"cuDeviceGet", &lib.cuDeviceGet},
 		{"cuDeviceGetName", &lib.cuDeviceGetName},
+		{"cuDeviceGetUuid_v2", &lib.cuDeviceGetUUID},
 		{"cuDeviceTotalMem_v2", &lib.cuDeviceTotalMem},
 		{"cuDeviceGetAttribute", &lib.cuDeviceGetAttribute},
 		{"cuGetErrorName", &lib.cuGetErrorName},
@@ -331,10 +335,15 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 	if err != nil {
 		return DeviceInfo{}, err
 	}
+	uuid, err := l.deviceUUID(device)
+	if err != nil {
+		return DeviceInfo{}, err
+	}
 
 	runtime.KeepAlive(nameBytes)
 	return DeviceInfo{
 		Ordinal:                ordinal,
+		UUID:                   uuid,
 		Name:                   strings.TrimRight(string(nameBytes), "\x00"),
 		TotalMemoryBytes:       totalMemory,
 		ComputeCapabilityMajor: major,
@@ -346,6 +355,13 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 // ContextCreate creates CUDA context for device; calling goroutine
 // must remain locked to its OS thread while it uses context
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
+	uuid, err := l.deviceUUID(device)
+	if err != nil {
+		return 0, err
+	}
+	if err := processcontrol.ClaimResource(uuid); err != nil {
+		return 0, err
+	}
 	var context Context
 	var pinned runtime.Pinner
 	pinned.Pin(&context)

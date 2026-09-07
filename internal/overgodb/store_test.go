@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/processlock"
 	"overgo/internal/testutil"
 )
 
@@ -550,11 +551,17 @@ func TestSecondWriterFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer first.Close()
+	lock, err := processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
 	if second, err := Open(root); err == nil {
 		_ = second.Close()
 		t.Fatal("second writer acquired lock")
 	}
-	if err := first.Close(); err != nil {
+	if err := lock.Close(); err != nil {
 		t.Fatal(err)
 	}
 	second, err := Open(root)

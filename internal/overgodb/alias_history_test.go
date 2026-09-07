@@ -41,7 +41,7 @@ func TestVisitAliasEventsReturnsExactBoundedDeltas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.sealActiveSegment(); err != nil {
+	if err := store.sealActiveSegment(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	retireCommit, err := store.Commit(t.Context(), artifact.Batch{

@@ -21,6 +21,7 @@ import (
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/codeprofile"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -936,8 +937,26 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if err := g.reserveTestDevices(inputGraph, selectedTests); err != nil {
+		return false, err
+	}
 	directInputs, err := packageInputIdentities(inputGraph, direct)
 	if err != nil {
+		return false, err
+	}
+	dependentInputs, err := packageInputIdentities(inputGraph, dependent)
+	if err != nil {
+		return false, err
+	}
+	ledger, err := g.openPackageEvidence()
+	if err != nil {
+		return false, err
+	}
+	defer ledger.store.Close()
+	if err := ledger.prepare(ctx, direct, "short", directInputs, g.retryCache); err != nil {
+		return false, err
+	}
+	if err := ledger.prepare(ctx, dependent, "complete", dependentInputs, g.retryCache); err != nil {
 		return false, err
 	}
 	directPending, directReused, err := g.packageCachePartition(direct, "short", directInputs)
@@ -945,19 +964,15 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	if len(directPending) > 0 {
-		report, runErr := runGoTests(ctx, g.repo, directPending, true)
-		if err := errors.Join(runErr, g.recordPackagePasses(report, directPending, "short", directInputs)); err != nil {
+		_, runErr := runGoTests(ctx, g.repo, directPending, true, g.packagePassObserver(ctx, ledger, "short", directInputs))
+		if runErr != nil {
 			g.packageCacheAudit(directReused, len(directPending))
-			return false, err
+			return false, runErr
 		}
 	}
 	if len(dependent) == 0 {
 		g.packageCacheAudit(directReused, len(directPending))
 		return false, nil
-	}
-	dependentInputs, err := packageInputIdentities(inputGraph, dependent)
-	if err != nil {
-		return false, err
 	}
 	dependentPending, dependentReused, err := g.packageCachePartition(dependent, "complete", dependentInputs)
 	if err != nil {
@@ -965,8 +980,7 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	}
 	report := testevidence.GoTestReport{}
 	if len(dependentPending) > 0 {
-		report, err = runGoTests(ctx, g.repo, dependentPending, false)
-		err = errors.Join(err, g.recordPackagePasses(report, dependentPending, "complete", dependentInputs))
+		report, err = runGoTests(ctx, g.repo, dependentPending, false, g.packagePassObserver(ctx, ledger, "complete", dependentInputs))
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.audit = append(g.audit, fmt.Sprintf(
@@ -1006,14 +1020,14 @@ func (g *gateContext) packageCacheAudit(reused, executed int) {
 	}
 }
 
-func runGoTests(ctx context.Context, repo string, packages []string, short bool) (testevidence.GoTestReport, error) {
+func runGoTests(ctx context.Context, repo string, packages []string, short bool, observe func(string, bool) error) (testevidence.GoTestReport, error) {
 	args := []string{"test", "-json", "-count=1"}
 	if short {
 		args = append(args, "-short")
 	}
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 		Path: "go", Args: append(args, packages...), Dir: repo,
-	}, short, clioptions.DiagnosticTailBytes)
+	}, short, clioptions.DiagnosticTailBytes, observe)
 	if short || len(report.Failed)+len(report.Unfinished) > 0 {
 		err = errors.Join(err, testevidence.RequireComplete(report))
 	}
@@ -1021,6 +1035,40 @@ func runGoTests(ctx context.Context, repo string, packages []string, short bool)
 		return report, fmt.Errorf("go test evidence: %w\n%s", err, strings.Join(report.Diagnostics, "\n"))
 	}
 	return report, nil
+}
+
+// reserveTestDevices makes the gate, rather than a racing test package, own
+// the resource shared by its descendants. Host-only package graphs stay free.
+func (g *gateContext) reserveTestDevices(graph packageInputGraph, packages []string) error {
+	directories, err := graph.dependentDirectories("internal/cuda")
+	if err != nil {
+		return err
+	}
+	for _, pkg := range packages {
+		for _, index := range graph.byID[pkg] {
+			relative, err := filepath.Rel(graph.root, graph.nodes[index].Dir)
+			if err != nil {
+				return err
+			}
+			if !slices.Contains(directories, filepath.ToSlash(relative)) {
+				continue
+			}
+			library, err := driver.Open()
+			if err != nil {
+				return err
+			}
+			defer library.Close()
+			devices, err := library.ReserveDevices()
+			if err != nil {
+				return err
+			}
+			for _, device := range devices {
+				g.audit = append(g.audit, "test resource admission: "+device.UUID)
+			}
+			return nil
+		}
+	}
+	return nil
 }
 
 // stepMagics enforces repository-wide zero debt.

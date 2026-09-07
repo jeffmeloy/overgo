@@ -134,7 +134,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			if pending, reused, err := g.packageCachePartition(packages, "short", inputs); err != nil || reused != 0 || !slices.Equal(pending, packages) {
 				t.Fatalf("environment reused stale evidence: %v %d %v", pending, reused, err)
 			}
-			report, err := runGoTests(t.Context(), root, packages, true, nil)
+			report, err := (&gateContext{repo: root}).runGoTests(t.Context(), packages, true, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

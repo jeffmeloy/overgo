@@ -105,7 +105,7 @@ func TestChangeSelectionExternalConsumers(t *testing.T) {
 			runGitFixture(t, g.repo, "add", ".")
 			const consumer, independent = "overgo/internal/subprocess", "overgo/internal/client"
 			started := time.Now()
-			if report, err := runGoTests(t.Context(), g.repo, []string{consumer, independent}, false, nil); err != nil {
+			if report, err := g.runGoTests(t.Context(), []string{consumer, independent}, false, nil); err != nil {
 				t.Fatalf("baseline failed: %+v, %v", report, err)
 			}
 			graph, err := g.inputGraph()
@@ -141,7 +141,7 @@ func TestChangeSelectionExternalConsumers(t *testing.T) {
 				write("cmd/tool/main.go", strings.Replace(command, "Print(1)", "Print(2)", 1))
 			}
 			g.packageGraph = nil
-			full, fullErr := runGoTests(t.Context(), g.repo, fixtureRootPackages(t, g), false, nil)
+			full, fullErr := g.runGoTests(t.Context(), fixtureRootPackages(t, g), false, nil)
 			if fullErr == nil || !slices.Contains(full.Failed, consumer) {
 				t.Fatalf("seeded regression did not fail full checks: %+v, %v", full, fullErr)
 			}
@@ -170,7 +170,7 @@ func TestChangeSelectionExternalConsumers(t *testing.T) {
 			if t.Failed() {
 				return
 			}
-			report, err := runGoTests(t.Context(), g.repo, selected, false, nil)
+			report, err := g.runGoTests(t.Context(), selected, false, nil)
 			if err == nil || !slices.Equal(report.Failed, full.Failed) {
 				t.Fatalf("selected checks disagree with full failures: %v versus %v, %v", report.Failed, full.Failed, err)
 			}

@@ -31,7 +31,7 @@ func TestChangeSelectionUnownedRuntimeInputs(t *testing.T) {
 			write("internal/client/runtime_test.go", "package client\nimport (\"os\"; \"testing\")\nfunc TestRuntimeInput(t *testing.T) { b,err := os.ReadFile(\"../../"+inputPath+"\"); if err != nil || string(b) != "+strconv.Quote(beforeText)+" { t.Fatalf(\"input=%s err=%v\", b,err) } }\n")
 			runGitFixture(t, g.repo, "add", ".")
 			const consumer = "overgo/internal/client"
-			if report, err := runGoTests(t.Context(), g.repo, []string{consumer}, false, nil); err != nil {
+			if report, err := g.runGoTests(t.Context(), []string{consumer}, false, nil); err != nil {
 				t.Fatalf("baseline: %+v, %v", report, err)
 			}
 			graph, err := g.inputGraph()
@@ -49,7 +49,7 @@ func TestChangeSelectionUnownedRuntimeInputs(t *testing.T) {
 			write(inputPath, afterText)
 			g.paths = []string{inputPath}
 			g.packageGraph = nil
-			full, fullErr := runGoTests(t.Context(), g.repo, fixtureRootPackages(t, g), false, nil)
+			full, fullErr := g.runGoTests(t.Context(), fixtureRootPackages(t, g), false, nil)
 			if fullErr == nil || !slices.Contains(full.Failed, consumer) {
 				t.Fatalf("missing seeded failure: %+v %v", full, fullErr)
 			}
@@ -75,7 +75,7 @@ func TestChangeSelectionUnownedRuntimeInputs(t *testing.T) {
 			if t.Failed() {
 				return
 			}
-			report, err := runGoTests(t.Context(), g.repo, selected, false, nil)
+			report, err := g.runGoTests(t.Context(), selected, false, nil)
 			if err == nil || !slices.Equal(report.Failed, full.Failed) {
 				t.Fatalf("selected failures=%v full=%v error=%v", report.Failed, full.Failed, err)
 			}

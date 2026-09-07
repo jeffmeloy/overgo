@@ -70,6 +70,8 @@ const (
 
 type gateContext struct {
 	repo                string
+	candidateRoot       string
+	candidateTree       string
 	paths               []string
 	planRef             string
 	messageFile         string
@@ -118,11 +120,15 @@ type gateContext struct {
 	runCommand func(repo, name string, args ...string) (string, error)
 }
 
-func (g *gateContext) runGateCommand(name string, args ...string) (string, error) {
+func (g *gateContext) runGateCommand(root, name string, args ...string) (string, error) {
 	if g.runCommand != nil {
-		return g.runCommand(g.repo, name, args...)
+		return g.runCommand(root, name, args...)
 	}
-	return command(g.repo, name, args...)
+	environment, err := g.sourceEnvironment()
+	if err != nil {
+		return "", err
+	}
+	return commandEnvironment(root, environment, name, args...)
 }
 
 func (g *gateContext) closeCompletionStore() error {

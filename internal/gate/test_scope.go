@@ -45,7 +45,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		}
 		packages = append(packages, pkg)
 	}
-	direct, production := testscope.DirectPackages(g.repo, g.paths, packages)
+	direct, production := testscope.DirectPackages(graph.root, g.paths, packages)
 	scope := packageTestScope{direct: direct}
 	for _, path := range g.paths {
 		if path == "go.mod" || path == "go.sum" {
@@ -53,7 +53,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			continue
 		}
 		if strings.EqualFold(filepath.Ext(path), ".go") {
-			owners, _ := testscope.DirectPackages(g.repo, []string{path}, packages)
+			owners, _ := testscope.DirectPackages(graph.root, []string{path}, packages)
 			if len(owners) == 0 {
 				scope.unresolved = append(scope.unresolved, path)
 			}
@@ -69,7 +69,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		// Include actual compiled sources so nested embedded assets reach the
 		// same assembly checks as their owning production package.
 		for _, name := range append(slices.Clone(node.GoFiles), node.CgoFiles...) {
-			relative, err := filepath.Rel(g.repo, filepath.Join(node.Dir, name))
+			relative, err := filepath.Rel(graph.root, filepath.Join(node.Dir, name))
 			if err != nil {
 				return packageTestScope{}, err
 			}

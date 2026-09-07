@@ -770,6 +770,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-batch-control/abandoned-gate-recovery",
 		"validation-batch-control/selection-external-consumers",
 		"validation-batch-control/runtime-input-preflight",
+		"validation-batch-control/candidate-source-isolation",
 		"boundary-hardening/cross-origin",
 		"boundary-hardening/argv-output",
 		"final-model-validation/do",

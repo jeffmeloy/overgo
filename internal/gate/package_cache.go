@@ -60,7 +60,7 @@ type packageInputGraph struct {
 	fileInputs map[string][]byte
 }
 
-// Presence tags frame the v2 cache input grammar independently of file bytes.
+// Presence tags frame the v3 cache input grammar independently of file bytes.
 const (
 	packageInputAbsent byte = iota
 	packageInputPresent
@@ -266,17 +266,26 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 			return artifact.ID{}, err
 		}
 	}
+	// Repository paths are logical inputs; temporary checkout locations are not.
+	logical := make(map[string]string, len(files))
 	var paths []string
 	for path := range files {
-		paths = append(paths, filepath.Clean(path))
+		path = filepath.Clean(path)
+		name := "external:" + filepath.ToSlash(path)
+		if relative, err := filepath.Rel(graph.root, path); err == nil && filepath.IsLocal(relative) {
+			name = "repository:" + filepath.ToSlash(relative)
+		}
+		logical[name] = path
+		paths = append(paths, name)
 	}
 	slices.Sort(paths)
 	hasher := sha256.New()
-	hasher.Write([]byte("go-test-inputs/v2\x00"))
+	hasher.Write([]byte("go-test-inputs/v3\x00"))
 	hasher.Write([]byte(target))
 	hasher.Write([]byte("\x00"))
-	for _, path := range paths {
-		hasher.Write([]byte(filepath.ToSlash(path)))
+	for _, name := range paths {
+		path := logical[name]
+		hasher.Write([]byte(name))
 		hasher.Write([]byte("\x00"))
 		input, found := graph.fileInputs[path]
 		if !found {

@@ -15,8 +15,8 @@
     {
       "budget": "file-lines",
       "subject": "internal/gate/commit.go",
-      "limit": 2362,
-      "reason": "The two-phase Git commit transaction keeps intent, keepalive, index authority, reference exchange, and merge metadata in one phase file by design; further splitting risks a second transaction path. The merge of master 62851924 (step-local acceptance batches, retained package passes) and the criss-cross merge-base rule bring the file to exactly 2362 lines as the ratchet counts them, admitted at that size with no headroom."
+      "limit": 2350,
+      "reason": "The two-phase Git commit transaction keeps intent, keepalive, index authority, reference exchange, and merge metadata in one phase file by design; further splitting risks a second transaction path."
     },
     {
       "budget": "internal-imports",

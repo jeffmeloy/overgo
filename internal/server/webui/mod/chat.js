@@ -163,19 +163,18 @@
         } catch (err) { enhanceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
-      // A generation mode renders what its capability declares: the models
-      // activated for the task (a refused one says why) and the request's
-      // controls, read from the generation capabilities, never from a list
-      // typed here; the message body feeds the declared text control.
+      // Generation modes project declared capabilities; transitions discard old slots.
       const generation = { capabilities: null, capability: null, fields: new Map() };
       const galleryLimit = 12; // the newest outputs a mode's gallery rail lists
       async function renderMode(mode) {
         generation.capability = null;
+        generation.fields.clear(); generation.picker = null;
         composer.modeHost.replaceChildren();
         if (!mode || mode === "chat" || mode === "agent") return;
         try {
           if (!generation.capabilities) generation.capabilities = await overgo.api.get("/generation/capabilities");
         } catch (err) { composer.modeHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
+        if (composer.mode() !== mode) return;
         const declared = generation.capabilities.filter((capability) => capability.task === mode);
         if (!declared.length) return;
         const controlsHost = el("span", { class: "row" });

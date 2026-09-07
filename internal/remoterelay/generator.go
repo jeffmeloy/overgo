@@ -34,7 +34,6 @@ const completionsPath = "/chat/completions"
 // Generator relays generation to one declared provider.
 type Generator struct {
 	provider   remoteprovider.Provider
-	key        string
 	definition recipe.Definition
 	client     *http.Client
 }
@@ -50,11 +49,10 @@ type Conversation struct {
 // provider without its key is refused by name. A nil client uses the
 // default one.
 func New(provider remoteprovider.Provider, definition recipe.Definition, client *http.Client) (*Generator, error) {
-	key, err := remoteprovider.Key(provider)
-	if err != nil {
+	if _, err := remoteprovider.Key(provider); err != nil {
 		return nil, err
 	}
-	return &Generator{provider: provider, key: key, definition: definition, client: cmp.Or(client, http.DefaultClient)}, nil
+	return &Generator{provider: provider, definition: definition, client: cmp.Or(client, http.DefaultClient)}, nil
 }
 
 // FormatChat renders the conversation the generator forwards; media parts
@@ -134,6 +132,11 @@ func conversationOf(prompt string) []wireMessage {
 // provider's stop ends the stream; the caller's stop predicate ends it
 // early. No token ids exist for a remote answer.
 func (g *Generator) Generate(ctx context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+	// Resolve per request: key updates and withdrawal affect an active relay.
+	key, err := remoteprovider.Key(g.provider)
+	if err != nil {
+		return nil, "", err
+	}
 	body, err := json.Marshal(completionRequest{
 		Model: g.provider.Model, Messages: conversationOf(prompt), Stream: true,
 		MaxTokens: options.MaxNewTokens, Stop: options.StopSequences,
@@ -146,7 +149,7 @@ func (g *Generator) Generate(ctx context.Context, prompt string, options inferen
 	if err != nil {
 		return nil, "", err
 	}
-	request.Header.Set("Authorization", "Bearer "+g.key)
+	request.Header.Set("Authorization", "Bearer "+key)
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "text/event-stream")
 	response, err := g.client.Do(request)

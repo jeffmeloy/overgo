@@ -33,7 +33,9 @@ func (g *gateContext) recordPackagePasses(report testevidence.GoTestReport, pack
 		credited++
 	}
 	if credited != 0 {
-		g.saveRetryCache(*g.retryCache)
+		if err := g.saveRetryCache(*g.retryCache); err != nil {
+			return err
+		}
 	}
 	g.audit = append(g.audit, fmt.Sprintf("package evidence retained: %d/%d %s packages; incomplete or empty evidence not credited", credited, len(packages), mode))
 	return nil
@@ -187,6 +189,9 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if closeStore {
 		defer store.Close()
 	}
+	// Cost per accepted checkpoint and reuse saving against this row's prior
+	// gate results; advisory audit, derived from stored results only.
+	g.batchCostAudit(context.Background(), store, g.steps)
 	if err := requireSoleCurrentGatePreparation(
 		context.Background(), store, g.preparation, g.preparationCommit,
 	); err != nil {

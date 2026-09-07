@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"debug/buildinfo"
 	"encoding/base64"
 	"errors"
 	"image"
@@ -674,8 +675,30 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       document.querySelector("input[aria-label='retirement reason']").value = "the browser lane's fake provider closed";
       const row = [...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(`+strconv.Quote(entryName)+`));
       [...row.querySelectorAll("button")].find((button) => button.textContent === "retire").click(); return true; })()`)
-		settle("the retired model leaves the library or the modified tree refuses", `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(`+strconv.Quote(entryName)+`)) ||
-      [...document.querySelectorAll("#panel-library .note")].some((note) => note.textContent.includes("worktree is dirty"))`)
+		retirement := `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(entryName) + `))`
+		build, err := buildinfo.ReadFile(binary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The child reports its embedded source identity when the build stamped
+		// one; without a stamp it resolves through its worktree, so a modified
+		// worktree sees that refusal instead of the row leaving.
+		refusal := func(message string) string {
+			return `[...document.querySelectorAll("#panel-library .note")].some((note) => note.textContent === ` + strconv.Quote(message) + `)`
+		}
+		stamped := false
+		for _, setting := range build.Settings {
+			if setting.Key == "vcs.revision" {
+				stamped = true
+			}
+			if setting.Key == "vcs.modified" && setting.Value == "true" {
+				retirement = refusal("executable was built from modified source; exact code revision unavailable")
+			}
+		}
+		if _, err := runrecord.VerifyingCommit("."); err != nil && !stamped {
+			retirement = refusal("verifying worktree is dirty; commit or remove every change before recording a claim")
+		}
+		settle("the retirement follows the served binary's source identity", retirement)
 		var retiredOnPage bool
 		if err := browser.Evaluate(ctx, `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(`+strconv.Quote(entryName)+`))`, &retiredOnPage); err != nil {
 			t.Fatal(err)

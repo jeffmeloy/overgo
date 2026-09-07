@@ -203,7 +203,7 @@ func verificationBatchFixture(t *testing.T, mode string) (*gateContext, *plan.Ve
 		t.Fatal(err)
 	}
 	for path, content := range map[string]string{
-		"go.mod": "module batchfixture\n\ngo 1.25\n", "mode": mode,
+		"go.mod": "module batchfixture\n\ngo 1.25\n", "mode": mode, ".gitignore": "tmp/\n",
 		"unit_test.go": `package batchfixture
 import ("os"; "testing")
 func TestProducer(t *testing.T) { if _, err := os.ReadFile("mode"); err != nil { t.Fatal(err) } }
@@ -225,6 +225,17 @@ func TestIntegration(t *testing.T) { if _, err := os.ReadFile("go.mod"); err != 
 	}
 	runGitFixture(t, repo, "add", "--", ".")
 	runGitFixture(t, repo, "commit", "-q", "-m", "batch fixture")
+	return verificationBatchContext(t, repo)
+}
+
+// verificationBatchContext: gate context over an existing fixture repo; the
+// crash helper builds it in another process over the parent's repo.
+func verificationBatchContext(t *testing.T, repo string) (*gateContext, *plan.VerificationBatch, string) {
+	t.Helper()
+	document, err := plan.Load(filepath.Join(repo, plan.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
 	head := recoveryGit(t, repo, "rev-parse", "HEAD")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

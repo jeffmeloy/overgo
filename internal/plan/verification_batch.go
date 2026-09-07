@@ -18,6 +18,9 @@ type VerificationBatch struct {
 	Rationale   string                   `json:"rationale"`
 	ReopenWhen  string                   `json:"reopen_when"`
 	Checkpoints []VerificationCheckpoint `json:"checkpoints"`
+	// Flush: optional keyed accumulation bounds; absent -> checkpoints run
+	// as declared without accumulation.
+	Flush *BatchFlush `json:"flush,omitempty"`
 }
 
 // VerificationCheckpoint declares one acceptance within a step-local batch.
@@ -41,6 +44,9 @@ func validateVerificationBatch(batch *VerificationBatch) error {
 	if len(batch.Scope) == 0 || len(batch.Checkpoints) == 0 ||
 		!validAutomationDetail(batch.Rationale) || !validAutomationDetail(batch.ReopenWhen) {
 		return errors.New("verification batch requires scope, checkpoints, rationale and reopen condition")
+	}
+	if err := validateBatchFlush(batch.Flush); err != nil {
+		return err
 	}
 	paths := map[string]bool{}
 	for _, candidate := range batch.Scope {

@@ -80,6 +80,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .card.front-empty button")`); err != nil {
 		t.Fatal(err)
 	}
+	assertChatAttachmentModeReset(t, ctx, browser)
 	assertBrowserPredicate(t, ctx, browser, `(() => { const add = [...document.querySelectorAll("#panel-chat .card.front-empty button")].find((b) => b.textContent === "Add a model"); if (add) add.click(); return !!add; })()`)
 	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card button")].map((b) => b.textContent).join("|") === "register a local model|declare a hosted provider"`); err != nil {
 		t.Fatal(err)
@@ -211,6 +212,53 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
       return !host.querySelector("script,img") && !window.pwned &&
         host.textContent.includes("<script>") && !!host.querySelector("strong,b");
     })()`)
+}
+
+// assertChatAttachmentModeReset exercises fresh uploads after leaving a media slot.
+func assertChatAttachmentModeReset(t *testing.T, ctx context.Context, browser *webuilane.Browser) {
+	t.Helper()
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const o = window.overgo;
+      window.modeResetProbe = {capabilities: o.capabilities, get: o.api.get, upload: o.api.upload, uploads: 0};
+      o.capabilities = () => ({...window.modeResetProbe.capabilities(), modes: [{id:"chat", label:"Chat", enabled:true}, {id:"vqa", label:"Image question", enabled:true}]});
+      o.api.get = (path, ...args) => path === "/generation/capabilities" ? Promise.resolve([{task:"vqa", recipe:"probe", name:"probe", controls:[{name:"image", type:"artifact", label:"image", media:"image"}]}]) : window.modeResetProbe.get(path, ...args);
+      o.api.upload = () => { window.modeResetProbe.uploads++; return Promise.resolve({id:"probe"}); };
+      o.openConversation(null); return true;
+    })()`)
+	defer func() {
+		assertBrowserPredicate(t, ctx, browser, `(() => {
+          const o = window.overgo, saved = window.modeResetProbe;
+          o.capabilities = saved.capabilities; o.api.get = saved.get; o.api.upload = saved.upload;
+          delete window.modeResetProbe; o.openConversation(null); return true;
+        })()`)
+		if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .card.front-empty button")`); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if err := browser.Eventually(ctx, `!!document.querySelector('.composer select[aria-label="mode"] option[value="vqa"]')`); err != nil {
+		t.Fatal(err)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const mode = document.querySelector('.composer select[aria-label="mode"]');
+      mode.value = "vqa"; mode.dispatchEvent(new Event("change")); return true;
+    })()`)
+	if err := browser.Eventually(ctx, `!!document.querySelector('.mode-controls label.control input')`); err != nil {
+		t.Fatal(err)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const mode = document.querySelector('.composer select[aria-label="mode"]');
+      mode.value = "chat"; mode.dispatchEvent(new Event("change"));
+      const picker = document.querySelector('.composer input[type="file"]'), files = new DataTransfer();
+      files.items.add(new File(["mode reset"], "mode-reset.txt", {type:"text/plain"}));
+      picker.files = files.files; picker.dispatchEvent(new Event("change"));
+      return window.modeResetProbe.uploads === 0;
+    })()`)
+	if err := browser.Eventually(ctx, `(() => {
+      const attachments = document.querySelector('.composer');
+      return attachments && attachments.textContent.includes("mode-reset.txt") && !attachments.textContent.includes("stored as");
+    })()`); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, artifact.ID) {

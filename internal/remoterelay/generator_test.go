@@ -182,3 +182,24 @@ func TestGeneratorRefusesWithoutKeyAndReportsProviderErrors(t *testing.T) {
 		t.Fatal("a media part was forwarded")
 	}
 }
+
+func TestGeneratorUsesUpdatedKey(t *testing.T) {
+	server, _ := relaytest.Serve(t, "/api/v1", "updated-key", []string{"updated"})
+	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "old-key")
+	provider, definition := testProvider(t, server.URL)
+	generator, err := New(provider, definition, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err == nil {
+		t.Fatal("old key unexpectedly accepted")
+	}
+	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "updated-key")
+	if _, answer, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err != nil || answer != "updated" {
+		t.Fatalf("active relay ignored replacement key: answer=%q err=%v", answer, err)
+	}
+	t.Setenv("OVERGO_REMOTE_RELAY_TEST_KEY", "")
+	if _, _, err := generator.Generate(t.Context(), "hello", inference.GenerateOptions{}); err == nil || !strings.Contains(err.Error(), "is not set") {
+		t.Fatalf("withdrawn key remained active: %v", err)
+	}
+}

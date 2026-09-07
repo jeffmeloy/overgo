@@ -1,82 +1,46 @@
-# Integrating the professional GUI lane into master
+# GUI intake on master
 
-Rehearsed 2026-09-06 with `git merge-tree --write-tree master
-professional_overgo_gui` (no worktree, nothing written): the merge is
-clean. This record is the sequence the owner runs from the master
-worktree once it is clean; the lane itself never writes there.
+Reviewed source: `6ad5668fabed`, from the registered
+`C:/Users/jeffm/professional_overgo_gui` worktree. The historical
+`professional/_overgo/_gui` path no longer names that worktree.
 
-## What the rehearsal found
+## Adopted contracts
 
-| Fact | Value |
-|------|-------|
-| Merge base | `27f3944b47af` (master's head; master has not moved since the lane's last catch-up merge) |
-| Lane head at the rehearsal | `bba28535` plus this record's commit |
-| Merged tree | `a7574809bf6b6968e421c807c0115472bcad3580`, no conflicting path |
-| Paths the merge changes | 123 (5737 insertions, 798 deletions) |
-| New packages | `internal/apimanifest` (admission), `internal/providerintake`, `internal/remoteprovider`, `internal/remoterelay` with `relaytest`, `cmd/remote-provider`; extensions in `cmd/evaluate`, `cmd/server`, `internal/modelrecipe`, `internal/runrecord`, `internal/server` |
+- Thin client: declared media slots and presets, stored requests, gallery,
+  regeneration, lineage, prompt enhancement, accessible controls and cold startup.
+- Shared credential-less admission before proxy mutations; declared remote
+  providers, key intake and text relay. Hosted evaluation remains explicitly
+  remote and generative; it proves no local numerical parity or reproducibility.
+- Lane-aware dispatch on the existing plan owner. Master keeps its own plan;
+  the GUI lane retains HTTP, browser and transport development.
 
-The master worktree at the time of the rehearsal held 22 staged paths of
-another lane's gate transaction (`internal/gate/batch_cost*.go` and its
-generated documents). The integration waits for that transaction to land
-or be reverted; it is never merged over.
+## Intake corrections
 
-## What the integration must not take from the lane
+- Resolve provider keys per request. Replacement and withdrawal affect an
+  already-running relay; test both without live provider calls.
+- Clear composer fields and picker on mode changes. Ignore late capability
+  responses for a departed mode. Browser acceptance covers media-to-chat uploads.
+- Bind browser retirement expectations to the served binary's build identity:
+  modified source must refuse the claim; a clean binary must retire the model.
+- Retain master's E4B acceptance contract. The lane's new opt-in and relative
+  evidence-path behavior are excluded; no validation prerequisite becomes a skip.
+- Retain master's gate transaction and structural ceilings. Regenerate manifests
+  over the actual merged tree; preserve first-parent target plan authority.
+- Reconcile the measured harness snapshot without headroom: master already has
+  156 files and 174404 nodes; the admitted lane and remote contracts add one
+  file and 89 nodes. Other measured harness metrics are unchanged by this intake.
 
-- `docs/plan.json`: the lane's plan never merges (lane merge protocol).
-  Master keeps its own file; the lane's rows landed through the gate and
-  live in Git's structured trailers. The lane plan names its lane and
-  marks master's retained rows master's; none of that belongs on master.
-- `docs/plan_stop.json`: untracked on both sides; nothing to take.
+## Validation and later intake
 
-## What the integration regenerates on master
+Run owning-package tests, the existing browser/device lanes and the plan-bound
+merge gate. A browser journey proves interaction behavior, not model quality.
+Keep canonical modality, dataset, oracle, protocol and resource acceptance in
+master's validation campaign. Remote tests use declared local fake providers;
+live paid evaluation requires its own explicit authorization and evidence.
 
-Generated documents differ on the lane because they were regenerated
-over the lane tree: `compatibility.json`, `docs/COMPATIBILITY.md`,
-`docs/api_manifest.json`, `docs/API_MANIFEST.md`,
-`docs/modern_go_baseline.json`, `docs/modern_go_census.json`,
-`docs/harness_surface_baseline.json`, `docs/staged_surface.json`,
-`docs/structure_budgets.json`. Each is regenerated over the merged tree
-rather than taken from either side (see the sequence). The structure
-budgets file carries the lane's reviewed exception text for the server's
-42 internal imports; the merged tree stays at 42.
-
-## What master's owner accepts
-
-The contract extensions are tabled in `ANALYSIS.md` ("Hosted-evaluation
-contract extensions"), each with its owning package, its pin and the
-acceptance it asks. Two require a change on master's side:
-
-- `modality-verification` verifies request the E4B acceptance through
-  the data root today. After the merge the accepted-E4B test requests it
-  explicitly: the verify sets
-  `OVERGO_E4B_VALIDATION=docs/verification/e4b-validation.json` beside
-  `OVERGO_DATA_ROOT`, or the test skips and the verify reads as vacuous.
-- The credential-less admission lives in `internal/apimanifest` and the
-  swap proxy applies it before any mutation of its own; the server's
-  behaviour is unchanged and its cross-origin test still passes.
-
-## The sequence from the master worktree
-
-1. Land or revert the staged transaction so `git status` is clean.
-2. `git merge --no-ff --no-commit professional_overgo_gui`
-3. `git checkout master -- docs/plan.json` and
-   `git update-index --clear-resolve-undo`, so master's plan stays.
-4. Regenerate over the merged tree: `go run ./cmd/modern-census
-   -lower-baseline` then `-publish-census`; `go run ./cmd/compatibility
-   -refresh-identities` then `-check`; `go run ./cmd/api-manifest
-   -update` last; republish `docs/harness_surface_baseline.json` from the
-   merged tree if preflight reports the ceiling; `go run ./cmd/preflight`.
-5. Add master's merge row: `go run ./cmd/plan -add -title "Merge
-   professional_overgo_gui at <12hex>" -vcmd "go build ./..." -before
-   <first open id> merge-<12hex>`, and whitelist `merge-<12hex>/do` in
-   `internal/plan/campaign_structure_test.go`.
-6. Import the lane store's closure documents before gating:
-   `go run ./cmd/closure-scan -import-store
-   C:/Users/jeffm/professional_overgo_gui/overgodb-store`, then
-   `-import-store overgodb-store -review-callsites`.
-7. Gate the merge: `go run ./cmd/gate -merge -plan merge-<12hex>/do
-   -message-file <msg> -plan-projection first-parent-target
-   -merge-source-store C:/Users/jeffm/professional_overgo_gui/overgodb-store`.
-8. Rebuild `bin/gate.exe`, `bin/plan.exe` and `bin/loophook.exe` on
-   master (the plan package changed), and update the
-   `modality-verification` verifies as above.
+For later intake, inspect current commits and worktree state, rehearse against
+current master, preserve master plan through `first-parent-target`, resolve
+source conflicts, regenerate authorities and import reviewed closure bindings.
+Never import the lane plan, whitelist a row to evade acceptance, or raise a
+structural ceiling merely to make an integration pass. The gated commit is the
+completion record; this document is the contract boundary.

@@ -18,62 +18,18 @@ import (
 	"overgo/internal/testutil"
 )
 
-// e4bValidationEnv names the E4B validation document the acceptance reads
-// (the producer writes docs/verification/e4b-validation.json). The request
-// is explicit: a lane's gate sets the data root for its store without
-// requesting this acceptance, and a requested acceptance whose document is
-// missing fails rather than skips.
-const e4bValidationEnv = "OVERGO_E4B_VALIDATION"
-
-// e4bAcceptanceRequest: the requested document, or the reason the acceptance is not requested.
-func e4bAcceptanceRequest() (document, skip string) {
-	if document = strings.TrimSpace(os.Getenv(e4bValidationEnv)); document == "" {
-		return "", "integration: E4B acceptance not requested; set " + e4bValidationEnv + " to the producer's docs/verification/e4b-validation.json"
-	}
-	if os.Getenv(dataroot.Env) == "" {
-		return "", "integration: set OVERGO_DATA_ROOT to the store holding the canonical E4B evidence"
-	}
-	return document, ""
-}
-
-// TestE4BAcceptanceIsRequestedExplicitly pins the request: unset, the
-// acceptance skips by name; set, the named document is read and its absence
-// is the acceptance's failure, never a skip.
-func TestE4BAcceptanceIsRequestedExplicitly(t *testing.T) {
-	t.Setenv(e4bValidationEnv, "")
-	t.Setenv(dataroot.Env, t.TempDir())
-	if document, skip := e4bAcceptanceRequest(); document != "" || !strings.Contains(skip, e4bValidationEnv) {
-		t.Fatalf("unrequested = %q, %q", document, skip)
-	}
-	missing := filepath.Join(t.TempDir(), "e4b-validation.json")
-	t.Setenv(e4bValidationEnv, missing)
-	document, skip := e4bAcceptanceRequest()
-	if document != missing || skip != "" {
-		t.Fatalf("requested = %q, %q", document, skip)
-	}
-	var spec modelValidationSpecification
-	if err := jsonfile.Decode(document, &spec); err == nil {
-		t.Fatal("a missing requested document decoded")
-	}
-	t.Setenv(dataroot.Env, "")
-	if _, skip := e4bAcceptanceRequest(); !strings.Contains(skip, dataroot.Env) {
-		t.Fatalf("request without a store = %q", skip)
-	}
-}
-
 // TestAcceptedE4BModalities reads the frozen evidence selection only. It never
 // launches inference or promotes a partial or fixture-only model result.
 func TestAcceptedE4BModalities(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
 	}
-	document, skip := e4bAcceptanceRequest()
-	if skip != "" {
-		t.Skip(skip)
+	if os.Getenv(dataroot.Env) == "" {
+		t.Skip("integration: set OVERGO_DATA_ROOT for canonical E4B evidence acceptance")
 	}
 	root := testutil.RepoRoot(t)
 	var spec modelValidationSpecification
-	if err := jsonfile.Decode(document, &spec); err != nil {
+	if err := jsonfile.Decode(filepath.Join(root, "docs", "verification", "e4b-validation.json"), &spec); err != nil {
 		t.Fatal(err)
 	}
 	if spec.Model.String() != "model:sha256:fb09299dd00edd7ffdcf8cb48e475d2a9c9e30a22c51f79f6d4d793e983c557b" ||

@@ -14,6 +14,10 @@ import (
 	"overgo/internal/clioptions"
 )
 
+// escapeVirtualKey is the Windows VK_ESCAPE value required by Chromium's
+// Input.dispatchKeyEvent to perform the browser's native dialog dismissal.
+const escapeVirtualKey = 27
+
 // Screenshot captures the viewport as PNG bytes through the browser's own
 // screenshot command: what a reader sees, never a guess at it.
 func (browser *Browser) Screenshot(ctx context.Context) ([]byte, error) {
@@ -51,6 +55,8 @@ const (
 	layoutSmall = "small-control"
 	// layoutContrast: text sits on its background below the readable ratio.
 	layoutContrast = "low-contrast"
+	// layoutHeader: on a phone the header takes too much of the first screen before the content.
+	layoutHeader = "header-share"
 )
 
 // String renders a finding on one line for a log.
@@ -209,7 +215,10 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string, settle tim
 			if err := capture(viewport, "picker"+suffix); err != nil {
 				return states, findings, err
 			}
-			if err := browser.Evaluate(ctx, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`, nil); err != nil {
+			if err := browser.Call(ctx, "Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "Escape", "windowsVirtualKeyCode": escapeVirtualKey}, nil); err != nil {
+				return states, findings, err
+			}
+			if err := browser.Call(ctx, "Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "Escape", "windowsVirtualKeyCode": escapeVirtualKey}, nil); err != nil {
 				return states, findings, err
 			}
 		}
@@ -232,7 +241,7 @@ func CaptureSummary(states int, findings []StateFinding) string {
 func layoutAuditScript() string {
 	return strings.NewReplacer(
 		"KIND_OVERFLOW", layoutOverflow, "KIND_OUTSIDE", layoutOutside, "KIND_OVERLAP", layoutOverlap,
-		"KIND_CLIPPED", layoutClipped, "KIND_SMALL", layoutSmall, "KIND_CONTRAST", layoutContrast,
+		"KIND_CLIPPED", layoutClipped, "KIND_SMALL", layoutSmall, "KIND_CONTRAST", layoutContrast, "KIND_HEADER", layoutHeader,
 	).Replace(layoutAuditTemplate)
 }
 
@@ -267,6 +276,13 @@ const layoutAuditTemplate = `(() => {
   };
   const width = window.innerWidth;
   if (document.documentElement.scrollWidth > width + 1) note("KIND_OVERFLOW", document.documentElement, "document " + document.documentElement.scrollWidth + "px wide in a " + width + "px viewport");
+  // On a phone the content must begin within the first screen's upper part; a scrolled page has its content above.
+  const phoneWidth = 520, headerShare = 0.35;
+  const panels = document.getElementById("panels");
+  if (panels && width <= phoneWidth) {
+    const share = panels.getBoundingClientRect().top / window.innerHeight;
+    if (share > headerShare) note("KIND_HEADER", panels, Math.round(share * 100) + "% of the first screen lies above the content");
+  }
   const controls = [...document.querySelectorAll("button, a[href], input, select, textarea, [role=button]")].filter((node) => visible(node) && node.type !== "hidden");
   for (const node of controls) {
     const rect = node.getBoundingClientRect();

@@ -372,8 +372,10 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const select = document.querySelector('.composer select[aria-label="mode"]');
       if (select) { select.value = "chat"; select.dispatchEvent(new Event("change")); }
-      const limit = [...document.querySelectorAll('.composer input[type="number"]')].at(-1);
+      document.getElementById('settings-toggle').click();
+      const limit = document.querySelector('#conversation-settings input[aria-label="max tokens"]');
       limit.value = "400";
+      document.querySelector('#settings-dialog [data-close-dialog]').click();
       return true;
     })()`)
 	say(t, ctx, browser, "Write a very long story about a lighthouse, at least twenty paragraphs.")
@@ -429,7 +431,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		// beside the original, and accepting it fills the composer; the run
 		// that follows cites the enhancement record as its source.
 		assertBrowserPredicate(t, ctx, browser, `(() => { const input = document.querySelector(".composer textarea"); input.value = "a test image"; input.focus(); return true; })()`)
-		assertBrowserPredicate(t, ctx, browser, `(() => { const enhance = [...document.querySelectorAll(".composer .chat-controls button")].find((button) => button.textContent === "enhance"); if (!enhance) return false; enhance.click(); return true; })()`)
+		assertBrowserPredicate(t, ctx, browser, `(() => { document.getElementById('settings-toggle').click(); const enhance = [...document.querySelectorAll("#conversation-settings button")].find((button) => button.textContent === "Enhance current prompt"); if (!enhance) return false; enhance.click(); return true; })()`)
 		settle("the rewrite stands beside the original", `(() => { const card = document.querySelector("#panel-chat .enhancement .card");
       return !!card && card.textContent.includes("original: a test image") && (card.querySelector(".rewrite") || {}).textContent.trim().length > 0; })()`)
 		var rewrite string
@@ -808,6 +810,10 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	if value != "" {
 		t.Setenv(variable, value)
 	}
+	provider := remoteprovider.Provider{Name: name, Endpoint: fake.URL, KeyEnvironment: variable, Model: "lane/" + name + "-model"}
+	// A killed prior journey cannot run cleanup. Its dead endpoint must not
+	// compete with this fixture under the same picker name.
+	retireLaneRemote(t, storePath, remoteprovider.Location(provider))
 	commit, err := runrecord.HeadCommit(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -816,9 +822,7 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	if err != nil {
 		t.Fatal(err)
 	}
-	declaration, err := remoteprovider.Declare(t.Context(), laneStore, remoteprovider.Provider{
-		Name: name, Endpoint: fake.URL, KeyEnvironment: variable, Model: "lane/" + name + "-model",
-	}, commit)
+	declaration, err := remoteprovider.Declare(t.Context(), laneStore, provider, commit)
 	if closeErr := laneStore.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
@@ -828,6 +832,24 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	}
 	t.Cleanup(func() { retireLaneRemote(t, storePath, declaration.Location) })
 	return path.Base(declaration.Location)
+}
+
+func TestLaneRemoteFixtureReplacesPriorEndpoint(t *testing.T) {
+	storePath := t.TempDir()
+	first := declareLaneRemote(t, storePath, "webui-lane-cleanup", "OVERGO_WEBUI_LANE_CLEANUP_KEY", "lane-key", []string{"old"})
+	second := declareLaneRemote(t, storePath, "webui-lane-cleanup", "OVERGO_WEBUI_LANE_CLEANUP_KEY", "lane-key", []string{"current"})
+	if first == "" || second != first {
+		t.Fatalf("fixture picker names: %q, %q", first, second)
+	}
+	store, err := overgodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	declared, err := remoteprovider.List(t.Context(), store, 256)
+	if err != nil || len(declared) != 1 {
+		t.Fatalf("fixture declarations = %d, error = %v; want one current endpoint", len(declared), err)
+	}
 }
 
 // say types one message into the composer through the browser's input

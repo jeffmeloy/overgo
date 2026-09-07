@@ -107,13 +107,14 @@
     let i = 0;
     while (i < lines.length) {
       const line = lines[i];
-      const fence = line.match(/^```(\w*)\s*$/);
+      const fence = line.match(/^(`{3,})(.*)$/);
       if (fence) {
         const buf = [];
         i++;
-        while (i < lines.length && !/^```\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
+        const closing = new RegExp("^`{" + fence[1].length + ",}\\s*$");
+        while (i < lines.length && !closing.test(lines[i])) { buf.push(lines[i]); i++; }
         i++; // consume closing fence (or end of input)
-        root.appendChild(codeBlock(buf.join("\n"), fence[1]));
+        root.appendChild(codeBlock(buf.join("\n"), fence[2].trim()));
         continue;
       }
       const heading = line.match(/^(#{1,6})\s+(.*)$/);

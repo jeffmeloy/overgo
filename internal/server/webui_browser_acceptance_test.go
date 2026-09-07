@@ -82,7 +82,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	}
 	assertChatAttachmentModeReset(t, ctx, browser)
 	assertBrowserPredicate(t, ctx, browser, `(() => { const add = [...document.querySelectorAll("#panel-chat .card.front-empty button")].find((b) => b.textContent === "Add a model"); if (add) add.click(); return !!add; })()`)
-	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card button")].map((b) => b.textContent).join("|") === "register a local model|declare a hosted provider"`); err != nil {
+	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card .row button")].map((b) => b.textContent).join("|") === "register a local model|declare a hosted provider"`); err != nil {
 		t.Fatal(err)
 	}
 	// The picker over an empty store, captured and audited at both viewports.
@@ -100,7 +100,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-library.active") && document.activeElement.getAttribute("aria-label") === "provider name"`); err != nil {
 		t.Fatal(err)
 	}
-	assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".topbar .card").remove(); location.hash = "automations"; return true; })()`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "automations"; return !document.querySelector(".topbar dialog[open]"); })()`)
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form")`); err != nil {
 		t.Fatal(err)
 	}
@@ -123,8 +123,8 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.SetViewport(ctx, 640, 900); err != nil {
 		t.Fatal(err)
 	}
-	if err := browser.Eventually(ctx, `getComputedStyle(document.querySelector(".shell")).flexDirection === "column" &&
-      document.querySelector(".sidebar").getBoundingClientRect().width <= innerWidth`); err != nil {
+	if err := browser.Eventually(ctx, `getComputedStyle(document.querySelector(".sidebar")).display === "none" &&
+      document.querySelector("#navigation-toggle").getBoundingClientRect().width > 0`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -423,7 +423,7 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	}
 	emulateMedia(t, ctx, browser, "prefers-reduced-motion", "reduce")
 	assertBrowserPredicate(t, ctx, browser, `matchMedia("(prefers-reduced-motion: reduce)").matches && parseFloat(getComputedStyle(document.querySelector("#server-dot")).transitionDuration) < 0.001`)
-	for scheme, background := range map[string]string{"light": "rgb(244, 246, 250)", "dark": "rgb(10, 13, 19)"} {
+	for scheme, background := range map[string]string{"light": "rgb(250, 250, 247)", "dark": "rgb(21, 24, 25)"} {
 		emulateMedia(t, ctx, browser, "prefers-color-scheme", scheme)
 		if err := browser.Eventually(ctx, `matchMedia("(prefers-color-scheme: `+scheme+`)").matches && getComputedStyle(document.body).backgroundColor === "`+background+`"`); err != nil {
 			t.Fatalf("scheme %s: %v", scheme, err)

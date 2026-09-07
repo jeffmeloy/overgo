@@ -5,11 +5,13 @@
 (function () {
   "use strict";
   const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
+  let disposeChat = () => {};
 
   // inspectTurn: the side panel over one assistant turn: its run record, then any inspector embedded over it.
   document.addEventListener("keydown", (event) => { // Escape closes the inspector and stops a running turn from anywhere on the page
     const aside = document.getElementById("inspector");
     if (event.key !== "Escape") return;
+    if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
     if (aside && !aside.hidden) { aside.hidden = true; aside.replaceChildren(); }
     if (window.overgo.stopTurn) window.overgo.stopTurn();
   });
@@ -39,14 +41,21 @@
   window.overgo.registerTab({
     id: "chat",
     async mount(panel, overgo) {
+      disposeChat();
+      let disposed = false;
+      let controller = null;
+      const selected = overgo.conversation();
+      let conversationRoot = selected ? selected.root : "";
+      disposeChat = () => { disposed = true; if (controller) controller.abort(); };
       const { el, clear, fmt } = overgo;
       clear(panel);
       const capabilities = overgo.capabilities();
       if (!capabilities) { panel.appendChild(overgo.errorBanner("the served model declares no capabilities yet")); return; }
       const modelID = capabilities.id;
+      const served = overgo.servedModel();
+      const otherModel = selected && selected.model && served && selected.model !== served.model;
       const params = capabilities.generation;
       const contextLength = capabilities.context_length;
-      let controller = null;
       let lastResponseID = "";
 
       // Agent mode: the active definitions the store holds; a turn runs the same thread through /agents/chat
@@ -55,6 +64,7 @@
       let tools = [];
       try { agents = (await overgo.api.get("/agents")).filter((item) => item.state === "active"); } catch (_) { /* no agent runtime */ }
       if (agents.length) tools = (await overgo.api.get("/agent/tools")).tools || [];
+      if (disposed) return;
       const agentPicker = el("select", { class: "text w-auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
       const agentHost = el("div", { class: "agent-session" });
       agentHost.hidden = true;
@@ -65,9 +75,12 @@
       const facts = el("div", { class: "statgrid", "aria-label": "context meter" });
       const temperature = el("input", { class: "keyfield w-80", type: "number", value: params.temperature, "aria-label": "temperature" });
       const maxTokens = el("input", { class: "keyfield w-90", type: "number", value: params.max_tokens, max: contextLength, "aria-label": "max tokens" });
-      const reset = el("button", { class: "btn alt", onclick: () => overgo.openConversation(null) }, "new");
 
-      panel.append(el("details", { class: "mb-10" }, el("summary", { class: "note" }, "system prompt"), system), facts);
+      const settings = document.getElementById("conversation-settings");
+      settings.replaceChildren(el("section", { class: "settings-section" }, el("h3", { text: "Conversation" }),
+        el("label", { class: "setting-field" }, "System prompt", system),
+        el("div", { class: "settings-fields" }, el("label", { class: "setting-field" }, "Temperature", temperature), el("label", { class: "setting-field" }, "Maximum output tokens", maxTokens)),
+        el("details", {}, el("summary", { text: "Last response usage" }), facts)));
       // artifactField: the mode's artifact-typed control, if any. A media card re-enters the composer as the next
       // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
       // a fresh attachment in such a mode stores through the intake route and fills the control.
@@ -131,7 +144,10 @@
         } catch (err) { thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err)); }
         finally { controller = null; composer.setBusy(false); }
       }
-      overgo.stopTurn = () => { if (controller) controller.abort(); }; // the Escape key's stop, the composer's stop control's too
+      overgo.stopTurn = () => {
+        if (controller) controller.abort();
+        try { sessionStorage.removeItem(INFLIGHT_STORAGE); } catch (_) { /* storage unavailable */ }
+      };
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: overgo.stopTurn,
@@ -139,9 +155,9 @@
         intake: (file) => { const field = artifactField(file); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => { field.input.value = stored.id; field.input.dispatchEvent(new Event("intake")); return stored.id; }) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; return renderMode(mode); },
-        controls: [el("span", { class: "row composer-params" }, reset, el("span", { class: "note", text: "temp" }), temperature, el("span", { class: "note", text: "max tokens" }), maxTokens,
-          el("button", { class: "btn alt", text: "enhance", onclick: () => enhancePrompt() }))],
+        controls: [],
       });
+      settings.firstChild.appendChild(el("button", { class: "btn alt", text: "Enhance current prompt", onclick: () => { document.getElementById("settings-dialog").close(); enhancePrompt(); } }));
       panel.insertBefore(agentHost, composer.element);
       // Prompt enhancement: the served model rewrites the typed prompt under the server's fixed
       // instruction; the rewrite stands beside the original until accepted, and an accepted rewrite
@@ -156,8 +172,8 @@
         try {
           const answer = await overgo.api.post("/generation/enhance", { prompt });
           const accept = el("button", { class: "btn", text: "accept", onclick: () => {
-            composer.input.value = answer.enhanced; enhancement.record = answer.record || ""; enhancement.enhanced = answer.enhanced; enhanceHost.replaceChildren(); } });
-          const keep = el("button", { class: "btn alt", text: "keep original", onclick: () => enhanceHost.replaceChildren() });
+            composer.input.value = answer.enhanced; enhancement.record = answer.record || ""; enhancement.enhanced = answer.enhanced; enhanceHost.replaceChildren(); composer.input.focus(); } });
+          const keep = el("button", { class: "btn alt", text: "keep original", onclick: () => { enhanceHost.replaceChildren(); composer.input.focus(); } });
           enhanceHost.replaceChildren(el("div", { class: "card" }, el("div", { class: "note", text: "original: " + answer.original }),
             el("div", { class: "rewrite", text: answer.enhanced }), el("div", { class: "row" }, accept, keep)));
         } catch (err) { enhanceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
@@ -227,17 +243,13 @@
       }) : null;
       if (toolSurface) { toolSurface.setAgent(agents[0], tools); agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools)); }
 
-      // The empty conversation is the getting-started card.
-      const served = overgo.servedModel();
-      const declared = Object.keys(capabilities.modalities || {}).filter((kind) => capabilities.modalities[kind]).concat((capabilities.modes || []).filter((mode) => mode.enabled).map((mode) => mode.label)).concat(capabilities.remote ? ["remote"] : []);
+      // The empty conversation offers direct starting actions.
       const welcome = el("div", { class: "card front-empty" },
-        el("h2", { text: capabilities.name || modelID }),
-        el("div", { class: "note", text: (served && overgo.evidenceLine(served)) || "no committed evidence yet" }),
-        el("div", null, ...declared.map((label) => el("span", { class: "tag", text: label }))),
+        el("h2", { text: "What would you like to work on?" }),
         el("div", { class: "starters" }, el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() }), el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
           // With nothing catalogued the same control reads as the way in; the picker names the two paths.
           el("button", { class: "btn alt", text: served ? "Switch model" : "Add a model", onclick: () => document.getElementById("model-pill").click() })));
-      panel.insertBefore(welcome, thread.node);
+      thread.node.prepend(welcome);
 
       function renderFacts(inputTokens, usage, timings) {
         const cards = [];
@@ -272,21 +284,27 @@
         let latest = "";
         async function* noting(events) {
           for await (const event of events) {
+            if (disposed) return;
             if (event.type === "created" || event.type === "done") latest = event.id || latest;
-            if (event.type === "created") { try { localStorage.setItem(INFLIGHT_STORAGE, event.id); } catch (_) { /* storage unavailable */ } }
+            if (event.type === "created") {
+              const root = conversationRoot || (conversationRoot = event.id);
+              overgo.rememberConversation({ root, latest: event.id, model: served && served.model });
+              try { sessionStorage.setItem(INFLIGHT_STORAGE, JSON.stringify({ root, response: event.id })); } catch (_) { /* storage unavailable */ }
+            }
             yield event;
           }
         }
         const terminal = await thread.consume(noting(overgo.streams.responses(response)), assistant);
+        if (disposed) return;
         if (latest) lastResponseID = latest;
         if (latest && assistant) { assistant.response = latest; thread.renderMessage(assistant, false); }
-        try { localStorage.removeItem(INFLIGHT_STORAGE); } catch (_) { /* storage unavailable */ }
+        try { sessionStorage.removeItem(INFLIGHT_STORAGE); } catch (_) { /* storage unavailable */ }
         renderFacts(inputTokens, terminal.usage, terminal.timings);
         overgo.refreshConversations();
       }
 
       async function submit(text, attachments, mode) {
-        if (controller) return;
+        if (disposed || controller || otherModel) return;
         welcome.remove();
         const parts = composer.attachmentParts();
         composer.clearInput();
@@ -333,15 +351,18 @@
       }
 
       // Resume the rail selection from its record, or reattach to a turn this page was streaming.
-      const selected = overgo.conversation();
-      let inflight = "";
-      try { inflight = localStorage.getItem(INFLIGHT_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
+      let saved = null;
+      try { saved = JSON.parse(sessionStorage.getItem(INFLIGHT_STORAGE) || "null"); } catch (_) { /* storage unavailable */ }
+      const inflight = selected && saved && selected.root === saved.root ? saved.response : "";
       if (selected) {
+        composer.setBusy(true);
         try {
           const chain = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(selected.latest));
+          if (disposed) return;
           welcome.remove();
           for (const message of chain.messages || []) {
             if (message.role !== "user" && message.role !== "assistant") continue;
+            if (inflight && message.role === "assistant" && message.response === inflight) continue;
             const shown = thread.add(message.role, message.content);
             shown.response = message.response;
             thread.renderMessage(shown, false);
@@ -349,13 +370,20 @@
           lastResponseID = chain.response;
         } catch (err) { thread.errorRow(overgo.friendlyError(err)); }
       }
-      if (inflight) {
+      if (inflight && !disposed && !otherModel) {
         welcome.remove();
         controller = new AbortController();
         composer.setBusy(true);
         try {
           await consumeTurn(await streamTurn("/interactions/follow?response=" + encodeURIComponent(inflight), null, "GET"), thread.add("assistant", ""), null);
         } catch (err) { thread.errorRow(overgo.friendlyError(err)); } finally { controller = null; composer.setBusy(false); }
+      }
+      composer.setBusy(false);
+      if (otherModel && !disposed) {
+        composer.setReadOnly(true);
+        thread.node.appendChild(el("div", { class: "note", role: "status" }, "This conversation belongs to another model. Choose its original model to continue, or start a new conversation. ",
+          el("button", { class: "btn alt", text: "Choose model", onclick: () => document.getElementById("model-pill").click() }),
+          el("button", { class: "btn alt", text: "New conversation", onclick: () => overgo.openConversation(null) })));
       }
     },
   });

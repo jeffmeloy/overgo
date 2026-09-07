@@ -1,5 +1,31 @@
 # Current workbench GUI: analysis record
 
+## Structural redesign — owner direction, 2026-09-07
+
+This direction supersedes the historical card-based front-page and phone-polish
+design below. Work stays exclusively in `professional_overgo_gui`. Use flat
+conversation text, lists and separators; no dashboard tiles, message cards or
+large model welcome panel. A compact model selector opens a list with details
+on request. Navigation is a drawer on mobile. API keys, system prompts and
+generation parameters live in Settings. Only active work, failures and required
+decisions occupy operational space. The conversation scrolls independently and
+the composer retains visible send/stop controls, including at reduced phone
+viewport heights. Preserve every existing workbench capability and server route.
+
+Acceptance measures the user's controls and conversation, not the top of an
+arbitrary content container: compose, attach, read a long reply, stop, switch
+conversation/model, open/close navigation and settings, and reach Library from
+a phone. Inspect captures in both themes alongside behavioral assertions.
+
+The Impeccable review uses its Operate, Distill and Craft Floor guidance from
+the local checkout at `C:\Users\jeffm\impeccable` (read only). Applied here:
+one sans family for interface prose, monospace for code and measurements,
+restrained teal for actions and state, flat results with separators, a shared
+reading measure, consistent SVG controls, explicit focus, and larger phone
+touch targets. Native dialogs protect model selection and settings focus.
+The mechanical scan found a thick alert edge; it was replaced with a thin
+separator. The behavioral browser lane remains the acceptance authority.
+
 Written 2026-09-04 for the professional GUI campaign (lane
 `professional_overgo_gui`). This is a design record of what the present
 GUI does, taken from the source at the lane base 9dce4fca, and of what a first-time
@@ -521,3 +547,4 @@ marked as not reproducible from the store.
 | Screen capture and layout audit (`webuilane.Browser.Screenshot`, `LayoutAudit` over the browser's geometry and computed styles; `cmd/webui-lane -screens <dir> [-url <address>]`) | `internal/webuilane`, `internal/server`, `cmd/webui-lane` | `TestWebUIBrowserLayoutAudit` (a synthetic page faulting in every measured way), `TestWebUIBrowserScreens` (every tab and the picker at desktop and phone, findings at zero) | the page's look is captured and measured, never guessed; a layout fault cannot land |
 | Shell design tokens (`--s1`..`--s7` spacing, `--t-xs`..`--t-xl` type, `--front` column) and the front-page column, composer strip, rail rows, picker rows and empty operations strip restyled from the captures | `internal/server/webui` | `TestWebUIBrowserScreens` (audit at zero over every restyled state), `TestWebUIBrowserAcceptance`, `TestWebUIBrowserFrontPage`; captures under `docs/gui/screens` | polish is evidenced by captures, never described; a change that breaks the audit cannot land |
 | Colour-scheme emulation and single-state capture (`webuilane.Browser.SetColorScheme`, `CaptureState`, `ColourSchemes`); the journey and the acceptance lane capture the thread, composer, mode and empty-picker states | `internal/webuilane`, `internal/server` | `TestWebUIBrowserScreens` (every tab under both schemes), `TestWebUIBrowserFirstRun` and `TestWebUIBrowserAcceptance` (the states the fixture cannot make), all at zero findings | the light scheme and the populated states are measured, not assumed |
+| Phone header (sections as one label row with the active section's tabs, brand and toggle on one row, the rail a short scrolling list) and the audit's `header-share` measure (the content begins within 35% of the first screen at the phone width) | `internal/server/webui`, `internal/webuilane` | `TestWebUIBrowserLayoutAudit` (a tall header on a phone-wide synthetic page), `TestWebUIBrowserScreens` and the journeys at the phone viewport | the first screen on a phone shows content, held by a measure rather than a rule |

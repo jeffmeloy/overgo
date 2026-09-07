@@ -852,8 +852,15 @@ The first-run journey captures the states a reader meets that the
 fixture cannot make: a thread with a reply, a stopped turn, a tool card,
 a media card with its record, an attachment in the composer and a
 generation mode with its declared controls; the acceptance lane captures
-the picker over an empty store. A finding fails the test, so the audit
-holds at zero. `go run ./cmd/webui-lane -run
+the picker over an empty store. The conversation uses a flat reading area
+and a persistent composer. On phones, navigation opens in a drawer;
+model details, API keys and generation parameters stay behind explicit
+controls. Idle operations occupy no space. The conversation-layout test
+checks visible send/stop controls, independent scrolling, drawer focus
+and settings access at desktop, phone and reduced keyboard heights.
+Source-size census values remain review information, while behavioral
+journeys and centralized transport/security checks determine acceptance.
+A finding fails the test, so the audit holds at zero. `go run ./cmd/webui-lane -run
 '^TestWebUIBrowserScreens$' -screens <dir>` writes the captures as PNGs
 for a reader, and `go run ./cmd/webui-lane -url <address> -screens
 <dir>` walks a running server's page the same way without the tests,

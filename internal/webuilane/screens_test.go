@@ -70,6 +70,19 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	if findings := audit(clean); len(findings) != 0 {
 		t.Errorf("the clean page audited with findings: %v", findings)
 	}
+	// A phone-wide page whose header pushes the content below the first screen's upper part.
+	tall := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><div style="height:500px"></div><div id="panels">content</div></body>`
+	ctx, cancel := context.WithTimeoutCause(t.Context(), time.Minute, errors.New("webui lane: the tall header did not audit"))
+	defer cancel()
+	browser, err := Open(ctx, browserPath, "data:text/html,"+strings.ReplaceAll(tall, " ", "%20"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer browser.Close()
+	findings, err := CaptureState(ctx, browser, "", ScreenViewports[1], "tall")
+	if err != nil || len(findings) != 1 || findings[0].Finding.Kind != layoutHeader {
+		t.Errorf("the tall header audited as %v, %v", findings, err)
+	}
 	if summary := CaptureSummary(3, nil); !strings.Contains(summary, "captured 3 states") || !strings.HasSuffix(summary, "0 layout findings") {
 		t.Errorf("summary = %q", summary)
 	}

@@ -3,6 +3,12 @@
   "doc": "Reviewed staged surface: each exported symbol without a statically visible production consumer names either one exact canonical open plan step that retires it or a closed evidence-bound retained classification. Missing, blocked, historical, duplicate, and free-text future-work entries refuse. Undeclared new unconsumed surface still blocks the gate.",
   "staged": [
     {
+      "package": "overgo/internal/trainingprogram",
+      "name": "CTCLossF32",
+      "reason": "CPU CTC loss and raw-logits gradients have independent oracle and finite-difference acceptance. The next audio step binds this objective to the frozen-projection feature adapter; primitive parity alone is not ASR training evidence.",
+      "retire_with": "asr-training/trainable-graph"
+    },
+    {
       "package": "overgo/internal/modelrecipetest",
       "name": "CandidateExecution",
       "reason": "Shared testing.TB fixture consolidates duplicate candidate-compilation helpers from runtime and media tests; it is test-consumed by design and adds no serving API. The bound finding records the consumers, passing scoped checks and 32-node duplication reduction.",

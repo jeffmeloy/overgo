@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -69,11 +70,12 @@ type logRecord struct {
 }
 
 type recordLog struct {
-	file     *os.File
-	writer   durableWriter
-	lock     *fileLock
-	segment  uint64
-	readOnly bool
+	file         *os.File
+	writer       durableWriter
+	segment      uint64
+	readOnly     bool
+	sealed       []string
+	pendingReset bool
 }
 
 type durableWriter interface {
@@ -95,15 +97,19 @@ type replayAnchor struct {
 	digest   [sha256.Size]byte
 }
 
+func sealedSegmentPaths(root string) ([]string, error) {
+	paths, err := filepath.Glob(filepath.Join(root, segmentDirectory, "*"+segmentExtension))
+	if err != nil {
+		return nil, fmt.Errorf("overgodb: list segments: %w", err)
+	}
+	slices.Sort(paths)
+	return paths, nil
+}
+
 // replaySealedSegments replays every immutable segment in order,
 // threading the commit chain across files. A torn or corrupt sealed
 // segment refuses: only the active segment may recover a tail.
-func replaySealedSegments(root string, apply func(logRecord) error) (replayResult, error) {
-	paths, err := filepath.Glob(filepath.Join(root, segmentDirectory, "*"+segmentExtension))
-	if err != nil {
-		return replayResult{}, fmt.Errorf("overgodb: list segments: %w", err)
-	}
-	slices.Sort(paths)
+func replaySealedSegments(paths []string, apply func(logRecord) error) (replayResult, error) {
 	chain := replayResult{}
 	for _, path := range paths {
 		base := strings.TrimSuffix(filepath.Base(path), segmentExtension)
@@ -153,9 +159,13 @@ func openRecordLog(
 	apply func(logRecord) error,
 ) (*recordLog, replayResult, error) {
 	path := filepath.Join(root, storeFilename)
+	paths, err := sealedSegmentPaths(root)
+	if err != nil {
+		return nil, replayResult{}, err
+	}
 	chain := replayResult{}
 	if anchor.sequence == 0 {
-		sealed, err := replaySealedSegments(root, apply)
+		sealed, err := replaySealedSegments(paths, apply)
 		if err != nil {
 			return nil, replayResult{}, err
 		}
@@ -166,7 +176,7 @@ func openRecordLog(
 		if err != nil {
 			return nil, replayResult{}, fmt.Errorf("overgodb: open read-only log: %w", err)
 		}
-		log := &recordLog{file: file, readOnly: true}
+		log := &recordLog{file: file, readOnly: true, sealed: paths}
 		result, err := log.replayActive(chain, anchor, apply)
 		if err != nil {
 			_ = file.Close()
@@ -177,16 +187,11 @@ func openRecordLog(
 	if err := os.MkdirAll(root, storeDirectoryMode); err != nil {
 		return nil, replayResult{}, fmt.Errorf("overgodb: create root: %w", err)
 	}
-	lock, err := acquireFileLock(filepath.Join(root, lockFilename))
-	if err != nil {
-		return nil, replayResult{}, fmt.Errorf("overgodb: acquire writer lock: %w", err)
-	}
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, storeFileMode)
 	if err != nil {
-		_ = lock.Close()
 		return nil, replayResult{}, fmt.Errorf("overgodb: open log: %w", err)
 	}
-	log := &recordLog{file: file, lock: lock}
+	log := &recordLog{file: file, sealed: paths}
 	if err := log.ensureHeader(); err != nil {
 		_ = log.Close()
 		return nil, replayResult{}, err
@@ -261,6 +266,16 @@ func validateStoreHeader(header []byte) error {
 // checkpoint anchor -- which always addresses the active segment --
 // otherwise.
 func (l *recordLog) replayActive(chain replayResult, anchor replayAnchor, apply func(logRecord) error) (replayResult, error) {
+	pending, err := l.pendingRotation()
+	if err != nil {
+		return replayResult{}, err
+	}
+	if pending {
+		if anchor.sequence != 0 {
+			return replayResult{}, ErrSnapshotAnchor
+		}
+		return l.finishRotation(chain)
+	}
 	if anchor.sequence != 0 {
 		return l.replay(anchor, apply)
 	}
@@ -276,6 +291,71 @@ func (l *recordLog) replayActive(chain replayResult, anchor replayAnchor, apply 
 	}
 	result := replayResult{head: chain.head, sequence: chain.sequence, validEnd: storeHeaderBytes}
 	return l.replayFrames(result, replayAnchor{}, apply)
+}
+
+func (l *recordLog) pendingRotation() (bool, error) {
+	if len(l.sealed) == 0 {
+		return false, nil
+	}
+	var header [frameHeaderBytes]byte
+	if _, err := l.file.ReadAt(header[:], storeHeaderBytes); errors.Is(err, io.EOF) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	_, record, err := decodeFrameHeader(header[:])
+	if err != nil {
+		return false, err
+	}
+	last := strings.TrimSuffix(filepath.Base(l.sealed[len(l.sealed)-1]), segmentExtension)
+	sequence, err := strconv.ParseUint(last, segmentNameRadix, segmentNameBitSize)
+	if err != nil {
+		return false, err
+	}
+	return record.sequence <= sequence, nil
+}
+
+// finishRotation accepts only an exact duplicate of the validated final sealed
+// segment. Readers leave bytes untouched; a writer completes the durable reset.
+func (l *recordLog) finishRotation(chain replayResult) (replayResult, error) {
+	sealed, err := os.Open(l.sealed[len(l.sealed)-1])
+	if err != nil {
+		return replayResult{}, err
+	}
+	defer sealed.Close()
+	activeInfo, err := l.file.Stat()
+	if err != nil {
+		return replayResult{}, err
+	}
+	sealedInfo, err := sealed.Stat()
+	if err != nil {
+		return replayResult{}, err
+	}
+	if activeInfo.Size() != sealedInfo.Size() {
+		return replayResult{}, errors.New("overgodb: interrupted rotation extent differs from sealed segment")
+	}
+	activeHash, sealedHash := sha256.New(), sha256.New()
+	if _, err := io.Copy(activeHash, io.NewSectionReader(l.file, storeMagicOffset, activeInfo.Size())); err != nil {
+		return replayResult{}, err
+	}
+	if _, err := io.Copy(sealedHash, sealed); err != nil {
+		return replayResult{}, err
+	}
+	if !bytes.Equal(activeHash.Sum(nil), sealedHash.Sum(nil)) {
+		return replayResult{}, errors.New("overgodb: interrupted rotation bytes differ from sealed segment")
+	}
+	end := activeInfo.Size()
+	l.pendingReset = l.readOnly
+	if !l.readOnly {
+		if err := l.file.Truncate(storeHeaderBytes); err != nil {
+			return replayResult{}, err
+		}
+		if err := l.file.Sync(); err != nil {
+			return replayResult{}, err
+		}
+		end = storeHeaderBytes
+	}
+	return replayResult{head: chain.head, sequence: chain.sequence, validEnd: end}, nil
 }
 
 func (l *recordLog) replay(anchor replayAnchor, apply func(logRecord) error) (replayResult, error) {
@@ -518,12 +598,6 @@ func (l *recordLog) Close() error {
 	if l.file != nil {
 		result = l.file.Close()
 		l.file = nil
-	}
-	if l.lock != nil {
-		if err := l.lock.Close(); result == nil {
-			result = err
-		}
-		l.lock = nil
 	}
 	return result
 }

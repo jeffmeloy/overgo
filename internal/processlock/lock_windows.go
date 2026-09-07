@@ -3,6 +3,7 @@
 package processlock
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -78,4 +79,64 @@ func unlockFirstByte(file *os.File, overlapped *syscall.Overlapped) (uintptr, er
 		file.Fd(), reserved, firstByteLockLength, rangeHigh, uintptr(unsafe.Pointer(overlapped)),
 	)
 	return result, err
+}
+
+// AcquireContext waits for exclusive access until ctx ends. Cancellation drains
+// the pending OS request before releasing its handle and OVERLAPPED storage.
+func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	name, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, err
+	}
+	handle, err := syscall.CreateFile(name, syscall.GENERIC_READ|syscall.GENERIC_WRITE,
+		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE, nil, syscall.OPEN_ALWAYS,
+		syscall.FILE_ATTRIBUTE_NORMAL|syscall.FILE_FLAG_OVERLAPPED, 0)
+	if err != nil {
+		return nil, &os.PathError{Op: "open", Path: path, Err: err}
+	}
+	// Keep the asynchronous request outside os.File's completion port.
+	lock := &Lock{}
+	var null uintptr
+	const manualReset = uintptr(1)
+	event, _, eventErr := kernel32.NewProc("CreateEventW").Call(null, manualReset, null, null)
+	if event == 0 {
+		_ = syscall.CloseHandle(handle)
+		return nil, eventErr
+	}
+	defer syscall.CloseHandle(syscall.Handle(event))
+	lock.overlapped.HEvent = syscall.Handle(event)
+	var reserved, high uintptr
+	result, _, callErr := procLockFileEx.Call(uintptr(handle), lockfileExclusiveLock, reserved,
+		firstByteLockLength, high, uintptr(unsafe.Pointer(&lock.overlapped)))
+	if result == 0 && errors.Is(callErr, syscall.ERROR_IO_PENDING) {
+		cancelled := make(chan struct{})
+		stop := context.AfterFunc(ctx, func() {
+			_ = syscall.CancelIoEx(handle, &lock.overlapped)
+			close(cancelled)
+		})
+		var transferred uint32
+		const waitForCompletion = uintptr(1)
+		result, _, callErr = kernel32.NewProc("GetOverlappedResult").Call(uintptr(handle),
+			uintptr(unsafe.Pointer(&lock.overlapped)), uintptr(unsafe.Pointer(&transferred)), waitForCompletion)
+		if !stop() {
+			<-cancelled
+		}
+	}
+	if result == 0 {
+		_ = syscall.CloseHandle(handle)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return nil, &os.PathError{Op: "lock", Path: path, Err: callErr}
+	}
+	lock.overlapped.HEvent = 0
+	lock.file = os.NewFile(uintptr(handle), path)
+	if err := ctx.Err(); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	return lock, nil
 }

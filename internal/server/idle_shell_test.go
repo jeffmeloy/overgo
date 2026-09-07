@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -106,17 +107,21 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer writer.Close()
+	lock, err := processlock.Acquire(filepath.Join(root, "overgodb.lock"), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
 	shell := &IdleShell{
 		OpenStore: func(context.Context) (*overgodb.Store, error) { return overgodb.Open(root) },
 		Intake: LibraryIntake{
 			ModelFiles: func(path, projector string) (string, string, error) { return path, projector, nil },
 			Register: func(_ context.Context, _ *overgodb.Store, path, _ string) (map[string]any, error) {
-				if other, err := overgodb.Open(root); !errors.Is(err, processlock.ErrBusy) {
-					if other != nil {
-						_ = other.Close()
-					}
-					t.Fatalf("write route lacks exclusive ownership: %v", err)
+				other, err := overgodb.Open(root)
+				if err != nil {
+					t.Fatalf("idle intake handle reserves writer: %v", err)
 				}
+				_ = other.Close()
 				return nil, errors.New("intake refused")
 			},
 		},
@@ -136,7 +141,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 	if busy.Code != http.StatusServiceUnavailable || !strings.Contains(busy.Body.String(), `"store_busy"`) {
 		t.Fatalf("live contention = %d %s", busy.Code, busy.Body)
 	}
-	if err := writer.Close(); err != nil {
+	if err := lock.Close(); err != nil {
 		t.Fatal(err)
 	}
 	refused := requestWrite()

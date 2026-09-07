@@ -72,7 +72,7 @@ func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
 		}
 	}
 	assert("active")
-	if err := store.sealActiveSegment(); err != nil {
+	if err := store.sealActiveSegment(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	assert("sealed")

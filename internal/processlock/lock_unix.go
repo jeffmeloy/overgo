@@ -3,11 +3,13 @@
 package processlock
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"syscall"
+	"time"
 )
 
 // Lock is an exclusive file lock released by Close or process exit.
@@ -43,4 +45,27 @@ func (lock *Lock) Close() error {
 		return fmt.Errorf("unlock: %w", unlockErr)
 	}
 	return closeErr
+}
+
+// AcquireContext waits for exclusive access until ctx ends.
+func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, error) {
+	// flock has no context-aware wait. Bound retry latency without busy-spinning;
+	// this cadence affects scheduling only, never ownership or stale-lock expiry.
+	const retryInterval = time.Millisecond
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		lock, err := Acquire(path, mode)
+		if !errors.Is(err, ErrBusy) {
+			return lock, err
+		}
+		timer := time.NewTimer(retryInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
 }

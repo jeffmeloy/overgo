@@ -1,4 +1,4 @@
-// Package processlock owns non-blocking, process-lifetime file locks.
+// Package processlock owns OS file locks released on close or process exit.
 package processlock
 
 import "errors"

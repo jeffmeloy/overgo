@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 	"overgo/internal/recipe"
 )
 
@@ -95,6 +96,65 @@ func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 	}
 	if refused := post(t, brokenFront.URL+"/library/register", `{"kind":"provider","name":"p","endpoint":"http://127.0.0.1:1","key_environment":"K","models":["m"]}`); refused.StatusCode != http.StatusNotImplemented {
 		t.Fatalf("library write without a store = %d", refused.StatusCode)
+	}
+}
+
+func TestIdleShellWriterLifetime(t *testing.T) {
+	root := t.TempDir()
+	writer, err := overgodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	shell := &IdleShell{
+		OpenStore: func(context.Context) (*overgodb.Store, error) { return overgodb.Open(root) },
+		Intake: LibraryIntake{
+			ModelFiles: func(path, projector string) (string, string, error) { return path, projector, nil },
+			Register: func(_ context.Context, _ *overgodb.Store, path, _ string) (map[string]any, error) {
+				if other, err := overgodb.Open(root); !errors.Is(err, processlock.ErrBusy) {
+					if other != nil {
+						_ = other.Close()
+					}
+					t.Fatalf("write route lacks exclusive ownership: %v", err)
+				}
+				return nil, errors.New("intake refused")
+			},
+		},
+	}
+	requestWrite := func() *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		shell.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/library/register", strings.NewReader(`{"kind":"model","path":"local.gguf"}`)))
+		return response
+	}
+	// A competing writer does not prevent the idle workbench from answering.
+	response := httptest.NewRecorder()
+	shell.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("idle health with another writer = %d", response.Code)
+	}
+	busy := requestWrite()
+	if busy.Code != http.StatusServiceUnavailable || !strings.Contains(busy.Body.String(), `"store_busy"`) {
+		t.Fatalf("live contention = %d %s", busy.Code, busy.Body)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	refused := requestWrite()
+	if strings.Contains(refused.Body.String(), `"store_busy"`) || !strings.Contains(refused.Body.String(), "intake refused") {
+		t.Fatalf("retry after writer closes = %d %s", refused.Code, refused.Body)
+	}
+	// Even a refused intake releases the writer before the next operation.
+	writer, err = overgodb.Open(root)
+	if err != nil {
+		t.Fatalf("idle workbench retained writer after request: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	shell.OpenStore = func(context.Context) (*overgodb.Store, error) { return nil, errors.New("repository unreadable") }
+	unavailable := requestWrite()
+	if !strings.Contains(unavailable.Body.String(), `"store_unavailable"`) || strings.Contains(unavailable.Body.String(), `"store_busy"`) {
+		t.Fatalf("non-lock error misclassified = %d %s", unavailable.Code, unavailable.Body)
 	}
 }
 

@@ -1,59 +1,18 @@
 # Overgo
 
-Overgo is an operating recursive self-improvement (RSI) system platform for
-model-driven software agents.
+Overgo runs, trains, evaluates, and composes models in Go and CUDA. Operators
+and agents share its browser workbench, HTTP APIs, command-line tools, and
+artifact store.
 
-It has two permanent uses:
+Overgo supports supervised recursive self-improvement (RSI). Agents propose
+changes; operators set goals and budgets. Deterministic code admits, executes,
+verifies, and promotes work. OvergoDB preserves the evidence and state needed
+to compare results, resume work, and roll back changes.
 
-- provide the deterministic framework needed to build RSI automation;
-- expose the same model, agent, training, evaluation, and automation framework
-  to people for useful work through the operator workbench, APIs, and command
-  line.
-
-The central design rule is that model cognition proposes work while
-deterministic code controls state, authority, execution, verification, and
-recovery. A model may interpret a problem or generate a candidate patch, but
-acceptance still depends on measured evidence and executable policy.
-
-A second design rule governs how models enter the system. Overgo owns no
-model-family executors. It ports llama.cpp behavior -- container formats,
-numerical rules, quantization, and kernels -- into generic Go and CUDA
-components, and expresses each model family as a typed prototype definition in
-OvergoDB: the tensor layout, execution modes, operators, and numerical features
-that family needs. Specific checkpoints are verified as instances inside a
-prototype. Adding a model is adding a prototype definition and a recipe, not a
-new code path -- model identity lives in the store as data, and a reviewed
-census (docs/family_branch_baseline.json, enforced by the architecture
-family-branch test) pins the small residue of family-named branches that
-remain in shared execution code: the GGUF tokenizer-algorithm kinds and the
-llama-compatibility loader. That census only shrinks; a new model
-expressible through existing primitives introduces no family-named branch.
-
-An operator can steer the framework by supplying goals, constraints,
-priorities, and decisions about what to investigate next. The graphical
-workbench is an external interface for steering and observation; it is not the
-RSI controller. The RSI path adds model-directed steering from durable
-measurements and state alongside human-directed work. Both paths use the same
-deterministic control plane to admit, evaluate, activate, reject, or recover
-work.
-
-Overgo was built by the loop it describes. Every commit in its history was
-dispatched by `cmd/plan`, gated by `cmd/gate`, and carries the trailers that
-record it -- the plan step it closed, the code and recipe manifests it
-observed, and the falsifiable check that passed (`Overgo-Plan-Item`,
-`Overgo-Code-Manifest`, `Overgo-Verify`) -- so the repository is the loop's
-output, not a description of a loop that has yet to run.
-
-What that demonstrates is bounded, and the boundary is the point. Supervised,
-system-level RSI is not a future goal here: it is how this repository exists --
-an external model proposes and executes work, the deterministic control plane
-admits, gates, and records it, and an operator steers goals and priorities. The
-recursive loop is implemented end to end: measurement, controlled experiments,
-evidence-gated policy promotion, typed steering proposals, and a driver that
-consumes them under mechanical stop conditions. What remains open is narrower
-and specific -- unattended operation at scale, improvement of the proposing
-model's own cognition, and measured effectiveness against competing strategies
-(see What remains before fully autonomous RSI).
+The current campaign validates model capabilities and measures gains against
+fixed baselines. Unattended operation at scale, improvements to the proposing
+model's cognition, and gains over competing strategies remain unproven.
+[The plan](docs/plan.json) defines the remaining work.
 
 ![Overgo governed RSI architecture](docs/assets/overgo-platform-technical-architecture.png)
 
@@ -61,53 +20,33 @@ model's own cognition, and measured effectiveness against competing strategies
 
 ## The recursive control boundary
 
-Overgo is an RSI system because measured outcomes can change the mechanism
-that proposes, executes, or judges later work. It is not recursive merely
-because a model can generate another patch. Every iteration crosses the same
-deterministic boundary:
+Measured outcomes guide changes to how the system proposes, executes, and
+evaluates later work. Each iteration follows these controls:
 
 | Phase | Authority and invariant |
 | --- | --- |
 | Steer | An operator or model proposes a bounded goal. A proposal grants no execution or activation authority. |
 | Form candidate | The proposal becomes a typed, falsifiable candidate over a model, recipe, policy, dataset, mechanism, or code change. |
-| Compile and realize | Go owners prove dependency and capability closure, then materialize the candidate through bounded execution. |
+| Compile and realize | Validate dependencies and required capabilities, then build or execute the candidate within its limits. |
 | Evaluate | Baselines, ablations, benchmark suites, retrieval judgments, resource measurements, and production probes produce comparable evidence. |
 | Decide | Executable policy admits promotion, rejection, quarantine, rollback, or further supervised work. Model preference cannot substitute for evidence. |
 | Persist | OvergoDB records identities, lineage, receipts, metrics, decisions, checkpoints, and versioned active state. |
 | Recur | Durable outcomes expose the next capability gap and inform the next steering proposal under explicit budgets and stop conditions. |
 
-The same cycle governs changes to inference, training, evaluation, retrieval,
-routing, automation, and the control system itself. The repository demonstrates
-supervised system-level RSI through this loop. It does not claim unattended
-operation at scale or autonomous improvement of the proposing model's
-cognition.
+This cycle governs inference, training, evaluation, retrieval, routing,
+automation, and changes to the controls themselves.
 
 ## Objectives
 
-Reliable RSI requires more than repeatedly asking a model to modify its own
-code. The surrounding system must make each attempt reproducible, bounded, and
-falsifiable. Human-directed use needs the same properties so useful work can be
-inspected, resumed, compared, and trusted.
-
-```text
-steering: operator or model
-      -> typed task and bounded context
-      -> deterministic admission and execution
-      -> independent tests and evaluations
-      -> evidence-and-policy decision
-      -> activate, reject, or roll back
-      -> durable measurements and state
-      -> next steering proposal
-```
-
-The same mechanism must also evaluate changes to the automation itself. An
-improved prompt, planning policy, retrieval method, gate selector, or repair
-strategy is only an improvement when repeated measurements show a better
-result under the same constraints.
+Make each attempt reproducible, bounded, inspectable, and resumable. Measure
+quality, throughput, memory, and recovery against fixed inputs and budgets.
+Apply the same standard to prompts, planning policies, retrieval methods,
+gate selectors, and repair strategies: repeated measurements must establish
+the gain without hiding regressions.
 
 ## What exists
 
-Overgo already combines the following components in one codebase:
+The codebase provides these mechanisms:
 
 | Area | Current implementation |
 | --- | --- |
@@ -207,6 +146,10 @@ encoder; it does not establish full-model WER or throughput.
   a model program. A checkpoint that fits existing compiled behavior requires
   a prototype and recipe; a new numerical mechanism requires a corresponding
   generic operator or policy implementation and new verification evidence.
+
+The [family-branch census](docs/family_branch_baseline.json) limits remaining
+family-specific branches in shared execution code. Models that fit existing
+primitives add prototype and recipe bindings, without new family branches.
 
 ### Training and adaptation
 
@@ -461,15 +404,11 @@ to an exact artifact, recipe, source revision, environment, and verifier.
 
 ## Operator workbench
 
-The graphical workbench is the human interface to the same control plane the
-automation uses. It is a self-contained browser client embedded in the server
-binary: `cmd/server` serves it at the listen address under a same-origin
-content-security policy, with no external assets or build step. The browser
-projects backend records and submits bounded actions; it does not own
-execution state or participate in the autonomous decision loop. Every panel
-reads the same store the command line and the automation read, so a result
-shown in the workbench is the same durable record a gate or a script would
-see.
+`cmd/server` embeds and serves the browser workbench under a same-origin
+content-security policy, with no external assets or client build step. The
+workbench reads backend records and submits bounded actions through the same
+control plane as command-line tools and automation. The backend owns execution
+state and decisions.
 
 ### Front page
 
@@ -927,8 +866,8 @@ configuration, environment, and verification command behind each claim.
 
 ## The recursive loop, as implemented
 
-The mechanisms the loop needs now exist end to end, each deterministic and
-store-recorded:
+The following mechanisms record their inputs, decisions, and outcomes in
+OvergoDB:
 
 - **Measurement.** Every gate run — success and failure alike — emits a typed
   attempt record binding the plan step it served, the strategy that produced
@@ -1026,15 +965,9 @@ cognition remain separate claims requiring their own evidence.
 
 ## Scope
 
-Overgo includes a broad model-engineering runtime because an RSI harness must
-be able to execute and evaluate the systems it changes. The same inference,
-training, evaluation, multimodal processing, agent, automation, and distributed
-execution capabilities are also exposed for direct human use. These are two
-consumers of one control and evidence system, not separate platforms.
-
 The current host target is Windows amd64 with Go 1.26 and an NVIDIA CUDA
 driver. The runtime uses the Windows ABI without cgo. Public interfaces may
-change while the control and evidence model is tightened.
+change during development.
 
 Current release designation: **v0.1.1**.
 

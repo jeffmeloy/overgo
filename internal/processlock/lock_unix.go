@@ -3,6 +3,7 @@
 package processlock
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -22,7 +23,10 @@ func Acquire(path string, mode fs.FileMode) (*Lock, error) {
 	}
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = file.Close()
-		return nil, err
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			err = errors.Join(ErrBusy, err)
+		}
+		return nil, &os.PathError{Op: "lock", Path: path, Err: err}
 	}
 	return &Lock{file: file}, nil
 }

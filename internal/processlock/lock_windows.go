@@ -3,6 +3,7 @@
 package processlock
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -14,6 +15,8 @@ const (
 	lockfileExclusiveLock   = 0x00000002
 	lockfileFailImmediately = 0x00000001
 	firstByteLockLength     = uintptr(1)
+	// ERROR_LOCK_VIOLATION is the Win32 byte-range contention result.
+	errorLockViolation = 33
 )
 
 var (
@@ -38,7 +41,10 @@ func Acquire(path string, mode fs.FileMode) (*Lock, error) {
 	result, callErr := lockFirstByte(file, &lock.overlapped)
 	if result == 0 {
 		_ = file.Close()
-		return nil, callErr
+		if errors.Is(callErr, syscall.Errno(errorLockViolation)) {
+			callErr = errors.Join(ErrBusy, callErr)
+		}
+		return nil, &os.PathError{Op: "lock", Path: path, Err: callErr}
 	}
 	return lock, nil
 }

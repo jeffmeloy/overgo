@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 )
 
 // IdleShell answers the client while the swap proxy runs no child: the
@@ -78,6 +80,10 @@ func (s *IdleShell) withStore(response http.ResponseWriter, request *http.Reques
 	}
 	store, err := s.OpenStore(request.Context())
 	if err != nil {
+		if errors.Is(err, processlock.ErrBusy) {
+			writeError(response, http.StatusServiceUnavailable, "store_busy", "another database writer holds access; retry when it releases access")
+			return
+		}
 		writeError(response, http.StatusServiceUnavailable, "store_unavailable", err.Error())
 		return
 	}

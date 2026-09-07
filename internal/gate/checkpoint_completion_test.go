@@ -1,13 +1,43 @@
 package gate
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
+	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 )
 
+const checkpointCompletionRepoEnvironment = "OVERGO_TEST_CHECKPOINT_COMPLETION_REPO"
+
 func TestReusedCheckpointCompletionAuthorityAcceptance(t *testing.T) {
+	if repo := os.Getenv(checkpointCompletionRepoEnvironment); repo != "" {
+		document, err := plan.Load(filepath.Join(repo, plan.Path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		store, err := overgodb.OpenReadOnly(filepath.Join(repo, "tmp", "completion-store"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		authority, err := plan.ResolveCompletionAuthority(t.Context(), repo, "HEAD", document, store)
+		if err != nil {
+			t.Fatalf("reopen completed checkpoint history: %v", err)
+		}
+		if !authority.ProtectsRevision() {
+			t.Fatal("reopened completion did not enter protected history")
+		}
+		if _, _, open := plan.Current(document, "", authority); open {
+			t.Fatal("completed fixture task remained dispatchable")
+		}
+		return
+	}
 	first, batch, tree := verificationBatchFixture(t, "pass")
 	first.environment = lifecycleTestEnvironment(t)
 	invocations := persistenceInvocations(t, first, batch, tree)
@@ -86,5 +116,68 @@ func TestReusedCheckpointCompletionAuthorityAcceptance(t *testing.T) {
 			t.Fatalf("missing checkpoint %s", checkpoint.ID)
 		}
 	}
-	t.Logf("fresh checkpoints=%d reused checkpoints=%d parent integration executed=true immutable record roundtrip=true; historical Git recovery not exercised", len(batch.Checkpoints), reused)
+	// Publish the actual reused members through the existing completion fixture
+	// owner, then reopen its store and resolve the real Git completion trailer.
+	// The fixture models publication, not a complete build/device/browser gate.
+	document, err := plan.Load(filepath.Join(second.repo, plan.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	advanced, err := plan.Advance(document, "audio", "dataset")
+	if err != nil {
+		t.Fatal(err)
+	}
+	preparation, err := runrecord.NewGatePreparation(candidateTreeKey(tree), second.environment.ID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join("tmp", "completion-store")
+	preparationCommit := publishInterruptedPreparation(t, second.repo, storePath, second.environment, preparation)
+	message, err := plan.CompletionCommitMessageWithMergeAuthority(
+		[]byte("Complete executed checkpoint fixture"), document, "audio", "dataset",
+		second.manifestPlan.ID, second.manifestPlan.CandidateManifest, preparation.ID, preparationCommit,
+		plan.MergeProjectionSemanticUnion, artifact.ID{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messagePath := filepath.Join(t.TempDir(), "message.txt")
+	if err := os.WriteFile(messagePath, message, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.Save(filepath.Join(second.repo, plan.Path), advanced); err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, second.repo, "add", "--", plan.Path)
+	runGitFixture(t, second.repo, "commit", "-q", "-F", messagePath)
+	fixture := interruptedCommitFixture{
+		repo: second.repo, storePath: storePath, commit: recoveryGit(t, second.repo, "rev-parse", "HEAD"),
+		recipe: second.manifestPlan.ID, candidate: second.manifestPlan.CandidateManifest,
+		environment: second.environment, preparation: preparation, preparationCommit: preparationCommit,
+		manifest: *second.manifestPlan,
+	}
+	var members []runrecord.GateStep
+	for _, result := range records {
+		if result.Name != "acceptance" {
+			members = append(members, result)
+		}
+	}
+	_, publication := successfulAttemptBatchForReference(t, fixture, "audio", "dataset",
+		document.Items[0].Steps[0].Verify, true, "executed-checkpoint-completion", members...)
+	store := openRecoveryStore(t, fixture)
+	_, publishErr := store.Commit(t.Context(), publication)
+	closeErr := store.Close()
+	if publishErr != nil || closeErr != nil {
+		t.Fatalf("publish completion: %v; close: %v", publishErr, closeErr)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopen := exec.CommandContext(t.Context(), executable, "-test.run=^TestReusedCheckpointCompletionAuthorityAcceptance$", "-test.v")
+	reopen.Env = append(os.Environ(), checkpointCompletionRepoEnvironment+"="+second.repo)
+	if output, err := reopen.CombinedOutput(); err != nil {
+		t.Fatalf("fresh-process completion dispatch: %v\n%s", err, output)
+	}
+	t.Logf("fresh checkpoints=%d reused checkpoints=%d parent integration executed=true immutable record roundtrip=true fresh-process store reopen=true Git completion resolved=true; publication fixture excludes full build/device/browser gating and historical repair", len(batch.Checkpoints), reused)
 }

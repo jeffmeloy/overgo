@@ -1107,44 +1107,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "provisional-commit-control",
-          "title": "Repair reused-checkpoint completion authority",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestReusedCheckpointCompletionAuthorityAcceptance$' -count=1 -v",
-          "rationale": "Execution prerequisite: cmd/plan -prompt currently rejects completion asr-training/trainable-graph at 21c08c46 because checkpoint reference acceptance evidence does not bind the exact plan verifier. Reproduce the complete execute-reuse-finalize-reopen-dispatch path in an isolated repository/store, then correct shared checkpoint completion binding. The existing cache-measurement regression is not this proof. Preserve exact verifier, plan, source and environment checks; reject wrong-command, stale-source, wrong-environment, missing and incomplete evidence. Reused execution must receive valid current-attempt completion binding without rewriting historical success or treating a cache hit as parent completion. Require the actual worktree's cmd/plan -prompt and -frontier to resolve afterward. If historical evidence needs recovery, use a narrowly reviewed existing recovery owner; never delete dependencies, fabricate completion records or raw-commit around the refusal. The historical step ID is retained for protected plan history. Master now implements independent package evidence and durable checkpoint memo persistence. Exercise the shared acceptance against failed siblings, skips, unavailable fixtures, incomplete streams, wrong environments, changed source and restart. No provisional commit mode, second receipt format or duplicate controller is required; exact evidence reuse must not imply parent completion.",
-          "capabilities": [
-            "provisional-checkpoint-records",
-            "durable-verification-obligations",
-            "recoverable-candidate-commits"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/gate",
-              "internal/plan",
-              "internal/automationcheck",
-              "internal/runrecord",
-              "cmd/gate",
-              "cmd/plan",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Repair the demonstrated shared completion-authority blocker before introducing more reused checkpoint chains. Existing package-reuse and accounting contracts remain mandatory; final acceptance must include fresh-process historical completion resolution.",
-            "reopen_when": "Checkpoint memo identity, acceptance serialization, plan verifier binding, finalized evidence or historical completion validation changes.",
-            "checkpoints": [
-              {
-                "id": "package-reuse",
-                "title": "Preserve independent package evidence refusal and reuse",
-                "verify": "go test ./internal/gate -run '^TestIndependentPackageEvidenceAcceptance$' -count=1 -v"
-              },
-              {
-                "id": "cache-accounting",
-                "title": "Preserve checkpoint cache measurement eligibility",
-                "verify": "go test ./internal/gate -run '^TestCheckpointCacheMeasurementEligibility$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
           "id": "integration-control",
           "title": "Verify batch reuse, scope and interruption recovery in one isolated campaign",
           "status": "open",

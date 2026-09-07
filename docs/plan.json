@@ -5,21 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-polish-tabs",
-      "title": "Make Stop cancel server execution and recover interrupted conversations safely",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make Stop cancel server execution and recover interrupted conversations safely",
-          "status": "open",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserConversationControl$' -count=1 -timeout=2m \u0026\u0026 OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserReliability$' -count=1 -timeout=2m \u0026\u0026 go build ./...",
-          "rationale": "Preserve the Markdown, attachment, IME, authenticated-media and conversation-isolation fixes accepted in 1dd62c8f. Remaining gap: composer Stop aborts fetch, while stored response generation uses context.WithoutCancel and survives disconnects. Reuse the existing response/operation owner to distinguish explicit cancellation from transport loss. Stop must cancel the correct execution and persist a truthful terminal state; disconnection must offer resume without duplicate generation or text. Keep failed prompts available and make retries explicit. Add TestWebUIBrowserConversationControl using stored=true and a controlled generator; assert generator cancellation, repeated-stop idempotence, disconnect/follow, expired responses, request count and model/conversation isolation. Also prove that disconnects before the first token and during finalization preserve the complete transcript; failed/expired streams must not be relabelled completed. Scope this step to stored chat Responses. Agent/media operation cancellation remains with their existing operation owners under gui-background-work."
-        }
-      ]
-    },
-    {
       "id": "gui-draft-lifecycle",
       "title": "Preserve drafts and settings through navigation, reload and model changes",
       "owner": "professional_overgo_gui",

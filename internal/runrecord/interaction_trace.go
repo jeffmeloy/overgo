@@ -188,6 +188,9 @@ func canonicalizeInteractionTrace(value *InteractionTrace) error {
 		(value.Operation.Valid() && value.Operation.Kind() != artifact.KindEvidence) {
 		return errors.New("run record: invalid interaction trace")
 	}
+	if value.Terminal != "" && !validOutcome(value.Terminal) {
+		return errors.New("run record: invalid interaction terminal outcome")
+	}
 	for index, event := range value.Events {
 		if event.Sequence != traceSequenceStart+uint32(index) || !event.Kind.valid() ||
 			event.Branch != "" && !textcheck.Bounded(event.Branch, len(event.Branch), "\x00\r\n") {

@@ -80,22 +80,24 @@ func (h *Handler) conversationInspect(response http.ResponseWriter, request *htt
 		} else if done {
 			result.Status = turnStatusDone
 		}
-		if stored, ok := final.(responsesResponse); ok {
-			result.Timings = stored.Timings
-		}
+		result.Timings = final.Timings
 	}
 	if messages, _, found := h.loadResponseInteraction(request.Context(), responseID); found {
 		interaction, _, _ := runrecord.ResolveInteraction(request.Context(), h.repository, responseID)
 		if result.Status == "" {
+			status, failure := h.responseTerminal(request.Context(), interaction)
 			result.Status = turnStatusDone
+			if status == "cancelled" {
+				result.Status = turnStatusCancelled
+			} else if status != "completed" {
+				result.Status = turnStatusError
+			}
+			result.Failure = failure
 		}
 		result.Model, result.Recipe, result.Trace = interaction.Model, interaction.Recipe, interaction.Trace
 		result.Operation, result.Run = interaction.Operation, interaction.Run
 		if trace, err := runrecord.RequireInteractionTrace(request.Context(), h.repository, interaction.Trace); err == nil {
 			result.Receipt = trace.Request
-			if trace.Terminal == runrecord.OutcomeFailed && result.Failure == "" {
-				result.Status = turnStatusError
-			}
 		}
 		for _, message := range messages {
 			switch message.Role {

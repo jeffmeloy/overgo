@@ -385,9 +385,9 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 	say(t, ctx, browser, "Write a very long story about a lighthouse, at least twenty paragraphs.")
 	settle("turn running", `!document.querySelector(".composer .btn").disabled === false`)
-	assertBrowserPredicate(t, ctx, browser, `(() => { const stop = [...document.querySelectorAll(".composer .btn")].find((button) => button.textContent === "stop"); if (!stop) return false; stop.click(); return true; })()`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { const stop = document.querySelector(".stop-button"); if (!stop) return false; stop.click(); return true; })()`)
 	settle("turn stopped", `!document.querySelector(".composer .btn").disabled &&
-      ([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1).textContent.includes("[stopped]") || !!document.querySelector("#panel-chat .msg.error"))`)
+      (document.querySelector("#panel-chat .chat-log").textContent.includes("Stopped") || !!document.querySelector("#panel-chat .msg.error"))`)
 	captureStates("thread-stopped")
 
 	// 8. Media out: an image from the cheapest declared image model, chosen from

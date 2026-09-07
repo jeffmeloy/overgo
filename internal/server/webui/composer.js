@@ -76,17 +76,26 @@
     for await (const { event, data: parsed } of overgo.sseEvents(response)) {
       if (!parsed) continue;
       if (parsed.response && parsed.response.id) id = parsed.response.id;
+      else if (parsed.response_id) id = parsed.response_id;
       if (event === "response.created") yield { type: "created", id };
       else if (event === "response.output_text.delta") yield { type: "token", text: parsed.delta || "" };
       else if (event === "response.output_item.added" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_start", id: parsed.item.id, name: parsed.item.name, arguments: parsed.item.arguments };
       else if (event === "response.output_item.done" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_end", id: parsed.item.id, name: parsed.item.name, result: parsed.item.arguments };
-      else if (event === "response.failed") yield { type: "error", message: String(parsed.delta || (parsed.error && parsed.error.message) || "the turn failed") };
+      else if (event === "response.failed") {
+        yield { type: "error", id, status: "failed", message: String(parsed.delta || (parsed.error && parsed.error.message) || "The turn failed.") };
+        return;
+      } else if (event === "response.cancelled") {
+        yield { type: "cancelled", id, status: "cancelled" };
+        return;
+      }
       else if (event === "response.completed") {
         const usage = parsed.response && parsed.response.usage;
         yield { type: "usage", usage: usage ? { prompt_tokens: usage.input_tokens, completion_tokens: usage.output_tokens } : null, timings: (parsed.response && parsed.response.timings) || null };
+        yield { type: "done", id, status: "completed" };
+        return;
       }
     }
-    yield { type: "done", id };
+    throw new Error("The connection ended before the response was confirmed. Resume to recover its result.");
   }
 
   // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows);
@@ -238,9 +247,17 @@
             case "error":
               thinking(false);
               errorRow(event.message);
+              terminal.status = event.status || "failed";
+              break;
+            case "cancelled":
+              thinking(false);
+              log.appendChild(el("div", { class: "note", role: "status", text: "Stopped" }));
+              terminal.status = "cancelled";
+              break;
+            case "done":
+              terminal.status = event.status || "completed";
               break;
             case "created":
-            case "done":
               break;
           }
         }
@@ -357,7 +374,7 @@
         return { type: "input_file", filename: item.name, file_data: item.dataURL };
       });
     }
-    function setBusy(value) { busy = value; send.disabled = readOnly || busy || attachments.some((item) => item.pending || item.refusal || item.storing); send.hidden = busy; stop.hidden = !busy; }
+    function setBusy(value, stopping = stop.disabled) { busy = value; stop.disabled = !!(busy && stopping); stop.textContent = stop.disabled ? "Stopping…" : "Stop"; send.disabled = readOnly || busy || attachments.some((item) => item.pending || item.refusal || item.storing); send.hidden = busy; stop.hidden = !busy; }
     async function submit() {
       const text = input.value.trim();
       if (!text && !attachments.length) return;
@@ -374,6 +391,7 @@
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost,
       setReadOnly(value) { readOnly = value; input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
       clearAttachments() { attachments.length = 0; renderAttachments(); },
+      restoreAttachments(items) { attachments.push(...items); renderAttachments(); },
       openPicker,
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },

@@ -12,7 +12,7 @@
     const aside = document.getElementById("inspector");
     if (event.key !== "Escape") return;
     if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
-    if (aside && !aside.hidden) { aside.hidden = true; aside.replaceChildren(); }
+    if (aside && !aside.hidden) { aside.hidden = true; aside.replaceChildren(); return; }
     if (window.overgo.stopTurn) window.overgo.stopTurn();
   });
   window.overgo.inspectTurn = async function (responseID) {
@@ -44,9 +44,16 @@
       disposeChat();
       let disposed = false;
       let controller = null;
+      let activeTurn = null;
+      let recoveryRow = null;
       const selected = overgo.conversation();
       let conversationRoot = selected ? selected.root : "";
-      disposeChat = () => { disposed = true; if (controller) controller.abort(); };
+      disposeChat = () => {
+        disposed = true;
+        // A queued explicit Stop still needs the incoming ID. Keep only that
+        // acknowledgement alive across navigation, then cancel its execution.
+        if (controller && !(activeTurn && activeTurn.stopRequested && !activeTurn.response)) controller.abort();
+      };
       const { el, clear, fmt } = overgo;
       clear(panel);
       const capabilities = overgo.capabilities();
@@ -125,7 +132,7 @@
       // replayRecord: a card's stored request (the run's input document) resubmitted to the capability
       // that made it, unchanged or with a fresh seed; page state plays no part in the request.
       async function replayRecord(event, label) {
-        if (controller) return;
+        if (disposed || controller || activeTurn) return;
         controller = new AbortController();
         composer.setBusy(true);
         try {
@@ -144,9 +151,49 @@
         } catch (err) { thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err)); }
         finally { controller = null; composer.setBusy(false); }
       }
+      function updateBusy() { composer.setBusy(!!controller || !!activeTurn, activeTurn && activeTurn.stopRequested); }
+      function forgetTurn(turn) {
+        try {
+          const saved = JSON.parse(sessionStorage.getItem(INFLIGHT_STORAGE) || "null");
+          if (saved && saved.response === turn.response && (!saved.model || saved.model === turn.model)) sessionStorage.removeItem(INFLIGHT_STORAGE);
+        } catch (_) { /* storage unavailable */ }
+      }
+      function restorePrompt(prompt) {
+        if (!prompt || disposed || composer.input.value || composer.attachments.length) return;
+        composer.input.value = prompt.text;
+        composer.restoreAttachments(prompt.attachments || []);
+      }
+      function showRecovery(err, turn) {
+        if (recoveryRow) recoveryRow.remove();
+        recoveryRow = el("div", { class: "note", role: "status" },
+          overgo.friendlyError(err) + " ",
+          el("button", { class: "btn alt", text: "Resume response", onclick: () => resumeTurn(turn) }));
+        thread.node.appendChild(recoveryRow);
+      }
+      async function cancelTurn(turn) {
+        if (!turn.response || turn.cancelSent) return;
+        turn.cancelSent = true;
+        try {
+          await overgo.api.post("/interactions/cancel", { response: turn.response, model: turn.model });
+          if (!disposed && activeTurn === turn && !controller && !turn.stopFollowed) {
+            turn.stopFollowed = true;
+            await resumeTurn(turn);
+          }
+        } catch (err) {
+          turn.cancelSent = turn.stopRequested = false;
+          if (!disposed && activeTurn === turn) {
+            thread.errorRow("Could not stop the response: " + overgo.friendlyError(err) + ". Try Stop again.");
+            updateBusy();
+          }
+        }
+      }
       overgo.stopTurn = () => {
-        if (controller) controller.abort();
-        try { sessionStorage.removeItem(INFLIGHT_STORAGE); } catch (_) { /* storage unavailable */ }
+        if (disposed) return;
+        if (activeTurn) {
+          activeTurn.stopRequested = true;
+          updateBusy();
+          cancelTurn(activeTurn);
+        } else if (controller) controller.abort();
       };
       const composer = overgo.composer(panel, {
         onSubmit: submit,
@@ -279,32 +326,83 @@
 
       function streamTurn(path, body, method) { return overgo.api.stream(path, body, { signal: controller.signal, method }); }
 
-      // consumeTurn drives one streamed turn: the created id is noted so a reload can reattach, the completion id becomes latest.
+      // A recovery handle belongs to this mounted conversation and model.
+      // Terminal events alone clear it; connection loss keeps Resume available.
       async function consumeTurn(response, assistant, inputTokens) {
-        let latest = "";
+        const turn = activeTurn;
+        let latest = turn.response || "";
         async function* noting(events) {
           for await (const event of events) {
-            if (disposed) return;
-            if (event.type === "created" || event.type === "done") latest = event.id || latest;
+            if (disposed) {
+              if (event.type === "created" && turn.stopRequested) {
+                turn.response = event.id;
+                await cancelTurn(turn);
+                if (controller) controller.abort();
+              }
+              return;
+            }
+            if (event.id && (event.type === "created" || event.status)) {
+              if (turn.response && turn.response !== event.id) throw new Error("Recovery returned a different response.");
+              latest = turn.response = event.id;
+            }
             if (event.type === "created") {
               const root = conversationRoot || (conversationRoot = event.id);
               overgo.rememberConversation({ root, latest: event.id, model: served && served.model });
-              try { sessionStorage.setItem(INFLIGHT_STORAGE, JSON.stringify({ root, response: event.id })); } catch (_) { /* storage unavailable */ }
+              try { sessionStorage.setItem(INFLIGHT_STORAGE, JSON.stringify({ root, response: event.id, model: turn.model })); } catch (_) { /* storage unavailable */ }
+              if (turn.stopRequested) cancelTurn(turn);
             }
             yield event;
           }
         }
         const terminal = await thread.consume(noting(overgo.streams.responses(response)), assistant);
         if (disposed) return;
-        if (latest) lastResponseID = latest;
+        if (!terminal.status) throw new Error("The response has no confirmed result. Resume to check it.");
+        lastResponseID = terminal.status === "failed" ? turn.previous : latest;
+        if (terminal.status === "failed" && !turn.previous) conversationRoot = "";
         if (latest && assistant) { assistant.response = latest; thread.renderMessage(assistant, false); }
-        try { sessionStorage.removeItem(INFLIGHT_STORAGE); } catch (_) { /* storage unavailable */ }
+        forgetTurn(turn);
+        activeTurn = null;
+        if (recoveryRow) { recoveryRow.remove(); recoveryRow = null; }
+        if (terminal.status === "failed") restorePrompt(turn.prompt);
         renderFacts(inputTokens, terminal.usage, terminal.timings);
         overgo.refreshConversations();
       }
 
+      function turnFailure(err, turn) {
+        if (disposed) return;
+        if (turn && turn.response && err.status !== 404) {
+          showRecovery(err, turn);
+          return;
+        }
+        if (turn) {
+          forgetTurn(turn);
+          activeTurn = null;
+          lastResponseID = turn.previous;
+          if (!lastResponseID) conversationRoot = "";
+          restorePrompt(turn.prompt);
+        }
+        const unknown = turn && !turn.response && !err.status;
+        thread.errorRow(unknown ? "The request outcome is unknown. Check conversation history before sending again." : overgo.friendlyError(err));
+        overgo.refreshConversations();
+      }
+
+      async function resumeTurn(turn) {
+        if (disposed || controller || activeTurn !== turn) return;
+        controller = new AbortController();
+        updateBusy();
+        try {
+          const response = await streamTurn("/interactions/follow?response=" + encodeURIComponent(turn.response) + "&model=" + encodeURIComponent(turn.model), null, "GET");
+          // Follow replays from the beginning. Replace this assistant's partial
+          // text only after connection succeeds, so deltas are never doubled.
+          turn.assistant.content = "";
+          thread.renderMessage(turn.assistant, true);
+          await consumeTurn(response, turn.assistant, null);
+        } catch (err) { turnFailure(err, turn); }
+        finally { controller = null; if (!disposed) updateBusy(); }
+      }
+
       async function submit(text, attachments, mode) {
-        if (disposed || controller || otherModel) return;
+        if (disposed || controller || activeTurn || otherModel) return;
         welcome.remove();
         const parts = composer.attachmentParts();
         composer.clearInput();
@@ -340,25 +438,43 @@
           if (temperature.value !== "") request.temperature = Number(temperature.value);
           if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
           const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null) /* reviewed: a hosted model's provider tokenizes, the count route refuses, and the meter stays empty by design */;
+          controller.signal.throwIfAborted();
+          activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, prompt: { text, attachments } };
           renderFacts(count ? count.input_tokens : null, null, null);
           await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count ? count.input_tokens : null);
         } catch (err) {
-          if (err.name === "AbortError" && assistant) {
-            assistant.content += (assistant.content ? "\n" : "") + "[stopped]";
-            thread.renderMessage(assistant, false);
-          } else thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err));
-        } finally { controller = null; composer.setBusy(false); }
+          if (disposed) return;
+          if (!mode || mode === "chat") {
+            if (err.name === "AbortError" && !activeTurn) thread.errorRow("Stopped before sending.");
+            else turnFailure(err, activeTurn);
+            if (!activeTurn) restorePrompt({ text, attachments });
+          } else thread.errorRow(err.name === "AbortError" ? "Request disconnected" : overgo.friendlyError(err));
+        } finally {
+          controller = null;
+          if (!disposed) {
+            updateBusy();
+            // Stop can interrupt the original socket to release a stalled
+            // server write. Reattach once to read its terminal state.
+            if (activeTurn && activeTurn.response && activeTurn.stopRequested && activeTurn.cancelSent && !activeTurn.stopFollowed) {
+              activeTurn.stopFollowed = true;
+              await resumeTurn(activeTurn);
+            }
+          }
+        }
       }
 
-      // Resume the rail selection from its record, or reattach to a turn this page was streaming.
+      // Server state can recover a running conversation even when another
+      // conversation has replaced the tab's optional storage handle.
       let saved = null;
       try { saved = JSON.parse(sessionStorage.getItem(INFLIGHT_STORAGE) || "null"); } catch (_) { /* storage unavailable */ }
-      const inflight = selected && saved && selected.root === saved.root ? saved.response : "";
+      let inflight = selected && saved && selected.root === saved.root && (!saved.model || saved.model === modelID) ? saved.response : "";
+      let chain = null;
       if (selected) {
         composer.setBusy(true);
         try {
-          const chain = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(selected.latest));
+          chain = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(selected.latest));
           if (disposed) return;
+          if (chain.status === "in_progress") inflight = chain.response;
           welcome.remove();
           for (const message of chain.messages || []) {
             if (message.role !== "user" && message.role !== "assistant") continue;
@@ -367,18 +483,19 @@
             shown.response = message.response;
             thread.renderMessage(shown, false);
           }
-          lastResponseID = chain.response;
-        } catch (err) { thread.errorRow(overgo.friendlyError(err)); }
+          lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
+          if (chain.status === "failed" && !lastResponseID) conversationRoot = "";
+          if (!inflight && chain.failure) thread.errorRow(chain.failure);
+        } catch (err) { if (!disposed) thread.errorRow(overgo.friendlyError(err)); }
       }
       if (inflight && !disposed && !otherModel) {
         welcome.remove();
-        controller = new AbortController();
-        composer.setBusy(true);
-        try {
-          await consumeTurn(await streamTurn("/interactions/follow?response=" + encodeURIComponent(inflight), null, "GET"), thread.add("assistant", ""), null);
-        } catch (err) { thread.errorRow(overgo.friendlyError(err)); } finally { controller = null; composer.setBusy(false); }
+        const prompt = chain && (chain.messages || []).findLast(message => message.role === "user" && message.response === inflight);
+        activeTurn = { response: inflight, model: modelID, previous: chain && chain.previous || "", assistant: thread.add("assistant", ""),
+          prompt: prompt ? { text: prompt.content, attachments: [] } : null };
+        await resumeTurn(activeTurn);
       }
-      composer.setBusy(false);
+      if (!disposed) updateBusy();
       if (otherModel && !disposed) {
         composer.setReadOnly(true);
         thread.node.appendChild(el("div", { class: "note", role: "status" }, "This conversation belongs to another model. Choose its original model to continue, or start a new conversation. ",

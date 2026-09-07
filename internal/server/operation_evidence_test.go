@@ -161,7 +161,7 @@ func publishOperationInteraction(
 	if _, err := runrecord.PublishInteraction(t.Context(), fixture.store, runrecord.Interaction{
 		Response: response, Recipe: fixture.definition.ID, Model: fixture.definition.Dependencies[0].Artifact,
 		Node: fixture.definition.Nodes[0].ID, Operation: operationID, Run: run,
-	}, []runrecord.InteractionMessage{{Role: "user", Content: privatePayload}, {Role: "assistant", Content: "answer"}}); err != nil {
+	}, []runrecord.InteractionMessage{{Role: "user", Content: privatePayload}, {Role: "assistant", Content: "answer"}}, ""); err != nil {
 		t.Fatal(err)
 	}
 }

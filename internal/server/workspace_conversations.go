@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 
@@ -38,6 +40,9 @@ type conversationListResponse struct {
 type conversationMessagesResponse struct {
 	Response string                `json:"response"`
 	Root     string                `json:"root"`
+	Status   string                `json:"status"`
+	Previous string                `json:"previous,omitzero"`
+	Failure  string                `json:"failure,omitzero"`
 	Messages []conversationMessage `json:"messages"`
 }
 
@@ -121,8 +126,17 @@ func (h *Handler) conversationMessages(response http.ResponseWriter, request *ht
 	for parent, ok := h.parentInteraction(request, root); ok; parent, ok = h.parentInteraction(request, root) {
 		root = parent
 	}
+	previous := ""
+	if parent, found := h.parentInteraction(request, interaction); found {
+		previous = parent.Response
+	}
+	status, failure := h.responseTerminal(request.Context(), interaction)
+	if turn, found := h.inflight.lookup(responseID); found {
+		_, _, final, failed, _ := turn.snapshot()
+		status, failure = final.Status, failed
+	}
 	writeJSON(response, http.StatusOK, conversationMessagesResponse{
-		Response: responseID, Root: root.Response, Messages: h.chainMessages(request, interaction),
+		Status: status, Previous: previous, Failure: failure, Response: responseID, Root: root.Response, Messages: h.chainMessages(request, interaction),
 	})
 }
 
@@ -151,30 +165,31 @@ func (h *Handler) conversationLabel(response http.ResponseWriter, request *http.
 	writeJSON(response, http.StatusOK, label)
 }
 
-// ---- in-flight turns ----
-// A stored streamed response keeps generating when its client drops: the
-// text so far and its completion are held here, keyed by response id, so
-// a page that reloads reattaches through /interactions/follow, receives
-// what it missed as one delta, then follows live until the turn completes
-// and its interaction is durable. Entries leave once followed after
-// completion, bounded by the response store size.
+// Stored turns retain execution independently of their first HTTP connection.
+// This registry owns cancellation and wakes followers; the interaction trace
+// owns durable terminal state once an entry is evicted or the server restarts.
 type inflightTurn struct {
 	mu     sync.Mutex
 	text   strings.Builder
 	done   bool
 	failed string
-	final  any
+	final  responsesResponse
+	cancel context.CancelFunc
 	notify chan struct{}
 }
 
 type inflightRegistry struct {
-	mu    sync.Mutex
-	turns map[string]*inflightTurn
+	mu     sync.Mutex
+	turns  map[string]*inflightTurn
+	closed bool
 }
 
-func (r *inflightRegistry) begin(responseID string, bound int) *inflightTurn {
+func (r *inflightRegistry) begin(responseID string, bound int, cancel context.CancelFunc) *inflightTurn {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.closed {
+		return nil
+	}
 	if r.turns == nil {
 		r.turns = map[string]*inflightTurn{}
 	}
@@ -187,7 +202,13 @@ func (r *inflightRegistry) begin(responseID string, bound int) *inflightTurn {
 			delete(r.turns, id)
 		}
 	}
-	turn := &inflightTurn{notify: make(chan struct{})}
+	if len(r.turns) >= bound {
+		return nil
+	}
+	turn := &inflightTurn{
+		notify: make(chan struct{}), cancel: cancel,
+		final: responsesResponse{ID: responseID, Object: "response", Status: "in_progress"},
+	}
 	r.turns[responseID] = turn
 	return turn
 }
@@ -199,8 +220,36 @@ func (r *inflightRegistry) lookup(responseID string) (*inflightTurn, bool) {
 	return turn, found
 }
 
+func (r *inflightRegistry) shutdown() {
+	r.mu.Lock()
+	r.closed = true
+	turns := slices.Collect(maps.Values(r.turns))
+	r.mu.Unlock()
+	for _, turn := range turns {
+		turn.stop()
+	}
+}
+
+func (turn *inflightTurn) stop() responsesResponse {
+	turn.mu.Lock()
+	final, cancel := turn.final, turn.cancel
+	turn.cancel = nil
+	if !turn.done {
+		final.Status = "cancelling"
+	}
+	turn.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	return final
+}
+
 func (turn *inflightTurn) append(piece string) {
 	turn.mu.Lock()
+	if turn.done {
+		turn.mu.Unlock()
+		return
+	}
 	turn.text.WriteString(piece)
 	notify := turn.notify
 	turn.notify = make(chan struct{})
@@ -208,48 +257,100 @@ func (turn *inflightTurn) append(piece string) {
 	close(notify)
 }
 
-func (turn *inflightTurn) finish(final any, failure string) {
+func (turn *inflightTurn) finish(final responsesResponse, failure string) {
 	turn.mu.Lock()
+	if turn.done {
+		turn.mu.Unlock()
+		return
+	}
 	turn.done, turn.final, turn.failed = true, final, failure
 	notify := turn.notify
 	turn.mu.Unlock()
 	close(notify)
 }
 
-// snapshot returns the text so far, whether the turn is done, and a channel
-// that closes at the next change.
-func (turn *inflightTurn) snapshot() (string, bool, any, string, <-chan struct{}) {
+// snapshot returns the text so far, terminal state, and a change notification.
+func (turn *inflightTurn) snapshot() (string, bool, responsesResponse, string, <-chan struct{}) {
 	turn.mu.Lock()
 	defer turn.mu.Unlock()
 	return turn.text.String(), turn.done, turn.final, turn.failed, turn.notify
 }
 
-// conversationFollow reattaches a page to a turn: the text generated so far
-// arrives as one delta, further deltas follow live, and the completion
-// event closes the stream; a turn already durable replays from its record.
+// conversationCancel is explicit execution cancellation, independent of the
+// stream's connection. A repeated request returns the current terminal state.
+func (h *Handler) conversationCancel(response http.ResponseWriter, request *http.Request) {
+	var body struct {
+		Response string `json:"response"`
+		Model    string `json:"model"`
+	}
+	if !requireMethod(response, request, http.MethodPost) ||
+		!h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
+		return
+	}
+	if body.Response == "" || body.Model == "" {
+		writeInvalidRequestMessage(response, "response and model are required")
+		return
+	}
+	if turn, found := h.inflight.lookup(body.Response); found {
+		writeJSON(response, http.StatusOK, turn.stop())
+		return
+	}
+	_, id, found := h.loadResponseInteraction(request.Context(), body.Response)
+	if !found {
+		writeError(response, http.StatusNotFound, "not_found", "turn not found")
+		return
+	}
+	interaction, err := runrecord.RequireInteraction(request.Context(), h.repository, id)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	status, _ := h.responseTerminal(request.Context(), interaction)
+	writeJSON(response, http.StatusOK, responsesProgress{ID: body.Response, Object: "response", Status: status})
+}
+
+// conversationFollow replays the current turn, then follows it to a confirmed
+// terminal event. It never starts a new generation.
 func (h *Handler) conversationFollow(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
+	if !requireMethod(response, request, http.MethodGet) || !h.requireModel(response, request.URL.Query().Get("model")) {
 		return
 	}
 	responseID := request.URL.Query().Get("response")
 	turn, inflight := h.inflight.lookup(responseID)
 	if !inflight {
-		messages, _, found := h.loadResponseInteraction(request.Context(), responseID)
+		_, id, found := h.loadResponseInteraction(request.Context(), responseID)
 		if !found {
 			writeError(response, http.StatusNotFound, "not_found", "turn not found")
 			return
 		}
+		interaction, err := runrecord.RequireInteraction(request.Context(), h.repository, id)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+		transcript, err := runrecord.RequireInteractionTranscript(request.Context(), h.repository, interaction.Message)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+		status, failure := h.responseTerminal(request.Context(), interaction)
 		flusher, ok := beginSSE(response)
 		if !ok {
 			return
 		}
 		stream := newSSEEmitter(request.Context(), response, flusher)
-		text := ""
-		if len(messages) != 0 {
-			text = messages[len(messages)-1].Content
+		final := responsesProgress{ID: responseID, Object: "response", Status: status}
+		_ = stream.named("response.created", responsesStreamEvent{Type: "response.created", Response: final})
+		// Only this turn's assistant text is output; an interrupted initial
+		// record holds the user's prompt and must never replay it as an answer.
+		for _, message := range transcript.Messages {
+			if message.Role == string(inference.ChatRoleAssistant) {
+				if err := stream.named("response.output_text.delta", responsesStreamEvent{Type: "response.output_text.delta", ResponseID: responseID, Delta: message.Content}); err != nil {
+					return
+				}
+			}
 		}
-		_ = stream.named("response.output_text.delta", responsesStreamEvent{Type: "response.output_text.delta", ResponseID: responseID, Delta: text})
-		_ = stream.named("response.completed", responsesStreamEvent{Type: "response.completed", Response: responsesProgress{ID: responseID, Object: "response", Status: "completed"}})
+		_ = stream.named("response."+status, responsesStreamEvent{Type: "response." + status, Response: final, Delta: failure})
 		return
 	}
 	flusher, ok := beginSSE(response)
@@ -257,6 +358,9 @@ func (h *Handler) conversationFollow(response http.ResponseWriter, request *http
 		return
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
+	if err := stream.named("response.created", responsesStreamEvent{Type: "response.created", Response: responsesProgress{ID: responseID, Object: "response", Status: "in_progress"}}); err != nil {
+		return
+	}
 	sent := 0
 	for {
 		text, done, final, failed, changed := turn.snapshot()
@@ -267,11 +371,7 @@ func (h *Handler) conversationFollow(response http.ResponseWriter, request *http
 			sent = len(text)
 		}
 		if done {
-			if failed != "" {
-				_ = stream.named("response.failed", responsesStreamEvent{Type: "response.failed", ResponseID: responseID, Delta: failed})
-				return
-			}
-			_ = stream.named("response.completed", responsesStreamEvent{Type: "response.completed", Response: final})
+			_ = stream.named("response."+final.Status, responsesStreamEvent{Type: "response." + final.Status, Response: final, Delta: failed})
 			return
 		}
 		select {

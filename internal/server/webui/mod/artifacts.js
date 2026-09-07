@@ -27,7 +27,7 @@
         if (type.startsWith("image/")) return el("img", { src: url, alt: item.descriptor.id });
         if (type.startsWith("audio/")) return el("audio", { src: url, controls: true });
         if (type.startsWith("video/")) return el("video", { src: url, controls: true });
-        return el("a", { href: url, text: "Open payload" });
+        return el("a", { href: url, text: "Download payload" });
       }
       async function load() {
         const query = new URLSearchParams();

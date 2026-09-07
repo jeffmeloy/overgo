@@ -99,7 +99,14 @@
     const messages = [];
     let thinkingRow = null;
 
-    function scroll() { log.scrollTop = log.scrollHeight; }
+    let following = true;
+    log.addEventListener("scroll", () => {
+      following = Math.ceil(log.scrollTop + log.clientHeight) >= log.scrollHeight;
+    });
+    function scroll() {
+      if (!following) return;
+      log.scrollTop = log.scrollHeight;
+    }
 
     function renderMessage(message, streaming) {
       const body = el("div", { class: "body" });
@@ -122,6 +129,7 @@
     }
 
     function add(role, content) {
+      if (role === "user") following = true;
       const message = { role, content: content || "" };
       messages.push(message);
       renderMessage(message, false);
@@ -139,15 +147,11 @@
     function toolCard(call) {
       const status = el("span", { class: "tag", text: "running" });
       const arrow = el("span", { class: "arrow", text: "▸" });
-      const bodyNode = el("div", { class: "tool-body", style: "display:none" },
+      const bodyNode = el("div", { class: "tool-body", hidden: true },
         el("div", { class: "note", text: "input" }),
         el("pre", { class: "mono", text: JSON.stringify(call.arguments == null ? {} : call.arguments, null, 2) }));
       const header = el("div", { class: "tool-header row" }, arrow, el("span", { class: "mono", text: call.name }), status);
-      header.addEventListener("click", () => {
-        const open = bodyNode.style.display === "none";
-        bodyNode.style.display = open ? "" : "none";
-        arrow.textContent = open ? "▾" : "▸";
-      });
+      header.addEventListener("click", () => { bodyNode.hidden = !bodyNode.hidden; arrow.textContent = bodyNode.hidden ? "▸" : "▾"; });
       const card = el("div", { class: "card tool-call" }, header, bodyNode);
       log.appendChild(card);
       scroll();
@@ -167,6 +171,8 @@
 
     function mediaCard(event) {
       const player = mediaPlayer(event.kind, event.url, event.caption);
+      player.addEventListener("load", scroll, true);
+      player.addEventListener("loadedmetadata", scroll, true);
       const facts = [];
       if (event.mime) facts.push(event.mime);
       if (event.bytes) facts.push(fmt.bytes(event.bytes));
@@ -250,7 +256,7 @@
   // mediaPlayer: the element that shows a media artifact as what it is (image, video, audio).
   function mediaPlayer(kind, url, caption) {
     if (kind === "image") return el("a", { href: url, target: "_blank" }, el("img", { src: url, alt: caption || "" }));
-    if (kind === "video") return el("video", { src: url, controls: "", style: "max-width:420px" });
+    if (kind === "video") return el("video", { src: url, controls: "", class: "mw-420" });
     return el("audio", { controls: "", src: url });
   }
 
@@ -261,34 +267,45 @@
   // and stop, optional modes; attachments become the served protocol's own content parts. ----
   function composer(host, options) {
     options = options || {};
-    const input = el("textarea", { class: "text", placeholder: options.placeholder || "message (Enter to send, Shift+Enter for newline)" });
+    const input = el("textarea", { class: "text", "aria-label": "Message", placeholder: options.placeholder || "Message…", title: "Enter to send · Shift+Enter for a new line" });
     const attachments = [];
-    const attachmentHost = el("div", { class: "row" });
+    let busy = false;
+    let readOnly = false;
+    const attachmentHost = el("div", { class: "row attachment-strip" });
     // Accepted media and its bounds come from the capability document, never
     // from a list typed into a surface; a surface may narrow it to kinds.
     const media = (overgo.capabilities() || {}).media || { accept: [] };
     const accept = (media.accept || []).filter((mime) => !options.kinds || options.kinds.includes(mediaKind(mime)) || (options.kinds.includes("video") && mime === "image/gif"));
-    const picker = el("input", { type: "file", style: "display:none", multiple: options.multiple !== false, accept: accept.join(",") });
+    const picker = el("input", { type: "file", hidden: true, multiple: options.multiple !== false, accept: accept.join(",") });
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
-    const stop = el("button", { class: "btn alt", style: "display:none" }, "stop");
+    const stop = el("button", { class: "btn alt", hidden: true }, "stop");
     // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
     function openPicker() { picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
     const attach = accept.length ? el("button", { class: "btn alt", onclick: openPicker }, options.attachLabel || "attach") : null;
-    const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
+    const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text w-auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
-    const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, modeHost, ...(options.controls || []));
-    const element = el("div", { class: "composer" }, input, attachmentHost, controls);
+    const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, ...((options.controls) || []), el("span", { class: "grow" }));
+    const element = el("div", { class: "composer" }, modeHost, attachmentHost, input, controls);
+    send.classList.add("send-button"); stop.classList.add("stop-button");
     host.appendChild(element);
 
+    // attachmentPreview: the strip's thumbnail per attachment kind, a refusal tag first.
+    function attachmentPreview(item) {
+      if (item.refusal) return el("span", { class: "tag control", text: "refused" });
+      if (item.pending) return el("span", { class: "note", text: "Loading…" });
+      if (item.kind === "image") return el("img", { src: item.dataURL, alt: item.name, class: "thumb-preview" });
+      if (item.kind === "video") return el("video", { src: item.dataURL, class: "thumb-preview" });
+      if (item.kind === "audio") return el("audio", { src: item.dataURL, controls: "" });
+      return el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
+    }
     function renderAttachments() {
       attachmentHost.replaceChildren(...attachments.map((item, index) => {
-        const remove = el("button", { class: "btn alt", text: "×", onclick: () => { attachments.splice(index, 1); renderAttachments(); } });
-        const preview = item.refusal ? el("span", { class: "tag control", text: "refused" }) : item.kind === "image" ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-          : item.kind === "video" ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" }) : item.kind === "audio" ? el("audio", { src: item.dataURL, controls: "" }) : el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
-        return el("span", { class: "card" + (item.refusal ? " refused" : "") }, preview, " " + item.name + " ",
-          item.refusal ? el("span", { class: "note", text: item.refusal }) : item.artifact ? el("span", { class: "note" }, "stored as ", overgo.artifactLink(item.artifact)) : null, remove);
+        const remove = el("button", { class: "btn alt", text: "×", "aria-label": "Remove " + item.name, onclick: () => { attachments.splice(index, 1); renderAttachments(); } });
+        return el("span", { class: "card" + (item.refusal ? " refused" : "") }, attachmentPreview(item), " " + item.name + " ",
+          item.refusal ? el("span", { class: "note", text: item.refusal }) : item.pending || item.storing ? el("span", { class: "note", text: "Loading…" }) : item.artifact ? el("span", { class: "note" }, "stored as ", overgo.artifactLink(item.artifact)) : null, remove);
       }));
+      setBusy(busy);
     }
     function refusal(file, kind) {
       const refusals = media.refusals || {};
@@ -300,10 +317,14 @@
       const kind = mediaKind(file.type);
       // options.intake(file): a surface storing the file as an artifact returns the id's promise; the server's refusal is the card's, and the card sends no part.
       const stored = options.intake ? options.intake(file) : null;
-      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: stored ? "" : refusal(file, kind), storing: !!stored };
+      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: stored ? "" : refusal(file, kind), storing: !!stored, pending: true };
       if (stored) stored.then((id) => { item.artifact = id; }, (err) => { item.refusal = overgo.friendlyError(err); }).then(() => { item.storing = false; renderAttachments(); });
       attachments.push(item);
+      renderAttachments();
+      if (item.refusal) { item.pending = false; return; }
       const reader = new FileReader();
+      const fail = () => { item.pending = false; item.refusal = "Could not read " + item.name; renderAttachments(); };
+      reader.onerror = reader.onabort = fail;
       reader.onload = () => {
         item.dataURL = reader.result;
         if (kind === "image" && !item.refusal) {
@@ -311,10 +332,12 @@
           probe.onload = () => {
             if (probe.width > media.max_image_dimension || probe.height > media.max_image_dimension) item.refusal = "exceeds " + media.max_image_dimension + " pixels on a side";
             else if (probe.width * probe.height > media.max_image_pixels) item.refusal = "exceeds " + media.max_image_pixels + " pixels";
+            item.pending = false;
             renderAttachments();
           };
+          probe.onerror = fail;
           probe.src = reader.result;
-        }
+        } else item.pending = false;
         renderAttachments();
       };
       reader.readAsDataURL(file);
@@ -334,21 +357,22 @@
         return { type: "input_file", filename: item.name, file_data: item.dataURL };
       });
     }
-    function setBusy(busy) { send.disabled = busy; stop.style.display = busy ? "" : "none"; }
+    function setBusy(value) { busy = value; send.disabled = readOnly || busy || attachments.some((item) => item.pending || item.refusal || item.storing); send.hidden = busy; stop.hidden = !busy; }
     async function submit() {
       const text = input.value.trim();
       if (!text && !attachments.length) return;
-      if (send.disabled || attachments.some((item) => item.refusal || item.storing)) return;
+      if (send.disabled) return;
       if (options.onSubmit) await options.onSubmit(text, attachments.slice(), modeSelect ? modeSelect.value : "");
     }
     send.addEventListener("click", submit);
     stop.addEventListener("click", () => { if (options.onStop) options.onStop(); });
     if (modeSelect && options.onMode) modeSelect.addEventListener("change", () => options.onMode(modeSelect.value));
     input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); }
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); submit(); }
     });
     return {
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost,
+      setReadOnly(value) { readOnly = value; input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
       clearAttachments() { attachments.length = 0; renderAttachments(); },
       openPicker,
       clearInput() { input.value = ""; },

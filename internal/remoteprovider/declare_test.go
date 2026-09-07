@@ -12,6 +12,44 @@ import (
 
 const testCodeCommit = "0123456789abcdef0123456789abcdef01234567"
 
+func TestListPagesRetiredHistoryAndBoundsActiveModels(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	provider := Provider{Name: "history", KeyEnvironment: "HISTORY_KEY", Model: "model"}
+	for _, endpoint := range []string{"https://old.example", "https://older.example"} {
+		provider.Endpoint = endpoint
+		declaration, err := Declare(t.Context(), store, provider, testCodeCommit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := Retire(t.Context(), store, 1, declaration.Location, testCodeCommit, "provider endpoint replaced"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	provider.Endpoint = "https://current.example"
+	current, err := Declare(t.Context(), store, provider, testCodeCommit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	listed, err := List(t.Context(), store, 1)
+	if err != nil || len(listed) != 1 || listed[0].Model != current.Model {
+		t.Fatalf("active listing after retired history = %+v, %v", listed, err)
+	}
+	if _, _, remote, err := Reference(t.Context(), store, 1, "local.gguf"); err != nil || remote {
+		t.Fatalf("local model lookup after retired history: remote=%v, error=%v", remote, err)
+	}
+	provider.Model = "another"
+	if _, err := Declare(t.Context(), store, provider, testCodeCommit); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := List(t.Context(), store, 1); err == nil || !strings.Contains(err.Error(), "active model catalog exceeds") {
+		t.Fatalf("active listing overflow = %v", err)
+	}
+}
+
 // TestDeclareListsTheRemoteModelWithItsRefusal pins the declaration end to
 // end: the provider document, the model manifest at its remote location
 // and the activated remote inference recipe enter the store; the servable

@@ -2,37 +2,49 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <meta name="color-scheme" content="light dark">
 <title>overgo · workbench</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div class="shell front">
-  <nav class="sidebar">
-    <a class="brand" href="/" style="text-decoration:none"><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span><span class="sub">workbench</span></a>
+  <nav class="sidebar" id="navigation" aria-label="Workspace navigation">
+    <button id="navigation-close" class="btn alt" aria-label="Close navigation">Close</button>
+    <a class="brand" href="/"><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span><span class="sub">workbench</span></a>
     <button id="workbench-toggle" class="btn alt" title="Show or hide the workbench sections beside the conversation">Workbench</button>
     <div id="conversation-list" class="conversations" aria-label="Conversations"></div>
     <div id="sections"></div>
     <div id="tabs" style="display:none"></div>
     <div class="foot"><span class="note" id="footer-note"></span></div>
   </nav>
+  <button id="navigation-backdrop" hidden aria-label="Close navigation" tabindex="-1"></button>
   <div class="content">
     <header class="topbar">
-      <span class="pill" id="status-pill">probing…</span>
-      <span class="dots" aria-label="status"><span id="server-dot" class="dot" title="server"></span><span id="proxy-dot" class="dot" title="swap proxy"></span><span id="device-dot" class="dot" title="device"></span></span>
-      <button id="inbox-count" class="pill" hidden title="approvals waiting on you; opens the inbox">0 waiting</button>
-      <button class="pill" id="model-pill" type="button" title="click to switch the served model"></button>
-      <span class="note" id="model-evidence" title="Committed evidence for the served model: decode tok/s from the latest benchmark, accuracy per evaluated suite"></span>
+      <button id="navigation-toggle" class="btn alt icon-button" aria-label="Open navigation" aria-controls="navigation" aria-expanded="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <button class="pill" id="model-pill" type="button" title="Choose a model" aria-haspopup="dialog">Choose a model</button>
       <span class="grow"></span>
-      <input class="keyfield" id="api-key" type="password" placeholder="API key (if required)" autocomplete="off" spellcheck="false">
-      <label class="key-remember" title="Keep the key in browser storage; unchecked, it is held in memory for this page only"><input type="checkbox" id="api-key-remember"> remember</label>
+      <button id="inbox-count" class="pill" hidden title="approvals waiting on you; opens the inbox">0 waiting</button>
+      <button id="new-chat" class="btn alt icon-button" aria-label="New conversation" title="New conversation"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg></button>
+      <button id="settings-toggle" class="btn alt" aria-haspopup="dialog" aria-label="Open settings">Settings</button>
     </header>
-    <aside id="global-operation-shell" class="operation-shell" aria-label="Operations"></aside>
+    <div id="connection-alert" class="connection-alert" role="status" hidden>Connection lost. Retrying…</div>
+    <aside id="global-operation-shell" class="operation-shell" hidden aria-label="Operations"></aside>
     <main class="wrap"><div id="panels"></div></main>
     <aside id="inspector" class="inspector" hidden aria-label="Inspect turn"></aside>
   </div>
 </div>
+<dialog id="settings-dialog" class="surface-dialog" aria-labelledby="settings-title">
+  <div class="dialog-heading"><h2 id="settings-title">Settings</h2><button class="btn alt" data-close-dialog aria-label="Close settings">Close</button></div>
+  <div id="conversation-settings"></div>
+  <section class="settings-section">
+    <h3>Connection</h3>
+    <label class="setting-field">API key <input class="text" id="api-key" type="password" placeholder="API key (if required)" autocomplete="off" spellcheck="false"></label>
+    <label class="key-remember"><input type="checkbox" id="api-key-remember"> Remember on this browser</label>
+    <div class="row connection-status"><span class="pill" id="status-pill">probing…</span><span class="dots" aria-label="status"><span id="server-dot" class="dot" title="server"></span><span id="proxy-dot" class="dot" title="swap proxy"></span><span id="device-dot" class="dot" title="device"></span></span></div>
+  </section>
+  <details class="settings-section"><summary>Model details</summary><div id="model-details"></div><p class="note" id="model-evidence"></p></details>
+</dialog>
 
 <!-- One shell, one loader. boot.js fetches /workspace/manifest and loads the
      shared libraries and every declared tab module itself; adding a tab is a

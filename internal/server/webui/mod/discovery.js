@@ -25,7 +25,7 @@
             "No activated models yet — download one below, then activate it with cmd/reverify.";
           for (const entry of models) {
             const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
-              class: "tag", style: "margin-right:4px", title: capability.stale || capability.recipe,
+              class: "tag mr-4", title: capability.stale || capability.recipe,
               text: capability.task + (capability.stale ? " · stale" : capability.tier ? " · " + capability.tier : "") })));
             // A hosted model retires from its row with the section's reason; the catalog relists without it.
             const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "retire", onclick: async () => {
@@ -38,11 +38,11 @@
 
       // ---- hub search ----
       const query = el("input", { class: "text", placeholder: "search the Hugging Face hub" });
-      const kind = el("select", { class: "text", style: "width:130px", "aria-label": "search kind" }, el("option", { value: "models", text: "models" }), el("option", { value: "datasets", text: "datasets" }));
+      const kind = el("select", { class: "text w-130", "aria-label": "search kind" }, el("option", { value: "models", text: "models" }), el("option", { value: "datasets", text: "datasets" }));
       const searchNote = el("span", { class: "note" });
       const resultsBody = el("tbody");
       const searchButton = el("button", { class: "btn" }, "search");
-      const searchCancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
+      const searchCancel = el("button", { class: "btn alt", hidden: true }, "cancel");
       const runSearch = overgo.runner(searchButton, searchCancel, {
         onError: (err) => { searchNote.textContent = overgo.friendlyError(err); },
       });

@@ -289,7 +289,7 @@ func TestWebUIStyleInvariants(t *testing.T) {
 }
 
 // TestWebUIAuthUX guards the centralized 401 handling: a shared friendlyError
-// helper, a global key-required banner, and the previously-inconsistent tabs
+// helper directing the user to connection settings, and the analysis tabs
 // routing their errors through the helper instead of leaking the raw bearer
 // error.
 func TestWebUIAuthUX(t *testing.T) {
@@ -297,15 +297,15 @@ func TestWebUIAuthUX(t *testing.T) {
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 
 	boot := get("/boot.js")
-	for _, needle := range []string{"friendlyError", "showAuthNotice", "auth-banner"} {
+	for _, needle := range []string{"friendlyError", "Settings", "Connection"} {
 		if !strings.Contains(boot, needle) {
 			t.Errorf("boot.js missing %q", needle)
 		}
 	}
-	css := get("/style.css")
-	for _, needle := range []string{".auth-banner", ".keyfield.needs-key"} {
-		if !strings.Contains(css, needle) {
-			t.Errorf("style.css missing %q", needle)
+	page := get("/")
+	for _, needle := range []string{`id="settings-dialog"`, `id="api-key"`} {
+		if !strings.Contains(page, needle) {
+			t.Errorf("settings missing %q", needle)
 		}
 	}
 	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_vocab.js", "/mod/analyze_tensors.js"} {
@@ -502,7 +502,7 @@ func TestWebUIContentSecurityPolicy(t *testing.T) {
 		if strings.Contains(csp, "script-src 'self' 'unsafe-inline'") {
 			t.Errorf("GET %s CSP allows inline script: %q", p, csp)
 		}
-		for _, directive := range []string{"object-src 'none'", "frame-ancestors 'none'", "connect-src 'self'"} {
+		for _, directive := range []string{"object-src 'none'", "frame-ancestors 'none'", "connect-src 'self'", "img-src 'self' data: blob:", "media-src 'self' data: blob:"} {
 			if !strings.Contains(csp, directive) {
 				t.Errorf("GET %s CSP missing %q", p, directive)
 			}

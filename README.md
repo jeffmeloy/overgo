@@ -758,6 +758,22 @@ timer literals, debt markers, the largest file), each at its measured
 value and only tightening; `go run ./cmd/webui-lane -report` prints
 them beside the size measures.
 
+The conversation uses a flat reading area, an independently scrolling thread
+and a persistent composer. Mobile navigation opens in a drawer. Settings hold
+connection keys and model details; generation controls appear on demand. Shared
+CSS classes and named timers replace repeated inline styles and literals.
+
+Browser tests cover conversation recovery, model switching, drawer focus,
+settings, attachments and streaming controls. Desktop and phone captures use
+both colour schemes. The layout audit checks overflow, overlap, clipping,
+24px control targets and level-AA text contrast; findings fail acceptance.
+Generate captures on demand into a chosen output directory; historical captures remain in the GUI branch.
+
+Run `go run ./cmd/webui-lane -run '^TestWebUIBrowserScreens$' -screens <dir>`
+to save test captures, or `go run ./cmd/webui-lane -url <address> -screens <dir>`
+to audit a running page. Captures and layout checks prove browser behavior,
+not model quality. Source-size measurements remain review information.
+
 `go run ./cmd/webui-lane` runs the real-browser acceptance lane the gate
 selects for every web UI change: the workbench acceptance steps, the front
 page's keyboard, motion, colour, and width contract, and a first-run journey

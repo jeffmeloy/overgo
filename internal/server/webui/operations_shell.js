@@ -8,6 +8,7 @@
   const { api, el, fmt } = overgo;
   const operations = new Map();
   const tails = new Map(); // operation id -> the last events the stream reported
+  const dismissed = new Set();
   let selected = "";
   let detailRequest = null;
   let shellHost = null;
@@ -31,13 +32,15 @@
   }
 
   function renderStrip(host) {
-    const values = [...operations.values()];
+    const values = [...operations.values()].filter((item) => item.id === selected || !dismissed.has(item.id) && (!terminal(item.state) || item.state === "failed"));
+    host.hidden = values.length === 0 && !selected;
     const active = values.filter((item) => !terminal(item.state)).length;
     const blocked = values.filter((item) => item.state === "blocked").length;
     const failed = values.filter((item) => item.state === "failed").length;
-    const strip = el("div", { class: "operation-strip", "aria-live": "polite" },
+    // With nothing tracked the strip is one quiet line; the counts appear with the first operation.
+    const strip = el("div", { class: "operation-strip" + (values.length ? "" : " empty"), "aria-live": "polite" },
       el("span", { class: "operation-strip-label", text: "Operations" }),
-      el("span", { class: "note", text: active + " active / " + blocked + " blocked / " + failed + " failed" }));
+      el("span", { class: "note", text: values.length ? active + " active / " + blocked + " blocked / " + failed + " failed" : "none running" }));
     for (const item of values) {
       strip.appendChild(el("button", {
         class: "operation-chip " + item.state + (selected === item.id ? " active" : ""),
@@ -75,7 +78,7 @@
     } catch (err) { renderDetailError(host, err); }
   }
 
-  function renderDetailError(host, err) { const detail = host.lastElementChild; detail.hidden = false; detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+  function renderDetailError(host, err) { host.hidden = false; const detail = host.lastElementChild; detail.hidden = false; detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
 
   // tail: the live event tail of one operation, newest last, each event time-stamped here.
   function tail(id) {
@@ -99,10 +102,11 @@
     if (status.id && !status.local && !terminal(status.state) && status.state !== "blocked") {
       head.insertBefore(el("button", { class: "btn alt", text: "Cancel", onclick: () => cancelOperation(host, status.id) }), head.lastElementChild);
     }
+    if (status.id && terminal(status.state)) head.insertBefore(el("button", { class: "btn alt", text: "Dismiss", onclick: () => { dismissed.add(status.id); selectOperation(host, "", false); } }), head.lastElementChild);
 
     const progress = el("progress", { class: "workflow-progress", value: (status.progress && status.progress.completed) || 0 });
     if (status.progress && status.progress.total != null) progress.max = status.progress.total;
-    else progress.style.display = "none";
+    else progress.hidden = true;
     const stats = el("div", { class: "operation-detail-grid" },
       overgo.stat("Task", status.task || "durable evidence"),
       overgo.stat("Progress", operationProgress(status)),

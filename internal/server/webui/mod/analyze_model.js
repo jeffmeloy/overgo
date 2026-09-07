@@ -52,11 +52,7 @@
       // --- chat template -----------------------------------------------------
       if (m.chat_template) {
         panel.appendChild(el("div", { class: "section-title", text: "Chat template (" + d.chat_template_bytes + " bytes)" }));
-        panel.appendChild(el("pre", {
-          class: "mono",
-          style: "background:var(--bg2);border:1px solid var(--line-soft);border-radius:10px;padding:12px;overflow:auto;max-height:320px;font-size:12px",
-          text: m.chat_template,
-        }));
+        panel.appendChild(el("pre", { class: "mono detail-box", text: m.chat_template }));
       }
     },
   });

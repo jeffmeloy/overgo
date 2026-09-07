@@ -121,6 +121,25 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
 	}
+	// captureStates: the page as it stands at this leg, captured and audited
+	// at both viewports (written when the lane writes screens); the journey
+	// continues at the desktop size.
+	captureStates := func(name string) {
+		t.Helper()
+		for _, viewport := range webuilane.ScreenViewports {
+			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, finding := range findings {
+				t.Error(finding)
+			}
+		}
+		if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("states leg: %s captured at %d viewports", name, len(webuilane.ScreenViewports))
+	}
 	// openPicker: picker open over the catalog rows. A picker left open after
 	// a swap shows the swap's note, not rows: a click closes it, a second
 	// opens it afresh.
@@ -239,6 +258,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => { const field = document.querySelector("#conversation-list input[aria-label='conversation title']"); field.value = "renamed by the lane"; field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); return true; })()`)
 	settle("the rail shows the new title", `[...document.querySelectorAll("#conversation-list button")].some((button) => button.textContent === "renamed by the lane")`)
 	t.Log("rename leg: the conversation renamed in place from the rail")
+	captureStates("thread-reply")
 
 	// 3. The inspector opens over the first turn with its run record.
 	assertBrowserPredicate(t, ctx, browser, `(() => { const button = document.querySelector("#panel-chat .msg.assistant .role button.link-button"); if (!button) return false; button.click(); return true; })()`)
@@ -315,6 +335,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 	settle("tool step card", `[...document.querySelectorAll("#panel-chat .tool-call .tag")].some((tag) => tag.textContent.startsWith("done")) &&
       document.querySelector('[aria-label="guardrails"]').textContent.includes("remaining")`)
+	captureStates("thread-tool")
 	say(t, ctx, browser, "Say hi in one word.")
 	settle("agent chat reply", `document.querySelectorAll("#panel-chat .msg.assistant").length >= 1 &&
       [...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1).textContent.trim().length > 0 && !document.querySelector(".composer .btn").disabled`)
@@ -342,6 +363,12 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	if switchName != "" {
 		switchTo(switchName)
 		t.Logf("switched to %s", switchName)
+		// 7a. The picker leaves once the swap serves; opened again, Escape closes it.
+		settle("the picker left after the served swap", `!document.querySelector(".topbar .card")`)
+		openPicker()
+		pressKey(t, ctx, browser, "Escape", 27)
+		settle("Escape closes the picker", `!document.querySelector(".topbar .card")`)
+		t.Log("picker leg: the picker closed after the served swap and on Escape")
 	} else {
 		t.Log("switch leg not taken: the store holds one servable model")
 	}
@@ -350,8 +377,10 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const select = document.querySelector('.composer select[aria-label="mode"]');
       if (select) { select.value = "chat"; select.dispatchEvent(new Event("change")); }
-      const limit = [...document.querySelectorAll('.composer input[type="number"]')].at(-1);
+      document.getElementById('settings-toggle').click();
+      const limit = document.querySelector('#conversation-settings input[aria-label="max tokens"]');
       limit.value = "400";
+      document.querySelector('#settings-dialog [data-close-dialog]').click();
       return true;
     })()`)
 	say(t, ctx, browser, "Write a very long story about a lighthouse, at least twenty paragraphs.")
@@ -359,6 +388,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => { const stop = [...document.querySelectorAll(".composer .btn")].find((button) => button.textContent === "stop"); if (!stop) return false; stop.click(); return true; })()`)
 	settle("turn stopped", `!document.querySelector(".composer .btn").disabled &&
       ([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1).textContent.includes("[stopped]") || !!document.querySelector("#panel-chat .msg.error"))`)
+	captureStates("thread-stopped")
 
 	// 8. Media out: an image from the cheapest declared image model, chosen from
 	// the generation capabilities by its host oscillator entry module, through
@@ -406,7 +436,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		// beside the original, and accepting it fills the composer; the run
 		// that follows cites the enhancement record as its source.
 		assertBrowserPredicate(t, ctx, browser, `(() => { const input = document.querySelector(".composer textarea"); input.value = "a test image"; input.focus(); return true; })()`)
-		assertBrowserPredicate(t, ctx, browser, `(() => { const enhance = [...document.querySelectorAll(".composer .chat-controls button")].find((button) => button.textContent === "enhance"); if (!enhance) return false; enhance.click(); return true; })()`)
+		assertBrowserPredicate(t, ctx, browser, `(() => { document.getElementById('settings-toggle').click(); const enhance = [...document.querySelectorAll("#conversation-settings button")].find((button) => button.textContent === "Enhance current prompt"); if (!enhance) return false; enhance.click(); return true; })()`)
 		settle("the rewrite stands beside the original", `(() => { const card = document.querySelector("#panel-chat .enhancement .card");
       return !!card && card.textContent.includes("original: a test image") && (card.querySelector(".rewrite") || {}).textContent.trim().length > 0; })()`)
 		var rewrite string
@@ -418,6 +448,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		settle("image out as an artifact card", mediaCards+` === 1 && !!document.querySelector("#panel-chat .msg.media img") &&
       !!document.querySelector("#panel-chat .msg.media .note a") && !document.querySelector(".composer .btn").disabled`)
 		t.Log("media-out leg: an image landed as an artifact card")
+		captureStates("thread-media")
 		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelectorAll("#panel-chat .msg.media button")].find((button) => button.textContent === "use as input"); if (!again) return false; again.click(); return true; })()`)
 		settle("image back in as an attachment", `document.querySelectorAll(".composer .card").length === 1`)
 		var refused bool
@@ -425,6 +456,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("media-in leg: the generated image re-entered the composer, refused=%v", refused)
+		captureStates("composer-attachment")
 		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer .card button").click(); return !document.querySelector(".composer .card"); })()`)
 		// 10b. Gallery after a reload: the image the store holds reappears
 		// newest first in the image mode's gallery rail, and its thumb opens the
@@ -446,6 +478,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       [...document.querySelectorAll("#panel-chat .msg.media .record td")].some((cell) => cell.textContent === "seed") &&
       !!document.querySelector("#panel-chat .msg.media .record a[download]") && [...document.querySelectorAll("#panel-chat .msg.media button")].some((button) => button.textContent === "use as input")`)
 		t.Log("gallery leg: the generated image reappeared in the gallery after a reload and opened its record")
+		captureStates("thread-record")
 		// 10c. Vary and regenerate from the record: the card's "vary" resubmits
 		// the stored request with a fresh seed and the new card names its
 		// parent; "regenerate" resubmits it unchanged and the card says the
@@ -514,6 +547,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const width = Number(field("width").value), height = Number(field("height").value);
       return width % step === 0 && height % step === 0 && height > width && Math.abs(width * height - before) < before / 10; })()`)
 			t.Log("presets leg: the Wan form's aspect chip moved the declared geometry by its stride")
+			captureStates("mode-video")
 		}
 		if generationMode("video-gen", "model.reference-video-prepare") {
 			assertBrowserPredicate(t, ctx, browser, `(() => {
@@ -781,6 +815,10 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	if value != "" {
 		t.Setenv(variable, value)
 	}
+	provider := remoteprovider.Provider{Name: name, Endpoint: fake.URL, KeyEnvironment: variable, Model: "lane/" + name + "-model"}
+	// A killed prior journey cannot run cleanup. Its dead endpoint must not
+	// compete with this fixture under the same picker name.
+	retireLaneRemote(t, storePath, remoteprovider.Location(provider))
 	commit, err := runrecord.HeadCommit(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -789,9 +827,7 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	if err != nil {
 		t.Fatal(err)
 	}
-	declaration, err := remoteprovider.Declare(t.Context(), laneStore, remoteprovider.Provider{
-		Name: name, Endpoint: fake.URL, KeyEnvironment: variable, Model: "lane/" + name + "-model",
-	}, commit)
+	declaration, err := remoteprovider.Declare(t.Context(), laneStore, provider, commit)
 	if closeErr := laneStore.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
@@ -801,6 +837,24 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	}
 	t.Cleanup(func() { retireLaneRemote(t, storePath, declaration.Location) })
 	return path.Base(declaration.Location)
+}
+
+func TestLaneRemoteFixtureReplacesPriorEndpoint(t *testing.T) {
+	storePath := t.TempDir()
+	first := declareLaneRemote(t, storePath, "webui-lane-cleanup", "OVERGO_WEBUI_LANE_CLEANUP_KEY", "lane-key", []string{"old"})
+	second := declareLaneRemote(t, storePath, "webui-lane-cleanup", "OVERGO_WEBUI_LANE_CLEANUP_KEY", "lane-key", []string{"current"})
+	if first == "" || second != first {
+		t.Fatalf("fixture picker names: %q, %q", first, second)
+	}
+	store, err := overgodb.Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	declared, err := remoteprovider.List(t.Context(), store, 256)
+	if err != nil || len(declared) != 1 {
+		t.Fatalf("fixture declarations = %d, error = %v; want one current endpoint", len(declared), err)
+	}
 }
 
 // say types one message into the composer through the browser's input

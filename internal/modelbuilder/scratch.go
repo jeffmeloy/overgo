@@ -32,16 +32,16 @@ type ScratchRequest struct {
 	Steps      int
 }
 
-// ScratchWorkflowSelection derives the scratch workflow identity from
-// its derivation profile.
-func ScratchWorkflowSelection(profile artifact.ID) (artifact.ID, error) {
-	if profile.Kind() != artifact.KindProfile {
-		return artifact.ID{}, errors.New("model builder: derivation profile required")
+// ScratchWorkflowSelection resolves the active profile and its workflow identity.
+func ScratchWorkflowSelection(ctx context.Context, store artifact.Reader) (artifact.ID, error) {
+	profile, err := scratchmodel.ResolveActiveDerivationProfile(ctx, store)
+	if err != nil {
+		return artifact.ID{}, err
 	}
 	return artifact.JSONID(artifact.KindRecipe, struct {
 		Runtime string      `json:"runtime"`
 		Profile artifact.ID `json:"profile"`
-	}{Runtime: "scratch-model-builder/v1", Profile: profile})
+	}{Runtime: "scratch-model-builder/v1", Profile: profile.ID})
 }
 
 type ScratchSession struct {

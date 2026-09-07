@@ -227,8 +227,10 @@ func firstRunEnvironment(ctx context.Context) ([]string, string) {
 // on disk, smallest file first, and among them the ones whose active
 // projection recipe binds a projector with bytes on disk: the journey
 // serves the cheapest model and switches to the cheapest multimodal one.
+// Preparation publishes the identities it verified before releasing the
+// writer to the serving child; the journey revalidates their live stats.
 func smallestServables(ctx context.Context, root string) (servable, multimodal []string, err error) {
-	store, err := overgodb.OpenReadOnly(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		return nil, nil, errors.Join(errors.New("store did not open"), err)
 	}
@@ -265,6 +267,9 @@ func smallestServables(ctx context.Context, root string) (servable, multimodal [
 		if item.multimodal {
 			multimodal = append(multimodal, item.location)
 		}
+	}
+	if err := discovery.PublishMemo(ctx, store, memo); err != nil {
+		return nil, nil, fmt.Errorf("persist prepared model identities: %w", err)
 	}
 	return servable, multimodal, nil
 }

@@ -1,6 +1,8 @@
 package modelbuilder
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -9,6 +11,40 @@ import (
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
+
+func TestScratchWorkflowSelection(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := ScratchWorkflowSelection(t.Context(), store); err == nil {
+		t.Fatal("absent profile admitted")
+	}
+	if _, err := scratchmodel.PublishDerivationProfileCatalog(t.Context(), store); err != nil {
+		t.Fatal(err)
+	}
+	profile, err := scratchmodel.ResolveActiveDerivationProfile(t.Context(), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := artifact.JSONID(artifact.KindRecipe, struct {
+		Runtime string      `json:"runtime"`
+		Profile artifact.ID `json:"profile"`
+	}{"scratch-model-builder/v1", profile.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ScratchWorkflowSelection(t.Context(), store)
+	if err != nil || got != want {
+		t.Fatalf("selection identity changed: %s != %s, %v", got, want, err)
+	}
+	ctx, cancel := context.WithCancelCause(t.Context())
+	cancel(errors.New("selection cancelled"))
+	if _, err := ScratchWorkflowSelection(ctx, store); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled selection = %v", err)
+	}
+}
 
 func TestScratchBuilderPublishesCampaign(t *testing.T) {
 	store, err := overgodb.Open(t.TempDir())

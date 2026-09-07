@@ -3,6 +3,24 @@
   "doc": "Reviewed staged surface: each exported symbol without a statically visible production consumer names either one exact canonical open plan step that retires it or a closed evidence-bound retained classification. Missing, blocked, historical, duplicate, and free-text future-work entries refuse. Undeclared new unconsumed surface still blocks the gate.",
   "staged": [
     {
+      "package": "overgo/internal/trainingdata",
+      "name": "NewTextTransform",
+      "reason": "Explicit target-case profiles are exercised by real CTC publication/resume acceptance. The served CPU lifecycle must select and publish the profile through its production training assembly, preserving raw source text. Master audio intake must retain this obligation until the audio lane lands and verifies its production consumer, or removes the unused boundary atomically. Single-record acceptance is not held-out quality or production assembly.",
+      "retire_with": "audio-staged-surface/do"
+    },
+    {
+      "package": "overgo/internal/trainingworkflow",
+      "name": "PublishInputProjection",
+      "reason": "Real CPU acceptance publishes adapter-only Safetensors with the universal checkpoint owner. The served CPU lifecycle must consume this boundary in production training; acceptance alone does not establish a training command or promotion path. Master audio intake must retain this obligation until the audio lane lands and verifies its production consumer, or removes the unused boundary atomically. Single-record acceptance is not held-out quality or production assembly.",
+      "retire_with": "audio-staged-surface/do"
+    },
+    {
+      "package": "overgo/internal/trainingworkflow",
+      "name": "RestoreInputProjection",
+      "reason": "Fresh-process CTC acceptance proves exact restoration through the shared optimizer and stream owners. The served CPU lifecycle must integrate this boundary into production training and interruption recovery. Master audio intake must retain this obligation until the audio lane lands and verifies its production consumer, or removes the unused boundary atomically. Single-record acceptance is not held-out quality or production assembly.",
+      "retire_with": "audio-staged-surface/do"
+    },
+    {
       "package": "overgo/internal/modelrecipetest",
       "name": "CandidateExecution",
       "reason": "Shared testing.TB fixture consolidates duplicate candidate-compilation helpers from runtime and media tests; it is test-consumed by design and adds no serving API. The bound finding records the consumers, passing scoped checks and 32-node duplication reduction.",

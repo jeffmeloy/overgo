@@ -45,6 +45,8 @@ type goPackageInput struct {
 	XTestGoFiles    []string
 	TestEmbedFiles  []string
 	XTestEmbedFiles []string
+	// Non-import edges derived from opaque subprocess execution.
+	inputDependencies []string
 }
 
 type packageInputGraph struct {
@@ -52,6 +54,8 @@ type packageInputGraph struct {
 	nodes         []goPackageInput
 	byID          map[string][]int
 	resourceFiles map[string][]string
+	// Scoped to one identity batch; never retained across candidate reads.
+	fileInputs map[string][]byte
 }
 
 // Presence tags frame the v2 cache input grammar independently of file bytes.
@@ -95,14 +99,29 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		graph.resourceFiles = map[string][]string{}
 	}
 	compiled := map[string]bool{}
-	var directories []string
+	var directories, roots []string
 	for _, node := range graph.nodes {
 		if len(node.Match) == 0 || node.ForTest != "" {
 			continue
 		}
 		directories = append(directories, node.Dir)
+		roots = append(roots, node.ImportPath)
 		for _, name := range node.files() {
 			compiled[filepath.Join(node.Dir, filepath.FromSlash(name))] = true
+		}
+	}
+	// Dynamic commands may execute any candidate package or unowned repository
+	// input. Keep compiler imports intact; share conservative edges with every
+	// graph consumer until a narrower execution contract proves independence.
+	var subprocessDirectories []string
+	for index := range graph.nodes {
+		node := &graph.nodes[index]
+		if !slices.Contains(directories, node.Dir) || !slices.Contains(node.Imports, "os/exec") {
+			continue
+		}
+		node.inputDependencies = slices.Clone(roots)
+		if !slices.Contains(subprocessDirectories, node.Dir) {
+			subprocessDirectories = append(subprocessDirectories, node.Dir)
 		}
 	}
 	for _, name := range paths {
@@ -117,8 +136,14 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 				owner = directory
 			}
 		}
-		if owner != "" && !slices.Contains(graph.resourceFiles[owner], absolute) {
-			graph.resourceFiles[owner] = append(graph.resourceFiles[owner], absolute)
+		owners := subprocessDirectories
+		if owner != "" {
+			owners = []string{owner}
+		}
+		for _, directory := range owners {
+			if !slices.Contains(graph.resourceFiles[directory], absolute) {
+				graph.resourceFiles[directory] = append(graph.resourceFiles[directory], absolute)
+			}
 		}
 	}
 }
@@ -146,7 +171,7 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 			if owned[node.ImportPath] {
 				continue
 			}
-			for _, imported := range append(append(slices.Clone(node.Imports), node.TestImports...), node.XTestImports...) {
+			for _, imported := range slices.Concat(node.Imports, node.TestImports, node.XTestImports, node.inputDependencies) {
 				if owned[imported] {
 					owned[node.ImportPath] = true
 					changed = true
@@ -198,7 +223,7 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 			return
 		}
 		seen[index] = true
-		imports := append([]string(nil), graph.nodes[index].Imports...)
+		imports := slices.Concat(graph.nodes[index].Imports, graph.nodes[index].inputDependencies)
 		if rootNodes[index] {
 			imports = append(imports, graph.nodes[index].TestImports...)
 			imports = append(imports, graph.nodes[index].XTestImports...)
@@ -243,19 +268,25 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 	hasher.Write([]byte(target))
 	hasher.Write([]byte("\x00"))
 	for _, path := range paths {
-		content, err := os.ReadFile(path)
 		hasher.Write([]byte(filepath.ToSlash(path)))
 		hasher.Write([]byte("\x00"))
-		if errors.Is(err, os.ErrNotExist) {
-			hasher.Write([]byte{packageInputAbsent})
-			continue
+		input, found := graph.fileInputs[path]
+		if !found {
+			content, err := os.ReadFile(path)
+			switch {
+			case errors.Is(err, os.ErrNotExist):
+				input = []byte{packageInputAbsent}
+			case err != nil:
+				return artifact.ID{}, fmt.Errorf("package input identity %s: %w", target, err)
+			default:
+				digest := sha256.Sum256(content)
+				input = append([]byte{packageInputPresent}, digest[:]...)
+			}
+			if graph.fileInputs != nil {
+				graph.fileInputs[path] = input
+			}
 		}
-		if err != nil {
-			return artifact.ID{}, fmt.Errorf("package input identity %s: %w", target, err)
-		}
-		hasher.Write([]byte{packageInputPresent})
-		digest := sha256.Sum256(content)
-		hasher.Write(digest[:]) // Fixed-width framing prevents cross-file ambiguity.
+		hasher.Write(input) // Presence plus fixed-width digest preserves framing.
 	}
 	return artifact.IdentifyBytes(artifact.KindEvidence, hasher.Sum(nil))
 }
@@ -281,6 +312,7 @@ func (node goPackageInput) files() []string {
 }
 
 func packageInputIdentities(graph packageInputGraph, packages []string) (map[string]artifact.ID, error) {
+	graph.fileInputs = map[string][]byte{}
 	identities := make(map[string]artifact.ID, len(packages))
 	for _, packagePath := range packages {
 		identity, err := graph.identity(packagePath)

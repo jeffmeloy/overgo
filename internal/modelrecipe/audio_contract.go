@@ -163,19 +163,48 @@ func audioTaskModules() []recipe.Module {
 // TranscriptionDefinition binds generic host transcription to its exact model,
 // decoded-audio contract, processor declaration, tokenizer, and tensor catalog.
 func TranscriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID artifact.ID) (recipe.Definition, error) {
+	return transcriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID, artifact.ID{})
+}
+
+// AdaptedTranscriptionDefinition adds one exact checkpoint to the canonical
+// base transcription topology. It does not activate or promote the recipe.
+func AdaptedTranscriptionDefinition(base recipe.Definition, checkpoint artifact.ID) (recipe.Definition, error) {
+	if err := base.ValidateIdentity(); err != nil {
+		return recipe.Definition{}, err
+	}
+	roles := [...]recipe.DependencyRole{recipe.DependencyModel, recipe.DependencyProfile, recipe.DependencyProcessorProfile, recipe.DependencyTokenizer, recipe.DependencyTensorInventory}
+	var ids [len(roles)]artifact.ID
+	for index, role := range roles {
+		var found bool
+		ids[index], found = base.PrimaryDependency(role)
+		if !found {
+			return recipe.Definition{}, errors.New("adapted transcription: base dependency is absent")
+		}
+	}
+	expected, err := TranscriptionDefinition(ids[0], ids[1], ids[2], ids[3], ids[4])
+	if err != nil || expected.ID != base.ID || checkpoint.Kind() != artifact.KindCheckpoint {
+		return recipe.Definition{}, errors.New("adapted transcription: base topology or checkpoint differs")
+	}
+	return transcriptionDefinition(ids[0], ids[1], ids[2], ids[3], ids[4], checkpoint)
+}
+
+func transcriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID, checkpoint artifact.ID) (recipe.Definition, error) {
 	node := recipe.Node{
 		ID: "transcribe", Module: ModuleTranscribeAudio, Placement: recipe.PlacementHost,
 		Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache,
 	}
+	dependencies := []recipe.Dependency{
+		{Role: recipe.DependencyModel, Artifact: modelID},
+		{Role: recipe.DependencyProfile, Artifact: contractID},
+		{Role: recipe.DependencyProcessorProfile, Artifact: processorID},
+		{Role: recipe.DependencyTokenizer, Artifact: tokenizerID},
+		{Role: recipe.DependencyTensorInventory, Artifact: tensorInventoryID},
+	}
+	if checkpoint.Valid() {
+		dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyCheckpoint, Artifact: checkpoint})
+	}
 	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskTranscription,
-		[]recipe.Dependency{
-			{Role: recipe.DependencyModel, Artifact: modelID},
-			{Role: recipe.DependencyProfile, Artifact: contractID},
-			{Role: recipe.DependencyProcessorProfile, Artifact: processorID},
-			{Role: recipe.DependencyTokenizer, Artifact: tokenizerID},
-			{Role: recipe.DependencyTensorInventory, Artifact: tensorInventoryID},
-		},
+		recipe.TaskTranscription, dependencies,
 		[]recipe.Node{node}, nil,
 		[]recipe.Input{{Name: "audio", Data: recipe.DataAudio, Target: recipe.Endpoint{Node: node.ID, Port: "audio"}}},
 		[]recipe.Output{{Name: "transcription", Data: recipe.DataTranscription, Source: recipe.Endpoint{Node: node.ID, Port: "transcription"}}},

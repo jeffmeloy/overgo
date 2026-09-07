@@ -8,10 +8,99 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
+	"overgo/internal/codemanifest"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
+
+func TestCheckpointCacheMeasurementEligibility(t *testing.T) {
+	input := testutil.ArtifactID(t, artifact.KindProfile, "phase input")
+	memo := checkpointMemoEntry{
+		slot:  testutil.ArtifactID(t, artifact.KindRecipe, "memo slot"),
+		input: testutil.ArtifactID(t, artifact.KindProfile, "memo input"),
+	}
+	g := gateContext{checkpointMemos: map[string]checkpointMemoEntry{"acceptance-reference": memo}}
+	for _, test := range []struct {
+		name     string
+		input    bool
+		eligible bool
+	}{
+		{"acceptance-reference", true, true},
+		{"acceptance-reference", false, true},
+		{"test", true, true},
+		{"test", false, false},
+		{"acceptance", true, false},
+		{"acceptance-undeclared", true, false},
+		{"device", true, false},
+		{"commit", true, false},
+	} {
+		check := automationcheck.Invocation{
+			ID:    testutil.ArtifactID(t, artifact.KindRecipe, test.name),
+			Check: automationcheck.Descriptor{Name: test.name},
+		}
+		inputs := map[artifact.ID]artifact.ID{}
+		if test.input {
+			inputs[check.ID] = input
+		}
+		slot, actualInput, eligible := g.checkCacheKey(check, inputs)
+		if eligible != test.eligible {
+			t.Fatalf("%s input=%t eligible=%t, want %t", test.name, test.input, eligible, test.eligible)
+		}
+		if test.name == "acceptance-reference" {
+			if slot.ID != memo.slot || actualInput != memo.input {
+				t.Fatal("checkpoint measurement did not select the execution memo")
+			}
+		} else if slot.ID != check.ID || test.input && actualInput != input {
+			t.Fatal("ordinary phase cache identity changed")
+		}
+	}
+
+	// A reused checkpoint must be eligible even when no ordinary phase ran.
+	// The old accounting produced hits=1, eligible=0 and could not publish the
+	// manifest analysis of a failed gate. Exercise the immutable record codec.
+	g2, batch, tree := verificationBatchFixture(t, "pass")
+	checks, err := g2.batchAcceptanceChecks([]automationcheck.Check{
+		gateCheck("acceptance", runrecord.PhaseTest, g2.stepAcceptance),
+	}, batch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invocations, err := automationcheck.Plan(checks, automationcheck.Impact{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := automationcheck.BindManifestPlan(
+		testutil.ArtifactID(t, artifact.KindProfile, "measurement base"),
+		testutil.ArtifactID(t, artifact.KindProfile, "measurement candidate"),
+		strings.Repeat("a", 64), candidateTreeKey(tree),
+		automationcheck.Surface{Identity: "checkpoint measurement fixture"}, automationcheck.Impact{}, invocations,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eligible := 0
+	if _, _, canReuse := g2.checkCacheKey(invocations[0], nil); canReuse {
+		eligible++
+	}
+	measurements := automationcheck.MeasureManifest(len(checks), len(invocations), 0, 0, eligible, 1, 0, 0)
+	analysis, err := automationcheck.NewManifestAnalysis(
+		codemanifest.Delta{Base: manifest.BaseManifest, Candidate: manifest.CandidateManifest},
+		codemanifest.Impact{Base: manifest.BaseManifest.String(), Candidate: manifest.CandidateManifest.String()},
+		manifest, automationcheck.SelectionMetrics{}, measurements,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := analysis.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := automationcheck.ParseManifestAnalysis(content.Data)
+	if err != nil || replayed.ID != analysis.ID || replayed.Measurements.CacheMisses != 0 {
+		t.Fatalf("checkpoint measurement round trip: %+v, %v", replayed.Measurements, err)
+	}
+}
 
 // TestCheckpointEvidenceReuseAcrossRuns pins: memo slots per checkpoint; an
 // executed checkpoint is reused on the same input with Reused set; a changed

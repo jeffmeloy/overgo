@@ -11,6 +11,7 @@ import (
 type packageTestScope struct {
 	direct, dependent, productionPaths []string
 	unresolved                         []string
+	opaqueSubprocesses                 []string
 	excluded                           int
 }
 
@@ -90,7 +91,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			if affected[node.ImportPath] {
 				continue
 			}
-			for _, imported := range node.Imports {
+			for _, imported := range slices.Concat(node.Imports, node.inputDependencies) {
 				if affected[imported] {
 					affected[node.ImportPath] = true
 					changed = true
@@ -116,5 +117,18 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		}
 	}
 	slices.Sort(scope.dependent)
+	for _, node := range graph.nodes {
+		if len(node.inputDependencies) == 0 {
+			continue
+		}
+		target := node.ImportPath
+		if node.ForTest != "" {
+			target = node.ForTest
+		}
+		if (slices.Contains(scope.direct, target) || slices.Contains(scope.dependent, target)) && !slices.Contains(scope.opaqueSubprocesses, target) {
+			scope.opaqueSubprocesses = append(scope.opaqueSubprocesses, target)
+		}
+	}
+	slices.Sort(scope.opaqueSubprocesses)
 	return scope, nil
 }

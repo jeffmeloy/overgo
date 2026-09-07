@@ -109,6 +109,51 @@ func (r *recordingReporter) Metric(operation.Metric)  {}
 func (r *recordingReporter) Attempt(artifact.ID)      {}
 func (r *recordingReporter) Publishing()              { r.published = true }
 
+// TestGenerationWorkspaceIdentityRefresh requires repeated listings to
+// retain the digest memo while still rejecting changed model bytes.
+func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	activatedImageModel(t, store)
+	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
+	capabilities, err := workspace.WorkflowCapabilities(t.Context(), WorkflowGeneration)
+	if err != nil || len(capabilities) != 1 {
+		t.Fatalf("initial capabilities = %+v, %v", capabilities, err)
+	}
+	memo := workspace.memo
+	if memo == nil {
+		t.Fatal("identity memo was not retained")
+	}
+	t.Run("concurrent readers", func(t *testing.T) {
+		for range 4 {
+			t.Run("listing", func(t *testing.T) {
+				t.Parallel()
+				listed, err := workspace.WorkflowCapabilities(t.Context(), WorkflowGeneration)
+				if err != nil || len(listed) != 1 {
+					t.Fatalf("repeat capabilities = %+v, %v", listed, err)
+				}
+			})
+		}
+	})
+	if workspace.memo != memo {
+		t.Fatal("repeated listing discarded verified identities")
+	}
+	if err := os.WriteFile(capabilities[0].Location, []byte("changed oscillator weights"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if listed, err := workspace.WorkflowCapabilities(t.Context(), WorkflowGeneration); err != nil || len(listed) != 0 {
+		t.Fatalf("changed bytes must not remain present: %+v, %v", listed, err)
+	}
+	ctx, cancel := context.WithCancelCause(t.Context())
+	cancel(nil)
+	if _, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled listing = %v", err)
+	}
+}
+
 // TestGenerationWorkspaceListsAndRunsStoreActivations pins the workspace
 // over a store: the activation lists with the controls its request type
 // declares, the run reaches the catalog's executor with the model bytes,

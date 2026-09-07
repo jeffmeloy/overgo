@@ -756,55 +756,23 @@ census measures (silent fallbacks, window dialogs, controls and buttons
 without an accessible name, inline style attributes, nested ternaries,
 timer literals, debt markers, the largest file), each at its measured
 value and only tightening; `go run ./cmd/webui-lane -report` prints
-them beside the size measures. The style measures stand at zero: every
-size, spacing and emphasis is a class in the style sheet, elements are
-shown and hidden through the hidden attribute, branches are named
-functions or values rather than nested ternaries, and every timer reads
-a named constant in its module. The model picker leaves once a swap
-serves, its receipt on the operation chip, and closes on Escape.
+them beside the size measures.
 
-The shell reads one spacing scale and one type scale, declared as
-tokens beside the colours and used by the top bar, the operations
-strip, section titles, tables, tags, inputs, stat cards, the composer
-and the front page; the front page is one column whose welcome card,
-thread and composer share a width; the composer's send, attach and mode
-controls stand on one line with the parameters grouped beside them; the
-conversation rail shows one line per conversation with its actions
-revealed on hover or focus; the model picker lists one line per model
-with its facts and the serve control at the end; the operations strip
-is one quiet line until an operation runs; and on a phone the key field
-takes its own row. The captures before and after this pass are kept
-under docs/gui/screens.
+The conversation uses a flat reading area, an independently scrolling thread
+and a persistent composer. Mobile navigation opens in a drawer. Settings hold
+connection keys and model details; generation controls appear on demand. Shared
+CSS classes and named timers replace repeated inline styles and literals.
 
-How the page looks is captured, never guessed. The screens test opens
-every workbench tab and the model picker at a desktop and a phone
-viewport, captures each state through the browser's own screenshot
-command, and audits its layout from the browser's geometry and computed
-styles: the document held to the viewport's width, every control and
-card inside it, fixed and sticky surfaces apart, single-line text uncut
-unless an ellipsis is designed, controls at least 24px on each side (an
-input reached through its label measured by the label), and text against
-its background at the level-AA contrast ratio. Every state is captured
-under the dark and the light colour scheme through the browser's media
-emulation, so the light scheme's contrast is measured like the dark's.
-The first-run journey captures the states a reader meets that the
-fixture cannot make: a thread with a reply, a stopped turn, a tool card,
-a media card with its record, an attachment in the composer and a
-generation mode with its declared controls; the acceptance lane captures
-the picker over an empty store. The conversation uses a flat reading area
-and a persistent composer. On phones, navigation opens in a drawer;
-model details, API keys and generation parameters stay behind explicit
-controls. Idle operations occupy no space. The conversation-layout test
-checks visible send/stop controls, independent scrolling, drawer focus
-and settings access at desktop, phone and reduced keyboard heights.
-Source-size census values remain review information, while behavioral
-journeys and centralized transport/security checks determine acceptance.
-A finding fails the test, so the audit holds at zero. `go run ./cmd/webui-lane -run
-'^TestWebUIBrowserScreens$' -screens <dir>` writes the captures as PNGs
-for a reader, and `go run ./cmd/webui-lane -url <address> -screens
-<dir>` walks a running server's page the same way without the tests,
-listing its findings. The audit itself is pinned over a synthetic page
-built to fault in every measured way.
+Browser tests cover conversation recovery, model switching, drawer focus,
+settings, attachments and streaming controls. Desktop and phone captures use
+both colour schemes. The layout audit checks overflow, overlap, clipping,
+24px control targets and level-AA text contrast; findings fail acceptance.
+Generate captures on demand into a chosen output directory; historical captures remain in the GUI branch.
+
+Run `go run ./cmd/webui-lane -run '^TestWebUIBrowserScreens$' -screens <dir>`
+to save test captures, or `go run ./cmd/webui-lane -url <address> -screens <dir>`
+to audit a running page. Captures and layout checks prove browser behavior,
+not model quality. Source-size measurements remain review information.
 
 `go run ./cmd/webui-lane` runs the real-browser acceptance lane the gate
 selects for every web UI change: the workbench acceptance steps, the front

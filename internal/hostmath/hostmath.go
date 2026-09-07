@@ -214,6 +214,23 @@ func Linear(dst, x, w []float32, rows, inDim, outDim int) {
 	})
 }
 
+// LinearInputProjection applies an optional square input projection followed
+// by a linear output and optional bias. A nil projection leaves x unchanged;
+// otherwise projected supplies rows*inDim disjoint scratch elements. Shapes
+// and non-overlap are validated by the component admitting these buffers.
+func LinearInputProjection(dst, projected, x, projection, weight, bias []float32, rows, inDim, outDim int) {
+	if projection != nil {
+		Linear(projected, x, projection, rows, inDim, inDim)
+		x = projected
+	}
+	Linear(dst, x, weight, rows, inDim, outDim)
+	if len(bias) != 0 {
+		for row := range rows {
+			AddBias(dst[row*outDim:(row+1)*outDim], bias)
+		}
+	}
+}
+
 // LinearBF16: Linear with native BF16 weight storage and F32 accumulation.
 func LinearBF16(dst, x []float32, w []uint16, rows, inDim, outDim int) {
 	parallelRangeCost(outDim, rows*inDim, macF32, func(oStart, oEnd int) {

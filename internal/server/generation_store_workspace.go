@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -85,6 +86,8 @@ type StoreGenerationWorkspace struct {
 	store   *overgodb.Store
 	catalog GenerationCatalog
 	limit   int
+	mu      sync.Mutex
+	memo    *discovery.Memo
 }
 
 // NewStoreGenerationWorkspace binds the workspace to the store and to the
@@ -120,11 +123,16 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 	if workspace == nil || kind != WorkflowGeneration {
 		return nil, nil
 	}
+	// Retain verified file identities; refresh activations on every read.
+	workspace.mu.Lock()
+	defer workspace.mu.Unlock()
 	if err := workspace.store.Refresh(ctx); err != nil {
 		return nil, err
 	}
-	memo := discovery.LoadMemo(ctx, workspace.store)
-	entries, _, err := discovery.CapabilityCatalog(ctx, workspace.store, workspace.limit, memo)
+	if workspace.memo == nil {
+		workspace.memo = discovery.LoadMemo(ctx, workspace.store)
+	}
+	entries, _, err := discovery.CapabilityCatalogForTasks(ctx, workspace.store, workspace.limit, workspace.memo, generationTasks...)
 	if err != nil {
 		return nil, err
 	}

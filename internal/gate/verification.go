@@ -301,6 +301,17 @@ func (g *gateContext) stepArchitectureRatchet() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	budgets, err := repoanalysis.LoadStructureBudgets(filepath.Join(g.repo, filepath.FromSlash(repoanalysis.StructureBudgetsFile)))
+	if err != nil {
+		return false, err
+	}
+	var violations []error
+	for _, finding := range repoanalysis.MeasureStructureBudgets(snapshot, budgets) {
+		violations = append(violations, fmt.Errorf("architecture: %s %s = %d over limit %d", finding.Budget, finding.Subject, finding.Value, finding.Limit))
+	}
+	if err := errors.Join(violations...); err != nil {
+		return false, err
+	}
 	if err := runrecord.ValidateTriggerRegistry(); err != nil {
 		return false, err
 	}
@@ -831,6 +842,9 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if baseline.SourceIdentity != candidate.SourceIdentity {
+		return false, errors.New("modern-Go baseline source is stale; run `go run ./cmd/modern-census -lower-baseline` and `go run ./cmd/modern-census -publish-census`")
+	}
 	if err := repoanalysis.AdmitModernGoRatchet(baseline, candidate, time.Now().UTC()); err != nil {
 		return false, err
 	}
@@ -931,6 +945,9 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	}
 	g.audit = append(g.audit, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
 	g.audit = append(g.audit, fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
+	if len(scope.opaqueSubprocesses) != 0 {
+		g.audit = append(g.audit, "test scope: opaque subprocess consumers bind all candidate packages and unowned repository inputs: "+strings.Join(scope.opaqueSubprocesses, ","))
+	}
 	if len(scope.unresolved) != 0 {
 		g.audit = append(g.audit, "test scope widened for global or unresolved Go inputs: "+strings.Join(scope.unresolved, ","))
 	}

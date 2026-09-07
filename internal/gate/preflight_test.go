@@ -4,13 +4,34 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/automationcheck"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
+
+func TestPreflightStructureBudget(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = snapshot.Overlay(map[string][]byte{"internal/server/budget_fixture.go": []byte("package server\nimport _ \"overgo/internal/budgetfixture\"\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := gateContext{repo: root, source: &snapshot, paths: []string{"docs/plan.json"}}
+	if _, err := g.stepArchitectureRatchet(); err == nil || !strings.Contains(err.Error(), "internal-imports internal/server") {
+		t.Fatalf("early coupling refusal = %v", err)
+	}
+}
 
 // TestPreflightReportsValidateFindings pins order, findings and path admission.
 func TestPreflightReportsValidateFindings(t *testing.T) {

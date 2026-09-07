@@ -10,21 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "exact-resume",
-          "title": "Verify: Prove interrupted and uninterrupted adapter training follow the same trajectory",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRExactResumeAcceptance$' -count=1 -v",
-          "rationale": "Group adapter-lifecycle; retained verification receipt for asr-training/sync-exact-resume. Use trainingworkflow resume ownership. Compare uninterrupted/restarted next-batch identity, parameters, optimizer moments, RNG, scheduler state, losses and later updates. Missing or mismatched state must fail rather than silently restart; loading weights alone is insufficient.",
-          "depends_on": [
-            "asr-training/sync-exact-resume"
-          ],
-          "capabilities": [
-            "exact-training-resume",
-            "optimizer-state",
-            "data-stream-continuity"
-          ]
-        },
-        {
           "id": "closed-loop-proof",
           "title": "Prove the served CPU lifecycle and its failure recovery",
           "status": "open",

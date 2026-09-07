@@ -19,8 +19,9 @@
   }
 
   function seriesBlock(overgo, title, series) {
-    const legend = overgo.el("div", { class: "series-legend" }, ...series.map((item) =>
-      overgo.el("span", {}, overgo.el("i", { style: "background:" + item.color }), item.label)));
+    const legend = overgo.el("div", { class: "series-legend" }, ...series.map((item) => {
+      const swatch = overgo.el("i", { class: "swatch" }); swatch.style.background = item.color; // the series' own colour
+      return overgo.el("span", {}, swatch, item.label); }));
     return overgo.el("section", { class: "evidence-block" },
       overgo.el("div", { class: "section-title", text: title }), legend,
       overgo.viz.signedSeries(series));
@@ -133,7 +134,7 @@
       }}, "next");
       panel.append(
         el("div", { class: "section-title", text: "Training runs" }),
-        el("div", { class: "row", style: "margin-bottom:10px" }, prev, next, status));
+        el("div", { class: "row mb-10" }, prev, next, status));
       const host = el("div");
       const detail = el("div");
       panel.append(host, detail);

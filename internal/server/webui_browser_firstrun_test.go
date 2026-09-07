@@ -337,6 +337,12 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	if switchName != "" {
 		switchTo(switchName)
 		t.Logf("switched to %s", switchName)
+		// 7a. The picker leaves once the swap serves; opened again, Escape closes it.
+		settle("the picker left after the served swap", `!document.querySelector(".topbar .card")`)
+		openPicker()
+		pressKey(t, ctx, browser, "Escape", 27)
+		settle("Escape closes the picker", `!document.querySelector(".topbar .card")`)
+		t.Log("picker leg: the picker closed after the served swap and on Escape")
 	} else {
 		t.Log("switch leg not taken: the store holds one servable model")
 	}

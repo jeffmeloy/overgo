@@ -5,28 +5,14 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-style-consistency",
-      "title": "Bring the client to one style, last among the review rows because it pays ceilings rather than adding capability: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the census ceilings drop accordingly",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bring the client to one style, last among the review rows because it pays ceilings rather than adding capability: inline style attributes move to classes in style.css (a reviewed handful of dynamic sizes may remain, each named), nested ternaries become named branches, timer intervals become named constants per module, the model picker closes after a successful swap and on Escape, and the census ceilings drop accordingly",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "integrate-to-master",
-      "title": "Integrate the settled lane into master preserving master plan: merge the lane branch into master with master docs/plan.json untouched (the lane plan never merges), the merge gate green on master, and the lane rebased on the merged master; executed from the master worktree only with the owner go-ahead",
+      "title": "Integrate the settled lane into master preserving master's plan: master merges the lane head from its own worktree (as merge-6ad5668fabed did at 5752876c) with the owner's go-ahead and master's docs/plan.json untouched; the lane never writes master and never takes master's rows; the row closes when master's head contains the lane's last landed row and the lane has merged that master back",
       "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Integrate the settled lane into master preserving master plan: merge the lane branch into master with master docs/plan.json untouched (the lane plan never merges), the merge gate green on master, and the lane rebased on the merged master; executed from the master worktree only with the owner go-ahead",
+          "title": "Integrate the settled lane into master preserving master's plan: master merges the lane head from its own worktree (as merge-6ad5668fabed did at 5752876c) with the owner's go-ahead and master's docs/plan.json untouched; the lane never writes master and never takes master's rows; the row closes when master's head contains the lane's last landed row and the lane has merged that master back",
           "status": "open",
           "verify": "go build ./..."
         }
@@ -48,13 +34,13 @@
     },
     {
       "id": "audio-staged-surface",
-      "title": "Carry master's OpenAudioStream staged declaration: the staged surface binds to this row until master's register-models consumes the surface and the lane merges that; the row closes when the entry is gone",
+      "title": "Carry master's OpenAudioStream staged declaration: the lane's staged surface binds to this row while master's modality-verification/native-audio-streaming-intake step decides whether a landed native streaming consumer accepts the surface or the unused surface is removed; the row closes when the entry is gone from the merged tree",
       "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Carry master's OpenAudioStream staged declaration: the staged surface binds to this row until master's register-models consumes the surface and the lane merges that; the row closes when the entry is gone",
+          "title": "Carry master's OpenAudioStream staged declaration: the lane's staged surface binds to this row while master's modality-verification/native-audio-streaming-intake step decides whether a landed native streaming consumer accepts the surface or the unused surface is removed; the row closes when the entry is gone from the merged tree",
           "status": "open",
           "verify": "test 0 -eq $(grep -c OpenAudioStream docs/staged_surface.json)"
         }

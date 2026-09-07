@@ -6,6 +6,7 @@
    bullet/numbered lists, paragraphs, and hard line breaks. */
 (function () {
   "use strict";
+  const copiedLabelMS = 1200; // how long a copy button says "copied"
 
   function copyButton(text, label) {
     label = label || "copy";
@@ -18,7 +19,7 @@
         await navigator.clipboard.writeText(text);
         btn.textContent = "copied";
       } catch (_) { btn.textContent = "copy failed"; }
-      setTimeout(() => { btn.textContent = label; }, 1200);
+      setTimeout(() => { btn.textContent = label; }, copiedLabelMS);
     });
     return btn;
   }

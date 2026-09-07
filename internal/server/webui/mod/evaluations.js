@@ -17,9 +17,9 @@
       const model = el("select", { class: "text", "aria-label": "model" });
       const suiteHost = el("div", { class: "control-grid" });
       const run = el("button", { class: "btn", text: "Run" });
-      const cancel = el("button", { class: "btn alt", text: "Cancel", style: "display:none" });
+      const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
       const status = el("div", { class: "note" });
-      const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, style: "display:none" });
+      const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, hidden: true });
       const liveMetrics = el("div");
       const matrix = el("div");
       const history = el("div");
@@ -56,7 +56,7 @@
         status.textContent = current.state + (current.run ? " / " + fmt.shortID(current.run) : "") +
           (current.failure ? " / " + current.failure : "");
         const total = current.progress && current.progress.total;
-        progress.style.display = total ? "" : "none";
+        progress.hidden = !total;
         if (total) { progress.max = total; progress.value = current.progress.completed; }
         liveMetrics.replaceChildren(...((current.metrics || []).length ? [metricTable(overgo, current.metrics)] : []));
       }
@@ -117,14 +117,14 @@
         const plans = [...fields].filter(([, input]) => input.checked).map(([plan]) => plan);
         if (!plans.length) { status.textContent = "select an evaluation"; return; }
         run.disabled = true;
-        cancel.style.display = "";
+        cancel.hidden = false;
         try {
           const accepted = await api.post("/evaluations/run", { model: model.value, plans });
           operation = accepted.operation;
           const completed = await overgo.waitOperation(operation, renderOperation);
           renderOperation(completed);
           await loadHistory();
-        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.style.display = "none"; }
+        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.hidden = true; }
       });
       model.addEventListener("change", () => { renderCapabilities(); loadHistory(); });
       renderCapabilities();

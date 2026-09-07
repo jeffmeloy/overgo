@@ -230,7 +230,7 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .evidence-block { min-width:0; border-top:1px solid var(--line); margin-top:14px; }
 .series-legend { display:flex; flex-wrap:wrap; gap:12px; color:var(--dim); font:11px var(--mono); }
 .series-legend span { display:flex; align-items:center; gap:5px; }
-.series-legend i { width:12px; height:2px; display:inline-block; }
+.series-legend .swatch { width:12px; height:2px; display:inline-block; }
 .artifact-links { margin:12px 0; }
 .signed-series { display:block; min-width:0; }
 .artifact-gallery { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-top:12px; }
@@ -360,3 +360,25 @@ button.pill { font:inherit; cursor:pointer; }
   .inspector { width:100vw; }
   .front-empty { margin:16px auto; }
 }
+
+/* Utilities: the one place a size, spacing or emphasis is named; the scripts carry no inline style attributes. */
+[hidden] { display:none !important; }
+.w-80 { width:80px; } .w-90 { width:90px; } .w-110 { width:110px; } .w-130 { width:130px; } .w-150 { width:150px; } .w-auto { width:auto; }
+.mw-420 { max-width:420px; } .mw-440 { max-width:440px; } .fit-width { max-width:100%; }
+.mt-8 { margin-top:8px; } .mt-14 { margin-top:14px; } .mt-18 { margin-top:18px; } .mb-10 { margin-bottom:10px; } .mb-12 { margin-bottom:12px; }
+.my-8 { margin:8px 0; } .my-10 { margin:10px 0; } .my-12 { margin:12px 0; } .mr-4 { margin-right:4px; }
+.faint { opacity:.7; } .amber { color:var(--amber); } .clickable { cursor:pointer; } .tall { min-height:60vh; }
+.thumb-preview { max-height:48px; max-width:96px; }
+.system-prompt { min-height:52px; }
+.mono-lines { font-family:var(--mono); line-height:1.7; }
+.scroll-box { max-height:320px; overflow:auto; }
+.detail-box { background:var(--bg2); border:1px solid var(--line-soft); border-radius:10px; padding:12px; overflow:auto; max-height:320px; font-size:12px; }
+.picker-card { position:absolute; right:12px; top:44px; z-index:40; max-width:560px; }
+.stack { display:flex; flex-direction:column; gap:4px; }
+.neighbour-row { display:flex; gap:12px; align-items:center; font-size:12px; padding:4px 8px; border:1px solid var(--line-soft); border-radius:8px; cursor:pointer; }
+.meter { display:flex; align-items:center; gap:6px; justify-content:flex-end; }
+.meter-track { width:64px; height:8px; border-radius:4px; background:var(--bg2); overflow:hidden; }
+.meter-fill { height:100%; background:var(--acc); }
+.tensor-table { width:100%; border-collapse:collapse; font-size:12px; }
+.cell { padding:5px 8px; border-bottom:1px solid var(--line-soft); } .cell.num { text-align:right; }
+.cell.head { padding:6px 8px; cursor:pointer; white-space:nowrap; text-align:left; } .cell.head.num { text-align:right; }

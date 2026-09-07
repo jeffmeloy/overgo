@@ -18,14 +18,14 @@ const (
 	webuiStreamReaderCeiling = 1    // response.body.getReader(): boot.js sseEvents, the one stream reader
 	webuiRawFetchCeiling     = 4    // fetch(: boot.js api client only
 	webuiAPIStreamCeiling    = 1    // api.stream(: chat
-	webuiJavaScriptCeiling   = 4602 // total lines under webui/
+	webuiJavaScriptCeiling   = 4594 // total lines under webui/
 )
 
 // webuiReviewCeiling: the review criteria webuilane.ReviewMeasures counts, each at its
 // measured value when the census landed (webui-quality-census); they only tighten.
 var webuiReviewCeiling = webuilane.Review{
 	SilentFallbacks: 0, WindowDialogs: 0, UnnamedControls: 0, UnnamedButtons: 0,
-	InlineStyles: 67, NestedTernaries: 3, TimerLiterals: 6, DebtMarkers: 0,
+	InlineStyles: 0, NestedTernaries: 0, TimerLiterals: 0, DebtMarkers: 0,
 }
 
 // webuiLargestFileCeiling bounds one file's lines (the review's soft file ceiling is 800).

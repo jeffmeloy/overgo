@@ -102,7 +102,7 @@
 
     const progress = el("progress", { class: "workflow-progress", value: (status.progress && status.progress.completed) || 0 });
     if (status.progress && status.progress.total != null) progress.max = status.progress.total;
-    else progress.style.display = "none";
+    else progress.hidden = true;
     const stats = el("div", { class: "operation-detail-grid" },
       overgo.stat("Task", status.task || "durable evidence"),
       overgo.stat("Progress", operationProgress(status)),

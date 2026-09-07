@@ -156,6 +156,9 @@
 
   // runner: one exclusive, cancelable async action bound to a run and a cancel
   // button; an abort goes to onCancel, any other failure to onError.
+  // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
+  // tick, the offline probe, and the status re-probe.
+  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
   function runner(runButton, cancelButton, handlers) {
     handlers = handlers || {};
     let controller = null;
@@ -163,14 +166,14 @@
     return async function run(task) {
       if (controller) return; // a run is already in flight
       runButton.disabled = true;
-      cancelButton.style.display = "";
+      cancelButton.hidden = false;
       controller = new AbortController();
       try {
         await task(controller.signal);
       } catch (err) {
         if (err && err.name === "AbortError") { if (handlers.onCancel) handlers.onCancel(); }
         else if (handlers.onError) handlers.onError(err);
-      } finally { runButton.disabled = false; cancelButton.style.display = "none"; controller = null; }
+      } finally { runButton.disabled = false; cancelButton.hidden = true; controller = null; }
     };
   }
 
@@ -209,11 +212,10 @@
   function registerTab(tab) { tabs.push(tab); }
 
   // artifactLink: the one link to a stored artifact (content, or the gallery entry).
+  const galleryRoute = "/artifacts?id=", contentRoute = "/artifacts/content?id=";
   function artifactLink(id, label, gallery) {
-    return el("a", {
-      class: "mono", href: (gallery ? "/artifacts?id=" : "/artifacts/content?id=") + encodeURIComponent(id),
-      target: "_blank", rel: "noopener", text: label || shortID(id),
-    });
+    const route = gallery ? galleryRoute : contentRoute;
+    return el("a", { class: "mono", href: route + encodeURIComponent(id), target: "_blank", rel: "noopener", text: label || shortID(id) });
   }
 
   // headerRow, tableRow, table: a header row from labels, a row of cells (a
@@ -361,9 +363,9 @@
     const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
     prompt.value = (seed && seed.prompt) || options.defaultPrompt;
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
-    const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
+    const cancel = el("button", { class: "btn alt", hidden: true }, "cancel");
     const out = el("div");
-    panel.append(prompt, el("div", { class: "row", style: "margin:10px 0" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
+    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
       onError: (err) => out.replaceChildren(errorBanner(friendlyError(err))),
@@ -412,7 +414,7 @@
   // libraryStarters: the two ways a model enters an empty store, each a control that opens the Library tab
   // on its form (the local registration row, the hosted provider form) once the tab has mounted.
   function libraryStarters() {
-    const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, 50); }; focus(); };
+    const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, focusRetryMS); }; focus(); };
     return [el("button", { class: "btn alt", text: "register a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
       el("button", { class: "btn alt", text: "declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
   }
@@ -420,8 +422,10 @@
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
     let panel = null;
-    modelPill.style.cursor = "pointer";
+    modelPill.classList.add("clickable");
     modelPill.title = "click to switch the served model";
+    // close: the picker leaves after a served swap and on Escape; a click on the pill toggles it.
+    const close = () => { if (panel) { panel.remove(); panel = null; } }; document.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
 
     // swapModel routes one health probe through the swap proxy with the swap query parameter; the proxy swaps
     // the child to answer it, then the capability document is re-read and the active surface re-mounted.
@@ -431,7 +435,7 @@
       const chip = { id: "swap-" + name, task: "model switch " + name, state: "running", progress: {} };
       window.overgo.localOperation(chip);
       button.disabled = true;
-      const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, 1000);
+      const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
         await api.get("/health?swap=" + encodeURIComponent(name));
         invalidateModel();
@@ -441,10 +445,11 @@
           workspaceManifest = await api.get("/workspace/manifest");
           capabilityDocument = workspaceManifest.model || null;
           remountActive();
-          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served after " + Math.round((Date.now() - started) / 1000) + "s" }));
+          // The served swap is the operation chip's receipt; the picker has done its work and leaves.
           const elapsed = Math.round((Date.now() - started) / 1000);
-          panel.replaceChildren(el("div", { class: "note", text: "now serving " + modelPill.textContent + " after " + elapsed + "s · " +
-            (capabilityDocument ? "context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
+          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served " + modelPill.textContent + " after " + elapsed + "s" +
+            (capabilityDocument ? " · context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
+          close();
           return;
         }
         window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "no swap proxy" }));
@@ -462,7 +467,7 @@
 
     modelPill.addEventListener("click", async () => {
       if (panel) { panel.remove(); panel = null; return; }
-      panel = el("div", { class: "card", style: "position:absolute;right:12px;top:44px;z-index:40;max-width:560px" });
+      panel = el("div", { class: "card picker-card" });
       modelPill.parentElement.appendChild(panel);
       panel.textContent = "loading servable models…";
       try {
@@ -514,10 +519,7 @@
 
   // When /analyze/model answers 401 the whole analysis surface is locked behind the key: one banner and
   // a highlighted field instead of every tab failing on its own with a raw bearer-token error.
-  function showAuthNotice(show) {
-    if (authNoticeEl) authNoticeEl.style.display = show ? "" : "none";
-    const key = document.getElementById("api-key"); if (key) key.classList.toggle("needs-key", show);
-  }
+  function showAuthNotice(show) { if (authNoticeEl) authNoticeEl.hidden = !show; const key = document.getElementById("api-key"); if (key) key.classList.toggle("needs-key", show); }
 
   function tabSupported(tab) { return tab.enabled; }
 
@@ -526,7 +528,7 @@
       const ok = tabSupported(tab);
       // A capability this model does not serve HIDES its tab: the nav shows what works here, and the
       // manifest still carries every refusal for API clients that ask.
-      tab.button.style.display = ok ? "" : "none";
+      tab.button.hidden = !ok;
       tab.button.disabled = !ok;
       tab.button.title = ok ? "" : tab.refusal;
     }
@@ -577,9 +579,9 @@
     const text = el("span", { text: message });
     const retry = el("button", { class: "btn alt", text: "probe again" });
     const card = el("div", { class: "card" }, el("div", { class: "probe" }, dot, text),
-      el("p", { class: "note", style: "margin-top:18px", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
+      el("p", { class: "note mt-18", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
       el("div", { class: "actions" }, retry));
-    panels.appendChild(el("div", { class: "center", style: "min-height:60vh" }, card));
+    panels.appendChild(el("div", { class: "center tall" }, card));
     async function probe() {
       dot.className = "dot scan";
       try {
@@ -592,7 +594,7 @@
       } catch (err) { dot.className = "dot err"; text.textContent = "no server at " + location.origin + " (" + friendlyError(err) + ")"; }
     }
     retry.addEventListener("click", probe);
-    if (offlineTimer == null) offlineTimer = setInterval(probe, 4000);
+    if (offlineTimer == null) offlineTimer = setInterval(probe, offlineProbeMS);
   }
 
   // The served model's capability document rides the manifest; every client capability decision reads capabilities().
@@ -628,7 +630,7 @@
       sectionBar.appendChild(group);
     }
     if (!authNoticeEl) {
-      authNoticeEl = el("div", { class: "auth-banner", style: "display:none" },
+      authNoticeEl = el("div", { class: "auth-banner", hidden: true },
         "This server requires an API key — enter it in the field at the top right to load analysis and chat.");
       document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
     }
@@ -643,9 +645,7 @@
       const keyRemember = document.getElementById("api-key-remember");
       keyInput.value = getKey();
       keyRemember.checked = keyWasPersisted;
-      keyRemember.addEventListener("change", () => {
-        setKey(keyInput.value.trim(), keyRemember.checked);
-      });
+      keyRemember.addEventListener("change", () => { setKey(keyInput.value.trim(), keyRemember.checked); });
       keyInput.addEventListener("change", () => {
         setKey(keyInput.value.trim(), keyRemember.checked);
         invalidateModel(); // the cached model was fetched under the old key
@@ -654,7 +654,7 @@
       window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
-      setInterval(refreshStatus, 10000);
+      setInterval(refreshStatus, statusRefreshMS);
     }
     const start = location.hash.slice(1);
     applyCapabilities();

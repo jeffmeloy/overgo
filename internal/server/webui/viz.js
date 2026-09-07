@@ -159,7 +159,7 @@
     const marginTop = showTicks && colLabels ? 52 : 0;
     const grid = n * cell;
     const w = marginLeft + grid, h = marginTop + grid;
-    const node = svg("svg", { viewBox: "0 0 " + w + " " + h, width: Math.min(w, 480), height: Math.min(h, 480), style: "max-width:100%" });
+    const node = svg("svg", { viewBox: "0 0 " + w + " " + h, width: Math.min(w, 480), height: Math.min(h, 480), class: "fit-width" });
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         const value = matrix[i][j];

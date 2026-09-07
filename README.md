@@ -817,7 +817,12 @@ census measures (silent fallbacks, window dialogs, controls and buttons
 without an accessible name, inline style attributes, nested ternaries,
 timer literals, debt markers, the largest file), each at its measured
 value and only tightening; `go run ./cmd/webui-lane -report` prints
-them beside the size measures.
+them beside the size measures. The style measures stand at zero: every
+size, spacing and emphasis is a class in the style sheet, elements are
+shown and hidden through the hidden attribute, branches are named
+functions or values rather than nested ternaries, and every timer reads
+a named constant in its module. The model picker leaves once a swap
+serves, its receipt on the operation chip, and closes on Escape.
 
 `go run ./cmd/webui-lane` runs the real-browser acceptance lane the gate
 selects for every web UI change: the workbench acceptance steps, the front

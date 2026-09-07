@@ -55,19 +55,19 @@
       let tools = [];
       try { agents = (await overgo.api.get("/agents")).filter((item) => item.state === "active"); } catch (_) { /* no agent runtime */ }
       if (agents.length) tools = (await overgo.api.get("/agent/tools")).tools || [];
-      const agentPicker = el("select", { class: "text", style: "width:auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
+      const agentPicker = el("select", { class: "text w-auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
       const agentHost = el("div", { class: "agent-session" });
       agentHost.hidden = true;
       const agentSession = "front-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
       const histories = new Map();
 
-      const system = el("textarea", { class: "text", placeholder: "system prompt (optional)", style: "min-height:52px" });
+      const system = el("textarea", { class: "text system-prompt", placeholder: "system prompt (optional)" });
       const facts = el("div", { class: "statgrid", "aria-label": "context meter" });
-      const temperature = el("input", { class: "keyfield", type: "number", value: params.temperature, style: "width:80px", "aria-label": "temperature" });
-      const maxTokens = el("input", { class: "keyfield", type: "number", value: params.max_tokens, max: contextLength, style: "width:90px", "aria-label": "max tokens" });
+      const temperature = el("input", { class: "keyfield w-80", type: "number", value: params.temperature, "aria-label": "temperature" });
+      const maxTokens = el("input", { class: "keyfield w-90", type: "number", value: params.max_tokens, max: contextLength, "aria-label": "max tokens" });
       const reset = el("button", { class: "btn alt", onclick: () => overgo.openConversation(null) }, "new");
 
-      panel.append(el("details", { style: "margin-bottom:10px" }, el("summary", { class: "note" }, "system prompt"), system), facts);
+      panel.append(el("details", { class: "mb-10" }, el("summary", { class: "note" }, "system prompt"), system), facts);
       // artifactField: the mode's artifact-typed control, if any. A media card re-enters the composer as the next
       // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
       // a fresh attachment in such a mode stores through the intake route and fills the control.
@@ -178,7 +178,7 @@
         const declared = generation.capabilities.filter((capability) => capability.task === mode);
         if (!declared.length) return;
         const controlsHost = el("span", { class: "row" });
-        const picker = el("select", { class: "text", style: "width:auto", "aria-label": "generation model" }, ...declared.map((capability) => el("option", {
+        const picker = el("select", { class: "text w-auto", "aria-label": "generation model" }, ...declared.map((capability) => el("option", {
           value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
         // The gallery rail: the store's outputs of the mode's kind newest first, each thumb named by the
         // capability that made it; "this model" keeps the picked one's. A thumb opens the record.

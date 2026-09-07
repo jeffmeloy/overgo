@@ -23,9 +23,9 @@ func TestBatchedGateCostReportScope(t *testing.T) {
 		{Name: "acceptance-consumer", Phase: runrecord.PhaseTest, Outcome: runrecord.StepFailed, DurationNS: 3 * second},
 		{Name: "acceptance", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 7},
 	}
-	cost := BatchCostOf(steps)
-	if cost.TotalNS != 5*second+18 {
-		t.Fatalf("total wall = %s, want every step summed", time.Duration(cost.TotalNS))
+	cost := batchCostOf(steps)
+	if cost.StepNS != 5*second+18 {
+		t.Fatalf("step time = %s, want every step summed", time.Duration(cost.StepNS))
 	}
 	if cost.Failed != 2 || cost.FailedNS != 5*second {
 		t.Fatalf("failed = %d/%s, want the failed test and acceptance steps", cost.Failed, time.Duration(cost.FailedNS))
@@ -44,20 +44,20 @@ func TestBatchedGateCostReportScope(t *testing.T) {
 	defer store.Close()
 	commitGateAttempt(t, store, "flush", "scope", costSteps(runrecord.StepSucceeded, runrecord.StepSucceeded, 5*second, 3*second))
 	g := &gateContext{planRef: "flush/scope"}
-	g.batchCostAudit(t.Context(), store, steps)
+	g.batchCostAudit(t.Context(), store, steps, 3*second)
 	if len(g.audit) != 1 {
 		t.Fatalf("audit = %v", g.audit)
 	}
 	line := g.audit[0]
 	for _, label := range []string{
-		"total_wall=5.000000018s", "failed=2/5s", "other_phases=1/9ns",
-		"accepted=2 reused=1 accepted_executed=7ns", "estimated_saved=5s", "prior_runs=1",
+		"total_wall=3s summed_step_time=5.000000018s", "failed=2/5s", "other_phases=1/9ns",
+		"accepted=2 reused=1 accepted_executed=7ns", "estimated_step_time_avoided=5s", "prior_runs=1",
 	} {
 		if !strings.Contains(line, label) {
 			t.Fatalf("audit lacks %q: %s", label, line)
 		}
 	}
-	if strings.Contains(line, "total_wall=5s") || strings.Contains(line, "saved=5.000000018s") {
+	if strings.Contains(line, "total_wall=5") || strings.Contains(line, "estimated_saved=") {
 		t.Fatalf("saving folded into the wall: %s", line)
 	}
 }

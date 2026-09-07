@@ -174,7 +174,7 @@ func TestChangeSelectionExternalConsumers(t *testing.T) {
 			if err == nil || !slices.Equal(report.Failed, full.Failed) {
 				t.Fatalf("selected checks disagree with full failures: %v versus %v, %v", report.Failed, full.Failed, err)
 			}
-			if len(scope.opaqueSubprocesses) == 0 {
+			if len(scope.opaqueRuntimeInputs) == 0 {
 				t.Fatal("selection omitted subprocess explanation")
 			}
 			t.Logf("case=%s baseline_passes=2 full_failure_entries=%d selected=%d excluded=%d stale_receipts=0 independent_reused=1 wall=%s", change, len(full.Failed), len(selected), scope.excluded, time.Since(started))

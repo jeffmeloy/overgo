@@ -11,7 +11,7 @@ import (
 type packageTestScope struct {
 	direct, dependent, productionPaths []string
 	unresolved                         []string
-	opaqueSubprocesses                 []string
+	opaqueRuntimeInputs                []string
 	excluded                           int
 }
 
@@ -81,7 +81,9 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	// actual imports; do not turn test imports into production dependencies.
 	affected := map[string]bool{}
 	for _, node := range graph.nodes {
-		if productionDirs[node.Dir] {
+		// Opaque readers may inspect test source as data. A test-only edit
+		// therefore reaches them even without a production import change.
+		if productionDirs[node.Dir] || len(node.inputDependencies) != 0 && len(g.paths) != 0 {
 			affected[node.ImportPath] = true
 		}
 	}
@@ -125,10 +127,10 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		if node.ForTest != "" {
 			target = node.ForTest
 		}
-		if (slices.Contains(scope.direct, target) || slices.Contains(scope.dependent, target)) && !slices.Contains(scope.opaqueSubprocesses, target) {
-			scope.opaqueSubprocesses = append(scope.opaqueSubprocesses, target)
+		if (slices.Contains(scope.direct, target) || slices.Contains(scope.dependent, target)) && !slices.Contains(scope.opaqueRuntimeInputs, target) {
+			scope.opaqueRuntimeInputs = append(scope.opaqueRuntimeInputs, target)
 		}
 	}
-	slices.Sort(scope.opaqueSubprocesses)
+	slices.Sort(scope.opaqueRuntimeInputs)
 	return scope, nil
 }

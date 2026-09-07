@@ -220,6 +220,9 @@ func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationc
 // work authority. Ranked current work belongs to the failable plan; prose may
 // retain its historical ordering only with an explicit warning and redirect.
 func (g *gateContext) stepDocumentation() (bool, error) {
+	if err := repoanalysis.ValidateDocsInventory(g.repo); err != nil {
+		return false, err
+	}
 	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
 	if err != nil {
 		return false, err
@@ -944,8 +947,8 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	}
 	g.audit = append(g.audit, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
 	g.audit = append(g.audit, fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
-	if len(scope.opaqueSubprocesses) != 0 {
-		g.audit = append(g.audit, "test scope: opaque subprocess consumers bind all candidate packages and unowned repository inputs: "+strings.Join(scope.opaqueSubprocesses, ","))
+	if len(scope.opaqueRuntimeInputs) != 0 {
+		g.audit = append(g.audit, "test scope: opaque runtime consumers bind candidate packages and repository inputs: "+strings.Join(scope.opaqueRuntimeInputs, ","))
 	}
 	if len(scope.unresolved) != 0 {
 		g.audit = append(g.audit, "test scope widened for global or unresolved Go inputs: "+strings.Join(scope.unresolved, ","))

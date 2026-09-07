@@ -200,7 +200,7 @@ func assertScopeMeasuredIncident(t *testing.T) {
 	// The original two-package projection omitted subprocess execution. Its
 	// zero-dependent claim is invalid without that independence proof. The
 	// compiler fixture above still requires exact scope for ordinary imports.
-	if !slices.Contains(scope.opaqueSubprocesses, "overgo/internal/gate") {
+	if !slices.Contains(scope.opaqueRuntimeInputs, "overgo/internal/gate") {
 		t.Fatal("historical projection still omits the gate's opaque subprocess boundary")
 	}
 	graph, err := g.inputGraph()
@@ -222,7 +222,7 @@ func assertScopeMeasuredIncident(t *testing.T) {
 		}
 	}
 	selected := len(scope.direct) + len(scope.dependent)
-	t.Logf("incident 1939094b: legacy_import_scope=%d corrected_scope=%d opaque_consumers=%d; historic gate wall=973.8s; prior two-package savings claim reopened, no fresh full-gate throughput claim", legacyCount, selected, len(scope.opaqueSubprocesses))
+	t.Logf("incident 1939094b: legacy_import_scope=%d corrected_scope=%d opaque_consumers=%d; historic gate wall=973.8s; prior two-package savings claim reopened, no fresh full-gate throughput claim", legacyCount, selected, len(scope.opaqueRuntimeInputs))
 }
 
 func scopeCompilerFixture(t *testing.T) *gateContext {

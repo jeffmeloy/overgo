@@ -86,8 +86,8 @@ func validateBatchFlush(flush *BatchFlush) error {
 // BatchAccumulator accumulates per key against one declaration; Add records
 // one member and returns the decision; a flush resets that key only.
 type BatchAccumulator struct {
-	flush  BatchFlush
-	states map[string]*batchAccumulation
+	flush BatchFlush
+	state *batchAccumulation
 }
 
 type batchAccumulation struct {
@@ -101,7 +101,7 @@ func NewBatchAccumulator(flush BatchFlush) (*BatchAccumulator, error) {
 	if err := validateBatchFlush(&flush); err != nil {
 		return nil, err
 	}
-	return &BatchAccumulator{flush: flush, states: map[string]*batchAccumulation{}}, nil
+	return &BatchAccumulator{flush: flush}, nil
 }
 
 // Add records one member of key with payload bytes at now -> state after the
@@ -110,25 +110,25 @@ func (a *BatchAccumulator) Add(key string, payloadBytes int64, now time.Time) (B
 	if a == nil || key != a.flush.Key || payloadBytes < 0 {
 		return BatchState{}, false, FlushNone, errors.New("plan: batch accumulator refuses a member outside its declared key")
 	}
-	current, found := a.states[key]
-	if !found {
+	current := a.state
+	if current == nil {
 		current = &batchAccumulation{since: now}
-		a.states[key] = current
+		a.state = current
 	}
 	current.size++
 	current.bytes += payloadBytes
 	state := BatchState{Key: key, Size: current.size, Bytes: current.bytes, Elapsed: now.Sub(current.since)}
 	flush, reason := a.flush.Decide(state)
 	if flush {
-		delete(a.states, key)
+		a.state = nil
 	}
 	return state, flush, reason, nil
 }
 
 // Pending counts members accumulated for key and not yet flushed.
 func (a *BatchAccumulator) Pending(key string) int {
-	if a == nil || a.states[key] == nil {
+	if a == nil || key != a.flush.Key || a.state == nil {
 		return 0
 	}
-	return a.states[key].size
+	return a.state.size
 }

@@ -32,11 +32,7 @@
 
       let capabilities;
       try { capabilities = await api.get("/evaluations/capabilities"); }
-      catch (err) {
-        status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-        run.disabled = true;
-        return;
-      }
+      catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); run.disabled = true; return; }
       const models = [...new Set(capabilities.map((item) => item.model))];
       for (const id of models) model.appendChild(el("option", { value: id, text: fmt.shortID(id) }));
       const fields = new Map();

@@ -75,7 +75,32 @@
       const artifactField = (file) => { const slots = [...generation.fields.values()].filter((field) => field.control.type === "artifact");
         return slots.find((field) => file && field.control.media && file.type.startsWith(field.control.media + "/")) || slots[0]; };
       const thread = overgo.thread(panel, { reuse: (file, artifact) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file); },
-        replay: replayRecord, marker: capabilities.remote ? "remote" : "" });
+        replay: replayRecord, lineage: showLineage, marker: capabilities.remote ? "remote" : "" });
+      // showLineage: what the store records around a card's artifact (the runs that made it, with their
+      // request and inputs; the runs that used it, with their outputs) and, as next steps, every active
+      // capability whose declared slot takes the artifact's kind, one click opening that mode with it.
+      async function showLineage(event, card) {
+        let lineage;
+        try { lineage = await overgo.api.get("/artifacts/lineage?id=" + encodeURIComponent(event.artifact)); }
+        catch (err) { card.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
+        const runLine = (verb, run, items) => el("div", {}, verb + " ", overgo.artifactLink(run.run, "run " + fmt.shortID(run.run)), " " + run.outcome + " · ",
+          ...items.map((item) => el("span", {}, item.name, overgo.artifactLink(item.id), " ")));
+        const inputName = (input) => input.schema && input.schema.endsWith("-input.v1") ? "request " : "";
+        const block = el("div", { class: "record lineage" },
+          ...lineage.producers.map((run) => runLine("made by", run, run.inputs.map((input) => ({ id: input.id, name: inputName(input) })))),
+          ...lineage.consumers.map((run) => runLine("used by", run, run.outputs.map((id) => ({ id, name: "" })))),
+          lineage.producers.length + lineage.consumers.length ? null : el("span", { class: "note", text: "no run recorded around it" }),
+          el("div", { class: "row", "aria-label": "next steps" }, ...lineage.next.map((step) => el("button", { class: "chip", text: step.name + " · " + step.label, onclick: () => openStep(step, event.artifact) }))));
+        card.querySelector(".lineage") ? card.querySelector(".lineage").replaceWith(block) : card.appendChild(block);
+      }
+      // openStep: the composer in the step's mode with its model picked and the artifact in the declared slot.
+      async function openStep(step, artifact) {
+        await composer.setMode(step.task);
+        if (generation.picker) { generation.picker.value = step.recipe; generation.picker.dispatchEvent(new Event("change")); }
+        const field = generation.fields.get(step.control);
+        if (field) { field.input.value = artifact; field.input.dispatchEvent(new Event("change", { bubbles: true })); }
+        composer.input.focus();
+      }
       // replayRecord: a card's stored request (the run's input document) resubmitted to the capability
       // that made it, unchanged or with a fresh seed; page state plays no part in the request.
       async function replayRecord(event, label) {
@@ -105,7 +130,7 @@
         takesAny: () => !!artifactField(),
         intake: (file) => { const field = artifactField(file); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => { field.input.value = stored.id; field.input.dispatchEvent(new Event("intake")); return stored.id; }) : null; },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
-        onMode: (mode) => { agentHost.hidden = mode !== "agent"; renderMode(mode); },
+        onMode: (mode) => { agentHost.hidden = mode !== "agent"; return renderMode(mode); },
         controls: [reset, el("span", { class: "note", text: "temp" }), temperature, el("span", { class: "note", text: "max tokens" }), maxTokens],
       });
       panel.insertBefore(agentHost, composer.element);
@@ -140,6 +165,7 @@
           filterRail();
         };
         picker.addEventListener("change", select);
+        generation.picker = picker;
         only.addEventListener("change", filterRail);
         composer.modeHost.append(picker, controlsHost, el("label", { class: "chip" }, only, " this model"), rail);
         select();

@@ -112,6 +112,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/artifacts", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).artifactGallery},
 	{Path: "/artifacts/content", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).artifactContent},
 	{Path: "/artifacts/intake", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).artifactIntake},
+	{Path: "/artifacts/lineage", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).artifactLineage},
 	{Path: "/providers/key", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).providerKey},
 	{Path: "/library/providers/models", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).libraryProviderModels},
 	{Path: "/library/providers/retire", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryProviderRetire},

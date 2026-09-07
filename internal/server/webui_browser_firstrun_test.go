@@ -442,6 +442,25 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		settle("regenerate says the store memoized the unchanged request", mediaCards+` === 3 && !document.querySelector(".composer .btn").disabled &&
       [...document.querySelectorAll("#panel-chat .msg.media")].at(-1).querySelector(".note").textContent.includes("the store memoized")`)
 		t.Log("vary leg: vary made a new image from the record and regenerate memoized to the same output")
+		// 10d. Lineage and next steps: the image card's lineage names the run
+		// that made it with its request, and offers as a next step every
+		// active capability whose declared slot takes an image; the step opens
+		// that mode with the image in the slot.
+		assertBrowserPredicate(t, ctx, browser, `(() => { const open = [...document.querySelector("#panel-chat .msg.media").querySelectorAll("button")].find((button) => button.textContent === "lineage"); if (!open) return false; open.click(); return true; })()`)
+		settle("the image card shows the run that made it", `(() => { const block = document.querySelector("#panel-chat .msg.media .lineage");
+      return !!block && block.textContent.includes("made by run") && block.textContent.includes("request "); })()`)
+		var steps []string
+		if err := browser.Evaluate(ctx, `[...document.querySelectorAll("#panel-chat .msg.media .lineage [aria-label='next steps'] .chip")].map((chip) => chip.textContent)`, &steps); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("lineage leg: the image's next steps are %q", steps)
+		if len(steps) > 0 {
+			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector("#panel-chat .msg.media .lineage [aria-label='next steps'] .chip").click(); return true; })()`)
+			settle("the next step opened its mode with the image in the slot", `(() => {
+      const slot = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.querySelector("input") && label.querySelector("input").value === `+strconv.Quote(generated)+`);
+      return !!slot && document.querySelector('.composer select[aria-label="mode"]').value !== "image-gen"; })()`)
+			t.Log("lineage leg: the next step opened its mode with the image in its declared slot")
+		}
 	} else {
 		t.Log("media-out leg not taken: the store declares no host oscillator image model")
 	}

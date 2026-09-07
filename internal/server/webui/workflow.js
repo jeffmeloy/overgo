@@ -179,11 +179,7 @@
 
         let capabilities;
         try { capabilities = await api.get("/" + definition.scope + "/capabilities"); }
-        catch (err) {
-          status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-          run.disabled = true;
-          return;
-        }
+        catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); run.disabled = true; return; }
         // A task is served by every model activated for it: the recipe is the
         // identity, the model's name the label, and a refused one says why.
         for (const capability of capabilities) {

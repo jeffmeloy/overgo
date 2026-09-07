@@ -63,10 +63,7 @@
         slots.replaceChildren(table);
       }
 
-      runtimeView = (name, value) => {
-        if (name === "runtime.sessions") render(value);
-        if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value)));
-      };
+      runtimeView = (name, value) => { if (name === "runtime.sessions") render(value); if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value))); };
       activateRuntime();
     },
   });

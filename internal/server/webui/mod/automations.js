@@ -59,10 +59,7 @@
         if (!definitionForm.validate() || !triggerForm.validate() || !deliveryForm.validate()) { status.textContent = "Complete every applicable field"; return; }
         try {
           const definition = definitionForm.value();
-          const created = await api.post("/automations/definitions", {
-            name: definition.name, recipe: definition.recipe,
-            trigger: triggerForm.value(), delivery: deliveryForm.value(),
-          });
+          const created = await api.post("/automations/definitions", { name: definition.name, recipe: definition.recipe, trigger: triggerForm.value(), delivery: deliveryForm.value(), });
           await api.post("/automations/activate", { definition: created.ID || created.id });
           definitionForm.markSaved(); triggerForm.markSaved(); deliveryForm.markSaved();
           status.textContent = "activated / " + fmt.shortID(created.ID || created.id);

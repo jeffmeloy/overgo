@@ -180,9 +180,10 @@
       } }) : null;
       // A card behind a run replays its stored request: unchanged, or with a fresh seed.
       const replays = replay && event.run ? ["regenerate", "vary"].map((label) => el("button", { class: "btn alt", text: label, onclick: () => replay(event, label) })) : [];
+      const lineage = options && options.lineage && event.artifact ? el("button", { class: "btn alt", text: "lineage", onclick: () => options.lineage(event, card) }) : null;
       const card = el("div", { class: "artifact msg media" }, player,
         el("div", { class: "note" }, [event.caption, facts.join(" · ")].filter(Boolean).join(" — "),
-          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again, ...replays));
+          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again, ...replays, lineage));
       log.appendChild(card);
       scroll();
       return card;
@@ -357,6 +358,7 @@
       openPicker,
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },
+      setMode(id) { if (!modeSelect) return null; modeSelect.value = id; return options.onMode ? options.onMode(id) : null; },
     };
   }
 

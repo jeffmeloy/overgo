@@ -690,6 +690,16 @@ derived from the server, not from client configuration:
   its one input, so the record is the store's, never a second copy. The
   journey reloads the page after generating an image and finds it first
   in the rail, then opens its record.
+- **Lineage and next steps.** A media card's "lineage" reads the store's
+  records around its artifact: the runs that made it, each with its
+  request document and media inputs, and the runs that used it, each
+  with its outputs. Beneath them the next steps list every active
+  generation capability whose declared slot takes the artifact's kind,
+  derived from the capability declarations and nothing typed for a
+  model; one click opens that mode with the model picked and the
+  artifact in the slot. The lineage route and the derivation are pinned
+  by Go tests, and the journey continues the generated image into the
+  slot of the capability that accepts an image.
 - **Regenerate and vary.** A media card behind a run offers "regenerate"
   and "vary": both read the run's stored request document and resubmit it
   to the capability that made it, unchanged or with a fresh seed, so page

@@ -8,11 +8,7 @@
     const controls = new Map();
     let baseline = JSON.stringify(initial || {});
 
-    function applicable(field) {
-      if (!field.when) return true;
-      const controller = controls.get(field.when.field);
-      return !!controller && controller.input.value === field.when.equals;
-    }
+    function applicable(field) { if (!field.when) return true; const controller = controls.get(field.when.field); return !!controller && controller.input.value === field.when.equals; }
 
     function readField(field, input) {
       if (!applicable(field) || input.value === "") return undefined;
@@ -83,11 +79,7 @@
 
     function dirty() { return JSON.stringify(value()) !== baseline; }
     function markSaved() { baseline = JSON.stringify(value()); }
-    function beforeUnload(event) {
-      if (!dirty()) return;
-      event.preventDefault();
-      event.returnValue = "";
-    }
+    function beforeUnload(event) { if (!dirty()) return; event.preventDefault(); event.returnValue = ""; }
     window.addEventListener("beforeunload", beforeUnload);
 
     return {

@@ -152,11 +152,7 @@
   }
 
   // displayToken: an empty, whitespace or multiline token piece made visible.
-  function displayToken(text) {
-    if (text === "" || text == null) return "∅";
-    if (/^\s+$/.test(text)) return "␠".repeat(text.length);
-    return text.replace(/\n/g, "⏎");
-  }
+  function displayToken(text) { if (text === "" || text == null) return "∅"; if (/^\s+$/.test(text)) return "␠".repeat(text.length); return text.replace(/\n/g, "⏎"); }
 
   // runner: one exclusive, cancelable async action bound to a run and a cancel
   // button; an abort goes to onCancel, any other failure to onError.
@@ -183,11 +179,7 @@
     let controller = null;
     let timer = null;
 
-    function cancel() {
-      if (timer != null) clearTimeout(timer);
-      timer = null;
-      if (controller) controller.abort();
-    }
+    function cancel() { if (timer != null) clearTimeout(timer); timer = null; if (controller) controller.abort(); }
     function schedule() { if (active && !document.hidden) timer = setTimeout(tick, interval); }
     async function tick() {
       if (!active || document.hidden || controller) return;

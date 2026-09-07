@@ -168,10 +168,7 @@
               const listing = await api.get("/agent/sessions");
               sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
                 const resume = el("button", { class: "btn alt", text: "Resume" });
-                resume.addEventListener("click", () => {
-                  session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id;
-                  renderEvidence(session.value);
-                });
+                resume.addEventListener("click", () => { session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id; renderEvidence(session.value); });
                 return el("div", { class: "card" },
                   el("span", { class: "mono", text: item.id }),
                   " steps " + item.steps + " / " + item.bound + (item.inspected ? " / inspected " : " / uninspected "),
@@ -182,10 +179,7 @@
           toolSurface = overgo.toolStep(toolsHost, {
             agent: () => selected, session: () => session.value.trim(), thread: () => chatThread,
             controls: [session, listSessions], onError: showError,
-            onStep: (result) => {
-              status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction);
-              renderEvidence(session.value.trim());
-            },
+            onStep: (result) => { status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction); renderEvidence(session.value.trim()); },
           });
           toolsHost.appendChild(sessionListHost);
         }

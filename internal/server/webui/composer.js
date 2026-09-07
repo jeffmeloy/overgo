@@ -435,6 +435,7 @@
   overgo.userLine = userLine;
   overgo.generate = generate;
   overgo.bodyControl = bodyControl;
+  overgo.outputKind = outputKind;
   overgo.toolStep = toolStep;
   overgo.mediaPlayer = mediaPlayer;
   overgo.mediaKind = mediaKind;

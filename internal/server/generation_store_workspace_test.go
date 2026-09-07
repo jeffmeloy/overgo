@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -13,6 +15,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataroot"
 	"overgo/internal/latentimage"
 	"overgo/internal/media"
@@ -22,6 +25,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
@@ -117,10 +121,17 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	defer store.Close()
 	modelID := activatedImageModel(t, store)
 	var executedPath, executedInput string
+	// The executor records the request it decoded, as the runtime does, and
+	// the envelope carries it out for the run to cite.
+	requestContract := artifact.JSONContract(artifact.KindFile, "overgo.test-image-gen-input.v1")
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
 		Execute: func(_ context.Context, _ artifact.Repository, path string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 			executedPath, executedInput = path, raw
-			return tinyPNG(t), nil
+			request, err := requestContract.ContentBytes([]byte(raw))
+			if err != nil {
+				return nil, err
+			}
+			return capabilityruntime.Measured{Output: tinyPNG(t), Input: request}, nil
 		},
 	}}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
@@ -162,6 +173,12 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	descriptor, found, err := store.Artifact(ctx, completion.Outputs[0])
 	if err != nil || !found || descriptor.MediaType != media.PNGMediaType {
 		t.Fatalf("output artifact = %+v found=%v err=%v", descriptor, found, err)
+	}
+	// The run cites the request document the executor recorded as its one
+	// input: the stored record a gallery opens and a page regenerates from.
+	request, err := requireRecordedRequest(ctx, store, completion.Run)
+	if err != nil || request.Schema != requestContract.Schema {
+		t.Fatalf("request record = %+v, %v", request, err)
 	}
 	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskSpeech, capability.Recipe, json.RawMessage(`{}`), reporter); err == nil {
 		t.Fatal("a recipe ran under a task it does not serve")
@@ -214,5 +231,32 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if err != nil || !found || descriptor.MediaType != media.PNGMediaType {
 		t.Fatalf("output artifact = %+v found=%v err=%v", descriptor, found, err)
 	}
-	t.Logf("generated %s from %s: %d bytes", descriptor.ID, oscillator.Name, descriptor.Size)
+	// The runtime's own input document (the decoded request under the
+	// capability's input schema) is the run's input, never a second record.
+	request, err := requireRecordedRequest(ctx, store, completion.Run)
+	if err != nil || !strings.HasSuffix(request.Schema, "-input.v1") {
+		t.Fatalf("request record = %+v, %v", request, err)
+	}
+	t.Logf("generated %s from %s: %d bytes; request record %s", descriptor.ID, oscillator.Name, descriptor.Size, request.Schema)
+}
+
+// requireRecordedRequest reads the one input a generation run cites and
+// requires it to be a stored JSON document: the request record.
+func requireRecordedRequest(ctx context.Context, store *overgodb.Store, runID artifact.ID) (artifact.Descriptor, error) {
+	run, err := runrecord.RequireRun(ctx, store, runID)
+	if err != nil {
+		return artifact.Descriptor{}, err
+	}
+	if len(run.Inputs) != 1 {
+		return artifact.Descriptor{}, fmt.Errorf("run %s cites %d inputs", runID, len(run.Inputs))
+	}
+	descriptor, reader, found, err := store.OpenContent(ctx, run.Inputs[0])
+	if err != nil || !found {
+		return descriptor, errors.Join(errors.New("request record is not stored"), err)
+	}
+	var request map[string]any
+	if err := json.NewDecoder(reader).Decode(&request); err != nil || descriptor.MediaType != artifact.JSONMediaType {
+		return descriptor, fmt.Errorf("request record is not a JSON document: %v", err)
+	}
+	return descriptor, nil
 }

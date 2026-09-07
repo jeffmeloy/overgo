@@ -407,6 +407,26 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		}
 		t.Logf("media-in leg: the generated image re-entered the composer, refused=%v", refused)
 		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer .card button").click(); return !document.querySelector(".composer .card"); })()`)
+		// 10b. Gallery after a reload: the image the store holds reappears
+		// newest first in the image mode's gallery rail, and its thumb opens the
+		// record that made it (the request's seed) beside the image.
+		var generated string
+		if err := browser.Evaluate(ctx, `new URL(document.querySelector("#panel-chat .msg.media .note a").href).searchParams.get("id")`, &generated); err != nil || generated == "" {
+			t.Fatalf("generated image id = %q, %v", generated, err)
+		}
+		if err := browser.Evaluate(ctx, `location.reload()`, nil); err != nil {
+			t.Fatal(err)
+		}
+		settle("page back after the reload", `document.readyState === "complete" && !!window.overgo && !!document.querySelector('.composer select[aria-label="mode"]') && `+mediaCards+` === 0`)
+		if !generationMode("image-gen", "model.oscillator-image-prepare") {
+			t.Fatal("the image mode is gone after the reload")
+		}
+		settle("gallery rail lists the generated image newest first", `(document.querySelector(".mode-controls .gallery .intake-thumb") || {}).dataset && document.querySelector(".mode-controls .gallery .intake-thumb").dataset.id === `+strconv.Quote(generated))
+		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".mode-controls .gallery .intake-thumb").click(); return true; })()`)
+		settle("gallery thumb opens the image with its record", mediaCards+` === 1 && !!document.querySelector("#panel-chat .msg.media img") &&
+      [...document.querySelectorAll("#panel-chat .msg.media .record td")].some((cell) => cell.textContent === "seed") &&
+      !!document.querySelector("#panel-chat .msg.media .record a[download]") && [...document.querySelectorAll("#panel-chat .msg.media button")].some((button) => button.textContent === "use as input")`)
+		t.Log("gallery leg: the generated image reappeared in the gallery after a reload and opened its record")
 	} else {
 		t.Log("media-out leg not taken: the store declares no host oscillator image model")
 	}

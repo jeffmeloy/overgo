@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-media-gallery",
-      "title": "Media gallery from the store (concept from Open-Generative-AI: a generation history rail with thumbnails that re-opens a result, downloads it and feeds it back as input; overgo owns it in the store, never in browser storage): the Generate mode lists the store's generated image, video and audio artifacts newest first with thumbnails decoded through the artifact content decoders, filtered by kind and by the capability that made them, each opening its request record (controls, seed, model) and offering use-as-input and download; a route lists them with bounded paging, a Go test pins the listing and the journey proves a generated image reappears in the gallery after a reload",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Media gallery from the store (concept from Open-Generative-AI: a generation history rail with thumbnails that re-opens a result, downloads it and feeds it back as input; overgo owns it in the store, never in browser storage): the Generate mode lists the store's generated image, video and audio artifacts newest first with thumbnails decoded through the artifact content decoders, filtered by kind and by the capability that made them, each opening its request record (controls, seed, model) and offering use-as-input and download; a route lists them with bounded paging, a Go test pins the listing and the journey proves a generated image reappears in the gallery after a reload",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "webui-regenerate-from-record",
       "title": "Regenerate and vary from the record (concept from Open-Generative-AI: regenerate, remix and seed variation from a result): a media card offers regenerate (the recorded request resubmitted unchanged, which the store memoizes to the same output, so the page says so) and vary (the recorded request with a fresh seed), both built from the operation's stored request rather than page state, with the new card naming its parent; a Go test pins the request replay and the journey varies an oscillator image",
       "owner": "professional_overgo_gui",

@@ -54,14 +54,8 @@
     const count = Math.max(1, ...series.map((item) => item.values.length));
     const x = (index) => pad + (count > 1 ? index / (count - 1) : 0.5) * (width - 2 * pad);
     const y = (value) => height - pad - ((value - min) / span) * (height - 2 * pad);
-    const node = svg("svg", {
-      class: "signed-series", viewBox: "0 0 " + width + " " + height,
-      width: "100%", height: height, preserveAspectRatio: "none",
-    });
-    node.appendChild(svg("line", {
-      class: "zero-axis", x1: 0, y1: y(0), x2: width, y2: y(0),
-      stroke: "var(--line)", "stroke-width": 1,
-    }));
+    const node = svg("svg", { class: "signed-series", viewBox: "0 0 " + width + " " + height, width: "100%", height: height, preserveAspectRatio: "none", });
+    node.appendChild(svg("line", { class: "zero-axis", x1: 0, y1: y(0), x2: width, y2: y(0), stroke: "var(--line)", "stroke-width": 1, }));
     series.forEach((item, seriesIndex) => {
       const color = item.color || ["var(--acc)", "var(--amber)", "var(--ok)", "var(--err)"][seriesIndex % 4];
       let path = "";
@@ -72,10 +66,7 @@
         d: path.trim(), fill: "none", stroke: color, "stroke-width": 1.5,
       }));
       item.values.forEach((value, index) => {
-        const dot = svg("circle", {
-          cx: x(index), cy: y(value), r: 2, fill: color,
-          "data-value": String(value),
-        });
+        const dot = svg("circle", { cx: x(index), cy: y(value), r: 2, fill: color, "data-value": String(value), });
         const title = document.createElementNS(NS, "title");
         title.textContent = item.label + " [" + index + "] = " + value;
         dot.appendChild(title);

@@ -198,10 +198,7 @@
       const current = new AbortController();
       controller = current;
       try { await task(current.signal); }
-      catch (err) { if (!err || err.name !== "AbortError") throw err; } finally {
-        if (controller === current) controller = null;
-        schedule();
-      }
+      catch (err) { if (!err || err.name !== "AbortError") throw err; } finally { if (controller === current) controller = null; schedule(); }
     }
     function start() {
       if (active) return;
@@ -209,10 +206,7 @@
       if (!document.hidden) tick();
     }
     function stop() { active = false; cancel(); }
-    document.addEventListener("visibilitychange", () => {
-      cancel();
-      if (active && !document.hidden) tick();
-    });
+    document.addEventListener("visibilitychange", () => { cancel(); if (active && !document.hidden) tick(); });
     return { start, stop };
   }
 
@@ -686,10 +680,7 @@
         invalidateModel(); // the cached model was fetched under the old key
         remountActive();
       });
-      window.addEventListener("hashchange", () => {
-        const id = location.hash.slice(1);
-        if (id && tabs.some((t) => t.id === id)) activate(id);
-      });
+      window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
       setInterval(refreshStatus, 10000);

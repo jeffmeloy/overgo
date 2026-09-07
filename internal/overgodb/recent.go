@@ -8,12 +8,13 @@ import (
 )
 
 // RecentArtifact is one artifact of a kind as the store introduced it,
-// with the commit sequence that introduced it and whether its payload is
-// held inline.
+// with the commit sequence that introduced it, whether its payload is
+// held inline, and the runs that produced it.
 type RecentArtifact struct {
 	Descriptor artifact.Descriptor
 	Sequence   uint64
 	Payload    bool
+	Producers  []artifact.ID
 }
 
 // RecentArtifacts walks a kind's artifacts from the newest introduction
@@ -41,7 +42,13 @@ func (s *Store) RecentArtifacts(ctx context.Context, kind artifact.Kind, limit i
 		if !ok || keep != nil && !keep(record.descriptor) {
 			continue
 		}
-		recent = append(recent, RecentArtifact{Descriptor: record.descriptor, Sequence: record.sequence, Payload: s.state.contents.has(ids[index])})
+		producers := make([]artifact.ID, 0)
+		for _, edge := range s.state.lineage.parentsOf(ids[index]) {
+			if edge.relation == artifact.RelationProducedBy {
+				producers = append(producers, edge.parent)
+			}
+		}
+		recent = append(recent, RecentArtifact{Descriptor: record.descriptor, Sequence: record.sequence, Payload: s.state.contents.has(ids[index]), Producers: producers})
 	}
 	return recent, nil
 }

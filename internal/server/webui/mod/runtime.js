@@ -37,10 +37,7 @@
         error.replaceChildren();
         const session = data.session;
 		const authority = data.authority || null;
-		if (authority) {
-			identity.textContent = [authority.model, authority.recipe,
-				authority.runtime, authority.residency].map(fmt.shortID).join("  ");
-		}
+		if (authority) { identity.textContent = [authority.model, authority.recipe, authority.runtime, authority.residency].map(fmt.shortID).join("  "); }
         summary.replaceChildren(
           overgo.stat("Active sessions", session.active),
           overgo.stat("Available", session.available),

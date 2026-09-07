@@ -35,6 +35,24 @@ func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 	older := commit("server/gallery-newest/1", "image/png", []byte("older image"))
 	clip := commit("server/gallery-newest/2", "audio/wav", []byte("a clip"))
 	newer := commit("server/gallery-newest/3", "image/jpeg", []byte("newer image"))
+	// A generated output carries the run that produced it, the record a gallery opens.
+	output := []byte("a generated image")
+	outputID, err := artifact.IdentifyBytes(artifact.KindOutput, output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	producer, err := artifact.IdentifyBytes(artifact.KindRun, []byte("the producing run"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
+		Key:       "server/gallery-newest/4",
+		Artifacts: []artifact.Descriptor{{ID: producer, Size: 1}},
+		Contents:  []artifact.Content{{Descriptor: artifact.Descriptor{ID: outputID, Size: uint64(len(output)), MediaType: "image/png"}, Data: output}},
+		Lineage:   []artifact.Lineage{{Child: outputID, Parent: producer, Relation: artifact.RelationProducedBy}},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -70,5 +88,13 @@ func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
 	}
 	if ids := list("kind=file&newest=1&limit=5"); len(ids) != 3 || ids[0] != newer || ids[2] != older {
 		t.Fatalf("every file newest first = %v", ids)
+	}
+	page := serveTestRequest(handler, http.MethodGet, "/artifacts?kind=output&newest=1&media=image/&limit=5", "")
+	var outputs artifactGalleryResponse
+	if page.Code != http.StatusOK || json.Unmarshal(page.Body.Bytes(), &outputs) != nil {
+		t.Fatalf("outputs: status=%d body=%s", page.Code, page.Body.String())
+	}
+	if len(outputs.Artifacts) != 1 || outputs.Artifacts[0].Descriptor.ID != outputID || len(outputs.Artifacts[0].Producers) != 1 || outputs.Artifacts[0].Producers[0] != producer {
+		t.Fatalf("generated outputs = %+v", outputs.Artifacts)
 	}
 }

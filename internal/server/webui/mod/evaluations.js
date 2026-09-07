@@ -4,10 +4,7 @@
   const artifactLink = (overgo, id, label) => overgo.artifactLink(id, label, true);
 
   function metricTable(overgo, metrics) { return overgo.table(["metric", "value", "direction"], (metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : ""), metric.direction || "-"]), "metric-grid"); }
-  function valueText(value) {
-    if (value == null) return "-";
-    return typeof value === "object" ? JSON.stringify(value) : String(value);
-  }
+  function valueText(value) { if (value == null) return "-"; return typeof value === "object" ? JSON.stringify(value) : String(value); }
   function recordTable(overgo, values) {
     return overgo.table(["field", "value"], Object.entries(values || {}).map(([name, value]) => [name, valueText(value)]));
   }
@@ -64,10 +61,7 @@
           (current.failure ? " / " + current.failure : "");
         const total = current.progress && current.progress.total;
         progress.style.display = total ? "" : "none";
-        if (total) {
-          progress.max = total;
-          progress.value = current.progress.completed;
-        }
+        if (total) { progress.max = total; progress.value = current.progress.completed; }
         liveMetrics.replaceChildren(...((current.metrics || []).length ? [metricTable(overgo, current.metrics)] : []));
       }
 
@@ -129,10 +123,7 @@
       });
       run.addEventListener("click", async () => {
         const plans = [...fields].filter(([, input]) => input.checked).map(([plan]) => plan);
-        if (!plans.length) {
-          status.textContent = "select an evaluation";
-          return;
-        }
+        if (!plans.length) { status.textContent = "select an evaluation"; return; }
         run.disabled = true;
         cancel.style.display = "";
         try {

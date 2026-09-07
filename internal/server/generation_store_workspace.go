@@ -100,6 +100,19 @@ var generationTasks = []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, re
 // generationRunKeyPrefix roots every generation run record's batch key.
 const generationRunKeyPrefix = "generation/run/"
 
+// recordedInput is the request document the runtime recorded for an
+// executed output (the decoded request under the capability's input
+// schema): the run cites it as its input, so a gallery re-opens the
+// record beside the output and a page regenerates from it. A bare
+// output outside the measured envelope records none.
+func recordedInput(output any) (artifact.Content, bool) {
+	measured, ok := output.(capabilityruntime.Measured)
+	if !ok || measured.Input.Descriptor.ID == (artifact.ID{}) {
+		return artifact.Content{}, false
+	}
+	return measured.Input, true
+}
+
 // WorkflowCapabilities lists one capability per active media recipe with
 // present bytes, controls declared by the executor's request type, and a
 // refusal on the entry when its request carries what a page cannot type.
@@ -200,13 +213,22 @@ func (workspace *StoreGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if err != nil {
 		return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", err)
 	}
-	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{content.Descriptor.ID}, "")
+	// The recorded request is the run's input: the record a gallery opens.
+	var inputs []artifact.ID
+	request, recorded := recordedInput(output)
+	if recorded {
+		inputs = []artifact.ID{request.Descriptor.ID}
+	}
+	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{content.Descriptor.ID}, "")
 	if err != nil {
 		return operation.Completion{}, err
 	}
 	batch, err := run.Batch(generationRunKeyPrefix + run.ID.String())
 	if err != nil {
 		return operation.Completion{}, err
+	}
+	if recorded {
+		batch.Contents = append(batch.Contents, request)
 	}
 	batch.Contents = append(batch.Contents, content)
 	if _, err := artifact.CommitBatch(ctx, workspace.store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {

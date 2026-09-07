@@ -221,10 +221,7 @@
       }
       if (name === "stream.error") renderDetailError(host, value);
     });
-    window.addEventListener("popstate", () => {
-      const id = routeOperation();
-      if (id !== selected) selectOperation(host, id, true);
-    });
+    window.addEventListener("popstate", () => { const id = routeOperation(); if (id !== selected) selectOperation(host, id, true); });
     const key = document.getElementById("api-key");
     if (key) key.addEventListener("change", () => overgo.runtimeEvents.restart());
     const badge = document.getElementById("inbox-count");

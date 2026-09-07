@@ -40,8 +40,9 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 		writeInvalidRequest(response, err)
 		return
 	}
-	// newest: the kind's files newest first (a query pages by identity), kept to
-	// the media-type prefix a slot asks for; no cursor, the limit is the page.
+	// newest: the kind's artifacts newest first (a query pages by identity), kept
+	// to the media-type prefix a slot or gallery asks for, each with the runs
+	// that produced it; no cursor, the limit is the page.
 	if media := request.URL.Query().Get("media"); request.URL.Query().Get("newest") != "" {
 		recent, err := store.RecentArtifacts(request.Context(), query.Kind, limit, func(descriptor artifact.Descriptor) bool {
 			return strings.HasPrefix(descriptor.MediaType, media)
@@ -52,7 +53,7 @@ func (h *Handler) artifactGallery(response http.ResponseWriter, request *http.Re
 		}
 		items := make([]artifactSummary, 0, len(recent))
 		for _, item := range recent {
-			items = append(items, artifactSummary{Descriptor: item.Descriptor, Producers: []artifact.ID{}, Payload: item.Payload})
+			items = append(items, artifactSummary{Descriptor: item.Descriptor, Producers: item.Producers, Payload: item.Payload})
 		}
 		writeJSON(response, http.StatusOK, artifactGalleryResponse{Count: len(items), Limit: limit, Artifacts: items})
 		return

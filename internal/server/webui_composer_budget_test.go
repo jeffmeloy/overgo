@@ -18,7 +18,7 @@ const (
 	webuiStreamReaderCeiling = 1    // response.body.getReader(): boot.js sseEvents, the one stream reader
 	webuiRawFetchCeiling     = 4    // fetch(: boot.js api client only
 	webuiAPIStreamCeiling    = 1    // api.stream(: chat
-	webuiJavaScriptCeiling   = 4648 // total lines under webui/
+	webuiJavaScriptCeiling   = 4631 // total lines under webui/
 )
 
 // webuiReviewCeiling: the review criteria webuilane.ReviewMeasures counts, each at its
@@ -29,7 +29,7 @@ var webuiReviewCeiling = webuilane.Review{
 }
 
 // webuiLargestFileCeiling bounds one file's lines (the review's soft file ceiling is 800).
-const webuiLargestFileCeiling = 716
+const webuiLargestFileCeiling = 701
 
 func webuiJavaScript(t *testing.T) map[string]string {
 	t.Helper()

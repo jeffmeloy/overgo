@@ -679,6 +679,17 @@ derived from the server, not from client configuration:
   stored, media a capability made) fills a slot with one click, and a fresh
   attachment goes to the slot of its kind. The store, not browser storage,
   is the history. The journey fills the VQA image slot from its strip.
+- **Media gallery.** A generation mode lists the store's outputs of its
+  kind (image, video or audio) newest first as a rail of thumbnails, each
+  named by the capability that made it, with a filter to the picked
+  model. A thumbnail opens the output as a media card with the record
+  that made it: the run's request document as control and value rows
+  (the seed among them), the run, a download of the bytes, and "use as
+  input". A generation run cites the request document the runtime
+  recorded (the decoded request under the capability's input schema) as
+  its one input, so the record is the store's, never a second copy. The
+  journey reloads the page after generating an image and finds it first
+  in the rail, then opens its record.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

@@ -84,6 +84,7 @@ type gateContext struct {
 	baseSource          *repoanalysis.SourceSnapshot
 	profile             *codeprofile.Profile
 	profileDirty        bool
+	preflight           bool
 	stepEvidence        map[string]string
 	cachePaths          []string
 	retryCache          *automationcheck.EvidenceCache

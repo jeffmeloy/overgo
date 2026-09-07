@@ -1081,6 +1081,9 @@ func staleClosureAuthorityFailure(err error) bool {
 }
 
 func (g *gateContext) remediateStaleClosureBindings() error {
+	if g.preflight {
+		return fmt.Errorf("preflight: repair required; run `go run ./cmd/closure-scan -import-store %s` outside preflight", g.storePath)
+	}
 	started := time.Now()
 	out, err := g.runGateCommand("go", "run", "./cmd/closure-scan", "-import-store", gateStorePath)
 	if err != nil {

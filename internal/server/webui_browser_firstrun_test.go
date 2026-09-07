@@ -116,6 +116,25 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
 	}
+	// captureStates: the page as it stands at this leg, captured and audited
+	// at both viewports (written when the lane writes screens); the journey
+	// continues at the desktop size.
+	captureStates := func(name string) {
+		t.Helper()
+		for _, viewport := range webuilane.ScreenViewports {
+			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, finding := range findings {
+				t.Error(finding)
+			}
+		}
+		if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("states leg: %s captured at %d viewports", name, len(webuilane.ScreenViewports))
+	}
 	// openPicker: picker open over the catalog rows. A picker left open after
 	// a swap shows the swap's note, not rows: a click closes it, a second
 	// opens it afresh.
@@ -234,6 +253,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => { const field = document.querySelector("#conversation-list input[aria-label='conversation title']"); field.value = "renamed by the lane"; field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); return true; })()`)
 	settle("the rail shows the new title", `[...document.querySelectorAll("#conversation-list button")].some((button) => button.textContent === "renamed by the lane")`)
 	t.Log("rename leg: the conversation renamed in place from the rail")
+	captureStates("thread-reply")
 
 	// 3. The inspector opens over the first turn with its run record.
 	assertBrowserPredicate(t, ctx, browser, `(() => { const button = document.querySelector("#panel-chat .msg.assistant .role button.link-button"); if (!button) return false; button.click(); return true; })()`)
@@ -310,6 +330,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 	settle("tool step card", `[...document.querySelectorAll("#panel-chat .tool-call .tag")].some((tag) => tag.textContent.startsWith("done")) &&
       document.querySelector('[aria-label="guardrails"]').textContent.includes("remaining")`)
+	captureStates("thread-tool")
 	say(t, ctx, browser, "Say hi in one word.")
 	settle("agent chat reply", `document.querySelectorAll("#panel-chat .msg.assistant").length >= 1 &&
       [...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1).textContent.trim().length > 0 && !document.querySelector(".composer .btn").disabled`)
@@ -360,6 +381,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => { const stop = [...document.querySelectorAll(".composer .btn")].find((button) => button.textContent === "stop"); if (!stop) return false; stop.click(); return true; })()`)
 	settle("turn stopped", `!document.querySelector(".composer .btn").disabled &&
       ([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1).textContent.includes("[stopped]") || !!document.querySelector("#panel-chat .msg.error"))`)
+	captureStates("thread-stopped")
 
 	// 8. Media out: an image from the cheapest declared image model, chosen from
 	// the generation capabilities by its host oscillator entry module, through
@@ -419,6 +441,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		settle("image out as an artifact card", mediaCards+` === 1 && !!document.querySelector("#panel-chat .msg.media img") &&
       !!document.querySelector("#panel-chat .msg.media .note a") && !document.querySelector(".composer .btn").disabled`)
 		t.Log("media-out leg: an image landed as an artifact card")
+		captureStates("thread-media")
 		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelectorAll("#panel-chat .msg.media button")].find((button) => button.textContent === "use as input"); if (!again) return false; again.click(); return true; })()`)
 		settle("image back in as an attachment", `document.querySelectorAll(".composer .card").length === 1`)
 		var refused bool
@@ -426,6 +449,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Logf("media-in leg: the generated image re-entered the composer, refused=%v", refused)
+		captureStates("composer-attachment")
 		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer .card button").click(); return !document.querySelector(".composer .card"); })()`)
 		// 10b. Gallery after a reload: the image the store holds reappears
 		// newest first in the image mode's gallery rail, and its thumb opens the
@@ -447,6 +471,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       [...document.querySelectorAll("#panel-chat .msg.media .record td")].some((cell) => cell.textContent === "seed") &&
       !!document.querySelector("#panel-chat .msg.media .record a[download]") && [...document.querySelectorAll("#panel-chat .msg.media button")].some((button) => button.textContent === "use as input")`)
 		t.Log("gallery leg: the generated image reappeared in the gallery after a reload and opened its record")
+		captureStates("thread-record")
 		// 10c. Vary and regenerate from the record: the card's "vary" resubmits
 		// the stored request with a fresh seed and the new card names its
 		// parent; "regenerate" resubmits it unchanged and the card says the
@@ -515,6 +540,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const width = Number(field("width").value), height = Number(field("height").value);
       return width % step === 0 && height % step === 0 && height > width && Math.abs(width * height - before) < before / 10; })()`)
 			t.Log("presets leg: the Wan form's aspect chip moved the declared geometry by its stride")
+			captureStates("mode-video")
 		}
 		if generationMode("video-gen", "model.reference-video-prepare") {
 			assertBrowserPredicate(t, ctx, browser, `(() => {

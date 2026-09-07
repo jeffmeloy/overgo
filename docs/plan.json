@@ -5,6 +5,34 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "webui-polish-phone",
+      "title": "Phone header from the captures: on a phone the navigation, top bar and operations line take more than half the first screen before any content; the sections collapse into one compact bar (the active section's tabs on one scrolling row, the other sections behind their labels), the brand, status pill and key share one row, and the audit gains a measure of the first screen's content share at the phone viewport, held at or above the captured value",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Phone header from the captures: on a phone the navigation, top bar and operations line take more than half the first screen before any content; the sections collapse into one compact bar (the active section's tabs on one scrolling row, the other sections behind their labels), the brand, status pill and key share one row, and the audit gains a measure of the first screen's content share at the phone viewport, held at or above the captured value",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
+      "id": "webui-polish-tabs",
+      "title": "Workbench tabs to one density from the captures: every tab opens with a section title and a one-line summary in the same place, tables share the grid's rhythm and their empty state reads as one kind of note, the Generate form's fields sit in a grid whose textarea and inputs align, the Runtime and Library summaries use the stat cards, and long identities in tables are shortened with their full value on hover; each tab re-captured at both viewports with the audit at zero",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Workbench tabs to one density from the captures: every tab opens with a section title and a one-line summary in the same place, tables share the grid's rhythm and their empty state reads as one kind of note, the Generate form's fields sit in a grid whose textarea and inputs align, the Runtime and Library summaries use the stat cards, and long identities in tables are shortened with their full value on hover; each tab re-captured at both viewports with the audit at zero",
+          "status": "open",
+          "verify": "go build ./..."
+        }
+      ]
+    },
+    {
       "id": "integrate-to-master",
       "title": "Integrate the settled lane into master preserving master's plan: master merges the lane head from its own worktree (as merge-6ad5668fabed did at 5752876c) with the owner's go-ahead and master's docs/plan.json untouched; the lane never writes master and never takes master's rows; the row closes when master's head contains the lane's last landed row and the lane has merged that master back",
       "owner": "professional_overgo_gui",

@@ -845,8 +845,15 @@ styles: the document held to the viewport's width, every control and
 card inside it, fixed and sticky surfaces apart, single-line text uncut
 unless an ellipsis is designed, controls at least 24px on each side (an
 input reached through its label measured by the label), and text against
-its background at the level-AA contrast ratio. A finding fails the test,
-so the audit holds at zero. `go run ./cmd/webui-lane -run
+its background at the level-AA contrast ratio. Every state is captured
+under the dark and the light colour scheme through the browser's media
+emulation, so the light scheme's contrast is measured like the dark's.
+The first-run journey captures the states a reader meets that the
+fixture cannot make: a thread with a reply, a stopped turn, a tool card,
+a media card with its record, an attachment in the composer and a
+generation mode with its declared controls; the acceptance lane captures
+the picker over an empty store. A finding fails the test, so the audit
+holds at zero. `go run ./cmd/webui-lane -run
 '^TestWebUIBrowserScreens$' -screens <dir>` writes the captures as PNGs
 for a reader, and `go run ./cmd/webui-lane -url <address> -screens
 <dir>` walks a running server's page the same way without the tests,

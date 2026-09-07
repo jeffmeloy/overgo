@@ -7,7 +7,7 @@
   --ink:#e2e9f4; --dim:#8b97ab; --faint:#7f8ba0; /* the faint tone reads at 4.5:1 on every ground */
   --acc:#37d3ee; --acc-soft:rgba(55,211,238,.12);
   --amber:#e8b34b; --ok:#3ddc97; --err:#f0567a;
-  --go1:#19b8d8; --go2:#0e8ff0;
+  --go1:#19b8d8; --go2:#0e8ff0; --on-accent:#0a0d13; /* the text tone that reads on the accent gradient at 4.5:1 */
   --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
   --font:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
   --radius-s:7px; --radius-m:10px; --radius-l:14px;
@@ -24,9 +24,9 @@
     --bg0:#f4f6fa; --bg1:#ffffff; --bg2:#eef1f6; --bg3:#e6eaf2;
     --line:#d5dbe6; --line-soft:#e4e9f1;
     --ink:#1c2433; --dim:#5a6678; --faint:#5f6a82;
-    --acc:#0891b2; --acc-soft:rgba(8,145,178,.10);
-    --amber:#b45309; --ok:#0f9d6c; --err:#dc2657;
-    --go1:#0891b2; --go2:#2563eb;
+    --acc:#0e7490; --acc-soft:rgba(14,116,144,.10); /* every tone reads at 4.5:1 on the light grounds */
+    --amber:#a14a05; --ok:#0a7a54; --err:#c1194a;
+    --go1:#0e7490; --go2:#2563eb; --on-accent:#ffffff;
     --shadow-1:0 1px 2px rgba(24,39,75,.08);
     --shadow-2:0 10px 34px -20px rgba(24,39,75,.28);
     color-scheme:light;
@@ -79,7 +79,7 @@ a { color:var(--acc); }
 .btn {
   appearance:none; border:0; cursor:pointer; text-decoration:none; text-align:center;
   font:600 13px/1 var(--font); border-radius:var(--radius-m); padding:11px 18px;
-  background:linear-gradient(135deg, var(--go1), var(--go2)); color:#fff;
+  background:linear-gradient(135deg, var(--go1), var(--go2)); color:var(--on-accent);
   transition:filter .15s, transform .06s;
 }
 .btn:hover { filter:brightness(1.1); }
@@ -132,7 +132,7 @@ a { color:var(--acc); }
 .operation-strip-label { flex:none; color:var(--faint); font:600 10px var(--font); letter-spacing:1.2px; text-transform:uppercase; }
 .operation-chip {
   flex:none; appearance:none; cursor:pointer; color:var(--dim); background:var(--bg2); border:1px solid var(--line);
-  border-radius:999px; padding:4px 9px; font:11px var(--mono);
+  border-radius:999px; padding:4px 9px; font:var(--t-xs) var(--mono); min-height:24px;
 }
 .operation-chip:hover, .operation-chip.active { color:var(--ink); border-color:var(--acc); }
 .operation-chip.blocked, .operation-chip.failed { color:var(--amber); }
@@ -185,7 +185,7 @@ a { color:var(--acc); }
   .nav-group > .section { width:auto; }
   .tab { width:auto; }
   .sidebar .foot { display:none; }
-  .operation-shell { top:0; }
+  .operation-shell { position:static; } /* under the stacked header the strip scrolls with the page rather than sitting under the sticky top bar */
 }
 
 /* ---- components ---- */
@@ -293,8 +293,9 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .md .md-lang { font:11px var(--mono); color:var(--faint); text-transform:lowercase; }
 .md .md-pre { margin:0; padding:11px 12px; overflow-x:auto; }
 .md .md-pre code { font-family:var(--mono); font-size:12.5px; color:var(--ink); white-space:pre; }
-.md-copy { appearance:none; cursor:pointer; font:11px var(--mono); color:var(--dim);
+.md-copy { appearance:none; cursor:pointer; font:var(--t-xs) var(--mono); color:var(--dim); min-height:24px;
   background:transparent; border:1px solid var(--line); border-radius:6px; padding:2px 8px; }
+.msg.media > a { display:inline-block; min-width:24px; min-height:24px; }
 .md-copy:hover { color:var(--ink); border-color:var(--dim); }
 .msg .role .md-copy { margin-left:auto; }
 

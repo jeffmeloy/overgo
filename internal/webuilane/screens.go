@@ -98,12 +98,62 @@ func (finding StateFinding) String() string {
 	return finding.Viewport + " " + finding.State + ": " + finding.Finding.String()
 }
 
+// ColourSchemes are the reader's schemes every state is captured under.
+var ColourSchemes = []string{"dark", "light"}
+
+// SetColorScheme emulates the reader's colour scheme ("dark" or "light")
+// so a capture and its audit measure the page under each.
+func (browser *Browser) SetColorScheme(ctx context.Context, scheme string) error {
+	return browser.Call(ctx, "Emulation.setEmulatedMedia", map[string]any{
+		"features": []map[string]string{{"name": "prefers-color-scheme", "value": scheme}},
+	}, nil)
+}
+
+// CaptureState sets the viewport, captures the page as it stands (into dir
+// as <viewport>-<state>.png when dir is set) and audits its layout; the
+// findings carry the viewport and state.
+func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Viewport, state string) ([]StateFinding, error) {
+	if err := browser.SetViewport(ctx, viewport.Width, viewport.Height); err != nil {
+		return nil, err
+	}
+	// The page reports the new size and paints twice before the measurement, so a
+	// layout mid-transition from the previous viewport is never captured.
+	if err := browser.Eventually(ctx, fmt.Sprintf("window.innerWidth === %d && window.innerHeight === %d", viewport.Width, viewport.Height)); err != nil {
+		return nil, err
+	}
+	if err := browser.Evaluate(ctx, `new Promise((settled) => requestAnimationFrame(() => requestAnimationFrame(() => settled(true))))`, nil); err != nil {
+		return nil, err
+	}
+	if dir != "" {
+		if err := clioptions.EnsureOutputDirectory(dir); err != nil {
+			return nil, err
+		}
+		image, err := browser.Screenshot(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err := clioptions.WriteOutputFile(filepath.Join(dir, viewport.Name+"-"+state+".png"), image); err != nil {
+			return nil, err
+		}
+	}
+	measured, err := browser.LayoutAudit(ctx)
+	if err != nil {
+		return nil, err
+	}
+	findings := make([]StateFinding, 0, len(measured))
+	for _, finding := range measured {
+		findings = append(findings, StateFinding{Viewport: viewport.Name, State: state, Finding: finding})
+	}
+	return findings, nil
+}
+
 // CaptureStates walks every workbench tab and the model picker at each
-// viewport, audits each state's layout, and, with dir set, writes each
-// state's capture there as <viewport>-<state>.png. The page is ready once
-// the chat composer stands with no page error; a tab's own request
-// settles within settle, and a slow tab is captured as it stands. It
-// answers the states captured and every finding.
+// viewport under each colour scheme (a light state's name carries the
+// "-light" suffix), audits each state's layout, and, with dir set, writes
+// each state's capture there. The page is ready once the chat composer
+// stands with no page error; a tab's own request settles within settle,
+// and a slow tab is captured as it stands. It answers the states captured
+// and every finding, and leaves the dark scheme emulated.
 func CaptureStates(ctx context.Context, browser *Browser, dir string, settle time.Duration) (int, []StateFinding, error) {
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .composer textarea") && window.overgo.errors.length === 0`); err != nil {
 		return 0, nil, err
@@ -115,71 +165,61 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string, settle tim
 	if len(tabs) == 0 {
 		return 0, nil, errors.New("webui lane: the page mounted no tab")
 	}
-	if dir != "" {
-		if err := clioptions.EnsureOutputDirectory(dir); err != nil {
-			return 0, nil, err
-		}
-	}
 	states := 0
 	var findings []StateFinding
-	capture := func(viewport, state string) error {
-		if dir != "" {
-			image, err := browser.Screenshot(ctx)
-			if err != nil {
-				return err
-			}
-			if err := clioptions.WriteOutputFile(filepath.Join(dir, viewport+"-"+state+".png"), image); err != nil {
-				return err
-			}
-		}
-		measured, err := browser.LayoutAudit(ctx)
+	capture := func(viewport Viewport, state string) error {
+		measured, err := CaptureState(ctx, browser, dir, viewport, state)
 		if err != nil {
 			return err
 		}
 		states++
-		for _, finding := range measured {
-			findings = append(findings, StateFinding{Viewport: viewport, State: state, Finding: finding})
-		}
+		findings = append(findings, measured...)
 		return nil
 	}
-	for _, viewport := range ScreenViewports {
-		if err := browser.SetViewport(ctx, viewport.Width, viewport.Height); err != nil {
+	for _, scheme := range ColourSchemes {
+		if err := browser.SetColorScheme(ctx, scheme); err != nil {
 			return states, findings, err
 		}
-		for _, tab := range tabs {
-			if err := browser.Evaluate(ctx, `location.hash = `+strconv.Quote(tab), nil); err != nil {
+		suffix := ""
+		if scheme != ColourSchemes[0] {
+			suffix = "-" + scheme
+		}
+		for _, viewport := range ScreenViewports {
+			for _, tab := range tabs {
+				if err := browser.Evaluate(ctx, `location.hash = `+strconv.Quote(tab), nil); err != nil {
+					return states, findings, err
+				}
+				if err := browser.Eventually(ctx, `!!document.querySelector("#panel-`+tab+`.active")`); err != nil {
+					return states, findings, fmt.Errorf("%s %s: %w", viewport.Name, tab, err)
+				}
+				loading, done := context.WithTimeoutCause(ctx, settle, errors.New("webui lane: the tab kept loading"))
+				_ = browser.Eventually(loading, `!document.querySelector("#panel-`+tab+` .note")?.textContent.startsWith("loading")`)
+				done()
+				if err := capture(viewport, tab+suffix); err != nil {
+					return states, findings, err
+				}
+			}
+			// The picker over the chat tab, closed again with Escape.
+			if err := browser.Evaluate(ctx, `(() => { location.hash = "chat"; if (!document.querySelector(".topbar .card")) document.getElementById("model-pill").click(); return true; })()`, nil); err != nil {
 				return states, findings, err
 			}
-			if err := browser.Eventually(ctx, `!!document.querySelector("#panel-`+tab+`.active")`); err != nil {
-				return states, findings, fmt.Errorf("%s %s: %w", viewport.Name, tab, err)
+			if err := browser.Eventually(ctx, `!!document.querySelector(".topbar .card .row .mono")`); err != nil {
+				return states, findings, fmt.Errorf("%s picker: %w", viewport.Name, err)
 			}
-			loading, done := context.WithTimeoutCause(ctx, settle, errors.New("webui lane: the tab kept loading"))
-			_ = browser.Eventually(loading, `!document.querySelector("#panel-`+tab+` .note")?.textContent.startsWith("loading")`)
-			done()
-			if err := capture(viewport.Name, tab); err != nil {
+			if err := capture(viewport, "picker"+suffix); err != nil {
 				return states, findings, err
 			}
-		}
-		// The picker over the chat tab, closed again with Escape.
-		if err := browser.Evaluate(ctx, `(() => { location.hash = "chat"; if (!document.querySelector(".topbar .card")) document.getElementById("model-pill").click(); return true; })()`, nil); err != nil {
-			return states, findings, err
-		}
-		if err := browser.Eventually(ctx, `!!document.querySelector(".topbar .card .row .mono")`); err != nil {
-			return states, findings, fmt.Errorf("%s picker: %w", viewport.Name, err)
-		}
-		if err := capture(viewport.Name, "picker"); err != nil {
-			return states, findings, err
-		}
-		if err := browser.Evaluate(ctx, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`, nil); err != nil {
-			return states, findings, err
+			if err := browser.Evaluate(ctx, `document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`, nil); err != nil {
+				return states, findings, err
+			}
 		}
 	}
-	return states, findings, nil
+	return states, findings, browser.SetColorScheme(ctx, ColourSchemes[0])
 }
 
 // CaptureSummary renders a capture walk's verdict on one line.
 func CaptureSummary(states int, findings []StateFinding) string {
-	return fmt.Sprintf("screens leg: captured %d states at %d viewports with %d layout findings", states, len(ScreenViewports), len(findings))
+	return fmt.Sprintf("screens leg: captured %d states at %d viewports under %d colour schemes with %d layout findings", states, len(ScreenViewports), len(ColourSchemes), len(findings))
 }
 
 // layoutAuditScript is the audit with its fault kinds named from the
@@ -257,8 +297,12 @@ const layoutAuditTemplate = `(() => {
   const luminance = (c) => 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b);
   const backgroundOf = (node) => {
     for (let current = node; current; current = current.parentElement) {
-      const color = parse(getComputedStyle(current).backgroundColor);
+      const style = getComputedStyle(current);
+      const color = parse(style.backgroundColor);
       if (color && color.a > 0.99) return color;
+      // A gradient paints its first stop behind the text nearest it.
+      const stop = style.backgroundImage !== "none" ? parse(style.backgroundImage) : null;
+      if (stop && stop.a > 0.99) return stop;
     }
     const ground = parse(getComputedStyle(document.body).backgroundColor);
     return ground && ground.a > 0.99 ? ground : { r: 255, g: 255, b: 255, a: 1 };

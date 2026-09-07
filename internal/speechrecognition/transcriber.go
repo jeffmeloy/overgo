@@ -202,7 +202,11 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 			[]runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}, {Phase: runrecord.PhasePrepare, DurationNS: prepareDuration}}, err)
 	}
 	prefillStart := time.Now()
-	_, logits, outputFrames, err := transcriber.encoder.Forward(ctx, features, frames, &workspace.Encoder, nil)
+	hidden, outputFrames, err := transcriber.encoder.Encode(ctx, features, frames, &workspace.Encoder, nil)
+	var logits []float32
+	if err == nil {
+		logits, err = transcriber.encoder.Project(ctx, hidden, outputFrames, &workspace.Encoder)
+	}
 	prefillDuration := elapsedNanoseconds(prefillStart)
 	if err != nil {
 		return transcriber.failedExecution(ctx, binding, inputs, "transcription-inference-failed", started,

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 
+	"overgo/internal/adaptertrain"
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
@@ -15,6 +16,7 @@ import (
 // Workspace owns reusable per-clip storage. Its zero value is usable. It must
 // not be shared concurrently, between encoders, or reentered from an observer.
 type Workspace struct {
+	adapter                                                                            *adaptertrain.LinearCTC
 	owner                                                                              *Encoder
 	x, normalized, branch, expanded, query, key, value, attended, conv, logits, scores []float32
 }
@@ -50,6 +52,13 @@ func (e *Encoder) workspace(w *Workspace, rows int) error {
 	// Attention uses one reusable score row, not a quadratic retained trace.
 	var counts [len(widths)]int
 	bytes := e.weightBytes
+	if w.adapter != nil {
+		var ok bool
+		bytes, ok = checked.Add64(bytes, w.adapter.StorageBytes())
+		if !ok || bytes > e.memoryBytes {
+			return errors.New("encoder adapter state exceeds byte budget")
+		}
+	}
 	for i, buffer := range w.buffers() {
 		n, ok := checked.MulInt(rows, widths[i])
 		if buffer == &w.logits {
@@ -76,12 +85,7 @@ func (e *Encoder) workspace(w *Workspace, rows int) error {
 }
 
 func (p linear) forward(dst, x []float32, rows int) {
-	hostmath.Linear(dst, x, p.weight, rows, p.in, p.out)
-	if len(p.bias) > 0 {
-		for row := range rows {
-			hostmath.AddBias(dst[row*p.out:(row+1)*p.out], p.bias)
-		}
-	}
+	hostmath.LinearInputProjection(dst, nil, x, nil, p.weight, p.bias, rows, p.in, p.out)
 }
 
 func (e *Encoder) normalize(dst, x []float32, n norm, rows int) {
@@ -107,62 +111,62 @@ func (e *Encoder) feedForward(ctx context.Context, x []float32, rows int, f feed
 	return ctx.Err()
 }
 
-// Forward encodes one complete, unpadded clip. It returns borrowed final hidden
-// features, CTC logits and output frame count. It does not accept padded batches
-// or provide streaming semantics. Right padding inside attention blocks is
+// Encode processes one complete, unpadded clip and returns borrowed final
+// hidden features and output frame count. Project applies the frozen output.
+// It does not accept padded batches or provide streaming semantics. Right padding inside attention blocks is
 // excluded from the softmax, and convolution subsampling drops incomplete pools.
 // Only requested boundary observations are retained by the caller.
-func (e *Encoder) Forward(ctx context.Context, features []float32, frames int, w *Workspace, observe func(Trace) error) ([]float32, []float32, int, error) {
+func (e *Encoder) Encode(ctx context.Context, features []float32, frames int, w *Workspace, observe func(Trace) error) ([]float32, int, error) {
 	if e == nil || len(e.blocks) == 0 || ctx == nil || w == nil || w.owner != nil && w.owner != e || frames <= 0 {
-		return nil, nil, 0, errors.New("encoder: invalid execution")
+		return nil, 0, errors.New("encoder: invalid execution")
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, nil, 0, err
+		return nil, 0, err
 	}
 	n, ok := checked.MulInt(frames, e.input.in)
 	if !ok || len(features) != n {
-		return nil, nil, 0, errors.New("encoder: input shape differs")
+		return nil, 0, errors.New("encoder: input shape differs")
 	}
 	outputFrames := frames
 	for _, b := range e.blocks {
 		outputFrames /= b.convolution.stride
 		if outputFrames == 0 {
-			return nil, nil, 0, errors.New("encoder: clip shorter than residual pooling extent")
+			return nil, 0, errors.New("encoder: clip shorter than residual pooling extent")
 		}
 	}
 	for _, buffer := range w.buffers() {
 		if checked.SlicesOverlap(features, (*buffer)[:cap(*buffer)]) {
-			return nil, nil, 0, errors.New("encoder: input aliases workspace")
+			return nil, 0, errors.New("encoder: input aliases workspace")
 		}
 	}
 	for _, v := range features {
 		if !checked.Finite32(v) {
-			return nil, nil, 0, errors.New("encoder: non-finite input")
+			return nil, 0, errors.New("encoder: non-finite input")
 		}
 	}
 	if err := e.workspace(w, frames); err != nil {
-		return nil, nil, 0, err
+		return nil, 0, err
 	}
 	h := e.input.out
 	x := w.x[:frames*h]
 	e.input.forward(x, features, frames)
 	if err := emitTrace(ctx, observe, -1, frames, h, x); err != nil {
-		return nil, nil, 0, err
+		return nil, 0, err
 	}
 	for i, b := range e.blocks {
 		if err := e.feedForward(ctx, x, frames, b.first, w); err != nil {
-			return nil, nil, 0, err
+			return nil, 0, err
 		}
 		e.normalize(w.normalized, x, b.attention.norm, frames)
 		if err := b.attention.forward(ctx, w.normalized, frames, w); err != nil {
-			return nil, nil, 0, err
+			return nil, 0, err
 		}
 		for j := range x {
 			x[j] += w.branch[j]
 		}
 		e.normalize(w.normalized, x, b.convolution.norm, frames)
 		if err := b.convolution.forward(ctx, w.normalized, frames, e.bnEpsilon, w); err != nil {
-			return nil, nil, 0, err
+			return nil, 0, err
 		}
 		stride := b.convolution.stride
 		outFrames := frames / stride
@@ -179,11 +183,11 @@ func (e *Encoder) Forward(ctx context.Context, features []float32, frames int, w
 		frames = outFrames
 		x = x[:frames*h]
 		if err := e.feedForward(ctx, x, frames, b.second, w); err != nil {
-			return nil, nil, 0, err
+			return nil, 0, err
 		}
 		e.normalize(x, x, b.out, frames)
 		if err := emitTrace(ctx, observe, i, frames, h, x); err != nil {
-			return nil, nil, 0, err
+			return nil, 0, err
 		}
 		if i+1 == e.feedbackAfter {
 			e.output.forward(w.logits, x, frames)
@@ -196,17 +200,15 @@ func (e *Encoder) Forward(ctx context.Context, features []float32, frames int, w
 			}
 		}
 	}
-	logits := w.logits[:frames*e.output.out]
-	e.output.forward(logits, x, frames)
 	if err := ctx.Err(); err != nil {
-		return nil, nil, 0, err
+		return nil, 0, err
 	}
-	for _, v := range logits {
+	for _, v := range x {
 		if !checked.Finite32(v) {
-			return nil, nil, 0, errors.New("encoder: non-finite output")
+			return nil, 0, errors.New("encoder: non-finite output")
 		}
 	}
-	return x, logits, frames, nil
+	return x, frames, nil
 }
 
 func emitTrace(ctx context.Context, observe func(Trace) error, block, frames, width int, values []float32) error {

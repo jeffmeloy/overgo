@@ -64,17 +64,20 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 	g.audit = append(g.audit, fmt.Sprintf("checkpoint memo: key=%s checkpoints=%d", checkpointMemoKey(g.planRef, batch), len(memos)))
 	var added []automationcheck.Check
 	for _, checkpoint := range batch.Checkpoints {
+		evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
+			testevidence.CurrentVerifyPolicy, g.planRef, checkpoint.Verify,
+		)
+		if err != nil {
+			return nil, err
+		}
+		// Bind the declared verifier even when execution reuses a checkpoint.
+		// This is a contract, not a passing verdict: terminal evidence must
+		// independently satisfy the manifest's commit barrier.
+		g.stepEvidence[checkpoint.GateCheckName()] = evidence
 		check := gateCheck(checkpoint.GateCheckName(), runrecord.PhaseTest, func() (bool, error) {
-			evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
-				testevidence.CurrentVerifyPolicy, g.planRef, checkpoint.Verify,
-			)
-			if err != nil {
-				return false, err
-			}
 			if err := g.verifyAcceptedCandidate(checkpoint.Verify, false); err != nil {
 				return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
 			}
-			g.stepEvidence[checkpoint.GateCheckName()] = evidence
 			if accumulator != nil {
 				state, flush, reason, err := accumulator.Add(batch.Flush.Key, int64(len(evidence)), time.Now())
 				if err != nil {

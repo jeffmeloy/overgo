@@ -130,6 +130,16 @@ func (g *gateContext) stepCommit() (bool, error) {
 		_ = completionStore.Close()
 		return false, errors.New("commit admission: completion authority no longer selects the gated row")
 	}
+	if step.VerificationBatch != nil {
+		for _, checkpoint := range step.VerificationBatch.Checkpoints {
+			if err := runrecord.VerifyCompletionAcceptanceEvidence(
+				g.stepEvidence[checkpoint.GateCheckName()], g.planRef, checkpoint.Verify,
+			); err != nil {
+				_ = completionStore.Close()
+				return false, fmt.Errorf("commit admission: checkpoint %s verifier binding: %w", checkpoint.ID, err)
+			}
+		}
+	}
 	planHead, err = command(g.repo, "git", "rev-parse", "HEAD")
 	if err != nil {
 		_ = completionStore.Close()

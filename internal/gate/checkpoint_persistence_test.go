@@ -131,6 +131,18 @@ func TestCheckpointPersistenceSurvivesKill(t *testing.T) {
 	}
 	reused, executed := 0, 0
 	for _, result := range results {
+		if result.Err != nil {
+			t.Fatal(result.Err)
+		}
+		for _, checkpoint := range batch.Checkpoints {
+			if result.Invocation.Check.Name != checkpoint.GateCheckName() {
+				continue
+			}
+			record := gateEvidenceRecord(checkpoint.GateCheckName(), runrecord.PhaseTest, result.Evidence, result.Err, g.stepEvidence[checkpoint.GateCheckName()])
+			if err := runrecord.VerifyCompletionAcceptanceEvidence(record.Evidence, g.planRef, checkpoint.Verify); err != nil {
+				t.Fatalf("persisted %s completion binding: %v", checkpoint.ID, err)
+			}
+		}
 		switch result.Invocation.Check.Name {
 		case "acceptance-producer":
 			if !result.Evidence.Reused {

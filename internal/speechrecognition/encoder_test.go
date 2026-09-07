@@ -74,7 +74,7 @@ func TestEncoderNativeOracle(t *testing.T) {
 	for _, tc := range fixture.Cases {
 		t.Run(fmt.Sprintf("frames_%d", tc.Frames), func(t *testing.T) {
 			seen := 0
-			hidden, logits, frames, err := e.Forward(t.Context(), tc.Features, tc.Frames, &w, func(trace Trace) error {
+			hidden, frames, err := e.Encode(t.Context(), tc.Features, tc.Frames, &w, func(trace Trace) error {
 				name := fmt.Sprintf("layer_%d", trace.Block)
 				if trace.Block < 0 {
 					name = "input_projection"
@@ -93,6 +93,10 @@ func TestEncoderNativeOracle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			logits, err := e.Project(t.Context(), hidden, frames, &w)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if seen != len(tc.Traces) || len(hidden) != frames*e.input.out || frames != len(tc.Tokens) {
 				t.Fatal("incomplete forward")
 			}
@@ -106,7 +110,11 @@ func TestEncoderNativeOracle(t *testing.T) {
 			}
 			before := slices.Clone(logits)
 			pointer := &w.x[0]
-			_, again, _, err := e.Forward(t.Context(), tc.Features, tc.Frames, &w, nil)
+			againHidden, againFrames, err := e.Encode(t.Context(), tc.Features, tc.Frames, &w, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			again, err := e.Project(t.Context(), againHidden, againFrames, &w)
 			if err != nil || !slices.Equal(before, again) || pointer != &w.x[0] {
 				t.Fatalf("replay differs or reallocates backing storage: %v", err)
 			}
@@ -131,36 +139,36 @@ func TestEncoderRefusesInvalidExecution(t *testing.T) {
 		{"nonfinite", t.Context(), append([]float32{float32(math.NaN())}, tc.Features[1:]...), tc.Frames, &Workspace{}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			if _, _, _, err := e.Forward(scenario.ctx, scenario.features, scenario.frames, scenario.workspace, nil); err == nil {
+			if _, _, err := e.Encode(scenario.ctx, scenario.features, scenario.frames, scenario.workspace, nil); err == nil {
 				t.Fatal("accepted invalid execution")
 			}
 		})
 	}
-	if _, _, _, err := new(Encoder).Forward(t.Context(), tc.Features, tc.Frames, &Workspace{}, nil); err == nil {
+	if _, _, err := new(Encoder).Encode(t.Context(), tc.Features, tc.Frames, &Workspace{}, nil); err == nil {
 		t.Fatal("accepted zero encoder")
 	}
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(nil)
-	if _, _, _, err := e.Forward(ctx, tc.Features, tc.Frames, &Workspace{}, nil); !errors.Is(err, context.Canceled) {
+	if _, _, err := e.Encode(ctx, tc.Features, tc.Frames, &Workspace{}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation=%v", err)
 	}
 	sentinel := errors.New("observer stopped")
-	if _, _, _, err := e.Forward(t.Context(), tc.Features, tc.Frames, &Workspace{}, func(Trace) error { return sentinel }); !errors.Is(err, sentinel) {
+	if _, _, err := e.Encode(t.Context(), tc.Features, tc.Frames, &Workspace{}, func(Trace) error { return sentinel }); !errors.Is(err, sentinel) {
 		t.Fatalf("observer error=%v", err)
 	}
 	var w Workspace
-	if _, _, _, err := e.Forward(t.Context(), tc.Features, tc.Frames, &w, nil); err != nil {
+	if _, _, err := e.Encode(t.Context(), tc.Features, tc.Frames, &w, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := e.Forward(t.Context(), w.x[:len(tc.Features)], tc.Frames, &w, nil); err == nil {
+	if _, _, err := e.Encode(t.Context(), w.x[:len(tc.Features)], tc.Frames, &w, nil); err == nil {
 		t.Fatal("accepted borrowed input")
 	}
 	other := *e
-	if _, _, _, err := other.Forward(t.Context(), tc.Features, tc.Frames, &w, nil); err == nil {
+	if _, _, err := other.Encode(t.Context(), tc.Features, tc.Frames, &w, nil); err == nil {
 		t.Fatal("accepted another encoder's workspace")
 	}
 	ctx, cancel = context.WithCancelCause(t.Context())
-	if _, _, _, err := e.Forward(ctx, tc.Features, tc.Frames, &w, func(Trace) error { cancel(nil); return nil }); !errors.Is(err, context.Canceled) {
+	if _, _, err := e.Encode(ctx, tc.Features, tc.Frames, &w, func(Trace) error { cancel(nil); return nil }); !errors.Is(err, context.Canceled) {
 		t.Fatalf("mid-forward cancellation=%v", err)
 	}
 }
@@ -176,7 +184,7 @@ func TestEncoderWeightAndWorkspaceBudgets(t *testing.T) {
 	}
 	var w Workspace
 	tc := fixture.Cases[0]
-	if _, _, _, err = exact.Forward(t.Context(), tc.Features, tc.Frames, &w, nil); err == nil {
+	if _, _, err = exact.Encode(t.Context(), tc.Features, tc.Frames, &w, nil); err == nil {
 		t.Fatal("accepted absent workspace budget")
 	}
 	for _, buffer := range w.buffers() {
@@ -184,7 +192,7 @@ func TestEncoderWeightAndWorkspaceBudgets(t *testing.T) {
 			t.Fatal("allocated before resource refusal")
 		}
 	}
-	if _, _, _, err = e.Forward(t.Context(), tc.Features, tc.Frames, &w, nil); err != nil {
+	if _, _, err = e.Encode(t.Context(), tc.Features, tc.Frames, &w, nil); err != nil {
 		t.Fatal(err)
 	}
 	budget := e.weightBytes
@@ -192,11 +200,11 @@ func TestEncoderWeightAndWorkspaceBudgets(t *testing.T) {
 		budget += uint64(cap(*buffer)) * binaryschema.Uint32Bytes
 	}
 	e.memoryBytes = budget
-	if _, _, _, err = e.Forward(t.Context(), tc.Features, tc.Frames, &w, nil); err != nil {
+	if _, _, err = e.Encode(t.Context(), tc.Features, tc.Frames, &w, nil); err != nil {
 		t.Fatal(err)
 	}
 	e.memoryBytes--
-	if _, _, _, err = e.Forward(t.Context(), tc.Features, tc.Frames, &w, nil); err == nil {
+	if _, _, err = e.Encode(t.Context(), tc.Features, tc.Frames, &w, nil); err == nil {
 		t.Fatal("accepted retained capacity budget shortfall")
 	}
 }

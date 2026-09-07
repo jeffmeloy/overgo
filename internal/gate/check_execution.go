@@ -34,15 +34,7 @@ func (g *gateContext) executeChecks(
 				return automationcheck.Evidence{}, err
 			}
 		}
-		input, hasInput := inputs[check.ID]
-		cacheCheck := phaseReusesEvidence(check.Check.Name) && hasInput
-		// Checkpoint memo: stable slot + package-scoped input replace the
-		// phase-wide fingerprint, so an unchanged checkpoint reuses across
-		// candidates.
-		slot := check
-		if memoSlot, memoInput, memoised := g.memoSlot(check); memoised {
-			slot, input, cacheCheck = memoSlot, memoInput, true
-		}
+		slot, input, cacheCheck := g.checkCacheKey(check, inputs)
 		if cacheCheck {
 			cacheMutex.Lock()
 			evidence, reused := cache.Lookup(slot, input)
@@ -76,4 +68,15 @@ func (g *gateContext) executeChecks(
 		}
 		return evidence, runErr
 	})
+}
+
+// checkCacheKey keeps execution and measurement eligibility identical. A
+// checkpoint uses its package-scoped memo; ordinary phases require an input
+// fingerprint and permission to reuse evidence.
+func (g *gateContext) checkCacheKey(check automationcheck.Invocation, inputs map[artifact.ID]artifact.ID) (automationcheck.Invocation, artifact.ID, bool) {
+	if slot, input, memoised := g.memoSlot(check); memoised {
+		return slot, input, true
+	}
+	input, found := inputs[check.ID]
+	return check, input, found && phaseReusesEvidence(check.Check.Name)
 }

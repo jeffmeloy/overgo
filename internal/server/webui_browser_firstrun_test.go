@@ -427,6 +427,21 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       [...document.querySelectorAll("#panel-chat .msg.media .record td")].some((cell) => cell.textContent === "seed") &&
       !!document.querySelector("#panel-chat .msg.media .record a[download]") && [...document.querySelectorAll("#panel-chat .msg.media button")].some((button) => button.textContent === "use as input")`)
 		t.Log("gallery leg: the generated image reappeared in the gallery after a reload and opened its record")
+		// 10c. Vary and regenerate from the record: the card's "vary" resubmits
+		// the stored request with a fresh seed and the new card names its
+		// parent; "regenerate" resubmits it unchanged and the card says the
+		// store memoized it to the same output.
+		assertBrowserPredicate(t, ctx, browser, `(() => { const vary = [...document.querySelectorAll("#panel-chat .msg.media button")].find((button) => button.textContent === "vary"); if (!vary) return false; vary.click(); return true; })()`)
+		settle("vary makes a new image naming its parent", mediaCards+` === 2 && !document.querySelector(".composer .btn").disabled &&
+      [...document.querySelectorAll("#panel-chat .msg.media")].at(-1).querySelector(".note").textContent.includes("vary of ") && !!document.querySelectorAll("#panel-chat .msg.media img")[1]`)
+		var varied string
+		if err := browser.Evaluate(ctx, `new URL([...document.querySelectorAll("#panel-chat .msg.media")].at(-1).querySelector(".note a").href).searchParams.get("id")`, &varied); err != nil || varied == "" || varied == generated {
+			t.Fatalf("varied image id = %q (parent %q), %v", varied, generated, err)
+		}
+		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelector("#panel-chat .msg.media").querySelectorAll("button")].find((button) => button.textContent === "regenerate"); if (!again) return false; again.click(); return true; })()`)
+		settle("regenerate says the store memoized the unchanged request", mediaCards+` === 3 && !document.querySelector(".composer .btn").disabled &&
+      [...document.querySelectorAll("#panel-chat .msg.media")].at(-1).querySelector(".note").textContent.includes("the store memoized")`)
+		t.Log("vary leg: vary made a new image from the record and regenerate memoized to the same output")
 	} else {
 		t.Log("media-out leg not taken: the store declares no host oscillator image model")
 	}

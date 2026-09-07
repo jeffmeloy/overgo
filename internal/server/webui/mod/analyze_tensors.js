@@ -45,11 +45,7 @@
       let data;
       try {
         data = await overgo.api.get("/analyze/tensors");
-      } catch (err) {
-        clear(panel);
-        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
+      } catch (err) { clear(panel); panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
       const rows = data.tensors || [];
       clear(panel);
 

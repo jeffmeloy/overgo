@@ -690,6 +690,15 @@ derived from the server, not from client configuration:
   its one input, so the record is the store's, never a second copy. The
   journey reloads the page after generating an image and finds it first
   in the rail, then opens its record.
+- **Regenerate and vary.** A media card behind a run offers "regenerate"
+  and "vary": both read the run's stored request document and resubmit it
+  to the capability that made it, unchanged or with a fresh seed, so page
+  state plays no part in the request. The new card names its parent. An
+  unchanged request answers with the same output artifact, since the
+  runtime keys the run by the request document, and the card says the
+  store memoized it. A request without a declared seed control cannot be
+  varied and the card says so. The journey varies the oscillator image
+  from its record and regenerates it to the memoized output.
 - **Media back in.** Every media card offers "use as input": the artifact's
   bytes re-enter the composer as a file of their own kind, accepted or
   refused by the served capability like any attachment. When the chosen

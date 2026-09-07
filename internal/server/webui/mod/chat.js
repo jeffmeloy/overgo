@@ -75,7 +75,29 @@
       const artifactField = (file) => { const slots = [...generation.fields.values()].filter((field) => field.control.type === "artifact");
         return slots.find((field) => file && field.control.media && file.type.startsWith(field.control.media + "/")) || slots[0]; };
       const thread = overgo.thread(panel, { reuse: (file, artifact) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file); },
-        marker: capabilities.remote ? "remote" : "" });
+        replay: replayRecord, marker: capabilities.remote ? "remote" : "" });
+      // replayRecord: a card's stored request (the run's input document) resubmitted to the capability
+      // that made it, unchanged or with a fresh seed; page state plays no part in the request.
+      async function replayRecord(event, label) {
+        if (controller) return;
+        controller = new AbortController();
+        composer.setBusy(true);
+        try {
+          if (!generation.capabilities) generation.capabilities = await overgo.api.get("/generation/capabilities");
+          const run = await overgo.api.get("/runs?id=" + encodeURIComponent(event.run));
+          const capability = generation.capabilities.find((item) => item.recipe === run.recipe && !item.refusal);
+          if (!capability) throw new Error("the capability that made it is no longer active");
+          if (!(run.inputs || []).length) throw new Error("the run records no request");
+          const request = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(run.inputs[0]));
+          if (label === "vary") {
+            if (!capability.controls.some((control) => control.name === "seed")) throw new Error("the request declares no seed to vary");
+            request.seed = crypto.getRandomValues(new Uint32Array(1))[0];
+          }
+          thread.add("user", label + " " + fmt.shortID(event.artifact));
+          await thread.consume(overgo.streams.replay(capability, request, controller.signal, event.artifact, label));
+        } catch (err) { thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err)); }
+        finally { controller = null; composer.setBusy(false); }
+      }
       overgo.stopTurn = () => { if (controller) controller.abort(); }; // the Escape key's stop, the composer's stop control's too
       const composer = overgo.composer(panel, {
         onSubmit: submit,
@@ -140,7 +162,7 @@
       // openRecord: a gallery output as a media card (use as input, stored-as) with the record that made
       // it: the run's request document as control/value rows, the run, and a download of the bytes.
       async function openRecord(item, run, name, url) {
-        const card = thread.mediaCard({ kind: overgo.mediaKind(item.descriptor.media_type), url, artifact: item.descriptor.id, mime: item.descriptor.media_type, bytes: item.descriptor.size, caption: name });
+        const card = thread.mediaCard({ kind: overgo.mediaKind(item.descriptor.media_type), url, artifact: item.descriptor.id, mime: item.descriptor.media_type, bytes: item.descriptor.size, caption: name, run: run.id });
         let request = {};
         try { if ((run.inputs || []).length) request = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(run.inputs[0])); }
         catch (err) { card.appendChild(overgo.errorBanner(overgo.friendlyError(err))); }

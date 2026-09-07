@@ -5,20 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-regenerate-from-record",
-      "title": "Regenerate and vary from the record (concept from Open-Generative-AI: regenerate, remix and seed variation from a result): a media card offers regenerate (the recorded request resubmitted unchanged, which the store memoizes to the same output, so the page says so) and vary (the recorded request with a fresh seed), both built from the operation's stored request rather than page state, with the new card naming its parent; a Go test pins the request replay and the journey varies an oscillator image",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Regenerate and vary from the record (concept from Open-Generative-AI: regenerate, remix and seed variation from a result): a media card offers regenerate (the recorded request resubmitted unchanged, which the store memoizes to the same output, so the page says so) and vary (the recorded request with a fresh seed), both built from the operation's stored request rather than page state, with the new card naming its parent; a Go test pins the request replay and the journey varies an oscillator image",
-          "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
       "id": "webui-artifact-lineage",
       "title": "Artifact lineage and next steps (concept from Open-Generative-AI: chained workflows image to video to lip sync with variants; overgo has the chain in the store's dependency records and the capabilities that accept each kind): a media card opens its lineage (the request that made it, the inputs it consumed, the outputs made from it) from the store's records, and offers as next steps every active capability whose declared inputs accept the artifact's kind, each opening the composer in that mode with the slot filled; a Go test pins the lineage listing and the next-step derivation, the journey continues an image into a clip",
       "owner": "professional_overgo_gui",

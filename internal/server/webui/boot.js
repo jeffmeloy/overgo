@@ -174,11 +174,7 @@
       } catch (err) {
         if (err && err.name === "AbortError") { if (handlers.onCancel) handlers.onCancel(); }
         else if (handlers.onError) handlers.onError(err);
-      } finally {
-        runButton.disabled = false;
-        cancelButton.style.display = "none";
-        controller = null;
-      }
+      } finally { runButton.disabled = false; cancelButton.style.display = "none"; controller = null; }
     };
   }
 
@@ -200,11 +196,7 @@
       try { await task(current.signal); }
       catch (err) { if (!err || err.name !== "AbortError") throw err; } finally { if (controller === current) controller = null; schedule(); }
     }
-    function start() {
-      if (active) return;
-      active = true;
-      if (!document.hidden) tick();
-    }
+    function start() { if (active) return; active = true; if (!document.hidden) tick(); }
     function stop() { active = false; cancel(); }
     document.addEventListener("visibilitychange", () => { cancel(); if (active && !document.hidden) tick(); });
     return { start, stop };
@@ -425,11 +417,7 @@
         servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
         document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || "";
       }
-    } catch (err) {
-      statusPill.textContent = "offline";
-      statusPill.className = "pill err";
-      dot("server-dot", "err", "server offline");
-    }
+    } catch (err) { statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); }
   }
 
   // The served model shows on every page as the banner pill; clicking it lists the servable models, and behind
@@ -482,11 +470,7 @@
       } catch (err) {
         window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: friendlyError(err) }));
         panel.replaceChildren(errorBanner(friendlyError(err)));
-      } finally {
-        clearInterval(timer);
-        button.disabled = false;
-        button.textContent = "serve";
-      }
+      } finally { clearInterval(timer); button.disabled = false; button.textContent = "serve"; }
     }
 
     modelPill.addEventListener("click", async () => {

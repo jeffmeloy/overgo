@@ -23,10 +23,30 @@
   // artifactOf: the artifact identity an artifact content URL names, for provenance.
   function artifactOf(url) { return new URL(url, location.origin).searchParams.get("id") || ""; }
 
-  // media: a generation result whose data[] carries artifact URLs.
-  async function* media(kind, result, caption) {
-    for (const item of (result && result.data) || []) yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url) };
+  // media: a generation result whose data[] carries artifact URLs; record names the run and
+  // capability behind them so a card can replay the stored request.
+  async function* media(kind, result, caption, record) {
+    for (const item of (result && result.data) || []) yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url), ...record };
     yield { type: "done" };
+  }
+
+  // run: one request of a declared capability through the generic run route, answered as the
+  // operation's outputs (artifact URLs) once it completes, or thrown as its failure.
+  async function run(capability, input, signal) {
+    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input }, { signal });
+    const completed = await overgo.waitOperation(accepted.operation, null, signal);
+    if (completed.state !== "completed") throw new Error(completed.failure || completed.state);
+    return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) };
+  }
+
+  // replay: the stored request of a record resubmitted (unchanged, or varied by the page) as a new
+  // run; each output names its parent, and one identical to the parent says the store memoized it.
+  async function* replay(capability, input, signal, parent, label) {
+    const completed = await run(capability, input, signal);
+    for await (const event of media(outputKind(capability.task), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
+      if (event.type === "media" && event.artifact === parent) event.caption += " — the same output: the store memoized the unchanged request";
+      yield event;
+    }
   }
 
   // generation: one run of a declared capability through the generic run route:
@@ -42,13 +62,11 @@
     const textControl = bodyControl(capability.controls);
     if (textControl) { input[textControl.name] = text; missing.delete(textControl.name); }
     if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
-    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input }, { signal });
-    const completed = await overgo.waitOperation(accepted.operation, null, signal);
-    if (completed.state !== "completed") { yield { type: "error", message: completed.failure || completed.state }; return; }
-    const outputs = (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) }));
-    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), { data: outputs }, text); return; }
+    let completed;
+    try { completed = await run(capability, input, signal); } catch (err) { if (err.name === "AbortError") throw err; yield { type: "error", message: err.message }; return; }
+    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
     // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
-    for (const output of outputs) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
+    for (const output of completed.data) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
     yield { type: "done" };
   }
 
@@ -75,6 +93,7 @@
   // options.reuse(file): media output -> next turn's input; options.marker: tag on every assistant turn ("remote"). ----
   function thread(host, options) {
     const reuse = options && options.reuse;
+    const replay = options && options.replay; // replay(event, "regenerate" | "vary"): the page resubmits the card's stored request
     const log = el("div", { class: "chat-log" });
     host.appendChild(log);
     const messages = [];
@@ -159,9 +178,11 @@
           reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }), event.artifact);
         } catch (err) { errorRow(overgo.friendlyError(err)); }
       } }) : null;
+      // A card behind a run replays its stored request: unchanged, or with a fresh seed.
+      const replays = replay && event.run ? ["regenerate", "vary"].map((label) => el("button", { class: "btn alt", text: label, onclick: () => replay(event, label) })) : [];
       const card = el("div", { class: "artifact msg media" }, player,
         el("div", { class: "note" }, [event.caption, facts.join(" · ")].filter(Boolean).join(" — "),
-          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again));
+          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again, ...replays));
       log.appendChild(card);
       scroll();
       return card;
@@ -431,7 +452,7 @@
 
   overgo.thread = thread;
   overgo.composer = composer;
-  overgo.streams = { reply, media, responses };
+  overgo.streams = { reply, media, responses, replay };
   overgo.userLine = userLine;
   overgo.generate = generate;
   overgo.bodyControl = bodyControl;

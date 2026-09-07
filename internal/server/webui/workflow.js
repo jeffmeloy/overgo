@@ -41,11 +41,7 @@
     };
   }
 
-  function restart() {
-    if (streamController) streamController.abort();
-    streamController = null;
-    if (subscribers.size) connect();
-  }
+  function restart() { if (streamController) streamController.abort(); streamController = null; if (subscribers.size) connect(); }
 
   window.overgo.runtimeEvents = { subscribe, restart };
   // controlInputs renders a capability's declared controls into host: one

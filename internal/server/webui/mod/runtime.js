@@ -179,11 +179,7 @@
 
 	  activityView = (name, value) => {
 		if (name === "runtime.activity") render(value);
-		if (name === "operation.snapshot") {
-		  current.clear();
-		  for (const item of value) current.set(item.id, item);
-		  renderOperations();
-		}
+		if (name === "operation.snapshot") { current.clear(); for (const item of value) current.set(item.id, item); renderOperations(); }
 		if (name === "operation") { current.set(value.status.id, value.status); renderOperations(); }
 		if (name === "stream.error") error.replaceChildren(overgo.errorBanner(overgo.friendlyError(value)));
 	  };

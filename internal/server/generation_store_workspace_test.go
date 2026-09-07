@@ -238,6 +238,21 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 		t.Fatalf("request record = %+v, %v", request, err)
 	}
 	t.Logf("generated %s from %s: %d bytes; request record %s", descriptor.ID, oscillator.Name, descriptor.Size, request.Schema)
+	// Replay: the recorded request resubmitted unchanged answers with the
+	// same output behind the same request document (a page's regenerate),
+	// and the request with another seed answers with a different output.
+	replayed, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424242}`), reporter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := requireRecordedRequest(ctx, store, replayed.Run)
+	if err != nil || again.ID != request.ID || replayed.Outputs[0] != completion.Outputs[0] {
+		t.Fatalf("replay = %+v request %s, %v; want output %s behind %s", replayed, again.ID, err, completion.Outputs[0], request.ID)
+	}
+	varied, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424243}`), reporter)
+	if err != nil || varied.Outputs[0] == completion.Outputs[0] {
+		t.Fatalf("varied = %+v, %v", varied, err)
+	}
 }
 
 // requireRecordedRequest reads the one input a generation run cites and

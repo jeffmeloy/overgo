@@ -169,11 +169,7 @@
           const query = new URLSearchParams({ limit: String(limit) });
           if (cursor) query.set("cursor", cursor);
           data = await overgo.api.get("/runs?" + query);
-        } catch (err) {
-          const message = err.status === 501 ? "Run browsing is not configured." : overgo.friendlyError(err);
-          host.replaceChildren(overgo.errorBanner(message));
-          return;
-        }
+        } catch (err) { const message = err.status === 501 ? "Run browsing is not configured." : overgo.friendlyError(err); host.replaceChildren(overgo.errorBanner(message)); return; }
         nextCursor = data.next || "";
         const first = data.count === 0 ? 0 : start + 1;
         const last = start + data.runs.length;

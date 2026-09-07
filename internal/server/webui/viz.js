@@ -5,11 +5,7 @@
   "use strict";
   const NS = "http://www.w3.org/2000/svg";
   let legendSeq = 0; // unique gradient ids so multiple legends never collide
-  function svg(tag, attrs) {
-    const node = document.createElementNS(NS, tag);
-    for (const name in attrs) node.setAttribute(name, attrs[name]);
-    return node;
-  }
+  function svg(tag, attrs) { const node = document.createElementNS(NS, tag); for (const name in attrs) node.setAttribute(name, attrs[name]); return node; }
 
   // sparkline: one straight segment per adjacent measured pair, scaled to [0, max]; an optional
   // reference value (ln(vocab) for entropy) is drawn as a dashed ceiling, no curve fitting.
@@ -121,11 +117,7 @@
   }
 
   // shortLabel: truncate a tick label so axis ticks stay legible.
-  function shortLabel(text, keep) {
-    text = String(text == null ? "" : text);
-    keep = keep || 7;
-    return text.length > keep ? text.slice(0, keep - 1) + "…" : text;
-  }
+  function shortLabel(text, keep) { text = String(text == null ? "" : text); keep = keep || 7; return text.length > keep ? text.slice(0, keep - 1) + "…" : text; }
 
   // colorScaleLegend: the value→color key for a heatmap. Reads the SAME ramp()
   // the cells use (sampled as gradient stops) with min/mid/max ticks, so a reader

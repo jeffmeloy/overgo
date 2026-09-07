@@ -12,11 +12,7 @@
       let data;
       try {
         data = await overgo.modelInfo();
-      } catch (err) {
-        clear(panel);
-        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
+      } catch (err) { clear(panel); panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
       const m = data.model, d = data.derived;
       clear(panel);
 

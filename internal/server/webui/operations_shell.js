@@ -75,11 +75,7 @@
     } catch (err) { renderDetailError(host, err); }
   }
 
-  function renderDetailError(host, err) {
-    const detail = host.lastElementChild;
-    detail.hidden = false;
-    detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-  }
+  function renderDetailError(host, err) { const detail = host.lastElementChild; detail.hidden = false; detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
 
   // tail: the live event tail of one operation, newest last, each event time-stamped here.
   function tail(id) {

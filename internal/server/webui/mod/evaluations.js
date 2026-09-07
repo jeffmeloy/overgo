@@ -89,11 +89,7 @@
 
       let baseline = null;
       async function compare(entry) {
-        if (!baseline) {
-          baseline = entry;
-          status.textContent = "baseline / " + fmt.shortID(entry.evaluation);
-          return;
-        }
+        if (!baseline) { baseline = entry; status.textContent = "baseline / " + fmt.shortID(entry.evaluation); return; }
         try {
           const comparison = await api.get("/evaluations/compare?left=" + encodeURIComponent(baseline.evaluation) +
             "&right=" + encodeURIComponent(entry.evaluation));
@@ -132,11 +128,7 @@
           const completed = await overgo.waitOperation(operation, renderOperation);
           renderOperation(completed);
           await loadHistory();
-        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally {
-          operation = null;
-          run.disabled = false;
-          cancel.style.display = "none";
-        }
+        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.style.display = "none"; }
       });
       model.addEventListener("change", () => { renderCapabilities(); loadHistory(); });
       renderCapabilities();

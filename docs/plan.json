@@ -1,95 +1,243 @@
 {
-  "campaign": "Structural GUI redesign (owner 2026-09-07): a flat, conversation-first interface with no card-based layout; reachable send/stop, compact model selection, mobile navigation drawer, settings on demand and relevant status only. Work exclusively in professional_overgo_gui.",
-  "doctrine": "Owner direction 2026-09-07 supersedes the old card and metadata-led design. Work exclusively in professional_overgo_gui; do not integrate into master without separate authorization. Build a flat conversation surface with a bounded message area, reachable send and stop, one compact model selector with explicit details, a mobile navigation drawer, settings on demand, and status only for progress, failures or required actions. Preserve workbench capabilities. The GUI remains an embedded same-origin thin client with no build step or external assets; durable interaction and run records remain server-owned. Verify user tasks in a real browser across desktop, narrow phones, reduced viewport height and both themes. Source-size counts are review information; retain central transport, security and behavior checks. Commit through the plan-bound gate. The retained master-owned rows are protected base identities and are outside this worktree task.",
+  "campaign": "GUI capability roadmap: flat conversation workflow, reliable execution controls and verified mobile use",
+  "doctrine": "Owner 2026-09-07: merge master into professional_overgo_gui, optimize this plan, then stop. This turn authorizes merge/replan only; queued feature rows require a later resume. Do not merge the GUI into master without separate owner approval.\n\nPreserve the accepted conversation-first design: flat messages/lists/separators, no cards, independently scrolling messages, reachable Send/Stop, one compact model selector with explicit details, mobile navigation drawer, Settings on demand and status only for relevant work/failure/required action. Retain the existing workbench and embedded same-origin client, CSP and authenticated shared transport; no new framework, external asset dependency or parallel state backend. Apply Impeccable guidance to clarity, focus, typography and touch behavior.\n\nPrioritize preventing lost work and stopping the correct execution before adding navigation and convenience features. Responses, lineage, operations, artifacts and decisions remain owned by the server; browser drafts/settings are scoped to conversation and recipe and exclude secrets. Distinguish explicit Stop from disconnect, resume from retry, and branch creation from mutation. Reuse master's transaction-scoped store/workbench owners, durable evidence handles, physical-resource admission and abandoned-admission recovery.\n\nThe existing 1dd62c8f fixes and browser tests remain regression floors. New named tests in future rows are implementation obligations, not present evidence. Require assertions on actual user actions and request/terminal state, not screenshots or builds alone. Use fixtures for focused tests and the full model lane for final signoff. Scope OVERGO_DATA_ROOT to commands needing canonical fixtures. Full gates covering inherited audio/corpus acceptance use OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store as the existing read-only reference; keep source changes in this GUI worktree. Chromium emulation does not satisfy physical-device/Safari/screen-reader acceptance; record missing hardware or supported modality evidence as outstanding. Do not reintroduce arbitrary source-size ceilings in place of functional checks.\n\nThis is the sole live plan for this worktree. Only professional_overgo_gui-owned rows are local work. Retained master-owned identities are external coordination references, not a copy of master's current execution queue: master at b7b689c7 owns validation-batch promotion, E4B validation, model regression, memory/decode work, benchmarks, native audio and final model acceptance. Preserve their existing step identities, dependencies and verifier lower bounds; reconcile their historical detail in master before execution. The 27B full benchmark remains operator-launched. Gate commits through the existing plan owner; completed work belongs in Git/OvergoDB, and owner stop conditions persist.",
   "lane": "professional_overgo_gui",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
       "id": "webui-polish-tabs",
-      "title": "Conversation and media reliability: fix Markdown fences that can freeze rendering, scope in-flight recovery to its conversation, dispose remounted chat work, await attachment reading and validation, respect IME composition, authenticate media and download requests, and permit the media schemes used by the client. Pin each failure with executable browser or protocol regression tests.",
+      "title": "Make Stop cancel server execution and recover interrupted conversations safely",
       "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Conversation and media reliability: fix Markdown fences that can freeze rendering, scope in-flight recovery to its conversation, dispose remounted chat work, await attachment reading and validation, respect IME composition, authenticate media and download requests, and permit the media schemes used by the client. Pin each failure with executable browser or protocol regression tests.",
+          "title": "Make Stop cancel server execution and recover interrupted conversations safely",
           "status": "open",
-          "verify": "go build ./..."
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserConversationControl$' -count=1 -timeout=2m \u0026\u0026 OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserReliability$' -count=1 -timeout=2m \u0026\u0026 go build ./...",
+          "rationale": "Preserve the Markdown, attachment, IME, authenticated-media and conversation-isolation fixes accepted in 1dd62c8f. Remaining gap: composer Stop aborts fetch, while stored response generation uses context.WithoutCancel and survives disconnects. Reuse the existing response/operation owner to distinguish explicit cancellation from transport loss. Stop must cancel the correct execution and persist a truthful terminal state; disconnection must offer resume without duplicate generation or text. Keep failed prompts available and make retries explicit. Add TestWebUIBrowserConversationControl using stored=true and a controlled generator; assert generator cancellation, repeated-stop idempotence, disconnect/follow, expired responses, request count and model/conversation isolation."
+        }
+      ]
+    },
+    {
+      "id": "gui-draft-lifecycle",
+      "title": "Preserve drafts and settings through navigation, reload and model changes",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Preserve drafts and settings through navigation, reload and model changes",
+          "status": "open",
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserDraftLifecycle$' -count=1 -timeout=2m",
+          "rationale": "Chat mount rebuilds the composer and generation settings; unsent text is not persisted. Save text and supported generation settings per conversation/new-chat draft, validate settings against the selected recipe, and restore them across navigation, reload and model remount. Keep model selection pending until the new composer is usable; prevent stale async mounts and cross-model continuation. State clearly when browser file handles require reattachment. Do not put API keys or attachment bytes in draft storage; retain explicit credential persistence controls. Add TestWebUIBrowserDraftLifecycle for rapid navigation, reload, a delayed/failed swap, Settings focus, per-model limits and unavailable storage.",
+          "depends_on": [
+            "webui-polish-tabs/do"
+          ]
         }
       ]
     },
     {
       "id": "gui-redesign-acceptance",
-      "title": "Structural GUI acceptance: after functionality is verified, review C:\\Users\\jeffm\\impeccable read-only and apply relevant visual and interaction guidance within professional_overgo_gui. Retain the flat no-card direction. Exercise composing, long replies, stopping, reopening conversations, changing models, settings and Library navigation on narrow phones, reduced viewport heights and desktop in both themes. Capture and inspect real working surfaces. Leave master integration pending separate authorization.",
+      "title": "Harden mobile layout, keyboard and accessible conversation controls",
+      "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Structural GUI acceptance: after functionality is verified, review C:\\Users\\jeffm\\impeccable read-only and apply relevant visual and interaction guidance within professional_overgo_gui. Retain the flat no-card direction. Exercise composing, long replies, stopping, reopening conversations, changing models, settings and Library navigation on narrow phones, reduced viewport heights and desktop in both themes. Capture and inspect real working surfaces. Leave master integration pending separate authorization.",
+          "title": "Harden mobile layout, keyboard and accessible conversation controls",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane"
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserMobileInteraction$' -count=1 -timeout=2m",
+          "rationale": "The flat redesign, Impeccable review, Chromium geometry checks and 104 screen states were accepted in 1dd62c8f. Remaining work covers keyboard/orientation changes, safe areas, zoom, paste/upload, long code/tables, dialogs/drawer focus and announced streaming/errors. Preserve the reading position during streamed replies; follow only when already at the bottom, and provide a reachable Jump to latest action after scrolling away. Use Impeccable Operate/Distill guidance without reintroducing cards or permanent status chrome. Add TestWebUIBrowserMobileInteraction. Add an opt-in TestGUIMobileDeviceEvidence in the existing server test suite to validate source-referenced device/browser/version/case results and captures; its explicit evidence command must fail for missing/incomplete results. Physical-device signoff is the separate operator row, so unavailable hardware does not block independent GUI work. The evidence validator emits 'physical mobile evidence leg' only after validating complete results; keep it outside the default browser test prefix so it runs only under explicit device/final signoff.",
+          "depends_on": [
+            "gui-draft-lifecycle/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-conversation-navigation",
+      "title": "Find, reopen and restore conversations from a compact history list",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find, reopen and restore conversations from a compact history list",
+          "status": "open",
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserConversationNavigation$' -count=1 -timeout=2m",
+          "rationale": "The current rail lists unarchived conversations and offers rename/archive, but no search or archive restoration. Reuse /interactions and /interactions/label, add accessible search and an archived view with Restore, and give rename/load failures actionable feedback. Extend the owning server query with pagination or search only as needed to avoid silently truncated history; preserve full root/latest/model identity and stable selection. Keep a flat list in the mobile drawer. Add TestWebUIBrowserConversationNavigation for histories exceeding one page, duplicate titles, search-empty/error states, archive/restore, keyboard selection and model-aware reopening.",
+          "depends_on": [
+            "gui-draft-lifecycle/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-conversation-actions",
+      "title": "Edit, retry, regenerate and export conversation turns without losing their history",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Edit, retry, regenerate and export conversation turns without losing their history",
+          "status": "open",
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserConversationActions$' -count=1 -timeout=2m",
+          "rationale": "Reuse stored response lineage and previous_response_id. Add explicit edit-and-resend and assistant regeneration that create identifiable branches rather than overwriting durable messages; expose branch selection where required. Provide copy and Markdown export for the selected conversation with clear attachment references. Prevent duplicate submissions and preserve the original on failed regeneration. Do not confuse retry after a refused request with resuming an already running response. Add TestWebUIBrowserConversationActions covering lineage, branch reopening, model compatibility, stop/retry, clipboard failure and exported content.",
+          "depends_on": [
+            "webui-polish-tabs/do",
+            "gui-conversation-navigation/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-attachment-workflow",
+      "title": "Make attachment intake and modality controls usable on a phone",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make attachment intake and modality controls usable on a phone",
+          "status": "open",
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserAttachmentWorkflow$' -count=1 -timeout=2m",
+          "rationale": "Retain the accepted decoding waits, file refusals, authenticated previews/downloads and generated-media reuse. Extend the same composer with clear per-file read/upload/progress/refusal states, retry/remove actions, capability-driven input guidance and bounded previews. Keep declared media controls reachable above the composer without consuming the conversation; use native phone file/media pickers and expose only declared modalities. Preserve media/recipe identity through reuse and model changes. Add TestWebUIBrowserAttachmentWorkflow for multi-file selection, paste, rejected/corrupt files, upload failure/cancel, protected media and phone keyboard-height layout.",
+          "depends_on": [
+            "gui-draft-lifecycle/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-background-work",
+      "title": "Keep conversation and workbench actions responsive during background work",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep conversation and workbench actions responsive during background work",
+          "status": "open",
+          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserBackgroundWork$' -count=1 -timeout=2m \u0026\u0026 go test ./internal/server -run '^TestWorkbenchTransactionWriter$' -count=1",
+          "rationale": "Master b7b689c7 adds transaction-scoped workbench/store access and retained evidence handles. Build on those owners: Library intake, generation and model switching must coexist with reading/composing and show accurate state when another process commits or an action fails. Preserve draft and selection through catalog refreshes. Use one compact user-relevant activity entry with result navigation, cancellation or required action; keep idle operational space absent. Reuse existing operation routes and durable receipts. Add TestWebUIBrowserBackgroundWork with held operations and concurrent store updates to prove navigation/composing remain available, failures recover, and completed outputs remain findable. The plan-commit browser run exposed a concurrent GPU reservation as a generic child-server startup failure. Surface resource contention as a clear busy/wait/retry state, preserve the draft and model selection, and put technical diagnostics behind explicit details. Add a controlled busy-admission case; never bypass resource ownership.",
+          "depends_on": [
+            "webui-polish-tabs/do",
+            "gui-draft-lifecycle/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-capability-signoff",
+      "title": "Accept the complete conversation workflow on the merged GUI worktree",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Accept the complete conversation workflow on the merged GUI worktree",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/professional_overgo_gui OVERGO_GUI_MOBILE_EVIDENCE=docs/gui/mobile-device-evidence.json go run ./cmd/webui-lane -run '^(TestWebUIBrowser|TestGUIMobileDeviceEvidence)' -require 'conversation control leg' -require 'draft lifecycle leg' -require 'mobile interaction leg' -require 'conversation navigation leg' -require 'conversation actions leg' -require 'attachment workflow leg' -require 'background work leg' -require 'physical mobile evidence leg'",
+          "rationale": "Each preceding browser test must emit its named journey marker after asserting behavior. Run the full real-model lane once for this acceptance, inspect desktop/phone light/dark captures and verify the real-device evidence. Include cold start, model/key setup, multi-turn chat, stop/disconnect/recovery, reload, history/branches, attachment reuse and Library/background operations. Keep credentials and model metadata out of the primary conversation. Report tested models, browsers, devices and unsupported/missing modality cases explicitly; missing supported evidence cannot count as complete.",
+          "depends_on": [
+            "webui-polish-tabs/do",
+            "gui-draft-lifecycle/do",
+            "gui-redesign-acceptance/do",
+            "gui-conversation-navigation/do",
+            "gui-conversation-actions/do",
+            "gui-attachment-workflow/do",
+            "gui-background-work/do",
+            "gui-device-signoff/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-device-signoff",
+      "title": "Record real iOS/Android and assistive-technology acceptance",
+      "owner": "operator",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record real iOS/Android and assistive-technology acceptance",
+          "status": "open",
+          "verify": "OVERGO_GUI_MOBILE_EVIDENCE=docs/gui/mobile-device-evidence.json go test ./internal/server -run '^TestGUIMobileDeviceEvidence$' -count=1",
+          "rationale": "With actual hardware/operator participation, exercise iOS Safari and Android Chrome: software keyboard, orientation, safe areas, zoom, attachments, long replies, stop/recovery, drawer/Settings focus, and screen-reader announcements. Record browser/device versions, exact cases, observations and captures in the evidence file consumed by the validator implemented under gui-redesign-acceptance. Missing hardware or failures remain outstanding; Chromium emulation is not physical-device evidence. This step grants no permission to merge into master.",
+          "depends_on": [
+            "gui-redesign-acceptance/do"
+          ]
         }
       ]
     },
     {
       "id": "integrate-to-master",
-      "title": "Integrate the settled lane into master preserving master's plan: master merges the lane head from its own worktree (as merge-6ad5668fabed did at 5752876c) with the owner's go-ahead and master's docs/plan.json untouched; the lane never writes master and never takes master's rows; the row closes when master's head contains the lane's last landed row and the lane has merged that master back",
-      "owner": "professional_overgo_gui",
+      "title": "Publish the accepted GUI to master only after separate owner approval",
+      "owner": "operator",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Integrate the settled lane into master preserving master's plan: master merges the lane head from its own worktree (as merge-6ad5668fabed did at 5752876c) with the owner's go-ahead and master's docs/plan.json untouched; the lane never writes master and never takes master's rows; the row closes when master's head contains the lane's last landed row and the lane has merged that master back",
+          "title": "Publish the accepted GUI to master only after separate owner approval",
           "status": "open",
-          "verify": "go build ./..."
-        }
-      ]
-    },
-    {
-      "id": "long-context-collapse",
-      "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
-      "owner": "master",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Long-context collapse past 4096 tokens (owner rule 2026-09-04: fix speed and accuracy before a full run): the long-form ladder of 2026-09-04 read Qwen2.5-0.5B at rung 8192 decoding 9 tokens at 2.1 tok/s with the true continuation's NLL at 6.69 under the long context against 3.45 under the short (gain -3.2), and at rung 16384 decoding at 1.0 tok/s with gain -3.1, where rungs 1024 to 4096 decode at 125 to 295 tok/s with positive gain; find the path the decode takes past 4096 tokens of context (cache paging, the decode attention kernel's key extent, the causal prefill span) with a profile of the ladder, fix it, and climb the ladder again on the 0.5B and the E4B as the verify",
-          "status": "open",
-          "verify": "go test ./internal/longform -count=1"
+          "verify": "git merge-base --is-ancestor HEAD master \u0026\u0026 go build ./...",
+          "rationale": "This request authorizes master into the GUI worktree only. A future operator-approved integration must preserve master's plan, pin the approved GUI revision, verify that master contains it, then synchronize this lane. Bind the exact approved revision and merge checks before execution.",
+          "depends_on": [
+            "gui-capability-signoff/do"
+          ]
         }
       ]
     },
     {
       "id": "audio-staged-surface",
-      "title": "Carry master's OpenAudioStream staged declaration: the lane's staged surface binds to this row while master's modality-verification/native-audio-streaming-intake step decides whether a landed native streaming consumer accepts the surface or the unused surface is removed; the row closes when the entry is gone from the merged tree",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Carry master's OpenAudioStream staged declaration: the lane's staged surface binds to this row while master's modality-verification/native-audio-streaming-intake step decides whether a landed native streaming consumer accepts the surface or the unused surface is removed; the row closes when the entry is gone from the merged tree",
-          "status": "open",
-          "verify": "test 0 -eq $(grep -c OpenAudioStream docs/staged_surface.json)"
-        }
-      ]
-    },
-    {
-      "id": "gemma-12b-accuracy",
-      "title": "Chat-shaped long-form rung (owner rule 2026-09-04: long-form output verification): the raw-continuation NLL of the instruction-tuned gemma-4-12B twins (6.94, 6.97 nat/token against the E4B's 4.21) is the model answering the document instead of continuing it, its greedy output an assistant synthesis of the README, so the raw shape cannot judge a chat model's long-form output; the long-form run adds, for every model that declares a chat template, one chat-shaped generation at the judged rung (the rung's text as the user turn with an instruction to continue it, the model turn opened, thinking off, 256 greedy tokens) and records its text, distinct 4-gram ratio, longest repeated span, decode tok/s and the teacher-forced NLL of the text's own continuation under that framing; the chat-shaped NLL is recorded beside the raw one, the fingerprint compares both, and the floors stay as declared",
+      "title": "Coordinate the inherited OpenAudioStream declaration with master's native audio consumer",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Chat-shaped long-form rung (owner rule 2026-09-04: long-form output verification): the raw-continuation NLL of the instruction-tuned gemma-4-12B twins (6.94, 6.97 nat/token against the E4B's 4.21) is the model answering the document instead of continuing it, its greedy output an assistant synthesis of the README, so the raw shape cannot judge a chat model's long-form output; the long-form run adds, for every model that declares a chat template, one chat-shaped generation at the judged rung (the rung's text as the user turn with an instruction to continue it, the model turn opened, thinking off, 256 greedy tokens) and records its text, distinct 4-gram ratio, longest repeated span, decode tok/s and the teacher-forced NLL of the text's own continuation under that framing; the chat-shaped NLL is recorded beside the raw one, the fingerprint compares both, and the floors stay as declared",
+          "title": "Coordinate the inherited OpenAudioStream declaration with master's native audio consumer",
           "status": "open",
-          "verify": "go test ./internal/longform -count=1"
+          "verify": "test 0 -eq $(grep -c OpenAudioStream docs/staged_surface.json)",
+          "rationale": "The declaration remains in docs/staged_surface.json. Master b7b689c7 explicitly retains modality-verification/native-audio-streaming-intake. Its consumer/retirement decision owns this obligation; the GUI lane must not invent or remove the native API independently."
+        }
+      ]
+    },
+    {
+      "id": "long-context-collapse",
+      "title": "Master reference: long-context correctness and throughput; reconcile with decode-attention-per-key-cost and device-memory-retention",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Master reference: long-context correctness and throughput; reconcile with decode-attention-per-key-cost and device-memory-retention",
+          "status": "open",
+          "verify": "go test ./internal/longform -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        }
+      ]
+    },
+    {
+      "id": "gemma-12b-accuracy",
+      "title": "Master reference: evaluate Gemma instruction models with chat-shaped and matched-checkpoint evidence",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Master reference: evaluate Gemma instruction models with chat-shaped and matched-checkpoint evidence",
+          "status": "open",
+          "verify": "go test ./internal/longform -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
     {
       "id": "benchmark-completion",
-      "title": "Complete the pinned benchmark set for every text model, all suites except MATH",
+      "title": "Master reference: complete MMLU-Pro and published/local-oracle comparisons; MATH excluded and the 27B full pass operator-owned",
       "owner": "master",
       "status": "open",
       "steps": [
@@ -98,7 +246,7 @@
           "title": "Record MMLU-Pro (12032 cases) for every servable text model under both protocols, smallest first; the 27B runs as its own operator-launched pass with -budget 3h",
           "status": "open",
           "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "MMLU-Pro is the suite the model cards report, so it is the comparison that matters; it is also the largest, and the 27B at about 0.7 s per case needs over two hours. The 27B pass is launched by the owner, never unattended by the loop, and the smaller models complete first.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. MMLU-Pro is the suite the model cards report, so it is the comparison that matters; it is also the largest, and the 27B at about 0.7 s per case needs over two hours. The 27B pass is launched by the owner, never unattended by the loop, and the smaller models complete first.",
           "depends_on": [
             "benchmark-completion/dna-pass"
           ]
@@ -108,7 +256,7 @@
           "title": "Compare every recorded suite against its declared published references and the local lm-eval oracle runs, extend the reference declarations to every model that has a model card, and regenerate docs/BENCHMARK.md with a per-model comparison section",
           "status": "open",
           "verify": "go run ./cmd/benchmark-report -check",
-          "rationale": "A benchmark number without its reference is a bare fact; the references are store declarations with sources and protocols, and the report prints measured beside published with the protocol difference in view. MATH stays excluded and the report says so.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. A benchmark number without its reference is a bare fact; the references are store declarations with sources and protocols, and the report prints measured beside published with the protocol difference in view. MATH stays excluded and the report says so.",
           "depends_on": [
             "benchmark-completion/mmlu-pro-pass"
           ]
@@ -117,35 +265,37 @@
     },
     {
       "id": "model-regression-gate",
-      "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects longform -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise, one model per weight type at most; inapplicable, never skipped, for commits outside execution code. The structure-budget test (internal/repoanalysis TestStructureBudgetRatchets, 3 s) runs unconditionally in the gate's test step: it caught the executor.go overrun the fp8 gate missed",
+      "title": "Master reference: acquire complete regression coverage and select the model guard for execution changes",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Gate selection of the model regression check (owner rule 2026-09-04): the code manifest selects longform -check when execution code changes (internal/cuda, internal/tensor, internal/inference, internal/model, internal/gguf, internal/quant, kernels/), on the exclusive device resource ahead of the device lane, scoped to the servable models whose recipes carry a weight type the changed kernels serve when the kernel manifest proves that scope and to the full servable set otherwise, one model per weight type at most; inapplicable, never skipped, for commits outside execution code. The structure-budget test (internal/repoanalysis TestStructureBudgetRatchets, 3 s) runs unconditionally in the gate's test step: it caught the executor.go overrun the fp8 gate missed",
+          "title": "Master reference: acquire complete regression coverage and select the model guard for execution changes",
           "status": "open",
-          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1"
+          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
     {
       "id": "model-regression-baseline",
-      "title": "Record the regression fingerprints for every servable text model from the clean evidence worktree (owner rule 2026-09-04; both shapes, smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind longform -check as this row's verify through -setverify once the evidence identities exist",
+      "title": "Master reference: accept full-catalog quality, throughput and memory regression baselines",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Record the regression fingerprints for every servable text model from the clean evidence worktree (owner rule 2026-09-04; both shapes, smallest first, 27B last, inside -budget), fold perf-sweep's wall and peak-device baseline (docs/performance_sweep_baseline.json) into the same evidence so one check owns model-level regression, and bind longform -check as this row's verify through -setverify once the evidence identities exist",
+          "title": "Master reference: accept full-catalog quality, throughput and memory regression baselines",
           "status": "open",
-          "verify": "go run ./cmd/model-regress -check -repo overgodb-store"
+          "verify": "go run ./cmd/model-regress -check -repo overgodb-store",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
     {
       "id": "modality-verification",
-      "title": "Verify every registered model's activated modalities against a declared expectation",
+      "title": "Master reference: finish E4B's complete modality bundle, then verify the remaining declared model capabilities and reports",
       "owner": "master",
       "status": "open",
       "steps": [
@@ -154,7 +304,7 @@
           "title": "Publish the capability census: every registered model with its activated tasks, evidence tier, staleness, and on-disk presence, as a store record and a generated table",
           "status": "open",
           "verify": "go run ./cmd/overgodb-query -repo overgodb-store -verifications",
-          "rationale": "The catalog holds about 28 models across 9 tasks and the verification matrix names 5; the census is the denominator every following row reports against. A stale activation is listed as stale, never dropped.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. The catalog holds about 28 models across 9 tasks and the verification matrix names 5; the census is the denominator every following row reports against. A stale activation is listed as stale, never dropped.",
           "depends_on": [
             "benchmark-completion/published-comparison"
           ]
@@ -164,7 +314,7 @@
           "title": "Replace the non-empty-output smoke oracle with a declared expectation per model: an instruct model gets a chat probe with a substring oracle, a base model a likelihood floor, a domain model its domain probe; a model without a declaration is reported unverified",
           "status": "open",
           "verify": "go run ./cmd/smoke-lane",
-          "rationale": "The verified-matrix row overclaimed correctness on a liveness check; a fix surfaced by the drill is admitted under the correct-as-you-go directive. The lane's exit code is the verdict and its audit line names every model that ran without an expectation.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. The verified-matrix row overclaimed correctness on a liveness check; a fix surfaced by the drill is admitted under the correct-as-you-go directive. The lane's exit code is the verdict and its audit line names every model that ran without an expectation.",
           "depends_on": [
             "modality-verification/capability-census"
           ]
@@ -174,7 +324,7 @@
           "title": "Verify the chat, embedding, rerank, and vision-language activations (Qwen, gemma-4, MiniCPM, Qwen3-VL, SenseNova) through smoke-lane, cmd/embedding, cmd/rerank, and vqaparity or sensenovaparity with their declared oracles",
           "status": "open",
           "verify": "go run ./cmd/smoke-lane",
-          "rationale": "These are the largest activation group; each owner already exists and reports UNAVAILABLE when an oracle or fixture is missing. Bind the exact lane sequence with -setverify when the row starts.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. These are the largest activation group; each owner already exists and reports UNAVAILABLE when an oracle or fixture is missing. Bind the exact lane sequence with -setverify when the row starts.",
           "depends_on": [
             "modality-verification/declared-smoke-expectations"
           ]
@@ -184,7 +334,7 @@
           "title": "Verify the image and video generation activations (Krea-2-Turbo, SimpleDiffusion, Wan2.1-T2V, LiveEdit, Un-0 latent video) through the composite generation lane and latentvideo-run against the media verifier fixtures, exporting samples",
           "status": "open",
           "verify": "go run ./cmd/composite-generation-lane",
-          "rationale": "The media-gen campaign left measured phases, peaks, and verifier runs; this row re-runs them at the current commit so the media report reflects code that exists. Bind the exact lane sequence with -setverify when the row starts.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. The media-gen campaign left measured phases, peaks, and verifier runs; this row re-runs them at the current commit so the media report reflects code that exists. Bind the exact lane sequence with -setverify when the row starts.",
           "depends_on": [
             "modality-verification/text-and-vision"
           ]
@@ -194,7 +344,7 @@
           "title": "Verify the speech synthesis (pocket-tts), OCR (Unlimited-OCR, SenseNova infographic), tabular (tabular-train-probe), series forecast, and embodied (Hy-Embodied-RxBrain) activations through their owners, each against a declared oracle or reported unverified",
           "status": "open",
           "verify": "go run ./cmd/eval-lane",
-          "rationale": "These activations are the ones the memory notes as stale ('active recipe lacks verified evidence'); the row either verifies them at the current commit or records exactly which oracle is missing as a finding. Bind the exact owner sequence with -setverify when the row starts.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. These activations are the ones the memory notes as stale ('active recipe lacks verified evidence'); the row either verifies them at the current commit or records exactly which oracle is missing as a finding. Bind the exact owner sequence with -setverify when the row starts.",
           "depends_on": [
             "modality-verification/image-and-video"
           ]
@@ -204,7 +354,7 @@
           "title": "Regenerate docs/MEDIA_REPORT.md from the store's verification records and link the benchmark report from it, so one generated document summarizes every model's verified modalities and benchmark rows",
           "status": "open",
           "verify": "go run ./cmd/compatibility -check",
-          "rationale": "The report is generated by cmd/compatibility -update-media from store activations and verification claims; hand-written summaries are refused. Its check is the verdict that the document matches the store.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. The report is generated by cmd/compatibility -update-media from store activations and verification claims; hand-written summaries are refused. Its check is the verdict that the document matches the store.",
           "depends_on": [
             "modality-verification/speech-ocr-tabular-forecast"
           ]
@@ -213,7 +363,7 @@
     },
     {
       "id": "failure-recovery",
-      "title": "Deliberate failure and recovery drills carried over from phase 1",
+      "title": "Master reference: author rollout plans and prove control-plane and gate recovery",
       "owner": "master",
       "status": "open",
       "steps": [
@@ -222,7 +372,7 @@
           "title": "Add the rollout-plan authoring door (recipe rollout-plan: baseline, candidate, admission evidence, cohort evidence, rollback authority) that derives the cohort share and observation contract from the admission evidence, so rollout projection, quarantine re-entry, and live rollback have a committed plan to run against (finding c9c88020)",
           "status": "open",
           "verify": "go test ./internal/runrecord -run 'TestRolloutPlan' -count=1",
-          "rationale": "Three control-plane owners parse a committed rollout plan and no command authors one; the phase-1 drill stopped on this prerequisite. It is construction admitted under the correct-as-you-go directive because the drill cannot run without it.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. Three control-plane owners parse a committed rollout plan and no command authors one; the phase-1 drill stopped on this prerequisite. It is construction admitted under the correct-as-you-go directive because the drill cannot run without it.",
           "depends_on": [
             "modality-verification/media-report"
           ]
@@ -232,7 +382,7 @@
           "title": "Exercise circuit-breaker escalation, candidate quarantine and re-entry, rollback to the predecessor recipe, peer timeout and partial response, and workflow restart with persistent obligations",
           "status": "open",
           "verify": "go build ./cmd/loop ./cmd/agent-loop",
-          "rationale": "The control plane's refusal and recovery paths are capability claims like any other; each has an evidence door under cmd/loop and cmd/agent-loop. Bind the drill sequence via -setverify when it starts.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. The control plane's refusal and recovery paths are capability claims like any other; each has an evidence door under cmd/loop and cmd/agent-loop. Bind the drill sequence via -setverify when it starts.",
           "depends_on": [
             "failure-recovery/rollout-plan-author"
           ]
@@ -242,7 +392,7 @@
           "title": "Interrupt a gate run against a scratch clone and recover through -recover-preparation, -recover-interrupted, and the watchdog",
           "status": "open",
           "verify": "go build ./cmd/gate",
-          "rationale": "The gate is the most state-bearing process in the repository -- plan mutation, commit, and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. Bind the scripted drill via -setverify when it starts.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. The gate is the most state-bearing process in the repository -- plan mutation, commit, and store writes in one transaction -- and its recovery paths deserve the same drill as checkpoints. Bind the scripted drill via -setverify when it starts.",
           "depends_on": [
             "failure-recovery/control-plane-drills"
           ]
@@ -251,86 +401,91 @@
     },
     {
       "id": "simplify-prefill-paths",
-      "title": "Prefill-path unification (owner rule 2026-09-04, capability improvement by simplification): mul_mat prefill now has four paths (exact F32 staging with SGEMM, f16 staging with the tensor-core GEMM for quantized and fp8 weights, direct tensor-core for half-precision weights, the span kernels below the column floor); derive one prefill policy from the weight type, the column count and the measured parity bounds already committed, retire the exact F32 staged path and the per-type duplicates it leaves behind, and let the regression ladder show the prompt tok/s curve against context length on every servable model before and after, the curve recorded as evidence and quoted in the commit; a path may be retired only where the f16-staged parity bound already holds, and the fp8 12B's 1646 prompt tok/s against its bf16 twin's 2850 is the gap the unification is measured against",
+      "title": "Master reference: simplify prefill execution only where parity and regression evidence permit",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Prefill-path unification (owner rule 2026-09-04, capability improvement by simplification): mul_mat prefill now has four paths (exact F32 staging with SGEMM, f16 staging with the tensor-core GEMM for quantized and fp8 weights, direct tensor-core for half-precision weights, the span kernels below the column floor); derive one prefill policy from the weight type, the column count and the measured parity bounds already committed, retire the exact F32 staged path and the per-type duplicates it leaves behind, and let the regression ladder show the prompt tok/s curve against context length on every servable model before and after, the curve recorded as evidence and quoted in the commit; a path may be retired only where the f16-staged parity bound already holds, and the fp8 12B's 1646 prompt tok/s against its bf16 twin's 2850 is the gap the unification is measured against",
+          "title": "Master reference: simplify prefill execution only where parity and regression evidence permit",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1"
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
     {
       "id": "simplify-command-surface",
-      "title": "Command-surface fold (owner rule 2026-09-04, simplification): the nineteen single-purpose probe, lane and parity commands (the *-train-probe family, the *-lane family, sensenovaparity, vqaparity) fold into a train-probe command and a lane command with typed subcommands and the parity probes into eval-lane, each retired command's behavior reachable through the survivor and recorded as a move in the API manifest; a command-package ceiling enters docs/structure_budgets.json at the new count and only tightens; the plan, gate, loop and hook adapters keep their commands",
+      "title": "Master reference: consolidate probe/lane commands while retaining every behavior",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Command-surface fold (owner rule 2026-09-04, simplification): the nineteen single-purpose probe, lane and parity commands (the *-train-probe family, the *-lane family, sensenovaparity, vqaparity) fold into a train-probe command and a lane command with typed subcommands and the parity probes into eval-lane, each retired command's behavior reachable through the survivor and recorded as a move in the API manifest; a command-package ceiling enters docs/structure_budgets.json at the new count and only tightens; the plan, gate, loop and hook adapters keep their commands",
+          "title": "Master reference: consolidate probe/lane commands while retaining every behavior",
           "status": "open",
-          "verify": "go run ./cmd/preflight"
+          "verify": "go run ./cmd/preflight",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
     {
       "id": "simplify-execution-core",
-      "title": "Execution-core deduplication (owner rule 2026-09-04, simplification): lower the duplicate-excess ceiling in docs/clone_baseline.json by a reviewed, measured amount concentrated in internal/cuda and internal/inference (the launch-layout, staging and attention paths that grew by copy during the prefill rows), retire the executor.go 2400-line standing exception in docs/structure_budgets.json by decomposition, and bind the new ceiling as this row's verify through -setverify before work starts; the model regression check must hold on every servable model at every step, so the reduction is proven not to move a token or a rate",
+      "title": "Master reference: reduce CUDA/inference duplication and remove the executor size exception",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Execution-core deduplication (owner rule 2026-09-04, simplification): lower the duplicate-excess ceiling in docs/clone_baseline.json by a reviewed, measured amount concentrated in internal/cuda and internal/inference (the launch-layout, staging and attention paths that grew by copy during the prefill rows), retire the executor.go 2400-line standing exception in docs/structure_budgets.json by decomposition, and bind the new ceiling as this row's verify through -setverify before work starts; the model regression check must hold on every servable model at every step, so the reduction is proven not to move a token or a rate",
+          "title": "Master reference: reduce CUDA/inference duplication and remove the executor size exception",
           "status": "open",
-          "verify": "go run ./cmd/clone-census -summary -max-excess 10012"
+          "verify": "go run ./cmd/clone-census -summary -max-excess 10012",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
     {
       "id": "simplify-checkpoint-locations",
-      "title": "Checkpoint relocation (owner rule 2026-09-04, simplification): the servable checkpoints still resolve to paths under the retired adaptive_new tree; relocate them under overgo's models directory, re-record every model's location in the store through the existing location owner, retire the adaptive_new path from every baseline and fixture that names it, and prove the servable predicate holds for every model at its new location, so the living system no longer depends on the retired tree's disk layout",
+      "title": "Master reference: relocate checkpoints through recorded locations without losing model availability",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Checkpoint relocation (owner rule 2026-09-04, simplification): the servable checkpoints still resolve to paths under the retired adaptive_new tree; relocate them under overgo's models directory, re-record every model's location in the store through the existing location owner, retire the adaptive_new path from every baseline and fixture that names it, and prove the servable predicate holds for every model at its new location, so the living system no longer depends on the retired tree's disk layout",
+          "title": "Master reference: relocate checkpoints through recorded locations without losing model availability",
           "status": "open",
-          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable"
+          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
     {
       "id": "simplify-capability-report",
-      "title": "Capability-versus-mechanism report (owner rule 2026-09-04, simplification campaign close): a generated report sets the committed benchmark records and regression fingerprints (short shape, context ladder, capability sample) recorded before the simplification rows against those recorded after, beside the mechanism deltas the ratchets measure (duplicate-excess nodes, command packages, production lines, standing budget exceptions), so the campaign's claim that capability held or rose with less mechanism is a number, not a narrative; a row whose after-numbers fall below its before-numbers is listed as a regression finding, never averaged away",
+      "title": "Master reference: report measured capability and mechanism changes before and after simplification",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Capability-versus-mechanism report (owner rule 2026-09-04, simplification campaign close): a generated report sets the committed benchmark records and regression fingerprints (short shape, context ladder, capability sample) recorded before the simplification rows against those recorded after, beside the mechanism deltas the ratchets measure (duplicate-excess nodes, command packages, production lines, standing budget exceptions), so the campaign's claim that capability held or rose with less mechanism is a number, not a narrative; a row whose after-numbers fall below its before-numbers is listed as a regression finding, never averaged away",
+          "title": "Master reference: report measured capability and mechanism changes before and after simplification",
           "status": "open",
-          "verify": "go run ./cmd/benchmark-report -check"
+          "verify": "go run ./cmd/benchmark-report -check",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
     {
       "id": "campaign-closeout",
-      "title": "Close the campaign",
+      "title": "Master reference: publish the full campaign's accepted evidence and reports",
       "owner": "master",
       "status": "open",
       "steps": [
         {
           "id": "closeout",
-          "title": "Publish the campaign census evidence, bind it with plan -bind-census, record the final verification matrix and benchmark and media reports at the closing commit, write the owner-facing summary into the commit body, and clear the recorded stop so the plan is empty",
+          "title": "Master reference: publish the full campaign's accepted evidence and reports",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "A campaign ends with the plan empty and every claim bound to evidence at one commit; the close-out row is where the loop proves it has nothing left to do.",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. A campaign ends with the plan empty and every claim bound to evidence at one commit; the close-out row is where the loop proves it has nothing left to do.",
           "depends_on": [
             "failure-recovery/gate-recovery-drill"
           ]

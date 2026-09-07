@@ -79,6 +79,11 @@ func (h *Handler) executeObservedOperation(
 	modelID artifact.ID,
 	execute operation.Executor,
 ) (operation.Completion, error) {
+	if h.repository != nil {
+		if err := h.repository.Refresh(ctx); err != nil {
+			return operation.Completion{}, err
+		}
+	}
 	started := time.Now()
 	completion, err := execute(ctx, reporter)
 	if modelID.Kind() != artifact.KindModel || recipeID.Kind() != artifact.KindRecipe {

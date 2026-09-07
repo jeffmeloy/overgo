@@ -75,6 +75,10 @@ func groundedDoctrineDecisions() []string {
 // row-specific assertions are conditional while the ratchets remain active.
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
+	if strings.HasPrefix(document.Campaign, "Structural GUI redesign") || strings.HasPrefix(document.Campaign, "GUI capability roadmap:") {
+		assertConversationGUICampaign(t, document)
+		return
+	}
 	if strings.Contains(document.Campaign, "audio.cpp") {
 		assertAudioCapabilityCampaign(t, document)
 		return
@@ -493,16 +497,34 @@ func assertAudioCapabilityCampaign(t *testing.T, document Plan) {
 	}
 }
 
-// assertValidationCampaignSnapshot pins the validation-only freeze campaign:
-// only its declared drill steps may appear (completed rows leave plan.json,
-// so absence is fine and unknown ids are the violation), every retained step
-// carries a non-empty machine-checked verify, and the doctrine keeps the
-// freeze and the audit rules stated.
-// assertProfessionalGUICampaignSnapshot pins the professional GUI lane's
-// structure ratchet (owner directive 2026-09-04): the lane worktree
-// professional_overgo_gui carries this campaign, every row is one of the
-// steps named here with a machine-checked verify, and the doctrine keeps
-// the thin-client, retained-workbench, and UNAVAILABLE rules stated.
+// The conversation redesign supersedes the old GUI snapshot. Validate its
+// graph and worktree boundaries without treating unrelated RSI row IDs as
+// the authority for newly planned GUI capabilities.
+func assertConversationGUICampaign(t *testing.T, document Plan) {
+	t.Helper()
+	if err := Validate(document); err != nil {
+		t.Fatal(err)
+	}
+	if document.Lane != "professional_overgo_gui" {
+		t.Errorf("conversation GUI campaign has unexpected lane %q", document.Lane)
+	}
+	for _, item := range document.Items {
+		if item.Owner != "" && item.Owner != document.Lane && item.Owner != "master" && item.Owner != "operator" {
+			t.Errorf("GUI item %s has an unexpected owner %q", item.ID, item.Owner)
+		}
+		if strings.HasPrefix(item.ID, "merge-") && !preparedMergeBoundary(item) {
+			t.Errorf("invalid prepared GUI merge boundary %+v", item)
+		}
+	}
+	for _, required := range []string{"flat", "conversation", "mobile", "settings", "status"} {
+		if !strings.Contains(strings.ToLower(document.Doctrine), required) {
+			t.Errorf("conversation GUI doctrine omits %q", required)
+		}
+	}
+}
+
+// assertProfessionalGUICampaignSnapshot pins the earlier GUI campaign's
+// declared steps and thin-client, retained-workbench and UNAVAILABLE rules.
 func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
 	wantIDs := []string{
@@ -603,6 +625,8 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 	}
 }
 
+// assertValidationCampaignSnapshot pins the validation-only freeze campaign's
+// declared steps, machine-checked verifiers and audit rules.
 func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
 	wantIDs := []string{
@@ -740,6 +764,10 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-automation/guard-admission-efficiency",
 		"validation-automation/benchmark-protocol",
 		"validation-batch-control/batch-promotion",
+		"validation-batch-control/evidence-resource-producer",
+		"validation-batch-control/transaction-writer",
+		"validation-batch-control/workbench-writer-lifetime",
+		"validation-batch-control/abandoned-gate-recovery",
 		"boundary-hardening/cross-origin",
 		"boundary-hardening/argv-output",
 		"final-model-validation/do",

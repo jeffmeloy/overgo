@@ -20,6 +20,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/fsatomic"
+	"overgo/internal/processlock"
 	"overgo/internal/strictjson"
 )
 
@@ -188,6 +189,16 @@ func open(root string, readOnly bool) (*Store, error) {
 	if root == "" {
 		return nil, errors.New("overgodb: empty root")
 	}
+	if !readOnly {
+		if err := os.MkdirAll(root, storeDirectoryMode); err != nil {
+			return nil, err
+		}
+		lock, err := processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode)
+		if err != nil {
+			return nil, err
+		}
+		defer lock.Close()
+	}
 	// Per-projection checkpoints are the fastest verified anchor; any
 	// defect in the set falls back to the monolithic snapshot, then to
 	// full journal replay. Checkpoints are acceleration, not authority.
@@ -235,8 +246,11 @@ func (s *Store) applyRecord(record logRecord) error {
 	return commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}.replay(record)
 }
 
-// Refresh applies the validated committed tail to a read-only store.
+// Refresh applies the validated committed tail to this handle.
 func (s *Store) Refresh(ctx context.Context) error {
+	if !s.readOnly {
+		return s.writeTransaction(ctx, nil)
+	}
 	if err := contextError(ctx); err != nil {
 		return err
 	}
@@ -245,12 +259,47 @@ func (s *Store) Refresh(ctx context.Context) error {
 	if err := s.ready(false); err != nil {
 		return err
 	}
+	return s.refreshLocked()
+}
+
+// writeTransaction owns refresh, mutation and publication under OS exclusion.
+// Acquire before the local mutex so queued writers remain cancellable and do
+// not block reads. A nil mutation requests only a refreshed view.
+func (s *Store) writeTransaction(ctx context.Context, mutate func() error) error {
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if !s.readOnly {
-		return nil
+	lock, err := processlock.AcquireContext(ctx, filepath.Join(s.root, lockFilename), storeFileMode)
+	if err != nil {
+		return err
 	}
+	defer lock.Close()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.ready(true); err != nil {
+		return err
+	}
+	if err := s.refreshLocked(); err != nil {
+		return err
+	}
+	if err := contextError(ctx); err != nil {
+		return err
+	}
+	if mutate != nil {
+		return mutate()
+	}
+	return nil
+}
+
+func (s *Store) refreshLocked() error {
+	paths, err := sealedSegmentPaths(s.root)
+	if err != nil {
+		return err
+	}
+	if s.log.pendingReset || !slices.Equal(paths, s.log.sealed) {
+		return s.reopenLocked()
+	}
+
 	if info, statErr := os.Stat(filepath.Join(s.root, storeFilename)); statErr == nil && info.Size() < s.replayEnd {
 		// The writer sealed the active segment this reader was tailing;
 		// rebuild the view from the journal chain at the current head.
@@ -266,16 +315,32 @@ func (s *Store) Refresh(ctx context.Context) error {
 		s.fault = err
 		return err
 	}
+	if !s.readOnly {
+		if result.recovered {
+			if err := s.log.file.Truncate(result.validEnd); err != nil {
+				s.fault = err
+				return err
+			}
+			if err := s.log.file.Sync(); err != nil {
+				s.fault = err
+				return err
+			}
+		}
+		if _, err := s.log.file.Seek(result.validEnd, io.SeekStart); err != nil {
+			s.fault = err
+			return err
+		}
+	}
 	s.head, s.sequence, s.replayEnd = result.head, result.sequence, result.validEnd
 	return nil
 }
 
-// reopenLocked rebuilds a read-only handle in place after the writer
-// rotated segments underneath it.
+// reopenLocked rebuilds the view after segment rotation. Writable callers hold
+// process exclusion throughout replay and torn-tail recovery.
 func (s *Store) reopenLocked() error {
 	_ = s.log.Close()
 	s.state = newCatalogState()
-	log, replay, err := openRecordLog(s.root, true, replayAnchor{}, s.applyRecord)
+	log, replay, err := openRecordLog(s.root, s.readOnly, replayAnchor{}, s.applyRecord)
 	if err != nil {
 		s.fault = err
 		return err
@@ -286,18 +351,8 @@ func (s *Store) reopenLocked() error {
 	return nil
 }
 
-// sealActiveSegment makes the active journal immutable and starts a
-// fresh one: the file is renamed into the sealed set -- named by its
-// last sequence so lexical order is chain order -- and a new active
-// segment begins at the same commit chain. Sealing refuses while any
-// catalog content still lives inline in the journal: legacy stores
-// migrate through Rebuild before they segment.
-func (s *Store) sealActiveSegment() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.ready(true); err != nil {
-		return err
-	}
+// sealLocked publishes an immutable journal segment before resetting the active file.
+func (s *Store) sealLocked() error {
 	if s.sequence == 0 {
 		return errors.New("overgodb: cannot seal an empty journal")
 	}
@@ -364,6 +419,7 @@ func (s *Store) sealActiveSegment() error {
 		return fmt.Errorf("overgodb: seek fresh active end: %w", err)
 	}
 	s.replayEnd = storeHeaderBytes
+	s.log.sealed = append(s.log.sealed, sealed)
 	return nil
 }
 
@@ -382,30 +438,27 @@ func (s *Store) commitPublished(ctx context.Context, batch artifact.Batch) (arti
 	if err != nil {
 		return artifact.CommitID{}, false, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.ready(true); err != nil {
-		return artifact.CommitID{}, false, err
-	}
-	if err := contextError(ctx); err != nil {
-		return artifact.CommitID{}, false, err
-	}
-	coordinator := commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}
-	advance, replayed, err := coordinator.commit(normalized, payloadHash, s.head, s.sequence)
-	if err != nil {
-		if fault, ok := errors.AsType[appendFault](err); ok {
-			s.fault = fault.cause
-			return advance.id, false, errors.Join(ErrStoreFaulted, fault.cause)
+	var id artifact.CommitID
+	var published bool
+	err = s.writeTransaction(ctx, func() error {
+		coordinator := commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}
+		advance, replayed, err := coordinator.commit(normalized, payloadHash, s.head, s.sequence)
+		if err != nil {
+			if fault, ok := errors.AsType[appendFault](err); ok {
+				s.fault = fault.cause
+				id = advance.id
+				return errors.Join(ErrStoreFaulted, fault.cause)
+			}
+			return err
 		}
-		return artifact.CommitID{}, false, err
-	}
-	if replayed {
-		return advance.id, false, nil
-	}
-	s.sequence = advance.sequence
-	s.head = advance.id
-	s.replayEnd = advance.replayEnd
-	return advance.id, true, nil
+		id = advance.id
+		if !replayed {
+			s.sequence, s.head, s.replayEnd = advance.sequence, advance.id, advance.replayEnd
+			published = true
+		}
+		return nil
+	})
+	return id, published, err
 }
 
 func (s *Store) transactionFits(batch artifact.Batch) (bool, error) {
@@ -686,7 +739,7 @@ func (s *Store) Head() (artifact.CommitID, uint64) {
 	return s.head, s.sequence
 }
 
-// Close releases the record log and file lock; further calls are no-ops.
+// Close releases the record log; further calls are no-ops.
 func (s *Store) Close() error {
 	if s == nil {
 		return nil

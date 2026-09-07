@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "21000687d097d1a984016b43bcb5db54ba789f5980843005dd63850237123876",
+  "source_identity": "0e8284e8dceebf5036f956b486d017782a8b2b169646d1dd31db026a6ad0eeda",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3012,
-    "typed_files": 2948
+    "inspected_files": 3023,
+    "typed_files": 2959
   },
   "guidelines": [
     {
@@ -1853,17 +1853,6 @@
       "guideline": "cmp_or",
       "path": "internal/overgodb/rebuild.go",
       "symbol": "Rebuild",
-      "owner": "overgo/internal/overgodb",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/overgodb -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
-      "path": "internal/overgodb/snapshot.go",
-      "symbol": "Snapshot",
       "owner": "overgo/internal/overgodb",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
       "oracle": "go test ./internal/overgodb -count=1",
@@ -5150,5 +5139,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "edd8993fd838cdb4573db9ea5aca84756b2a6767b4292a008d3dcd5abcd88cae"
+  "exceptions_sha256": "092d273e5a4b8fb9cf0a8a7ebb98b1f93b73771c3f3284108bcdbbf6ebc96151"
 }

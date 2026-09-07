@@ -14,13 +14,13 @@ import (
 // Library tab enabled and every other tab refused, the store's servable
 // catalog so the picker can choose the first model, and the library's
 // registration, declaration, listing and retirement routes over the
-// store it opens for the write (no child holds the lock); every other
+// retained store; every other
 // route refuses with the reason.
 type IdleShell struct {
 	// Catalog lists the store's activations (the proxy's resolver reads the store read-only).
 	Catalog func(ctx context.Context) ([]discovery.CatalogEntry, bool, error)
-	// OpenStore opens the store for a library write; closed when the route answers.
-	OpenStore func(ctx context.Context) (*overgodb.Store, error)
+	// Repository is borrowed from the proxy and refreshed before library writes.
+	Repository *overgodb.Store
 	// Intake is the library intake the writes go through (validation, which needs a served model, stays absent).
 	Intake LibraryIntake
 	// WebUIDir serves the client from disk when set (development), as the server's own option does.
@@ -50,7 +50,7 @@ func (s *IdleShell) ServeHTTP(response http.ResponseWriter, request *http.Reques
 		if !requireMethod(response, request, http.MethodPost) || !decodeJSONBounded(response, request, &body, maxRequestBytes) {
 			return
 		}
-		s.withStore(response, request, func(store *overgodb.Store) { libraryRegisterRoute(response, request, store, s.Intake, body) })
+		libraryRegisterRoute(response, request, s.Repository, s.Intake, body)
 	case "/library/providers/models":
 		libraryProviderModelsRoute(response, request, s.Intake.ListProviderModels)
 	case "/library/providers/retire":
@@ -58,9 +58,7 @@ func (s *IdleShell) ServeHTTP(response http.ResponseWriter, request *http.Reques
 		if !requireMethod(response, request, http.MethodPost) || !decodeJSONBounded(response, request, &body, maxRequestBytes) {
 			return
 		}
-		s.withStore(response, request, func(store *overgodb.Store) {
-			libraryProviderRetireRoute(response, request, store, s.Intake.RetireProvider, body)
-		})
+		libraryProviderRetireRoute(response, request, s.Repository, s.Intake.RetireProvider, body)
 	default:
 		if _, api := resolveRoute(request.URL.Path); api {
 			writeError(response, http.StatusServiceUnavailable, "no_model_serves", idleRefusal)
@@ -68,21 +66,6 @@ func (s *IdleShell) ServeHTTP(response http.ResponseWriter, request *http.Reques
 		}
 		serveWebUIAssets(response, request, s.WebUIDir)
 	}
-}
-
-// withStore runs one library write over the store opened for it.
-func (s *IdleShell) withStore(response http.ResponseWriter, request *http.Request, route func(store *overgodb.Store)) {
-	if s.OpenStore == nil {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library writes need the store")
-		return
-	}
-	store, err := s.OpenStore(request.Context())
-	if err != nil {
-		writeError(response, http.StatusServiceUnavailable, "store_unavailable", err.Error())
-		return
-	}
-	defer store.Close()
-	route(store)
 }
 
 func (s *IdleShell) manifest(response http.ResponseWriter) {

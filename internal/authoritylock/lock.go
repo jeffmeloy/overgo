@@ -35,7 +35,10 @@ func Acquire(repository string) (*processlock.Lock, error) {
 	}
 	lock, err := processlock.Acquire(filepath.Join(repository, filepath.FromSlash(relativePath)), authorityFileMode)
 	if err != nil {
-		return nil, fmt.Errorf("authority lock: another plan or gate mutation is active: %w", err)
+		if errors.Is(err, processlock.ErrBusy) {
+			return nil, fmt.Errorf("authority lock: another plan or gate mutation is active: %w", err)
+		}
+		return nil, fmt.Errorf("authority lock: acquire: %w", err)
 	}
 	return lock, nil
 }

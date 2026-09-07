@@ -1,7 +1,6 @@
 // Command swap serves every servable model in the store from one
 // endpoint: requests route by their model field, the supervisor swaps
-// which child overgo server runs (one at a time -- the store's writer
-// lock admits one serving process), and the workbench rides through
+// which child overgo server runs, and the workbench rides through
 // unchanged. llama-swap is the reference for the lifecycle; the
 // store's servable catalog is the configuration.
 package main
@@ -40,18 +39,23 @@ func run() error {
 	if err := clioptions.RequireLoopbackWithoutCredential(*listen, ""); err != nil {
 		return err
 	}
-	resolver := &modelswap.CatalogResolver{Store: *store, Limit: *catalogLimit}
+	repository, err := overgodb.Open(*store)
+	if err != nil {
+		return err
+	}
+	defer repository.Close()
+	resolver := &modelswap.CatalogResolver{Store: repository, Limit: *catalogLimit}
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: *binary, Store: *store}, *idle)
 	if err != nil {
 		return err
 	}
 	defer supervisor.Close()
 	// The cold start: with no default and no child the proxy serves the shell itself; the picker launches the first child,
-	// and the Library's writes go through the launcher's intake over the store no child holds yet.
+	// and the Library shares the retained repository with the catalog resolver.
 	shell := &server.IdleShell{
-		Catalog:   resolver.Catalog,
-		OpenStore: func(context.Context) (*overgodb.Store, error) { return overgodb.Open(*store) },
-		Intake:    providerintake.Intake{CatalogLimit: *catalogLimit}.Library(libraryintake.ModelFiles, libraryintake.Register),
+		Catalog:    resolver.Catalog,
+		Repository: repository,
+		Intake:     providerintake.Intake{CatalogLimit: *catalogLimit}.Library(libraryintake.ModelFiles, libraryintake.Register),
 	}
 	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver, Keys: resolver, Idle: shell}
 	if *defaultModel != "" {

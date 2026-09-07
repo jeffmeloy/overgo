@@ -18,27 +18,31 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
 )
 
-func (g *gateContext) recordPackagePasses(report testevidence.GoTestReport, packages []string, mode string, inputs map[string]artifact.ID) error {
-	credited := 0
-	for _, packagePath := range packages {
-		if !report.PackagePassed(packagePath) {
-			continue
+func (g *gateContext) packagePassObserver(ctx context.Context, ledger *packageEvidenceLedger, mode string, inputs map[string]artifact.ID) func(string, bool) error {
+	return func(packagePath string, passed bool) error {
+		input, found := inputs[packagePath]
+		if !found || !input.Valid() || g.retryCache == nil {
+			return errors.New("package evidence: terminal event lacks declared inputs")
 		}
-		if err := g.retryCache.RecordPackagePass(packagePath, mode, inputs[packagePath]); err != nil {
+		// Flush observed terminal facts even when cancellation stops later work.
+		if err := ledger.record(context.WithoutCancel(ctx), packagePath, passed); err != nil {
 			return err
 		}
-		credited++
-	}
-	if credited != 0 {
-		if err := g.saveRetryCache(*g.retryCache); err != nil {
-			return err
+		if passed {
+			if err := g.retryCache.RecordPackagePass(packagePath, mode, input); err != nil {
+				return err
+			}
+		} else {
+			invocation, err := automationcheck.PackageInvocation(packagePath, mode)
+			if err != nil {
+				return err
+			}
+			delete(g.retryCache.Entries, invocation.String())
 		}
+		return g.saveRetryCache(*g.retryCache)
 	}
-	g.audit = append(g.audit, fmt.Sprintf("package evidence retained: %d/%d %s packages; incomplete or empty evidence not credited", credited, len(packages), mode))
-	return nil
 }
 
 func completedGateMeasurement(started time.Time, operation string) (uint64, error) {

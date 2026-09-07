@@ -177,7 +177,7 @@ func Run(options Options) error {
 			return fmt.Errorf("gate: open admission store: %w", err)
 		}
 		if err := reportGateAdmissionPhase("validate pending lifecycle state", func() error {
-			return requireNoPendingGateStateWithStore(repo, admissionStore)
+			return admitPendingGateState(repo, cleanStore, admissionStore)
 		}); err != nil {
 			return err
 		}

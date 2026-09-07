@@ -47,7 +47,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			return &gateContext{repo: root, environment: environment, paths: []string{"app/app_test.go", "other/other_test.go"}, source: &snapshot}
+			return &gateContext{repo: root, storePath: StorePath, environment: environment, paths: []string{"app/app_test.go", "other/other_test.go"}, source: &snapshot}
 		}
 		g := newGate()
 		if _, err := g.stepTest(t.Context()); err == nil || !strings.Contains(err.Error(), "declared failure") {
@@ -134,7 +134,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			if pending, reused, err := g.packageCachePartition(packages, "short", inputs); err != nil || reused != 0 || !slices.Equal(pending, packages) {
 				t.Fatalf("environment reused stale evidence: %v %d %v", pending, reused, err)
 			}
-			report, err := runGoTests(t.Context(), root, packages, true)
+			report, err := runGoTests(t.Context(), root, packages, true, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

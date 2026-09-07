@@ -1,6 +1,14 @@
 package authoritylock
 
-import "testing"
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"overgo/internal/processlock"
+)
 
 func TestAcquireSerializesPlanAndGateMutation(t *testing.T) {
 	repository := t.TempDir()
@@ -21,5 +29,19 @@ func TestAcquireSerializesPlanAndGateMutation(t *testing.T) {
 	}
 	if err := second.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAcquireDoesNotInventActiveOwner(t *testing.T) {
+	repository := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repository, relativePath), authorityDirectoryMode); err != nil {
+		t.Fatal(err)
+	}
+	lock, err := Acquire(repository)
+	if lock != nil {
+		_ = lock.Close()
+	}
+	if err == nil || errors.Is(err, processlock.ErrBusy) || strings.Contains(err.Error(), "mutation is active") {
+		t.Fatalf("invalid lock path reported an active owner: %v", err)
 	}
 }

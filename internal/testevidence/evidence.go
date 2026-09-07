@@ -87,11 +87,11 @@ func GoTestJSONShortReport(out string) (GoTestReport, error) {
 
 // GoTestJSONReader streams test evidence, retaining bounded failure
 // diagnostics and completed verdicts even when a later event is malformed.
-func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int) (GoTestReport, error) {
+func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int, observe func(string, bool) error) (GoTestReport, error) {
 	if diagnosticBytes <= 0 {
 		return GoTestReport{}, fmt.Errorf("diagnostic byte limit must be positive")
 	}
-	return readGoTestJSON(reader, short, false, diagnosticBytes)
+	return readGoTestJSON(reader, short, false, diagnosticBytes, observe)
 }
 
 // GoTestJSONReport decodes complete test evidence without crediting skips.
@@ -101,14 +101,15 @@ func GoTestJSONReport(out string) (GoTestReport, error) {
 }
 
 func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, error) {
-	return readGoTestJSON(strings.NewReader(out), short, allowAuxiliary, 0)
+	return readGoTestJSON(strings.NewReader(out), short, allowAuxiliary, 0, nil)
 }
 
-func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int) (report GoTestReport, err error) {
+func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool) error) (report GoTestReport, err error) {
 	scanner := bufio.NewScanner(reader)
 	seen := false
 	classified := map[string]bool{}
 	results := map[string]*testResult{}
+	updates := packageUpdates{observe: observe, passed: map[string]bool{}}
 	tails := map[string]diagnosticTail{}
 	var malformed diagnosticTail
 	defer func() {
@@ -131,11 +132,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 				report.Unfinished = append(report.Unfinished, name)
 			}
 			if report.packages != nil {
-				entry := report.packages[result.Package]
-				entry.incomplete = entry.incomplete || !result.started || result.ineligible || result.Action != "pass" || result.Unavailable != ""
-				entry.passed = entry.passed || result.Name == "" && result.Action == "pass"
-				entry.tested = entry.tested || result.Name != "" && result.Action == "pass"
-				report.packages[result.Package] = entry
+				report.packages[result.Package] = includePackageResult(report.packages[result.Package], result)
 			}
 			if tail, found := tails[key]; found {
 				report.Diagnostics = append(report.Diagnostics, name+":\n"+tail.text())
@@ -162,6 +159,9 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		if decodeErr := json.Unmarshal([]byte(line), &event); decodeErr != nil {
 			err = cmp.Or(err, fmt.Errorf("decode go test event: %w", decodeErr))
+			if updateErr := updates.invalidate(); updateErr != nil {
+				return report, errors.Join(err, updateErr)
+			}
 			if diagnosticBytes > 0 {
 				malformed.append(line+"\n", diagnosticBytes)
 			}
@@ -216,9 +216,12 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 				delete(tails, key)
 			}
 		}
+		if updateErr := updates.update(results, event.Package, err == nil); updateErr != nil {
+			return report, errors.Join(err, updateErr)
+		}
 	}
 	if scanErr := scanner.Err(); scanErr != nil {
-		return report, errors.Join(err, fmt.Errorf("read go test events: %w", scanErr))
+		return report, errors.Join(err, fmt.Errorf("read go test events: %w", scanErr), updates.invalidate())
 	}
 	if !seen {
 		return report, errors.Join(err, fmt.Errorf("go test emitted no events"))

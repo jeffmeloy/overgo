@@ -8,13 +8,24 @@ import (
 	"path/filepath"
 
 	"overgo/internal/artifact"
+	"overgo/internal/processlock"
 )
 
 // Backup publishes one replay-verified committed log extent.
 func (s *Store) Backup(destinationRoot string) (artifact.CommitID, uint64, error) {
-	s.mu.RLock()
+	// Rotation changes the active extent; pin the source through publication.
+	lock, err := processlock.Acquire(filepath.Join(s.root, lockFilename), storeFileMode)
+	if err != nil {
+		return artifact.CommitID{}, 0, err
+	}
+	defer lock.Close()
+	s.mu.Lock()
 	if err := s.ready(false); err != nil {
-		s.mu.RUnlock()
+		s.mu.Unlock()
+		return artifact.CommitID{}, 0, err
+	}
+	if err := s.refreshLocked(); err != nil {
+		s.mu.Unlock()
 		return artifact.CommitID{}, 0, err
 	}
 	head, sequence, extent, sourceRoot := s.head, s.sequence, s.replayEnd, s.root
@@ -24,7 +35,7 @@ func (s *Store) Backup(destinationRoot string) (artifact.CommitID, uint64, error
 			requiredBlobs = append(requiredBlobs, id)
 		}
 	}
-	s.mu.RUnlock()
+	s.mu.Unlock()
 	if !head.Valid() {
 		return artifact.CommitID{}, 0, errors.New("overgodb: refusing to back up a store with no commits")
 	}

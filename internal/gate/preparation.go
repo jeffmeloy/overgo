@@ -633,14 +633,26 @@ func (g *gateContext) prepareWithStore(store *overgodb.Store) error {
 	return nil
 }
 
-func requireNoPendingGateState(repo, storePath string) error {
-	store, err := overgodb.Open(filepath.Join(repo, storePath))
-	if err != nil {
-		return fmt.Errorf("gate: inspect lifecycle authority: %w", err)
+// admitPendingGateState runs only while the caller owns the gate mutation lock.
+func admitPendingGateState(repo, storePath string, store *overgodb.Store) error {
+	if err := requireNoPendingGateStateWithStore(repo, store); !errors.Is(err, errGateLifecyclePending) {
+		return err
 	}
-	defer store.Close()
-	return requireNoPendingGateStateWithStore(repo, store)
+	recovered, err := recordSelectedUnbatchableFailure(repo, storePath, "")
+	if err != nil {
+		return fmt.Errorf("gate: recover abandoned lifecycle: %w", err)
+	}
+	if err := store.Refresh(context.Background()); err != nil {
+		return err
+	}
+	if err := requireNoPendingGateStateWithStore(repo, store); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "gate: admission recovered lifecycle %s; acceptance remains required\n", recovered)
+	return nil
 }
+
+var errGateLifecyclePending = errors.New("gate: unresolved lifecycle")
 
 // requireNoPendingGateStateWithStore checks recovery authority without
 // reopening the canonical store. Callers that continue into plan binding or
@@ -672,7 +684,7 @@ func requireNoPendingGateStateWithStore(repo string, store *overgodb.Store) erro
 		return fmt.Errorf("gate: invalid lifecycle locator: %w", err)
 	}
 	if heartbeat.State == runrecord.HeartbeatRunning || heartbeat.State == runrecord.HeartbeatRecordDebt {
-		return errors.New("gate: unresolved gate lifecycle locator; run `go run ./cmd/gate -record-failure` before another gate")
+		return fmt.Errorf("%w: unresolved gate lifecycle locator; run `go run ./cmd/gate -record-failure` before another gate", errGateLifecyclePending)
 	}
 	return nil
 }
@@ -733,14 +745,14 @@ func requireNoOutstandingGateLifecycle(ctx context.Context, store *overgodb.Stor
 			return fmt.Errorf("gate: load lifecycle authority: %w", err)
 		}
 		if lifecycle.State != runrecord.GateFinalized {
-			return errors.New("gate: OvergoDB records an unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`")
+			return fmt.Errorf("%w: OvergoDB records an unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`", errGateLifecyclePending)
 		}
 		if !complete[lifecycle.ID] {
 			return errors.New("gate: lifecycle authority is not one complete typed gate finalization")
 		}
 	}
 	if len(unresolved) == 1 {
-		return errors.New("gate: OvergoDB records 1 unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`")
+		return fmt.Errorf("%w: OvergoDB records 1 unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`", errGateLifecyclePending)
 	}
 	if len(unresolved) != 0 {
 		// The refusal carries its own deterministic remediation: one exact

@@ -120,6 +120,9 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 	if workspace == nil || kind != WorkflowGeneration {
 		return nil, nil
 	}
+	if err := workspace.store.Refresh(ctx); err != nil {
+		return nil, err
+	}
 	memo := discovery.LoadMemo(ctx, workspace.store)
 	entries, _, err := discovery.CapabilityCatalog(ctx, workspace.store, workspace.limit, memo)
 	if err != nil {

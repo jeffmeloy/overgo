@@ -182,6 +182,11 @@ func validateWorkflowSources(ctx context.Context, repository *overgodb.Store, so
 	if len(sources) > 0 && repository == nil {
 		return errors.New("workflow workspace: sources need a durable repository")
 	}
+	if len(sources) > 0 {
+		if err := repository.Refresh(ctx); err != nil {
+			return err
+		}
+	}
 	for _, source := range sources {
 		_, found, err := repository.Artifact(ctx, source)
 		if err != nil {

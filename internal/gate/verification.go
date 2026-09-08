@@ -22,7 +22,6 @@ import (
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/codeprofile"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
@@ -966,9 +965,6 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if err := g.reserveTestDevices(inputGraph, selectedTests); err != nil {
-		return false, err
-	}
 	directInputs, err := packageInputIdentities(inputGraph, direct)
 	if err != nil {
 		return false, err
@@ -1068,40 +1064,6 @@ func (g *gateContext) runGoTests(ctx context.Context, packages []string, short b
 		return report, fmt.Errorf("go test evidence: %w\n%s", err, strings.Join(report.Diagnostics, "\n"))
 	}
 	return report, nil
-}
-
-// reserveTestDevices makes the gate, rather than a racing test package, own
-// the resource shared by its descendants. Host-only package graphs stay free.
-func (g *gateContext) reserveTestDevices(graph packageInputGraph, packages []string) error {
-	directories, err := graph.dependentDirectories("internal/cuda")
-	if err != nil {
-		return err
-	}
-	for _, pkg := range packages {
-		for _, index := range graph.byID[pkg] {
-			relative, err := filepath.Rel(graph.root, graph.nodes[index].Dir)
-			if err != nil {
-				return err
-			}
-			if !slices.Contains(directories, filepath.ToSlash(relative)) {
-				continue
-			}
-			library, err := driver.Open()
-			if err != nil {
-				return err
-			}
-			defer library.Close()
-			devices, err := library.ReserveDevices()
-			if err != nil {
-				return err
-			}
-			for _, device := range devices {
-				g.audit = append(g.audit, "test resource admission: "+device.UUID)
-			}
-			return nil
-		}
-	}
-	return nil
 }
 
 // stepMagics enforces repository-wide zero debt.

@@ -29,7 +29,9 @@ var (
 
 // Library: dynamically loaded CUDA Driver API library
 type Library struct {
-	dll *syscall.DLL
+	dll           *syscall.DLL
+	contextMu     sync.Mutex
+	contextClaims map[Context]func() error
 
 	allocationMu        sync.Mutex
 	freeTraces          map[DevicePtr]string
@@ -66,6 +68,7 @@ type Library struct {
 	cuGetErrorName       *syscall.Proc
 	cuGetErrorString     *syscall.Proc
 	cuCtxCreate          *syscall.Proc
+	cuCtxGetDevice       *syscall.Proc
 	cuCtxDestroy         *syscall.Proc
 	cuCtxSetCurrent      *syscall.Proc
 	cuCtxSynchronize     *syscall.Proc
@@ -116,6 +119,7 @@ func Open() (*Library, error) {
 		{"cuGetErrorName", &lib.cuGetErrorName},
 		{"cuGetErrorString", &lib.cuGetErrorString},
 		{"cuCtxCreate_v2", &lib.cuCtxCreate},
+		{"cuCtxGetDevice", &lib.cuCtxGetDevice},
 		{"cuCtxDestroy_v2", &lib.cuCtxDestroy},
 		{"cuCtxSetCurrent", &lib.cuCtxSetCurrent},
 		{"cuCtxSynchronize", &lib.cuCtxSynchronize},
@@ -237,8 +241,16 @@ func (l *Library) GraphExecDestroy(execution GraphExec) error {
 
 // Close releases process handle for nvcuda.dll
 func (l *Library) Close() error {
-	if l == nil || l.dll == nil {
+	if l == nil {
 		return nil
+	}
+	l.contextMu.Lock()
+	defer l.contextMu.Unlock()
+	if l.dll == nil {
+		return nil
+	}
+	if len(l.contextClaims) != 0 {
+		return errors.New("CUDA library still owns live contexts")
 	}
 	err := l.dll.Release()
 	l.dll = nil
@@ -355,32 +367,53 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 // ContextCreate creates CUDA context for device; calling goroutine
 // must remain locked to its OS thread while it uses context
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
+	l.contextMu.Lock()
+	defer l.contextMu.Unlock()
+	if l.dll == nil {
+		return 0, errors.New("CUDA library is closed")
+	}
 	uuid, err := l.deviceUUID(device)
 	if err != nil {
 		return 0, err
 	}
-	if err := processcontrol.ClaimResource(uuid); err != nil {
+	release, err := processcontrol.ShareResource(uuid)
+	if err != nil {
 		return 0, err
 	}
 	var context Context
 	var pinned runtime.Pinner
 	pinned.Pin(&context)
 	defer pinned.Unpin()
-	result, _, _ := l.cuCtxCreate.Call(
-		uintptr(unsafe.Pointer(&context)),
-		uintptr(flags),
-		uintptr(device),
-	)
-	if err := l.result("cuCtxCreate_v2", result); err != nil {
-		return 0, err
+	err = processcontrol.ResourceTransaction(uuid, func() error {
+		result, _, _ := l.cuCtxCreate.Call(uintptr(unsafe.Pointer(&context)), uintptr(flags), uintptr(device))
+		return l.result("cuCtxCreate_v2", result)
+	})
+	if err != nil {
+		return 0, errors.Join(err, release())
 	}
+	if l.contextClaims == nil {
+		l.contextClaims = make(map[Context]func() error)
+	}
+	l.contextClaims[context] = release
 	return context, nil
 }
 
 // ContextDestroy destroys CUDA context
 func (l *Library) ContextDestroy(context Context) error {
+	l.contextMu.Lock()
+	release, found := l.contextClaims[context]
+	if !found {
+		l.contextMu.Unlock()
+		return errors.New("CUDA context is not owned by this library")
+	}
 	result, _, _ := l.cuCtxDestroy.Call(uintptr(context))
-	return l.result("cuCtxDestroy_v2", result)
+	if err := l.result("cuCtxDestroy_v2", result); err != nil {
+		l.contextMu.Unlock()
+		return err
+	}
+	delete(l.contextClaims, context)
+	l.contextMu.Unlock()
+	return release()
 }
 
 // ContextSetCurrent makes context current on calling OS thread
@@ -437,17 +470,38 @@ func (l *Library) MemAlloc(bytes uint64) (DevicePtr, error) {
 		return 0, errors.New("cuMemAlloc_v2: allocation size is zero")
 	}
 	var pointer DevicePtr
+	var device Device
 	var pinned runtime.Pinner
 	pinned.Pin(&pointer)
+	pinned.Pin(&device)
 	defer pinned.Unpin()
-	result, _, _ := l.cuMemAlloc.Call(
-		uintptr(unsafe.Pointer(&pointer)),
-		uintptr(bytes),
-	)
-	if err := l.result("cuMemAlloc_v2", result); err != nil {
+	result, _, _ := l.cuCtxGetDevice.Call(uintptr(unsafe.Pointer(&device)))
+	if err := l.result("cuCtxGetDevice", result); err != nil {
 		return 0, err
 	}
-	l.accountAllocation(pointer, bytes)
+	uuid, err := l.deviceUUID(device)
+	if err != nil {
+		return 0, err
+	}
+	err = processcontrol.ResourceTransaction(uuid, func() error {
+		free, _, err := l.MemInfo()
+		if err != nil {
+			return err
+		}
+		if bytes > free {
+			return &ResultError{Operation: "physical GPU memory admission", Code: cudaErrorOutOfMemory,
+				Name: "insufficient device capacity", Message: fmt.Sprintf("requested %d bytes; available %d", bytes, free)}
+		}
+		result, _, _ := l.cuMemAlloc.Call(uintptr(unsafe.Pointer(&pointer)), uintptr(bytes))
+		if err := l.result("cuMemAlloc_v2", result); err != nil {
+			return err
+		}
+		l.accountAllocation(pointer, bytes)
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
 	return pointer, nil
 }
 

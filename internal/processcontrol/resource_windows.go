@@ -20,6 +20,10 @@ var (
 	resourceJobs          = map[string]uintptr{}
 )
 
+func resourceObjectName(name string) string {
+	return fmt.Sprintf("Overgo.Resource.%x", sha256.Sum256([]byte(name)))
+}
+
 // claimResource retains the handle: membership alone does not retain the name.
 // Every supervised child receives a handle before executing. Native descendants
 // must use supervised launch or claim before consuming the physical resource.
@@ -27,7 +31,7 @@ func claimResource(name string) error {
 	if resourceJobs[name] != 0 {
 		return nil
 	}
-	jobName, err := syscall.UTF16PtrFromString(fmt.Sprintf("Global\\Overgo.Resource.%x", sha256.Sum256([]byte(name))))
+	jobName, err := syscall.UTF16PtrFromString("Global\\" + resourceObjectName(name))
 	if err != nil {
 		return err
 	}
@@ -50,6 +54,11 @@ func claimResource(name string) error {
 		return fmt.Errorf("processcontrol: %w: %q", ErrResourceBusy, name)
 	}
 	if member == 0 {
+		admission, err := openResourceAdmission(name, false)
+		if err != nil {
+			return err
+		}
+		defer syscall.CloseHandle(admission)
 		if ok, _, err := procAssignProcessToJob.Call(job, process); ok == 0 {
 			return fmt.Errorf("processcontrol: reserve physical resource %q: %w", name, err)
 		}

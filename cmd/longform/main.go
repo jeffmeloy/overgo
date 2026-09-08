@@ -84,10 +84,7 @@ type options struct {
 }
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("longform", func() error { return run(os.Args[1:], os.Stdout) })
 }
 
 func parseOptions(args []string) (options, error) {
@@ -348,10 +345,7 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	defer cuda.Close()
-	if err := cuda.Init(); err != nil {
-		return err
-	}
-	options.deviceInfo, err = cuda.DeviceInfo(options.Device)
+	options.deviceInfo, err = cuda.ReserveDevice(options.Device)
 	if err != nil {
 		return err
 	}

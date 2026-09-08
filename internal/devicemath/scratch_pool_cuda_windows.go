@@ -80,6 +80,9 @@ func roundUpTo(size, unit uint64) uint64 {
 func MeasureAllocGranularity(worker *device.Worker) (uint64, error) {
 	var g uint64
 	err := worker.Do(context.Background(), func(state *device.State) error {
+		if _, err := state.Driver.ReserveDevice(int(state.Device)); err != nil {
+			return fmt.Errorf("allocation-granularity measurement requires prior exclusive admission: %w", err)
+		}
 		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
 			return err
 		}

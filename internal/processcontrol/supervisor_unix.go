@@ -12,6 +12,14 @@ func claimResource(string) error {
 	return errors.New("processcontrol: physical resource containment requires Windows job objects")
 }
 
+func shareResource(string) (func() error, error) {
+	return nil, errors.New("processcontrol: shared physical resource admission requires Windows")
+}
+
+func resourceTransaction(string, func() error) error {
+	return errors.New("processcontrol: physical resource transactions require Windows")
+}
+
 // Unix containment uses process groups: the command leads its own
 // group, an interrupt delivers SIGTERM to the whole group, and
 // termination delivers SIGKILL to the group.

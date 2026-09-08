@@ -45,7 +45,7 @@ func TestDeviceCheck(t *testing.T) {
 
 func TestDeviceResource(t *testing.T) {
 	resources := DeviceCheck(".", nil, nil, recordingCommand(new([]string))).Descriptor.Resources
-	if len(resources) != 1 || resources[0].Name != "device" || !resources[0].Exclusive {
+	if len(resources) != 1 || resources[0].Name != "device" || resources[0].Exclusive {
 		t.Fatalf("resources = %+v", resources)
 	}
 }

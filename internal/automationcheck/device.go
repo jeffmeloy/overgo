@@ -43,13 +43,13 @@ type deviceDependency struct {
 	Path string `json:"path"`
 }
 
-// DeviceCheck returns the exclusive-device verification adapter.
+// DeviceCheck returns the shared-device verification adapter.
 func DeviceCheck(root string, paths, packages []string, command Command) Check {
 	return Check{
 		Descriptor: Descriptor{
 			Name: deviceCheckName, Phase: runrecord.PhaseTest, Triggers: []Fact{deviceImpact},
 			Inapplicable: "no kernel or device implementation changed",
-			Resources:    []Resource{{Name: "device", Exclusive: true}},
+			Resources:    []Resource{{Name: "device"}},
 			Ownership: Ownership{
 				Fact: deviceImpact, Packages: slices.Clone(packages),
 				PackagePrefixes: []string{"internal/cuda"},

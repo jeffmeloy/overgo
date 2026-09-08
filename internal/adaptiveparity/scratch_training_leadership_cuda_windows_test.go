@@ -66,6 +66,9 @@ func TestScratchTrainingLeadership(t *testing.T) {
 		return
 	}
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	processInitialization := measureScratchProcessInitialization(t)
 	oracleBytes, err := os.ReadFile(filepath.Join("..", "..", "fixtures", "adaptive_scratch_oracle.json"))
 	if err != nil {

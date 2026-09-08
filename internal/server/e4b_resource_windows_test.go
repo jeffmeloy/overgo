@@ -36,6 +36,9 @@ import (
 // reloads may grow it. The separate 32768-token text guard remains required.
 func TestE4BMediaResourceRecovery(t *testing.T) {
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	startedAll := time.Now()
 	publish := os.Getenv("OVERGO_E4B_PUBLISH_RESOURCES") == "1"
 	var revision string

@@ -1,16 +1,19 @@
 //go:build windows
 
-package driver
+// Package driver_test verifies the public CUDA driver boundary.
+package driver_test
 
 import (
-	cudatest "overgo/internal/cuda/testutil"
 	"testing"
+
+	"overgo/internal/cuda/driver"
+	cudatest "overgo/internal/cuda/testutil"
 )
 
 func TestDriverIntegration(t *testing.T) {
 	cudatest.Require(t)
 
-	lib, err := Open()
+	lib, err := driver.Open()
 	if err != nil {
 		t.Fatal(err)
 	}

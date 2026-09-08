@@ -28,6 +28,9 @@ import (
 // This is not a projector-resource or dataset-quality acceptance.
 func TestE4BResourceRecovery(t *testing.T) {
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	if err != nil {

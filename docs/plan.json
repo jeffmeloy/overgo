@@ -224,20 +224,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-resource-quality-fitness",
-          "title": "Verify: Measure repeated audio baselines and derive comparison envelopes",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestAudioResourceEnvelopeAcceptance$' -count=1 -v",
-          "rationale": "Group cpu-measurements; retained verification receipt for benchmark-routing/pinned-benchmarks. Run repeated source-derived audio duration/segment cases using the corrected resource suite. Separate cold load, warm inference, training and profiling. Derive comparison envelopes from actual variation; keep unavailable peak/VRAM dimensions unknown. No duplicate sweep runner or arbitrary fitted thresholds.",
-          "depends_on": [
-            "asr-cuda/sync-profile-and-bind"
-          ],
-          "capabilities": [
-            "repeatable-audio-resources",
-            "empirical-comparison-envelope"
-          ]
-        },
-        {
           "id": "resource-quality-fitness",
           "title": "Verify: Judge audio quality, latency and memory together through shared fitness policy",
           "status": "open",

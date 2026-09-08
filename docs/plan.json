@@ -5,24 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-redesign-acceptance",
-      "title": "Harden mobile layout, keyboard and accessible conversation controls",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Harden mobile layout, keyboard and accessible conversation controls",
-          "status": "open",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserMobileInteraction$' -count=1 -timeout=2m",
-          "rationale": "The flat redesign, Impeccable review, Chromium geometry checks and 104 screen states were accepted in 1dd62c8f. Remaining work covers keyboard/orientation changes, safe areas, zoom, paste/upload, long code/tables, dialogs/drawer focus and announced streaming/errors. Preserve the reading position during streamed replies; follow only when already at the bottom, and provide a reachable Jump to latest action after scrolling away. Use Impeccable Operate/Distill guidance without reintroducing cards or permanent status chrome. Add TestWebUIBrowserMobileInteraction. Add an opt-in TestGUIMobileDeviceEvidence in the existing server test suite to validate source-referenced device/browser/version/case results and captures; its explicit evidence command must fail for missing/incomplete results. Physical-device signoff is the separate operator row, so unavailable hardware does not block independent GUI work. The evidence validator emits 'physical mobile evidence leg' only after validating complete results; keep it outside the default browser test prefix so it runs only under explicit device/final signoff.",
-          "depends_on": [
-            "gui-draft-lifecycle/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-conversation-navigation",
       "title": "Find, reopen and restore conversations from a compact history list",
       "owner": "professional_overgo_gui",

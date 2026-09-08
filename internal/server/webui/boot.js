@@ -317,8 +317,9 @@
   document.getElementById("new-chat").addEventListener("click", () => openConversation(null));
   // Follow the browser's visible height when its on-screen keyboard resizes only the visual viewport.
   if (window.visualViewport) {
-    const resize = () => document.documentElement.style.setProperty("--viewport-height", window.visualViewport.height + "px");
+    const resize = () => { if (window.visualViewport.scale === 1) document.documentElement.style.setProperty("--viewport-height", window.visualViewport.height + "px"); };
     window.visualViewport.addEventListener("resize", resize); resize();
+    window.addEventListener("resize", resize);
   }
   let servedEntry = null;
   let modelSwitchPending = false;

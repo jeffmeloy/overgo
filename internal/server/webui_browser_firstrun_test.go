@@ -124,6 +124,14 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// captureStates: the page as it stands at this leg, captured and audited
 	// at both viewports (written when the lane writes screens); the journey
 	// continues at the desktop size.
+	var layoutFindings []webuilane.StateFinding
+	defer func() {
+		// Keep nonfatal layout failures beside the terminal verdict: the
+		// gate reports a bounded tail after this long real-model journey.
+		for _, finding := range layoutFindings {
+			t.Error(finding)
+		}
+	}()
 	captureStates := func(name string) {
 		t.Helper()
 		for _, viewport := range webuilane.ScreenViewports {
@@ -131,9 +139,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, finding := range findings {
-				t.Error(finding)
-			}
+			layoutFindings = append(layoutFindings, findings...)
 		}
 		if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
 			t.Fatal(err)

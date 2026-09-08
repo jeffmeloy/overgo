@@ -5,6 +5,10 @@
   "use strict";
   const overgo = window.overgo;
   const { el, clear, fmt } = overgo;
+  const threadScrollers = new WeakMap();
+  const resizeThreads = () => document.querySelectorAll('.chat-log').forEach(log => { const scroll = threadScrollers.get(log); if (scroll) scroll(); });
+  window.addEventListener("resize", resizeThreads);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", resizeThreads);
 
   // ---- adapters: served protocols to the event vocabulary ----
 
@@ -103,27 +107,41 @@
   function thread(host, options) {
     const reuse = options && options.reuse;
     const replay = options && options.replay; // replay(event, "regenerate" | "vary"): the page resubmits the card's stored request
-    const log = el("div", { class: "chat-log" });
-    host.appendChild(log);
+    const log = el("div", { class: "chat-log", role: "log", "aria-label": "Conversation", "aria-live": "off", tabindex: "0" });
+    const announcement = el("div", { class: "sr-only", role: "status", "aria-atomic": "true" });
+    const latest = el("button", { class: "link-button jump-latest", text: "Jump to latest", hidden: true, onclick: () => { following = true; scroll(); log.focus({ preventScroll: true }); } });
+    host.append(log, latest, announcement);
     const messages = [];
     let thinkingRow = null;
 
     let following = true;
     log.addEventListener("scroll", () => {
       following = Math.ceil(log.scrollTop + log.clientHeight) >= log.scrollHeight;
+      latest.hidden = following;
     });
     function scroll() {
+      latest.hidden = following || log.scrollHeight <= log.clientHeight;
       if (!following) return;
       log.scrollTop = log.scrollHeight;
     }
+    threadScrollers.set(log, scroll);
 
     function renderMessage(message, streaming) {
-      const body = el("div", { class: "body" });
+      const position = log.scrollTop;
+      if (!message.node) { message.node = el("div", { class: "msg " + message.role }, el("div", { class: "role" }), el("div", { class: "body" })); log.appendChild(message.node); }
+      const body = message.node.querySelector(".body");
       if (message.role === "assistant" && !streaming && message.content) {
-        body.appendChild(overgo.md(message.content));
+        body.replaceChildren(overgo.md(message.content));
+        message.streamText = null;
+      } else if (streaming) {
+        if (!message.streamText) {
+          message.streamText = document.createTextNode(message.content);
+          body.replaceChildren(message.streamText, el("span", { class: "cursor", text: "|", "aria-hidden": "true" }));
+        } else if (message.content.startsWith(message.streamText.data)) message.streamText.appendData(message.content.slice(message.streamText.length));
+        else message.streamText.data = message.content;
       } else {
-        body.appendChild(document.createTextNode(message.content));
-        if (streaming) body.appendChild(el("span", { class: "cursor", text: "|" }));
+        body.replaceChildren(document.createTextNode(message.content));
+        message.streamText = null;
       }
       const head = el("div", { class: "role" }, message.role);
       if (message.role === "assistant" && options && options.marker) head.appendChild(el("span", { class: "tag", text: options.marker }));
@@ -131,9 +149,8 @@
         head.appendChild(overgo.copyButton(message.content, "copy"));
         if (message.response && overgo.inspectTurn) head.appendChild(el("button", { class: "link-button", text: "inspect", onclick: () => overgo.inspectTurn(message.response) }));
       }
-      const node = el("div", { class: "msg " + message.role }, head, body);
-      if (message.node) message.node.replaceWith(node); else log.appendChild(node);
-      message.node = node;
+      message.node.querySelector(".role").replaceWith(head);
+      if (!following) log.scrollTop = position;
       scroll();
     }
 
@@ -147,6 +164,7 @@
 
     function thinking(on) {
       if (on && !thinkingRow) {
+        announcement.textContent = "Waiting for a response.";
         thinkingRow = el("div", { class: "msg thinking", text: "thinking…" });
         log.appendChild(thinkingRow);
         scroll();
@@ -159,8 +177,9 @@
       const bodyNode = el("div", { class: "tool-body", hidden: true },
         el("div", { class: "note", text: "input" }),
         el("pre", { class: "mono", text: JSON.stringify(call.arguments == null ? {} : call.arguments, null, 2) }));
-      const header = el("div", { class: "tool-header row" }, arrow, el("span", { class: "mono", text: call.name }), status);
-      header.addEventListener("click", () => { bodyNode.hidden = !bodyNode.hidden; arrow.textContent = bodyNode.hidden ? "▸" : "▾"; });
+      bodyNode.id = "tool-" + crypto.randomUUID();
+      const header = el("button", { class: "tool-header row", type: "button", "aria-expanded": "false", "aria-controls": bodyNode.id }, arrow, el("span", { class: "mono", text: call.name }), status);
+      header.addEventListener("click", () => { bodyNode.hidden = !bodyNode.hidden; header.setAttribute("aria-expanded", String(!bodyNode.hidden)); arrow.textContent = bodyNode.hidden ? "▸" : "▾"; });
       const card = el("div", { class: "card tool-call" }, header, bodyNode);
       log.appendChild(card);
       scroll();
@@ -205,7 +224,7 @@
     }
 
     function errorRow(message) {
-      const row = el("div", { class: "msg error" }, el("div", { class: "role", text: "error" }),
+      const row = el("div", { class: "msg error", role: "alert" }, el("div", { class: "role", text: "error" }),
         el("div", { class: "body", text: message }));
       log.appendChild(row);
       scroll();
@@ -223,6 +242,7 @@
           switch (event.type) {
             case "token":
               thinking(false);
+              if (!assistant || !assistant.content) announcement.textContent = "Receiving a response.";
               if (!assistant) assistant = add("assistant", "");
               assistant.content += event.text;
               renderMessage(assistant, true);
@@ -248,14 +268,17 @@
               thinking(false);
               errorRow(event.message);
               terminal.status = event.status || "failed";
+              announcement.textContent = "Response failed.";
               break;
             case "cancelled":
               thinking(false);
               log.appendChild(el("div", { class: "note", role: "status", text: "Stopped" }));
               terminal.status = "cancelled";
+              announcement.textContent = "Response stopped.";
               break;
             case "done":
               terminal.status = event.status || "completed";
+              announcement.textContent = "Response ready.";
               break;
             case "created":
               break;
@@ -265,7 +288,7 @@
       return terminal;
     }
 
-    function reset() { messages.length = 0; clear(log); thinkingRow = null; }
+    function reset() { messages.length = 0; clear(log); thinkingRow = null; following = true; latest.hidden = true; announcement.textContent = ""; }
 
     return { add, consume, toolCard, mediaCard, errorRow, thinking, reset, messages, node: log, renderMessage };
   }
@@ -304,7 +327,8 @@
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
     const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, ...((options.controls) || []), el("span", { class: "grow" }));
-    const element = el("div", { class: "composer" }, modeHost, attachmentHost, input, controls);
+    const extras = el("div", { class: "composer-extras" }, modeHost, attachmentHost);
+    const element = el("div", { class: "composer" }, extras, input, controls);
     send.classList.add("send-button"); stop.classList.add("stop-button");
     host.appendChild(element);
 
@@ -393,7 +417,7 @@
     });
     input.addEventListener("input", () => { if (options.onChange) options.onChange(); });
     return {
-      element, input, attachments, attachmentParts, setBusy, addFile, modeHost,
+      element, input, attachments, attachmentParts, setBusy, addFile, modeHost, extras,
       setSendBlocked(value) { sendBlocked = value; setBusy(busy); },
       setReadOnly(value) { readOnly = value; input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
       clearAttachments() { attachments.length = 0; renderAttachments(); },

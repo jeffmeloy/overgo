@@ -467,9 +467,13 @@ func pressKey(t *testing.T, ctx context.Context, browser *webuilane.Browser, key
 		modifier |= bit
 	}
 	for _, kind := range []string{"keyDown", "keyUp"} {
-		if err := browser.Call(ctx, "Input.dispatchKeyEvent", map[string]any{
+		event := map[string]any{
 			"type": kind, "key": key, "code": key, "windowsVirtualKeyCode": code, "nativeVirtualKeyCode": code, "modifiers": modifier,
-		}, nil); err != nil {
+		}
+		if key == "Enter" && kind == "keyDown" {
+			event["text"] = "\r" // native button activation requires the character event
+		}
+		if err := browser.Call(ctx, "Input.dispatchKeyEvent", event, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

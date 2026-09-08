@@ -235,9 +235,9 @@
       composer.input.value = typeof draft.text === "string" ? draft.text : "";
       if (Array.isArray(draft.attachments)) composer.restoreAttachments(draft.attachments.filter(item => item && typeof item.name === "string" && typeof item.mime === "string" && Number.isFinite(item.size) && item.size >= 0).map(item => ({ name: item.name, mime: item.mime, size: item.size, kind: overgo.mediaKind(item.mime), needsReattach: true })));
       const draftNotice = el("div", { class: "note", role: "status", hidden: true });
-      composer.element.appendChild(draftNotice);
+      composer.extras.appendChild(draftNotice);
       const modelNotice = el("div", { class: "note", role: "status", hidden: true }, "Confirming the selected model… Choose a model again if loading fails.");
-      composer.element.appendChild(modelNotice);
+      composer.extras.appendChild(modelNotice);
       function persistDraft(key, value) {
         drafts.set(key, value);
         try { if (capabilities.recipe) sessionStorage.setItem(key, JSON.stringify(value)); }

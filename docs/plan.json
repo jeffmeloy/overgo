@@ -1,122 +1,335 @@
 {
   "campaign": "Transfer audio.cpp behavior into reusable Go audio operations and prove the CPU ingest-train-evaluate-serve lifecycle before broader architectures and CUDA",
-  "doctrine": "Work and commit only in overgo_audiocpp; do not push or import master's plan. Honor explicit stops. Use operation-named common components and existing owners. Each downloaded reference is a pinned behavioral oracle, never a linked runtime or permanent product dependency. Granite Speech 5.0 470M TurboCTC is the first offline oracle, native Safetensors Nemotron 3.5 ASR the second and streaming oracle, and FireRedVAD the segmentation oracle; the incompatible Q8 GGUF remains rejected. Pin source revision, artifact, fixture and transform identities with independent boundary traces and explicit tolerances. Reuse audiodsp, safetensors, tokenizer, hostmath/tensor, modelrecipe, capabilityruntime, dataset, evaluation, runrecord, trainingprogram and trainingworkflow. Use concrete operation-named components, including those used by one recipe; model identity, tensor names, geometry, padding, normalization, ties and composition belong in declarations, never model-family execution branches. Add only a demonstrated missing operation with its real consumer in the same slice. Preserve one inference/training forward path and the existing loader, scheduler, optimizer, checkpoint and persistence owners. No general-purpose graph engine, parallel registry, dataset cache, service or verifier framework. Migrate callers and delete displaced paths together; measure API/state/buffer reduction alongside parity, not line count alone. First correct measurement semantics, then bounded dataset traversal and a real pinned CPU baseline, then frozen-base adaptation, exact stop and resume, evaluation, publication, reload and authenticated serving. The first adapter is identity-initialized on final hidden features before the frozen CTC projection; preserve tied weights and optimizer, random, scheduler and data-stream state. First lifecycle acceptance includes VAD composition, pre/post WER/resource evidence and complete OvergoDB lineage, but does not wait for encoder gradients, another ASR architecture, streaming ASR, voice or CUDA. Keep those capabilities as later work. Dataset preparation and VAD do not depend on a trained recognizer. Decode actual samples, account for every rejection, and quarantine policy-invalid, silent, near-silent, corrupt, clipped or non-finite inputs. Reference text never enters prediction. Use pinned LibriSpeech clean first; the historical silent AMI materialization remains quarantined until its exact source/transformation is established, and historical ingestion failures require replay against the original store and immutable identities, not isolated-store success alone. Reuse source-addressed Parquet/Arrow traversal and immutable outputs for scoring; do not eagerly copy a corpus or cache predictions for timing. Performance repetitions execute fresh inference, identify each attempt, and separate cold load, warm execution and publication spans. Unknown counters stay absent; boundary Go heap samples are not process peak memory, and unavailable peak/VRAM evidence cannot support a memory or promotion claim. Profiling is separate from timed runs. CPU remains the numerical authority; eligible CPU work proceeds while GPU capacity is occupied, and CUDA follows measured bottlenecks through kernels/manifest.json. Commit gates may use required GPU scope; unsupported or unavailable device execution never passes. Static DSP parity is not ASR parity, transport chunking is not native streaming, and segment offsets are not word timestamps. Every verify names one exact acceptance test with mandatory subchecks: add it to the existing owner as part of that step, run through cmd/plan -verify or the gate, require nonempty executed cases, and fail on missing artifacts or skipped subchecks. The acceptance names are planned work, not claims that the tests already exist. Report failures, denominators and no-gain outcomes; promotion requires the existing quality/resource policy. API consolidation follows existing owners: one bounded media.DecodeAudio path for encoded waveform ingestion, one shared PCM representation when synthesis is migrated, and distinct typed transcription/generated-audio artifacts. Keep ASR, synthesis, VAD, alignment and speaker operations separate; do not add an umbrella audio service or generic optional-field result. Reuse existing recipe selection, residency, cancellation, operation tracking and publication in serving. Preserve AudioStreamCursor progress/checkpoint ownership and AudioStreamSession concurrency/residency ownership. Consolidation migrates every actual caller and deletes displaced APIs in the same slice; prove unchanged accepted samples and explicit refusal semantics, not only fewer exported names. Grouped execution: 22 implementation groups retain all 45 protected row IDs; no task is completed by this replan. Each lead implements every named member contract and binds component acceptances in verification_batch before final integration. Later members are exact verification receipts, not separate implementation campaigns. Read all member contracts before editing. Keep all original acceptance commands and capability obligations; only normal gated completion retires a row. Dependencies target the last required receipt of a prerequisite group. The current gate advances one row per commit: 22 groups does not mean 22 commits or measured speedup. Reuse exact package/checkpoint evidence, not provisional commits, multi-row pruning, invented flush thresholds or another dispatcher. Synchronize master only before a group's lead when needed; pin its revision, review relevant owner changes, preserve the exact audio parent plan through first-parent-target merge completion, and replan afterward. Do not merge between a group's receipts or recursively after merge commits. A demonstrated urgent safety fix interrupts and revalidates affected evidence. First repair the observed reused-checkpoint completion-authority refusal; structural validation alone cannot prove dispatch readiness. Then complete adapter publication/resume, VAD/segmentation and the CPU served lifecycle with cancellation/publication recovery. Keep held-out baseline, CPU profiling and resource fitness together before encoder expansion or the second architecture. Group native recognizer/session/HTTP work and reuse that evidence for live operations/routing. Keep CPU artifact/oracle intake separate from required device execution; while GPU is occupied use the existing frontier and plan reorder to select eligible CPU work, never weaken acceptance. Generative-audio execution depends on its elected operations, not ASR CUDA completion. Master retains broad text benchmarking and platform cleanup. Record measured setup, executed/reused checks and total gate wall; no saving is claimed merely from grouping.",
+  "doctrine": "Work and commit only in overgo_audiocpp; do not push or import master's plan. Honor explicit stops. Use operation-named common components and existing owners. Each downloaded reference is a pinned behavioral oracle, never a linked runtime or permanent product dependency. Granite Speech 5.0 470M TurboCTC is the first offline oracle, native Safetensors Nemotron 3.5 ASR the second and streaming oracle, and FireRedVAD the segmentation oracle; the incompatible Q8 GGUF remains rejected. Pin source revision, artifact, fixture and transform identities with independent boundary traces and explicit tolerances. Reuse audiodsp, safetensors, tokenizer, hostmath/tensor, modelrecipe, capabilityruntime, dataset, evaluation, runrecord, trainingprogram and trainingworkflow. Use concrete operation-named components, including those used by one recipe; model identity, tensor names, geometry, padding, normalization, ties and composition belong in declarations, never model-family execution branches. Add only a demonstrated missing operation with its real consumer in the same slice. Preserve one inference/training forward path and the existing loader, scheduler, optimizer, checkpoint and persistence owners. No general-purpose graph engine, parallel registry, dataset cache, service or verifier framework. Migrate callers and delete displaced paths together; measure API/state/buffer reduction alongside parity, not line count alone. First correct measurement semantics, then bounded dataset traversal and a real pinned CPU baseline, then frozen-base adaptation, exact stop and resume, evaluation, publication, reload and authenticated serving. The first adapter is identity-initialized on final hidden features before the frozen CTC projection; preserve tied weights and optimizer, random, scheduler and data-stream state. First lifecycle acceptance includes VAD composition, pre/post WER/resource evidence and complete OvergoDB lineage, but does not wait for encoder gradients, another ASR architecture, streaming ASR, voice or CUDA. Keep those capabilities as later work. Dataset preparation and VAD do not depend on a trained recognizer. Decode actual samples, account for every rejection, and quarantine policy-invalid, silent, near-silent, corrupt, clipped or non-finite inputs. Reference text never enters prediction. Use pinned LibriSpeech clean first; the historical silent AMI materialization remains quarantined until its exact source/transformation is established, and historical ingestion failures require replay against the original store and immutable identities, not isolated-store success alone. Reuse source-addressed Parquet/Arrow traversal and immutable outputs for scoring; do not eagerly copy a corpus or cache predictions for timing. Performance repetitions execute fresh inference, identify each attempt, and separate cold load, warm execution and publication spans. Unknown counters stay absent; boundary Go heap samples are not process peak memory, and unavailable peak/VRAM evidence cannot support a memory or promotion claim. Profiling is separate from timed runs. CPU remains the numerical authority; eligible CPU work proceeds while GPU capacity is occupied, and CUDA follows measured bottlenecks through kernels/manifest.json. Commit gates may use required GPU scope; unsupported or unavailable device execution never passes. Static DSP parity is not ASR parity, transport chunking is not native streaming, and segment offsets are not word timestamps. Every verify names one exact acceptance test with mandatory subchecks: add it to the existing owner as part of that step, run through cmd/plan -verify or the gate, require nonempty executed cases, and fail on missing artifacts or skipped subchecks. The acceptance names are planned work, not claims that the tests already exist. Report failures, denominators and no-gain outcomes; promotion requires the existing quality/resource policy. API consolidation follows existing owners: one bounded media.DecodeAudio path for encoded waveform ingestion, one shared PCM representation when synthesis is migrated, and distinct typed transcription/generated-audio artifacts. Keep ASR, synthesis, VAD, alignment and speaker operations separate; do not add an umbrella audio service or generic optional-field result. Reuse existing recipe selection, residency, cancellation, operation tracking and publication in serving. Preserve AudioStreamCursor progress/checkpoint ownership and AudioStreamSession concurrency/residency ownership. Consolidation migrates every actual caller and deletes displaced APIs in the same slice; prove unchanged accepted samples and explicit refusal semantics, not only fewer exported names. Grouped execution retains every open row identity and acceptance; group counts are derived from the live plan, not maintained as a historical total. No task is completed by reordering. Each lead implements every named member contract and binds component acceptances in verification_batch before final integration. Later members are exact verification receipts, not separate implementation campaigns. Read all member contracts before editing. Keep all original acceptance commands and capability obligations; only normal gated completion retires a row. Dependencies target the last required receipt of a prerequisite group. The current gate advances one row per commit; implementation grouping is not a claim of fewer commits or measured speedup. Reuse exact package/checkpoint evidence, not provisional commits, multi-row pruning, invented flush thresholds or another dispatcher. Synchronize master only before a group's lead when needed; pin its revision, review relevant owner changes, preserve the exact audio parent plan through first-parent-target merge completion, and replan afterward. Do not merge between a group's receipts or recursively after merge commits. A demonstrated urgent safety fix interrupts and revalidates affected evidence. Build on the committed CPU adapter publication and exact-resume owners. Complete VAD/segmentation and the CPU served lifecycle with cancellation/publication recovery next. Structural validation alone cannot prove dispatch readiness. Keep held-out baseline, CPU profiling and resource fitness together before encoder expansion or the second architecture. Group native recognizer/session/HTTP work and reuse that evidence for live operations/routing. Keep CPU artifact/oracle intake separate from required device execution; while GPU is occupied use the existing frontier and plan reorder to select eligible CPU work, never weaken acceptance. Generative-audio execution depends on its elected operations, not ASR CUDA completion. Master retains broad text benchmarking and platform cleanup. Record measured setup, executed/reused checks and total gate wall; no saving is claimed merely from grouping. After the CPU lifecycle and matched measurements, prioritize the second recognizer, native sessions and HTTP, and live service before full-encoder gradients. Synthesis consolidation also reuses the proven lifecycle before encoder expansion. CPU-only artifact admission has no dependency on unrelated ASR benchmark completion and remains an eligible alternative during resource contention. Preserve master's transaction-scoped store ownership, terminal package evidence and conservative subprocess-input selection; do not rebuild these in audio code. A live physical GPU reservation is unavailable capacity even at zero utilization: wait or select genuinely CPU-only work through the existing frontier, never bypass admission or repeatedly run the same blocked gate. Complete each implementation group's retained receipts before starting another eligible group; use the existing plan reorder when priority alone would interleave them. Current resource policy: inspect current availability rather than carrying historical occupancy forward. Shared gate admission is authoritative for an OS-held device reservation; free VRAM alone does not bypass that lock. Outside exclusive reservations, admit only work that fits actual resource budgets and isolate performance measurements. Distinguish CPU implementation and focused host verification from the commit gate's independently derived device requirements. Use the ready frontier to select dependency-ready CPU work when a device group is unavailable. Do not start device acceptances, GPU profiling or full gates known to require the occupied device. On resource-admission refusal, retain failed-attempt evidence and exact reusable checks, stop retrying the unchanged gate, and resume only after a confirmed handoff or successful normal admission. Never terminate another worktree's job, clear its reservation, mask devices, disable required checks or label missing execution successful. Complete related CPU implementation and verification together within the declared group; no provisional commits, cross-group source accumulation or manual completion. A pending merge does not prohibit independent CPU development. Preserve an exact recoverable merge candidate and keep subsequent source changes separately held; do not include them in the merge commit or mutate a candidate during its active gate. Resource contention blocks only operations requiring that resource, not implementation of the current audio group. Use existing gate preparation/checkpoint owners and validate the eventual commit scope; no bypass, false completion or duplicate scheduler.",
   "lane": "audio",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "asr-training",
-      "title": "Prove Overgo's universal trainer on the native audio route",
+      "id": "asr-serving",
+      "title": "Expose authenticated transcription and streaming through the native server",
       "status": "open",
       "steps": [
         {
-          "id": "closed-loop-proof",
-          "title": "Prove the served CPU lifecycle and its failure recovery",
+          "id": "sync-streaming-transcription",
+          "title": "Bind native streaming state to sessions and authenticated HTTP",
           "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRCPUClosedLoop$' -count=1 -v",
-          "rationale": "Group cpu-lifecycle; implement asr-training/closed-loop-proof, failure-recovery/sync-interruption-drills, failure-recovery/interruption-drills together. TestASRCPUClosedLoop must execute nonempty real training/held-out splits, nonzero updates, exact resume, VAD composition, WER/resource comparisons, publication/reload and authenticated HTTP transcription with one artifact-lineage chain. Reuse master's upload/workflow and RequireTranscriptionReport owners; no new orchestrator/scorer. Quality-record reuse requires exact identity; timing requires fresh execution. No-gain is reportable, not promotable. Do not wait for encoder gradients, another architecture, ASR streaming or CUDA.",
+          "verify": "go test ./internal/server -run '^TestStreamingTranscriptionAcceptance$' -count=1 -v",
+          "rationale": "Group streaming-service; implement asr-serving/sync-streaming-transcription, asr-serving/streaming-transcription together. Bind the verified recognizer to capabilityruntime.OpenAudioStream with bounded retained state, discontinuities, checkpoint/restart, finalization and cancellation. No growing-prefix offline replay or second scheduler. Also implement TestNativeAudioStreamIntegration in internal/capabilityruntime/audio_stream_integration_test.go for master intake: real chunks, declared offline/chunk equivalence, restart, cancellation, residency release and exact artifact/corpus identities. Contract-only fixtures cannot retire the staged API.",
           "depends_on": [
-            "asr-training/exact-resume",
+            "audio-contracts/stream-session-contract",
+            "shared-asr-proof/second-architecture",
             "asr-serving/transcriptions-route",
-            "audio-recipes/validated-transcription",
-            "asr-training/sync-closed-loop-proof",
-            "hermetic-foundation/store-drills",
             "audio-gate-control/provisional-commit-control"
           ],
           "capabilities": [
-            "audio-train-evaluate-serve",
-            "checkpoint-publication",
-            "quality-bracket",
-            "lineage-closure"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/adaptertrain",
-              "internal/trainingworkflow",
-              "internal/trainingprogram",
-              "internal/trainingdata",
-              "internal/evaluation",
-              "internal/server",
-              "internal/modelrecipe",
-              "internal/capabilityruntime",
-              "internal/overgodb",
-              "internal/runrecord",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group cpu-lifecycle: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-interruption-drills",
-                "title": "Prove CPU audio cancellation releases buffers, operations and dataset cursors",
-                "verify": "go test ./internal/audioparity -run '^TestAudioCancellationAcceptance$' -count=1 -v"
-              },
-              {
-                "id": "interruption-drills",
-                "title": "Recover interrupted audio checkpoint publication and damaged store copies",
-                "verify": "go test ./internal/audioparity -run '^TestAudioPublicationRecoveryAcceptance$' -count=1 -v",
-                "depends_on": [
-                  "sync-interruption-drills"
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "sync-encoder-backward",
-          "title": "Implement operator gradients and full-encoder training together",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRFullTrainingAcceptance$' -count=1 -v",
-          "rationale": "Group encoder-training; implement asr-training/sync-encoder-backward, asr-training/encoder-backward together. Read the pinned backward reference and inventory hostmath/tensor operations before adding only missing gradients. Bind each to the real encoder; verify independently, including contributions from tied intermediate-feedback/final projections. Retain only necessary backward state and derive workspace without duplicating inference.",
-          "depends_on": [
-            "failure-recovery/interruption-drills",
-            "audio-gate-control/provisional-commit-control",
-            "benchmark-routing/resource-quality-fitness"
-          ],
-          "capabilities": [
-            "common-backward-operations",
-            "minimal-training-trace"
+            "native-stream-state",
+            "bounded-session-reuse"
           ],
           "verification_batch": {
             "scope": [
               "internal/audioparity",
               "internal/speechrecognition",
-              "internal/hostmath",
-              "internal/tensor",
-              "internal/adaptertrain",
-              "internal/trainingprogram",
-              "internal/trainingworkflow",
-              "internal/optimizer",
+              "internal/capabilityruntime",
+              "internal/server",
+              "internal/workflowruntime",
+              "internal/modelrecipe",
               "docs",
               "compatibility.json"
             ],
-            "rationale": "Group encoder-training: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "rationale": "Group streaming-service: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
             "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
             "checkpoints": [
               {
-                "id": "sync-encoder-backward",
-                "title": "Add only missing common backward operations required by the admitted encoder",
-                "verify": "go test ./internal/audioparity -run '^TestASREncoderOperatorGradients$' -count=1 -v"
+                "id": "sync-streaming-transcription",
+                "title": "Bind verified native recognizer state to existing bounded audio sessions",
+                "verify": "go test ./internal/capabilityruntime -run '^TestNativeASRSessionAcceptance$' -count=1 -v"
               }
             ]
           }
         },
         {
-          "id": "encoder-backward",
-          "title": "Verify: Extend the same forward graph to internal adapters and full-encoder CTC training",
+          "id": "streaming-transcription",
+          "title": "Verify: Serve partial and final transcripts through the existing session and transport owners",
           "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRFullTrainingAcceptance$' -count=1 -v",
-          "rationale": "Group encoder-training; retained verification receipt for asr-training/sync-encoder-backward. Extend the same graph to internal adapters and full-encoder CTC. Frozen downstream operations still propagate gradients; shared parameters accumulate all contributions into one optimizer-owned tensor. Reuse checkpoint/resume and pre/post WER/resource checks; no second trainer. Prior CPU measurements determine what expanded training must demonstrate.",
+          "verify": "go test ./internal/server -run '^TestStreamingTranscriptionAcceptance$' -count=1 -v",
+          "rationale": "Group streaming-service; retained verification receipt for asr-serving/sync-streaming-transcription. Serve real partial/final transcripts through existing authenticated transport/session owners. Verify ordering, native chunk semantics, backpressure, disconnect cancellation, restart, shutdown and retained-byte bounds. Measure first-partial and finalization latency separately from total real-time factor; retain transcript persistence and admission policy.",
           "depends_on": [
-            "asr-training/sync-encoder-backward"
+            "asr-serving/sync-streaming-transcription"
           ],
           "capabilities": [
-            "ctc-encoder-backward",
-            "internal-adapter-training",
-            "shared-parameter-gradients",
-            "exact-training-resume"
+            "streaming-transcription",
+            "backpressure",
+            "clean-shutdown"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shared-asr-proof",
+      "title": "Prove the substrate with a second ASR architecture and live operations",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-second-architecture",
+          "title": "Prove offline and native streaming recognition on the second architecture",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestSecondASRStreamingAcceptance$' -count=1 -v",
+          "rationale": "Group second-asr; implement shared-asr-proof/sync-second-architecture, shared-asr-proof/second-architecture together. Use the registered native Safetensors Nemotron 3.5 ASR artifact and 655-tensor inventory as the second real consumer. Reuse modelartifact, frontend, tokenizer and evaluation owners; verify layers/logits/tokens/transcripts on both architectures. Preserve model/spec/license identity. Incompatible Q8 GGUF and AED remain rejected; registration is not execution evidence.",
+          "depends_on": [
+            "failure-recovery/interruption-drills",
+            "audio-contracts/stream-session-contract",
+            "audio-gate-control/provisional-commit-control",
+            "benchmark-routing/resource-quality-fitness"
+          ],
+          "capabilities": [
+            "second-asr-artifact",
+            "common-operation-reuse"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/speechrecognition",
+              "internal/audiodsp",
+              "internal/hostmath",
+              "internal/tensor",
+              "internal/modelartifact",
+              "internal/modelrecipe",
+              "internal/tokenizer",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group second-asr: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-second-architecture",
+                "title": "Execute the second ASR artifact offline through common operations and declarations",
+                "verify": "go test ./internal/audioparity -run '^TestSecondASROfflineAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "second-architecture",
+          "title": "Verify: Prove the second architecture's native streaming state and timestamp semantics",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestSecondASRStreamingAcceptance$' -count=1 -v",
+          "rationale": "Group second-asr; retained verification receipt for shared-asr-proof/sync-second-architecture. Pin native streaming feature/state/logit/token traces, chunk/finalization rules and timestamp tokens against its executable oracle. Geometry and composition are declarations over common operations. This proves recognizer semantics; session and HTTP consumers follow without another runtime.",
+          "depends_on": [
+            "shared-asr-proof/sync-second-architecture"
+          ],
+          "capabilities": [
+            "multi-architecture-asr",
+            "contract-reuse",
+            "nemotron-asr",
+            "timestamp-token-streaming"
+          ]
+        },
+        {
+          "id": "sync-live-model-operations",
+          "title": "Prove switching and concurrent ASR service together",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestASRLiveOperationsAcceptance$' -count=1 -v",
+          "rationale": "Group live-service; implement shared-asr-proof/sync-live-model-operations, shared-asr-proof/live-model-operations together. Switch both admitted ASR recipes through the existing swap/lifecycle owner. Verify predecessor rollback, artifact mismatch refusal, request-bound recipe identity and resource release. No audio-only registry, pool or placement service.",
+          "depends_on": [
+            "shared-asr-proof/second-architecture",
+            "asr-serving/streaming-transcription",
+            "audio-gate-control/provisional-commit-control"
+          ],
+          "capabilities": [
+            "live-audio-switching",
+            "recipe-lifecycle-reuse"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/modelswap",
+              "internal/capabilityruntime",
+              "internal/server",
+              "internal/modelrecipe",
+              "internal/discovery",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group live-service: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-live-model-operations",
+                "title": "Switch between admitted ASR recipes through the existing live-model lifecycle",
+                "verify": "go test ./internal/audioparity -run '^TestASRModelSwitchAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "live-model-operations",
+          "title": "Verify: Prove bounded concurrent audio service through shared placement and scheduling",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestASRLiveOperationsAcceptance$' -count=1 -v",
+          "rationale": "Group live-service; retained verification receipt for shared-asr-proof/sync-live-model-operations. Use the shared scheduler and store-derived smoke selection on both real ASR models. Verify concurrent isolation, admission, cancellation, switching during active work, restart and complete release. Retain actual audio identities/failure denominators; text-only smoke is not audio evidence.",
+          "depends_on": [
+            "shared-asr-proof/sync-live-model-operations"
+          ],
+          "capabilities": [
+            "live-audio-model-switching",
+            "multi-request-scheduling",
+            "restart-recovery"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "speech-analysis-expansion",
+      "title": "Deliver native speech segmentation, then expand shared speech analysis",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-vad",
+          "title": "Implement offline and streaming VAD together",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
+          "rationale": "Group vad; implement speech-analysis-expansion/sync-vad, speech-analysis-expansion/vad together. Use pinned offline FireRedVAD tensors, frontend normalization and feed-forward memory-filter geometry as declarations over common operations. Reuse merged offline registration and bounded PyTorch namespace-metadata reading. Verify feature/probability parity and no-speech controls; retain unsafe pickle, metadata bound, tensor identity and missing-license refusals. No model-specific executor/archive reader. Pin the local FireRedVAD reference c30ec49e8cc69642b0ee65362eba11b9d11c6e54. Derive finite lookback/lookahead and dilation from checkpoint metadata. Extend the existing frontend only for independently demonstrated missing frame conditioning, window/filterbank and fixed normalization semantics; share linear and depthwise filtering operations rather than introducing another audio engine. Use the model-native Python frontend as authority: the bundled C++ frontend carries different pre-emphasis state, so do not silently treat them as equivalent. The required kaldi-native-fbank v1.15 is available at upstream f68c6b43f739697d7ab02ff6debacee130e1d541 and builds locally on CPU. Pin that core for oracle capture: the installed 1.22.3 wheel differed from the source-built 1.15 core in 11 of 16 qualification cases (including a frame-edge impulse), so version/toolchain equivalence is not established. The pinned core was exactly invariant across tested waveform chunk sizes; this does not prove Go parity, postprocessor boundaries, restart or annotated quality. Temporary evidence is in tmp/vad-cpu-pinned-frontend-probe.json; publish durable source-bound fixtures in this group, not inventory-only acceptance.",
+          "depends_on": [
+            "oracle-intake/artifact-compatibility",
+            "audio-primitives/intermediate-parity",
+            "audio-contracts/stream-session-contract",
+            "audio-gate-control/provisional-commit-control"
+          ],
+          "capabilities": [
+            "declared-vad-recipe",
+            "offline-segmentation-parity"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/audiodsp",
+              "internal/hostmath",
+              "internal/tensor",
+              "internal/modelrecipe",
+              "internal/modelartifact",
+              "internal/capabilityruntime",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group vad: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-vad",
+                "title": "Bind the segmentation artifact to common frontend and recurrent operations",
+                "verify": "go test ./internal/audioparity -run '^TestVADOfflineAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "vad",
+          "title": "Verify: Prove bounded streaming VAD, restart and segment-boundary parity",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
+          "rationale": "Group vad; retained verification receipt for speech-analysis-expansion/sync-vad. Use the separately registered streaming checkpoint, not relabeled offline weights. Verify offline/stream semantics, boundaries, discontinuity, finalization, checkpoint/restart and all-zero controls through common operations and OpenAudioStream. Retire only staged declarations with verified production consumers; keep ASR streaming obligations distinct. AMI negative evidence applies only to its exact historical materialization.",
+          "depends_on": [
+            "speech-analysis-expansion/sync-vad"
+          ],
+          "capabilities": [
+            "voice-activity-detection",
+            "stream-segmentation",
+            "fireredvad-parity"
+          ]
+        },
+        {
+          "id": "sync-alignment-diarization",
+          "title": "Score word alignment from verified frame emissions",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestSpeechAlignmentAcceptance$' -count=1 -v",
+          "rationale": "Group word-alignment; implement speech-analysis-expansion/sync-alignment-diarization together. Align validated CTC emissions and transcript tokens using declared blank/repeat, silence, sample-offset and word-mapping semantics. Score errors against real annotations with complete denominators; unsupported alignment refuses. Segment offsets are not word timestamps. Alignment needs validated emissions, not a trained adapter or live switching.",
+          "depends_on": [
+            "audio-recipes/validated-transcription",
+            "audio-gate-control/provisional-commit-control",
+            "benchmark-routing/resource-quality-fitness"
+          ],
+          "capabilities": [
+            "word-alignment",
+            "timestamp-quality"
+          ]
+        },
+        {
+          "id": "alignment-diarization",
+          "title": "Elect and verify speaker attribution on annotated speech",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestSpeakerDiarizationAcceptance$' -count=1 -v",
+          "rationale": "Group speaker-attribution; implement speech-analysis-expansion/alignment-diarization together. Elect a pinned, licensed executable speaker oracle and annotated corpus. Compose VAD, aligned transcripts, common embeddings/clustering and the typed speech-turn contract. Verify attribution/boundary error and transcript preservation; no unscored heuristics, family dispatch or second analysis pipeline.",
+          "depends_on": [
+            "speech-analysis-expansion/sync-alignment-diarization",
+            "audio-gate-control/provisional-commit-control"
+          ],
+          "capabilities": [
+            "speech-alignment",
+            "speaker-diarization",
+            "speech-analysis-evaluation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio-recipes",
+      "title": "Compose validated audio primitives into native operational recipes",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-validated-transcription",
+          "title": "Compose segmentation and bind dataset and HTTP consumers",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
+          "rationale": "Group segmented-transcription; implement audio-recipes/sync-validated-transcription, audio-recipes/validated-transcription together. Compose bounded VAD segment traversal with the existing short-clip transcriber in the recipe owner. Preserve sample offsets, overlap/finalization declarations, memory/duration admission and source lineage. Compare whole-record assembly to the oracle; do not duplicate decode/normalize/infer.",
+          "depends_on": [
+            "asr-reference/offline-recipe",
+            "speech-analysis-expansion/vad",
+            "asr-serving/transcriptions-route",
+            "asr-training/dataset-materialization",
+            "audio-gate-control/provisional-commit-control"
+          ],
+          "capabilities": [
+            "bounded-segment-composition",
+            "segment-lineage"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/modelrecipe",
+              "internal/speechrecognition",
+              "internal/capabilityruntime",
+              "internal/dataset",
+              "internal/trainingdata",
+              "internal/server",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group segmented-transcription: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-validated-transcription",
+                "title": "Compose VAD segments with the existing short-clip transcriber",
+                "verify": "go test ./internal/audioparity -run '^TestSegmentedTranscriptionAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "validated-transcription",
+          "title": "Verify: Bind the same segmented recipe to dataset and authenticated serving consumers",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
+          "rationale": "Group segmented-transcription; retained verification receipt for audio-recipes/sync-validated-transcription. Bind the same segmented recipe to dataset and authenticated HTTP consumers. Verify nonempty input, silent/corrupt refusals, transcript assembly, segment lineage and identical recipe identity. Delete displaced consumer-specific segmentation policy.",
+          "depends_on": [
+            "audio-recipes/sync-validated-transcription"
+          ],
+          "capabilities": [
+            "validated-transcription-recipe",
+            "vad-asr-composition",
+            "audio-lineage"
           ]
         }
       ]
@@ -282,181 +495,6 @@
       ]
     },
     {
-      "id": "shared-asr-proof",
-      "title": "Prove the substrate with a second ASR architecture and live operations",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-second-architecture",
-          "title": "Prove offline and native streaming recognition on the second architecture",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestSecondASRStreamingAcceptance$' -count=1 -v",
-          "rationale": "Group second-asr; implement shared-asr-proof/sync-second-architecture, shared-asr-proof/second-architecture together. Use the registered native Safetensors Nemotron 3.5 ASR artifact and 655-tensor inventory as the second real consumer. Reuse modelartifact, frontend, tokenizer and evaluation owners; verify layers/logits/tokens/transcripts on both architectures. Preserve model/spec/license identity. Incompatible Q8 GGUF and AED remain rejected; registration is not execution evidence.",
-          "depends_on": [
-            "failure-recovery/interruption-drills",
-            "audio-contracts/stream-session-contract",
-            "audio-gate-control/provisional-commit-control",
-            "benchmark-routing/resource-quality-fitness"
-          ],
-          "capabilities": [
-            "second-asr-artifact",
-            "common-operation-reuse"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/speechrecognition",
-              "internal/audiodsp",
-              "internal/hostmath",
-              "internal/tensor",
-              "internal/modelartifact",
-              "internal/modelrecipe",
-              "internal/tokenizer",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group second-asr: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-second-architecture",
-                "title": "Execute the second ASR artifact offline through common operations and declarations",
-                "verify": "go test ./internal/audioparity -run '^TestSecondASROfflineAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
-          "id": "second-architecture",
-          "title": "Verify: Prove the second architecture's native streaming state and timestamp semantics",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestSecondASRStreamingAcceptance$' -count=1 -v",
-          "rationale": "Group second-asr; retained verification receipt for shared-asr-proof/sync-second-architecture. Pin native streaming feature/state/logit/token traces, chunk/finalization rules and timestamp tokens against its executable oracle. Geometry and composition are declarations over common operations. This proves recognizer semantics; session and HTTP consumers follow without another runtime.",
-          "depends_on": [
-            "shared-asr-proof/sync-second-architecture"
-          ],
-          "capabilities": [
-            "multi-architecture-asr",
-            "contract-reuse",
-            "nemotron-asr",
-            "timestamp-token-streaming"
-          ]
-        },
-        {
-          "id": "sync-live-model-operations",
-          "title": "Prove switching and concurrent ASR service together",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRLiveOperationsAcceptance$' -count=1 -v",
-          "rationale": "Group live-service; implement shared-asr-proof/sync-live-model-operations, shared-asr-proof/live-model-operations together. Switch both admitted ASR recipes through the existing swap/lifecycle owner. Verify predecessor rollback, artifact mismatch refusal, request-bound recipe identity and resource release. No audio-only registry, pool or placement service.",
-          "depends_on": [
-            "shared-asr-proof/second-architecture",
-            "asr-serving/streaming-transcription",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "live-audio-switching",
-            "recipe-lifecycle-reuse"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/modelswap",
-              "internal/capabilityruntime",
-              "internal/server",
-              "internal/modelrecipe",
-              "internal/discovery",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group live-service: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-live-model-operations",
-                "title": "Switch between admitted ASR recipes through the existing live-model lifecycle",
-                "verify": "go test ./internal/audioparity -run '^TestASRModelSwitchAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
-          "id": "live-model-operations",
-          "title": "Verify: Prove bounded concurrent audio service through shared placement and scheduling",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRLiveOperationsAcceptance$' -count=1 -v",
-          "rationale": "Group live-service; retained verification receipt for shared-asr-proof/sync-live-model-operations. Use the shared scheduler and store-derived smoke selection on both real ASR models. Verify concurrent isolation, admission, cancellation, switching during active work, restart and complete release. Retain actual audio identities/failure denominators; text-only smoke is not audio evidence.",
-          "depends_on": [
-            "shared-asr-proof/sync-live-model-operations"
-          ],
-          "capabilities": [
-            "live-audio-model-switching",
-            "multi-request-scheduling",
-            "restart-recovery"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "asr-serving",
-      "title": "Expose authenticated transcription and streaming through the native server",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-streaming-transcription",
-          "title": "Bind native streaming state to sessions and authenticated HTTP",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestStreamingTranscriptionAcceptance$' -count=1 -v",
-          "rationale": "Group streaming-service; implement asr-serving/sync-streaming-transcription, asr-serving/streaming-transcription together. Bind the verified recognizer to capabilityruntime.OpenAudioStream with bounded retained state, discontinuities, checkpoint/restart, finalization and cancellation. No growing-prefix offline replay or second scheduler. Also implement TestNativeAudioStreamIntegration in internal/capabilityruntime/audio_stream_integration_test.go for master intake: real chunks, declared offline/chunk equivalence, restart, cancellation, residency release and exact artifact/corpus identities. Contract-only fixtures cannot retire the staged API.",
-          "depends_on": [
-            "audio-contracts/stream-session-contract",
-            "shared-asr-proof/second-architecture",
-            "asr-serving/transcriptions-route",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "native-stream-state",
-            "bounded-session-reuse"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/speechrecognition",
-              "internal/capabilityruntime",
-              "internal/server",
-              "internal/workflowruntime",
-              "internal/modelrecipe",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group streaming-service: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-streaming-transcription",
-                "title": "Bind verified native recognizer state to existing bounded audio sessions",
-                "verify": "go test ./internal/capabilityruntime -run '^TestNativeASRSessionAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
-          "id": "streaming-transcription",
-          "title": "Verify: Serve partial and final transcripts through the existing session and transport owners",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestStreamingTranscriptionAcceptance$' -count=1 -v",
-          "rationale": "Group streaming-service; retained verification receipt for asr-serving/sync-streaming-transcription. Serve real partial/final transcripts through existing authenticated transport/session owners. Verify ordering, native chunk semantics, backpressure, disconnect cancellation, restart, shutdown and retained-byte bounds. Measure first-partial and finalization latency separately from total real-time factor; retain transcript persistence and admission policy.",
-          "depends_on": [
-            "asr-serving/sync-streaming-transcription"
-          ],
-          "capabilities": [
-            "streaming-transcription",
-            "backpressure",
-            "clean-shutdown"
-          ]
-        }
-      ]
-    },
-    {
       "id": "failure-recovery",
       "title": "Prove audio consumers recover through shared durability and control-plane owners",
       "status": "open",
@@ -548,161 +586,6 @@
       ]
     },
     {
-      "id": "speech-analysis-expansion",
-      "title": "Deliver native speech segmentation, then expand shared speech analysis",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-vad",
-          "title": "Implement offline and streaming VAD together",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
-          "rationale": "Group vad; implement speech-analysis-expansion/sync-vad, speech-analysis-expansion/vad together. Use pinned offline FireRedVAD tensors, frontend normalization and recurrent geometry as declarations over common operations. Reuse merged offline registration and bounded PyTorch namespace-metadata reading. Verify feature/probability parity and no-speech controls; retain unsafe pickle, metadata bound, tensor identity and missing-license refusals. No model-specific executor/archive reader.",
-          "depends_on": [
-            "oracle-intake/artifact-compatibility",
-            "audio-primitives/intermediate-parity",
-            "audio-contracts/stream-session-contract",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "declared-vad-recipe",
-            "offline-segmentation-parity"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/audiodsp",
-              "internal/hostmath",
-              "internal/tensor",
-              "internal/modelrecipe",
-              "internal/modelartifact",
-              "internal/capabilityruntime",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group vad: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-vad",
-                "title": "Bind the segmentation artifact to common frontend and recurrent operations",
-                "verify": "go test ./internal/audioparity -run '^TestVADOfflineAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
-          "id": "vad",
-          "title": "Verify: Prove bounded streaming VAD, restart and segment-boundary parity",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
-          "rationale": "Group vad; retained verification receipt for speech-analysis-expansion/sync-vad. Use the separately registered streaming checkpoint, not relabeled offline weights. Verify offline/stream semantics, boundaries, discontinuity, finalization, checkpoint/restart and all-zero controls through common operations and OpenAudioStream. Retire only staged declarations with verified production consumers; keep ASR streaming obligations distinct. AMI negative evidence applies only to its exact historical materialization.",
-          "depends_on": [
-            "speech-analysis-expansion/sync-vad"
-          ],
-          "capabilities": [
-            "voice-activity-detection",
-            "stream-segmentation",
-            "fireredvad-parity"
-          ]
-        },
-        {
-          "id": "sync-alignment-diarization",
-          "title": "Score word alignment from verified frame emissions",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestSpeechAlignmentAcceptance$' -count=1 -v",
-          "rationale": "Group word-alignment; implement speech-analysis-expansion/sync-alignment-diarization together. Align validated CTC emissions and transcript tokens using declared blank/repeat, silence, sample-offset and word-mapping semantics. Score errors against real annotations with complete denominators; unsupported alignment refuses. Segment offsets are not word timestamps. Alignment needs validated emissions, not a trained adapter or live switching.",
-          "depends_on": [
-            "audio-recipes/validated-transcription",
-            "audio-gate-control/provisional-commit-control",
-            "benchmark-routing/resource-quality-fitness"
-          ],
-          "capabilities": [
-            "word-alignment",
-            "timestamp-quality"
-          ]
-        },
-        {
-          "id": "alignment-diarization",
-          "title": "Elect and verify speaker attribution on annotated speech",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestSpeakerDiarizationAcceptance$' -count=1 -v",
-          "rationale": "Group speaker-attribution; implement speech-analysis-expansion/alignment-diarization together. Elect a pinned, licensed executable speaker oracle and annotated corpus. Compose VAD, aligned transcripts, common embeddings/clustering and the typed speech-turn contract. Verify attribution/boundary error and transcript preservation; no unscored heuristics, family dispatch or second analysis pipeline.",
-          "depends_on": [
-            "speech-analysis-expansion/sync-alignment-diarization",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "speech-alignment",
-            "speaker-diarization",
-            "speech-analysis-evaluation"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "audio-recipes",
-      "title": "Compose validated audio primitives into native operational recipes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sync-validated-transcription",
-          "title": "Compose segmentation and bind dataset and HTTP consumers",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
-          "rationale": "Group segmented-transcription; implement audio-recipes/sync-validated-transcription, audio-recipes/validated-transcription together. Compose bounded VAD segment traversal with the existing short-clip transcriber in the recipe owner. Preserve sample offsets, overlap/finalization declarations, memory/duration admission and source lineage. Compare whole-record assembly to the oracle; do not duplicate decode/normalize/infer.",
-          "depends_on": [
-            "asr-reference/offline-recipe",
-            "speech-analysis-expansion/vad",
-            "asr-serving/transcriptions-route",
-            "asr-training/dataset-materialization",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "bounded-segment-composition",
-            "segment-lineage"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/modelrecipe",
-              "internal/speechrecognition",
-              "internal/capabilityruntime",
-              "internal/dataset",
-              "internal/trainingdata",
-              "internal/server",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group segmented-transcription: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-validated-transcription",
-                "title": "Compose VAD segments with the existing short-clip transcriber",
-                "verify": "go test ./internal/audioparity -run '^TestSegmentedTranscriptionAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
-          "id": "validated-transcription",
-          "title": "Verify: Bind the same segmented recipe to dataset and authenticated serving consumers",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
-          "rationale": "Group segmented-transcription; retained verification receipt for audio-recipes/sync-validated-transcription. Bind the same segmented recipe to dataset and authenticated HTTP consumers. Verify nonempty input, silent/corrupt refusals, transcript assembly, segment lineage and identical recipe identity. Delete displaced consumer-specific segmentation policy.",
-          "depends_on": [
-            "audio-recipes/sync-validated-transcription"
-          ],
-          "capabilities": [
-            "validated-transcription-recipe",
-            "vad-asr-composition",
-            "audio-lineage"
-          ]
-        }
-      ]
-    },
-    {
       "id": "audio-generation-expansion",
       "title": "Consolidate speech synthesis and admit broader audio generation",
       "status": "open",
@@ -767,7 +650,7 @@
           "title": "Elect and deliver one supported voice capability",
           "status": "open",
           "verify": "go test ./internal/audioparity -run '^TestVoiceCapabilityAcceptance$' -count=1 -v",
-          "rationale": "Group voice; implement audio-generation-expansion/sync-voice-capability, audio-generation-expansion/voice-capability together. Elect multilingual synthesis or voice conversion from pinned executable, licensed artifacts. Run the bounded reference first; identify exact missing speaker/codec/conditioning operations and a falsifiable quality check. Failed election stops the dependent port and remains recorded, not completed capability.",
+          "rationale": "Group voice; implement audio-generation-expansion/sync-voice-capability, audio-generation-expansion/voice-capability together. Elect multilingual synthesis or voice conversion from pinned executable, licensed artifacts. Run the bounded reference first; identify exact missing speaker/codec/conditioning operations and a falsifiable quality check. Failed election stops the dependent port and remains recorded, not completed capability. Resource: CPU-only artifact/license/operation review may proceed when eligible. The elected reference determines actual execution requirements; if its oracle or forward/update proof requires a GPU, defer that proof without replacing it with inventory or skipped acceptance.",
           "depends_on": [
             "audio-generation-expansion/tts-contract-consolidation",
             "audio-gate-control/provisional-commit-control"
@@ -808,7 +691,7 @@
           "title": "Verify: Deliver the elected voice capability through common conditioning and codec operations",
           "status": "open",
           "verify": "go test ./internal/audioparity -run '^TestVoiceCapabilityAcceptance$' -count=1 -v",
-          "rationale": "Group voice; retained verification receipt for audio-generation-expansion/sync-voice-capability. Port only elected missing common conditioning/codec operations with their synthesis/evaluation/training consumers. Verify source and conditioning identity, independent output parity, quality denominators and a real update path. No family executor or parallel service; an absent admitted election fails.",
+          "rationale": "Group voice; retained verification receipt for audio-generation-expansion/sync-voice-capability. Port only elected missing common conditioning/codec operations with their synthesis/evaluation/training consumers. Verify source and conditioning identity, independent output parity, quality denominators and a real update path. No family executor or parallel service; an absent admitted election fails. Resource: CPU-only artifact/license/operation review may proceed when eligible. The elected reference determines actual execution requirements; if its oracle or forward/update proof requires a GPU, defer that proof without replacing it with inventory or skipped acceptance.",
           "depends_on": [
             "audio-generation-expansion/sync-voice-capability"
           ],
@@ -823,7 +706,7 @@
           "title": "Elect a generative-audio reference independently of ASR CUDA",
           "status": "open",
           "verify": "go test ./internal/audioparity -run '^TestGenerativeAudioElectionAcceptance$' -count=1 -v",
-          "rationale": "Group generative-intake; implement audio-generation-expansion/sync-generative-audio-probe together. Elect an executable licensed generative-audio reference with bounded CPU-readable component traces, conditioning/codec semantics, quality assertions and a credible universal-training route. Inventory existing DiT owners first. Election adds no production package and rejected candidates leave execution unavailable.",
+          "rationale": "Group generative-intake; implement audio-generation-expansion/sync-generative-audio-probe together. Elect an executable licensed generative-audio reference with bounded CPU-readable component traces, conditioning/codec semantics, quality assertions and a credible universal-training route. Inventory existing DiT owners first. Election adds no production package and rejected candidates leave execution unavailable. Resource: CPU-only artifact/license/operation review may proceed when eligible. The elected reference determines actual execution requirements; if its oracle or forward/update proof requires a GPU, defer that proof without replacing it with inventory or skipped acceptance.",
           "depends_on": [
             "audio-generation-expansion/tts-contract-consolidation",
             "audio-gate-control/provisional-commit-control"
@@ -838,7 +721,7 @@
           "title": "Execute the elected generative-audio forward and update probe",
           "status": "open",
           "verify": "go test ./internal/audioparity -run '^TestGenerativeAudioProbeAcceptance$' -count=1 -v",
-          "rationale": "Group generative-proof; implement audio-generation-expansion/generative-audio-probe together. Execute the elected forward and nonzero training probe through shared DiT/media owners. Match independent traces/quality and measure wall/memory against the model-native reference. Stop expansion on failed parity, quality or resource admission. Device prerequisites follow elected operations, not unrelated ASR CUDA completion; required GPU execution cannot be skipped.",
+          "rationale": "Group generative-proof; implement audio-generation-expansion/generative-audio-probe together. Execute the elected forward and nonzero training probe through shared DiT/media owners. Match independent traces/quality and measure wall/memory against the model-native reference. Stop expansion on failed parity, quality or resource admission. Device prerequisites follow elected operations, not unrelated ASR CUDA completion; required GPU execution cannot be skipped. Resource: CPU-only artifact/license/operation review may proceed when eligible. The elected reference determines actual execution requirements; if its oracle or forward/update proof requires a GPU, defer that proof without replacing it with inventory or skipped acceptance.",
           "depends_on": [
             "audio-generation-expansion/sync-generative-audio-probe",
             "audio-gate-control/provisional-commit-control"
@@ -852,96 +735,118 @@
       ]
     },
     {
-      "id": "gemma-audio-proof",
-      "title": "Prove existing E4B and 12B FP8 audio-conditioned capabilities through shared owners",
+      "id": "asr-training",
+      "title": "Prove Overgo's universal trainer on the native audio route",
       "status": "open",
       "steps": [
         {
-          "id": "artifact-contracts",
-          "title": "Admit both audio-conditioned artifacts without reserving a GPU",
+          "id": "closed-loop-proof",
+          "title": "Prove the served CPU lifecycle and its failure recovery",
           "status": "open",
-          "verify": "go test ./internal/adaptiveparity -run '^TestAudioConditionedArtifactAdmissionAcceptance$' -count=1 -v",
-          "rationale": "Group gemma-admission; implement gemma-audio-proof/artifact-contracts together. CPU-only admission of C:/Users/jeffm/adaptive_new/models/gemma-4-E4B-it and C:/Users/jeffm/adaptive_new/models/gemma-4-12B-it-fp8. Preserve distinct gemma4_audio/gemma4_unified_audio, precision and preprocessing declarations. Bind exact checkpoint/projector/tokenizer/processor dependencies through existing intake, prompt and tower owners. Reuse E4B registration/evidence; keep 12B admission separate. Retain TestAudioProcessorProfileIdentity, TestProjectionVerificationRequiresExecution and TestDeclaredSamplingPreservesPolicyIdentity. Loading/inventory never establishes executed parity or GPU success.",
+          "verify": "go test ./internal/audioparity -run '^TestASRCPUClosedLoop$' -count=1 -v",
+          "rationale": "Group cpu-lifecycle; implement asr-training/closed-loop-proof, failure-recovery/sync-interruption-drills, failure-recovery/interruption-drills together. TestASRCPUClosedLoop must execute nonempty real training/held-out splits, nonzero updates, exact resume, VAD composition, WER/resource comparisons, publication/reload and authenticated HTTP transcription with one artifact-lineage chain. Reuse master's upload/workflow and RequireTranscriptionReport owners; no new orchestrator/scorer. Quality-record reuse requires exact identity; timing requires fresh execution. No-gain is reportable, not promotable. Do not wait for encoder gradients, another architecture, ASR streaming or CUDA.",
           "depends_on": [
-            "audio-decode-consolidation/do",
-            "audio-gate-control/provisional-commit-control",
-            "benchmark-routing/resource-quality-fitness"
-          ],
-          "capabilities": [
-            "audio-conditioned-artifact-admission",
-            "distinct-audio-execution-contracts"
-          ]
-        },
-        {
-          "id": "matched-audio-quality",
-          "title": "Verify matched audio quality and complete served answers in one device campaign",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/server -run '^TestAudioConditionedServingAcceptance$' -count=1 -v",
-          "rationale": "Group gemma-quality-serving; implement gemma-audio-proof/matched-audio-quality, gemma-audio-proof/serving-recovery together. Reuse exact E4B audio-tower/12B audio-to-language evidence and E4B's eight-case projected-transcription oracle through cmd/evaluate and existing re-scoring. Execute complete answers on pinned audio for both models: declared-normalization WER/CER plus separate audio-understanding scoring, held-out breadth, input failures and full lineage. No reference leakage, first-token-only quality claim or duplicate all-modality campaign. Isolate GPU timing; do not claim synthesis, streaming or timestamps.",
-          "depends_on": [
-            "gemma-audio-proof/artifact-contracts",
-            "asr-training/dataset-materialization",
+            "asr-training/exact-resume",
             "asr-serving/transcriptions-route",
+            "audio-recipes/validated-transcription",
+            "asr-training/sync-closed-loop-proof",
+            "hermetic-foundation/store-drills",
             "audio-gate-control/provisional-commit-control"
           ],
           "capabilities": [
-            "audio-conditioned-transcription",
-            "audio-understanding-quality",
-            "paired-artifact-evidence"
+            "audio-train-evaluate-serve",
+            "checkpoint-publication",
+            "quality-bracket",
+            "lineage-closure"
           ],
           "verification_batch": {
             "scope": [
-              "internal/adaptiveparity",
-              "internal/projector",
-              "internal/modelartifact",
-              "internal/modelrecipe",
-              "internal/inference",
+              "internal/audioparity",
+              "internal/adaptertrain",
+              "internal/trainingworkflow",
+              "internal/trainingprogram",
+              "internal/trainingdata",
               "internal/evaluation",
               "internal/server",
+              "internal/modelrecipe",
               "internal/capabilityruntime",
+              "internal/overgodb",
+              "internal/runrecord",
               "docs",
               "compatibility.json"
             ],
-            "rationale": "Group gemma-quality-serving: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "rationale": "Group cpu-lifecycle: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
             "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
             "checkpoints": [
               {
-                "id": "matched-audio-quality",
-                "title": "Measure transcription and audio understanding separately for both Gemma models",
-                "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAudioConditionedQualityAcceptance$' -count=1 -v"
+                "id": "sync-interruption-drills",
+                "title": "Prove CPU audio cancellation releases buffers, operations and dataset cursors",
+                "verify": "go test ./internal/audioparity -run '^TestAudioCancellationAcceptance$' -count=1 -v"
+              },
+              {
+                "id": "interruption-drills",
+                "title": "Recover interrupted audio checkpoint publication and damaged store copies",
+                "verify": "go test ./internal/audioparity -run '^TestAudioPublicationRecoveryAcceptance$' -count=1 -v",
+                "depends_on": [
+                  "sync-interruption-drills"
+                ]
               }
             ]
           }
         },
         {
-          "id": "serving-recovery",
-          "title": "Verify: Verify both Gemma audio paths through existing authenticated chat and Responses serving",
+          "id": "sync-encoder-backward",
+          "title": "Implement operator gradients and full-encoder training together",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/server -run '^TestAudioConditionedServingAcceptance$' -count=1 -v",
-          "rationale": "Group gemma-quality-serving; retained verification receipt for gemma-audio-proof/matched-audio-quality. Execute both admitted audio-conditioned recipes through Chat Completions and Responses: complete answers, ordered audio/text history, authentication, malformed/oversized refusal, cancellation, repeats and post-recovery attribution. Retain TestE4BServingModalities, merged protocol/resource and native generation/workflow checks, sampling identity and invalid-policy nonmutation. Add missing audio/12B cases only. Standalone transcription needs its own supported recipe and proof; no duplicated GUI/provider/VQA orchestration.",
+          "verify": "go test ./internal/audioparity -run '^TestASRFullTrainingAcceptance$' -count=1 -v",
+          "rationale": "Group encoder-training; implement asr-training/sync-encoder-backward, asr-training/encoder-backward together. Read the pinned backward reference and inventory hostmath/tensor operations before adding only missing gradients. Bind each to the real encoder; verify independently, including contributions from tied intermediate-feedback/final projections. Retain only necessary backward state and derive workspace without duplicating inference.",
           "depends_on": [
-            "gemma-audio-proof/matched-audio-quality"
+            "failure-recovery/interruption-drills",
+            "audio-gate-control/provisional-commit-control",
+            "benchmark-routing/resource-quality-fitness"
           ],
           "capabilities": [
-            "audio-conditioned-http-serving",
-            "multimodal-audio-recovery"
-          ]
+            "common-backward-operations",
+            "minimal-training-trace"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/speechrecognition",
+              "internal/hostmath",
+              "internal/tensor",
+              "internal/adaptertrain",
+              "internal/trainingprogram",
+              "internal/trainingworkflow",
+              "internal/optimizer",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group encoder-training: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-encoder-backward",
+                "title": "Add only missing common backward operations required by the admitted encoder",
+                "verify": "go test ./internal/audioparity -run '^TestASREncoderOperatorGradients$' -count=1 -v"
+              }
+            ]
+          }
         },
         {
-          "id": "audio-adaptation",
-          "title": "Verify supported audio-conditioned training and exact resume",
+          "id": "encoder-backward",
+          "title": "Verify: Extend the same forward graph to internal adapters and full-encoder CTC training",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAudioConditionedTrainingAcceptance$' -count=1 -v",
-          "rationale": "Group gemma-adaptation; implement gemma-audio-proof/audio-adaptation together. Use the universal trainer, frozen-component, optimizer and checkpoint owners for admitted audio-conditioned paths. Prove actual materialization, nonzero parameters/updates, gradients, exact RNG/optimizer/data resume and held-out scoring. E4B layer-0 representation coverage is not full training. Retain explicit 12B FP8 no-per-layer-input refusal until a supported declaration is implemented; do not count refusal as training. Report model/task/parameter coverage separately.",
+          "verify": "go test ./internal/audioparity -run '^TestASRFullTrainingAcceptance$' -count=1 -v",
+          "rationale": "Group encoder-training; retained verification receipt for asr-training/sync-encoder-backward. Extend the same graph to internal adapters and full-encoder CTC. Frozen downstream operations still propagate gradients; shared parameters accumulate all contributions into one optimizer-owned tensor. Reuse checkpoint/resume and pre/post WER/resource checks; no second trainer. Prior CPU measurements determine what expanded training must demonstrate.",
           "depends_on": [
-            "gemma-audio-proof/serving-recovery",
-            "asr-training/exact-resume",
-            "audio-gate-control/provisional-commit-control"
+            "asr-training/sync-encoder-backward"
           ],
           "capabilities": [
-            "audio-conditioned-adaptation",
-            "training-topology-admission",
-            "exact-audio-training-resume"
+            "ctc-encoder-backward",
+            "internal-adapter-training",
+            "shared-parameter-gradients",
+            "exact-training-resume"
           ]
         }
       ]
@@ -970,7 +875,7 @@
           "title": "Bind measured CUDA operations and prove operator-to-recipe parity",
           "status": "open",
           "verify": "go test ./internal/audioparity -run '^TestASRCUDARecipeAcceptance$' -count=1 -v",
-          "rationale": "Group asr-device; implement asr-cuda/profile-and-bind, asr-cuda/sync-device-parity, asr-cuda/device-parity together. Use measured CPU hotspots to bind only missing operations through existing CUDA manifest/generated ABI owners. No family kernels or manual ABI. Recheck actual toolkit/compiler support; historical CUDA 12.9/MSVC 19.51 failure is neither permanent unavailability nor passing evidence. Defer occupied-device work while eligible CPU work remains.",
+          "rationale": "Group asr-device; implement asr-cuda/profile-and-bind, asr-cuda/sync-device-parity, asr-cuda/device-parity together. Use measured CPU hotspots to bind only missing operations through existing CUDA manifest/generated ABI owners. No family kernels or manual ABI. Recheck actual toolkit/compiler support; historical CUDA 12.9/MSVC 19.51 failure is neither permanent unavailability nor passing evidence. Defer occupied-device work while eligible CPU work remains. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence.",
           "depends_on": [
             "benchmark-routing/resource-quality-fitness",
             "asr-training/encoder-backward",
@@ -1021,7 +926,7 @@
           "title": "Verify: Verify accelerated operation and gradient parity before full recipe promotion",
           "status": "open",
           "verify": "go test ./internal/audioparity -run '^TestASRCUDAOperatorAcceptance$' -count=1 -v",
-          "rationale": "Group asr-device; retained verification receipt for asr-cuda/profile-and-bind. Verify actual CUDA forward/backward operators against independent CPU authority on admitted shapes and tied parameters. Derive workspace; test cancellation/cleanup and manifest-derived device/race coverage. Bind evidence to the real recipe, not unrelated synthetic shapes; unavailable required execution fails.",
+          "rationale": "Group asr-device; retained verification receipt for asr-cuda/profile-and-bind. Verify actual CUDA forward/backward operators against independent CPU authority on admitted shapes and tied parameters. Derive workspace; test cancellation/cleanup and manifest-derived device/race coverage. Bind evidence to the real recipe, not unrelated synthetic shapes; unavailable required execution fails. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence.",
           "depends_on": [
             "asr-cuda/profile-and-bind"
           ],
@@ -1035,13 +940,107 @@
           "title": "Verify: Prove complete CUDA inference and training against the CPU recipe",
           "status": "open",
           "verify": "go test ./internal/audioparity -run '^TestASRCUDARecipeAcceptance$' -count=1 -v",
-          "rationale": "Group asr-device; retained verification receipt for asr-cuda/profile-and-bind. On identical artifacts/datasets, compare activations, logits, transcripts, WER, admitted adapter/full-encoder updates and exact resume. Record wall, real-time factor, host peak availability, VRAM and toolchain/device identity. Require applicable device evidence and quality/resource policy before promotion; preserve CPU support.",
+          "rationale": "Group asr-device; retained verification receipt for asr-cuda/profile-and-bind. On identical artifacts/datasets, compare activations, logits, transcripts, WER, admitted adapter/full-encoder updates and exact resume. Record wall, real-time factor, host peak availability, VRAM and toolchain/device identity. Require applicable device evidence and quality/resource policy before promotion; preserve CPU support. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence.",
           "depends_on": [
             "asr-cuda/sync-device-parity"
           ],
           "capabilities": [
             "cpu-cuda-parity",
             "device-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gemma-audio-proof",
+      "title": "Prove existing E4B and 12B FP8 audio-conditioned capabilities through shared owners",
+      "status": "open",
+      "steps": [
+        {
+          "id": "artifact-contracts",
+          "title": "Admit both audio-conditioned artifacts without reserving a GPU",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestAudioConditionedArtifactAdmissionAcceptance$' -count=1 -v",
+          "rationale": "Group gemma-admission; implement gemma-audio-proof/artifact-contracts together. CPU-only admission of C:/Users/jeffm/adaptive_new/models/gemma-4-E4B-it and C:/Users/jeffm/adaptive_new/models/gemma-4-12B-it-fp8. Preserve distinct gemma4_audio/gemma4_unified_audio, precision and preprocessing declarations. Bind exact checkpoint/projector/tokenizer/processor dependencies through existing intake, prompt and tower owners. Reuse E4B registration/evidence; keep 12B admission separate. Retain TestAudioProcessorProfileIdentity, TestProjectionVerificationRequiresExecution and TestDeclaredSamplingPreservesPolicyIdentity. Loading/inventory never establishes executed parity or GPU success. Artifact identity and processor admission do not consume ASR fitness evidence; quality, device execution and adaptation remain separately gated.",
+          "depends_on": [
+            "audio-decode-consolidation/do",
+            "audio-gate-control/provisional-commit-control"
+          ],
+          "capabilities": [
+            "audio-conditioned-artifact-admission",
+            "distinct-audio-execution-contracts"
+          ]
+        },
+        {
+          "id": "matched-audio-quality",
+          "title": "Verify matched audio quality and complete served answers in one device campaign",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/server -run '^TestAudioConditionedServingAcceptance$' -count=1 -v",
+          "rationale": "Group gemma-quality-serving; implement gemma-audio-proof/matched-audio-quality, gemma-audio-proof/serving-recovery together. Reuse exact E4B audio-tower/12B audio-to-language evidence and E4B's eight-case projected-transcription oracle through cmd/evaluate and existing re-scoring. Execute complete answers on pinned audio for both models: declared-normalization WER/CER plus separate audio-understanding scoring, held-out breadth, input failures and full lineage. No reference leakage, first-token-only quality claim or duplicate all-modality campaign. Isolate GPU timing; do not claim synthesis, streaming or timestamps. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence.",
+          "depends_on": [
+            "gemma-audio-proof/artifact-contracts",
+            "asr-training/dataset-materialization",
+            "asr-serving/transcriptions-route",
+            "audio-gate-control/provisional-commit-control"
+          ],
+          "capabilities": [
+            "audio-conditioned-transcription",
+            "audio-understanding-quality",
+            "paired-artifact-evidence"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/adaptiveparity",
+              "internal/projector",
+              "internal/modelartifact",
+              "internal/modelrecipe",
+              "internal/inference",
+              "internal/evaluation",
+              "internal/server",
+              "internal/capabilityruntime",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group gemma-quality-serving: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "matched-audio-quality",
+                "title": "Measure transcription and audio understanding separately for both Gemma models",
+                "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAudioConditionedQualityAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "serving-recovery",
+          "title": "Verify: Verify both Gemma audio paths through existing authenticated chat and Responses serving",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/server -run '^TestAudioConditionedServingAcceptance$' -count=1 -v",
+          "rationale": "Group gemma-quality-serving; retained verification receipt for gemma-audio-proof/matched-audio-quality. Execute both admitted audio-conditioned recipes through Chat Completions and Responses: complete answers, ordered audio/text history, authentication, malformed/oversized refusal, cancellation, repeats and post-recovery attribution. Retain TestE4BServingModalities, merged protocol/resource and native generation/workflow checks, sampling identity and invalid-policy nonmutation. Add missing audio/12B cases only. Standalone transcription needs its own supported recipe and proof; no duplicated GUI/provider/VQA orchestration. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence.",
+          "depends_on": [
+            "gemma-audio-proof/matched-audio-quality"
+          ],
+          "capabilities": [
+            "audio-conditioned-http-serving",
+            "multimodal-audio-recovery"
+          ]
+        },
+        {
+          "id": "audio-adaptation",
+          "title": "Verify supported audio-conditioned training and exact resume",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAudioConditionedTrainingAcceptance$' -count=1 -v",
+          "rationale": "Group gemma-adaptation; implement gemma-audio-proof/audio-adaptation together. Use the universal trainer, frozen-component, optimizer and checkpoint owners for admitted audio-conditioned paths. Prove actual materialization, nonzero parameters/updates, gradients, exact RNG/optimizer/data resume and held-out scoring. E4B layer-0 representation coverage is not full training. Retain explicit 12B FP8 no-per-layer-input refusal until a supported declaration is implemented; do not count refusal as training. Report model/task/parameter coverage separately. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence.",
+          "depends_on": [
+            "gemma-audio-proof/serving-recovery",
+            "asr-training/exact-resume",
+            "audio-gate-control/provisional-commit-control"
+          ],
+          "capabilities": [
+            "audio-conditioned-adaptation",
+            "training-topology-admission",
+            "exact-audio-training-resume"
           ]
         }
       ]

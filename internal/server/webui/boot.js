@@ -8,6 +8,7 @@
   const MODEL_STORAGE = "overgo.model"; // the last model this browser chose to serve
   const errors = []; // every window error since boot; the browser lane asserts none
   window.addEventListener("error", (event) => errors.push(String(event.message)));
+  window.addEventListener("unhandledrejection", (event) => errors.push(String(event.reason)));
 
   // The key lives in memory for the page session; browser storage is opt-in via the
   // "remember" control so a shared machine never keeps a key the operator did not ask it to keep.
@@ -114,6 +115,7 @@
         if (name === "class") node.className = value;
         else if (name === "text") node.textContent = value;
         else if (name.startsWith("on") && typeof value === "function") node.addEventListener(name.slice(2), value);
+        else if ((name === "src" || name === "href") && String(value).startsWith("/artifacts/content?")) artifactResource(node, name, value);
         else node.setAttribute(name, value);
       }
     }
@@ -121,12 +123,41 @@
     return node;
   }
 
+  // Native media and links cannot send a bearer header. Fetch protected bytes
+  // through the shared client and release their object URLs when removed.
+  const artifactURLs = new Map();
+  new MutationObserver(() => {
+    for (const [node, url] of artifactURLs) {
+      if (!node.isConnected) { URL.revokeObjectURL(url); artifactURLs.delete(node); }
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  function artifactResource(node, attribute, path) {
+    const load = async () => {
+      try {
+        const body = await api.blob(path);
+        if (!node.isConnected) return;
+        if (artifactURLs.has(node)) URL.revokeObjectURL(artifactURLs.get(node));
+        const url = URL.createObjectURL(body);
+        artifactURLs.set(node, url);
+        if (attribute === "src") node.src = url;
+        else {
+          const download = el("a", { href: url, download: node.getAttribute("download") || "artifact" });
+          download.click();
+        }
+      } catch (err) { node.replaceWith(errorBanner(friendlyError(err))); }
+    };
+    if (attribute === "href") {
+      node.setAttribute("href", path);
+      node.addEventListener("click", (event) => { event.preventDefault(); load(); });
+    } else load();
+  }
+
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
   function errorBanner(message) { return el("div", { class: "err-banner", role: "alert", text: message }); }
 
   // friendlyError: a 401 becomes the same actionable hint on every tab.
-  function friendlyError(err) { return err && err.status === 401 ? "API key required — enter it in the top bar." : String((err && err.message) || err); }
+  function friendlyError(err) { return err && err.status === 401 ? "API key required — open Settings and enter it under Connection." : String((err && err.message) || err); }
 
   // Number formatting helpers (grouping, byte sizes, compact counts).
   function grouped(n) { return Number(n).toLocaleString("en-US"); }
@@ -156,6 +187,9 @@
 
   // runner: one exclusive, cancelable async action bound to a run and a cancel
   // button; an abort goes to onCancel, any other failure to onError.
+  // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
+  // tick, the offline probe, and the status re-probe.
+  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
   function runner(runButton, cancelButton, handlers) {
     handlers = handlers || {};
     let controller = null;
@@ -163,14 +197,14 @@
     return async function run(task) {
       if (controller) return; // a run is already in flight
       runButton.disabled = true;
-      cancelButton.style.display = "";
+      cancelButton.hidden = false;
       controller = new AbortController();
       try {
         await task(controller.signal);
       } catch (err) {
         if (err && err.name === "AbortError") { if (handlers.onCancel) handlers.onCancel(); }
         else if (handlers.onError) handlers.onError(err);
-      } finally { runButton.disabled = false; cancelButton.style.display = "none"; controller = null; }
+      } finally { runButton.disabled = false; cancelButton.hidden = true; controller = null; }
     };
   }
 
@@ -209,11 +243,10 @@
   function registerTab(tab) { tabs.push(tab); }
 
   // artifactLink: the one link to a stored artifact (content, or the gallery entry).
+  const galleryRoute = "/artifacts?id=", contentRoute = "/artifacts/content?id=";
   function artifactLink(id, label, gallery) {
-    return el("a", {
-      class: "mono", href: (gallery ? "/artifacts?id=" : "/artifacts/content?id=") + encodeURIComponent(id),
-      target: "_blank", rel: "noopener", text: label || shortID(id),
-    });
+    const route = gallery ? galleryRoute : contentRoute;
+    return el("a", { class: "mono", href: route + encodeURIComponent(id), target: "_blank", rel: "noopener", text: label || shortID(id) });
   }
 
   // headerRow, tableRow, table: a header row from labels, a row of cells (a
@@ -237,15 +270,70 @@
   }
 
   // The front page: the workbench folds to a rail; the Workbench control or any other tab unfolds it.
-  function setFront(on) { document.querySelector(".shell").classList.toggle("front", on); }
+  function setFront(on) {
+    document.querySelector(".shell").classList.toggle("front", on);
+    document.getElementById("workbench-toggle").setAttribute("aria-expanded", String(!on));
+  }
+  const phoneNavigation = matchMedia("(max-width: 860px)");
+  function closeNavigation() {
+    const nav = document.getElementById("navigation");
+    const toggle = document.getElementById("navigation-toggle");
+    const wasOpen = toggle.getAttribute("aria-expanded") === "true";
+    document.querySelector(".shell").classList.remove("navigation-open");
+    toggle.setAttribute("aria-expanded", "false");
+    document.getElementById("navigation-backdrop").hidden = true;
+    document.querySelector(".content").inert = false;
+    nav.inert = phoneNavigation.matches;
+    nav.removeAttribute("role"); nav.removeAttribute("aria-modal");
+    if (wasOpen) toggle.focus();
+  }
+  function openNavigation() {
+    const nav = document.getElementById("navigation");
+    nav.inert = false;
+    nav.setAttribute("role", "dialog"); nav.setAttribute("aria-modal", "true");
+    document.querySelector(".shell").classList.add("navigation-open");
+    document.getElementById("navigation-toggle").setAttribute("aria-expanded", "true");
+    document.getElementById("navigation-backdrop").hidden = false;
+    document.querySelector(".content").inert = true;
+    document.getElementById("navigation-close").focus();
+  }
+  document.getElementById("navigation-toggle").addEventListener("click", openNavigation);
+  document.getElementById("navigation-close").addEventListener("click", closeNavigation);
+  document.getElementById("navigation-backdrop").addEventListener("click", closeNavigation);
+  phoneNavigation.addEventListener("change", closeNavigation);
+  closeNavigation();
+  document.getElementById("navigation").addEventListener("keydown", (event) => {
+    if (!phoneNavigation.matches) return;
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeNavigation(); }
+    if (event.key !== "Tab") return;
+    const controls = [...event.currentTarget.querySelectorAll("button:not(:disabled), a[href], input")].filter((node) => node.getClientRects().length);
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+  const settingsDialog = document.getElementById("settings-dialog");
+  document.getElementById("settings-toggle").addEventListener("click", (event) => { event.currentTarget.focus(); settingsDialog.showModal(); });
+  settingsDialog.querySelector("[data-close-dialog]").addEventListener("click", () => settingsDialog.close());
+  document.getElementById("new-chat").addEventListener("click", () => openConversation(null));
+  // Follow the browser's visible height when its on-screen keyboard resizes only the visual viewport.
+  if (window.visualViewport) {
+    const resize = () => document.documentElement.style.setProperty("--viewport-height", window.visualViewport.height + "px");
+    window.visualViewport.addEventListener("resize", resize); resize();
+  }
   let servedEntry = null;
   function servedModel() { return servedEntry; }
 
   // ---- conversations: the server lists stored-response chains; the rail opens, renames or archives one ----
   let selectedConversation = null;
+  try { selectedConversation = JSON.parse(sessionStorage.getItem("overgo.conversation") || "null"); } catch (_) { /* storage unavailable */ }
   function conversation() { return selectedConversation; }
-  function openConversation(item) {
+  function rememberConversation(item) {
     selectedConversation = item;
+    try { sessionStorage.setItem("overgo.conversation", JSON.stringify(item)); } catch (_) { /* storage unavailable */ }
+  }
+  function openConversation(item) {
+    setFront(true);
+    rememberConversation(item);
     for (const tab of tabs) { if (tab.id === "chat") tab.mounted = false; }
     activate("chat");
   }
@@ -278,7 +366,7 @@
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel,
-    conversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
+    conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
@@ -328,6 +416,8 @@
   function activate(id) {
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
+    closeNavigation();
+    document.querySelector(".shell").classList.toggle("conversation-view", id === "chat");
     activeSection = tabSection(tab);
     if (id !== "chat") setFront(false);
     for (const t of tabs) {
@@ -361,9 +451,9 @@
     const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
     prompt.value = (seed && seed.prompt) || options.defaultPrompt;
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
-    const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
+    const cancel = el("button", { class: "btn alt", hidden: true }, "cancel");
     const out = el("div");
-    panel.append(prompt, el("div", { class: "row", style: "margin:10px 0" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
+    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
       onError: (err) => out.replaceChildren(errorBanner(friendlyError(err))),
@@ -393,18 +483,23 @@
       const health = await api.get("/health", { onHeaders: (headers) => { const via = headers.get("X-Overgo-Swap-Proxy");
         dot("proxy-dot", via == null ? "off" : "ok", via ? "swap proxy serving " + via : via == null ? "no swap proxy: served directly" : "swap proxy running; no model serves"); } });
       statusPill.textContent = "online";
+      document.getElementById("connection-alert").hidden = true;
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
       // The proxy with no child names no model; the pill says so rather than keeping the last name.
       modelPill.textContent = (health && health.model) || "no model serves";
+      modelPill.title = modelPill.textContent + " — choose a model";
+      document.getElementById("model-details").textContent = modelPill.textContent;
+      servedEntry = null;
+      document.getElementById("model-evidence").textContent = "";
       if (health && health.model) {
         // A catalog that fails to list says so under the pill instead of an empty evidence line.
         const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
         servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
         document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || "";
       }
-    } catch (err) { statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); }
+    } catch (err) { statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); document.getElementById("connection-alert").hidden = false; }
   }
 
   // The served model shows on every page as the banner pill; clicking it lists the servable models, and behind
@@ -412,26 +507,28 @@
   // libraryStarters: the two ways a model enters an empty store, each a control that opens the Library tab
   // on its form (the local registration row, the hosted provider form) once the tab has mounted.
   function libraryStarters() {
-    const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, 50); }; focus(); };
+    const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, focusRetryMS); }; focus(); };
     return [el("button", { class: "btn alt", text: "register a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
       el("button", { class: "btn alt", text: "declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
   }
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
-    let panel = null;
-    modelPill.style.cursor = "pointer";
+    let panel = null; modelPill.classList.add("clickable");
     modelPill.title = "click to switch the served model";
+    // close: the picker leaves after a served swap and on Escape; a click on the pill toggles it.
+    const close = () => { if (panel) { panel.close(); panel.remove(); panel = null; modelPill.focus(); } };
 
     // swapModel routes one health probe through the swap proxy with the swap query parameter; the proxy swaps
     // the child to answer it, then the capability document is re-read and the active surface re-mounted.
     async function swapModel(item, name, button) {
+      const currentPanel = panel;
       const before = modelPill.textContent;
       const started = Date.now();
       const chip = { id: "swap-" + name, task: "model switch " + name, state: "running", progress: {} };
       window.overgo.localOperation(chip);
       button.disabled = true;
-      const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, 1000);
+      const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
         await api.get("/health?swap=" + encodeURIComponent(name));
         invalidateModel();
@@ -440,38 +537,51 @@
           try { localStorage.setItem(MODEL_STORAGE, name); } catch (_) { /* storage unavailable */ }
           workspaceManifest = await api.get("/workspace/manifest");
           capabilityDocument = workspaceManifest.model || null;
+          // Reopening history can request its original model; other switches start a fresh chain.
+          if (!selectedConversation || !servedEntry || selectedConversation.model !== servedEntry.model) rememberConversation(null);
           remountActive();
-          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served after " + Math.round((Date.now() - started) / 1000) + "s" }));
+          // The served swap is the operation chip's receipt; the picker has done its work and leaves.
           const elapsed = Math.round((Date.now() - started) / 1000);
-          panel.replaceChildren(el("div", { class: "note", text: "now serving " + modelPill.textContent + " after " + elapsed + "s · " +
-            (capabilityDocument ? "context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
+          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served " + modelPill.textContent + " after " + elapsed + "s" +
+            (capabilityDocument ? " · context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
+          if (panel === currentPanel) close();
           return;
         }
         window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "no swap proxy" }));
         const command = 'overgo_gui.bat "' + (item.location || name) + '"';
         const copy = el("button", { class: "btn alt", text: "copy launch" });
         copy.addEventListener("click", () => navigator.clipboard.writeText(command));
+        if (panel !== currentPanel) return;
         panel.replaceChildren(
           el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
           el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
       } catch (err) {
         window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: friendlyError(err) }));
-        panel.replaceChildren(errorBanner(friendlyError(err)));
+        if (panel === currentPanel) panel.replaceChildren(errorBanner(friendlyError(err)));
       } finally { clearInterval(timer); button.disabled = false; button.textContent = "serve"; }
     }
 
     modelPill.addEventListener("click", async () => {
-      if (panel) { panel.remove(); panel = null; return; }
-      panel = el("div", { class: "card", style: "position:absolute;right:12px;top:44px;z-index:40;max-width:560px" });
+      if (panel) { close(); return; }
+      panel = el("dialog", { class: "card picker-card", "aria-label": "Choose a model" });
+      const currentPanel = panel;
       modelPill.parentElement.appendChild(panel);
+      panel.addEventListener("cancel", (event) => { event.preventDefault(); close(); });
+      panel.showModal();
       panel.textContent = "loading servable models…";
       try {
         const catalog = await api.get("/catalog/models");
+        if (panel !== currentPanel) return;
         // Every activated entry with bytes on disk is listed: a servable one with its evidence, declared
         // task capabilities and a serve control; a stale activation with the loader's reason and no control.
         const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
         // An empty store names the two ways in; each opens the Library tab's form.
-        if (!entries.length) { panel.replaceChildren(el("div", { class: "note", text: "no activated models in the store — register a local model, or declare a hosted provider and enter its key" }), el("div", { class: "row" }, ...libraryStarters())); return; }
+        if (!entries.length) {
+          const starters = libraryStarters();
+          for (const starter of starters) starter.addEventListener("click", close);
+          panel.replaceChildren(el("div", { class: "note", text: "Add a local model or connect a hosted provider." }), el("div", { class: "row" }, ...starters));
+          return;
+        }
         let remembered = "";
         try { remembered = localStorage.getItem(MODEL_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
         panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
@@ -479,20 +589,22 @@
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
             // Keyboard path: a focused row serves on Enter; the arrows move between rows.
             const row = el("div", { class: "row", tabindex: "0", onkeydown: (event) => {
-              if (event.key === "Enter") { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "serve"); if (serve) serve.click(); }
-              else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...panel.querySelectorAll(".row")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
+              if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "serve"); if (serve) serve.click(); }
+              else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
             } }, el("span", { class: "mono", text: name }));
-            if ((item.location || "").startsWith("remote://")) row.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
-            const facts = evidenceLine(item);
-            if (facts) row.appendChild(el("span", { class: "note", text: facts }));
-            for (const capability of item.capabilities || []) row.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
+            const facts = el("details", { class: "picker-facts" }, el("summary", { text: "Details" })); row.appendChild(facts);
+            if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
+            const evidence = evidenceLine(item);
+            if (evidence) facts.appendChild(el("span", { class: "note", text: evidence }));
+            for (const capability of item.capabilities || []) facts.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
             if (item.stale) {
-              row.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
+              facts.open = true;
+              facts.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
               // A keyless hosted model takes its key here; the proxy and the served child hold it in memory only, and the picker relists.
               if (item.key_environment) {
                 const key = el("input", { class: "keyfield", type: "password", placeholder: item.key_environment, "aria-label": "provider key" });
-                row.append(key, el("button", { class: "btn alt", text: "use key", onclick: async () => {
-                  try { await api.post("/providers/key", { location: item.location, key: key.value }); modelPill.click(); modelPill.click(); } catch (err) { panel.textContent = friendlyError(err); }
+                facts.append(key, el("button", { class: "btn alt", text: "use key", onclick: async () => {
+                  try { await api.post("/providers/key", { location: item.location, key: key.value }); if (panel === currentPanel) { close(); modelPill.click(); } } catch (err) { if (panel === currentPanel) panel.textContent = friendlyError(err); }
                 } }));
               }
               return row;
@@ -500,24 +612,16 @@
             row.appendChild(el("button", { class: "btn alt", text: "serve", onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
         const first = panel.querySelector(".row"); if (first) first.focus();
-      } catch (err) { panel.textContent = friendlyError(err); }
+      } catch (err) { if (panel === currentPanel) panel.textContent = friendlyError(err); }
+      finally {
+        if (panel === currentPanel) panel.prepend(el("div", { class: "dialog-heading" }, el("h2", { text: "Choose a model" }), el("button", { class: "btn alt", text: "Close", onclick: close })));
+      }
     });
     // Alt+M opens the picker from anywhere on the page; the first row takes focus.
     modelPill.setAttribute("aria-keyshortcuts", "Alt+M");
     document.addEventListener("keydown", (event) => { if (event.altKey && !event.ctrlKey && event.key.toLowerCase() === "m") { event.preventDefault(); modelPill.click(); } });
   }
   wireModelPicker();
-
-  // ---- capability gating ----
-  // Refusal is server-owned and travels with the same manifest as navigation.
-  let authNoticeEl = null;
-
-  // When /analyze/model answers 401 the whole analysis surface is locked behind the key: one banner and
-  // a highlighted field instead of every tab failing on its own with a raw bearer-token error.
-  function showAuthNotice(show) {
-    if (authNoticeEl) authNoticeEl.style.display = show ? "" : "none";
-    const key = document.getElementById("api-key"); if (key) key.classList.toggle("needs-key", show);
-  }
 
   function tabSupported(tab) { return tab.enabled; }
 
@@ -526,7 +630,7 @@
       const ok = tabSupported(tab);
       // A capability this model does not serve HIDES its tab: the nav shows what works here, and the
       // manifest still carries every refusal for API clients that ask.
-      tab.button.style.display = ok ? "" : "none";
+      tab.button.hidden = !ok;
       tab.button.disabled = !ok;
       tab.button.title = ok ? "" : tab.refusal;
     }
@@ -577,9 +681,9 @@
     const text = el("span", { text: message });
     const retry = el("button", { class: "btn alt", text: "probe again" });
     const card = el("div", { class: "card" }, el("div", { class: "probe" }, dot, text),
-      el("p", { class: "note", style: "margin-top:18px", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
+      el("p", { class: "note mt-18", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
       el("div", { class: "actions" }, retry));
-    panels.appendChild(el("div", { class: "center", style: "min-height:60vh" }, card));
+    panels.appendChild(el("div", { class: "center tall" }, card));
     async function probe() {
       dot.className = "dot scan";
       try {
@@ -592,7 +696,7 @@
       } catch (err) { dot.className = "dot err"; text.textContent = "no server at " + location.origin + " (" + friendlyError(err) + ")"; }
     }
     retry.addEventListener("click", probe);
-    if (offlineTimer == null) offlineTimer = setInterval(probe, 4000);
+    if (offlineTimer == null) offlineTimer = setInterval(probe, offlineProbeMS);
   }
 
   // The served model's capability document rides the manifest; every client capability decision reads capabilities().
@@ -627,12 +731,6 @@
       }
       sectionBar.appendChild(group);
     }
-    if (!authNoticeEl) {
-      authNoticeEl = el("div", { class: "auth-banner", style: "display:none" },
-        "This server requires an API key — enter it in the field at the top right to load analysis and chat.");
-      document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
-    }
-
     // The key controls, hash routing and the health re-probe are wired once; the shell may initialise
     // again after an offline card and must not stack a second listener.
     if (!shellWired) {
@@ -643,9 +741,7 @@
       const keyRemember = document.getElementById("api-key-remember");
       keyInput.value = getKey();
       keyRemember.checked = keyWasPersisted;
-      keyRemember.addEventListener("change", () => {
-        setKey(keyInput.value.trim(), keyRemember.checked);
-      });
+      keyRemember.addEventListener("change", () => { setKey(keyInput.value.trim(), keyRemember.checked); });
       keyInput.addEventListener("change", () => {
         setKey(keyInput.value.trim(), keyRemember.checked);
         invalidateModel(); // the cached model was fetched under the old key
@@ -654,7 +750,7 @@
       window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
-      setInterval(refreshStatus, 10000);
+      setInterval(refreshStatus, statusRefreshMS);
     }
     const start = location.hash.slice(1);
     applyCapabilities();

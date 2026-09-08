@@ -153,7 +153,7 @@ func TestFrontPageRemoteTurns(t *testing.T) {
 		t.Error("the thread renders no turn marker")
 	}
 	chat := get("/mod/chat.js")
-	for _, needle := range []string{`marker: capabilities.remote`, `capabilities.remote ? ["remote"] : []`, `.catch(() => null)`, `count ? count.input_tokens : null`, `usage.prompt_tokens`} {
+	for _, needle := range []string{`marker: capabilities.remote ? "remote" : ""`, `.catch(() => null)`, `count ? count.input_tokens : null`, `usage.prompt_tokens`} {
 		if !strings.Contains(chat, needle) {
 			t.Errorf("the chat page lacks %q", needle)
 		}

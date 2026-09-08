@@ -12,8 +12,8 @@
       const { el, clear, displayToken } = overgo;
       clear(panel);
 
-      const maxTokens = el("input", { class: "keyfield", type: "number", value: "24", min: "1", max: "128", style: "width:90px", "aria-label": "max tokens" });
-      const topK = el("input", { class: "keyfield", type: "number", value: "10", min: "1", max: "40", style: "width:90px", "aria-label": "top k" });
+      const maxTokens = el("input", { class: "keyfield w-90", type: "number", value: "24", min: "1", max: "128", "aria-label": "max tokens" });
+      const topK = el("input", { class: "keyfield w-90", type: "number", value: "10", min: "1", max: "40", "aria-label": "top k" });
       const { prompt, out } = overgo.analysisSurface(panel, seed, {
         defaultPrompt: "The capital of France is", runLabel: "run lens", busy: "running…",
         fields: [["max tokens", maxTokens], ["top-k", topK]],

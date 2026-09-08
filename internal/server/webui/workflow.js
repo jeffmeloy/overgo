@@ -31,9 +31,7 @@
 
   function subscribe(handler) {
     subscribers.add(handler);
-    queueMicrotask(() => {
-      if (subscribers.has(handler)) for (const [name, value] of latest) handler(name, value);
-    });
+    queueMicrotask(() => { if (subscribers.has(handler)) for (const [name, value] of latest) handler(name, value); });
     if (!streamController) connect();
     return function unsubscribe() {
       subscribers.delete(handler);
@@ -58,7 +56,7 @@
       // choice, never a free input; a boolean is one too.
       const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
       if (choices) {
-        input = el("select", { class: "text", "aria-label": control.label || control.name },
+        input = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") },
           el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
       } else {
@@ -71,7 +69,7 @@
       }
       fields.set(control.name, { control, input });
       const slot = control.type === "artifact" ? intakeStrip(control, input) : null;
-      host.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name }), input, slot));
+      host.appendChild(el("label", { class: "control" }, el("span", { text: control.label || control.name.replace(/_/g, " ") }), input, slot));
     }
     const chips = presetChips(fields);
     if (chips) host.appendChild(chips);
@@ -162,11 +160,11 @@
         const capabilitySelect = el("select", { class: "text", "aria-label": "capability" });
         const controls = el("div", { class: "control-grid" });
         const status = el("div", { class: "note" });
-        const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, style: "display:none" });
+        const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, hidden: true });
         const metrics = el("div");
         const evidence = el("div");
         const run = el("button", { class: "btn", text: "Run" });
-        const cancel = el("button", { class: "btn alt", text: "Cancel", style: "display:none" });
+        const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
         panel.append(
           el("div", { class: "section-title", text: definition.label }),
           el("div", { class: "row" }, capabilitySelect, run, cancel), controls, status,
@@ -200,7 +198,7 @@
           const suffix = current.run ? " / " + fmt.shortID(current.run) : "";
           status.textContent = current.state + suffix + (current.failure ? " / " + current.failure : "");
           const total = current.progress && current.progress.total;
-          progress.style.display = total ? "" : "none";
+          progress.hidden = !total;
           if (total) { progress.max = total; progress.value = current.progress.completed; }
           const table = overgo.table(["measurement", "value"], (current.metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : "")]), "metric-grid");
           metrics.replaceChildren(...((current.metrics || []).length ? [table] : []));
@@ -212,7 +210,7 @@
           if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return; }
           run.disabled = true;
           cancel.disabled = false;
-          cancel.style.display = "";
+          cancel.hidden = false;
           evidence.replaceChildren();
           try {
             const accepted = await api.post("/" + definition.scope + "/run", {
@@ -222,7 +220,7 @@
             status.textContent = "running / " + fmt.shortID(operation);
             const completed = await overgo.waitOperation(operation, renderOperation);
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
-          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.style.display = "none"; }
+          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         });
       },
     });

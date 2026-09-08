@@ -4,13 +4,71 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/automationcheck"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
+
+func TestPreflightRejectsUnplannedDocsBeforeStore(t *testing.T) {
+	root := t.TempDir()
+	screens := filepath.Join(root, "docs", "gui", "screens")
+	if err := os.MkdirAll(screens, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for index := range 9 {
+		if err := os.WriteFile(filepath.Join(screens, fmt.Sprintf("view-%d.png", index)), []byte("fixture"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g := gateContext{repo: root, storePath: "absent-store"}
+	var docs []automationcheck.Check
+	for _, check := range g.preflightChecks() {
+		if check.Descriptor.Name == "docs" {
+			docs = append(docs, check)
+		}
+	}
+	if len(docs) != 1 {
+		t.Fatalf("documentation checks = %d", len(docs))
+	}
+	var output bytes.Buffer
+	if err := runPreflight(t.Context(), docs, &output); err == nil {
+		t.Fatal("unplanned images accepted")
+	}
+	for index := range 9 {
+		if !strings.Contains(output.String(), fmt.Sprintf("gui/screens/view-%d.png", index)) {
+			t.Fatalf("missing inventory finding: %s", output.String())
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, g.storePath)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("preflight touched absent store: %v", err)
+	}
+}
+
+func TestPreflightStructureBudget(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = snapshot.Overlay(map[string][]byte{"internal/server/budget_fixture.go": []byte("package server\nimport _ \"overgo/internal/budgetfixture\"\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := gateContext{repo: root, source: &snapshot, paths: []string{"docs/plan.json"}}
+	if _, err := g.stepArchitectureRatchet(); err == nil || !strings.Contains(err.Error(), "internal-imports internal/server") {
+		t.Fatalf("early coupling refusal = %v", err)
+	}
+}
 
 // TestPreflightReportsValidateFindings pins order, findings and path admission.
 func TestPreflightReportsValidateFindings(t *testing.T) {

@@ -2,6 +2,7 @@
    raw vocabulary entries (id, text, GGUF type flag, score). Pure enumeration. */
 (function () {
   "use strict";
+  const searchDebounceMS = 180; // typing settles this long before the listing reloads
   window.overgo.registerTab({
     id: "vocab",
     async mount(panel, overgo) {
@@ -12,17 +13,17 @@
       let timer = null;
 
       clear(panel);
-      const search = el("input", { class: "text", type: "search", placeholder: "search token text (substring, case-insensitive)…", style: "max-width:420px", });
+      const search = el("input", { class: "text mw-420", type: "search", placeholder: "search token text (substring, case-insensitive)…", });
       const status = el("span", { class: "note" });
       const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "‹ prev");
       const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "next ›");
-      const controls = el("div", { class: "row", style: "margin-bottom:12px" }, search, prev, next, status);
+      const controls = el("div", { class: "row mb-12" }, search, prev, next, status);
       const host = el("div");
       panel.append(controls, host);
 
       search.addEventListener("input", () => {
         clearTimeout(timer);
-        timer = setTimeout(() => { query = search.value.trim(); offset = 0; load(); }, 180);
+        timer = setTimeout(() => { query = search.value.trim(); offset = 0; load(); }, searchDebounceMS);
       });
 
       async function load() {

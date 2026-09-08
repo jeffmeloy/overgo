@@ -240,33 +240,42 @@ type Declared struct {
 }
 
 // List reads declared remote models with an active inference recipe;
-// retired declarations stay in history, unlisted.
+// retired declarations stay in history, unlisted. The limit bounds active
+// remote models, not the history scanned to find them.
 func List(ctx context.Context, store *overgodb.Store, limit int) ([]Declared, error) {
-	result, err := store.Query(ctx, overgodb.Query{
+	query := overgodb.Query{
 		Kind: artifact.KindModel, MaxResults: limit, Projection: overgodb.ProjectManifests,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if result.Truncated {
-		return nil, fmt.Errorf("remote provider: model catalog exceeds listing bound %d", limit)
 	}
 	var declared []Declared
-	for _, manifest := range result.Manifests {
-		provider, remote, err := Resolve(ctx, store, manifest)
+	for {
+		result, err := store.Query(ctx, query)
 		if err != nil {
 			return nil, err
 		}
-		if !remote {
-			continue
+		for _, manifest := range result.Manifests {
+			provider, remote, err := Resolve(ctx, store, manifest)
+			if err != nil {
+				return nil, err
+			}
+			if !remote {
+				continue
+			}
+			active, err := modelrecipe.HasActiveRecipe(ctx, store, manifest.ID, recipe.TaskInference)
+			if err != nil {
+				return nil, err
+			}
+			if active {
+				if len(declared) == limit {
+					return nil, fmt.Errorf("remote provider: active model catalog exceeds listing bound %d", limit)
+				}
+				declared = append(declared, Declared{Provider: provider, Model: manifest.ID, Location: Location(provider)})
+			}
 		}
-		if active, err := modelrecipe.HasActiveRecipe(ctx, store, manifest.ID, recipe.TaskInference); err != nil {
-			return nil, err
-		} else if active {
-			declared = append(declared, Declared{Provider: provider, Model: manifest.ID, Location: Location(provider)})
+		if result.Next == nil {
+			return declared, nil
 		}
+		query.Cursor = result.Next
 	}
-	return declared, nil
 }
 
 // Reference resolves a serving reference, the remote location or the

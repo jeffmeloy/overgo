@@ -146,9 +146,6 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		if err != nil {
 			return err
 		}
-		original := g.repo
-		g.repo = root
-		defer func() { g.repo = original }()
 		graph, err := g.inputGraph()
 		graphErr = err
 		if graphErr == nil {
@@ -163,10 +160,6 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	if analysisErr != nil {
 		return plannedPipeline{}, analysisErr
 	}
-	// The analysis graph contains paths inside the temporary immutable
-	// worktree. Keep its derived package selection, but reload a live graph for
-	// later package-cache execution after that worktree is removed.
-	g.packageGraph = nil
 	definitions := g.pipelineChecks(devicePackages...)
 	definitions, err = g.batchAcceptanceChecks(definitions, verificationBatch)
 	if err != nil {
@@ -253,7 +246,7 @@ func (g *gateContext) inputGraph() (packageInputGraph, error) {
 	if g.packageGraph != nil {
 		return *g.packageGraph, nil
 	}
-	graph, err := loadPackageInputGraph(g.repo)
+	graph, err := loadPackageInputGraph(g.sourceRoot())
 	if err == nil {
 		g.packageGraph = &graph
 	}
@@ -272,7 +265,7 @@ func (g *gateContext) deriveStructuralImpact() (codeprofile.FunctionImpact, erro
 	if err != nil {
 		return codeprofile.FunctionImpact{}, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return codeprofile.FunctionImpact{}, err
 	}
@@ -292,7 +285,7 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}

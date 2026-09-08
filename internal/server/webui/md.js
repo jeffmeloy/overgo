@@ -6,6 +6,7 @@
    bullet/numbered lists, paragraphs, and hard line breaks. */
 (function () {
   "use strict";
+  const copiedLabelMS = 1200; // how long a copy button says "copied"
 
   function copyButton(text, label) {
     label = label || "copy";
@@ -18,7 +19,7 @@
         await navigator.clipboard.writeText(text);
         btn.textContent = "copied";
       } catch (_) { btn.textContent = "copy failed"; }
-      setTimeout(() => { btn.textContent = label; }, 1200);
+      setTimeout(() => { btn.textContent = label; }, copiedLabelMS);
     });
     return btn;
   }
@@ -106,13 +107,14 @@
     let i = 0;
     while (i < lines.length) {
       const line = lines[i];
-      const fence = line.match(/^```(\w*)\s*$/);
+      const fence = line.match(/^(`{3,})(.*)$/);
       if (fence) {
         const buf = [];
         i++;
-        while (i < lines.length && !/^```\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
+        const closing = new RegExp("^`{" + fence[1].length + ",}\\s*$");
+        while (i < lines.length && !closing.test(lines[i])) { buf.push(lines[i]); i++; }
         i++; // consume closing fence (or end of input)
-        root.appendChild(codeBlock(buf.join("\n"), fence[1]));
+        root.appendChild(codeBlock(buf.join("\n"), fence[2].trim()));
         continue;
       }
       const heading = line.match(/^(#{1,6})\s+(.*)$/);

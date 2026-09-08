@@ -833,13 +833,13 @@ func runVerify(it plan.Item, st plan.Step) error {
 	if st.VerificationBatch != nil {
 		for _, checkpoint := range st.VerificationBatch.Checkpoints {
 			fmt.Fprintf(os.Stderr, "plan verify %s/%s checkpoint %s: %s\n", it.ID, st.ID, checkpoint.ID, checkpoint.Verify)
-			if _, err := planverify.Execute(context.Background(), ".", checkpoint.Verify); err != nil {
+			if _, err := planverify.Execute(context.Background(), ".", checkpoint.Verify, nil); err != nil {
 				return fmt.Errorf("verify %s/%s checkpoint %s: %w", it.ID, st.ID, checkpoint.ID, err)
 			}
 		}
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
-	class, err := planverify.Execute(context.Background(), ".", st.Verify)
+	class, err := planverify.Execute(context.Background(), ".", st.Verify, nil)
 	if err != nil {
 		return fmt.Errorf("verify %s/%s: %w -- run the named oracle against its real prerequisite or record a recorded stop", it.ID, st.ID, err)
 	}

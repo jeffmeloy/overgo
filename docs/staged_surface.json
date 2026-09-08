@@ -5,19 +5,19 @@
     {
       "package": "overgo/internal/trainingdata",
       "name": "NewTextTransform",
-      "reason": "Explicit target-case profiles are exercised by real CTC publication/resume acceptance. The served CPU lifecycle must select and publish the profile through its production training assembly, preserving raw source text.",
+      "reason": "Explicit target-case profiles are exercised by real CTC publication/resume acceptance. The served CPU lifecycle must select and publish the profile through its production training assembly, preserving raw source text. Retain this obligation until that production consumer is verified or the unused boundary is removed atomically. Single-record acceptance is not held-out quality or production assembly.",
       "retire_with": "asr-training/closed-loop-proof"
     },
     {
       "package": "overgo/internal/trainingworkflow",
       "name": "PublishInputProjection",
-      "reason": "Real CPU acceptance publishes adapter-only Safetensors with the universal checkpoint owner. The served CPU lifecycle must consume this boundary in production training; acceptance alone does not establish a training command or promotion path.",
+      "reason": "Real CPU acceptance publishes adapter-only Safetensors with the universal checkpoint owner. The served CPU lifecycle must consume this boundary in production training; acceptance alone does not establish a training command or promotion path. Retain this obligation until that production consumer is verified or the unused boundary is removed atomically. Single-record acceptance is not held-out quality or production assembly.",
       "retire_with": "asr-training/closed-loop-proof"
     },
     {
       "package": "overgo/internal/trainingworkflow",
       "name": "RestoreInputProjection",
-      "reason": "Fresh-process CTC acceptance proves exact restoration through the shared optimizer and stream owners. The served CPU lifecycle must integrate this boundary into production training and interruption recovery.",
+      "reason": "Fresh-process CTC acceptance proves exact restoration through the shared optimizer and stream owners. The served CPU lifecycle must integrate this boundary into production training and interruption recovery. Retain this obligation until that production consumer is verified or the unused boundary is removed atomically. Single-record acceptance is not held-out quality or production assembly.",
       "retire_with": "asr-training/closed-loop-proof"
     },
     {
@@ -32,7 +32,7 @@
     {
       "package": "overgo/internal/capabilityruntime",
       "name": "OpenAudioStream",
-      "reason": "Bounded chunk, cancellation and restart contracts precede the audio campaign's native recognizer integration. Retire this declaration when the verified native-state consumer lands; session contract tests alone do not establish native streaming parity.",
+      "reason": "Bounded chunk, cancellation and restart contracts precede the audio campaign's native recognizer integration. Retire this declaration when the verified native-state consumer lands; session contract tests and the VAD integration alone do not establish native recognizer streaming parity.",
       "retire_with": "asr-serving/sync-streaming-transcription"
     },
     {

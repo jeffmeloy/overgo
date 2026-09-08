@@ -123,9 +123,7 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 	if workspace == nil || kind != WorkflowGeneration {
 		return nil, nil
 	}
-	// The manifest asks about several tasks, and concurrent clients may do
-	// the same. Keep verified file identities across those reads, not the
-	// capability results: new activations and changed bytes remain visible.
+	// Retain verified file identities; refresh activations on every read.
 	workspace.mu.Lock()
 	defer workspace.mu.Unlock()
 	if err := workspace.store.Refresh(ctx); err != nil {

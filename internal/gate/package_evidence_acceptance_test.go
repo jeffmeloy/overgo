@@ -23,7 +23,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		files := map[string]string{
 			"app/app_test.go":          "package app\nimport \"testing\"\nfunc TestRequired(t *testing.T) { t.Fatal(\"declared failure\") }\n",
 			"other/other.go":           "package other\nconst Value = 1\n",
-			"other/other_test.go":      "package other\nimport (\"os\"; \"testing\")\nfunc TestRequired(t *testing.T) { data, err := os.ReadFile(\"testdata/value.txt\"); if err != nil || string(data) != \"pass\" || Value != 1 { t.Fatalf(\"fixture=%s value=%d error=%v\", data, Value, err) } }\n",
+			"other/other_test.go":      "package other\nimport (_ \"embed\"; \"testing\")\n//go:embed testdata/value.txt\nvar data string\nfunc TestRequired(t *testing.T) { if data != \"pass\" || Value != 1 { t.Fatalf(\"fixture=%s value=%d\", data, Value) } }\n",
 			"other/testdata/value.txt": "pass",
 		}
 		for name, data := range files {
@@ -134,7 +134,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			if pending, reused, err := g.packageCachePartition(packages, "short", inputs); err != nil || reused != 0 || !slices.Equal(pending, packages) {
 				t.Fatalf("environment reused stale evidence: %v %d %v", pending, reused, err)
 			}
-			report, err := runGoTests(t.Context(), root, packages, true, nil)
+			report, err := (&gateContext{repo: root}).runGoTests(t.Context(), packages, true, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

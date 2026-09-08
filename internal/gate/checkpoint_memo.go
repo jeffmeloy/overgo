@@ -101,7 +101,7 @@ func (g *gateContext) checkpointMemoInputs(batch *plan.VerificationBatch) (map[s
 	if err != nil {
 		return nil, err
 	}
-	root, err := filepath.Abs(g.repo)
+	root, err := filepath.Abs(graph.root)
 	if err != nil {
 		return nil, err
 	}

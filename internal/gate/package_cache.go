@@ -45,6 +45,10 @@ type goPackageInput struct {
 	XTestGoFiles    []string
 	TestEmbedFiles  []string
 	XTestEmbedFiles []string
+	// Non-import edges derived from opaque runtime inputs.
+	inputDependencies []string
+	// Execution edges alone propagate device requirements.
+	executionDependencies []string
 }
 
 type packageInputGraph struct {
@@ -52,9 +56,11 @@ type packageInputGraph struct {
 	nodes         []goPackageInput
 	byID          map[string][]int
 	resourceFiles map[string][]string
+	// Scoped to one identity batch; never retained across candidate reads.
+	fileInputs map[string][]byte
 }
 
-// Presence tags frame the v2 cache input grammar independently of file bytes.
+// Presence tags frame the v3 cache input grammar independently of file bytes.
 const (
 	packageInputAbsent byte = iota
 	packageInputPresent
@@ -95,19 +101,40 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		graph.resourceFiles = map[string][]string{}
 	}
 	compiled := map[string]bool{}
-	var directories []string
+	var directories, roots []string
 	for _, node := range graph.nodes {
 		if len(node.Match) == 0 || node.ForTest != "" {
 			continue
 		}
 		directories = append(directories, node.Dir)
+		roots = append(roots, node.ImportPath)
 		for _, name := range node.files() {
 			compiled[filepath.Join(node.Dir, filepath.FromSlash(name))] = true
 		}
 	}
+	// Opaque commands and file readers may consume any candidate source.
+	// Share conservative edges until a declared contract proves independence.
+	var runtimeDirectories []string
+	for index := range graph.nodes {
+		node := &graph.nodes[index]
+		if !slices.Contains(directories, node.Dir) || len(node.Match) == 0 && node.ForTest == "" {
+			continue
+		}
+		runtimeReader := slices.Contains(node.Imports, "os/exec") || slices.Contains(node.Imports, "os") || slices.Contains(node.Imports, "io/ioutil")
+		if !runtimeReader {
+			continue
+		}
+		node.inputDependencies = slices.Clone(roots)
+		if slices.Contains(node.Imports, "os/exec") {
+			node.executionDependencies = node.inputDependencies
+		}
+		if !slices.Contains(runtimeDirectories, node.Dir) {
+			runtimeDirectories = append(runtimeDirectories, node.Dir)
+		}
+	}
 	for _, name := range paths {
 		absolute := filepath.Join(graph.root, filepath.FromSlash(name))
-		if strings.EqualFold(filepath.Ext(name), ".go") || compiled[absolute] {
+		if strings.EqualFold(filepath.Ext(name), ".go") {
 			continue
 		}
 		owner := ""
@@ -117,8 +144,14 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 				owner = directory
 			}
 		}
-		if owner != "" && !slices.Contains(graph.resourceFiles[owner], absolute) {
-			graph.resourceFiles[owner] = append(graph.resourceFiles[owner], absolute)
+		owners := slices.Clone(runtimeDirectories)
+		if owner != "" && !compiled[absolute] {
+			owners = append(owners, owner)
+		}
+		for _, directory := range owners {
+			if !slices.Contains(graph.resourceFiles[directory], absolute) {
+				graph.resourceFiles[directory] = append(graph.resourceFiles[directory], absolute)
+			}
 		}
 	}
 }
@@ -146,7 +179,7 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 			if owned[node.ImportPath] {
 				continue
 			}
-			for _, imported := range append(append(slices.Clone(node.Imports), node.TestImports...), node.XTestImports...) {
+			for _, imported := range slices.Concat(node.Imports, node.TestImports, node.XTestImports, node.executionDependencies) {
 				if owned[imported] {
 					owned[node.ImportPath] = true
 					changed = true
@@ -198,7 +231,7 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 			return
 		}
 		seen[index] = true
-		imports := append([]string(nil), graph.nodes[index].Imports...)
+		imports := slices.Concat(graph.nodes[index].Imports, graph.nodes[index].inputDependencies)
 		if rootNodes[index] {
 			imports = append(imports, graph.nodes[index].TestImports...)
 			imports = append(imports, graph.nodes[index].XTestImports...)
@@ -233,29 +266,44 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 			return artifact.ID{}, err
 		}
 	}
+	// Repository paths are logical inputs; temporary checkout locations are not.
+	logical := make(map[string]string, len(files))
 	var paths []string
 	for path := range files {
-		paths = append(paths, filepath.Clean(path))
+		path = filepath.Clean(path)
+		name := "external:" + filepath.ToSlash(path)
+		if relative, err := filepath.Rel(graph.root, path); err == nil && filepath.IsLocal(relative) {
+			name = "repository:" + filepath.ToSlash(relative)
+		}
+		logical[name] = path
+		paths = append(paths, name)
 	}
 	slices.Sort(paths)
 	hasher := sha256.New()
-	hasher.Write([]byte("go-test-inputs/v2\x00"))
+	hasher.Write([]byte("go-test-inputs/v3\x00"))
 	hasher.Write([]byte(target))
 	hasher.Write([]byte("\x00"))
-	for _, path := range paths {
-		content, err := os.ReadFile(path)
-		hasher.Write([]byte(filepath.ToSlash(path)))
+	for _, name := range paths {
+		path := logical[name]
+		hasher.Write([]byte(name))
 		hasher.Write([]byte("\x00"))
-		if errors.Is(err, os.ErrNotExist) {
-			hasher.Write([]byte{packageInputAbsent})
-			continue
+		input, found := graph.fileInputs[path]
+		if !found {
+			content, err := os.ReadFile(path)
+			switch {
+			case errors.Is(err, os.ErrNotExist):
+				input = []byte{packageInputAbsent}
+			case err != nil:
+				return artifact.ID{}, fmt.Errorf("package input identity %s: %w", target, err)
+			default:
+				digest := sha256.Sum256(content)
+				input = append([]byte{packageInputPresent}, digest[:]...)
+			}
+			if graph.fileInputs != nil {
+				graph.fileInputs[path] = input
+			}
 		}
-		if err != nil {
-			return artifact.ID{}, fmt.Errorf("package input identity %s: %w", target, err)
-		}
-		hasher.Write([]byte{packageInputPresent})
-		digest := sha256.Sum256(content)
-		hasher.Write(digest[:]) // Fixed-width framing prevents cross-file ambiguity.
+		hasher.Write(input) // Presence plus fixed-width digest preserves framing.
 	}
 	return artifact.IdentifyBytes(artifact.KindEvidence, hasher.Sum(nil))
 }
@@ -281,6 +329,7 @@ func (node goPackageInput) files() []string {
 }
 
 func packageInputIdentities(graph packageInputGraph, packages []string) (map[string]artifact.ID, error) {
+	graph.fileInputs = map[string][]byte{}
 	identities := make(map[string]artifact.ID, len(packages))
 	for _, packagePath := range packages {
 		identity, err := graph.identity(packagePath)

@@ -61,26 +61,26 @@ func commitGateAttempt(t *testing.T, store *overgodb.Store, item, step string, s
 // median prior executed duration and name never-executed checkpoints; prior
 // costs come from attempts of the same row; the audit line records both.
 func TestBatchedGateCostEvidence(t *testing.T) {
-	executed := BatchCostOf(costSteps(runrecord.StepSucceeded, runrecord.StepSucceeded, 5*uint64(time.Second), 3*uint64(time.Second)))
+	executed := batchCostOf(costSteps(runrecord.StepSucceeded, runrecord.StepSucceeded, 5*uint64(time.Second), 3*uint64(time.Second)))
 	if executed.Accepted != 3 || executed.Reused != 0 || executed.ExecutedNS != 8*uint64(time.Second)+7 || len(executed.Checkpoints) != 3 {
 		t.Fatalf("executed cost = %+v", executed)
 	}
 	if executed.Checkpoints[0].Name != "acceptance" || executed.Checkpoints[1].Name != "acceptance-consumer" {
 		t.Fatalf("checkpoints are not sorted by name: %+v", executed.Checkpoints)
 	}
-	reused := BatchCostOf(costSteps(runrecord.StepReused, runrecord.StepSucceeded, 1, 4*uint64(time.Second)))
+	reused := batchCostOf(costSteps(runrecord.StepReused, runrecord.StepSucceeded, 1, 4*uint64(time.Second)))
 	if reused.Accepted != 3 || reused.Reused != 1 || reused.ExecutedNS != 4*uint64(time.Second)+7 {
 		t.Fatalf("reused cost = %+v", reused)
 	}
-	slower := BatchCostOf(costSteps(runrecord.StepSucceeded, runrecord.StepFailed, 9*uint64(time.Second), 1))
-	saved, unmeasured := ReuseSavings([]BatchCost{executed, slower}, reused)
+	slower := batchCostOf(costSteps(runrecord.StepSucceeded, runrecord.StepFailed, 9*uint64(time.Second), 1))
+	saved, unmeasured := reuseSavings([]batchCost{executed, slower}, reused)
 	if saved != 5*uint64(time.Second) || len(unmeasured) != 0 {
 		t.Fatalf("savings = %s %v, want the 5s median of 5s and 9s", time.Duration(saved), unmeasured)
 	}
-	if saved, unmeasured := ReuseSavings(nil, reused); saved != 0 || len(unmeasured) != 1 || unmeasured[0] != "acceptance-producer" {
+	if saved, unmeasured := reuseSavings(nil, reused); saved != 0 || len(unmeasured) != 1 || unmeasured[0] != "acceptance-producer" {
 		t.Fatalf("savings without prior = %d %v", saved, unmeasured)
 	}
-	if saved, unmeasured := ReuseSavings([]BatchCost{executed}, executed); saved != 0 || unmeasured != nil {
+	if saved, unmeasured := reuseSavings([]batchCost{executed}, executed); saved != 0 || unmeasured != nil {
 		t.Fatalf("savings without reuse = %d %v", saved, unmeasured)
 	}
 
@@ -99,12 +99,12 @@ func TestBatchedGateCostEvidence(t *testing.T) {
 		t.Fatal("plan reference without a step was accepted")
 	}
 	g := &gateContext{planRef: "flush/cost"}
-	g.batchCostAudit(t.Context(), store, costSteps(runrecord.StepReused, runrecord.StepSucceeded, 1, 4*uint64(time.Second)))
-	if len(g.audit) != 1 || !strings.Contains(g.audit[0], "accepted=3 reused=1") || !strings.Contains(g.audit[0], "saved=5s") || !strings.Contains(g.audit[0], "prior_runs=1") {
+	g.batchCostAudit(t.Context(), store, costSteps(runrecord.StepReused, runrecord.StepSucceeded, 1, 4*uint64(time.Second)), uint64(time.Second))
+	if len(g.audit) != 1 || !strings.Contains(g.audit[0], "accepted=3 reused=1") || !strings.Contains(g.audit[0], "estimated_step_time_avoided=5s") || !strings.Contains(g.audit[0], "prior_runs=1") {
 		t.Fatalf("audit = %v", g.audit)
 	}
 	g.audit = nil
-	g.batchCostAudit(t.Context(), store, []runrecord.GateStep{{Name: "protection", Phase: runrecord.PhasePackage, Outcome: runrecord.StepSucceeded, DurationNS: 1}})
+	g.batchCostAudit(t.Context(), store, []runrecord.GateStep{{Name: "protection", Phase: runrecord.PhasePackage, Outcome: runrecord.StepSucceeded, DurationNS: 1}}, 1)
 	if len(g.audit) != 0 {
 		t.Fatalf("audit without acceptance steps = %v", g.audit)
 	}

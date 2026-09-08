@@ -91,6 +91,7 @@ type gateContext struct {
 	cachePaths          []string
 	retryCache          *automationcheck.EvidenceCache
 	checkpointMemos     map[string]checkpointMemoEntry
+	verificationBatch   *plan.VerificationBatch
 	structural          *codeprofile.FunctionImpact
 	packageGraph        *packageInputGraph
 	selection           automationcheck.SelectionMetrics

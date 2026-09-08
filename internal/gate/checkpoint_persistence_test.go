@@ -124,6 +124,15 @@ func TestCheckpointPersistenceSurvivesKill(t *testing.T) {
 	} else if _, found := cache.Lookup(consumerSlot, consumerInput); found {
 		t.Fatal("never-run consumer checkpoint is present in the cache")
 	}
+	// The disposable projection is not durable authority. Restart must recover
+	// the producer from OvergoDB and retain the never-run consumer obligation.
+	if err := os.Remove(filepath.Join(g.repo, filepath.FromSlash(gateRetryFile))); err != nil {
+		t.Fatal(err)
+	}
+	cache = g.loadRetryCache()
+	if len(cache.Entries) != 0 {
+		t.Fatal("retry projection unexpectedly survived deletion")
+	}
 
 	results, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil)
 	if err != nil {

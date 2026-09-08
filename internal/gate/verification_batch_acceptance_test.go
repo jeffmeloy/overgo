@@ -248,6 +248,7 @@ func verificationBatchContext(t *testing.T, repo string) (*gateContext, *plan.Ve
 	}
 	g := &gateContext{
 		repo: repo, planRef: "audio/dataset", planHead: head, completionAuthority: authority,
+		storePath: filepath.Join("tmp", "batch-store"), environment: lifecycleTestEnvironment(t),
 		paths:        []string{plan.Path, "go.mod", "unit_test.go", "mode"},
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 	}

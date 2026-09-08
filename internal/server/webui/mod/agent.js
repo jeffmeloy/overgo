@@ -131,7 +131,7 @@
               const parts = chatComposer.attachmentParts();
               const history = (sessions.get(selected) || []).slice();
               history.push(parts.length
-                ? { role: "user", content: [{ type: "text", text: content }, ...parts] }
+                ? { role: "user", content: [...parts, { type: "text", text: content }] }
                 : { role: "user", content });
               chatThread.add("user", overgo.userLine(content, attachments));
               chatComposer.clearInput();

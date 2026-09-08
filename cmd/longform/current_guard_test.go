@@ -43,18 +43,18 @@ func TestCurrentGuardControls(t *testing.T) {
 			name:       "Qwen capacity session",
 			historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
 			repeats: [3]string{
-				"evidence:sha256:14c8126978a28677c330fdda7a1eb80d4c103ed312f08c3546e54d47b31dbb36",
-				"evidence:sha256:ec2dd785dcbb0212b458a419e8dc13724341a2ae19f435ca3deca12bbbb10bb7",
-				"evidence:sha256:6de760ae212837fb2ed28c65c104284f25c6af9466d14ae1d75a6e1518c1a67e",
+				"evidence:sha256:aa7b3a8942e7f37208060608df1a70a72d99d34a7be75f9c6942223c4ce5feec",
+				"evidence:sha256:8e14c6b03cd8bab1b396bda8fbd1e9f52e7e26206789aa1adcb63d29eefbca4f",
+				"evidence:sha256:52edee0ae6b2bdabea6c6b402c9ac83fe8e6be6338acfec54c0503d726f096b1",
 			},
 		},
 		{
 			name:       "E4B request session",
 			historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a",
 			repeats: [3]string{
-				"evidence:sha256:691583cd94967c89162c90b5c9cb5ef9463c892e5c060d77c5eeccb2ddbbe3b0",
-				"evidence:sha256:b6e7ae4ae005fc650babfa7eb5e530a59a10abc540b407bacb95fc689a6ebc63",
-				"evidence:sha256:467b065ec9bc86f2bd938bff6d88c0f1079bc2e2e3a003f9a0ba11bd61fea356",
+				"evidence:sha256:07d45dfe0ac68309d4f312fd7b5b709ef303e96f075a2acf9fc9535368c1aecd",
+				"evidence:sha256:f2ab8f7d98662be4524f2245ed0dab4298e1237b15103c5c4c5c86cf3fc48060",
+				"evidence:sha256:06b89e81154d0b60dffc9190c919150609acae72e2044430eabea2690780882f",
 			},
 		},
 	}
@@ -79,7 +79,7 @@ func TestCurrentGuardControls(t *testing.T) {
 					t.Fatal(err)
 				}
 				fresh := accepted.Result
-				if fresh.Surface != surface || fresh.Commit != "519a2690db1a39e16b6e3254b7556c56dbc549ea" {
+				if fresh.Surface != surface || fresh.Commit != "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab" {
 					t.Fatal("control does not identify the current inference surface and clean measured producer")
 				}
 				if err := validateGuard(fresh); err != nil {

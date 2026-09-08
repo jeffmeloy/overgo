@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -102,7 +103,7 @@ func run() error {
 		"read the /v1 bearer token from this file (or OVERGO_API_KEY)",
 	)
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
-	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
+	projectorCUDA := clioptions.BoolOverride(flag.CommandLine, "mmproj-cuda", "offload projector operations to CUDA; unset follows active inference placement")
 	mediaPolicyPath := flag.String("media-policy", "media_policy.json", "remote-media JSON policy; empty disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "resource_policy.json", "Responses file-ID JSON policy; empty disables file IDs")
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for encoded video")
@@ -198,6 +199,13 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
+	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
+	if err != nil {
+		return err
+	}
+	clioptions.ApplyDefault(explicit, "mmproj-cuda", projectorCUDA, slices.ContainsFunc(description.Stages, func(stage recipe.Stage) bool {
+		return stage.Node.Placement == recipe.PlacementDevice || stage.Node.Placement == recipe.PlacementHybrid
+	}))
 	policy := runner.RuntimePolicy()
 	agentRetrieval, err := newAgentRetrievalProvider(runner, runner.ModelID(), policy.ID)
 	if err != nil {
@@ -307,10 +315,6 @@ func run() error {
 		}
 	}
 	if workspaceCommit != "" {
-		description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
-		if err != nil {
-			return err
-		}
 		environment, err := runrecord.CurrentEnvironment(fmt.Sprintf("cuda:%d", *modelFlags.DeviceOrdinal), "cuda")
 		if err != nil {
 			return err

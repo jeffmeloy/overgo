@@ -4,6 +4,62 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "model-regression-gate",
+      "title": "Enforce cheap execution-coverage regression checks before device-wide work",
+      "status": "open",
+      "steps": [
+        {
+          "id": "readmit-retained-controls",
+          "title": "Readmit controls and E4B resources after the retained-output repair",
+          "status": "open",
+          "verify": "test -f cmd/compatibility/accepted_resource_refresh_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^(TestCurrentGuardControls|TestAcceptedBaselineEvidence)$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestAcceptedE4BModalities|TestAcceptedE4BResourceRefresh)$' -count=1",
+          "rationale": "After the bounded allocator-plan producer lands, publish three complete current-source E4B and Qwen guard repeats through the existing longform owner; retain the six accepted 1b7ac581 records and historical baselines. Re-execute and publish the existing 270-request E4B media recovery contract and the affected 32768-token text recovery check from clean source. Bind read-only acceptance in the existing compatibility owner with exact source, recipe, input, denominator and passed outcomes; preserve original E4B selection and add source-bound resource refresh evidence without rewriting historical identities. Record the implementation-independence review for unchanged kernels, arithmetic, tokenizer, prompting, oracles and dataset scoring. No unrelated native-quality reruns. Keep all control, cancellation, consumer-error, reload, peak/non-growth/release and output-parity obligations. Missing or failed evidence requires repair; no source-mismatch bypass or reduced checks.",
+          "depends_on": [
+            "model-regression-gate/repair-retained-output-arena"
+          ]
+        },
+        {
+          "id": "coverage-12b-fp8",
+          "title": "Accept three complete current-surface Gemma 12B FP8 guard repeats",
+          "status": "open",
+          "verify": "test -f cmd/longform/guard_acquisition_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^(TestAcceptedFP8Guard|TestCurrentGuardControls|TestAcceptedBaselineEvidence)$' -count=1",
+          "rationale": "After E4B acceptance at 5b5f36e4, complete the next existing model guard bundle before broad smoke-oracle construction or process tuning. Retain the passing 823036bd FP8 reference e28cc3d5a6f8d19d984063e8f3f7c9893a582a85e31d770115f406a713422bf4; its inference surface differs, so acquire all three fresh isolated repeats at the clean current source. Use the existing longform guard, corpus and unchanged floors, including full short/context/quality/rate/allocation checks through 8192. Compare every repeat with the retained reference and later repeats with the first; preserve every failure and repair the cause before continuing. Bind exact records through TestAcceptedFP8Guard, sharing the existing control acceptance implementation. This bounded child does not close the six-model catalog acquisition parent, claim modality completion, or relax its lower-bound verifies. The E4B commit gate executed 233 packages in 845.6 seconds with no package reuse; preserve that measured scheduling cost for the existing process-control row rather than making new infrastructure a prerequisite. Preserve the first current-source failed record aae1f613f398db4b1a24e79dcedf519420b81cf862fc1c6c1ff249b6b2cff12a and the successful uncommitted diagnostic. Acquire the three canonical repeats only after the retained-output producer and control/resource readmission.",
+          "depends_on": [
+            "model-regression-gate/coverage-selection",
+            "model-regression-gate/readmit-controls",
+            "model-regression-gate/readmit-pool-controls",
+            "modality-verification/e4b-all-modalities",
+            "model-regression-gate/readmit-retained-controls"
+          ]
+        },
+        {
+          "id": "coverage-acquisition",
+          "title": "Complete missing fixed-budget text guard records before enforcement",
+          "status": "open",
+          "verify": "test -f cmd/longform/guard_acquisition_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^(TestAcceptedGuardCatalog|TestCurrentGuardControls|TestAcceptedBaselineEvidence)$' -count=1",
+          "rationale": "The accepted census has eight available activated text models plus a separate DNA inference activation. After the two controls are readmitted, acquire the six missing current-surface cohorts: MiniCPM1B, Qwen3.5 4B/9B, the Gemma12B precision twins and quantized27B. These are available models, distinct from the census's six unavailable inactive historical identities. Use longform -guard, the frozen corpus and unchanged floors in a clean evidence worktree. After the owner-prioritized E4B modality bundle, resume Gemma12B FP8 acquisition. The first post-pool retry now passes through8192 as evidence:sha256:e28cc3d5a6f8d19d984063e8f3f7c9893a582a85e31d770115f406a713422bf4 at producer823036bd; retain it as the first reference, acquire the two missing repeats if its surface remains valid, and bind acceptance before closure. Historical failure: failed record evidence:sha256:7e7e72c01527c53da8ab53324973604f1807db716030bfed05666c81f11a09ff and finding evidence:sha256:c3bfcc3330a05af7173929869c7d6f56e95bce1ba4757f2ab5ada0260d5a300a remain open until the full guard passes. Prove the blocker is removed before reacquiring the other invalidated cohorts, then use increasing measured cost. Preserve the fifteen prior passing records across five cohorts at surface d14622f2ff2e as historical references; compare fresh repeats against each prior first record where available and the first fresh repeat. Never relabel a prior record with the repaired surface. Retain the original historical controls and the new three-repeat control cohorts. Older incomplete records and the two MiniCPM measurements exposed to uncertain device contention cannot become isolated guard references. Derive per-run budgets from measured cost and stop/repair failures immediately. This is bounded guard acquisition, not the operator-owned27B MMLU campaign or full modality milestone. Compare raw instruction NLL only with the same model; do not reopen the answered framing issue. Keep first accepted references and all failures, never the fastest sample or weaker floors. Acceptance binds exact immutable records, current recipe/source/corpus, full64-token short and four256-token rung outputs through8192, quality/rate/resource comparisons and the full live text denominator. Repair demonstrated execution defects under the current controls with CPU then CUDA parity before continuing. Final automatic gate enforcement remains blocked until coverage is complete. Complete each model's three-repeat short/context/quality/rate/memory bundle before moving to another model. Accumulate complete cohorts for this existing catalog acceptance; no repeat-by-repeat or control-only acceptance commits. Reuse the already accepted E4B/Qwen controls while their source and protocol remain unchanged.",
+          "depends_on": [
+            "model-regression-gate/coverage-selection",
+            "model-regression-gate/readmit-controls",
+            "model-regression-gate/readmit-pool-controls",
+            "model-regression-gate/coverage-12b-fp8"
+          ]
+        },
+        {
+          "id": "do",
+          "title": "Enforce cheap execution-coverage regression checks before device-wide work",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
+          "rationale": "Use the code/kernel manifest and typed recipe/operator facts to select a small deterministic model set covering affected weight types, operator paths, head geometry, attention/cache policy and modality; weight type alone is insufficient. Minimize measured run cost subject to coverage, and widen scope when independence is unproven. Compare against the accepted immutable baseline. Sequence the quick model check before broader device work under an exclusive timing lease; host-only changes are explicitly inapplicable. Keep structure-budget checking in the cheap gate phase. Negative tests must reject a missing coverage class, stale/mismatched baseline, untested device path and a reproduced throughput/memory/quality regression. Bind an integration assertion proving the real gate selection and rejection path, alongside the host selector tests; use existing CI/protection ownership to prevent required device evidence being replaced by manual-workflow assumptions. Land the small guard before independent execution fixes; do not wait for media-report or full-catalog expansion. Widen accepted references when the full baseline lands.",
+          "depends_on": [
+            "model-regression-baseline/do",
+            "model-regression-gate/coverage-selection",
+            "model-regression-gate/coverage-acquisition"
+          ]
+        }
+      ]
+    },
+    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
       "status": "open",
@@ -13,7 +69,7 @@
           "title": "Declare useful model-specific smoke oracles without overclaiming benchmark quality",
           "status": "open",
           "verify": "test -f cmd/smoke-lane/accepted_oracles_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/smoke-lane -run '^TestAcceptedSmokeOracles$' -count=1 \u0026\u0026 go run ./cmd/smoke-lane",
-          "rationale": "Use accepted census evidence:sha256:e544d4878f06e2d4279fb1521b417aef5fb9335741273ff01d1ad964aeb3842a: 26 activated identities and 28 task/recipe pairs; the 17 inactive registered identities remain explicit out-of-execution inventory. Replace nonempty output as a correctness oracle: chat probes use deterministic task assertions, base models use same-checkpoint reference likelihood evidence, and domain/media models use their native expected behavior. Keep the eight text and one DNA inference activations distinct. A substring check establishes only its narrow smoke claim. Missing declarations stay unverified. Negative fixtures must reject malformed, irrelevant and repeated output that passes the old liveness check. Acceptance verifies declarations for the census and runs a bounded representative smoke sample; preserve the complete modality runs below. Collect and consume complete per-model bundles across applicable modalities; task-group rows are final coverage joins, not a reason to reload every model or recommit already accepted evidence. Include input modalities under inference, even when the activation task name is not VQA or media generation.\n\nRequired read-only acceptance: TestAcceptedSmokeOracles in cmd/smoke-lane/accepted_oracles_test.go. Implement this bound assertion before the row can close; it must reject an omitted required cell, duplicate case, stale identity and failed required outcome using the stated denominator, protocols and thresholds. Existing lane/report checks remain lower bounds. Aggregate existing per-model evidence and acquire only missing or invalidated cells; do not rebuild an evaluation engine or launch long benchmarks from this assertion.",
+          "rationale": "Use accepted census evidence:sha256:e544d4878f06e2d4279fb1521b417aef5fb9335741273ff01d1ad964aeb3842a: 26 activated identities and 28 task/recipe pairs; the 17 inactive registered identities remain explicit out-of-execution inventory. Replace nonempty output as a correctness oracle: chat probes use deterministic task assertions, base models use same-checkpoint reference likelihood evidence, and domain/media models use their native expected behavior. Keep the eight text and one DNA inference activations distinct. A substring check establishes only its narrow smoke claim. Missing declarations stay unverified. Negative fixtures must reject malformed, irrelevant and repeated output that passes the old liveness check. Acceptance verifies declarations for the census and runs a bounded representative smoke sample; preserve the complete modality runs below. Collect and consume complete per-model bundles across applicable modalities; task-group rows are final coverage joins, not a reason to reload every model or recommit already accepted evidence. Include input modalities under inference, even when the activation task name is not VQA or media generation.\n\nRequired read-only acceptance: TestAcceptedSmokeOracles in cmd/smoke-lane/accepted_oracles_test.go. Implement this bound assertion before the row can close; it must reject an omitted required cell, duplicate case, stale identity and failed required outcome using the stated denominator, protocols and thresholds. Existing lane/report checks remain lower bounds. Aggregate existing per-model evidence and acquire only missing or invalidated cells; do not rebuild an evaluation engine or launch long benchmarks from this assertion. Current post-E4B census evidence:sha256:6fd2300f11c37f0f48c5db7a28ee23f0cb9a19bdf8c894ab4e2de24c858e6bf7 supersedes the historical inventory for new declarations: 81 registered identities, 29 active task/recipe pairs, six unavailable inactive identities, zero stale activations. Preserve the historical 43-identity census and explain additions, including E4B projection. Do not promote self-captured repetitive or factually wrong serving text as answer-quality evidence. The existing activation-case registry is absent and its task-only cross product does not distinguish DNA from chat; inspect narrower existing evaluation owners before extending contracts.",
           "depends_on": [
             "modality-verification/capability-census"
           ]
@@ -169,37 +225,6 @@
             "decode-attention-per-key-cost/do",
             "gemma-12b-accuracy/do",
             "modality-verification/media-report"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "model-regression-gate",
-      "title": "Enforce cheap execution-coverage regression checks before device-wide work",
-      "status": "open",
-      "steps": [
-        {
-          "id": "coverage-acquisition",
-          "title": "Complete missing fixed-budget text guard records before enforcement",
-          "status": "open",
-          "verify": "test -f cmd/longform/guard_acquisition_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^(TestAcceptedGuardCatalog|TestCurrentGuardControls|TestAcceptedBaselineEvidence)$' -count=1",
-          "rationale": "The accepted census has eight available activated text models plus a separate DNA inference activation. After the two controls are readmitted, acquire the six missing current-surface cohorts: MiniCPM1B, Qwen3.5 4B/9B, the Gemma12B precision twins and quantized27B. These are available models, distinct from the census's six unavailable inactive historical identities. Use longform -guard, the frozen corpus and unchanged floors in a clean evidence worktree. After the owner-prioritized E4B modality bundle, resume Gemma12B FP8 acquisition. The first post-pool retry now passes through8192 as evidence:sha256:e28cc3d5a6f8d19d984063e8f3f7c9893a582a85e31d770115f406a713422bf4 at producer823036bd; retain it as the first reference, acquire the two missing repeats if its surface remains valid, and bind acceptance before closure. Historical failure: failed record evidence:sha256:7e7e72c01527c53da8ab53324973604f1807db716030bfed05666c81f11a09ff and finding evidence:sha256:c3bfcc3330a05af7173929869c7d6f56e95bce1ba4757f2ab5ada0260d5a300a remain open until the full guard passes. Prove the blocker is removed before reacquiring the other invalidated cohorts, then use increasing measured cost. Preserve the fifteen prior passing records across five cohorts at surface d14622f2ff2e as historical references; compare fresh repeats against each prior first record where available and the first fresh repeat. Never relabel a prior record with the repaired surface. Retain the original historical controls and the new three-repeat control cohorts. Older incomplete records and the two MiniCPM measurements exposed to uncertain device contention cannot become isolated guard references. Derive per-run budgets from measured cost and stop/repair failures immediately. This is bounded guard acquisition, not the operator-owned27B MMLU campaign or full modality milestone. Compare raw instruction NLL only with the same model; do not reopen the answered framing issue. Keep first accepted references and all failures, never the fastest sample or weaker floors. Acceptance binds exact immutable records, current recipe/source/corpus, full64-token short and four256-token rung outputs through8192, quality/rate/resource comparisons and the full live text denominator. Repair demonstrated execution defects under the current controls with CPU then CUDA parity before continuing. Final automatic gate enforcement remains blocked until coverage is complete. Complete each model's three-repeat short/context/quality/rate/memory bundle before moving to another model. Accumulate complete cohorts for this existing catalog acceptance; no repeat-by-repeat or control-only acceptance commits. Reuse the already accepted E4B/Qwen controls while their source and protocol remain unchanged.",
-          "depends_on": [
-            "model-regression-gate/coverage-selection",
-            "model-regression-gate/readmit-controls",
-            "model-regression-gate/readmit-pool-controls"
-          ]
-        },
-        {
-          "id": "do",
-          "title": "Enforce cheap execution-coverage regression checks before device-wide work",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
-          "rationale": "Use the code/kernel manifest and typed recipe/operator facts to select a small deterministic model set covering affected weight types, operator paths, head geometry, attention/cache policy and modality; weight type alone is insufficient. Minimize measured run cost subject to coverage, and widen scope when independence is unproven. Compare against the accepted immutable baseline. Sequence the quick model check before broader device work under an exclusive timing lease; host-only changes are explicitly inapplicable. Keep structure-budget checking in the cheap gate phase. Negative tests must reject a missing coverage class, stale/mismatched baseline, untested device path and a reproduced throughput/memory/quality regression. Bind an integration assertion proving the real gate selection and rejection path, alongside the host selector tests; use existing CI/protection ownership to prevent required device evidence being replaced by manual-workflow assumptions. Land the small guard before independent execution fixes; do not wait for media-report or full-catalog expansion. Widen accepted references when the full baseline lands.",
-          "depends_on": [
-            "model-regression-baseline/do",
-            "model-regression-gate/coverage-selection",
-            "model-regression-gate/coverage-acquisition"
           ]
         }
       ]

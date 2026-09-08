@@ -690,6 +690,7 @@ type CompiledGraph struct {
 	attributeSlots []dynamicAttributeSlot
 	attributeWords int
 	memory         planner.Plan
+	retainedMemory planner.Plan
 	// fusions: rewrite-only descriptors; released after launch compilation.
 	fusions         map[*tensor.Tensor]*compiledFusion
 	elided          map[*tensor.Tensor]struct{}
@@ -1158,19 +1159,24 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, bytes)
 		}
 	}
-	plannerExcluded := compiled.skipped
-	if externalOutputs {
-		plannerExcluded = make(map[*tensor.Tensor]struct{}, len(compiled.skipped)+len(outputs))
-		for node := range compiled.skipped {
-			plannerExcluded[node] = struct{}{}
-		}
-		for _, output := range outputs {
-			plannerExcluded[output] = struct{}{}
-		}
+	// Retained outputs already own storage, whether pooled or caller-bound.
+	plannerExcluded := make(map[*tensor.Tensor]struct{}, len(compiled.skipped)+len(outputs))
+	for node := range compiled.skipped {
+		plannerExcluded[node] = struct{}{}
+	}
+	for _, output := range outputs {
+		plannerExcluded[output] = struct{}{}
 	}
 	memory, err := planner.BuildWithRewrites(outputs, deviceAllocationAlignment, dependencies, plannerExcluded)
 	if err != nil {
 		return nil, err
+	}
+	compiled.retainedMemory = memory
+	if !externalOutputs {
+		memory, err = planner.BuildWithRewrites(outputs, deviceAllocationAlignment, dependencies, compiled.skipped)
+		if err != nil {
+			return nil, err
+		}
 	}
 	compiled.memory = memory
 	compiled.nodes = make([]compiledNode, len(order))
@@ -1453,7 +1459,11 @@ func (e *Executor) runCompiled(
 		if resourceErr != nil {
 			return resourceErr
 		}
-		arena, arenaErr := resources.ensureArena(state, compiled.memory.ArenaSize)
+		arenaSize := compiled.memory.ArenaSize
+		if retain {
+			arenaSize = compiled.retainedMemory.ArenaSize
+		}
+		arena, arenaErr := resources.ensureArena(state, arenaSize)
 		if arenaErr != nil {
 			return arenaErr
 		}
@@ -1574,6 +1584,9 @@ func execute(
 	outputs := compiled.outputs
 	order := compiled.order
 	plan := compiled.memory
+	if retainOutputs {
+		plan = compiled.retainedMemory
+	}
 	if runtimeAttributes != nil &&
 		(runtimeAttributes.compiled != compiled || len(runtimeAttributes.values) != len(order)) {
 		return nil, errors.New("CUDA runtime attributes belong to another compiled graph")

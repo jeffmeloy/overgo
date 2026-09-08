@@ -13,32 +13,14 @@ import (
 	"overgo/internal/testevidence"
 )
 
-// TestCurrentGuardControls readmits exact isolated repeats while retaining the
-// historical guard as an independent comparison. It never measures a model.
+type guardCohort struct {
+	name, historical string
+	repeats          [3]string
+}
+
+// TestCurrentGuardControls checks retained controls without measuring models.
 func TestCurrentGuardControls(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
-	}
-	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT to check the six exact current control records; no models execute")
-	}
-	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	surface, err := longform.Surface(t.Context(), filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	fixtures := []struct {
-		name, historical string
-		repeats          [3]string
-	}{
+	fixtures := []guardCohort{
 		{
 			name:       "Qwen capacity session",
 			historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
@@ -58,6 +40,35 @@ func TestCurrentGuardControls(t *testing.T) {
 			},
 		},
 	}
+	requireGuardCohorts(t, fixtures, "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab")
+	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
+}
+
+func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string) {
+	t.Helper()
+	if len(fixtures) == 0 {
+		t.Fatal("empty guard cohort")
+	}
+	if testing.Short() {
+		t.Skip(testevidence.ShortIntegrationSkip)
+	}
+	if os.Getenv(dataroot.Env) == "" {
+		t.Skip("integration: set OVERGO_DATA_ROOT to check exact guard cohorts; no models execute")
+	}
+	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	surface, err := longform.Surface(t.Context(), filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(roots.Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
 	requireStoreLineage(t, store, fixtures[0].historical)
 	seen := make(map[artifact.ID]bool)
 	opts := options{Root: filepath.Join("..", ".."), Repository: roots.Store, Corpus: "testdata/guard-corpus.txt", ValidateBaselines: true}
@@ -79,7 +90,7 @@ func TestCurrentGuardControls(t *testing.T) {
 					t.Fatal(err)
 				}
 				fresh := accepted.Result
-				if fresh.Surface != surface || fresh.Commit != "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab" {
+				if fresh.Surface != surface || fresh.Commit != producer {
 					t.Fatal("control does not identify the current inference surface and clean measured producer")
 				}
 				if err := validateGuard(fresh); err != nil {
@@ -99,8 +110,8 @@ func TestCurrentGuardControls(t *testing.T) {
 			}
 		})
 	}
-	if len(seen) != 6 {
-		t.Fatalf("accepted control denominator = %d, want six distinct records", len(seen))
+	if len(seen) != len(fixtures)*len(fixtures[0].repeats) {
+		t.Fatalf("accepted cohort denominator differs: %d distinct records", len(seen))
 	}
 	if t.Failed() {
 		return
@@ -118,5 +129,4 @@ func TestCurrentGuardControls(t *testing.T) {
 	if err := validateSelectedBaselines(io.Discard, targets, surface); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
 }

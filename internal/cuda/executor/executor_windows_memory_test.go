@@ -130,6 +130,13 @@ func TestExecutorRetainedOnceBypassesGraphCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	compare(t, got.Data, []float32{2, 4, 6, 8}, accuracyExact)
+	metrics, err := cuda.Metrics(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metrics.ArenaRequiredBytes != 0 || metrics.ArenaCommittedBytes != 0 {
+		t.Fatalf("retained output duplicated in arena: %+v", metrics)
+	}
 	if err := retained.Release(t.Context()); err != nil {
 		t.Fatal(err)
 	}

@@ -125,6 +125,23 @@ func TestCompileExternalOmitsCallerOwnedOutput(t *testing.T) {
 	}
 }
 
+func TestRetainedPlanOmitsOutputStorage(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
+	first := builder.Scale(input, 2)
+	second := builder.Add(first, input)
+	compiled, err := Compile(first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compiled.memory.ArenaSize == 0 {
+		t.Fatal("host-output execution lost its arena")
+	}
+	if compiled.retainedMemory.ArenaSize != 0 {
+		t.Fatalf("retained outputs still reserve %d duplicate arena bytes", compiled.retainedMemory.ArenaSize)
+	}
+}
+
 func TestCompiledRuntimeAttributesUseNodeIndexes(t *testing.T) {
 	builder := tensor.NewBuilder()
 	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{ActiveTokens: 2, CapacityTokens: 4})

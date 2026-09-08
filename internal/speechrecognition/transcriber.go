@@ -51,18 +51,18 @@ type RunBinding struct {
 	Split       artifact.ID
 }
 
-// TranscriptionWorkspace owns all reusable mutable storage for one caller.
+// transcriptionWorkspace owns all reusable mutable storage for one caller.
 // Its zero value is ready to use and must not be shared concurrently.
-type TranscriptionWorkspace struct {
+type transcriptionWorkspace struct {
 	Frontend audiodsp.Workspace
 	Encoder  Workspace
 	frameIDs []int
 	tokens   []int
 }
 
-// Transcriber owns immutable, validated CPU execution state. It is safe to
+// transcriptionModel owns immutable, validated CPU execution state. It is safe to
 // share when each concurrent caller supplies a distinct workspace.
-type Transcriber struct {
+type transcriptionModel struct {
 	repository artifact.Repository
 	model      artifact.ID
 	recipe     recipe.Definition
@@ -73,23 +73,7 @@ type Transcriber struct {
 	tokenizer  *hfbpe.Tokenizer
 }
 
-// LoadTranscriber resolves an exact stored transcription recipe and all of its
-// content-addressed model dependencies once, before serving any clip.
-func LoadTranscriber(ctx context.Context, repository artifact.Repository, definitionID artifact.ID, memoryBytes uint64) (*Transcriber, error) {
-	if ctx == nil || repository == nil || definitionID.Kind() != artifact.KindRecipe || memoryBytes == 0 {
-		return nil, errors.New("speech recognition: invalid transcriber load")
-	}
-	definition, err := recipe.RequireDefinition(ctx, repository, definitionID)
-	if err != nil {
-		return nil, err
-	}
-	if _, err = modelrecipe.CompileCapability(definition); err != nil {
-		return nil, err
-	}
-	return loadTranscriber(ctx, repository, definition, memoryBytes)
-}
-
-func loadTranscriber(ctx context.Context, repository artifact.Repository, definition recipe.Definition, memoryBytes uint64) (*Transcriber, error) {
+func loadTranscriber(ctx context.Context, repository artifact.Repository, definition recipe.Definition, memoryBytes uint64) (*transcriptionModel, error) {
 	if definition.Task != recipe.TaskTranscription {
 		return nil, errors.New("speech recognition: recipe is not transcription")
 	}
@@ -174,7 +158,7 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	if err != nil {
 		return nil, err
 	}
-	return &Transcriber{
+	return &transcriptionModel{
 		repository: repository, model: modelID, recipe: definition, contract: contract, profile: profile,
 		frontend: frontend, encoder: encoder, tokenizer: tokenizer,
 	}, nil
@@ -224,13 +208,7 @@ func loadCheckpointProjection(ctx context.Context, repository artifact.Repositor
 	}, checkpoint.Weights)
 }
 
-// Transcribe admits, decodes, executes, and persists one bounded offline clip.
-// The returned values are the existing public transcription and run contracts.
-func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, workspace *TranscriptionWorkspace, binding RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
-	return transcriber.transcribe(ctx, data, origin, policy, workspace, binding, nil, nil)
-}
-
-func (transcriber *Transcriber) transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, workspace *TranscriptionWorkspace, binding RunBinding, detector *speechactivity.Detector, activityWorkspace *speechactivity.DetectionWorkspace) (recipecontract.Transcription, runrecord.Run, error) {
+func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, workspace *transcriptionWorkspace, binding RunBinding, detector *speechactivity.Detector, activityWorkspace *speechactivity.DetectionWorkspace) (recipecontract.Transcription, runrecord.Run, error) {
 	if transcriber == nil || ctx == nil || workspace == nil || binding.Key == "" ||
 		binding.Dataset.Valid() != binding.Split.Valid() ||
 		binding.Dataset.Valid() && (binding.Dataset.Kind() != artifact.KindDataset || binding.Split.Kind() != artifact.KindDatasetShard) {
@@ -382,7 +360,7 @@ func RequireTranscription(ctx context.Context, reader artifact.Reader, id artifa
 	return transcription, nil
 }
 
-func (transcriber *Transcriber) persistRun(ctx context.Context, binding RunBinding, outcome runrecord.Outcome, inputs, outputs []artifact.ID, failure string, measured uint64, phases []runrecord.PhaseMetric) (runrecord.Run, error) {
+func (transcriber *transcriptionModel) persistRun(ctx context.Context, binding RunBinding, outcome runrecord.Outcome, inputs, outputs []artifact.ID, failure string, measured uint64, phases []runrecord.PhaseMetric) (runrecord.Run, error) {
 	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, outcome, inputs, outputs, failure,
 		binding.CodeCommit, binding.Environment, measured, phases)
 	if err != nil {
@@ -398,7 +376,7 @@ func (transcriber *Transcriber) persistRun(ctx context.Context, binding RunBindi
 	return run, nil
 }
 
-func (transcriber *Transcriber) failedExecution(ctx context.Context, binding RunBinding, inputs []artifact.ID, failure string, started time.Time, phases []runrecord.PhaseMetric, executionErr error) (recipecontract.Transcription, runrecord.Run, error) {
+func (transcriber *transcriptionModel) failedExecution(ctx context.Context, binding RunBinding, inputs []artifact.ID, failure string, started time.Time, phases []runrecord.PhaseMetric, executionErr error) (recipecontract.Transcription, runrecord.Run, error) {
 	if ctx.Err() != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, executionErr
 	}

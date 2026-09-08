@@ -29,7 +29,7 @@ type segmentedTranscription struct {
 // decodeText is the single clip inference path for both whole-record and
 // activity-selected transcription. It borrows samples and reuses all numeric
 // workspaces; each clip starts a fresh offline frontend/encoder computation.
-func (transcriber *Transcriber) decodeText(ctx context.Context, samples []float32, rate int, workspace *TranscriptionWorkspace) (string, []runrecord.PhaseMetric, string, error) {
+func (transcriber *transcriptionModel) decodeText(ctx context.Context, samples []float32, rate int, workspace *transcriptionWorkspace) (string, []runrecord.PhaseMetric, string, error) {
 	phases := completedTranscriptionPhases(0, 0, 0, 0)
 	prepareStart := time.Now()
 	features, frames, _, err := transcriber.frontend.ProcessGrouped(ctx, samples, rate, &workspace.Frontend, transcriber.profile.Grouping)

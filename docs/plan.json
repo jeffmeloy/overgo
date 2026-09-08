@@ -624,61 +624,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "closed-loop-proof",
-          "title": "Prove the served CPU lifecycle and its failure recovery",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRCPUClosedLoop$' -count=1 -v",
-          "rationale": "Group cpu-lifecycle; implement asr-training/closed-loop-proof, failure-recovery/sync-interruption-drills, failure-recovery/interruption-drills together. TestASRCPUClosedLoop must execute nonempty real training/held-out splits, nonzero updates, exact resume, VAD composition, WER/resource comparisons, publication/reload and authenticated HTTP transcription with one artifact-lineage chain. Reuse master's upload/workflow and RequireTranscriptionReport owners; no new orchestrator/scorer. Quality-record reuse requires exact identity; timing requires fresh execution. No-gain is reportable, not promotable. Do not wait for encoder gradients, another architecture, ASR streaming or CUDA.",
-          "depends_on": [
-            "asr-training/exact-resume",
-            "asr-serving/transcriptions-route",
-            "audio-recipes/validated-transcription",
-            "asr-training/sync-closed-loop-proof",
-            "hermetic-foundation/store-drills",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "audio-train-evaluate-serve",
-            "checkpoint-publication",
-            "quality-bracket",
-            "lineage-closure"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/adaptertrain",
-              "internal/trainingworkflow",
-              "internal/trainingprogram",
-              "internal/trainingdata",
-              "internal/evaluation",
-              "internal/server",
-              "internal/modelrecipe",
-              "internal/capabilityruntime",
-              "internal/overgodb",
-              "internal/runrecord",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group cpu-lifecycle: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-interruption-drills",
-                "title": "Prove CPU audio cancellation releases buffers, operations and dataset cursors",
-                "verify": "go test ./internal/audioparity -run '^TestAudioCancellationAcceptance$' -count=1 -v"
-              },
-              {
-                "id": "interruption-drills",
-                "title": "Recover interrupted audio checkpoint publication and damaged store copies",
-                "verify": "go test ./internal/audioparity -run '^TestAudioPublicationRecoveryAcceptance$' -count=1 -v",
-                "depends_on": [
-                  "sync-interruption-drills"
-                ]
-              }
-            ]
-          }
-        },
-        {
           "id": "sync-encoder-backward",
           "title": "Implement operator gradients and full-encoder training together",
           "status": "open",

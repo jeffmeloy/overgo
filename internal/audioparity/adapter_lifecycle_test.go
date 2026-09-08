@@ -1,6 +1,7 @@
 package audioparity
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -343,10 +344,16 @@ func TestASRAdapterPublicationAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	transcriber, err := speechrecognition.LoadTranscriber(t.Context(), l.store, definition.ID, adapterAcceptanceMemory)
+	session, err := speechrecognition.LoadSession(t.Context(), l.store, definition.ID, adapterAcceptanceMemory)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer session.Close(context.WithoutCancel(t.Context()))
+	transcriber, err := session.Lease(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer transcriber.Release()
 	environment, err := runrecord.CurrentEnvironment("cpu", "go-host")
 	if err != nil {
 		t.Fatal(err)
@@ -354,8 +361,7 @@ func TestASRAdapterPublicationAcceptance(t *testing.T) {
 	content, err = environment.Content()
 	l.content(t, content, err)
 	commit := strings.TrimSpace(baselineCommand(t, l.fixture.root, "git", "rev-parse", "HEAD"))
-	var tw speechrecognition.TranscriptionWorkspace
-	transcript, run, err := transcriber.Transcribe(t.Context(), l.fixture.payload, l.origin, l.policy, &tw, speechrecognition.RunBinding{Key: "adapter/reload", CodeCommit: commit, Environment: environment.ID, Dataset: l.spec.Dataset, Split: l.spec.Split})
+	transcript, run, err := transcriber.Transcribe(t.Context(), l.fixture.payload, l.origin, l.policy, speechrecognition.RunBinding{Key: "adapter/reload", CodeCommit: commit, Environment: environment.ID, Dataset: l.spec.Dataset, Split: l.spec.Split})
 	if err != nil || run.Outcome != runrecord.OutcomeSucceeded {
 		t.Fatalf("adapted transcription: %v", err)
 	}
@@ -394,6 +400,13 @@ func TestASRExactResumeAcceptance(t *testing.T) {
 		}
 		return
 	}
+	verifyAdapterResume(t, l)
+}
+
+// verifyAdapterResume shares the actual fresh-process resume proof with the
+// served lifecycle. The returned checkpoint contains the third completed update.
+func verifyAdapterResume(t *testing.T, l *adapterLifecycle) (trainingprogram.Checkpoint, string) {
+	t.Helper()
 	batcher := l.batcher(t, nil)
 	first := l.update(t, batcher)
 	directory := filepath.Join(t.TempDir(), "checkpoint")
@@ -429,4 +442,5 @@ func TestASRExactResumeAcceptance(t *testing.T) {
 		t.Fatalf("later parameters differ: %v", err)
 	}
 	t.Logf("fresh-process exact resume: checkpoint after update 1; updates 2 and 3 match next-batch identity, raw targets, losses, parameters, Muon momentum, constant scheduler, RNG and stream cursor; real train.100 rows=1; no shuffle, stochastic augmentation, quality or GPU claim")
+	return final, directory + "-resumed"
 }

@@ -102,10 +102,16 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	wave := transcriptionWAV(testWave(128))
 	silence := transcriptionWAV(make([]float32, 128))
 	registerTranscriptionInputs(t, store, environment, wave, silence)
-	transcriber, err := LoadTranscriber(t.Context(), store, definition.ID, 1<<20)
+	session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer session.Close(context.WithoutCancel(t.Context()))
+	transcriber, err := session.Lease(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer transcriber.Release()
 	policy := dataset.AudioInspectionPolicy{
 		MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 16, ClipThreshold: .999,
 		Admission: recipecontract.AudioAdmissionPolicy{
@@ -116,7 +122,7 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	}
 	binding := RunBinding{Key: "fixture/transcription/run/accepted", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID}
 	waveID, _ := artifact.IdentifyBytes(artifact.KindFile, wave)
-	result, run, err := transcriber.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy, &TranscriptionWorkspace{}, binding)
+	result, run, err := transcriber.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy, binding)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,14 +146,14 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	}
 
 	second, secondRun, err := transcriber.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy,
-		&TranscriptionWorkspace{}, RunBinding{Key: "fixture/transcription/run/replay", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
+		RunBinding{Key: "fixture/transcription/run/replay", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
 	if err != nil || second != result || !slices.Equal(secondRun.Outputs, run.Outputs) {
 		t.Fatalf("deterministic replay = %+v, %+v, %v", second, secondRun, err)
 	}
 
 	silenceID, _ := artifact.IdentifyBytes(artifact.KindFile, silence)
 	_, refusedRun, err := transcriber.Transcribe(t.Context(), silence, dataset.AudioPayloadOrigin{Container: silenceID}, policy,
-		&TranscriptionWorkspace{}, RunBinding{Key: "fixture/transcription/run/refused", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
+		RunBinding{Key: "fixture/transcription/run/refused", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
 	if !errors.Is(err, ErrAudioAdmissionRefused) || refusedRun.Outcome != runrecord.OutcomeFailed || len(refusedRun.Outputs) != 0 {
 		t.Fatalf("refused run = %+v, %v", refusedRun, err)
 	}
@@ -159,7 +165,7 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	cancelled, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
 	_, cancelledRun, err := transcriber.Transcribe(cancelled, wave, dataset.AudioPayloadOrigin{Container: waveID}, policy,
-		&TranscriptionWorkspace{}, RunBinding{Key: "fixture/transcription/run/cancelled", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
+		RunBinding{Key: "fixture/transcription/run/cancelled", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
 	_, afterCancel := store.Head()
 	if !errors.Is(err, context.Canceled) || cancelledRun.ID.Valid() || afterCancel != beforeCancel {
 		t.Fatalf("cancelled run = %+v, %v; commits %d -> %d", cancelledRun, err, beforeCancel, afterCancel)

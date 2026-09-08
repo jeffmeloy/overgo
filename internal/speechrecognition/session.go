@@ -29,9 +29,9 @@ type Session struct {
 }
 
 type transcriptionComponent struct {
-	transcriber *Transcriber
+	transcriber *transcriptionModel
 	detector    *speechactivity.Detector
-	text        TranscriptionWorkspace
+	text        transcriptionWorkspace
 	activity    speechactivity.DetectionWorkspace
 }
 

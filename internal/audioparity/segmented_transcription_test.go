@@ -1,11 +1,8 @@
 package audioparity
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,17 +14,13 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
-	"overgo/internal/inference"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
-	"overgo/internal/server"
 	"overgo/internal/speechactivity"
 	"overgo/internal/speechrecognition"
-	"overgo/internal/tokenizer"
 )
 
 // The complete capture is retained in testdata, including source/runtime/file
@@ -230,12 +223,6 @@ func TestSegmentedTranscriptionAcceptance(t *testing.T) {
 	f.run(t)
 }
 
-type segmentedHTTPRuntime struct{ *server.TranscriptionWorkspace }
-
-func (*segmentedHTTPRuntime) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
-	return nil, "", errors.New("text generation is not part of this audio fixture")
-}
-
 func TestValidatedTranscriptionConsumers(t *testing.T) {
 	f := newSegmentedFixture(t)
 	silence, err := media.EncodeWAVPCM16(make([]float32, f.clip.record.Samples), int(f.clip.record.SampleRate))
@@ -245,38 +232,7 @@ func TestValidatedTranscriptionConsumers(t *testing.T) {
 	f.policy.MaximumEncodedBytes = max(f.policy.MaximumEncodedBytes, uint64(len(silence)))
 	result, _ := f.run(t)
 	f.evaluate(t, result)
-	// Activation is isolated test scaffolding following actual composition
-	// execution above; it does not promote this model in the user's store.
-	verification, err := modelrecipetest.PublishVerification(t.Context(), f.store, "segmented/test-verification", f.definition.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := modelrecipe.ActivateCapability(t.Context(), f.store, f.definition, verification, recipe.EvidenceParity, "isolated consumer fixture; not held-out quality or production promotion"); err != nil {
-		t.Fatal(err)
-	}
-	workspace, err := server.NewTranscriptionWorkspace(t.Context(), f.store, server.TranscriptionPolicy{Recipe: f.definition.ID, MemoryBytes: adapterAcceptanceMemory, Inspection: f.policy}, f.binding.CodeCommit)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := workspace.Close(context.WithoutCancel(t.Context())); err != nil {
-			t.Error(err)
-		}
-	})
-	const key = "segmented-test-only-key"
-	runtimePolicy, found, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
-	if err != nil || !found {
-		t.Fatalf("HTTP host policy absent: %v", err)
-	}
-	handler, err := server.New(server.Config{Repository: f.store, APIKey: key, RuntimePolicy: runtimePolicy}, &segmentedHTTPRuntime{workspace})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := handler.Close(); err != nil {
-			t.Error(err)
-		}
-	})
+	handler, _ := newAudioHTTPFixture(t, f.store, f.definition, f.policy, f.binding.CodeCommit)
 	for _, test := range []struct {
 		name       string
 		data       []byte
@@ -290,26 +246,7 @@ func TestValidatedTranscriptionConsumers(t *testing.T) {
 		{"empty", nil, true, http.StatusBadRequest},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			var body bytes.Buffer
-			writer := multipart.NewWriter(&body)
-			part, err := writer.CreateFormFile("file", "source.flac")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := part.Write(test.data); err != nil {
-				t.Fatal(err)
-			}
-			if err := writer.WriteField("model", f.definition.ID.String()); err != nil {
-				t.Fatal(err)
-			}
-			if err := writer.Close(); err != nil {
-				t.Fatal(err)
-			}
-			request := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", &body)
-			request.Header.Set("Content-Type", writer.FormDataContentType())
-			if test.authorized {
-				request.Header.Set("Authorization", "Bearer "+key)
-			}
+			request := audioHTTPRequest(t, f.definition, test.data, test.authorized)
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
 			if response.Code != test.status {

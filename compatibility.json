@@ -58,6 +58,72 @@
  },
  "claims": [
   {
+   "id": "audio-cpu-served-adapter-lifecycle",
+   "status": "implemented",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+   "verify": "go test ./internal/audioparity -run '^TestASRCPUClosedLoop$' -count=1 -v",
+   "summary": "One real training row, three exact-resumed CPU adapter updates, VAD composition, fresh pre/post evaluation on three separately pinned LibriSpeech test rows, checkpoint publication/reload and authenticated HTTP use one artifact lineage chain. The observed held-out WER is zero before and after: no gain and no promotion. Timing records are integration observations, not a speedup or peak-memory claim. Full non-short acceptance is mandatory; the short package lane explicitly excludes this integration. No full-corpus, production-training-command, encoder-gradient or GPU claim.",
+   "evidence": [
+    {
+     "path": "internal/audioparity/cpu_lifecycle_test.go",
+     "contains": "func TestASRCPUClosedLoop(",
+     "role": "artifact",
+     "identity": "evidence:sha256:ddd2e21c3f770461ef853389f7c6e61eb120c24d5a61f2d701a078f70cc878c1"
+    },
+    {
+     "path": "internal/audioparity/testdata/lifecycle_heldout.json",
+     "contains": "7113aa4c3cf963fb54697145719a7725f984c8836d1c494a554cbb9f1a017df0",
+     "role": "source",
+     "identity": "file:sha256:6a3a13bd2d61996579e880fd2167a7de34295580e25c951edb9921a1ccc80636"
+    }
+   ]
+  },
+  {
+   "id": "audio-cpu-cancellation-lifecycle",
+   "status": "implemented",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+   "verify": "go test ./internal/audioparity -run '^TestAudioCancellationAcceptance$' -count=1 -v",
+   "summary": "Real CPU FLAC decoder and encoder-boundary interruption return no partial output; cancelled adapter optimization after completed gradients preserves parameters and refuses unfinished checkpoint state. Dataset cursors roll back, model leases release, and an authenticated HTTP operation cancels and joins with a persisted terminal run. Full non-short acceptance is mandatory. No mid-kernel preemption, forced-process recovery or GPU claim.",
+   "evidence": [
+    {
+     "path": "internal/audioparity/audio_recovery_test.go",
+     "contains": "func TestAudioCancellationAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:9c0f2b9b2fb8c38f1aab9aebb9962dbab0724264699a3b2d2ce79bf3d4d906f6"
+    },
+    {
+     "path": "internal/speechrecognition/session.go",
+     "contains": "func LoadSession(",
+     "role": "source",
+     "identity": "file:sha256:bf052fd3c3a0c03d0a956456fa39c0becc88620515ccc95755d9f4aaacc019f3"
+    }
+   ]
+  },
+  {
+   "id": "audio-cpu-publication-recovery",
+   "status": "implemented",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+   "verify": "go test ./internal/audioparity -run '^TestAudioPublicationRecoveryAcceptance$' -count=1 -v",
+   "summary": "Real adapter publication interrupted after the weight write or at the store commit leaves no partial checkpoint authority. A candidate cannot reuse predecessor verification or execute an unpublished checkpoint. Isolated backup tail repair and supported compaction retain exact checkpoint state; resumed source, loss, weights and optimizer match an uninterrupted update. Full non-short acceptance is mandatory. Canonical user models, datasets and stores are not damaged; no device or arbitrary-corruption recovery claim.",
+   "evidence": [
+    {
+     "path": "internal/audioparity/audio_recovery_test.go",
+     "contains": "func TestAudioPublicationRecoveryAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:9c0f2b9b2fb8c38f1aab9aebb9962dbab0724264699a3b2d2ce79bf3d4d906f6"
+    },
+    {
+     "path": "internal/trainingworkflow/input_projection.go",
+     "contains": "func RestoreInputProjection(",
+     "role": "source",
+     "identity": "file:sha256:e2816a31091854f4ae9a6cac32b833c38a0d7b33e35447e1b3f5e0daf29828ad"
+    }
+   ]
+  },
+  {
    "id": "audio-cpu-segmented-transcription",
    "status": "implemented",
    "evidence_tier": "pinned-oracle",
@@ -66,8 +132,8 @@
    "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
    "summary": "One declared CPU VAD/CTC recipe decodes admitted audio once, traverses unchanged sample spans and publishes one transcript with exact segment provenance. Four spans, PCM hashes and piece transcripts match the pinned native composition capture on one LibriSpeech training record. Source-addressed evaluation and authenticated HTTP execute the same recipe; silence, corrupt, empty and unauthorized controls refuse. Both model components use the shared bounded session owner. No held-out quality, word alignment, native recognizer streaming, performance gain, aggregate-memory or GPU claim.",
    "evidence": [
-    {"path": "internal/speechrecognition/session.go", "contains": "func LoadSession(", "role": "source", "identity": "file:sha256:aa74e9fb899f082d50911b5d69fc87c64b0142e51474b9d262d11ac328381432"},
-    {"path": "internal/audioparity/segmented_transcription_test.go", "contains": "func TestValidatedTranscriptionConsumers(", "role": "artifact", "identity": "evidence:sha256:2fe8a7a4be7fc1bd3af470f3dd457c4b44fc1bca9a2d3257a6d255aaf6ff66e4"},
+    {"path": "internal/speechrecognition/session.go", "contains": "func LoadSession(", "role": "source", "identity": "file:sha256:bf052fd3c3a0c03d0a956456fa39c0becc88620515ccc95755d9f4aaacc019f3"},
+    {"path": "internal/audioparity/segmented_transcription_test.go", "contains": "func TestValidatedTranscriptionConsumers(", "role": "artifact", "identity": "evidence:sha256:8a8ad3b3ada426d737e796e97c9533a3f9ae4f6f39e15a23189efa20403bc276"},
     {"path": "internal/audioparity/testdata/segmented_reference.json", "contains": "7e74c6438b7cfb5090cb6a131538f5e8515a7de3", "role": "source", "identity": "file:sha256:2c483913976762649b908dffc67d23feccb72750c74fd365615f6461a099433c"}
    ]
   },
@@ -111,7 +177,7 @@
      "contains": "func TestASRAdapterPublicationAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:2d1bddbc3318c9a92a01d40b1fd7b37b7d3f51e2fc93d0acbed9394f6d9b8b6f"
+     "identity": "evidence:sha256:b18810a308ad298ef444adb30b057ec58e94ea689e9238e4cf14670829d16c1d"
     }
    ],
    "id": "asr-cpu-adapter-publication",
@@ -133,7 +199,7 @@
      "contains": "func TestASRExactResumeAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:2d1bddbc3318c9a92a01d40b1fd7b37b7d3f51e2fc93d0acbed9394f6d9b8b6f"
+     "identity": "evidence:sha256:b18810a308ad298ef444adb30b057ec58e94ea689e9238e4cf14670829d16c1d"
     }
    ],
    "id": "asr-cpu-exact-adapter-resume",

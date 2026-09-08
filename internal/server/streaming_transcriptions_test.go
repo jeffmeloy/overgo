@@ -22,6 +22,7 @@ import (
 	"overgo/internal/speechrecognition"
 	"overgo/internal/speechrecognitiontest"
 	"overgo/internal/testevidence"
+	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
 
@@ -59,7 +60,7 @@ func TestStreamingTranscriptionAcceptance(t *testing.T) {
 	}
 	t.Cleanup(func() { handler.Close() })
 	server := httptest.NewUnstartedServer(handler)
-	server.Config.ErrorLog = log.New(transcriptionHTTPLog{t}, "", 0)
+	server.Config.ErrorLog = log.New(testutil.UnexpectedLog{Test: t}, "", 0)
 	server.Start()
 	t.Cleanup(server.Close)
 	source, chunks := native.PublishStream(t, store, clip, native.Profile.Frontend.SampleRate+1)
@@ -146,13 +147,6 @@ type transcriptionClient struct {
 	reader  *bufio.Scanner
 	body    io.ReadCloser
 	cancel  context.CancelCauseFunc
-}
-
-type transcriptionHTTPLog struct{ t *testing.T }
-
-func (writer transcriptionHTTPLog) Write(data []byte) (int, error) {
-	writer.t.Errorf("unexpected HTTP server error: %s", data)
-	return len(data), nil
 }
 
 func openTranscriptionClient(t *testing.T, server *httptest.Server, initial transcriptionStreamRequest) *transcriptionClient {

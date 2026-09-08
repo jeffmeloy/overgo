@@ -10,43 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-live-model-operations",
-          "title": "Prove switching and concurrent ASR service together",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRLiveOperationsAcceptance$' -count=1 -v",
-          "rationale": "Group live-service; implement shared-asr-proof/sync-live-model-operations, shared-asr-proof/live-model-operations together. Switch both admitted ASR recipes through the existing swap/lifecycle owner. Verify predecessor rollback, artifact mismatch refusal, request-bound recipe identity and resource release. No audio-only registry, pool or placement service. Preserve master's resource-busy classification, deferred model startup and active-request recovery. Exercise concurrent independent recognizer workspaces and recipe attribution across switches; do not modify platform GPU admission merely to make this audio case run.",
-          "depends_on": [
-            "shared-asr-proof/second-architecture",
-            "asr-serving/streaming-transcription",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "live-audio-switching",
-            "recipe-lifecycle-reuse"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/modelswap",
-              "internal/capabilityruntime",
-              "internal/server",
-              "internal/modelrecipe",
-              "internal/discovery",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group live-service: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-live-model-operations",
-                "title": "Switch between admitted ASR recipes through the existing live-model lifecycle",
-                "verify": "go test ./internal/audioparity -run '^TestASRModelSwitchAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
           "id": "live-model-operations",
           "title": "Verify: Prove bounded concurrent audio service through shared placement and scheduling",
           "status": "open",

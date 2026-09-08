@@ -87,6 +87,12 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (string, fu
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	wake := context.AfterFunc(ctx, func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.drained.Broadcast()
+	})
+	defer wake()
 	var deadline *time.Timer
 	graceOver := false
 	defer func() {
@@ -95,10 +101,13 @@ func (s *Supervisor) Acquire(ctx context.Context, servable Servable) (string, fu
 		}
 	}()
 	for {
+		if err := ctx.Err(); err != nil {
+			return "", nil, err
+		}
 		if s.closed {
 			return "", nil, errors.New("model swap: supervisor is closed")
 		}
-		if s.current != nil && s.current.servable.Name == servable.Name {
+		if s.current != nil && s.current.servable == servable {
 			return s.retainLocked(), s.releaseFunc(s.current), nil
 		}
 		if s.current == nil {

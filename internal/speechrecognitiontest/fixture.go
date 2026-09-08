@@ -101,7 +101,7 @@ func PublishModel(t *testing.T, store artifact.Repository, directory string, pro
 			t.Fatal(err)
 		}
 	}
-	commit(inventory.Batch("transcription-fixture/model"))
+	commit(inventory.Batch("transcription-fixture/model/" + inventory.Manifest.ID.String()))
 	var tokenizer artifact.ID
 	for _, component := range inventory.Manifest.Components {
 		if component.Name == "tokenizer.json" {
@@ -113,13 +113,13 @@ func PublishModel(t *testing.T, store artifact.Repository, directory string, pro
 	if err != nil {
 		t.Fatal(err)
 	}
-	commit(profile.Batch("transcription-fixture/profile"))
-	commit(contract.Batch("transcription-fixture/contract"))
+	commit(profile.Batch("transcription-fixture/profile/" + profile.ID.String()))
+	commit(contract.Batch("transcription-fixture/contract/" + contract.ID.String()))
 	definition, err := modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizer, inventory.TensorInventory.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "transcription-fixture/recipe", definition); err != nil {
+	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "transcription-fixture/recipe/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}
 	return definition

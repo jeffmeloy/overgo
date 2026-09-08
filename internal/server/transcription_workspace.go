@@ -9,9 +9,9 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/gitauthority"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
@@ -20,9 +20,11 @@ import (
 
 const transcriptionUploadLimit = "transcription-upload-limit"
 
-// TranscriptionPolicy binds an explicitly selected recipe and its resource bounds.
+// TranscriptionPolicy supplies resource bounds and an optional recipe pin.
+// Native server startup binds an omitted pin to the selected model's active
+// transcription recipe. A workspace always requires that binding.
 type TranscriptionPolicy struct {
-	Recipe      artifact.ID                   `json:"recipe"`
+	Recipe      artifact.ID                   `json:"recipe,omitzero"`
 	MemoryBytes uint64                        `json:"memory_bytes"`
 	Inspection  dataset.AudioInspectionPolicy `json:"inspection"`
 }
@@ -33,7 +35,10 @@ func LoadTranscriptionPolicy(path string) (TranscriptionPolicy, error) {
 	if err := loadPolicyDocument(path, &policy); err != nil {
 		return policy, err
 	}
-	return policy, policy.validate()
+	if policy.MemoryBytes == 0 || policy.Recipe.Valid() && policy.Recipe.Kind() != artifact.KindRecipe {
+		return policy, errors.New("transcription policy: memory bound and optional recipe identity required")
+	}
+	return policy, policy.Inspection.Validate()
 }
 
 func (policy TranscriptionPolicy) validate() error {
@@ -45,7 +50,7 @@ func (policy TranscriptionPolicy) validate() error {
 
 // TranscriptionWorkspace adapts the native transcriber to the workflow owner.
 type TranscriptionWorkspace struct {
-	store       artifact.Repository
+	store       *overgodb.Store
 	policy      TranscriptionPolicy
 	program     recipe.Program
 	sessions    *speechrecognition.Session
@@ -55,11 +60,15 @@ type TranscriptionWorkspace struct {
 
 // NewTranscriptionWorkspace loads one exact recipe on the CPU. The assembly
 // caller supplies the verified source commit; all inference runs retain it.
-func NewTranscriptionWorkspace(ctx context.Context, store artifact.Repository, policy TranscriptionPolicy, commit string) (*TranscriptionWorkspace, error) {
-	if ctx == nil || store == nil || !gitauthority.ValidObjectID(commit) {
+func NewTranscriptionWorkspace(ctx context.Context, store *overgodb.Store, policy TranscriptionPolicy, commit string) (*TranscriptionWorkspace, error) {
+	revision, revisionErr := runrecord.NewCodeRevision(strings.ToLower(commit))
+	if ctx == nil || store == nil || revisionErr != nil {
 		return nil, errors.New("transcription workspace: store, context and source commit required")
 	}
 	if err := policy.validate(); err != nil {
+		return nil, err
+	}
+	if err := store.Refresh(ctx); err != nil {
 		return nil, err
 	}
 	definition, err := recipe.RequireDefinition(ctx, store, policy.Recipe)
@@ -89,7 +98,7 @@ func NewTranscriptionWorkspace(ctx context.Context, store artifact.Repository, p
 		return nil, err
 	}
 	return &TranscriptionWorkspace{store: store, policy: policy, program: program,
-		sessions: sessions, commit: strings.ToLower(commit), environment: environment.ID}, nil
+		sessions: sessions, commit: revision.Commit, environment: environment.ID}, nil
 }
 
 // Close drains and releases the recipe's resident model and mutable buffers.
@@ -153,12 +162,8 @@ func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, ki
 	}
 	defer func() { err = errors.Join(err, lease.Release()) }()
 	// Recheck after admission: a recipe may be retired while this request waits.
-	activation, _, err := modelrecipe.ResolveActiveCapability(ctx, workspace.store, workspace.program.Definition().Model, recipe.TaskTranscription)
-	if err != nil {
+	if err := workspace.checkActivation(ctx); err != nil {
 		return completion, err
-	}
-	if activation.Definition.ID != recipeID {
-		return completion, errors.New("transcription workspace: configured recipe is no longer active")
 	}
 	content, found, err := artifact.ReadContent(ctx, workspace.store, input.Audio)
 	if err != nil {
@@ -188,4 +193,18 @@ func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, ki
 	}
 	completion.Outputs = append(slices.Clone(run.Outputs), text.Descriptor.ID)
 	return completion, nil
+}
+
+func (workspace *TranscriptionWorkspace) checkActivation(ctx context.Context) error {
+	if err := workspace.store.Refresh(ctx); err != nil {
+		return err
+	}
+	activation, _, err := modelrecipe.ResolveActiveCapability(ctx, workspace.store, workspace.program.Definition().Model, recipe.TaskTranscription)
+	if err != nil {
+		return err
+	}
+	if activation.Definition.ID != workspace.policy.Recipe {
+		return errors.New("transcription workspace: configured recipe is no longer active")
+	}
+	return nil
 }

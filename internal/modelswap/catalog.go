@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"overgo/internal/discovery"
@@ -70,28 +69,17 @@ func (r *CatalogResolver) Resolve(ctx context.Context, name string) (Servable, b
 	if err := r.refresh(ctx); err != nil {
 		return Servable{}, false, err
 	}
-	entries, _, err := discovery.CapabilityCatalog(ctx, r.Store, r.Limit, r.memo)
+	entries, truncated, err := discovery.CapabilityCatalog(ctx, r.Store, r.Limit, r.memo)
 	if err != nil {
 		return Servable{}, false, err
 	}
-	servable, found := matchServable(entries, name)
-	return servable, found, nil
+	return matchServable(entries, truncated, name)
 }
 
-func matchServable(entries []discovery.CatalogEntry, name string) (Servable, bool) {
-	wanted := strings.ToLower(name)
-	for _, entry := range entries {
-		if !entry.Present || entry.Location == "" {
-			continue
-		}
-		base := filepath.Base(entry.Location)
-		stem := strings.TrimSuffix(base, filepath.Ext(base))
-		if strings.EqualFold(base, name) || strings.EqualFold(stem, name) ||
-			strings.ToLower(entry.Model.String()) == wanted {
-			return Servable{
-				Name: base, Location: entry.Location, Model: entry.Model.String(),
-			}, true
-		}
+func matchServable(entries []discovery.CatalogEntry, truncated bool, name string) (Servable, bool, error) {
+	entry, found, err := discovery.MatchReference(entries, truncated, name)
+	if err != nil || !found {
+		return Servable{}, found, err
 	}
-	return Servable{}, false
+	return Servable{Name: filepath.Base(entry.Location), Location: entry.Location, Model: entry.Model.String()}, true, nil
 }

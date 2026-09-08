@@ -7,12 +7,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataset"
-	"overgo/internal/modelrecipe"
+	"overgo/internal/httpstream"
 	"overgo/internal/recipe"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
@@ -36,26 +35,15 @@ type transcriptionHTTPStream struct {
 	session   *capabilityruntime.AudioStreamSession
 }
 
-func (workspace *TranscriptionWorkspace) checkStreamActivation(ctx context.Context) error {
-	activation, _, err := modelrecipe.ResolveActiveCapability(ctx, workspace.store, workspace.program.Definition().Model, recipe.TaskTranscription)
-	if err != nil {
-		return err
-	}
-	if activation.Definition.ID != workspace.policy.Recipe {
-		return errors.New("transcription stream: configured recipe is no longer active")
-	}
-	return nil
-}
-
 func (workspace *TranscriptionWorkspace) openTranscriptionStream(ctx context.Context, request speechrecognition.StreamRequest) (*transcriptionHTTPStream, error) {
-	if err := workspace.checkStreamActivation(ctx); err != nil {
+	if err := workspace.checkActivation(ctx); err != nil {
 		return nil, err
 	}
 	session, err := workspace.sessions.OpenStream(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-	if err := workspace.checkStreamActivation(ctx); err != nil {
+	if err := workspace.checkActivation(ctx); err != nil {
 		return nil, errors.Join(err, session.Close(context.WithoutCancel(ctx)))
 	}
 	return &transcriptionHTTPStream{workspace: workspace, session: session}, nil
@@ -64,7 +52,7 @@ func (workspace *TranscriptionWorkspace) openTranscriptionStream(ctx context.Con
 func (stream *transcriptionHTTPStream) process(ctx context.Context, chunk workflowruntime.AudioStreamChunk) (transcriptionStreamEvent, error) {
 	var event transcriptionStreamEvent
 	w := stream.workspace
-	if err := w.checkStreamActivation(ctx); err != nil {
+	if err := w.checkActivation(ctx); err != nil {
 		return event, err
 	}
 	if chunk.Audio.Valid() {
@@ -118,34 +106,12 @@ func (h *Handler) nativeStreamingTranscriptions(response http.ResponseWriter, re
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "transcription workspace is unavailable")
 		return
 	}
-	controller := http.NewResponseController(response)
-	if request.ProtoMajor == 1 {
-		if err := controller.EnableFullDuplex(); err != nil {
-			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "bidirectional transcription transport is unavailable")
-			return
-		}
+	release, err := httpstream.OpenDuplex(response, request)
+	if err != nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "bidirectional transcription transport is unavailable")
+		return
 	}
-	// Request cancellation must interrupt blocked reads and writes, then join
-	// the callback before net/http can reuse this connection. No polling worker.
-	interrupted := make(chan struct{})
-	stopInterrupt := context.AfterFunc(request.Context(), func() {
-		_ = controller.SetReadDeadline(time.Now())
-		_ = controller.SetWriteDeadline(time.Now())
-		close(interrupted)
-	})
-	defer func() {
-		if !stopInterrupt() {
-			<-interrupted
-		}
-	}()
-	// A final application chunk need not coincide with request-body EOF. Close
-	// the body while this handler still owns the connection, interrupting any
-	// attempted drain. Otherwise net/http can begin its next-request read while
-	// a late EOF callback starts a background read during finishRequest.
-	defer func() {
-		_ = controller.SetReadDeadline(time.Now())
-		_ = request.Body.Close()
-	}()
+	defer release()
 	scanner := bufio.NewScanner(request.Body)
 	scanner.Buffer(nil, maxRequestBytes)
 	if !scanner.Scan() {
@@ -162,7 +128,7 @@ func (h *Handler) nativeStreamingTranscriptions(response http.ResponseWriter, re
 		writeGenerationError(response, err)
 		return
 	}
-	capability, err := selectNativeWorkflowCapability(capabilities, recipe.TaskTranscription, input.Model)
+	capability, err := h.selectNativeWorkflowCapability(capabilities, recipe.TaskTranscription, input.Model)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

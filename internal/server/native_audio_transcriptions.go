@@ -42,7 +42,7 @@ func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, reques
 		writeGenerationError(response, err)
 		return
 	}
-	capability, err := selectNativeWorkflowCapability(capabilities, recipe.TaskTranscription, model)
+	capability, err := h.selectNativeWorkflowCapability(capabilities, recipe.TaskTranscription, model)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

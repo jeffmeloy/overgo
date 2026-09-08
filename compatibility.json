@@ -368,13 +368,13 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:b466d88e5aeb166a7ffe0c916548271492924e8739ce15fda06fa4ef51bd5638"
+     "identity": "file:sha256:0591f7b60e05dde5e78d9745047c186219f10f885670c973db6dc442f5329b64"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
      "path": "internal/server/audio_transcriptions_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:96982613c4ac4f4733777a567420288bb6f8912d3f233c0f8805d5a27dd527a6"
+     "identity": "evidence:sha256:b9203fd7c30baee161ba47fec21e78fce200ae83c83ae7ba752397d88780e89c"
     }
    ],
    "id": "openai-audio-transcriptions",
@@ -1497,13 +1497,13 @@
      "path": "internal/server/streaming_transcriptions.go",
      "contains": "func (h *Handler) nativeStreamingTranscriptions(",
      "role": "source",
-     "identity": "file:sha256:6ef3b2da5cdeedc42560c117ea804e828fbeecd8782c3465bf70ccca55be9f1b"
+     "identity": "file:sha256:1c9de9d37658df7a0843ff07117bd7e125757faf8dc7afea72879309c8ee4b6a"
     },
     {
      "path": "internal/server/streaming_transcriptions_test.go",
      "contains": "func TestStreamingTranscriptionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:b73bb73e0e2eedcc9221e8b5f954b73b5cd906ecd1bbe638d2324dea7baae155"
+     "identity": "evidence:sha256:567c4bd89f5af8a2e877c9e006fea2d182d3c880422b41da623acfdb8068fb0a"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1539,6 +1539,50 @@
      "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
      "role": "source",
      "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"
+    }
+   ]
+  },
+  {
+   "id": "audio-cpu-live-model-switching",
+   "status": "implemented",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+   "verify": "go test ./internal/audioparity -run '^TestASRModelSwitchAcceptance$' -count=1 -v",
+   "summary": "The production server executable starts both registered CPU ASR architectures without a GGUF inference model. The shared proxy switches exact model identities and reproduces transcripts after restart. Explicit memory and inspection policy binds the selected active recipe; mismatched pins and insufficient memory refuse startup and permit recovery. A real incomplete-hop preprocessing mismatch retires a fixture successor and the existing lifecycle owner restores its predecessor. Isolated source-fixture commits bind actual child runs. No GPU, training, production promotion or performance claim.",
+   "evidence": [
+    {
+     "path": "cmd/server/transcription.go",
+     "contains": "func serveTranscription(",
+     "role": "source",
+     "identity": "file:sha256:e4f411b5e0686f4bbc6f26231e6cfc541e0bf94c02f1f1523d74fd603f1d3cd2"
+    },
+    {
+     "path": "internal/audioparity/live_service_test.go",
+     "contains": "func TestASRModelSwitchAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:6c93ef6d4bf65e25f767bfb0921ebac76d69080bc294ecfaa972c09e54872dc6"
+    }
+   ]
+  },
+  {
+   "id": "audio-cpu-live-service-recovery",
+   "status": "implemented",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+   "verify": "go test ./internal/audioparity -run '^TestASRLiveOperationsAcceptance$' -count=1 -v",
+   "summary": "The production swap proxy routes native NDJSON from its opening record without waiting for request EOF. Canceling a pending switch preserves the active recognizer stream; a fresh supervisor and actual child resume its durable checkpoint to exact native streaming text. Concurrent CTC HTTP requests retain isolated outputs through existing admission and serialized component leases. No parallel-kernel execution, GPU, throughput or promotion claim.",
+   "evidence": [
+    {
+     "path": "internal/modelswap/proxy.go",
+     "contains": "func routingEnvelope(",
+     "role": "source",
+     "identity": "file:sha256:9c8a0e5a14bcd50d0f0c00f1a41e6bd921b4ed7e13760d97a3d4d41a17a7510f"
+    },
+    {
+     "path": "internal/audioparity/live_service_test.go",
+     "contains": "func TestASRLiveOperationsAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:6c93ef6d4bf65e25f767bfb0921ebac76d69080bc294ecfaa972c09e54872dc6"
     }
    ]
   }

@@ -52,29 +52,26 @@ Store authorities:
 - Visual native bounds: `evidence:sha256:476f0890e4a9059c334865d3d3f385a7dde5b313c6d26af9b57ca18321bed9c7`.
 - Text native bounds: `evidence:sha256:bd58fd0dcba826e60b1fdfccf79867aa12f600fa775c44d5b926e4522f0f1b19`.
 
-The separate 32,768-token text recovery result retains three loads and nine
-grow/shrink cycles. Its reuse review records the intervening source changes;
-allocation and generation paths are unchanged. Fixed-budget regression
-admission remains separate from these modality-quality measurements.
+The [resource refresh](e4b-resource-refresh.json) binds producer
+`95c0ac02654d9e9034451f9ab1a4d4b2abd0646b` after the retained-output arena
+repair. All 270 media requests passed in 219.6 seconds; the full 32,768-token
+text recovery passed in 167.2 seconds. Text recovery retained 28,093,855,912
+owned bytes across nine cycles and released them after each of three loads.
+Media retained 17,442,088,104 owned bytes and 4,260 allocations without growth.
+`TestAcceptedE4BResourceRefresh` checks the exact source, recipe, environment,
+text-test digest/transcript and six observed media resource cells.
 
-The fixed-budget guard now accepts three current-source E4B repeats and three
-Qwen control repeats. Each checks the short shape and all four required rungs
-against retained historical tokens, NLL, throughput and allocation limits.
-E4B judged decode rates were 40.3, 39.3 and 40.7 tokens/s. The entire quiet
-three-repeat experiment passes the previous pool reference as well.
+The repair changes arena planning only. Kernels, arithmetic, tokenizer,
+projection, prompting, native oracles and dataset scoring are unchanged.
+Existing executor lifetime, alias and replay checks passed in the producer
+gate. The original quality, protocol and mask records retain their source;
+resource acceptance uses fresh executions rather than relabeling old records.
 
-The initial control `evidence:sha256:bcb2edb57f93cbdbe83ad6998ac346f76d1627d8cb11385b0fa188493c1fb39e`
-missed the pool reference's short-prompt rate floor (3,249.5 versus 3,830.8
-tokens/s). It remains recorded. The complete replacement experiment ran without
-concurrent agent compilation; no threshold changed and no best repeat was chosen.
+Three new controls per model pass historical, prior-accepted and first-repeat
+comparisons. E4B judged decode: 40.0, 39.7, 40.1 tokens/s; Qwen: 245.7, 245.6,
+247.2 tokens/s. Every repeat includes the short shape and four context rungs,
+full outputs, NLL, rates and allocation limits. Earlier cohorts and failures
+remain in the store; no floor or denominator changed.
 
-Comparison preserves a legacy record's device-class scope when it predates UUID
-capture. Known UUIDs must still match and cannot disappear. Historical provenance
-checks hash the original stored bytes instead of reserializing them with newer
-optional fields. Neither repair changes inference or its measured source surface.
-
-The workbench first-run journey also passes its E4B attached-image reply.
-Attachments precede the question, and projector offload follows active inference
-placement unless explicitly overridden. The gate exposed both the prior ordering
-rejection and the CPU-projector timeout. These fixes change client construction
-and server defaults; the measured inference implementation remains unchanged.
+Resource selection:
+`evidence:sha256:8e6d2914d494a230f55be695d076e9538d5aa4b75708e3cb742f0672e7bcba32`.

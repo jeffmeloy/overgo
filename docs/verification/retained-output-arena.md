@@ -17,10 +17,10 @@ The repair completes that rung and passes the unchanged historical comparison.
 
 The CPU counterexample reserved 8,192 duplicate arena bytes. Eight focused CPU
 and CUDA checks pass, covering output slots, lifetime, aliases, replay and arena
-accounting. The real-model run remains a precommit diagnostic: clean-source
-controls, affected E4B resource evidence and the three-repeat FP8 cohort must
-be readmitted after the producer lands. Earlier model evidence keeps its
-original source identity.
+accounting. The FP8 run remains a precommit diagnostic; its three-repeat
+clean-source cohort is next. Fresh E4B/Qwen controls and full text/media resource
+recovery pass at the landed producer; see [E4B validation](e4b-validation.md).
+Earlier model evidence keeps its original source identity.
 
 Probe, patch, raw output and failed-record lineage:
 `evidence:sha256:e96160d7908a86b0c85211a656976f75d4bfba7a425b7bd73af2116df01235a6`.

@@ -25,22 +25,22 @@ func TestCurrentGuardControls(t *testing.T) {
 			name:       "Qwen capacity session",
 			historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
 			repeats: [3]string{
-				"evidence:sha256:aa7b3a8942e7f37208060608df1a70a72d99d34a7be75f9c6942223c4ce5feec",
-				"evidence:sha256:8e14c6b03cd8bab1b396bda8fbd1e9f52e7e26206789aa1adcb63d29eefbca4f",
-				"evidence:sha256:52edee0ae6b2bdabea6c6b402c9ac83fe8e6be6338acfec54c0503d726f096b1",
+				"evidence:sha256:8216acc2fdbc4705d6acead094d3253c176aa9c029683bc4e4480d19774d410c",
+				"evidence:sha256:98cb6f0b40bd3ece9d1cf1815b4a5255fd6e26fa550dc57806cd82f5f7d8634a",
+				"evidence:sha256:8a3933043176ed794d5fcad18c647dfedf583fb59a8a1bbe1e6aec0dead657d7",
 			},
 		},
 		{
 			name:       "E4B request session",
 			historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a",
 			repeats: [3]string{
-				"evidence:sha256:07d45dfe0ac68309d4f312fd7b5b709ef303e96f075a2acf9fc9535368c1aecd",
-				"evidence:sha256:f2ab8f7d98662be4524f2245ed0dab4298e1237b15103c5c4c5c86cf3fc48060",
-				"evidence:sha256:06b89e81154d0b60dffc9190c919150609acae72e2044430eabea2690780882f",
+				"evidence:sha256:5e665ff150fad0fca8ae13a3de609f555ed6b67046c6697a45bfbb48bc9f6cd5",
+				"evidence:sha256:64557c547d3c281bbb4ee77174f28d2c8ba19519197d9d21b54afd54d0abc469",
+				"evidence:sha256:edf1b490201bba3344c73a361a4c8af2db1af0654258e8fd6e3786b11805ec8c",
 			},
 		},
 	}
-	requireGuardCohorts(t, fixtures, "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab")
+	requireGuardCohorts(t, fixtures, "95c0ac02654d9e9034451f9ab1a4d4b2abd0646b")
 	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
 }
 

@@ -131,14 +131,21 @@
       if (!node.isConnected) { URL.revokeObjectURL(url); artifactURLs.delete(node); }
     }
   }).observe(document.documentElement, { childList: true, subtree: true });
+  function resourceURL(node, body) {
+    if (artifactURLs.has(node)) URL.revokeObjectURL(artifactURLs.get(node));
+    const url = URL.createObjectURL(body);
+    artifactURLs.set(node, url);
+    return url;
+  }
+  function downloadBlob(node, body, name) {
+    el('a', { href: resourceURL(node, body), download: name }).click();
+  }
   function artifactResource(node, attribute, path) {
     const load = async () => {
       try {
         const body = await api.blob(path);
         if (!node.isConnected) return;
-        if (artifactURLs.has(node)) URL.revokeObjectURL(artifactURLs.get(node));
-        const url = URL.createObjectURL(body);
-        artifactURLs.set(node, url);
+        const url = resourceURL(node, body);
         if (attribute === "src") node.src = url;
         else {
           const download = el("a", { href: url, download: node.getAttribute("download") || "artifact" });
@@ -451,7 +458,7 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,

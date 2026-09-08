@@ -349,6 +349,8 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .history-actions { padding:0 var(--s2); }
 .history-editor { flex:1; min-width:0; }
 .history-editor input { width:100%; min-width:0; }
+.turn-editor { margin-top:var(--s2); }
+.turn-editor textarea { width:100%; min-height:6em; resize:vertical; }
 .conversations [aria-pressed="true"] { color:var(--acc); }
 .conversations .conversation:hover .tab, .conversations .conversation:focus-within .tab { background:var(--bg2); }
 .composer.drop { outline:2px dashed var(--acc); outline-offset:4px; }

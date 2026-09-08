@@ -53,6 +53,7 @@
       let controller = null;
       let activeTurn = null;
       let recoveryRow = null;
+      let actionPending = false;
       const selected = overgo.conversation();
       let conversationRoot = selected ? selected.root : "";
       disposeChat = () => {
@@ -115,6 +116,35 @@
         el("label", { class: "setting-field" }, "System prompt", system),
         el("div", { class: "settings-fields" }, el("label", { class: "setting-field" }, "Temperature", temperature), el("label", { class: "setting-field" }, "Maximum output tokens", maxTokens)),
         el("details", {}, el("summary", { text: "Last response usage" }), facts)));
+      const exportStatus = el('div', { class: 'note', role: 'status', hidden: true });
+      settings.firstChild.append(el('details', {}, el('summary', { text: 'Copy or export conversation' }),
+        el('div', { class: 'row' }, el('button', { class: 'link-button conversation-read-action', text: 'Copy conversation', onclick: () => exportConversation(true) }),
+          el('button', { class: 'link-button conversation-read-action', text: 'Export Markdown', onclick: () => exportConversation(false) })), exportStatus));
+      async function exportConversation(copy) {
+        if (disposed || controller || activeTurn || actionPending) return;
+        actionPending = true; updateBusy(); exportStatus.hidden = false; exportStatus.textContent = 'Preparing conversation…'; exportStatus.setAttribute('role', 'status');
+        try {
+          const selected = overgo.conversation();
+          let messages = thread.messages;
+          if (selected) messages = (await overgo.api.get('/interactions/messages?response=' + encodeURIComponent(selected.latest))).messages;
+          if (disposed) return;
+          const visible = messages.filter(message => ['user', 'assistant'].includes(message.role));
+          if (!visible.length) throw new Error('There are no conversation messages to export yet.');
+          const title = selected && selected.title || 'Conversation';
+          const markdown = '# ' + title.replace(/[\r\n]/g, ' ') + '\n\n' + visible.map(message => {
+            let source = '';
+            if (message.response) source = new URL('/interactions/inspect?response=' + encodeURIComponent(message.response), location.origin).href;
+            const media = (message.media || []).map(item => '\n\nAttachment: ' + item.type + ' — [stored turn](' + source + ')').join('');
+            return '## ' + (message.role === 'user' ? 'User' : 'Assistant') + '\n\n' + message.content + media;
+          }).join('\n\n') + '\n';
+          if (copy) await navigator.clipboard.writeText(markdown);
+          else {
+            overgo.downloadBlob(exportStatus, new Blob([markdown], { type: 'text/markdown;charset=utf-8' }), 'conversation-' + (selected && selected.latest || 'draft') + '.md');
+          }
+          exportStatus.textContent = copy ? 'Conversation copied.' : 'Markdown download started.';
+        } catch (err) { if (!disposed) { exportStatus.setAttribute('role', 'alert'); exportStatus.textContent = overgo.friendlyError(err) + ' Try again.'; } }
+        finally { actionPending = false; if (!disposed) updateBusy(); }
+      }
       // artifactField: the mode's artifact-typed control, if any. A media card re-enters the composer as the next
       // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
       // a fresh attachment in such a mode stores through the intake route and fills the control.
@@ -122,7 +152,78 @@
       const artifactField = (file) => { const slots = [...generation.fields.values()].filter((field) => field.control.type === "artifact");
         return slots.find((field) => file && field.control.media && file.type.startsWith(field.control.media + "/")) || slots[0]; };
       const thread = overgo.thread(panel, { reuse: (file, artifact) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file); },
-        replay: replayRecord, lineage: showLineage, marker: capabilities.remote ? "remote" : "" });
+        replay: replayRecord, lineage: showLineage, actions: messageActions, marker: capabilities.remote ? "remote" : "" });
+      const branchNotice = el('div', { class: 'note', role: 'status', hidden: true });
+      function actionsBlocked() { return disposed || !!controller || !!activeTurn || actionPending || otherModel || overgo.modelSwitching(); }
+      function messageActions(message) {
+        if (!['user', 'assistant'].includes(message.role)) return [];
+        return [el('button', { class: 'link-button turn-action', title: 'Create a new branch using current settings', text: message.role === 'user' ? 'Edit and resend' : 'Regenerate',
+          disabled: actionsBlocked(), onclick: () => prepareBranch(message) })];
+      }
+      function renderConversation(messages) {
+        thread.reset();
+        for (const message of messages) if (['user', 'assistant'].includes(message.role)) {
+          const shown = thread.add(message.role, message.content);
+          Object.assign(shown, { response: message.response, media: message.media, tool_calls: message.tool_calls });
+          thread.renderMessage(shown, false);
+        }
+      }
+      function restoreBranch(branch, failure) {
+        conversationRoot = branch.root; lastResponseID = branch.previousSelection;
+        overgo.rememberConversation(branch.source); renderConversation(branch.original);
+        branchNotice.hidden = true; saveDraft();
+        thread.errorRow(failure + ' Original conversation restored.');
+        thread.node.appendChild(el('button', { class: 'link-button turn-action', text: 'Retry branch', disabled: actionsBlocked(), onclick: () => submit(branch.text, [], 'chat', branch) }));
+      }
+      // Preserve the stored media positions when regenerating. An edited prompt
+      // keeps its attachments after the new text, as the inline editor states.
+      function branchInput(message, edited) {
+        const content = [], bytes = new TextEncoder().encode(message.content), decoder = new TextDecoder();
+        let offset = 0;
+        if (edited !== undefined) content.push({ type: 'input_text', text: edited });
+        for (const media of message.media || []) {
+          if (edited === undefined) {
+            content.push({ type: 'input_text', text: decoder.decode(bytes.slice(offset, media.text_offset)) });
+            offset = media.text_offset;
+          }
+          if (media.type === 'image') content.push({ type: 'input_image', image_url: media.data });
+          else if (media.type === 'audio') content.push({ type: 'input_audio', input_audio: media.format ? { data: media.data, format: media.format } : { url: media.data } });
+          else if (media.type === 'video') content.push({ type: 'input_video', input_video: { data: media.data, fps: media.fps || 0 } });
+          else throw new Error('This attachment cannot be resent. Start a new conversation and reattach it.');
+        }
+        if (edited === undefined) content.push({ type: 'input_text', text: decoder.decode(bytes.slice(offset)) });
+        return { role: 'user', content };
+      }
+      async function prepareBranch(message) {
+        if (actionsBlocked()) return;
+        const editor = el('form', { class: 'turn-editor' }, el('div', { class: 'note', role: 'status', text: 'Loading the stored turn…' }));
+        panel.querySelectorAll('.turn-editor').forEach(node => node.remove());
+        message.node.appendChild(editor); actionPending = true; updateBusy();
+        try {
+          const chain = await overgo.api.get('/interactions/messages?response=' + encodeURIComponent(message.response));
+          if (disposed) return;
+          if (mismatchedModel(chain)) throw new Error('Choose this conversation’s original model to resend it.');
+          if (chain.status === 'in_progress') throw new Error('This response is still running. Open it to resume or stop it.');
+          const turn = chain.messages.filter(item => item.response === message.response);
+          const users = turn.filter(item => item.role === 'user');
+          if (!users.length || turn.some(item => item.role === 'tool' || (item.tool_calls || []).length)) throw new Error('This turn includes tool execution. Start a new message to continue it.');
+          const editIndex = message.role === 'user' ? thread.messages.filter(item => item.role === 'user' && item.response === message.response).indexOf(message) : users.length - 1;
+          if (editIndex < 0 || !users[editIndex]) throw new Error('The stored turn changed. Reopen the conversation and try again.');
+          const branch = { prefix: chain.messages.filter(item => item.response !== message.response), previous: chain.previous || '', text: users[editIndex].content,
+            users: users.map(item => ({ ...item })), input: users.map(item => branchInput(item)) };
+          const run = () => { editor.remove(); return submit(branch.text, [], 'chat', branch); };
+          if (message.role === 'assistant') { actionPending = false; updateBusy(); await run(); return; }
+          const field = el('textarea', { class: 'text', 'aria-label': 'Edit message', value: branch.text, required: true });
+          const cancel = () => { editor.remove(); message.node.querySelector('.turn-action')?.focus(); };
+          editor.replaceChildren(field, el('div', { class: 'note', text: 'Creates a new branch using current settings. Existing attachments follow the edited text.' }),
+            el('div', { class: 'row' }, el('button', { class: 'btn', type: 'submit', text: 'Send edited message' }), el('button', { class: 'link-button', type: 'button', text: 'Cancel edit', onclick: cancel })));
+          editor.addEventListener('submit', event => { event.preventDefault(); if (!field.value.trim() || actionsBlocked()) return;
+            branch.text = field.value.trim(); branch.users[editIndex].content = branch.text; branch.input[editIndex] = branchInput(users[editIndex], branch.text); run(); });
+          editor.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } });
+          field.focus();
+        } catch (err) { if (!disposed) editor.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        finally { actionPending = false; if (!disposed) updateBusy(); }
+      }
       // showLineage: what the store records around a card's artifact (the runs that made it, with their
       // request and inputs; the runs that used it, with their outputs) and, as next steps, every active
       // capability whose declared slot takes the artifact's kind, one click opening that mode with it.
@@ -178,7 +279,12 @@
         } catch (err) { thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err)); }
         finally { controller = null; composer.setBusy(false); }
       }
-      function updateBusy() { composer.setBusy(!!controller || !!activeTurn, activeTurn && activeTurn.stopRequested); }
+      function updateBusy() {
+        composer.setBusy(!!controller || !!activeTurn, activeTurn && activeTurn.stopRequested);
+        composer.setSendBlocked(actionPending || overgo.modelSwitching());
+        panel.querySelectorAll('.turn-action, .turn-editor button[type=submit]').forEach(button => { button.disabled = actionsBlocked(); });
+        settings.querySelectorAll('.conversation-read-action').forEach(button => { button.disabled = disposed || !!controller || !!activeTurn || actionPending; });
+      }
       function forgetTurn(turn) {
         try {
           const saved = JSON.parse(sessionStorage.getItem(INFLIGHT_STORAGE) || "null");
@@ -239,6 +345,7 @@
       composer.extras.appendChild(draftNotice);
       const modelNotice = el("div", { class: "note", role: "status", hidden: true }, "Confirming the selected model… Choose a model again if loading fails.");
       composer.extras.appendChild(modelNotice);
+      composer.extras.appendChild(branchNotice);
       function persistDraft(key, value) {
         drafts.set(key, value);
         try { if (capabilities.recipe) sessionStorage.setItem(key, JSON.stringify(value)); }
@@ -253,7 +360,7 @@
       };
       saveChat = saveDraft;
       for (const field of [system, temperature, maxTokens]) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
-      updateSwitch = () => { modelNotice.hidden = !overgo.modelSwitching(); composer.setSendBlocked(overgo.modelSwitching()); };
+      updateSwitch = () => { modelNotice.hidden = !overgo.modelSwitching(); updateBusy(); };
       document.addEventListener("overgo-model-switch", updateSwitch);
       updateSwitch();
       saveDraft();
@@ -406,9 +513,11 @@
               latest = turn.response = event.id;
             }
             if (event.type === "created") {
-              if (!conversationRoot) moveDraft(event.id);
+              if (turn.branch && !turn.previous) { saveDraft(); conversationRoot = event.id; saveDraft(); }
+              else if (!conversationRoot) moveDraft(event.id);
               const root = conversationRoot;
-              overgo.rememberConversation({ root, latest: event.id, model: servedModel });
+              overgo.rememberConversation({ root, latest: event.id, model: servedModel, recipe: capabilities.recipe });
+              for (const user of turn.users || []) { user.response = event.id; thread.renderMessage(user, false); }
               try { sessionStorage.setItem(INFLIGHT_STORAGE, JSON.stringify({ root, response: event.id, model: turn.model })); } catch (_) { /* storage unavailable */ }
               if (turn.stopRequested) cancelTurn(turn);
             }
@@ -419,12 +528,14 @@
         if (disposed) return;
         if (!terminal.status) throw new Error("The response has no confirmed result. Resume to check it.");
         lastResponseID = terminal.status === "failed" ? turn.previous : latest;
-        if (terminal.status === "failed" && !turn.previous) { moveDraft(""); overgo.rememberConversation(null); }
+        if (terminal.status === "failed" && !turn.previous && !turn.branch) { moveDraft(""); overgo.rememberConversation(null); }
         if (latest && assistant) { assistant.response = latest; thread.renderMessage(assistant, false); }
         forgetTurn(turn);
         activeTurn = null;
         if (recoveryRow) { recoveryRow.remove(); recoveryRow = null; }
-        if (terminal.status === "failed") restorePrompt(turn.prompt);
+        if (terminal.status === "failed") {
+          if (turn.branch) restoreBranch(turn.branch, 'The branch failed.'); else restorePrompt(turn.prompt);
+        }
         renderFacts(inputTokens, terminal.usage, terminal.timings);
         overgo.refreshConversations();
       }
@@ -439,11 +550,14 @@
           forgetTurn(turn);
           activeTurn = null;
           lastResponseID = turn.previous;
-          if (!lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
-          restorePrompt(turn.prompt);
+          if (!turn.branch) {
+            if (!lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
+            restorePrompt(turn.prompt);
+          }
         }
         const unknown = turn && !turn.response && !err.status;
-        thread.errorRow(unknown ? "The request outcome is unknown. Check conversation history before sending again." : overgo.friendlyError(err));
+        if (turn && turn.branch && !unknown) restoreBranch(turn.branch, overgo.friendlyError(err));
+        else thread.errorRow(unknown ? "The request outcome is unknown. Check conversation history before sending again." : overgo.friendlyError(err));
         overgo.refreshConversations();
       }
 
@@ -462,16 +576,26 @@
         finally { controller = null; if (!disposed) updateBusy(); }
       }
 
-      async function submit(text, attachments, mode) {
-        if (disposed || controller || activeTurn || otherModel || overgo.modelSwitching()) return;
+      async function submit(text, attachments, mode, branch) {
+        if (actionsBlocked()) return;
         if (!temperature.reportValidity() || !maxTokens.reportValidity()) return;
         welcome.remove();
-        const parts = composer.attachmentParts();
-        composer.clearInput();
-        thread.add("user", overgo.userLine(text, attachments));
-        composer.clearAttachments();
+        const parts = branch ? [] : composer.attachmentParts();
+        if (branch) {
+          // The reader may have sent another message while this editor was
+          // open. Capture the return point at submission, not at edit start.
+          branch = { ...branch, source: { ...overgo.conversation() }, root: conversationRoot, previousSelection: lastResponseID,
+            original: thread.messages.map(item => ({ role: item.role, content: item.content, response: item.response, media: item.media, tool_calls: item.tool_calls })) };
+          renderConversation(branch.prefix); lastResponseID = branch.previous;
+          branchNotice.replaceChildren('New branch. ', el('button', { class: 'link-button', text: 'Return to original', onclick: () => overgo.openConversation(branch.source) }));
+          branchNotice.hidden = false;
+        } else { composer.clearInput(); composer.clearAttachments(); }
+        const users = (branch ? branch.users : [{ content: overgo.userLine(text, attachments) }]).map(item => {
+          const shown = thread.add('user', item.content); shown.media = item.media; return shown;
+        });
         controller = new AbortController();
-        composer.setBusy(true);
+        updateBusy();
+        if (branch) composer.element.querySelector('.stop-button').focus();
         let assistant = null;
         try {
           // A mode beyond chat is one generation over the shared dispatch; its
@@ -494,14 +618,14 @@
             return;
           }
           assistant = thread.add("assistant", "");
-          const request = { model: modelID, input: responsesInput(text, parts), stream: true, store: true };
+          const request = { model: modelID, input: branch ? branch.input : responsesInput(text, parts), stream: true, store: true };
           if (lastResponseID) request.previous_response_id = lastResponseID;
           if (system.value.trim()) request.instructions = system.value.trim();
           if (temperature.value !== "") request.temperature = Number(temperature.value);
           if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
           const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null) /* reviewed: a hosted model's provider tokenizes, the count route refuses, and the meter stays empty by design */;
           controller.signal.throwIfAborted();
-          activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, prompt: { text, attachments } };
+          activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, users, branch, prompt: { text, attachments } };
           renderFacts(count ? count.input_tokens : null, null, null);
           await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count ? count.input_tokens : null);
         } catch (err) {
@@ -509,7 +633,8 @@
           if (!mode || mode === "chat") {
             if (err.name === "AbortError" && !activeTurn) thread.errorRow("Stopped before sending.");
             else turnFailure(err, activeTurn);
-            if (!activeTurn) restorePrompt({ text, attachments });
+            if (!activeTurn && !branch) restorePrompt({ text, attachments });
+            if (branch && !activeTurn && err.name === 'AbortError') restoreBranch(branch, 'Stopped before sending.');
           } else thread.errorRow(err.name === "AbortError" ? "Request disconnected" : overgo.friendlyError(err));
         } finally {
           controller = null;
@@ -546,6 +671,7 @@
             if (inflight && message.role === "assistant" && message.response === inflight) continue;
             const shown = thread.add(message.role, message.content);
             shown.response = message.response;
+            shown.media = message.media; shown.tool_calls = message.tool_calls;
             thread.renderMessage(shown, false);
           }
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;

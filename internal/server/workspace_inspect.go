@@ -119,9 +119,11 @@ func (h *Handler) conversationInspect(response http.ResponseWriter, request *htt
 // conversationMessage is one visible message with the response that
 // produced it, so a page can inspect the turn behind any assistant message.
 type conversationMessage struct {
-	Role     string `json:"role"`
-	Content  string `json:"content"`
-	Response string `json:"response,omitzero"`
+	Role      string                          `json:"role"`
+	Content   string                          `json:"content"`
+	Response  string                          `json:"response,omitzero"`
+	Media     []runrecord.InteractionMedia    `json:"media,omitempty"`
+	ToolCalls []runrecord.InteractionToolCall `json:"tool_calls,omitempty"`
 }
 
 // chainMessages materializes a chain root-first, attributing each message
@@ -135,7 +137,7 @@ func (h *Handler) chainMessages(ctx context.Context, chain []runrecord.Interacti
 			return nil, err
 		}
 		for _, message := range transcript.Messages {
-			result = append(result, conversationMessage{Role: message.Role, Content: message.Content, Response: interaction.Response})
+			result = append(result, conversationMessage{Role: message.Role, Content: message.Content, Response: interaction.Response, Media: message.Media, ToolCalls: message.ToolCalls})
 		}
 	}
 	return result, nil

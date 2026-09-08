@@ -5,25 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-conversation-actions",
-      "title": "Edit, retry, regenerate and export conversation turns without losing their history",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Edit, retry, regenerate and export conversation turns without losing their history",
-          "status": "open",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserConversationActions$' -count=1 -timeout=2m",
-          "rationale": "Reuse stored response lineage and previous_response_id. Add explicit edit-and-resend and assistant regeneration that create identifiable branches rather than overwriting durable messages; expose branch selection where required. Provide copy and Markdown export for the selected conversation with clear attachment references. Prevent duplicate submissions and preserve the original on failed regeneration. Do not confuse retry after a refused request with resuming an already running response. Add TestWebUIBrowserConversationActions covering lineage, branch reopening, model compatibility, stop/retry, clipboard failure and exported content.",
-          "depends_on": [
-            "webui-polish-tabs/do",
-            "gui-conversation-navigation/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-attachment-workflow",
       "title": "Make attachment intake and modality controls usable on a phone",
       "owner": "professional_overgo_gui",

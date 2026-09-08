@@ -50,6 +50,37 @@ Retry loading or New conversation while preserving the unsent draft.
 temporary store, synthetic model output, browser actions and injected transport
 failures. The browser journey also checks both themes and phone/desktop layouts.
 
+## Conversation actions
+
+Edit and resend opens an inline message editor. Regenerate uses the stored
+prompt with current settings. Both submit through the existing Responses path
+with the original turn's parent, creating an immutable branch. The history
+list distinguishes the resulting leaves by response identity. Return to
+original keeps the earlier branch reachable while the new response runs.
+
+Branch actions preserve the composer's unsent text and files. A root edit
+copies that draft to the new root while keeping the original draft. Failed
+submissions restore the original view with Retry branch; disconnected accepted
+requests use Resume response. Stop cancels the actual branch execution.
+Keyboard focus moves to Stop when a branch starts and back to Send on completion.
+
+Stored media positions survive regeneration, including UTF-8 text offsets.
+An edited prompt keeps its attachments after the edited text. Multi-message
+inputs preserve the other messages. Tool-execution turns explicitly refuse
+automatic replay; continuing with a new message remains available. Model and
+recipe checks guard all generation actions, while stored content remains readable.
+
+Settings exposes Copy conversation and Export Markdown. These use the selected
+stored transcript, omit unsent drafts and configuration, and reference each
+attachment's stored turn. Clipboard/read failures provide retry feedback. The
+shared object-URL owner releases downloads when their UI owner is replaced.
+
+`TestWebUIBrowserConversationActions` checks actual stored branches, repeat-click
+admission, failed submission/retry, execution cancellation, draft preservation,
+root edits, multi-message/media request fidelity, clipboard failure and export
+contents. The generation model is synthetic; media request tests deliberately
+refuse before execution and establish no image-model or remote-fetch evidence.
+
 ## Mobile acceptance
 
 The conversation renderer keeps streamed text nodes stable, preserves the

@@ -145,10 +145,11 @@
       }
       const head = el("div", { class: "role" }, message.role);
       if (message.role === "assistant" && options && options.marker) head.appendChild(el("span", { class: "tag", text: options.marker }));
-      if (message.role === "assistant" && !streaming && message.content) {
+      if (!streaming && message.content) {
         head.appendChild(overgo.copyButton(message.content, "copy"));
         if (message.response && overgo.inspectTurn) head.appendChild(el("button", { class: "link-button", text: "inspect", onclick: () => overgo.inspectTurn(message.response) }));
       }
+      if (!streaming && message.response && options && options.actions) head.append(...options.actions(message));
       message.node.querySelector(".role").replaceWith(head);
       if (!following) log.scrollTop = position;
       scroll();
@@ -402,7 +403,14 @@
         return { type: "input_file", filename: item.name, file_data: item.dataURL };
       });
     }
-    function setBusy(value, stopping = stop.disabled) { busy = value; stop.disabled = !!(busy && stopping); stop.textContent = stop.disabled ? "Stopping…" : "Stop"; send.disabled = readOnly || sendBlocked || busy || attachments.some((item) => item.needsReattach || item.pending || item.refusal || item.storing); send.hidden = busy; stop.hidden = !busy; }
+    function setBusy(value, stopping = stop.disabled) {
+      const focused = document.activeElement;
+      busy = value; stop.disabled = !!(busy && stopping); stop.textContent = stop.disabled ? "Stopping…" : "Stop";
+      send.disabled = readOnly || sendBlocked || busy || attachments.some((item) => item.needsReattach || item.pending || item.refusal || item.storing);
+      send.hidden = busy; stop.hidden = !busy;
+      if (focused === send && busy) stop.focus();
+      else if (focused === stop && !busy) send.focus();
+    }
     async function submit() {
       const text = input.value.trim();
       if (!text && !attachments.length) return;

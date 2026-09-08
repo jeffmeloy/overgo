@@ -583,8 +583,12 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("image"));
       const input = field && field.querySelector("input");
       return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .attachment-row").length === 0; })()`)
+		var beforeVQA int
+		if err := browser.Evaluate(ctx, `document.querySelectorAll('#panel-chat .msg.assistant').length`, &beforeVQA); err != nil {
+			t.Fatal(err)
+		}
 		say(t, ctx, browser, "What does this image show?")
-		settle("the answer lands as the assistant's text", `!document.querySelector(".composer .btn").disabled &&
+		settle("the answer lands as the assistant's text", `document.querySelectorAll('#panel-chat .msg.assistant').length===`+strconv.Itoa(beforeVQA+1)+` && !document.querySelector(".send-button").disabled &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0 &&
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
 		var answer string
@@ -717,7 +721,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       row.textContent.includes(`+strconv.Quote(entryName)+`) && [...row.querySelectorAll("button")].some((button) => button.textContent === "retire"))`)
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       document.querySelector("input[aria-label='retirement reason']").value = "the browser lane's fake provider closed";
-      const catalogNote = [...document.querySelectorAll("#panel-library > .section-title")].find((node) => node.textContent === "Local models").nextElementSibling;
+      const catalogNote = [...document.querySelectorAll("#panel-library .section-title")].find((node) => node.textContent === "Local models").parentElement.nextElementSibling;
       catalogNote.textContent = ""; catalogNote.dataset.laneRetirement = "1";
       const row = [...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(`+strconv.Quote(entryName)+`));
       [...row.querySelectorAll("button")].find((button) => button.textContent === "retire").click(); return true; })()`)

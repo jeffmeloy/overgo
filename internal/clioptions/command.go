@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+
+	"overgo/internal/processcontrol"
 )
 
 const (
@@ -31,6 +33,9 @@ const (
 func Main(run func() error) {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		if errors.Is(err, processcontrol.ErrResourceBusy) {
+			os.Exit(processcontrol.ResourceBusyExitCode)
+		}
 		os.Exit(1)
 	}
 }

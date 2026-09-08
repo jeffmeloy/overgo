@@ -18,11 +18,13 @@
 
   function getKey() { return sessionKey; }
   function setKey(value, remember) {
+    const changed = sessionKey !== (value || '');
     sessionKey = value || "";
     try {
       if (remember && sessionKey) localStorage.setItem(KEY_STORAGE, sessionKey);
       else localStorage.removeItem(KEY_STORAGE);
     } catch (_) { /* storage unavailable; the in-memory key still works */ }
+    if (changed && window.overgo && window.overgo.runtimeEvents) window.overgo.runtimeEvents.restart();
   }
 
   function authHeaders(extra) {
@@ -42,6 +44,8 @@
         (body && body.message) || text || ("HTTP " + response.status);
       const error = new Error(message);
       error.status = response.status;
+      error.code = body && body.error && body.error.code;
+      error.type = body && body.error && body.error.type;
       throw error;
     }
     return body;
@@ -674,8 +678,12 @@
             setModelSwitchBlocked(false);
           }
         } catch (_) { /* choose a model again to resolve its unknown state */ }
-        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: friendlyError(err) }));
-        if (panel === currentPanel) panel.replaceChildren(errorBanner(friendlyError(err)), el("button", { class: "btn alt", text: "Choose model again", onclick: () => { close(); modelPill.click(); } }), el("button", { class: "btn alt", text: "Close", onclick: close }));
+        const busy = err.code === 'resource_busy';
+        const message = busy ? 'The GPU is busy with another process. Wait for that work to finish, then retry loading this model.' : friendlyError(err);
+        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: message }));
+        if (panel === currentPanel) panel.replaceChildren(errorBanner(message),
+          ...(busy ? [el('details', {}, el('summary', { text: 'Technical details' }), el('div', { class: 'mono', text: err.message })), el('button', { class: 'btn', text: 'Retry loading model', onclick: event => swapModel(item, name, event.currentTarget) })] : []),
+          el("button", { class: "btn alt", text: "Choose model again", onclick: () => { close(); modelPill.click(); } }), el("button", { class: "btn alt", text: "Close", onclick: close }));
       } finally {
         modelSwitchPending = false;
         clearInterval(timer); button.textContent = "serve";

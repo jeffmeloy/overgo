@@ -276,7 +276,9 @@ func (h *Handler) streamResponses(
 	var writeEvent func(string, any) error
 	fail := func(err error) {
 		status, outcome := "failed", runrecord.OutcomeFailed
-		if errors.Is(err, context.Canceled) {
+		// The execution context owns explicit Stop even when an executor has
+		// transported its error as text and lost context.Canceled's identity.
+		if errors.Is(err, context.Canceled) || errors.Is(plan.context().Err(), context.Canceled) {
 			status, outcome = "cancelled", runrecord.OutcomeCancelled
 		}
 		if turnBuffer != nil {

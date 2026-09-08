@@ -36,17 +36,23 @@
 
   // run: one request of a declared capability through the generic run route, answered as the
   // operation's outputs (artifact URLs) once it completes, or thrown as its failure.
-  async function run(capability, input, signal, sources) {
-    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal });
-    const completed = await overgo.waitOperation(accepted.operation, null, signal);
-    if (completed.state !== "completed") throw new Error(completed.failure || completed.state);
+  async function run(capability, input, signal, sources, lifecycle) {
+    let accepted;
+    try { accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal }); }
+    catch (err) { err.operationUnconfirmed = !err.status && err.name !== 'AbortError'; throw err; }
+    if (!accepted || typeof accepted.operation !== 'string' || !accepted.operation) { const err = new Error('The operation was submitted without a receipt. Check Activity before trying again.'); err.operationUnconfirmed = true; throw err; }
+    if (lifecycle && lifecycle.accepted) await lifecycle.accepted(accepted.operation);
+    const completed = await overgo.waitOperation(accepted.operation, lifecycle && lifecycle.observe, signal);
+    if (completed.state !== "completed") { const err = new Error(completed.failure || completed.state); err.operationState = completed.state; throw err; }
     return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) };
   }
 
   // replay: the stored request of a record resubmitted (unchanged, or varied by the page) as a new
   // run; each output names its parent, and one identical to the parent says the store memoized it.
-  async function* replay(capability, input, signal, parent, label) {
-    const completed = await run(capability, input, signal);
+  async function* replay(capability, input, signal, parent, label, lifecycle) {
+    let completed;
+    try { completed = await run(capability, input, signal, null, lifecycle); }
+    catch (err) { if (err.operationState === 'cancelled') { yield { type: 'cancelled' }; return; } throw err; }
     for await (const event of media(outputKind(capability.task), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
       if (event.type === "media" && event.artifact === parent) event.caption += " — the same output: the store memoized the unchanged request";
       yield event;
@@ -67,7 +73,12 @@
     if (textControl) { input[textControl.name] = text; missing.delete(textControl.name); }
     if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
     let completed;
-    try { completed = await run(capability, input, signal, selection.sources); } catch (err) { if (err.name === "AbortError") throw err; yield { type: "error", message: err.message }; return; }
+    try { completed = await run(capability, input, signal, selection.sources, selection.lifecycle); } catch (err) {
+      if (err.name === "AbortError") throw err;
+      if (err.operationState === 'cancelled') yield { type: 'cancelled' };
+      else yield { type: "error", message: err.message, status: err.operationUnconfirmed ? 'unknown' : 'failed' };
+      return;
+    }
     if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
     // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
     for (const output of completed.data) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
@@ -214,7 +225,7 @@
         } catch (err) { errorRow(overgo.friendlyError(err)); }
       } }) : null;
       // A card behind a run replays its stored request: unchanged, or with a fresh seed.
-      const replays = replay && event.run ? ["regenerate", "vary"].map((label) => el("button", { class: "btn alt", text: label, onclick: () => replay(event, label) })) : [];
+      const replays = replay && event.run ? ["regenerate", "vary"].map((label) => el("button", { class: "btn alt media-replay", text: label, onclick: () => replay(event, label) })) : [];
       const lineage = options && options.lineage && event.artifact ? el("button", { class: "btn alt", text: "lineage", onclick: () => options.lineage(event, card) }) : null;
       const card = el("div", { class: "artifact msg media" }, player,
         el("div", { class: "note" }, [event.caption, facts.join(" · ")].filter(Boolean).join(" — "),

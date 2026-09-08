@@ -5,25 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-background-work",
-      "title": "Keep conversation and workbench actions responsive during background work",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep conversation and workbench actions responsive during background work",
-          "status": "open",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserBackgroundWork$' -count=1 -timeout=2m \u0026\u0026 go test ./internal/server -run '^TestWorkbenchTransactionWriter$' -count=1",
-          "rationale": "Master 4eadd204 includes transaction-scoped workbench/store access, retained evidence handles, persisted model identities and task-filtered generation discovery. Keep these implemented improvements as regression floors; do not rebuild their memo/cache owners. Build on those owners: Library intake, generation and model switching must coexist with reading/composing and show accurate state when another process commits or an action fails. Preserve draft and selection through catalog refreshes. Use one compact user-relevant activity entry with result navigation, cancellation or required action; keep idle operational space absent. Reuse existing operation routes and durable receipts. Add TestWebUIBrowserBackgroundWork with held operations and concurrent store updates to prove navigation/composing remain available, failures recover, and completed outputs remain findable. The plan-commit browser run exposed a concurrent GPU reservation as a generic child-server startup failure. Surface resource contention as a clear busy/wait/retry state, preserve the draft and model selection, and put technical diagnostics behind explicit details. Add a controlled busy-admission case; never bypass resource ownership.",
-          "depends_on": [
-            "webui-polish-tabs/do",
-            "gui-draft-lifecycle/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-capability-signoff",
       "title": "Accept the complete conversation workflow on the merged GUI worktree",
       "owner": "professional_overgo_gui",

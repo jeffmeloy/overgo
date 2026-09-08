@@ -53,6 +53,7 @@
       let disposeComposer = () => {};
       let controller = null;
       let activeTurn = null;
+      let activeOperation = null;
       let recoveryRow = null;
       let actionPending = false;
       const selected = overgo.conversation();
@@ -64,7 +65,7 @@
         document.removeEventListener("overgo-model-switch", updateSwitch);
         // A queued explicit Stop still needs the incoming ID. Keep only that
         // acknowledgement alive across navigation, then cancel its execution.
-        if (controller && !(activeTurn && activeTurn.stopRequested && !activeTurn.response)) controller.abort();
+        if (controller && !(activeTurn && activeTurn.stopRequested && !activeTurn.response) && !(activeOperation && activeOperation.stopRequested && !activeOperation.id)) controller.abort();
       };
       const { el, clear, fmt } = overgo;
       clear(panel);
@@ -88,6 +89,9 @@
         catch (_) { storageUnavailable = true; }
       }
       if (!draft || typeof draft !== "object") draft = {};
+      let uncertainPrevious = typeof draft.uncertainPrevious === 'string' ? draft.uncertainPrevious : null;
+      let uncertainText = typeof draft.uncertainText === 'string' ? draft.uncertainText : '';
+      let uncertainKind = draft.uncertainKind === 'operation' ? 'operation' : 'response';
       let lastResponseID = "";
 
       // Agent mode: the active definitions the store holds; a turn runs the same thread through /agents/chat
@@ -158,7 +162,7 @@
       const thread = overgo.thread(panel, { reuse: (file, artifact, source) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file, source); },
         replay: replayRecord, lineage: showLineage, actions: messageActions, marker: capabilities.remote ? "remote" : "" });
       const branchNotice = el('div', { class: 'note', role: 'status', hidden: true });
-      function actionsBlocked() { return disposed || !!controller || !!activeTurn || actionPending || otherModel || overgo.modelSwitching(); }
+      function actionsBlocked() { return disposed || !!controller || !!activeTurn || actionPending || uncertainPrevious !== null || otherModel || overgo.modelSwitching(); }
       function messageActions(message) {
         if (!['user', 'assistant'].includes(message.role)) return [];
         return [el('button', { class: 'link-button turn-action', title: 'Create a new branch using current settings', text: message.role === 'user' ? 'Edit and resend' : 'Regenerate',
@@ -215,7 +219,7 @@
           if (editIndex < 0 || !users[editIndex]) throw new Error('The stored turn changed. Reopen the conversation and try again.');
           const branch = { prefix: chain.messages.filter(item => item.response !== message.response), previous: chain.previous || '', text: users[editIndex].content,
             users: users.map(item => ({ ...item })), input: users.map(item => branchInput(item)) };
-          const run = () => { editor.remove(); return submit(branch.text, [], 'chat', branch); };
+          const run = () => { if (!validateSettings()) return; editor.remove(); return submit(branch.text, [], 'chat', branch); };
           if (message.role === 'assistant') { actionPending = false; updateBusy(); await run(); return; }
           const field = el('textarea', { class: 'text', 'aria-label': 'Edit message', value: branch.text, required: true });
           const cancel = () => { editor.remove(); message.node.querySelector('.turn-action')?.focus(); };
@@ -248,11 +252,11 @@
       // openStep: the composer in the step's mode with its model picked and the artifact in the declared slot.
       // requestOf: the request document the run that made an artifact cites (its input under an input
       // schema; a run's inputs stand in identity order), read from the artifact's lineage.
-      async function requestOf(artifact, run) {
-        const lineage = await overgo.api.get("/artifacts/lineage?id=" + encodeURIComponent(artifact));
+      async function requestOf(artifact, run, options) {
+        const lineage = await overgo.api.get("/artifacts/lineage?id=" + encodeURIComponent(artifact), options);
         const made = lineage.producers.find((item) => item.run === run) || lineage.producers[0];
         const input = made && made.inputs.find((item) => (item.schema || "").endsWith("-input.v1"));
-        return input && overgo.api.get("/artifacts/content?id=" + encodeURIComponent(input.id));
+        return input && overgo.api.get("/artifacts/content?id=" + encodeURIComponent(input.id), options);
       }
       async function openStep(step, artifact) {
         await composer.setMode(step.task);
@@ -264,29 +268,36 @@
       // replayRecord: a card's stored request (the run's input document) resubmitted to the capability
       // that made it, unchanged or with a fresh seed; page state plays no part in the request.
       async function replayRecord(event, label) {
-        if (disposed || controller || activeTurn) return;
+        if (actionsBlocked()) return;
         controller = new AbortController();
-        composer.setBusy(true);
+        updateBusy();
         try {
-          if (!generation.capabilities) generation.capabilities = await overgo.api.get("/generation/capabilities");
-          const run = await overgo.api.get("/runs?id=" + encodeURIComponent(event.run));
+          const options = { signal: controller.signal };
+          if (!generation.capabilities) generation.capabilities = await overgo.api.get("/generation/capabilities", options);
+          const run = await overgo.api.get("/runs?id=" + encodeURIComponent(event.run), options);
           const capability = generation.capabilities.find((item) => item.recipe === run.recipe && !item.refusal);
           if (!capability) throw new Error("the capability that made it is no longer active");
-          const request = await requestOf(event.artifact, run.id);
+          const request = await requestOf(event.artifact, run.id, options);
           if (!request) throw new Error("the run records no request");
+          controller.signal.throwIfAborted();
           if (label === "vary") {
             if (!capability.controls.some((control) => control.name === "seed")) throw new Error("the request declares no seed to vary");
             request.seed = crypto.getRandomValues(new Uint32Array(1))[0];
           }
           thread.add("user", label + " " + fmt.shortID(event.artifact));
-          await thread.consume(overgo.streams.replay(capability, request, controller.signal, event.artifact, label));
-        } catch (err) { thread.errorRow(err.name === "AbortError" ? "cancelled" : overgo.friendlyError(err)); }
-        finally { controller = null; composer.setBusy(false); }
+          const work = trackOperation();
+          await thread.consume(overgo.streams.replay(capability, request, controller.signal, event.artifact, label, work.lifecycle));
+        } catch (err) {
+          if (disposed) return;
+          thread.errorRow(err.name === "AbortError" ? "Request disconnected; check Activity for its result." : overgo.friendlyError(err));
+          if (err.operationUnconfirmed) { uncertainKind = 'operation'; uncertainPrevious = lastResponseID; uncertainText = label + ' ' + event.artifact; saveDraft(); showUncertainty(); }
+        }
+        finally { if (activeOperation && !activeOperation.id) activeOperation.row.remove(); activeOperation = null; controller = null; if (!disposed) updateBusy(); }
       }
       function updateBusy() {
-        composer.setBusy(!!controller || !!activeTurn, activeTurn && activeTurn.stopRequested);
-        composer.setSendBlocked(actionPending || overgo.modelSwitching());
-        panel.querySelectorAll('.turn-action, .turn-editor button[type=submit]').forEach(button => { button.disabled = actionsBlocked(); });
+        composer.setBusy(!!controller || !!activeTurn, (activeTurn && activeTurn.stopRequested) || (activeOperation && activeOperation.stopRequested));
+        composer.setSendBlocked(actionPending || uncertainPrevious !== null || overgo.modelSwitching());
+        panel.querySelectorAll('.turn-action, .media-replay, .turn-editor button[type=submit]').forEach(button => { button.disabled = actionsBlocked(); });
         settings.querySelectorAll('.conversation-read-action').forEach(button => { button.disabled = disposed || !!controller || !!activeTurn || actionPending; });
       }
       function forgetTurn(turn) {
@@ -331,12 +342,37 @@
           activeTurn.stopRequested = true;
           updateBusy();
           cancelTurn(activeTurn);
-        } else if (controller) controller.abort();
+        } else if (activeOperation) { activeOperation.stopRequested = true; updateBusy(); cancelBackgroundOperation(activeOperation); }
+        else if (controller) controller.abort();
       };
+      async function cancelBackgroundOperation(work) {
+        if (!work.id || work.cancelSent) return;
+        work.cancelSent = true; work.failure = '';
+        try { await overgo.api.post('/operations/cancel', { id: work.id }); }
+        catch (err) {
+          work.cancelSent = work.stopRequested = false;
+          if (!disposed && activeOperation === work) { work.failure = 'Could not stop: ' + overgo.friendlyError(err) + '. Try Stop again.'; work.status.textContent = work.failure; updateBusy(); }
+        }
+      }
+      function trackOperation() {
+        const status = el('span', { text: 'Starting operation…' }), row = el('div', { class: 'note', role: 'status' }, status);
+        const work = activeOperation = { id: '', status, row };
+        thread.node.appendChild(row);
+        work.lifecycle = {
+          accepted: async id => {
+            work.id = id;
+            if (!disposed) row.append(' ', el('button', { class: 'link-button', text: 'View activity', onclick: () => overgo.showOperation(id) }));
+            if (work.stopRequested) await cancelBackgroundOperation(work);
+            if (disposed && controller) controller.abort();
+          },
+          observe: current => { if (!disposed) status.textContent = work.failure && !['completed', 'failed', 'cancelled'].includes(current.state) ? work.failure : current.state + (current.progress && current.progress.total != null ? ' · ' + current.progress.completed + ' / ' + current.progress.total : ''); },
+        };
+        return work;
+      }
       const composer = overgo.composer(panel, {
         onSubmit: submit,
         onStop: overgo.stopTurn,
-        onChange: () => saveDraft(),
+        onChange: () => { composer.input.setCustomValidity(''); saveDraft(); },
         takesAny: () => !!artifactField(),
         intake: (file, { signal }) => {
           const field = artifactField(file);
@@ -362,6 +398,17 @@
         sourceArtifact: typeof item.sourceArtifact === 'string' ? item.sourceArtifact : undefined, sourceRun: typeof item.sourceRun === 'string' ? item.sourceRun : undefined })));
       const draftNotice = el("div", { class: "note", role: "status", hidden: true });
       composer.extras.appendChild(draftNotice);
+      const uncertaintyNotice = el('div', { class: 'note', role: 'alert', hidden: true });
+      composer.extras.appendChild(uncertaintyNotice);
+      function showUncertainty() {
+        uncertaintyNotice.hidden = uncertainPrevious === null;
+        if (uncertaintyNotice.hidden) { uncertaintyNotice.replaceChildren(); return; }
+        uncertaintyNotice.replaceChildren('The request outcome is unknown. Check ' + (uncertainKind === 'operation' ? 'activity' : 'conversation history') + ' before sending again. ',
+          el('button', { class: 'link-button', text: uncertainKind === 'operation' ? 'Review activity' : 'Review history', onclick: () => { if (uncertainKind === 'operation') overgo.showOperation(''); else { overgo.refreshConversations(); document.getElementById('navigation-toggle').click(); } } }),
+          el('button', { class: 'link-button', text: 'Allow sending again', onclick: () => { uncertainPrevious = null; uncertainText = ''; saveDraft(); showUncertainty(); updateBusy(); composer.input.focus(); } }),
+          el('details', {}, el('summary', { text: 'Unconfirmed message' }), el('div', { class: 'message-text', text: uncertainText })));
+      }
+      showUncertainty();
       const modelNotice = el("div", { class: "note", role: "status", hidden: true }, "Confirming the selected model… Choose a model again if loading fails.");
       composer.extras.appendChild(modelNotice);
       composer.extras.appendChild(branchNotice);
@@ -375,6 +422,7 @@
       saveDraft = () => {
         if (disposed) return;
         persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, mode: composer.mode(),
+          uncertainPrevious: uncertainPrevious === null ? undefined : uncertainPrevious, uncertainText: uncertainPrevious === null ? undefined : uncertainText, uncertainKind: uncertainPrevious === null ? undefined : uncertainKind,
           attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun })) });
       };
       saveChat = saveDraft;
@@ -566,6 +614,8 @@
           showRecovery(err, turn);
           return;
         }
+        const unknown = turn && !turn.response && !err.status;
+        if (unknown) { uncertainKind = 'response'; uncertainPrevious = turn.branch ? turn.branch.previousSelection : turn.previous; uncertainText = turn.branch ? turn.branch.text : turn.prompt.text; }
         if (turn) {
           forgetTurn(turn);
           activeTurn = null;
@@ -575,9 +625,9 @@
             restorePrompt(turn.prompt);
           }
         }
-        const unknown = turn && !turn.response && !err.status;
-        if (turn && turn.branch && !unknown) restoreBranch(turn.branch, overgo.friendlyError(err));
-        else thread.errorRow(unknown ? "The request outcome is unknown. Check conversation history before sending again." : overgo.friendlyError(err));
+        if (turn && turn.branch) restoreBranch(turn.branch, unknown ? 'The branch outcome is unknown.' : overgo.friendlyError(err));
+        else if (!unknown) thread.errorRow(overgo.friendlyError(err));
+        if (unknown) { saveDraft(); showUncertainty(); }
         overgo.refreshConversations();
       }
 
@@ -596,9 +646,21 @@
         finally { controller = null; if (!disposed) updateBusy(); }
       }
 
+      function validateSettings() {
+        const invalid = [temperature, maxTokens].find(field => !field.checkValidity());
+        if (!invalid) return true;
+        if (!document.getElementById('settings-dialog').open) document.getElementById('settings-toggle').click();
+        invalid.focus(); invalid.reportValidity(); return false;
+      }
       async function submit(text, attachments, mode, branch) {
-        if (actionsBlocked()) return;
-        if (!temperature.reportValidity() || !maxTokens.reportValidity()) return;
+        if (actionsBlocked() || !validateSettings()) return;
+        if (mode && !['chat', 'agent', 'embeddings', 'rerank'].includes(mode)) {
+          if (!generation.capability) { thread.errorRow('Choose a model for this mode before sending.'); return; }
+          const invalid = [...generation.fields.values()].find(field => !field.input.checkValidity());
+          if (invalid) { invalid.input.scrollIntoView({ block: 'nearest' }); invalid.input.focus(); invalid.input.reportValidity(); return; }
+          const body = overgo.bodyControl(generation.capability.controls);
+          if (body && body.required && !text.trim()) { composer.input.setCustomValidity('Enter ' + (body.label || body.name) + '.'); composer.input.reportValidity(); return; }
+        }
         welcome.remove();
         const parts = branch ? [] : composer.attachmentParts();
         if (branch) {
@@ -633,8 +695,14 @@
             // An accepted rewrite sent unchanged cites its enhancement record as the run's source.
             const sources = enhancement.record && text === enhancement.enhanced ? [enhancement.record] : [];
             enhancement.record = enhancement.enhanced = "";
-            const selection = generation.capability ? { capability: generation.capability, fields: generation.fields, sources } : null;
-            await thread.consume(overgo.generate(mode, text, parts, controller.signal, selection));
+            const work = generation.capability ? trackOperation() : null;
+            const selection = generation.capability ? { capability: generation.capability, fields: generation.fields, sources, lifecycle: work.lifecycle } : null;
+            const terminal = await thread.consume(overgo.generate(mode, text, parts, controller.signal, selection));
+            if (!disposed && terminal.status !== 'completed') {
+              restorePrompt({ text, attachments });
+              if (terminal.status === 'unknown') { uncertainKind = 'operation'; uncertainPrevious = lastResponseID; uncertainText = text; saveDraft(); showUncertainty(); }
+            }
+            if (work && !work.id) work.row.remove();
             return;
           }
           assistant = thread.add("assistant", "");
@@ -655,8 +723,9 @@
             else turnFailure(err, activeTurn);
             if (!activeTurn && !branch) restorePrompt({ text, attachments });
             if (branch && !activeTurn && err.name === 'AbortError') restoreBranch(branch, 'Stopped before sending.');
-          } else thread.errorRow(err.name === "AbortError" ? "Request disconnected" : overgo.friendlyError(err));
+          } else { thread.errorRow(err.name === "AbortError" ? "Request disconnected; check Activity for its result." : overgo.friendlyError(err)); restorePrompt({ text, attachments }); }
         } finally {
+          activeOperation = null;
           controller = null;
           if (!disposed) {
             updateBusy();
@@ -695,8 +764,10 @@
             thread.renderMessage(shown, false);
           }
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
+          if (uncertainPrevious !== null && uncertainKind !== 'operation' && chain.response !== uncertainPrevious) { uncertainPrevious = null; uncertainText = ''; saveDraft(); showUncertainty(); }
           if (chain.status === "failed" && !lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
-          if (!inflight && chain.failure) thread.errorRow(chain.failure);
+          if (!inflight && chain.status === 'cancelled') thread.node.appendChild(el('div', { class: 'note', role: 'status', text: 'Stopped' }));
+          else if (!inflight && chain.failure) thread.errorRow(chain.failure);
         } catch (err) {
           if (disposed) return;
           if (err.status === 404) forgetTurn({ response: selected.latest, model: modelID });

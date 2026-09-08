@@ -81,7 +81,7 @@
       const rows = el("div");
 	  const workflow = el("div");
 	  const replay = el("div");
-	  panel.append(el("div", { class: "section-title", text: "Activity" }), summary, error, operations, rows, workflow, replay);
+	  panel.append(el("div", { class: "section-title", text: "Activity" }), el('button', { class: 'btn alt', text: 'Operations and results', onclick: () => overgo.showOperation('') }), summary, error, operations, rows, workflow, replay);
 	  const current = new Map();
 
 	  // A decision rides the strip's binding path (operations_shell.js): it names the request advertised now.

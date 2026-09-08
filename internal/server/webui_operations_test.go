@@ -46,7 +46,7 @@ func TestFrontPageOperations(t *testing.T) {
 		}
 	}
 	strip := get("/operations_shell.js")
-	for _, needle := range []string{"Live events", `"inbox-count"`, `location.hash = "inbox"`, "function localOperation(", "Outputs and traces (the receipt)", `"/operations/cancel"`, `"/operations/evidence?id="`} {
+	for _, needle := range []string{"Live events", `"inbox-count"`, `location.hash = "inbox"`, "function localOperation(", "Download result", `"/operations/cancel"`, `"/operations/evidence?id="`} {
 		if !strings.Contains(strip, needle) {
 			t.Errorf("operations shell missing %q", needle)
 		}

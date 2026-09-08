@@ -24,10 +24,11 @@ import (
 // the HTTP connection. Only explicit cancellation or the test releases it.
 type responseControlGenerator struct {
 	*recipeInspectorGenerator
-	starts  chan context.Context
-	release chan error
-	calls   atomic.Int32
-	prefix  string
+	starts             chan context.Context
+	release            chan error
+	calls              atomic.Int32
+	prefix             string
+	opaqueCancellation bool
 }
 
 func (g *responseControlGenerator) Generate(ctx context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
@@ -49,6 +50,9 @@ func (g *responseControlGenerator) Generate(ctx context.Context, prompt string, 
 		}
 		return g.recipeInspectorGenerator.Generate(ctx, prompt, options)
 	case <-ctx.Done():
+		if g.opaqueCancellation {
+			return nil, "", errors.New(ctx.Err().Error())
+		}
 		return nil, "", ctx.Err()
 	}
 }
@@ -185,7 +189,7 @@ func TestStoredResponseDisconnectFinalization(t *testing.T) {
 }
 
 func TestStoredResponseTerminalControl(t *testing.T) {
-	for _, action := range []string{"cancel", "shutdown", "failure"} {
+	for _, action := range []string{"cancel", "opaque cancel", "shutdown", "failure"} {
 		t.Run(action, func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
 			if err != nil {
@@ -195,6 +199,7 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 			generator := &responseControlGenerator{
 				recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}),
 				starts:                   make(chan context.Context), release: make(chan error), prefix: "Partial answer",
+				opaqueCancellation: action == "opaque cancel",
 			}
 			handler := newTestHandlerForRepository(t, store, generator)
 			done := make(chan *httptest.ResponseRecorder)
@@ -228,7 +233,7 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 			}
 			status := "cancelled"
 			switch action {
-			case "cancel":
+			case "cancel", "opaque cancel":
 				for range 2 {
 					cancelled := serveTestRequest(handler, http.MethodPost, "/interactions/cancel", `{"response":"`+id+`","model":"test-model"}`)
 					if cancelled.Code != http.StatusOK {

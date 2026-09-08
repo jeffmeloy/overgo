@@ -97,6 +97,9 @@ func TestWebUIBrowserConversationControl(t *testing.T) {
     const result=await overgo.api.post('/interactions/cancel',{response:stoppedSelection.latest,model:'test-model'});
     return result.status==='cancelled' && !sessionStorage.getItem('overgo.inflight');
   })()`)
+	assertBrowserPredicate(t, ctx, browser, `(() => {window.controlOldComposer=document.querySelector('.composer');overgo.openConversation(stoppedSelection);return true;})()`)
+	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==controlOldComposer && !document.querySelector('.send-button').disabled`)
+	assertBrowserPredicate(t, ctx, browser, `!document.querySelector('.msg.error') && document.querySelector('.chat-log').textContent.includes('Stopped')`)
 
 	newChat()
 	send("Recover this response")

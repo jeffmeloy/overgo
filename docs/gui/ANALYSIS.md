@@ -2,36 +2,22 @@
 
 ## Structural redesign — owner direction, 2026-09-07
 
-This direction supersedes the historical card-based front-page and phone-polish
-design. Work stays exclusively in `professional_overgo_gui`. Use flat
-conversation text, lists and separators; no dashboard tiles, message cards or
-large model welcome panel. A compact model selector opens a list with details
-on request. Navigation is a drawer on mobile. API keys, system prompts and
-generation parameters live in Settings. Only active work, failures and required
-decisions occupy operational space. The conversation scrolls independently and
-the composer retains visible send/stop controls, including at reduced phone
-viewport heights. Preserve every existing workbench capability and server route.
+Work stays in `professional_overgo_gui`. Flat conversation text, lists and
+separators replace cards and model welcome panels. The compact model selector
+discloses details; mobile navigation uses a drawer. Settings owns configuration.
+The independently scrolling conversation keeps Send/Stop reachable at reduced
+phone heights. Preserve existing workbench capabilities and server routes.
 
-Acceptance measures the user's controls and conversation, not the top of an
-arbitrary content container: compose, attach, read a long reply, stop, switch
-conversation/model, open/close navigation and settings, and reach Library from
-a phone. Inspect captures in both themes alongside behavioral assertions.
-
-The Impeccable review uses its Operate, Distill and Craft Floor guidance from
-the local checkout at `C:\Users\jeffm\impeccable` (read only). Applied here:
-one sans family for interface prose, monospace for code and measurements,
-restrained teal for actions and state, flat results with separators, a shared
-reading measure, consistent SVG controls, explicit focus, and larger phone
-touch targets. Native dialogs protect model selection and settings focus.
-The mechanical scan found a thick alert edge; it was replaced with a thin
-separator. The behavioral browser lane remains the acceptance authority.
+The read-only Impeccable Operate, Distill and Craft Floor review at
+`C:\Users\jeffm\impeccable` informs typography, restrained teal, separators,
+SVG controls, visible focus and phone touch targets. Functional browser journeys
+and both-theme captures establish acceptance; styling does not establish it.
 
 ## Conversation history
 
-History is a flat searchable list with archived view, Load older and explicit
-Rename/Archive/Restore actions. Response identities distinguish duplicate titles.
-Refresh preserves editing, focus, selection and drafts; Reload applies deferred
-changes. Failed searches retain results and offer retry.
+History offers search, archived view, pagination and Rename/Archive/Restore.
+Response IDs distinguish duplicate titles. Refresh preserves editing, focus,
+selection and drafts; Reload applies deferred changes. Failed searches retain results.
 
 The interaction store owns complete ancestry and head-bound pagination;
 concurrent writes require Reload. Reads refresh the existing handle. Label CAS
@@ -45,19 +31,17 @@ output and transport faults, including phone/desktop layouts in both themes.
 
 ## Conversation actions
 
-Edit and resend and Regenerate use Responses with the original parent and
-current settings, creating immutable branches. Return to original remains
-available during execution. Drafts survive; root edits copy rather than move
-them. Failure restores the original view with Retry branch; accepted disconnected
-requests offer Resume response. Stop cancels execution and retains keyboard focus.
+Edit/Regenerate use Responses with original ancestry and current settings.
+Immutable branches retain Return to original and drafts; root edits copy drafts.
+Failures offer Retry branch; accepted disconnected requests offer Resume response.
+Stop cancels execution and retains focus.
 
 Regeneration preserves UTF-8 media positions and other input messages. Editing
 retains attachments after the edited text. Tool-execution replay is explicitly
 refused. Model/recipe checks guard generation, independently of transcript reads.
 
-Settings offers Copy conversation and Export Markdown for the stored transcript,
-excluding drafts/configuration and referencing attachments' stored turns.
-Failures offer retry; the shared object-URL owner releases replaced downloads.
+Settings copies/exports stored transcripts, excluding drafts/configuration.
+Attachments reference stored turns; failed downloads retry through shared URL ownership.
 
 `TestWebUIBrowserConversationActions` covers stored branches, duplicate admission,
 failure/retry/cancel, root drafts, media fidelity and copy/export. Output is
@@ -83,14 +67,39 @@ faults, size/type refusal, upload retry/cancel, late assignments, authenticated
 intake/preview/reuse and reduced phone layouts. Storage and file bytes are real;
 controlled image/slot declarations establish no model or physical-device proof.
 
+## Background work
+
+One relevant Activity entry opens flat operation lists, receipts, results and
+decisions. Idle chrome is absent. Technical details are disclosed; completed
+outputs remain reachable through the Activity tab and authenticated downloads.
+Live updates preserve focus and failed actions; stale receipts cannot replace
+a newer selection. Cold-start refusal is idle, not an outage. Reconnecting streams reject replaced callbacks.
+Wait fallback retains blocked decisions and cancels its observer on navigation.
+
+Native Stop cancels the accepted operation, including a Stop before its ID;
+failed cancellation permits retry. Reopened cancelled conversations show Stopped;
+the execution context retains cancellation when executor errors lose their type.
+Invalid Settings and required inputs retain
+messages and editors. Unknown admission outcomes persist with explicit review
+and resend acknowledgement. Library registration prevents duplicate admission;
+catalog refresh preserves forms and rejects stale results. Existing store
+transaction owners retain concurrent publication and conversation drafts.
+
+Physical resource contention retains its typed cause through command exit and
+model startup into a structured `resource_busy` response. The GUI explains
+waiting and explicit retry, keeps the draft, and confirms the served recipe
+before enabling Send. Other startup failures are not classified as contention.
+
+`TestWebUIBrowserBackgroundWork`, `TestWorkbenchTransactionWriter`,
+`TestModelSwapStartupBusy` and `TestResourceContention` cover these boundaries.
+Browser output/operations/storage are real with synthetic generation; desktop,
+phone and keyboard-sized Chromium captures establish no physical-device proof.
+
 ## Mobile acceptance
 
-The conversation renderer keeps streamed text nodes stable, preserves the
-reading position, and offers Jump to latest. Attachments, mode fields and
-contextual notices share a bounded scrolling area above the message field;
-Send/Stop remain outside it. Long code and Markdown tables scroll within the
-reply. Tool disclosures use native buttons. A separate live status announces
-waiting, receiving, completion and failure without reading every token.
+Stable streamed text preserves reading position with Jump to latest. Bounded
+composer extras leave Send/Stop reachable. Wide code/tables scroll within replies;
+native tool disclosures and concise live status support keyboard use.
 
 The viewport handler distinguishes pinch zoom from keyboard resize. The
 [VisualViewport API](https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport)
@@ -98,23 +107,14 @@ describes their effects, and [Chrome's viewport behavior](https://developer.chro
 documents `interactive-widget=resizes-content`. Safe-area padding protects
 controls at screen edges; zoom remains enabled.
 
-`TestWebUIBrowserMobileInteraction` exercises reduced heights, orientation-sized
-viewports, paste, safe-area overrides, pinch zoom, reading position, keyboard
-controls and announcements in Chromium. It does not prove physical keyboard,
-Safari or assistive-technology behavior. `TestGUIMobileDeviceEvidence` validates
-an operator's records separately and is outside the default browser-test prefix.
+`TestWebUIBrowserMobileInteraction` exercises Chromium viewport, paste, safe-area,
+zoom, scrolling, keyboard and announcement behavior. Physical Safari/Android and
+assistive technology remain separately validated by `TestGUIMobileDeviceEvidence`.
 
-Obtain the current embedded GUI fingerprint with:
-
-```
-go test -short ./internal/server -run '^TestGUIMobileDeviceEvidence$' -v -count=1
-```
-
-Without evidence this short run prints the asset SHA-256 and reports an explicit
-integration exclusion. A signoff run without `-short` fails when evidence is
-missing. Create the actual
-operator record at `docs/gui/mobile-device-evidence.json` after exercising real
-hardware. Do not substitute emulator results or a schema example.
+`go test -short ./internal/server -run '^TestGUIMobileDeviceEvidence$' -v -count=1`
+prints the current GUI SHA-256 with an explicit exclusion when evidence is absent.
+Signoff without `-short` fails on missing evidence. Record actual hardware cases
+in `docs/gui/mobile-device-evidence.json`; emulators/schema examples do not qualify.
 
 - Top level: `ui_sha256` and `devices`.
 - Each device: `platform` (`ios-safari` or `android-chrome`), `physical`, `device`,

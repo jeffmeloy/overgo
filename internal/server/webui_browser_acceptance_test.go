@@ -148,6 +148,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
     })()`)
 
 	blockedID := strconv.Quote(blocked.String())
+	assertBrowserPredicate(t, ctx, browser, `(() => {document.querySelector('.activity-summary').click();return document.querySelector('.activity-dialog').open;})()`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const chip = [...document.querySelectorAll(".operation-chip.blocked")].find((item) => item.title.includes(`+blockedID+`));
       if (!chip) return false;
@@ -192,9 +193,10 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if status, err := fixture.handler.operations.Wait(ctx, running); err != nil || status.State != operation.StateCancelled {
 		t.Fatalf("browser cancellation=(%+v, %v)", status, err)
 	}
-	if err := browser.Eventually(ctx, `document.querySelector(".operation-strip").textContent.includes("0 active")`); err != nil {
+	if err := browser.Eventually(ctx, `document.getElementById('global-operation-shell').hidden`); err != nil {
 		t.Fatal(err)
 	}
+	assertBrowserPredicate(t, ctx, browser, `(() => {document.querySelector('[aria-label="Close activity"]').click();return !document.querySelector('.activity-dialog').open;})()`)
 
 	// The API key must live in memory for the page session: browser storage
 	// stays empty until the operator opts in through the remember control,

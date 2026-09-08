@@ -24,46 +24,6 @@ func isLayerMatrixName(name string) bool {
 	return strings.HasPrefix(name, "model.layers.") && strings.HasSuffix(name, "_proj.weight")
 }
 
-// perLayerWeightElems is one layer's total weight element count (nine matrices +
-// two norm vectors), read from layer 0's tensors -- the residency unit's weight
-// footprint for the capacity derivation.
-func (m *Model) perLayerWeightElems() int {
-	total := 0
-	for name, w := range m.Weights {
-		if strings.HasPrefix(name, "model.layers.0.") {
-			total += len(w)
-		}
-	}
-	return total
-}
-
-// DeriveResidentCapacity measures free device memory and the allocator
-// granularity, then derives how many transformer layers of this model can be
-// trained fully resident on the device at sequence length seq -- the scale
-// ceiling computed from measured bytes, not a supplied n_gpu_layers (closes
-// scale-ceiling-measure / YOINK-1).
-func (m *Model) DeriveResidentCapacity(worker *device.Worker, seq int) (devicemath.ResidentCapacity, error) {
-	return m.deriveResidentCapacity(worker, seq, false)
-}
-
-func (m *Model) deriveResidentCapacity(worker *device.Worker, seq int, frozenLexical bool) (devicemath.ResidentCapacity, error) {
-	d := m.Dims
-	g, err := devicemath.MeasureAllocGranularity(worker)
-	if err != nil {
-		return devicemath.ResidentCapacity{}, err
-	}
-	free, err := devicemath.MeasureFreeBytes(worker)
-	if err != nil {
-		return devicemath.ResidentCapacity{}, err
-	}
-	fixed, perLayer := devicemath.ResidentLayerPlanSizes(
-		seq, d.Hidden, d.Heads, d.KVHeads, d.HeadDim, d.Intermediate, m.perLayerWeightElems())
-	if frozenLexical {
-		fixed = append(fixed, devicemath.FrozenCausalTailPlanSizes(seq, d.Vocab, d.Hidden)...)
-	}
-	return devicemath.DeriveResidentCapacity(free, g, fixed, perLayer), nil
-}
-
 type DeviceTrainingOptions struct {
 	FrozenLexical bool
 	Measure       bool
@@ -117,18 +77,8 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		return nil, fmt.Errorf("densecausal resident training: %s", reason)
 	}
 
-	// Derived scale ceiling: how many layers fit fully resident is DERIVED from
-	// measured free device memory and the measured allocator granularity (not a
-	// supplied n_gpu_layers). Reject up front rather than OOM mid-session.
-	capacity, err := m.deriveResidentCapacity(worker, len(tokens), frozenLexical)
-	if err != nil {
-		return nil, fmt.Errorf("densecausal resident training: capacity derivation: %w", err)
-	}
-	if d.Layers > capacity.Layers {
-		return nil, fmt.Errorf("densecausal resident training: %d layers exceed derived resident capacity %d (free=%d bytes, G=%d, per-layer=%d bytes)",
-			d.Layers, capacity.Layers, capacity.FreeBytes, capacity.Granularity, capacity.PerLayerBytes)
-	}
-
+	// Successful allocations admit residency. A free-memory snapshot cannot
+	// reserve capacity against concurrent consumers.
 	names, weights, gradients, plan, err := m.trainSetup()
 	if err != nil {
 		return nil, err

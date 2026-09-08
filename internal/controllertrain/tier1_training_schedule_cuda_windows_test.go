@@ -20,6 +20,9 @@ import (
 
 func TestTier1TrainingSchedule(t *testing.T) {
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	commit := controllerSourceCommit(t)
 	corpus, err := controllertrain.Compile(controllertrain.Spec{
 		Train: controllerRecords(commit, false), Holdout: controllerRecords(commit, true),

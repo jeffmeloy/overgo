@@ -66,6 +66,9 @@ var qwenAdaptiveProfileTokens = []int{
 
 func TestDenseTrainingLeadership(t *testing.T) {
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

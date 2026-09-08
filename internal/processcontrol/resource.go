@@ -28,7 +28,7 @@ const ResourceBusyExitCode = 75
 // and worktrees. A child may reenter its inherited reservation. Contention fails
 // immediately; heartbeat age grants no authority. Unsupported platforms refuse.
 func ClaimResource(name string) error {
-	if name == "" || strings.TrimSpace(name) != name || strings.ContainsRune(name, 0) {
+	if !validResourceName(name) {
 		return errors.New("processcontrol: invalid physical resource name")
 	}
 	resourceMu.Lock()
@@ -38,6 +38,31 @@ func ClaimResource(name string) error {
 	}
 	claimedResources[name] = true
 	return nil
+}
+
+// ShareResource admits an independent consumer until its release function runs
+// or its process exits. Exclusive owners admit only their own descendants.
+// Allocation remains the device driver's authority; this claim grants no bytes.
+func ShareResource(name string) (func() error, error) {
+	if !validResourceName(name) {
+		return nil, errors.New("processcontrol: invalid physical resource name")
+	}
+	resourceMu.Lock()
+	defer resourceMu.Unlock()
+	return shareResource(name)
+}
+
+func validResourceName(name string) bool {
+	return name != "" && strings.TrimSpace(name) == name && !strings.ContainsRune(name, 0)
+}
+
+// ResourceTransaction serializes one physical-resource mutation across processes.
+// Ownership ends with the callback or owning thread's death; no ledger is kept.
+func ResourceTransaction(name string, action func() error) error {
+	if !validResourceName(name) || action == nil {
+		return errors.New("processcontrol: invalid resource transaction")
+	}
+	return resourceTransaction(name, action)
 }
 
 // inheritedResources reacquires handles before launching further descendants.

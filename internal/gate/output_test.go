@@ -114,7 +114,7 @@ func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
 		t.Fatalf("architecture ratchet must be always-required and ownership-free: %+v", architecture)
 	}
 	resources := byName["device"].Resources
-	if len(resources) != 1 || resources[0].Name != "device" || !resources[0].Exclusive {
+	if len(resources) != 1 || resources[0].Name != "device" || resources[0].Exclusive {
 		t.Fatalf("device resources = %+v", resources)
 	}
 	commitDependencies := byName["commit"].Dependencies

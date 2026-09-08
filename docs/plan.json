@@ -384,20 +384,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "interruption-drills",
-          "title": "Verify: Recover interrupted audio checkpoint publication and damaged store copies",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestAudioPublicationRecoveryAcceptance$' -count=1 -v",
-          "rationale": "Group cpu-lifecycle; retained verification receipt for asr-training/closed-loop-proof. Exercise publication-boundary interruption, torn-tail recovery, restore and supported compaction on isolated store copies. Preserve predecessor recipes, refuse partial activation and verify resumed data/update identity. Reuse existing store drills; never damage canonical models, datasets or checkpoints.",
-          "depends_on": [
-            "failure-recovery/sync-interruption-drills"
-          ],
-          "capabilities": [
-            "audio-publication-recovery",
-            "isolated-store-recovery"
-          ]
-        },
-        {
           "id": "sync-control-plane-drills",
           "title": "Verify: Prove audio candidate quarantine and atomic predecessor rollback",
           "status": "open",

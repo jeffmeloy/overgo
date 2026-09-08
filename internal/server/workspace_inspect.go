@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -125,28 +126,17 @@ type conversationMessage struct {
 
 // chainMessages materializes a chain root-first, attributing each message
 // to the response whose interaction introduced it.
-func (h *Handler) chainMessages(request *http.Request, latest runrecord.Interaction) []conversationMessage {
-	var chain []runrecord.Interaction
-	for current, found := latest, true; found; current, found = h.parentInteraction(request, current) {
-		chain = append([]runrecord.Interaction{current}, chain...)
-	}
-	var result []conversationMessage
-	for _, interaction := range chain {
-		messages, _, found := h.loadResponseInteraction(request.Context(), interaction.Response)
-		if !found {
-			continue
+func (h *Handler) chainMessages(ctx context.Context, chain []runrecord.Interaction) ([]conversationMessage, error) {
+	result := []conversationMessage{}
+	for index := len(chain) - 1; index >= 0; index-- {
+		interaction := chain[index]
+		transcript, err := runrecord.RequireInteractionTranscript(ctx, h.repository, interaction.Message)
+		if err != nil {
+			return nil, err
 		}
-		for _, message := range messages[min(len(result), len(messages)):] {
-			result = append(result, conversationMessage{Role: string(message.Role), Content: message.Content, Response: interaction.Response})
+		for _, message := range transcript.Messages {
+			result = append(result, conversationMessage{Role: message.Role, Content: message.Content, Response: interaction.Response})
 		}
 	}
-	return result
-}
-
-func (h *Handler) parentInteraction(request *http.Request, current runrecord.Interaction) (runrecord.Interaction, bool) {
-	if !current.Parent.Valid() {
-		return runrecord.Interaction{}, false
-	}
-	parent, err := runrecord.RequireInteraction(request.Context(), h.repository, current.Parent)
-	return parent, err == nil
+	return result, nil
 }

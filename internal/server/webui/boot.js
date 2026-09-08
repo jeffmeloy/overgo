@@ -335,6 +335,14 @@
   function rememberConversation(item) {
     selectedConversation = item;
     try { sessionStorage.setItem("overgo.conversation", JSON.stringify(item)); } catch (_) { /* storage unavailable */ }
+    markConversation();
+  }
+  function markConversation() {
+    for (const button of document.querySelectorAll('.conversation-open')) {
+      const active = !!selectedConversation && button.dataset.latest === selectedConversation.latest;
+      button.classList.toggle('active', active);
+      if (active) button.setAttribute('aria-current', 'true'); else button.removeAttribute('aria-current');
+    }
   }
   function openConversation(item) {
     setFront(true);
@@ -342,31 +350,104 @@
     for (const tab of tabs) { if (tab.id === "chat") tab.mounted = false; }
     activate("chat");
   }
-  async function refreshConversations() {
-    const host = document.getElementById("conversation-list");
-    if (!host) return;
-    let listing;
-    try { listing = await api.get("/interactions"); } catch (_) { clear(host); return; }
-    const fresh = el("button", { class: "tab", text: "+ new conversation", onclick: () => openConversation(null) });
-    clear(host);
-    host.appendChild(fresh);
-    for (const item of (listing.conversations || []).filter((entry) => !entry.archived)) {
-      const open = el("button", { class: "tab" + (selectedConversation && selectedConversation.root === item.root ? " active" : ""),
-        text: item.title, title: item.turns + " turn(s)", onclick: () => openConversation(item) });
-      const label = async (patch) => {
-        await api.post("/interactions/label", { root: item.root, title: item.title, archived: false, ...patch });
-        if (patch.archived && selectedConversation && selectedConversation.root === item.root) openConversation(null);
-        refreshConversations();
-      };
-      // Rename in place: the title becomes a field; Enter saves, Escape restores the rail.
-      const rename = el("button", { class: "link-button", text: "rename", "aria-label": "rename conversation", onclick: () => {
-        const field = el("input", { class: "text", value: item.title, "aria-label": "conversation title" });
-        field.addEventListener("keydown", (event) => { if (event.key === "Enter") label({ title: field.value.trim() || item.title }); else if (event.key === "Escape") refreshConversations(); });
-        open.replaceWith(field); field.focus(); field.select();
-      } });
-      const archive = el("button", { class: "link-button", text: "archive", "aria-label": "archive conversation", onclick: () => label({ archived: true }) });
-      host.appendChild(el("div", { class: "conversation" }, open, el("div", { class: "row" }, rename, archive)));
+  const historyHost = document.getElementById("conversation-list");
+  const historyRows = el('div', { id: 'history-rows' });
+  const historyStatus = el('div', { class: 'note', role: 'status', hidden: true });
+  const historyError = el('div', { class: 'note', role: 'alert', hidden: true });
+  const historySearch = el('input', { class: 'text', type: 'search', placeholder: 'Search titles', 'aria-label': 'Search conversation titles' });
+  let historyQuery = '', historyArchived = false, historyNext = '', historyPaged = false, historyAttempt = 0, historyController = null;
+  const historyReload = el('button', { class: 'link-button', text: 'Reload history', hidden: true, onclick: () => refreshConversations({ force: true }) });
+  const historyMore = el('button', { class: 'tab', text: 'Load older conversations', hidden: true, onclick: () => refreshConversations({ more: true }) });
+  const historyArchive = el('button', { class: 'link-button', text: 'Archived', 'aria-pressed': 'false', onclick: () => {
+    historyArchived = !historyArchived; historyArchive.setAttribute('aria-pressed', String(historyArchived)); searchHistory();
+  } });
+  function searchHistory() { historyQuery = historySearch.value.trim(); refreshConversations({ force: true }); }
+  historyHost.append(el('button', { class: 'tab', text: 'New conversation', onclick: () => openConversation(null) }),
+    el('form', { class: 'history-search', role: 'search', onsubmit: event => { event.preventDefault(); searchHistory(); } }, historySearch,
+      el('button', { class: 'link-button', type: 'submit', text: 'Search' })),
+    el('div', { class: 'row' }, historyArchive, historyReload), historyStatus, historyError, historyRows, historyMore);
+
+  function historyRow(item) {
+    const row = el('div', { class: 'conversation', 'data-latest': item.latest });
+    const open = el('button', { class: 'tab conversation-open', 'data-latest': item.latest,
+      title: item.title + '\nConversation: ' + item.root + '\nResponse: ' + item.latest + '\nModel: ' + item.model + '\nRecipe: ' + (item.recipe || ''),
+      onclick: () => openConversation(item) }, el('span', { class: 'conversation-title', text: item.title }),
+      el('span', { class: 'note', text: item.turns + ' turn' + (item.turns === 1 ? '' : 's') + ' · ' + shortID(item.latest) }));
+    const failure = el('div', { class: 'note', role: 'alert', hidden: true });
+    const actions = el('div', { class: 'history-actions', hidden: true, id: 'history-actions-' + crypto.randomUUID() });
+    const more = el('button', { class: 'link-button history-options', text: 'Actions', 'aria-label': 'Actions for ' + item.title,
+      'aria-expanded': 'false', 'aria-controls': actions.id, onclick: () => { actions.hidden = !actions.hidden; more.setAttribute('aria-expanded', String(!actions.hidden)); } });
+    let saving = false;
+    const label = async (patch) => {
+      if (saving) return false;
+      saving = true; failure.hidden = true;
+      const focused = document.activeElement;
+      const controls = [...row.querySelectorAll('button, input')].map(node => [node, node.disabled]); controls.forEach(([node]) => { node.disabled = true; });
+      try {
+        await api.post("/interactions/label", { root: item.root, title: item.title, archived: !!item.archived, ...patch });
+        Object.assign(item, patch);
+        if (selectedConversation && selectedConversation.root === item.root) rememberConversation({ ...selectedConversation, title: item.title, archived: !!item.archived });
+        await refreshConversations({ force: true });
+        if (!historyHost.closest('[inert]') && (document.activeElement === document.body || row.contains(document.activeElement))) {
+          const updated = [...historyRows.querySelectorAll('.conversation-open')].find(node => node.dataset.latest === item.latest);
+          (updated || historyArchive).focus();
+        }
+        return true;
+      } catch (err) { failure.textContent = friendlyError(err) + ' Try again.'; failure.hidden = false; return false; }
+      finally {
+        saving = false; controls.forEach(([node, disabled]) => { node.disabled = disabled; });
+        if (row.isConnected && !historyHost.closest('[inert]') && document.activeElement === document.body && row.contains(focused)) focused.focus();
+      }
+    };
+    const rename = el('button', { class: 'link-button', text: 'Rename', 'aria-label': 'rename conversation', onclick: () => {
+      actions.hidden = false;
+      const field = el('input', { class: 'text', value: item.title, required: true, 'aria-label': 'conversation title' });
+      const cancel = () => { if (saving) return; editor.replaceWith(open); actions.replaceChildren(rename, archive); more.disabled = false; rename.focus(); };
+      const editor = el('form', { class: 'history-editor', onsubmit: event => {
+        event.preventDefault(); if (field.value.trim()) label({ title: field.value.trim() });
+      } }, field, el('div', { class: 'row' }, el('button', { class: 'link-button', type: 'submit', text: 'Save' }),
+        el('button', { class: 'link-button', type: 'button', text: 'Cancel', onclick: cancel })));
+      editor.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } });
+      open.replaceWith(editor); actions.replaceChildren(); more.disabled = true; field.focus(); field.select();
+    } });
+    const archive = el('button', { class: 'link-button', text: item.archived ? 'Restore' : 'Archive',
+      'aria-label': item.archived ? 'restore conversation' : 'archive conversation', onclick: () => label({ archived: !item.archived }) });
+    actions.append(rename, archive);
+    row.append(el('div', { class: 'history-row' }, open, more), actions, failure);
+    return row;
+  }
+
+  async function refreshConversations({ force = false, more = false } = {}) {
+    // Automatic refresh must not replace an editor, a keyboard target, or a
+    // deliberately paged list. The selected transcript is never remounted here.
+    if (!force && !more && (historyPaged || historyRows.querySelector('form') || historyRows.contains(document.activeElement))) {
+      historyStatus.textContent = 'History may have changed.'; historyStatus.hidden = false; historyReload.hidden = false; return;
     }
+    const attempt = ++historyAttempt;
+    if (historyController) historyController.abort();
+    historyController = new AbortController();
+    historyError.hidden = true; historyStatus.hidden = false; historyStatus.textContent = 'Loading conversations…'; historyMore.disabled = true;
+    const query = new URLSearchParams({ view: historyArchived ? 'archived' : 'active', q: historyQuery });
+    if (more && historyNext) query.set('cursor', historyNext);
+    try {
+      const listing = await api.get("/interactions" + '?' + query, { signal: historyController.signal });
+      if (attempt !== historyAttempt) return;
+      if (!force && !more && (historyRows.querySelector('form') || historyRows.contains(document.activeElement))) {
+        historyStatus.textContent = 'History may have changed.'; historyReload.hidden = false; return;
+      }
+      if (!more) { historyRows.replaceChildren(); historyPaged = false; }
+      else historyPaged = true;
+      const present = new Set([...historyRows.querySelectorAll('.conversation')].map(node => node.dataset.latest));
+      for (const item of listing.conversations || []) if (!present.has(item.latest)) { historyRows.appendChild(historyRow(item)); present.add(item.latest); }
+      historyNext = listing.next || ''; historyMore.hidden = !historyNext; historyReload.hidden = true;
+      const empty = !historyRows.querySelector('.conversation');
+      historyStatus.hidden = !empty;
+      historyStatus.textContent = historyQuery ? 'No matching titles. Try another search.' : historyArchived ? 'No archived conversations.' : 'Your conversations will appear here.';
+      markConversation();
+    } catch (err) {
+      if (attempt !== historyAttempt) return;
+      historyStatus.hidden = true; historyError.textContent = friendlyError(err); historyError.hidden = false; historyReload.hidden = false;
+    } finally { if (attempt === historyAttempt) historyMore.disabled = false; }
   }
 
   window.overgo = {

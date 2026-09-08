@@ -173,7 +173,7 @@ func TestWebUIBrowserConversationControl(t *testing.T) {
     sessionStorage.setItem('overgo.inflight',JSON.stringify({root:'resp_missing',response:'resp_missing',model:'test-model'}));
     overgo.openConversation({root:'resp_missing',latest:'resp_missing'});return true;
   })()`)
-	settle(`!document.querySelector('.send-button').disabled && document.querySelector('.chat-log').textContent.includes('turn not found')`)
+	settle(`document.querySelector('.send-button').disabled && document.querySelector('.composer textarea').readOnly && document.querySelector('.chat-log').textContent.includes('not found') && [...document.querySelectorAll('.chat-log button')].some(button=>button.textContent==='Retry loading')`)
 	assertBrowserPredicate(t, ctx, browser, `!sessionStorage.getItem('overgo.inflight') && overgo.errors.length===0`)
 	if generator.calls.Load() != 4 {
 		t.Fatal("an expired response generated a replacement automatically")

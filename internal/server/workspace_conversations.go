@@ -2,10 +2,13 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -30,16 +33,20 @@ type conversationSummary struct {
 	Title    string      `json:"title"`
 	Turns    int         `json:"turns"`
 	Model    artifact.ID `json:"model"`
+	Recipe   artifact.ID `json:"recipe"`
 	Archived bool        `json:"archived,omitzero"`
 }
 
 type conversationListResponse struct {
 	Conversations []conversationSummary `json:"conversations"`
+	Next          string                `json:"next,omitzero"`
 }
 
 type conversationMessagesResponse struct {
 	Response string                `json:"response"`
 	Root     string                `json:"root"`
+	Model    artifact.ID           `json:"model"`
+	Recipe   artifact.ID           `json:"recipe"`
 	Status   string                `json:"status"`
 	Previous string                `json:"previous,omitzero"`
 	Failure  string                `json:"failure,omitzero"`
@@ -56,42 +63,123 @@ type conversationLabelRequest struct {
 // is reported once, by its latest response, with the title its label holds
 // or the first line of its first user message.
 func (h *Handler) conversations(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
+	if !requireMethod(response, request, http.MethodGet) || !h.conversationRepository(response, request) {
 		return
 	}
-	if h.repository == nil {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "interaction repository is unavailable")
+	values := request.URL.Query()
+	search, view := strings.ToLower(strings.TrimSpace(values.Get("q"))), values.Get("view")
+	if view != "" && view != "active" && view != "archived" {
+		writeInvalidRequest(response, errors.New("conversation view must be active or archived"))
 		return
 	}
-	interactions, err := listInteractions(request.Context(), h.repository, h.config.MaxStoredResponses)
-	if err != nil {
-		writeGenerationError(response, err)
-		return
-	}
-	byID := make(map[artifact.ID]runrecord.Interaction, len(interactions))
-	isParent := make(map[artifact.ID]bool, len(interactions))
-	for _, interaction := range interactions {
-		byID[interaction.ID] = interaction
-		if interaction.Parent.Valid() {
-			isParent[interaction.Parent] = true
+	limit := h.config.MaxStoredResponses
+	if value := values.Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 || parsed > limit {
+			writeInvalidRequest(response, errors.New("conversation limit is outside the configured bound"))
+			return
 		}
+		limit = parsed
+	}
+	query := overgodb.DocumentQuery{
+		Contracts:     []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema}},
+		AliasPrefixes: []string{runrecord.InteractionResponseAliasRoot}, Order: overgodb.DocumentNewestFirst,
+	}
+	if value := values.Get("cursor"); value != "" {
+		var continuation conversationCursor
+		data, err := base64.RawURLEncoding.DecodeString(value)
+		if err != nil || json.Unmarshal(data, &continuation) != nil || continuation.Search != search || continuation.View != view {
+			writeInvalidRequest(response, errors.New("conversation cursor does not match this search"))
+			return
+		}
+		cursor, err := overgodb.ParseQueryCursor(continuation.Page)
+		if err != nil {
+			writeInvalidRequest(response, err)
+			return
+		}
+		query.Cursor = &cursor
+	}
+	head, _ := h.repository.Head()
+	if query.Cursor != nil && query.Cursor.Head != head {
+		writeError(response, http.StatusConflict, "history_changed", "History changed. Reload the list to continue.")
+		return
 	}
 	result := conversationListResponse{Conversations: []conversationSummary{}}
-	for _, interaction := range interactions {
-		if isParent[interaction.ID] {
-			continue // not the latest turn of its chain
+	known := map[artifact.ID]runrecord.Interaction{}
+	for {
+		query.MaxResults = limit - len(result.Conversations)
+		page, err := overgodb.VisitDecodedDocuments(request.Context(), h.repository, query, runrecord.ParseInteraction,
+			func(_ overgodb.DocumentView, interaction runrecord.Interaction) error {
+				leaf, err := h.conversationLeaf(request.Context(), interaction)
+				if err != nil || !leaf {
+					return err
+				}
+				chain, err := h.conversationChain(request.Context(), interaction, known)
+				if err != nil {
+					return err
+				}
+				root := chain[len(chain)-1]
+				summary := conversationSummary{Root: root.Response, Latest: interaction.Response, Turns: len(chain), Model: interaction.Model, Recipe: interaction.Recipe}
+				label, found, err := resolveConversationLabel(request.Context(), h.repository, root.Response)
+				if err != nil {
+					return err
+				}
+				if found {
+					summary.Title, summary.Archived = label.Title, label.Archived
+				}
+				if summary.Title == "" {
+					summary.Title = h.conversationTitle(request.Context(), root)
+				}
+				if (view == "active" && summary.Archived) || (view == "archived" && !summary.Archived) || !strings.Contains(strings.ToLower(summary.Title), search) {
+					return nil
+				}
+				result.Conversations = append(result.Conversations, summary)
+				return nil
+			})
+		current, _ := h.repository.Head()
+		if current != head {
+			writeError(response, http.StatusConflict, "history_changed", "History changed. Reload the list to continue.")
+			return
 		}
-		root, turns := conversationRoot(byID, interaction)
-		summary := conversationSummary{Root: root.Response, Latest: interaction.Response, Turns: turns, Model: interaction.Model}
-		if label, found, err := resolveConversationLabel(request.Context(), h.repository, root.Response); err == nil && found {
-			summary.Title, summary.Archived = label.Title, label.Archived
+		if err != nil {
+			writeGenerationError(response, err)
+			return
 		}
-		if summary.Title == "" {
-			summary.Title = h.conversationTitle(request.Context(), root)
+		query.Cursor = page.Next
+		if page.Next == nil || len(result.Conversations) == limit {
+			break
 		}
-		result.Conversations = append(result.Conversations, summary)
+	}
+	if query.Cursor != nil {
+		cursor, err := encodeNextCursor(query.Cursor)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+		data, err := json.Marshal(conversationCursor{Search: search, View: view, Page: cursor})
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+		result.Next = base64.RawURLEncoding.EncodeToString(data)
 	}
 	writeJSON(response, http.StatusOK, result)
+}
+
+// Bind the store continuation to the server-side filters as well.
+type conversationCursor struct {
+	Search string `json:"q"`
+	View   string `json:"view"`
+	Page   string `json:"page"`
+}
+
+func (h *Handler) conversationRepository(response http.ResponseWriter, request *http.Request) bool {
+	if h.repository == nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "interaction repository is unavailable")
+		return false
+	}
+	_, ok := h.requireBrowseStore(response, request)
+	return ok
 }
 
 // conversationTitle derives a title from the chain's first user message.
@@ -113,22 +201,32 @@ func (h *Handler) conversationTitle(ctx context.Context, root runrecord.Interact
 // conversationMessages materializes one chain's visible messages up to the
 // named response, the transcript a resumed conversation renders.
 func (h *Handler) conversationMessages(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
+	if !requireMethod(response, request, http.MethodGet) || !h.conversationRepository(response, request) {
 		return
 	}
 	responseID := request.URL.Query().Get("response")
 	interaction, found, err := runrecord.ResolveInteraction(request.Context(), h.repository, responseID)
-	if err != nil || !found {
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	if !found {
 		writeError(response, http.StatusNotFound, "not_found", "conversation not found")
 		return
 	}
-	root := interaction
-	for parent, ok := h.parentInteraction(request, root); ok; parent, ok = h.parentInteraction(request, root) {
-		root = parent
+	chain, err := h.conversationChain(request.Context(), interaction, map[artifact.ID]runrecord.Interaction{})
+	if err != nil {
+		writeGenerationError(response, err)
+		return
 	}
 	previous := ""
-	if parent, found := h.parentInteraction(request, interaction); found {
-		previous = parent.Response
+	if len(chain) > 1 {
+		previous = chain[1].Response
+	}
+	messages, err := h.chainMessages(request.Context(), chain)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
 	}
 	status, failure := h.responseTerminal(request.Context(), interaction)
 	if turn, found := h.inflight.lookup(responseID); found {
@@ -136,7 +234,8 @@ func (h *Handler) conversationMessages(response http.ResponseWriter, request *ht
 		status, failure = final.Status, failed
 	}
 	writeJSON(response, http.StatusOK, conversationMessagesResponse{
-		Status: status, Previous: previous, Failure: failure, Response: responseID, Root: root.Response, Messages: h.chainMessages(request, interaction),
+		Status: status, Previous: previous, Failure: failure, Response: responseID, Root: chain[len(chain)-1].Response,
+		Model: interaction.Model, Recipe: interaction.Recipe, Messages: messages,
 	})
 }
 
@@ -147,8 +246,7 @@ func (h *Handler) conversationLabel(response http.ResponseWriter, request *http.
 	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
-	if h.repository == nil {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "interaction repository is unavailable")
+	if !h.conversationRepository(response, request) {
 		return
 	}
 	if _, found, err := runrecord.ResolveInteraction(request.Context(), h.repository, body.Root); err != nil || !found {
@@ -429,12 +527,25 @@ func publishConversationLabel(ctx context.Context, repository artifact.Repositor
 	if err != nil {
 		return conversationLabelRecord{}, err
 	}
-	batch, err := conversationLabelCodec.Batch("conversation-label/"+value.ID.String(), value, nil,
-		[]artifact.AliasBinding{{Name: conversationLabelAliasRoot + value.Root, Target: value.ID}})
+	current, found, err := resolveConversationLabel(ctx, repository, value.Root)
 	if err != nil {
 		return conversationLabelRecord{}, err
 	}
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
+	if found && current.ID == value.ID {
+		return value, nil
+	}
+	binding := artifact.AliasBinding{Name: conversationLabelAliasRoot + value.Root, Target: value.ID}
+	if found {
+		binding.Previous = &current.ID
+	}
+	// A title/archive state may recur. Key the transition by the observed
+	// store head so replay of an earlier toggle cannot suppress this write.
+	head, _ := repository.Head()
+	batch, err := conversationLabelCodec.Batch("conversation-label/"+value.ID.String()+"/"+head.String(), value, nil, []artifact.AliasBinding{binding})
+	if err != nil {
+		return conversationLabelRecord{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return conversationLabelRecord{}, err
 	}
 	return value, nil
@@ -446,27 +557,62 @@ func resolveConversationLabel(ctx context.Context, reader artifact.Reader, root 
 	return conversationLabelCodec.Resolve(ctx, reader, conversationLabelAliasRoot+root)
 }
 
-// listInteractions visits the response interactions the store holds,
-// newest first, up to limit.
-func listInteractions(ctx context.Context, store overgodb.DocumentReader, limit int) ([]runrecord.Interaction, error) {
-	var result []runrecord.Interaction
-	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts:     []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema}},
-		AliasPrefixes: []string{runrecord.InteractionResponseAliasRoot},
-		Order:         overgodb.DocumentNewestFirst, MaxResults: limit,
-	}, runrecord.ParseInteraction, func(_ overgodb.DocumentView, value runrecord.Interaction) error {
-		result = append(result, value)
-		return nil
-	})
-	return result, err
+// Parent membership is global, not relative to the current list page.
+// A terminal revision also depends on its reservation; only actual active
+// child turns make a response cease to be a conversation leaf.
+func (h *Handler) conversationLeaf(ctx context.Context, interaction runrecord.Interaction) (bool, error) {
+	edges, err := h.repository.Children(ctx, interaction.ID)
+	if err != nil {
+		return false, err
+	}
+	for _, edge := range edges {
+		descriptor, found, err := h.repository.Artifact(ctx, edge.Child)
+		if err != nil {
+			return false, err
+		}
+		if !found || descriptor.MediaType != runrecord.InteractionMediaType || descriptor.Schema != runrecord.InteractionSchema {
+			continue
+		}
+		child, err := runrecord.RequireInteraction(ctx, h.repository, edge.Child)
+		if err != nil {
+			return false, err
+		}
+		if child.Parent != interaction.ID {
+			continue
+		}
+		active, found, err := runrecord.ResolveInteraction(ctx, h.repository, child.Response)
+		if err != nil {
+			return false, err
+		}
+		if found && active.ID == child.ID {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
-// conversationRoot walks a turn's parents to the first turn of its chain
-// and reports how many turns the chain holds.
-func conversationRoot(byID map[artifact.ID]runrecord.Interaction, latest runrecord.Interaction) (root runrecord.Interaction, turns int) {
-	for current, found := latest, true; found; current, found = byID[current.Parent] {
-		root = current
-		turns++
+// conversationChain returns the exact immutable branch, newest first.
+func (h *Handler) conversationChain(ctx context.Context, latest runrecord.Interaction, known map[artifact.ID]runrecord.Interaction) ([]runrecord.Interaction, error) {
+	var chain []runrecord.Interaction
+	seen := map[artifact.ID]bool{}
+	for current := latest; ; {
+		if seen[current.ID] {
+			return nil, errors.New("conversation parent chain contains a cycle")
+		}
+		seen[current.ID] = true
+		known[current.ID] = current
+		chain = append(chain, current)
+		if !current.Parent.Valid() {
+			return chain, nil
+		}
+		parent, found := known[current.Parent]
+		if !found {
+			var err error
+			parent, err = runrecord.RequireInteraction(ctx, h.repository, current.Parent)
+			if err != nil {
+				return nil, err
+			}
+		}
+		current = parent
 	}
-	return root, turns
 }

@@ -3,7 +3,7 @@
 ## Structural redesign — owner direction, 2026-09-07
 
 This direction supersedes the historical card-based front-page and phone-polish
-design below. Work stays exclusively in `professional_overgo_gui`. Use flat
+design. Work stays exclusively in `professional_overgo_gui`. Use flat
 conversation text, lists and separators; no dashboard tiles, message cards or
 large model welcome panel. A compact model selector opens a list with details
 on request. Navigation is a drawer on mobile. API keys, system prompts and
@@ -25,6 +25,30 @@ reading measure, consistent SVG controls, explicit focus, and larger phone
 touch targets. Native dialogs protect model selection and settings focus.
 The mechanical scan found a thick alert edge; it was replaced with a thin
 separator. The behavioral browser lane remains the acceptance authority.
+
+## Conversation history
+
+History uses a flat list with title search, an archived view and Load older
+conversations. Actions explicitly reveal Rename and Archive/Restore. Duplicate
+titles retain distinct response identities. Automatic refresh preserves the
+editor, keyboard target, selected transcript and draft; Reload applies deferred
+changes. Failed searches retain the previous results and an explicit retry.
+
+The existing interaction store owns pagination and ancestry. Continuations are
+bound to the search and store head; a concurrent write asks the reader to reload
+instead of mixing pages. Root identity and turn count traverse the complete
+immutable chain, independently of page size. Every read refreshes the existing
+store handle. Labels use compare-and-swap with distinct transition keys so
+repeated archive/restore operations do not replay an earlier state.
+
+Stored transcripts are readable across models. Continuing them still requires
+the matching model and recipe. A failed transcript load blocks Send and offers
+Retry loading or New conversation while preserving the unsent draft.
+
+`TestConversationHistoryPaging`, `TestConversationHistoryRefresh` and
+`TestWebUIBrowserConversationNavigation` cover these contracts using a real
+temporary store, synthetic model output, browser actions and injected transport
+failures. The browser journey also checks both themes and phone/desktop layouts.
 
 ## Mobile acceptance
 

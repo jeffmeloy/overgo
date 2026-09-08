@@ -70,7 +70,8 @@
       const modelID = capabilities.id;
       const served = overgo.servedModel();
       const servedModel = capabilities.model || (served && served.model);
-      const otherModel = selected && selected.model && servedModel && selected.model !== servedModel;
+      const mismatchedModel = item => item && ((item.model && servedModel && item.model !== servedModel) || (item.recipe && capabilities.recipe && item.recipe !== capabilities.recipe));
+      let otherModel = mismatchedModel(selected);
       const params = capabilities.generation;
       const contextLength = capabilities.context_length;
       const tokenLimit = capabilities.max_output_tokens;
@@ -537,6 +538,7 @@
         try {
           chain = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(selected.latest));
           if (disposed) return;
+          otherModel = mismatchedModel({ ...selected, ...chain });
           if (chain.status === "in_progress") inflight = chain.response;
           welcome.remove();
           for (const message of chain.messages || []) {
@@ -549,7 +551,16 @@
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
           if (chain.status === "failed" && !lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
           if (!inflight && chain.failure) thread.errorRow(chain.failure);
-        } catch (err) { if (!disposed) thread.errorRow(overgo.friendlyError(err)); }
+        } catch (err) {
+          if (disposed) return;
+          if (err.status === 404) forgetTurn({ response: selected.latest, model: modelID });
+          welcome.remove(); composer.setBusy(false); composer.setReadOnly(true);
+          thread.errorRow(overgo.friendlyError(err));
+          thread.node.appendChild(el('div', { class: 'row' },
+            el('button', { class: 'btn alt', text: 'Retry loading', onclick: () => overgo.openConversation(selected) }),
+            el('button', { class: 'btn alt', text: 'New conversation', onclick: () => overgo.openConversation(null) })));
+          return;
+        }
       }
       if (inflight && !disposed && !otherModel) {
         welcome.remove();

@@ -5,24 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-conversation-navigation",
-      "title": "Find, reopen and restore conversations from a compact history list",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Find, reopen and restore conversations from a compact history list",
-          "status": "open",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserConversationNavigation$' -count=1 -timeout=2m",
-          "rationale": "The current rail lists unarchived conversations and offers rename/archive, but no search or archive restoration. Reuse /interactions and /interactions/label, add accessible search and an archived view with Restore, and give rename/load failures actionable feedback. Extend the owning server query with pagination or search only as needed to avoid silently truncated history; preserve full root/latest/model identity and stable selection. Keep a flat list in the mobile drawer. Add TestWebUIBrowserConversationNavigation for histories exceeding one page, duplicate titles, search-empty/error states, archive/restore, keyboard selection and model-aware reopening.",
-          "depends_on": [
-            "gui-draft-lifecycle/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-conversation-actions",
       "title": "Edit, retry, regenerate and export conversation turns without losing their history",
       "owner": "professional_overgo_gui",

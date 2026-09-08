@@ -255,16 +255,13 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 
 	// 2b. The conversation renames in place: the rail's rename control turns the
 	// title into a field, Enter saves through the label route, the rail relists.
-	settle("the rail lists the conversation", `[...document.querySelectorAll("#conversation-list button")].some((button) => button.textContent === "rename")`)
-	// The rail relists once the reply lands, which can replace a field opened
-	// during the relist; the step clicks rename until the field stands.
-	settle("the title is a field", `(() => {
-      if (document.querySelector("#conversation-list input[aria-label='conversation title']")) return true;
-      const rename = [...document.querySelectorAll("#conversation-list button")].find((button) => button.textContent === "rename");
-      if (rename) rename.click();
-      return false; })()`)
-	assertBrowserPredicate(t, ctx, browser, `(() => { const field = document.querySelector("#conversation-list input[aria-label='conversation title']"); field.value = "renamed by the lane"; field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); return true; })()`)
-	settle("the rail shows the new title", `[...document.querySelectorAll("#conversation-list button")].some((button) => button.textContent === "renamed by the lane")`)
+	settle("the rail lists the conversation", `!!document.querySelector('#history-rows .conversation')`)
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const row=document.querySelector('#history-rows .conversation');row.querySelector('.history-options').click();row.querySelector('[aria-label="rename conversation"]').click();
+      const field=row.querySelector('input');field.value='renamed by the lane';field.focus();return true;
+    })()`)
+	pressKey(t, ctx, browser, "Enter", 13)
+	settle("the rail shows the new title", `[...document.querySelectorAll('#conversation-list .conversation-title')].some(node=>node.textContent==='renamed by the lane')`)
 	t.Log("rename leg: the conversation renamed in place from the rail")
 	captureStates("thread-reply")
 

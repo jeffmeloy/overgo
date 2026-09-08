@@ -224,20 +224,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "resource-quality-fitness",
-          "title": "Verify: Judge audio quality, latency and memory together through shared fitness policy",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestAudioResourceFitnessAcceptance$' -count=1 -v",
-          "rationale": "Group cpu-measurements; retained verification receipt for benchmark-routing/pinned-benchmarks. Compare matched artifact/corpus/protocol/hardware scopes through shared multidimensional fitness. Exercise no-gain, regression, unavailable dimensions and approved tradeoffs. Report capability/API/state/buffer changes beside WER/CER, latency and memory; faster but less accurate must not silently win.",
-          "depends_on": [
-            "benchmark-routing/sync-resource-quality-fitness"
-          ],
-          "capabilities": [
-            "audio-pareto-fitness",
-            "measured-simplification"
-          ]
-        },
-        {
           "id": "sync-routing-replay",
           "title": "Prove audio routing, rollback and peer recovery on the same service evidence",
           "status": "open",

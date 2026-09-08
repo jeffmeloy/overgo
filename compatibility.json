@@ -58,6 +58,34 @@
  },
  "claims": [
   {
+   "id": "audio-cpu-second-asr-offline",
+   "status": "implemented",
+   "evidence_tier": "pinned-oracle",
+   "source_commit": "1c8deaecc64b91f034d73e08dd8b64625eb3395d",
+   "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+   "verify": "go test ./internal/audioparity -run '^TestSecondASROfflineAcceptance$' -count=1 -v",
+   "summary": "Two pinned LibriSpeech clean/test recordings execute a declared CPU recurrent transducer using shared acoustic blocks, spatial tensor convolution and artifact-declared Metaspace decoding. Actual PCM, frontend, every encoder boundary, recurrent hidden/cell/prediction state and joint logits match finite native Transformers 5.16.1 CPU SDPA captures under reduction-scaled float32 bounds; emissions, frame advances and decoded text match exactly. Four Granite reference recordings and four registered audio artifacts remain verified. Native transcript errors are preserved. No full-corpus quality, improvement, HTTP/session, transducer training or GPU claim; Metaspace encoding remains explicitly unsupported.",
+   "evidence": [
+    {"path": "internal/speechrecognition/transducer.go", "contains": "func LoadTransducer(", "role": "source", "identity": "file:sha256:e62291da6959fb72b07ca90ec1ed1b367f7c546d8b1063f3c30fa053419ce80f"},
+    {"path": "internal/audioparity/second_asr_test.go", "contains": "func TestSecondASROfflineAcceptance(", "role": "artifact", "identity": "evidence:sha256:a8814756c4e32382d194f1adc0bd5fe2085676d744bfe04921754801884fe875"},
+    {"path": "internal/audioparity/testdata/transducer_captures.json", "contains": "f393b56580fe6e1606f58873436ed77989d68751427ce58a879e1ec03185a4be", "role": "source", "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"}
+   ]
+  },
+  {
+   "id": "audio-cpu-second-asr-mel-streaming",
+   "status": "implemented",
+   "evidence_tier": "pinned-oracle",
+   "source_commit": "1c8deaecc64b91f034d73e08dd8b64625eb3395d",
+   "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+   "verify": "go test ./internal/audioparity -run '^TestSecondASRStreamingAcceptance$' -count=1 -v",
+   "summary": "The same CPU acoustic forward consumes exact declared mel chunks with retained causal convolution, bounded projected-relative key/value caches and recurrent prediction state. Two native recordings cover 12 and 45 chunks, including attention-cache rollover. Every encoder and decoder boundary is compared, with exact emissions, frame advances and final text. Finalized or partially failed state cannot resume. Timestamps are token-emission frames, not aligned words. This is native recognizer streaming on precomputed mel chunks, not incremental raw-wave preprocessing, persisted restart, session/HTTP transport, latency, quality gain or CUDA evidence.",
+   "evidence": [
+    {"path": "internal/speechrecognition/transducer_stream.go", "contains": "func (t *Transducer) RecognizeChunk(", "role": "source", "identity": "file:sha256:d42009a3364f94be8a311cd718a996cc9349c78ed18f789e1863a207c158702b"},
+    {"path": "internal/audioparity/second_asr_test.go", "contains": "func TestSecondASRStreamingAcceptance(", "role": "artifact", "identity": "evidence:sha256:a8814756c4e32382d194f1adc0bd5fe2085676d744bfe04921754801884fe875"},
+    {"path": "internal/audioparity/testdata/transducer_captures.json", "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21", "role": "source", "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"}
+   ]
+  },
+  {
    "id": "audio-cpu-heldout-resource-fitness",
    "status": "implemented",
    "evidence_tier": "fixture-gated",

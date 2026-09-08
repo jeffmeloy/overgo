@@ -80,5 +80,11 @@ func canonicalizeExecutionProfile(profile *ExecutionProfile) error {
 func cloneExecutionProfile(profile ExecutionProfile) ExecutionProfile {
 	profile.Frontend = profile.Frontend.Clone()
 	profile.Encoder.Blocks = slices.Clone(profile.Encoder.Blocks)
+	for i := range profile.Encoder.Blocks {
+		if binding := profile.Encoder.Blocks[i].Attention.ProjectedRelative; binding != nil {
+			value := *binding
+			profile.Encoder.Blocks[i].Attention.ProjectedRelative = &value
+		}
+	}
 	return profile
 }

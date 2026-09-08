@@ -1,0 +1,2230 @@
+{
+  "frontend": {
+    "sample_rate": 16000,
+    "geometry": {
+      "window_samples": 400,
+      "hop_samples": 160,
+      "feature_bins": 128
+    },
+    "fft_length": 512,
+    "frame_span": 512,
+    "window_offset": 56,
+    "pad_left": 256,
+    "pad_right": 256,
+    "padding": "zero",
+    "window": "symmetric-hann",
+    "waveform_preemphasis": 0.97,
+    "mel": {
+      "scale": "slaney",
+      "min_frequency": 0,
+      "max_frequency": 8000,
+      "area_normalize": true
+    },
+    "log": {
+      "power": true,
+      "base": "natural",
+      "guard_mode": "add",
+      "guard": 5.960464477539063e-8,
+      "scale": 1,
+      "bias": 0
+    }
+  },
+  "encoder": {
+    "input": {
+      "weight": "encoder.subsampling.linear.weight",
+      "bias": "encoder.subsampling.linear.bias"
+    },
+    "blocks": [
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.0.norm_feed_forward1.weight",
+            "bias": "encoder.layers.0.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.0.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.0.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.0.norm_self_att.weight",
+            "bias": "encoder.layers.0.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.0.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.0.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.0.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.0.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.0.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.0.self_attn.bias_u",
+            "position_bias": "encoder.layers.0.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.0.norm_conv.weight",
+            "bias": "encoder.layers.0.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.0.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.0.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.0.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.0.conv.norm.weight",
+            "bias": "encoder.layers.0.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.0.norm_feed_forward2.weight",
+            "bias": "encoder.layers.0.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.0.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.0.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.0.norm_out.weight",
+          "bias": "encoder.layers.0.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.1.norm_feed_forward1.weight",
+            "bias": "encoder.layers.1.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.1.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.1.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.1.norm_self_att.weight",
+            "bias": "encoder.layers.1.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.1.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.1.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.1.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.1.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.1.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.1.self_attn.bias_u",
+            "position_bias": "encoder.layers.1.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.1.norm_conv.weight",
+            "bias": "encoder.layers.1.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.1.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.1.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.1.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.1.conv.norm.weight",
+            "bias": "encoder.layers.1.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.1.norm_feed_forward2.weight",
+            "bias": "encoder.layers.1.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.1.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.1.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.1.norm_out.weight",
+          "bias": "encoder.layers.1.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.2.norm_feed_forward1.weight",
+            "bias": "encoder.layers.2.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.2.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.2.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.2.norm_self_att.weight",
+            "bias": "encoder.layers.2.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.2.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.2.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.2.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.2.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.2.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.2.self_attn.bias_u",
+            "position_bias": "encoder.layers.2.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.2.norm_conv.weight",
+            "bias": "encoder.layers.2.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.2.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.2.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.2.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.2.conv.norm.weight",
+            "bias": "encoder.layers.2.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.2.norm_feed_forward2.weight",
+            "bias": "encoder.layers.2.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.2.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.2.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.2.norm_out.weight",
+          "bias": "encoder.layers.2.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.3.norm_feed_forward1.weight",
+            "bias": "encoder.layers.3.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.3.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.3.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.3.norm_self_att.weight",
+            "bias": "encoder.layers.3.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.3.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.3.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.3.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.3.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.3.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.3.self_attn.bias_u",
+            "position_bias": "encoder.layers.3.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.3.norm_conv.weight",
+            "bias": "encoder.layers.3.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.3.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.3.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.3.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.3.conv.norm.weight",
+            "bias": "encoder.layers.3.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.3.norm_feed_forward2.weight",
+            "bias": "encoder.layers.3.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.3.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.3.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.3.norm_out.weight",
+          "bias": "encoder.layers.3.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.4.norm_feed_forward1.weight",
+            "bias": "encoder.layers.4.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.4.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.4.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.4.norm_self_att.weight",
+            "bias": "encoder.layers.4.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.4.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.4.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.4.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.4.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.4.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.4.self_attn.bias_u",
+            "position_bias": "encoder.layers.4.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.4.norm_conv.weight",
+            "bias": "encoder.layers.4.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.4.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.4.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.4.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.4.conv.norm.weight",
+            "bias": "encoder.layers.4.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.4.norm_feed_forward2.weight",
+            "bias": "encoder.layers.4.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.4.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.4.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.4.norm_out.weight",
+          "bias": "encoder.layers.4.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.5.norm_feed_forward1.weight",
+            "bias": "encoder.layers.5.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.5.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.5.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.5.norm_self_att.weight",
+            "bias": "encoder.layers.5.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.5.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.5.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.5.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.5.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.5.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.5.self_attn.bias_u",
+            "position_bias": "encoder.layers.5.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.5.norm_conv.weight",
+            "bias": "encoder.layers.5.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.5.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.5.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.5.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.5.conv.norm.weight",
+            "bias": "encoder.layers.5.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.5.norm_feed_forward2.weight",
+            "bias": "encoder.layers.5.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.5.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.5.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.5.norm_out.weight",
+          "bias": "encoder.layers.5.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.6.norm_feed_forward1.weight",
+            "bias": "encoder.layers.6.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.6.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.6.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.6.norm_self_att.weight",
+            "bias": "encoder.layers.6.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.6.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.6.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.6.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.6.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.6.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.6.self_attn.bias_u",
+            "position_bias": "encoder.layers.6.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.6.norm_conv.weight",
+            "bias": "encoder.layers.6.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.6.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.6.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.6.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.6.conv.norm.weight",
+            "bias": "encoder.layers.6.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.6.norm_feed_forward2.weight",
+            "bias": "encoder.layers.6.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.6.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.6.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.6.norm_out.weight",
+          "bias": "encoder.layers.6.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.7.norm_feed_forward1.weight",
+            "bias": "encoder.layers.7.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.7.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.7.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.7.norm_self_att.weight",
+            "bias": "encoder.layers.7.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.7.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.7.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.7.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.7.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.7.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.7.self_attn.bias_u",
+            "position_bias": "encoder.layers.7.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.7.norm_conv.weight",
+            "bias": "encoder.layers.7.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.7.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.7.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.7.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.7.conv.norm.weight",
+            "bias": "encoder.layers.7.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.7.norm_feed_forward2.weight",
+            "bias": "encoder.layers.7.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.7.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.7.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.7.norm_out.weight",
+          "bias": "encoder.layers.7.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.8.norm_feed_forward1.weight",
+            "bias": "encoder.layers.8.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.8.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.8.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.8.norm_self_att.weight",
+            "bias": "encoder.layers.8.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.8.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.8.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.8.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.8.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.8.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.8.self_attn.bias_u",
+            "position_bias": "encoder.layers.8.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.8.norm_conv.weight",
+            "bias": "encoder.layers.8.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.8.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.8.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.8.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.8.conv.norm.weight",
+            "bias": "encoder.layers.8.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.8.norm_feed_forward2.weight",
+            "bias": "encoder.layers.8.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.8.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.8.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.8.norm_out.weight",
+          "bias": "encoder.layers.8.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.9.norm_feed_forward1.weight",
+            "bias": "encoder.layers.9.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.9.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.9.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.9.norm_self_att.weight",
+            "bias": "encoder.layers.9.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.9.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.9.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.9.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.9.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.9.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.9.self_attn.bias_u",
+            "position_bias": "encoder.layers.9.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.9.norm_conv.weight",
+            "bias": "encoder.layers.9.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.9.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.9.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.9.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.9.conv.norm.weight",
+            "bias": "encoder.layers.9.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.9.norm_feed_forward2.weight",
+            "bias": "encoder.layers.9.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.9.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.9.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.9.norm_out.weight",
+          "bias": "encoder.layers.9.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.10.norm_feed_forward1.weight",
+            "bias": "encoder.layers.10.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.10.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.10.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.10.norm_self_att.weight",
+            "bias": "encoder.layers.10.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.10.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.10.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.10.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.10.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.10.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.10.self_attn.bias_u",
+            "position_bias": "encoder.layers.10.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.10.norm_conv.weight",
+            "bias": "encoder.layers.10.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.10.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.10.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.10.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.10.conv.norm.weight",
+            "bias": "encoder.layers.10.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.10.norm_feed_forward2.weight",
+            "bias": "encoder.layers.10.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.10.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.10.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.10.norm_out.weight",
+          "bias": "encoder.layers.10.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.11.norm_feed_forward1.weight",
+            "bias": "encoder.layers.11.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.11.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.11.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.11.norm_self_att.weight",
+            "bias": "encoder.layers.11.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.11.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.11.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.11.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.11.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.11.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.11.self_attn.bias_u",
+            "position_bias": "encoder.layers.11.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.11.norm_conv.weight",
+            "bias": "encoder.layers.11.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.11.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.11.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.11.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.11.conv.norm.weight",
+            "bias": "encoder.layers.11.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.11.norm_feed_forward2.weight",
+            "bias": "encoder.layers.11.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.11.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.11.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.11.norm_out.weight",
+          "bias": "encoder.layers.11.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.12.norm_feed_forward1.weight",
+            "bias": "encoder.layers.12.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.12.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.12.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.12.norm_self_att.weight",
+            "bias": "encoder.layers.12.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.12.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.12.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.12.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.12.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.12.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.12.self_attn.bias_u",
+            "position_bias": "encoder.layers.12.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.12.norm_conv.weight",
+            "bias": "encoder.layers.12.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.12.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.12.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.12.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.12.conv.norm.weight",
+            "bias": "encoder.layers.12.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.12.norm_feed_forward2.weight",
+            "bias": "encoder.layers.12.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.12.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.12.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.12.norm_out.weight",
+          "bias": "encoder.layers.12.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.13.norm_feed_forward1.weight",
+            "bias": "encoder.layers.13.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.13.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.13.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.13.norm_self_att.weight",
+            "bias": "encoder.layers.13.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.13.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.13.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.13.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.13.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.13.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.13.self_attn.bias_u",
+            "position_bias": "encoder.layers.13.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.13.norm_conv.weight",
+            "bias": "encoder.layers.13.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.13.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.13.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.13.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.13.conv.norm.weight",
+            "bias": "encoder.layers.13.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.13.norm_feed_forward2.weight",
+            "bias": "encoder.layers.13.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.13.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.13.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.13.norm_out.weight",
+          "bias": "encoder.layers.13.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.14.norm_feed_forward1.weight",
+            "bias": "encoder.layers.14.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.14.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.14.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.14.norm_self_att.weight",
+            "bias": "encoder.layers.14.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.14.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.14.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.14.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.14.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.14.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.14.self_attn.bias_u",
+            "position_bias": "encoder.layers.14.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.14.norm_conv.weight",
+            "bias": "encoder.layers.14.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.14.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.14.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.14.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.14.conv.norm.weight",
+            "bias": "encoder.layers.14.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.14.norm_feed_forward2.weight",
+            "bias": "encoder.layers.14.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.14.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.14.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.14.norm_out.weight",
+          "bias": "encoder.layers.14.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.15.norm_feed_forward1.weight",
+            "bias": "encoder.layers.15.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.15.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.15.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.15.norm_self_att.weight",
+            "bias": "encoder.layers.15.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.15.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.15.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.15.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.15.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.15.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.15.self_attn.bias_u",
+            "position_bias": "encoder.layers.15.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.15.norm_conv.weight",
+            "bias": "encoder.layers.15.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.15.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.15.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.15.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.15.conv.norm.weight",
+            "bias": "encoder.layers.15.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.15.norm_feed_forward2.weight",
+            "bias": "encoder.layers.15.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.15.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.15.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.15.norm_out.weight",
+          "bias": "encoder.layers.15.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.16.norm_feed_forward1.weight",
+            "bias": "encoder.layers.16.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.16.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.16.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.16.norm_self_att.weight",
+            "bias": "encoder.layers.16.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.16.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.16.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.16.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.16.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.16.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.16.self_attn.bias_u",
+            "position_bias": "encoder.layers.16.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.16.norm_conv.weight",
+            "bias": "encoder.layers.16.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.16.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.16.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.16.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.16.conv.norm.weight",
+            "bias": "encoder.layers.16.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.16.norm_feed_forward2.weight",
+            "bias": "encoder.layers.16.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.16.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.16.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.16.norm_out.weight",
+          "bias": "encoder.layers.16.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.17.norm_feed_forward1.weight",
+            "bias": "encoder.layers.17.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.17.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.17.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.17.norm_self_att.weight",
+            "bias": "encoder.layers.17.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.17.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.17.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.17.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.17.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.17.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.17.self_attn.bias_u",
+            "position_bias": "encoder.layers.17.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.17.norm_conv.weight",
+            "bias": "encoder.layers.17.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.17.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.17.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.17.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.17.conv.norm.weight",
+            "bias": "encoder.layers.17.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.17.norm_feed_forward2.weight",
+            "bias": "encoder.layers.17.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.17.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.17.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.17.norm_out.weight",
+          "bias": "encoder.layers.17.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.18.norm_feed_forward1.weight",
+            "bias": "encoder.layers.18.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.18.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.18.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.18.norm_self_att.weight",
+            "bias": "encoder.layers.18.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.18.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.18.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.18.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.18.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.18.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.18.self_attn.bias_u",
+            "position_bias": "encoder.layers.18.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.18.norm_conv.weight",
+            "bias": "encoder.layers.18.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.18.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.18.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.18.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.18.conv.norm.weight",
+            "bias": "encoder.layers.18.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.18.norm_feed_forward2.weight",
+            "bias": "encoder.layers.18.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.18.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.18.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.18.norm_out.weight",
+          "bias": "encoder.layers.18.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.19.norm_feed_forward1.weight",
+            "bias": "encoder.layers.19.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.19.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.19.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.19.norm_self_att.weight",
+            "bias": "encoder.layers.19.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.19.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.19.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.19.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.19.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.19.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.19.self_attn.bias_u",
+            "position_bias": "encoder.layers.19.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.19.norm_conv.weight",
+            "bias": "encoder.layers.19.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.19.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.19.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.19.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.19.conv.norm.weight",
+            "bias": "encoder.layers.19.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.19.norm_feed_forward2.weight",
+            "bias": "encoder.layers.19.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.19.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.19.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.19.norm_out.weight",
+          "bias": "encoder.layers.19.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.20.norm_feed_forward1.weight",
+            "bias": "encoder.layers.20.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.20.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.20.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.20.norm_self_att.weight",
+            "bias": "encoder.layers.20.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.20.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.20.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.20.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.20.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.20.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.20.self_attn.bias_u",
+            "position_bias": "encoder.layers.20.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.20.norm_conv.weight",
+            "bias": "encoder.layers.20.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.20.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.20.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.20.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.20.conv.norm.weight",
+            "bias": "encoder.layers.20.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.20.norm_feed_forward2.weight",
+            "bias": "encoder.layers.20.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.20.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.20.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.20.norm_out.weight",
+          "bias": "encoder.layers.20.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.21.norm_feed_forward1.weight",
+            "bias": "encoder.layers.21.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.21.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.21.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.21.norm_self_att.weight",
+            "bias": "encoder.layers.21.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.21.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.21.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.21.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.21.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.21.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.21.self_attn.bias_u",
+            "position_bias": "encoder.layers.21.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.21.norm_conv.weight",
+            "bias": "encoder.layers.21.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.21.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.21.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.21.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.21.conv.norm.weight",
+            "bias": "encoder.layers.21.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.21.norm_feed_forward2.weight",
+            "bias": "encoder.layers.21.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.21.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.21.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.21.norm_out.weight",
+          "bias": "encoder.layers.21.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.22.norm_feed_forward1.weight",
+            "bias": "encoder.layers.22.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.22.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.22.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.22.norm_self_att.weight",
+            "bias": "encoder.layers.22.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.22.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.22.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.22.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.22.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.22.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.22.self_attn.bias_u",
+            "position_bias": "encoder.layers.22.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.22.norm_conv.weight",
+            "bias": "encoder.layers.22.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.22.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.22.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.22.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.22.conv.norm.weight",
+            "bias": "encoder.layers.22.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.22.norm_feed_forward2.weight",
+            "bias": "encoder.layers.22.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.22.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.22.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.22.norm_out.weight",
+          "bias": "encoder.layers.22.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "encoder.layers.23.norm_feed_forward1.weight",
+            "bias": "encoder.layers.23.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.23.feed_forward1.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.23.feed_forward1.linear2.weight"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "encoder.layers.23.norm_self_att.weight",
+            "bias": "encoder.layers.23.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "encoder.layers.23.self_attn.q_proj.weight"
+          },
+          "key": {
+            "weight": "encoder.layers.23.self_attn.k_proj.weight"
+          },
+          "value": {
+            "weight": "encoder.layers.23.self_attn.v_proj.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.23.self_attn.o_proj.weight"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 4,
+          "projected_relative": {
+            "projection": {
+              "weight": "encoder.layers.23.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "encoder.layers.23.self_attn.bias_u",
+            "position_bias": "encoder.layers.23.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 56,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "encoder.layers.23.norm_conv.weight",
+            "bias": "encoder.layers.23.norm_conv.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.23.conv.pointwise_conv1.weight"
+          },
+          "kernel": "encoder.layers.23.conv.depthwise_conv.weight",
+          "batch_norm": {
+            "weight": ""
+          },
+          "mean": "",
+          "variance": "",
+          "out": {
+            "weight": "encoder.layers.23.conv.pointwise_conv2.weight"
+          },
+          "stride": 1,
+          "causal": true,
+          "layer_norm": {
+            "weight": "encoder.layers.23.conv.norm.weight",
+            "bias": "encoder.layers.23.conv.norm.bias"
+          }
+        },
+        "second": {
+          "norm": {
+            "weight": "encoder.layers.23.norm_feed_forward2.weight",
+            "bias": "encoder.layers.23.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "encoder.layers.23.feed_forward2.linear1.weight"
+          },
+          "out": {
+            "weight": "encoder.layers.23.feed_forward2.linear2.weight"
+          }
+        },
+        "out_norm": {
+          "weight": "encoder.layers.23.norm_out.weight",
+          "bias": "encoder.layers.23.norm_out.bias"
+        }
+      }
+    ],
+    "output": {
+      "weight": "encoder_projector.weight",
+      "bias": "encoder_projector.bias"
+    },
+    "feedback": {
+      "weight": ""
+    },
+    "feedback_after": 0,
+    "activation": "silu",
+    "feed_forward_scale": 0.5,
+    "layer_norm_epsilon": 0.00001,
+    "batch_norm_epsilon": 0.00001
+  },
+  "transducer": {
+    "bands": 128,
+    "subsampling": [
+      {
+        "affine": {
+          "weight": "encoder.subsampling.conv_in.weight",
+          "bias": "encoder.subsampling.conv_in.bias"
+        },
+        "stride": [
+          2,
+          2
+        ],
+        "padding": [
+          2,
+          1,
+          2,
+          1
+        ],
+        "depthwise": false,
+        "relu": true
+      },
+      {
+        "affine": {
+          "weight": "encoder.subsampling.layers.0.depthwise_conv.weight",
+          "bias": "encoder.subsampling.layers.0.depthwise_conv.bias"
+        },
+        "stride": [
+          2,
+          2
+        ],
+        "padding": [
+          2,
+          1,
+          2,
+          1
+        ],
+        "depthwise": true,
+        "relu": false
+      },
+      {
+        "affine": {
+          "weight": "encoder.subsampling.layers.0.pointwise_conv.weight",
+          "bias": "encoder.subsampling.layers.0.pointwise_conv.bias"
+        },
+        "stride": [
+          1,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "depthwise": false,
+        "relu": true
+      },
+      {
+        "affine": {
+          "weight": "encoder.subsampling.layers.1.depthwise_conv.weight",
+          "bias": "encoder.subsampling.layers.1.depthwise_conv.bias"
+        },
+        "stride": [
+          2,
+          2
+        ],
+        "padding": [
+          2,
+          1,
+          2,
+          1
+        ],
+        "depthwise": true,
+        "relu": false
+      },
+      {
+        "affine": {
+          "weight": "encoder.subsampling.layers.1.pointwise_conv.weight",
+          "bias": "encoder.subsampling.layers.1.pointwise_conv.bias"
+        },
+        "stride": [
+          1,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "depthwise": false,
+        "relu": true
+      }
+    ],
+    "condition_in": {
+      "weight": "prompt_projector.linear_1.weight",
+      "bias": "prompt_projector.linear_1.bias"
+    },
+    "condition_out": {
+      "weight": "prompt_projector.linear_2.weight",
+      "bias": "prompt_projector.linear_2.bias"
+    },
+    "condition_slots": 128,
+    "condition_index": 101,
+    "embedding": "decoder.embedding.weight",
+    "recurrent": [
+      {
+        "input": {
+          "weight": "decoder.lstm.weight_ih_l0",
+          "bias": "decoder.lstm.bias_ih_l0"
+        },
+        "recurrent": {
+          "weight": "decoder.lstm.weight_hh_l0",
+          "bias": "decoder.lstm.bias_hh_l0"
+        }
+      },
+      {
+        "input": {
+          "weight": "decoder.lstm.weight_ih_l1",
+          "bias": "decoder.lstm.bias_ih_l1"
+        },
+        "recurrent": {
+          "weight": "decoder.lstm.weight_hh_l1",
+          "bias": "decoder.lstm.bias_hh_l1"
+        }
+      }
+    ],
+    "decoder_projection": {
+      "weight": "decoder.decoder_projector.weight",
+      "bias": "decoder.decoder_projector.bias"
+    },
+    "joint": {
+      "weight": "joint.head.weight",
+      "bias": "joint.head.bias"
+    },
+    "blank": 13087,
+    "max_symbols_per_frame": 10
+  }
+}

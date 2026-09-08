@@ -33,6 +33,9 @@ type StreamWorkspace struct {
 // NewStreamFrontend validates live semantics and budgets retained overlap in
 // addition to the existing frontend's tables and execution workspace.
 func NewStreamFrontend(config FrontendConfig, memoryBytes uint64) (*StreamFrontend, error) {
+	if config.WaveformPreemphasis != nil && config.WindowOffset == 0 {
+		return nil, errors.New("audio stream frontend: waveform preemphasis requires predecessor within frame span")
+	}
 	if config.PadLeft != 0 || config.PadRight != 0 || len(config.ResampleTaps) != 0 || config.Log.DynamicRange != nil ||
 		config.Normalize != nil && config.Normalize.Mode != "fixed" {
 		return nil, errors.New("audio stream frontend: requires unpadded frame-local transforms")

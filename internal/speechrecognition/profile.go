@@ -78,15 +78,7 @@ func canonicalizeExecutionProfile(profile *ExecutionProfile) error {
 }
 
 func cloneExecutionProfile(profile ExecutionProfile) ExecutionProfile {
-	profile.Frontend.ResampleTaps = slices.Clone(profile.Frontend.ResampleTaps)
-	if profile.Frontend.Normalize != nil {
-		normalize := *profile.Frontend.Normalize
-		profile.Frontend.Normalize = &normalize
-	}
-	if profile.Frontend.Log.DynamicRange != nil {
-		dynamicRange := *profile.Frontend.Log.DynamicRange
-		profile.Frontend.Log.DynamicRange = &dynamicRange
-	}
+	profile.Frontend = profile.Frontend.Clone()
 	profile.Encoder.Blocks = slices.Clone(profile.Encoder.Blocks)
 	return profile
 }

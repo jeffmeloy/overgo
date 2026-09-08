@@ -181,7 +181,7 @@ const (
 	DependencyEnvironmentAuthority DependencyRole = "environment-authority"
 	// DependencyFalsifier binds the typed evaluation intent selected before execution.
 	DependencyFalsifier DependencyRole = "falsifier"
-	// DependencyExecutionRecipe binds evaluation to an exact derived execution graph.
+	// DependencyExecutionRecipe binds an exact graph to evaluations or components.
 	DependencyExecutionRecipe DependencyRole = "execution-recipe"
 	// DependencyBudget binds a split-scoped resource grant.
 	DependencyBudget DependencyRole = "budget"

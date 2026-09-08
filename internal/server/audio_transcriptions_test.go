@@ -174,7 +174,7 @@ func testAudioTranscriptionsNative(t *testing.T) {
 			t.Fatalf("observation content: found=%t err=%v", found, err)
 		}
 		observation, err := runrecord.ParseServingObservation(content.Data)
-		if err != nil || observation.Model != fixture.workspace.component.Model || observation.Recipe != run.Recipe || observation.Run != run.ID {
+		if err != nil || observation.Model != fixture.workspace.program.Definition().Model || observation.Recipe != run.Recipe || observation.Run != run.ID {
 			t.Fatalf("wrong serving model/run: %+v err=%v", observation, err)
 		}
 	}
@@ -262,7 +262,7 @@ func (workspace observedTranscriptionWorkspace) ExecuteWorkflow(ctx context.Cont
 
 func testAudioTranscriptionsCancellation(t *testing.T) {
 	fixture := newTranscriptionHTTPFixture(t, nil)
-	lease, err := fixture.workspace.sessions.LeaseComponent(t.Context(), fixture.workspace.component, fixture.workspace.load)
+	lease, err := fixture.workspace.sessions.Lease(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}

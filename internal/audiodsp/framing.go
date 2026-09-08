@@ -127,7 +127,7 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 
 func (p *Frontend) spectrum(source *chunkSource, frame int, w *Workspace) {
 	start := frame*p.hop - p.config.PadLeft + p.config.WindowOffset
-	for index, window := range p.window {
+	for index := range p.window {
 		position := start + index
 		var value float64
 		if position >= 0 && position < source.count {
@@ -140,7 +140,26 @@ func (p *Frontend) spectrum(source *chunkSource, frame int, w *Workspace) {
 			}
 			value = source.at(position)
 		}
-		w.window[index] = value * window
+		w.window[index] = value
+	}
+	if condition := p.config.Condition; condition != nil {
+		var mean float64
+		for index := range w.window {
+			w.window[index] *= condition.Gain
+			mean += w.window[index]
+		}
+		if condition.RemoveMean {
+			mean /= float64(p.windowSize)
+			for index := range w.window {
+				w.window[index] -= mean
+			}
+		}
+		for index := len(w.window) - 1; index >= 0; index-- {
+			w.window[index] -= condition.Preemphasis * w.window[max(0, index-1)]
+		}
+	}
+	for index, window := range p.window {
+		w.window[index] *= window
 	}
 	for bin := range p.bins {
 		var real, imaginary float64

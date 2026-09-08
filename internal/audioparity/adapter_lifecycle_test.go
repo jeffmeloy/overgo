@@ -1,8 +1,8 @@
 package audioparity
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +15,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/hfbpe"
-	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
@@ -34,8 +33,8 @@ import (
 const adapterAcceptanceMemory = 4 << 30
 
 type adapterLifecycle struct {
+	audioPublication
 	fixture    ctcTrainingFixture
-	store      *overgodb.Store
 	storePath  string
 	base       recipe.Definition
 	binding    adaptertrain.InputProjectionBinding
@@ -49,16 +48,6 @@ type adapterLifecycle struct {
 	policy     dataset.AudioInspectionPolicy
 	origin     dataset.AudioPayloadOrigin
 	rngProfile artifact.ID
-}
-
-func (l *adapterLifecycle) commit(t *testing.T, batch artifact.Batch, err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(t.Context(), l.store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
-		t.Fatal(err)
-	}
 }
 
 func (l *adapterLifecycle) content(t *testing.T, content artifact.Content, err error) artifact.ID {
@@ -80,37 +69,8 @@ func newAdapterLifecycle(t *testing.T) *adapterLifecycle {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { l.store.Close() })
-	inventory, err := modelartifact.FromHFPath(l.fixture.modelRoot)
-	if err != nil || inventory.Manifest.ID != l.fixture.election.Model.ID {
-		t.Fatalf("base inventory: %v", err)
-	}
-	batch, err := inventory.Batch("adapter/base")
-	l.commit(t, batch, err)
-	profile, err := speechrecognition.NewExecutionProfile(l.fixture.frontend, l.fixture.grouping, l.fixture.declaration, l.fixture.blank, "en")
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err = profile.Batch("adapter/profile")
-	l.commit(t, batch, err)
-	contract, err := modelrecipe.NewAudioContract(recipecontract.AudioFormat{SampleRate: uint64(l.fixture.frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, l.fixture.frontend.Geometry, artifact.ID{}, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err = contract.Batch("adapter/contract")
-	l.commit(t, batch, err)
-	var tokenizerID artifact.ID
-	for _, component := range inventory.Manifest.Components {
-		if component.Role == artifact.ComponentTokenizer && component.Name == "tokenizer.json" {
-			tokenizerID = component.Artifact
-		}
-	}
-	l.base, err = modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizerID, inventory.TensorInventory.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := modelrecipe.PublishCandidate(t.Context(), l.store, "adapter/base-recipe", l.base); err != nil {
-		t.Fatal(err)
-	}
+	base, profile := l.publishTranscriptionBase(t, l.fixture)
+	l.base = base
 	l.transform, err = trainingdata.NewTextTransform(true)
 	if err != nil {
 		t.Fatal(err)
@@ -384,10 +344,16 @@ func TestASRAdapterPublicationAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	transcriber, err := speechrecognition.LoadTranscriber(t.Context(), l.store, definition.ID, adapterAcceptanceMemory)
+	session, err := speechrecognition.LoadSession(t.Context(), l.store, definition.ID, adapterAcceptanceMemory)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer session.Close(context.WithoutCancel(t.Context()))
+	transcriber, err := session.Lease(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer transcriber.Release()
 	environment, err := runrecord.CurrentEnvironment("cpu", "go-host")
 	if err != nil {
 		t.Fatal(err)
@@ -395,8 +361,7 @@ func TestASRAdapterPublicationAcceptance(t *testing.T) {
 	content, err = environment.Content()
 	l.content(t, content, err)
 	commit := strings.TrimSpace(baselineCommand(t, l.fixture.root, "git", "rev-parse", "HEAD"))
-	var tw speechrecognition.TranscriptionWorkspace
-	transcript, run, err := transcriber.Transcribe(t.Context(), l.fixture.payload, l.origin, l.policy, &tw, speechrecognition.RunBinding{Key: "adapter/reload", CodeCommit: commit, Environment: environment.ID, Dataset: l.spec.Dataset, Split: l.spec.Split})
+	transcript, run, err := transcriber.Transcribe(t.Context(), l.fixture.payload, l.origin, l.policy, speechrecognition.RunBinding{Key: "adapter/reload", CodeCommit: commit, Environment: environment.ID, Dataset: l.spec.Dataset, Split: l.spec.Split})
 	if err != nil || run.Outcome != runrecord.OutcomeSucceeded {
 		t.Fatalf("adapted transcription: %v", err)
 	}
@@ -435,6 +400,13 @@ func TestASRExactResumeAcceptance(t *testing.T) {
 		}
 		return
 	}
+	verifyAdapterResume(t, l)
+}
+
+// verifyAdapterResume shares the actual fresh-process resume proof with the
+// served lifecycle. The returned checkpoint contains the third completed update.
+func verifyAdapterResume(t *testing.T, l *adapterLifecycle) (trainingprogram.Checkpoint, string) {
+	t.Helper()
 	batcher := l.batcher(t, nil)
 	first := l.update(t, batcher)
 	directory := filepath.Join(t.TempDir(), "checkpoint")
@@ -470,4 +442,5 @@ func TestASRExactResumeAcceptance(t *testing.T) {
 		t.Fatalf("later parameters differ: %v", err)
 	}
 	t.Logf("fresh-process exact resume: checkpoint after update 1; updates 2 and 3 match next-batch identity, raw targets, losses, parameters, Muon momentum, constant scheduler, RNG and stream cursor; real train.100 rows=1; no shuffle, stochastic augmentation, quality or GPU claim")
+	return final, directory + "-resumed"
 }

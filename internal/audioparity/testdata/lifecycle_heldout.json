@@ -1,0 +1,8 @@
+{
+  "schema": "overgo/audio-lifecycle-heldout/v1",
+  "selection": "First three physical rows of the separately supplied LibriSpeech clean test split, selected before prediction; a bounded lifecycle check, not a full benchmark or promotion sample.",
+  "path": "clean/test/0000.parquet",
+  "sha256": "7113aa4c3cf963fb54697145719a7725f984c8836d1c494a554cbb9f1a017df0",
+  "bytes": 350452636,
+  "rows": [0, 1, 2]
+}

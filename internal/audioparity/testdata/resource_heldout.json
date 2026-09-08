@@ -1,0 +1,8 @@
+{
+  "schema": "overgo/audio-lifecycle-heldout/v1",
+  "selection": "Existing first three lifecycle rows plus the middle and last physical rows of the 2620-row LibriSpeech clean test shard, selected before inference. Five utterances from three speakers; bounded read-speech coverage, not full-corpus, multilingual, noisy-speech or promotion evidence.",
+  "path": "clean/test/0000.parquet",
+  "sha256": "7113aa4c3cf963fb54697145719a7725f984c8836d1c494a554cbb9f1a017df0",
+  "bytes": 350452636,
+  "rows": [0, 1, 2, 1310, 2619]
+}

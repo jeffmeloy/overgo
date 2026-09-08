@@ -23,6 +23,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
+	"overgo/internal/trainingprogram"
 )
 
 const transcriptionTestCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -102,10 +103,16 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	wave := transcriptionWAV(testWave(128))
 	silence := transcriptionWAV(make([]float32, 128))
 	registerTranscriptionInputs(t, store, environment, wave, silence)
-	transcriber, err := LoadTranscriber(t.Context(), store, definition.ID, 1<<20)
+	session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer session.Close(context.WithoutCancel(t.Context()))
+	transcriber, err := session.Lease(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer transcriber.Release()
 	policy := dataset.AudioInspectionPolicy{
 		MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 16, ClipThreshold: .999,
 		Admission: recipecontract.AudioAdmissionPolicy{
@@ -116,7 +123,7 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	}
 	binding := RunBinding{Key: "fixture/transcription/run/accepted", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID}
 	waveID, _ := artifact.IdentifyBytes(artifact.KindFile, wave)
-	result, run, err := transcriber.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy, &TranscriptionWorkspace{}, binding)
+	result, run, err := transcriber.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy, binding)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,14 +147,14 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	}
 
 	second, secondRun, err := transcriber.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy,
-		&TranscriptionWorkspace{}, RunBinding{Key: "fixture/transcription/run/replay", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
+		RunBinding{Key: "fixture/transcription/run/replay", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
 	if err != nil || second != result || !slices.Equal(secondRun.Outputs, run.Outputs) {
 		t.Fatalf("deterministic replay = %+v, %+v, %v", second, secondRun, err)
 	}
 
 	silenceID, _ := artifact.IdentifyBytes(artifact.KindFile, silence)
 	_, refusedRun, err := transcriber.Transcribe(t.Context(), silence, dataset.AudioPayloadOrigin{Container: silenceID}, policy,
-		&TranscriptionWorkspace{}, RunBinding{Key: "fixture/transcription/run/refused", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
+		RunBinding{Key: "fixture/transcription/run/refused", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
 	if !errors.Is(err, ErrAudioAdmissionRefused) || refusedRun.Outcome != runrecord.OutcomeFailed || len(refusedRun.Outputs) != 0 {
 		t.Fatalf("refused run = %+v, %v", refusedRun, err)
 	}
@@ -159,11 +166,101 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	cancelled, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
 	_, cancelledRun, err := transcriber.Transcribe(cancelled, wave, dataset.AudioPayloadOrigin{Container: waveID}, policy,
-		&TranscriptionWorkspace{}, RunBinding{Key: "fixture/transcription/run/cancelled", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
+		RunBinding{Key: "fixture/transcription/run/cancelled", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
 	_, afterCancel := store.Head()
 	if !errors.Is(err, context.Canceled) || cancelledRun.ID.Valid() || afterCancel != beforeCancel {
 		t.Fatalf("cancelled run = %+v, %v; commits %d -> %d", cancelledRun, err, beforeCancel, afterCancel)
 	}
+	t.Run("training-lease", func(t *testing.T) {
+		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer session.Close(context.WithoutCancel(t.Context()))
+		lease, err := session.Lease(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lease.Release()
+		input := testWave(128)
+		if _, err := lease.PrepareCTC(t.Context(), input, 16000, "a"); err == nil {
+			t.Fatal("prepared training before adapter admission")
+		}
+		optimizer := trainingprogram.BuiltinOptimizerPolicy()
+		if _, err := lease.NewOutputAdapter(cancelled, uint64(len(input)), optimizer); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled adapter admission: %v", err)
+		}
+		adapter, err := lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer); err == nil {
+			t.Fatal("duplicate adapter admitted")
+		}
+		execution, err := adapter.Bind(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, length := range []int{128, 64, 128} {
+			prepared, err := lease.PrepareCTC(t.Context(), input[:length], 16000, "b")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := execution.Run(&prepared); err != nil || math.IsNaN(prepared.Loss) || math.IsInf(prepared.Loss, 0) {
+				t.Fatalf("variable-length update=%d loss=%g err=%v", length, prepared.Loss, err)
+			}
+		}
+		if _, err := lease.PrepareCTC(cancelled, input, 16000, "a"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled preparation: %v", err)
+		}
+		if err := lease.Release(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := lease.PrepareCTC(t.Context(), input, 16000, "a"); err == nil {
+			t.Fatal("released lease prepared training")
+		}
+		if _, err := lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer); err == nil {
+			t.Fatal("released lease admitted adapter")
+		}
+		if snapshot := session.Snapshot(); snapshot.Active != 0 || snapshot.Waiting != 0 {
+			t.Fatalf("training lease leaked: %+v", snapshot)
+		}
+	})
+	t.Run("shared-component-lifetime", func(t *testing.T) {
+		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer session.Close(context.WithoutCancel(t.Context()))
+		lease, err := session.Lease(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lease.Release()
+		if _, err := session.Lease(cancelled); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled admission: %v", err)
+		}
+		got, _, err := lease.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy,
+			RunBinding{Key: "fixture/shared-session", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
+		if err != nil || got != result {
+			t.Fatalf("shared session changed clip execution: %+v %v", got, err)
+		}
+		if err := lease.Release(); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := lease.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy, binding); err == nil {
+			t.Fatal("released lease executed")
+		}
+		if snapshot := session.Snapshot(); snapshot.Active != 0 || snapshot.Waiting != 0 || snapshot.Loads != 1 {
+			t.Fatalf("leaked component: %+v", snapshot)
+		}
+		if err := session.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := session.Lease(t.Context()); err == nil {
+			t.Fatal("closed session admitted")
+		}
+	})
 }
 
 func transcriptionFixtureModel(t *testing.T) (string, Declaration) {

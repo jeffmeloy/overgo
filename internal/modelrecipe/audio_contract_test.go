@@ -66,7 +66,7 @@ func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 		t.Run(string(task), func(t *testing.T) {
 			spec := audioTaskSpecs[task]
 			module, found := catalog.Module(spec.module)
-			if !found || len(module.Tasks) != 1 || module.Tasks[0] != task ||
+			if !found || !slices.Contains(module.Tasks, task) ||
 				len(module.Outputs) != 1 || module.Outputs[0].Data != output {
 				t.Fatalf("audio module = %+v, %t", module, found)
 			}

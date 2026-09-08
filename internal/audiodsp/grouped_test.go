@@ -30,6 +30,10 @@ func TestProcessGroupedComposition(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			bound, err := p.GroupedFrames(uint64(len(input)), config)
+			if err != nil || bound != frames {
+				t.Fatalf("admission frames=%d execution=%d err=%v", bound, frames, err)
+			}
 			if frames != tc.frames || width != tc.width || len(got) != frames*width || len(w.padding) != tc.padding {
 				t.Fatalf("geometry=%d/%d/%d padding=%d", frames, width, len(got), len(w.padding))
 			}
@@ -67,6 +71,31 @@ func TestProcessGroupedComposition(t *testing.T) {
 				t.Fatalf("padding not reset: %v", err)
 			}
 		})
+	}
+}
+
+func TestGroupedFramesBounds(t *testing.T) {
+	config := GroupedFeatureConfig{StackFrames: 1}
+	for _, frontend := range []*Frontend{nil, {}} {
+		if _, err := frontend.GroupedFrames(1, config); err == nil {
+			t.Fatal("invalid frontend admitted")
+		}
+	}
+	p := &Frontend{hop: 1}
+	for _, samples := range []uint64{0, math.MaxUint64} {
+		if _, err := p.GroupedFrames(samples, config); err == nil {
+			t.Fatalf("invalid count admitted: %d", samples)
+		}
+	}
+	if frames, err := p.GroupedFrames(uint64(math.MaxInt), config); err != nil || frames != math.MaxInt {
+		t.Fatalf("representable extent=%d err=%v", frames, err)
+	}
+	if allocs := testing.AllocsPerRun(100, func() {
+		if _, err := p.GroupedFrames(128, config); err != nil {
+			panic(err)
+		}
+	}); allocs != 0 {
+		t.Fatalf("geometry allocated: %g", allocs)
 	}
 }
 

@@ -66,7 +66,7 @@ func (lease *TranscriptionLease) PrepareCTC(ctx context.Context, samples []float
 }
 
 func (lease *TranscriptionLease) trainingComponent() (*transcriptionComponent, error) {
-	if lease.released || len(lease.components) != 1 {
+	if lease.released || len(lease.components) != 1 || lease.definition.Task != recipe.TaskTranscription {
 		return nil, errors.New("transcription training: released or composite lease")
 	}
 	if _, adapted := lease.definition.PrimaryDependency(recipe.DependencyCheckpoint); adapted {

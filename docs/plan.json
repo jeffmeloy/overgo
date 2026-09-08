@@ -10,22 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-alignment-diarization",
-          "title": "Score word alignment from verified frame emissions",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestSpeechAlignmentAcceptance$' -count=1 -v",
-          "rationale": "Group word-alignment; implement speech-analysis-expansion/sync-alignment-diarization together. Align validated CTC emissions and transcript tokens using declared blank/repeat, silence, sample-offset and word-mapping semantics. Score errors against real annotations with complete denominators; unsupported alignment refuses. Segment offsets are not word timestamps. Alignment needs validated emissions, not a trained adapter or live switching.",
-          "depends_on": [
-            "audio-recipes/validated-transcription",
-            "audio-gate-control/provisional-commit-control",
-            "benchmark-routing/resource-quality-fitness"
-          ],
-          "capabilities": [
-            "word-alignment",
-            "timestamp-quality"
-          ]
-        },
-        {
           "id": "alignment-diarization",
           "title": "Elect and verify speaker attribution on annotated speech",
           "status": "open",

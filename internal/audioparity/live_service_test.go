@@ -33,12 +33,13 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-// buildLiveASRServer builds the actual CLI from a clean, independent source
-// fixture. Candidate verification worktrees intentionally differ from HEAD;
+// snapshotAudioSource captures a clean, independent source fixture for both
+// real server execution and source-bound library acceptance.
+// Candidate verification worktrees intentionally differ from HEAD;
 // attributing their executable to that parent would falsify run provenance.
 // Only tracked and nonignored candidate files are copied, never model stores.
 // The fixture commit changes no campaign refs and no campaign worktree bytes.
-func buildLiveASRServer(t *testing.T) (string, string, string) {
+func snapshotAudioSource(t *testing.T) (string, string) {
 	t.Helper()
 	root := testutil.RepoRoot(t)
 	directory := filepath.Join(t.TempDir(), "source")
@@ -74,6 +75,12 @@ func buildLiveASRServer(t *testing.T) (string, string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return directory, commit
+}
+
+func buildLiveASRServer(t *testing.T) (string, string, string) {
+	t.Helper()
+	directory, commit := snapshotAudioSource(t)
 	binary := filepath.Join(t.TempDir(), "server.exe")
 	baselineCommand(t, directory, "go", "build", "-buildvcs=true", "-trimpath", "-o", binary, "./cmd/server")
 	return binary, directory, commit

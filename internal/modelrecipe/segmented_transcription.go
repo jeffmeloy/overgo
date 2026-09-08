@@ -48,10 +48,10 @@ func SegmentedTranscriptionDefinition(base, activity recipe.Definition) (recipe.
 		activity.Inputs, base.Outputs)
 }
 
-// TranscriptionComponents validates the complete topology and returns exact
+// SpeechComponents validates the complete topology and returns exact
 // standalone component definitions. An empty activity definition denotes one
-// whole-clip transcription stage; unrecognized or extra dependencies refuse.
-func TranscriptionComponents(definition recipe.Definition) (base, activity recipe.Definition, err error) {
+// whole-clip recognition or alignment stage; unknown dependencies refuse.
+func SpeechComponents(definition recipe.Definition) (base, activity recipe.Definition, err error) {
 	if err = definition.ValidateIdentity(); err != nil {
 		return base, activity, err
 	}
@@ -72,6 +72,14 @@ func TranscriptionComponents(definition recipe.Definition) (base, activity recip
 		return base, activity, err
 	}
 	expected := base
+	if definition.Task == recipe.TaskAlignment {
+		profile, _ := definition.PrimaryDependency(recipe.DependencyDerivationProfile)
+		expected, err = AlignmentDefinition(base, profile)
+		if err != nil || expected.ID != definition.ID {
+			return recipe.Definition{}, recipe.Definition{}, errors.New("alignment: complete topology differs")
+		}
+		return base, activity, nil
+	}
 	if len(activityDependencies) != 0 {
 		candidate := recipe.Definition{Dependencies: activityDependencies}
 		model, _ := candidate.PrimaryDependency(recipe.DependencyModel)

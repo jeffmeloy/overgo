@@ -388,6 +388,11 @@ func RequireTranscription(ctx context.Context, reader artifact.Reader, id artifa
 }
 
 func (transcriber *transcriptionModel) persistRun(ctx context.Context, binding RunBinding, outcome runrecord.Outcome, inputs, outputs []artifact.ID, failure string, measured uint64, phases []runrecord.PhaseMetric) (runrecord.Run, error) {
+	// A failure can precede later stages. Omit those unexecuted stages;
+	// zero durations are not measurements and remain invalid run evidence.
+	if outcome == runrecord.OutcomeFailed {
+		phases = slices.DeleteFunc(slices.Clone(phases), func(metric runrecord.PhaseMetric) bool { return metric.DurationNS == 0 })
+	}
 	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, outcome, inputs, outputs, failure,
 		binding.CodeCommit, binding.Environment, measured, phases)
 	if err != nil {

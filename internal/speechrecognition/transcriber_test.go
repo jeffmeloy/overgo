@@ -171,6 +171,9 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || cancelledRun.ID.Valid() || afterCancel != beforeCancel {
 		t.Fatalf("cancelled run = %+v, %v; commits %d -> %d", cancelledRun, err, beforeCancel, afterCancel)
 	}
+	t.Run("alignment-lease", func(t *testing.T) {
+		testAlignmentLease(t, store, definition, wave, result.Source, policy, binding)
+	})
 	t.Run("training-lease", func(t *testing.T) {
 		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
 		if err != nil {

@@ -58,6 +58,35 @@
  },
  "claims": [
   {
+   "id": "audio-cpu-ctc-word-alignment",
+   "status": "implemented",
+   "evidence_tier": "fixture-gated",
+   "source_commit": "3497b7cc44753e2c141d8fe60ac42cec433e3281",
+   "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+   "verify": "go test ./internal/audioparity -run '^TestSpeechAlignmentAcceptance$' -count=1 -v",
+   "summary": "An explicit standalone CPU CTC alignment recipe uses the shared component lease, acoustic forward and immutable source/transcript contracts. Caller-budgeted Viterbi recurrence and ties match five pinned audio.cpp oracle cases. Four preselected AMI EN2002b clips cover 30 words and all 60 boundaries; official forced-alignment-derived annotations measure agreement, not human timing truth. Pooled hop cells exclude surrounding blanks; target-frame confidence is not calibrated correctness. The native evaluate command repeats fresh inference with exact library scores and persists all attempts; a mixed failed/scored control exits nonzero. Exact intervals, failure recording, cancellation and reuse are checked. No recurrent/adapted alignment, diarization, HTTP alignment, full-corpus accuracy, quality gain or GPU claim.",
+   "evidence": [
+    {
+     "path": "internal/speechrecognition/ctc_alignment.go",
+     "contains": "func (w *CTCAlignmentWorkspace) Align(",
+     "role": "source",
+     "identity": "file:sha256:6ea768f45a182b22cb7e4ce47147bebff460c7a08d7b24ffea7ccabe31ec9abd"
+    },
+    {
+     "path": "internal/audioparity/alignment_acceptance_test.go",
+     "contains": "func TestSpeechAlignmentAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:ef58f101c5236efa5820f6ce35c0f1d950687750aaf9a5ad8564d6fee717e4dc"
+    },
+    {
+     "path": "internal/audioparity/testdata/ami_alignment.json",
+     "contains": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+     "role": "source",
+     "identity": "file:sha256:564ce1e152edd156e62e171325b093037e507ecc11879476d1c7eea761e8d9ec"
+    }
+   ]
+  },
+  {
    "id": "audio-cpu-second-asr-offline",
    "status": "implemented",
    "evidence_tier": "pinned-oracle",
@@ -205,7 +234,7 @@
      "path": "internal/speechrecognition/session.go",
      "contains": "func LoadSession(",
      "role": "source",
-     "identity": "file:sha256:59f49073f3dba1eeb7adaf90324e0bd348cdc040bea6ec8edfb70d6f2020ff77"
+     "identity": "file:sha256:b06b7ed6623ef4f280dc0ec6f2f7399232df36dbf70f66c0847123dcdf2164c3"
     }
    ]
   },
@@ -244,7 +273,7 @@
      "path": "internal/speechrecognition/session.go",
      "contains": "func LoadSession(",
      "role": "source",
-     "identity": "file:sha256:59f49073f3dba1eeb7adaf90324e0bd348cdc040bea6ec8edfb70d6f2020ff77"
+     "identity": "file:sha256:b06b7ed6623ef4f280dc0ec6f2f7399232df36dbf70f66c0847123dcdf2164c3"
     },
     {
      "path": "internal/audioparity/segmented_transcription_test.go",
@@ -1560,7 +1589,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRModelSwitchAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:6c93ef6d4bf65e25f767bfb0921ebac76d69080bc294ecfaa972c09e54872dc6"
+     "identity": "evidence:sha256:32522d3428c9c68040c288aabebd603ffdec0ce7268e6303179db0a48aec6e84"
     }
    ]
   },
@@ -1582,7 +1611,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRLiveOperationsAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:6c93ef6d4bf65e25f767bfb0921ebac76d69080bc294ecfaa972c09e54872dc6"
+     "identity": "evidence:sha256:32522d3428c9c68040c288aabebd603ffdec0ce7268e6303179db0a48aec6e84"
     }
    ]
   }

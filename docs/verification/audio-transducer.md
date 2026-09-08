@@ -1,29 +1,46 @@
-# CPU recurrent transducer contract
+# CPU recognition and alignment contracts
 
-`internal/speechrecognition` shares acoustic blocks between CTC and recurrent
-transduction. Recipes declare geometry, relative positions, conditioning, LSTM
-bindings and emission limits; runtime code never dispatches on model names.
-Numeric budgets cover weights and execution state, not process RSS.
+`internal/speechrecognition` shares CTC/recurrent acoustic blocks. Recipes own
+geometry, bindings and emission limits; no model-name dispatch. Numeric budgets
+cover weights/execution state, not RSS.
 
-Reference: Transformers 5.16.1 (`nemotron3_5_asr`, `nemotron_asr_streaming`,
-`parakeet`), Apache-2.0, copyright 2026 The HuggingFace Inc. team. Python is
-not a product dependency. Source, library, model, corpus and capture hashes bind
-the OvergoDB documents in `internal/audioparity/testdata/transducer_captures.json`;
-`registered_models.json` owns revisions and separate weight licenses.
+Reference: Transformers 5.16.1, Apache-2.0, copyright 2026 The HuggingFace Inc.
+team. `transducer_captures.json` binds source/library/model/corpus hashes;
+`registered_models.json` owns revisions and weight licenses. Python is not a
+product dependency.
 
-Only finite CPU SDPA captures are admitted; eager nonfinite results earn no
-parity credit. `compatibility.json` owns acceptance commands and claim boundaries.
+Finite CPU SDPA captures alone earn parity credit. `compatibility.json` owns
+acceptance commands and claim boundaries.
 
-Streaming applies left padding once, right padding only at finalization,
-preemphasis through retained raw overlap, and incomplete-hop masking after
-feature transforms. Declared first/following mel geometry feeds the recurrent
-decoder without prefix replay. Offline and streaming text have separate goldens.
+Streaming retains raw overlap, applies boundary padding once and masks incomplete
+hops after transforms. Declared mel geometry feeds the decoder without prefix
+replay. Offline and streaming goldens remain separate.
 
-Checkpoints bind recipe/source dependencies and retain bounded features,
-subsampling tails, attention/convolution history, LSTM state, cached prediction,
-progress and at most one incomplete UTF-8 rune. Binary32 arrays are lossless.
-Invalid shapes, numbers, identities, progress or final states cannot resume.
-Frame advances are not word timestamps. Recurrent training is not claimed.
+Recipe/source-bound checkpoints retain bounded features, acoustic/recurrent state,
+progress and one incomplete UTF-8 rune; binary32 arrays are lossless. Invalid or
+final states cannot resume. Frame advances are not word timestamps.
+
+## Forced word alignment
+
+`cmd/evaluate -alignment-manifest <json> -repo <store>` declares `base_recipe`,
+`profile`, `memory_bytes`, `inspection`, and `inputs`. Each input binds an
+`AudioPayloadReference`, an alignment `request` (transcription/half-open span),
+and a `reference` alignment artifact. Audio stays in place. The report retains
+every attempt; any failure exits nonzero. No activation is performed.
+
+`AlignmentDefinition`/`TranscriptionLease.Align` reuse standalone CTC. The profile
+declares pooled hop cells, whitespace-token spans and excluded blanks. Confidence
+is mean target-frame probability geometrically, not correctness. Unsupported
+token mappings, adapted/recurrent recipes and mismatched sources refuse.
+
+The Apache-2.0 recurrence pins audio.cpp
+`3497b7cc44753e2c141d8fe60ac42cec433e3281` and exact ties.
+`ctc_alignment.json` owns oracle cases; `ami_alignment.json` owns corpus selection.
+The [AMI annotation archive](https://groups.inf.ed.ac.uk/ami/download/) is CC-BY-4.0.
+Its forced-alignment-derived timing is not human boundary truth. Every selected
+boundary is scored; precision and exclusions remain explicit.
+`OVERGO_AUDIO_ALIGNMENT_ANNOTATIONS` may locate the exact pinned archive.
+No HTTP alignment, diarization, recurrent training or GPU claim follows.
 
 ## Native serving and switching
 
@@ -33,29 +50,22 @@ existing text-serving path. `-transcription-policy`, or `transcription_policy.js
 beside the store, must supply `memory_bytes` and `inspection`. An omitted `recipe`
 binds the selected model's active recipe; a mismatched pin refuses startup.
 
-The swap proxy owns startup, draining and cancellation. Explicit
-unknown swap targets and ambiguous catalog aliases refuse. NDJSON routing reads
-only the opening record. A canceled pending swap preserves active requests;
-fresh children resume published checkpoints. Shared modelrecipe lifecycle
-retirement and reverified predecessor activation own rollback.
+The swap proxy owns startup, draining and cancellation; unknown/ambiguous targets
+refuse. Canceled swaps preserve active requests. Fresh children resume published
+checkpoints; modelrecipe retirement and reverified activation own rollback.
 
 ## Live transcription protocol
 
 Authenticated `/v1/audio/transcriptions` accepts `Content-Type: application/x-ndjson`;
 this extension differs from OpenAI multipart. Multipart `stream=true` is unsupported.
 
-The first line supplies `model` (recipe/model identity or bound served alias),
-`source` (`audio` and stream-policy `profile`
-artifact IDs), and optional `resume` (a completed cursor checkpoint ID).
-Subsequent lines use `workflowruntime.AudioStreamChunk`: `sequence`, `span`,
-`audio`, optional `discontinuity`, and `final`. Encoded chunks must already exist
-in the artifact store, through `/artifacts/intake` or a native producer. Each
-nonempty chunk must satisfy the configured transcription inspection policy;
-thresholds are not silently changed for streaming. An empty final flush has no
-audio artifact and an empty span at the current cursor.
+The opening line supplies `model`, `source` (`audio`/stream-policy `profile` IDs)
+and optional `resume` checkpoint. Following `AudioStreamChunk` lines supply
+`sequence`, `span`, `audio`, optional `discontinuity`, and `final`. Artifact-backed
+chunks must satisfy the configured inspection policy. Empty final flushes have
+no audio and an empty span at the cursor.
 
-SSE `created`, `token`, `done`, and `error` events carry text suffixes, token/frame
-advances and output/admission/checkpoint identities. Publication precedes the
-next chunk. Reconnect with the checkpoint and next sequence; discontinuity resets
-numerical state, not source coordinates. No application queue is added.
-Disconnect releases the model lease; incomplete calls earn no resumable boundary.
+SSE `created`/`token`/`done`/`error` events carry suffixes, advances and artifact IDs.
+Publication precedes the next chunk. Resume uses checkpoint/next sequence;
+discontinuity resets numerical state, not coordinates. Disconnect releases the
+lease; incomplete calls earn no resumable boundary.

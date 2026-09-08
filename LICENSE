@@ -5,11 +5,15 @@ use, copy, modify, distribute, or create derivative works of this software,
 in whole or in part, without the prior written permission of the copyright
 holder.
 
+This default does not replace the licenses of identified third-party portions.
+The CTC alignment recurrence in internal/speechrecognition/ctc_alignment.go is
+derived from audio.cpp, Copyright 2026 ShugoAI LLC, and retains Apache-2.0 terms
+(licenses/audio.cpp.txt). Its modifications are identified in the source.
+
 Third-party acknowledgement: the inference runtime reimplements behavior
 studied from the llama.cpp project (https://github.com/ggml-org/llama.cpp,
 MIT license) as an independent Go implementation used for format and parity
 reference. No llama.cpp source code is included in this repository.
 
-This all-rights-reserved default is deliberate: it preserves every future
-licensing option for the owner. Relicensing is a single-file owner decision
-and requires no code change.
+Relicensing of original portions remains an owner decision. Identified
+third-party portions retain their separate license obligations.

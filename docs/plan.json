@@ -219,28 +219,6 @@
       ]
     },
     {
-      "id": "audio-recipes",
-      "title": "Compose validated audio primitives into native operational recipes",
-      "status": "open",
-      "steps": [
-        {
-          "id": "validated-transcription",
-          "title": "Verify: Bind the same segmented recipe to dataset and authenticated serving consumers",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
-          "rationale": "Group segmented-transcription; retained verification receipt for audio-recipes/sync-validated-transcription. Bind the same segmented recipe to dataset and authenticated HTTP consumers. Verify nonempty input, silent/corrupt refusals, transcript assembly, segment lineage and identical recipe identity. Delete displaced consumer-specific segmentation policy.",
-          "depends_on": [
-            "audio-recipes/sync-validated-transcription"
-          ],
-          "capabilities": [
-            "validated-transcription-recipe",
-            "vad-asr-composition",
-            "audio-lineage"
-          ]
-        }
-      ]
-    },
-    {
       "id": "benchmark-routing",
       "title": "Measure audio capability and resource fitness through existing evaluation and routing owners",
       "status": "open",

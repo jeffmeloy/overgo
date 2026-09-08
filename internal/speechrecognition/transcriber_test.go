@@ -23,6 +23,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
+	"overgo/internal/trainingprogram"
 )
 
 const transcriptionTestCommit = "0123456789abcdef0123456789abcdef01234567"
@@ -170,6 +171,61 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || cancelledRun.ID.Valid() || afterCancel != beforeCancel {
 		t.Fatalf("cancelled run = %+v, %v; commits %d -> %d", cancelledRun, err, beforeCancel, afterCancel)
 	}
+	t.Run("training-lease", func(t *testing.T) {
+		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer session.Close(context.WithoutCancel(t.Context()))
+		lease, err := session.Lease(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lease.Release()
+		input := testWave(128)
+		if _, err := lease.PrepareCTC(t.Context(), input, 16000, "a"); err == nil {
+			t.Fatal("prepared training before adapter admission")
+		}
+		optimizer := trainingprogram.BuiltinOptimizerPolicy()
+		if _, err := lease.NewOutputAdapter(cancelled, uint64(len(input)), optimizer); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled adapter admission: %v", err)
+		}
+		adapter, err := lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer); err == nil {
+			t.Fatal("duplicate adapter admitted")
+		}
+		execution, err := adapter.Bind(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, length := range []int{128, 64, 128} {
+			prepared, err := lease.PrepareCTC(t.Context(), input[:length], 16000, "b")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := execution.Run(&prepared); err != nil || math.IsNaN(prepared.Loss) || math.IsInf(prepared.Loss, 0) {
+				t.Fatalf("variable-length update=%d loss=%g err=%v", length, prepared.Loss, err)
+			}
+		}
+		if _, err := lease.PrepareCTC(cancelled, input, 16000, "a"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled preparation: %v", err)
+		}
+		if err := lease.Release(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := lease.PrepareCTC(t.Context(), input, 16000, "a"); err == nil {
+			t.Fatal("released lease prepared training")
+		}
+		if _, err := lease.NewOutputAdapter(t.Context(), uint64(len(input)), optimizer); err == nil {
+			t.Fatal("released lease admitted adapter")
+		}
+		if snapshot := session.Snapshot(); snapshot.Active != 0 || snapshot.Waiting != 0 {
+			t.Fatalf("training lease leaked: %+v", snapshot)
+		}
+	})
 	t.Run("shared-component-lifetime", func(t *testing.T) {
 		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
 		if err != nil {

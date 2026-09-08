@@ -390,7 +390,8 @@
           "verify": "go test ./internal/audioparity -run '^TestAudioCancellationAcceptance$' -count=1 -v",
           "rationale": "Group cpu-lifecycle; retained verification receipt for asr-training/closed-loop-proof. Interrupt actual CPU decode, transcription, adapter training and data iteration. Assert propagated cancellation, terminal operation state, bounded goroutine lifetime and release of buffers/cursors through existing owners. Do not wait for ASR streaming or CUDA.",
           "depends_on": [
-            "asr-training/closed-loop-proof"
+            "asr-training/closed-loop-proof",
+            "audio-training-assembly/do"
           ],
           "capabilities": [
             "audio-cancellation",

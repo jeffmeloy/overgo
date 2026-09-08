@@ -89,10 +89,7 @@ func (e *Encoder) NewOutputAdapter(ctx context.Context, w *Workspace, maxFrames,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	outputFrames := maxFrames
-	for _, block := range e.blocks {
-		outputFrames /= block.convolution.stride
-	}
+	outputFrames := e.outputFrames(maxFrames)
 	parameters, ok := checked.MulInt(e.output.in, e.output.in)
 	if !ok || outputFrames <= 0 || maxTargets < 0 || maxTargets > outputFrames || blank < 0 || blank >= e.output.out {
 		return nil, errors.New("encoder: invalid output-adapter geometry")
@@ -132,4 +129,11 @@ func (e *Encoder) NewOutputAdapter(ctx context.Context, w *Workspace, maxFrames,
 	}
 	*w = candidate
 	return adapter, nil
+}
+
+func (e *Encoder) outputFrames(inputFrames int) int {
+	for _, block := range e.blocks {
+		inputFrames /= block.convolution.stride
+	}
+	return inputFrames
 }

@@ -19,6 +19,28 @@ type GroupedFeatureConfig struct {
 	FinalFrameSamples int `json:"final_frame_samples"`
 }
 
+// GroupedFrames derives the encoder input-frame bound from a scalar sample
+// count using the same selection geometry as ProcessGrouped. It allocates no
+// waveform or feature storage and does not establish signal admission.
+func (p *Frontend) GroupedFrames(samples uint64, config GroupedFeatureConfig) (int, error) {
+	if p == nil || p.hop <= 0 || config.StackFrames <= 0 || config.DeltaRadius < 0 || config.FinalFrameSamples < 0 {
+		return 0, errors.New("grouped features: invalid frame geometry")
+	}
+	hops := samples / uint64(p.hop)
+	if hops == 0 {
+		return 0, errors.New("grouped features: no selected frames")
+	}
+	groups := hops / uint64(config.StackFrames)
+	if hops%uint64(config.StackFrames) != 0 {
+		groups++
+	}
+	frames, ok := checked.Int(groups)
+	if !ok {
+		return 0, errors.New("grouped features: grouped frame extent overflows")
+	}
+	return frames, nil
+}
+
 // ProcessGrouped composes the existing frontend and optional delta operation.
 // It returns borrowed frame-major data, grouped frame count and feature width.
 // Input must already have the declared sample rate; resampling is a preceding
@@ -37,13 +59,9 @@ func (p *Frontend) ProcessGrouped(ctx context.Context, input []float32, sampleRa
 			return nil, 0, 0, errors.New("grouped features: input aliases workspace")
 		}
 	}
-	hops := len(input) / p.hop
-	if hops == 0 {
-		return nil, 0, 0, errors.New("grouped features: no selected frames")
-	}
-	groups := hops / config.StackFrames
-	if hops%config.StackFrames != 0 {
-		groups++
+	groups, err := p.GroupedFrames(uint64(len(input)), config)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 	frames, ok := checked.MulInt(groups, config.StackFrames)
 	if !ok {

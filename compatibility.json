@@ -58,6 +58,34 @@
  },
  "claims": [
   {
+   "id": "audio-cpu-production-training",
+   "status": "implemented",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+   "verify": "go test ./internal/audioparity -run '^TestASRProductionTrainingAcceptance$' -count=1 -v",
+   "summary": "The native train command consumes an active CTC training recipe and registered audio dataset through the shared training workflow. One pinned original Parquet row proves first-update library parity, fresh-process exact resume of source/loss/weights/Muon/RNG/cursor, inactive checkpoint-candidate publication and authenticated HTTP reload. Mid-run cancellation publishes a cancelled observation without a checkpoint or candidate. Explicit source admission, target case and memory bounds are required. This is frozen-encoder CPU adaptation, not full encoder training, a quality gain, training HTTP, native streaming or GPU evidence.",
+   "evidence": [
+    {
+     "path": "internal/trainingworkflow/input_projection.go",
+     "contains": "func RestoreInputProjection(",
+     "role": "source",
+     "identity": "file:sha256:e2816a31091854f4ae9a6cac32b833c38a0d7b33e35447e1b3f5e0daf29828ad"
+    },
+    {
+     "path": "internal/audioparity/production_training_test.go",
+     "contains": "func TestASRProductionTrainingAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:a7ece9d1c10eac4111217d33b6a1fac979707ffd9113cb142dbeacb8df8864f8"
+    },
+    {
+     "path": "internal/trainingworkflow/audio_test.go",
+     "contains": "func TestAudioTrainingContract(",
+     "role": "artifact",
+     "identity": "evidence:sha256:9997ab4862947c504825a7898d6e05c3a7e8c569f5340e74c50fd43d05de46d1"
+    }
+   ]
+  },
+  {
    "id": "audio-cpu-served-adapter-lifecycle",
    "status": "implemented",
    "evidence_tier": "fixture-gated",

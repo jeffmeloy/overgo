@@ -172,13 +172,22 @@ func loadCheckpointProjection(ctx context.Context, repository artifact.Repositor
 	checkpoint, err := trainingprogram.ParseCheckpoint(content.Data)
 	parameters, ok := checked.MulInt(encoder.output.in, encoder.output.in)
 	if err != nil || checkpoint.ID() != id || checkpoint.Model != base.Model || !ok || checkpoint.ParameterCount != parameters ||
-		len(checkpoint.Processors) != 2 || !slices.Contains(checkpoint.Processors, profile) ||
+		!slices.Contains(checkpoint.Processors, profile) ||
 		!slices.Contains(checkpoint.Lineage, trainingprogram.LineageParent{Artifact: base.ID, Relation: artifact.RelationDependsOn}) {
 		return nil, errors.Join(errors.New("speech recognition: adapter checkpoint authority differs"), err)
 	}
 	var transformID artifact.ID
 	for _, processor := range checkpoint.Processors {
-		if processor != profile {
+		content, err := artifact.RequireTypedContent(ctx, repository, processor)
+		if err != nil {
+			return nil, err
+		}
+		// Training may bind source admission and other processing facts. Serving
+		// requires exactly one target transform, not a fixed processor count.
+		if content.Descriptor.Schema == trainingdata.TextTransformSchema {
+			if transformID.Valid() {
+				return nil, errors.New("speech recognition: ambiguous target transformation")
+			}
 			transformID = processor
 		}
 	}

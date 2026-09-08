@@ -25,6 +25,8 @@ import (
 )
 
 type Request struct {
+	// Audio selects recipe-bound CPU CTC adaptation; dense-only inputs refuse.
+	Audio              *AudioTrainingSpec
 	Repository         artifact.Reader
 	Recipe             artifact.ID
 	ModelDirectory     string
@@ -66,6 +68,8 @@ func stepGuard(request Request, backend string) densecausal.TrainObserver {
 }
 
 type Result struct {
+	// Candidate is a published, inactive serving recipe for the checkpoint.
+	Candidate      artifact.ID
 	Backend        string
 	Objective      trainingprogram.ObjectiveKind
 	Optimizer      optimizer.Config
@@ -85,6 +89,9 @@ type Result struct {
 }
 
 func Execute(ctx context.Context, request Request) (Result, error) {
+	if request.Audio != nil {
+		return executeAudioTraining(ctx, request)
+	}
 	if ctx == nil || request.Repository == nil || request.Recipe.Kind() != artifact.KindRecipe ||
 		request.ModelDirectory == "" && request.ResumeDirectory == "" ||
 		request.DatasetPath == "" || request.OutputDirectory == "" || request.Steps < 0 {

@@ -14,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/trainingprogram"
 )
 
 // TrainingEvidencePublication is the single workflow-owned atomic publication
@@ -180,17 +181,26 @@ func (o *Observer) finish(
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	if runErr != nil {
 		outcome, failure = runrecord.OutcomeFailed, "training_failed"
+		if errors.Is(runErr, context.Canceled) {
+			outcome, failure = runrecord.OutcomeCancelled, ""
+		}
 	}
 	var peakDevice uint64
 	for _, sample := range o.hardware {
 		peakDevice = max(peakDevice, sample.DevicePeakBytes)
 	}
 	measured := uint64(time.Since(o.started))
+	inputTokens := streamPosition
+	if result.Objective == trainingprogram.ObjectiveCTC {
+		// A speech stream cursor counts source records, not tokenizer units.
+		// Keep unmeasured token usage absent from the shared observation.
+		inputTokens = 0
+	}
 	observation := runrecord.ServingObservation{
 		Model: model, Recipe: recipeID, Environment: o.environment.ID,
 		Task: recipe.TaskTraining, Outcome: outcome, Failure: failure,
 		StartedUnixNS: o.started.UnixNano(), MeasuredNS: measured,
-		Usage:     runrecord.ServingUsage{InputTokens: streamPosition},
+		Usage:     runrecord.ServingUsage{InputTokens: inputTokens},
 		Resources: runrecord.ServingResources{PeakDeviceBytes: peakDevice},
 		Phases:    o.phases, Hardware: o.hardware,
 	}

@@ -8,6 +8,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -24,6 +26,50 @@ import (
 
 const transcriptionHTTPCommit = "0123456789abcdef0123456789abcdef01234567"
 
+func TestTranscriptionPolicyAndModelBindings(t *testing.T) {
+	fixture := newTranscriptionHTTPFixture(t, nil)
+	policy := fixture.workspace.policy
+	path := filepath.Join(t.TempDir(), "policy.json")
+	for _, pinned := range []bool{true, false} {
+		candidate := policy
+		if !pinned {
+			candidate.Recipe = artifact.ID{}
+		}
+		data, err := json.Marshal(candidate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := LoadTranscriptionPolicy(path)
+		if err != nil || loaded != candidate {
+			t.Fatalf("policy pin=%t changed: %v", pinned, err)
+		}
+		if !pinned {
+			if _, err := NewTranscriptionWorkspace(t.Context(), fixture.store, loaded, transcriptionHTTPCommit); err == nil {
+				t.Fatal("an unbound file policy became an executable workspace")
+			}
+		}
+	}
+	model := fixture.workspace.program.Definition().Model
+	fixture.handler.config.ModelID = "served-audio"
+	fixture.handler.modelArtifact = model
+	for _, selector := range []string{policy.Recipe.String(), model.String(), "served-audio"} {
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, fixture.request(t, fixture.wave, map[string]string{"model": selector}))
+		if response.Code != http.StatusOK {
+			t.Fatalf("bound selector %s: HTTP=%d %s", selector, response.Code, response.Body)
+		}
+	}
+	fixture.handler.modelArtifact = testutil.ArtifactID(t, artifact.KindModel, "unrelated-served-model")
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, fixture.request(t, fixture.wave, map[string]string{"model": "served-audio"}))
+	if response.Code != http.StatusBadRequest {
+		t.Fatal("display alias silently selected an unrelated transcription recipe")
+	}
+}
+
 type transcriptionHTTPRuntime struct {
 	*fakeGenerator
 	WorkflowWorkspaceAPI
@@ -33,12 +79,14 @@ type transcriptionHTTPFixture struct {
 	handler   *Handler
 	workspace *TranscriptionWorkspace
 	store     *overgodb.Store
+	storePath string
 	wave      []byte
 }
 
 func newTranscriptionHTTPFixture(t *testing.T, configure func(*TranscriptionPolicy)) transcriptionHTTPFixture {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
+	storePath := t.TempDir()
+	store, err := overgodb.Open(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +125,7 @@ func newTranscriptionHTTPFixture(t *testing.T, configure func(*TranscriptionPoli
 	}
 	handler.modelArtifact = textModel
 	wave, _ := speechrecognitiontest.Wave(t, false)
-	return transcriptionHTTPFixture{handler: handler, workspace: workspace, store: store, wave: wave}
+	return transcriptionHTTPFixture{handler: handler, workspace: workspace, store: store, storePath: storePath, wave: wave}
 }
 
 func (fixture transcriptionHTTPFixture) request(t *testing.T, data []byte, fields map[string]string) *http.Request {

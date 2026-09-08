@@ -64,7 +64,7 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
 	}
 	grouping := audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 4}
-	profile, err := NewExecutionProfile(frontend, grouping, declaration, 0, "en")
+	profile, err := NewExecutionProfile(ExecutionProfile{Frontend: frontend, Grouping: grouping, Encoder: declaration, BlankToken: 0, Language: "en"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,6 +171,9 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || cancelledRun.ID.Valid() || afterCancel != beforeCancel {
 		t.Fatalf("cancelled run = %+v, %v; commits %d -> %d", cancelledRun, err, beforeCancel, afterCancel)
 	}
+	t.Run("alignment-lease", func(t *testing.T) {
+		testAlignmentLease(t, store, definition, wave, result.Source, policy, binding)
+	})
 	t.Run("training-lease", func(t *testing.T) {
 		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
 		if err != nil {

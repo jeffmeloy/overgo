@@ -1,0 +1,75 @@
+[
+  {
+    "name": "strict-threshold-ties",
+    "probabilities": [
+      0.5,
+      0.75,
+      0.5,
+      0.25
+    ],
+    "min_frames": 0,
+    "pad_frames": 0,
+    "spans": [
+      {
+        "start": 1280,
+        "end": 3840
+      }
+    ]
+  },
+  {
+    "name": "open-last-tick",
+    "probabilities": [
+      0.25,
+      0.75,
+      0.75
+    ],
+    "min_frames": 0,
+    "pad_frames": 0,
+    "spans": [
+      {
+        "start": 1280,
+        "end": 3680
+      }
+    ]
+  },
+  {
+    "name": "pad-merge",
+    "probabilities": [
+      0.75,
+      0.25,
+      0.75,
+      0.25,
+      0.25
+    ],
+    "min_frames": 0,
+    "pad_frames": 1,
+    "spans": [
+      {
+        "start": 0,
+        "end": 5120
+      }
+    ]
+  },
+  {
+    "name": "minimum",
+    "probabilities": [
+      0.75,
+      0.25,
+      0.25
+    ],
+    "min_frames": 2,
+    "pad_frames": 0,
+    "spans": []
+  },
+  {
+    "name": "inactive",
+    "probabilities": [
+      0.5,
+      0.25,
+      0.5
+    ],
+    "min_frames": 0,
+    "pad_frames": 0,
+    "spans": []
+  }
+]

@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "dataset": "dataset:sha256:cd27a63a3671be6aa19746485bc7c3d4125d4d14d738a656be9321b41377bbc1",
+  "shard": "ihm/test-00000-of-00004.parquet",
+  "shard_sha256": "d95920dccc6924c15215239461bf5d1152fe07c9c61add073bd12da26dd602e0",
+  "shard_bytes": 241989739,
+  "rows": 3161,
+  "annotation_url": "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+  "annotation_archive": "ami_public_manual_1.6.2.zip",
+  "annotation_sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+  "annotation_bytes": 22887865,
+  "annotation_license": "CC-BY-4.0",
+  "timing_provenance": "AMI official word timing, derived by forced alignment; not human-verified boundary ground truth. EN2002a/c excluded per release notes. Reference text lowercased explicitly; punctuation-only annotation nodes excluded.",
+  "meetings_sha256": "8ab6cdcf03ed863e839418f31c7380392397a2eed892d73b9bc1b438c7ec520a",
+  "word_xml_sha256": {
+    "A": "9690a5ad6eefeee14c5be6f9d019a1daa9fbba24467a03faf4d960c7abd16984",
+    "B": "b9265cb5ac3391b6aefefc4d19f12a9b525650cbdda951f5252cd2725a0ca819",
+    "C": "efe80687926259f6f0318d4e08f885f54a502b275ce51e0dab1777e084a09bbc",
+    "D": "19a9d749879609f5f019446eede56a66c28ff993944edb891e0712edaa447622"
+  },
+  "selection": {
+    "meeting": "EN2002b",
+    "rule": "first-multi-word-per-speaker",
+    "excluded_meeting": 2206,
+    "single_word": 324,
+    "already_selected": 627,
+    "selected": 4
+  },
+  "cases": [
+    {
+      "row": 1367,
+      "speaker": "MEE073",
+      "agent": "D",
+      "channel": "3",
+      "id": "AMI_EN2002b_H03_MEE073_0115704_0115871",
+      "samples": 26720,
+      "encoded_bytes": 106938,
+      "audio_sha256": "b0daf9cb14b9e9cb627023b50dd696f1c732502424f5c1a0725cafb18a153bf9",
+      "text": "OKAY THAT MAKES SENSE"
+    },
+    {
+      "row": 1370,
+      "speaker": "FEO070",
+      "agent": "A",
+      "channel": "0",
+      "id": "AMI_EN2002b_H00_FEO070_0066765_0066801",
+      "samples": 5760,
+      "encoded_bytes": 23098,
+      "audio_sha256": "01590fb14e760ec715003f2c0ad3b36f381084a934af24937e1387dca3cbf557",
+      "text": "WE'LL SEE"
+    },
+    {
+      "row": 1372,
+      "speaker": "FEO072",
+      "agent": "C",
+      "channel": "2",
+      "id": "AMI_EN2002b_H02_FEO072_0113350_0113593",
+      "samples": 38880,
+      "encoded_bytes": 155578,
+      "audio_sha256": "7547677ab4ce7b207e6af4b9a8691ead33d34fe15c9f3ce27c490cc76e3f3012",
+      "text": "SO MAYBE IT COMES WITH SOMETHING CLEVER AS WELL"
+    },
+    {
+      "row": 1375,
+      "speaker": "MEE071",
+      "agent": "B",
+      "channel": "1",
+      "id": "AMI_EN2002b_H01_MEE071_0133510_0133859",
+      "samples": 55840,
+      "encoded_bytes": 223418,
+      "audio_sha256": "7e930de5646ac1583d5a8baeb3dbcac0f6d68cb283b4713379569b69d69a4775",
+      "text": "SO THEN JUST GOES THROUGH IT AND SAYS IF THIS WORD EQUALS THAT THEN PRINT"
+    }
+  ]
+}

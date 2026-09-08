@@ -191,7 +191,7 @@ func (h *Handler) nativeWorkflowRequest(
 		writeGenerationError(response, err)
 		return nil, WorkflowCapability{}, nil, false
 	}
-	capability, err := selectNativeWorkflowCapability(capabilities, task, model)
+	capability, err := h.selectNativeWorkflowCapability(capabilities, task, model)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return nil, WorkflowCapability{}, nil, false
@@ -207,7 +207,7 @@ func marshalWorkflowInput(controls []WorkflowControl, fields map[string]json.Raw
 	return input, err
 }
 
-func selectNativeWorkflowCapability(
+func (h *Handler) selectNativeWorkflowCapability(
 	capabilities []WorkflowCapability,
 	task recipe.Task,
 	model string,
@@ -215,8 +215,11 @@ func selectNativeWorkflowCapability(
 	if err := validateWorkflowCapabilities(capabilities); err != nil {
 		return WorkflowCapability{}, err
 	}
+	if model == h.config.ModelID && h.modelArtifact.Valid() {
+		model = h.modelArtifact.String()
+	}
 	for _, capability := range capabilities {
-		if capability.Task == task && capability.Refusal == "" && (model == "" || model == capability.Recipe.String()) {
+		if capability.Task == task && capability.Refusal == "" && (model == "" || model == capability.Recipe.String() || model == capability.model.String()) {
 			return capability, nil
 		}
 	}

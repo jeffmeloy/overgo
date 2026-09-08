@@ -6,6 +6,41 @@ import (
 	"testing"
 )
 
+func TestWaveformPreemphasisPrecedesPaddingAndFraming(t *testing.T) {
+	config := testFrontendConfig()
+	config.Padding, config.Window = "zero", "rectangular"
+	config.FrameSpan, config.WindowOffset = 4, 0
+	config.PadLeft, config.PadRight = 2, 2
+	coefficient := .5
+	config.WaveformPreemphasis = &coefficient
+	plan, err := NewFrontend(config, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	coefficient = math.NaN() // The immutable plan owns its coefficient.
+	wave := []float32{1, 2, 3, 4}
+	want := [][]float64{{0, 0, 1, 1.5}, {1, 1.5, 2, 2.5}, {2, 2.5, 0, 0}}
+	var workspace Workspace
+	_, frames, err := plan.Process(t.Context(), [][]float32{wave[:1], wave[1:]}, 8, &workspace, ProcessOptions{Observe: func(trace FrameTrace) error {
+		if !slices.Equal(trace.Window, want[trace.Frame]) {
+			t.Fatalf("frame %d: %v, want %v", trace.Frame, trace.Window, want[trace.Frame])
+		}
+		return nil
+	}})
+	if err != nil || frames != len(want) {
+		t.Fatalf("frames=%d: %v", frames, err)
+	}
+	if !slices.Equal(wave, []float32{1, 2, 3, 4}) {
+		t.Fatal("modified caller samples")
+	}
+	if _, err := plan.Reconstruct(t.Context(), [][]float32{wave}, 8, &workspace); err == nil {
+		t.Fatal("reconstructed conditioned samples without an inverse")
+	}
+	if _, err := NewFrontend(config, 1<<20); err == nil {
+		t.Fatal("accepted non-finite preemphasis")
+	}
+}
+
 func TestFrameConditioningIsLocalAndOwned(t *testing.T) {
 	config := testFrontendConfig()
 	config.Padding, config.Window = "zero", "rectangular"

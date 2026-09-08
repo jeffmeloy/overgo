@@ -82,12 +82,12 @@ func TestMatchServableRoutesRemoteLocations(t *testing.T) {
 		{Model: testutil.ArtifactID(t, artifact.KindModel, "absent"), Location: "remote://fake/vendor/absent", Present: false},
 	}
 	for _, name := range []string{"relay-model", "RELAY-MODEL", modelID.String()} {
-		servable, found := matchServable(entries, name)
-		if !found || servable.Location != "remote://fake/vendor/relay-model" || servable.Name != "relay-model" || servable.Model != modelID.String() {
+		servable, found, err := matchServable(entries, false, name)
+		if err != nil || !found || servable.Location != "remote://fake/vendor/relay-model" || servable.Name != "relay-model" || servable.Model != modelID.String() {
 			t.Fatalf("match %q = %+v found=%v", name, servable, found)
 		}
 	}
-	if _, found := matchServable(entries, "absent"); found {
+	if _, found, err := matchServable(entries, false, "absent"); err != nil || found {
 		t.Fatal("an absent remote entry matched")
 	}
 }

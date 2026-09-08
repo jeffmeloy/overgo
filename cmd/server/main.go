@@ -110,7 +110,7 @@ func run() error {
 	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "video frame sampling rate; unset uses recipe policy")
 	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
-	transcriptionPolicyPath := flag.String("transcription-policy", "", "strict JSON policy for an additional CPU transcription workflow; empty disables")
+	transcriptionPolicyPath := flag.String("transcription-policy", "", "strict CPU transcription resource policy; unset discovers transcription_policy.json beside the store")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
 	webuiDir := flag.String("webui-dir", "", "serve the workbench client from this directory with caching disabled (development); empty serves the embedded client")
 	var evaluationSuites []string
@@ -131,7 +131,7 @@ func run() error {
 	flag.Parse()
 	explicit := clioptions.ExplicitOverrides(flag.CommandLine)
 	if flag.NArg() != 1 {
-		return errors.New("usage: server [options] <model.gguf>")
+		return errors.New("usage: server [options] <model-reference>")
 	}
 	var transcriptionPolicy *llamaserver.TranscriptionPolicy
 	if *transcriptionPolicyPath != "" {
@@ -187,11 +187,21 @@ func run() error {
 		if roots, rootsErr := dataroot.ResolveCurrent(); rootsErr == nil {
 			hubRoot = roots.Models
 		}
-		return serveRemote(shutdownContext, remote, remoteServeOptions{
+		return serveRemote(shutdownContext, remote, serveOptions{
 			address: *address, apiKey: apiKey, modelID: *modelID,
 			maxTokens: *maxTokens, maxConcurrent: *maxConcurrent,
 			storedResponses: *responseStoreEntries, responseStoreBytes: *responseStoreBytes,
 			requestTimeout: *requestTimeout, repository: repositoryPath, hubRoot: hubRoot, webuiDir: *webuiDir,
+		})
+	}
+	native, err := resolveTranscriptionServing(shutdownContext, repositoryPath, modelReference)
+	if err != nil {
+		return err
+	}
+	if native != nil {
+		return serveTranscription(shutdownContext, *native, transcriptionPolicy, serveOptions{
+			address: *address, apiKey: apiKey, modelID: *modelID, maxConcurrent: *maxConcurrent,
+			requestTimeout: *requestTimeout, repository: repositoryPath, webuiDir: *webuiDir,
 		})
 	}
 	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)

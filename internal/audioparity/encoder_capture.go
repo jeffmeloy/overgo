@@ -77,6 +77,14 @@ func PublishEncoderCapture(ctx context.Context, repository artifact.Repository, 
 	if err = capture.validate(election); err != nil {
 		return artifact.ID{}, err
 	}
+	golden, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/audio-encoder-golden/v1"), capture)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	return publishTensorCapture(ctx, repository, golden, election.ID, capture.CaptureSHA256, capture.TensorsSHA256, capture.TensorCount, sourcePath, tensorsPath)
+}
+
+func publishTensorCapture(ctx context.Context, repository artifact.Repository, golden artifact.Content, parent artifact.ID, sourceSHA, tensorSHA string, tensorCount int, sourcePath, tensorsPath string) (artifact.ID, error) {
 	source, err := artifact.ReadContentFile(sourcePath)
 	if err != nil {
 		return artifact.ID{}, err
@@ -85,7 +93,7 @@ func PublishEncoderCapture(ctx context.Context, repository artifact.Repository, 
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	if sourceID.DigestHex() != capture.CaptureSHA256 {
+	if sourceID.DigestHex() != sourceSHA {
 		return artifact.ID{}, errors.New("audio capture: capture script hash differs")
 	}
 	file, err := os.Open(tensorsPath)
@@ -97,7 +105,7 @@ func PublishEncoderCapture(ctx context.Context, repository artifact.Repository, 
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	if tensorID.DigestHex() != capture.TensorsSHA256 {
+	if tensorID.DigestHex() != tensorSHA {
 		return artifact.ID{}, errors.New("audio capture: tensor file hash differs")
 	}
 	tensors, err := safetensors.OpenSource(filepath.Dir(tensorsPath))
@@ -110,18 +118,14 @@ func PublishEncoderCapture(ctx context.Context, repository artifact.Repository, 
 	if !single {
 		return artifact.ID{}, errors.New("audio capture: tensor file is not the complete source catalog")
 	}
-	if count != capture.TensorCount {
+	if count != tensorCount {
 		return artifact.ID{}, errors.New("audio capture: tensor count differs")
 	}
-	script, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/audio-oracle-capture-source/v1"), struct{ SHA256, Source string }{capture.CaptureSHA256, string(source)})
+	script, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/audio-oracle-capture-source/v1"), struct{ SHA256, Source string }{sourceSHA, string(source)})
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	golden, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/audio-encoder-golden/v1"), capture)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	batch, err := artifact.NewDocumentBatch("audio/encoder-golden/"+golden.Descriptor.ID.DigestHex(), []artifact.Content{script, golden}, artifact.DependencyLineage(golden.Descriptor.ID, election.ID, script.Descriptor.ID, tensorID), nil)
+	batch, err := artifact.NewDocumentBatch("audio/encoder-golden/"+golden.Descriptor.ID.DigestHex(), []artifact.Content{script, golden}, artifact.DependencyLineage(golden.Descriptor.ID, parent, script.Descriptor.ID, tensorID), nil)
 	if err != nil {
 		return artifact.ID{}, err
 	}

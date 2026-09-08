@@ -28,16 +28,29 @@ type FrontendConfig struct {
 	Window       string                            `json:"window"`
 	WindowPower  *float64                          `json:"window_power,omitzero"`
 	Condition    *FrameCondition                   `json:"condition,omitzero"`
-	Mel          MelConfig                         `json:"mel"`
-	Log          LogConfig                         `json:"log"`
-	Normalize    *NormalizeConfig                  `json:"normalize,omitzero"`
-	ResampleTaps []float64                         `json:"resample_taps,omitempty"`
+	// WaveformPreemphasis applies x[t]-a*x[t-1] before padding and framing;
+	// x[0] is unchanged. It is distinct from frame-local conditioning.
+	WaveformPreemphasis *float64 `json:"waveform_preemphasis,omitzero"`
+	// PreemphasisFloat32 rounds the coefficient, product and subtraction to
+	// float32. The default retains the existing float64 waveform arithmetic.
+	PreemphasisFloat32 bool `json:"preemphasis_float32,omitzero"`
+	// MaskIncompleteHop zeros transformed frames whose absolute frame index is
+	// at least floor(sample count / hop), including centered final padding.
+	MaskIncompleteHop bool             `json:"mask_incomplete_hop,omitzero"`
+	Mel               MelConfig        `json:"mel"`
+	Log               LogConfig        `json:"log"`
+	Normalize         *NormalizeConfig `json:"normalize,omitzero"`
+	ResampleTaps      []float64        `json:"resample_taps,omitempty"`
 }
 
 // Clone returns an independently owned declaration, including optional values
 // and fixed normalization statistics used by immutable execution profiles.
 func (c FrontendConfig) Clone() FrontendConfig {
 	c.ResampleTaps = slices.Clone(c.ResampleTaps)
+	if c.WaveformPreemphasis != nil {
+		value := *c.WaveformPreemphasis
+		c.WaveformPreemphasis = &value
+	}
 	if c.WindowPower != nil {
 		value := *c.WindowPower
 		c.WindowPower = &value
@@ -98,6 +111,9 @@ type LogConfig struct {
 // Fixed mode computes (x-Mean)*InverseStd per feature and requires zero
 // Correction and Epsilon. Other modes must not declare fixed statistics.
 type NormalizeConfig struct {
+	// Float32 uses sequential float32 statistics and normalization arithmetic.
+	// It does not change DFT or filterbank accumulation and is invalid in fixed mode.
+	Float32    bool      `json:"float32,omitzero"`
 	Mode       string    `json:"mode"`
 	Correction int       `json:"correction"`
 	Epsilon    float64   `json:"epsilon"`
@@ -201,6 +217,12 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 		if !checked.PositiveFinite64(condition.Gain) || !checked.UnitInterval64(condition.Preemphasis) {
 			return nil, errors.New("audio frontend: invalid frame conditioning")
 		}
+	}
+	if config.WaveformPreemphasis != nil && !checked.UnitInterval64(*config.WaveformPreemphasis) {
+		return nil, errors.New("audio frontend: invalid waveform preemphasis")
+	}
+	if config.PreemphasisFloat32 && config.WaveformPreemphasis == nil {
+		return nil, errors.New("audio frontend: preemphasis precision requires a coefficient")
 	}
 	if len(config.ResampleTaps) != 0 && len(config.ResampleTaps)%2 != 1 {
 		return nil, errors.New("audio frontend: FIR taps must have odd length")
@@ -334,6 +356,10 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 	if options.FrameLimit != 0 {
 		frames = options.FrameLimit
 	}
+	return p.processFrames(ctx, source, frames, source.count/p.hop, w, options)
+}
+
+func (p *Frontend) processFrames(ctx context.Context, source chunkSource, frames, validFrames int, w *Workspace, options ProcessOptions) ([]float32, int, error) {
 	count, ok := checked.MulInt(frames, p.bands)
 	if !ok {
 		return nil, 0, errors.New("audio frontend: feature extent overflows")
@@ -392,6 +418,9 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 	if err := p.transform(ctx, w.features, frames); err != nil {
 		return nil, 0, err
 	}
+	if p.config.MaskIncompleteHop {
+		clear(w.features[min(frames, max(0, validFrames))*p.bands:])
+	}
 	return w.features, frames, nil
 }
 
@@ -399,8 +428,8 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 // and squared-window overlap normalization. It rejects uncovered samples rather
 // than silently replacing their zero envelope. It does not undo mel/log features.
 func (p *Frontend) Reconstruct(ctx context.Context, chunks [][]float32, sampleRate int, w *Workspace) ([]float32, error) {
-	if p != nil && p.config.Condition != nil {
-		return nil, errors.New("audio frontend: reconstruction cannot undo frame conditioning")
+	if p != nil && (p.config.Condition != nil || p.config.WaveformPreemphasis != nil) {
+		return nil, errors.New("audio frontend: reconstruction cannot undo conditioning")
 	}
 	source, frames, err := p.prepare(ctx, chunks, sampleRate, w)
 	if err != nil {

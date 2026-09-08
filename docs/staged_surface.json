@@ -12,12 +12,6 @@
       }
     },
     {
-      "package": "overgo/internal/capabilityruntime",
-      "name": "OpenAudioStream",
-      "reason": "Bounded chunk, cancellation and restart contracts precede native streaming integration, which continues in the separate audio lane. Master's integration intake must remove this declaration when a landed production consumer is verified, or preserve the unresolved obligation under an explicit master validation step before completing registration. The audio task list is not imported and contract tests do not establish native streaming parity.",
-      "retire_with": "modality-verification/native-audio-streaming-intake"
-    },
-    {
       "package": "overgo/internal/testutil",
       "name": "RequireWithin",
       "reason": "Shared max-abs-diff tolerance gate consolidating the per-package golden-test copies; test-support surface is test-consumed by design.",

@@ -180,6 +180,13 @@ func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 	})
 	firstValue, firstOK := retained.Value(first)
 	secondValue, secondOK := retained.Value(second)
+	metrics, err := cuda.Metrics(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metrics.ArenaRequiredBytes != 0 || metrics.ArenaCommittedBytes != 0 {
+		t.Fatalf("retained alias producer duplicated in arena: %+v", metrics)
+	}
 	wantPointerDelta := fixtureShapeBytes(
 		t, tensor.MustShape(secondOffset-firstOffset), dtype.F32,
 	)
@@ -196,6 +203,53 @@ func TestExecutorRetainedFlatSlicesShareProducerStorage(t *testing.T) {
 	}
 	compare(t, firstHost.Data, []float32{4, 6, 8}, accuracyExact)
 	compare(t, secondHost.Data, []float32{12, 14}, accuracyExact)
+}
+
+func TestExecutorMixedRetainedSliceAndWholeTarget(t *testing.T) {
+	cudatest.Require(t)
+	builder := tensor.NewBuilder()
+	shape := tensor.MustShape(8)
+	input := builder.Input("input", dtype.F32, shape)
+	slice := builder.FlatSlice(builder.Scale(input, 2), 1, 3)
+	whole := builder.Reshape(builder.Scale(input, 3), 4, 2)
+	compiled, err := Compile(slice, whole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuda := newFixtureExecutor(t)
+	buffer, err := cuda.AllocateDeviceBuffer(t.Context(), fixtureShapeBytes(t, whole.Shape, dtype.F32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtureCleanup(t, "release whole target", func() error { return buffer.Release(context.WithoutCancel(t.Context())) })
+	value, err := buffer.Value(whole.Shape)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := compiled.NewRetainedTargets()
+	if err := targets.Set(whole, value); err != nil {
+		t.Fatal(err)
+	}
+	retained, err := cuda.ExecuteRetainedCompiledOnce(t.Context(), compiled,
+		map[*tensor.Tensor]reference.Value{input: {Shape: shape, Data: []float32{1, 2, 3, 4, 5, 6, 7, 8}}}, nil, targets, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixtureCleanup(t, "release mixed outputs", func() error { return retained.Release(context.WithoutCancel(t.Context())) })
+	for output, want := range map[*tensor.Tensor][]float32{slice: {4, 6, 8}, whole: {3, 6, 9, 12, 15, 18, 21, 24}} {
+		got, err := retained.CopyToHost(t.Context(), output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compare(t, got.Data, want, accuracyExact)
+	}
+	metrics, err := cuda.Metrics(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metrics.ArenaRequiredBytes != deviceAllocationAlignment {
+		t.Fatalf("mixed outputs reserve duplicate producer storage: %+v", metrics)
+	}
 }
 
 func TestExecutorStableTargetAppendsWithoutPrefixCopy(t *testing.T) {

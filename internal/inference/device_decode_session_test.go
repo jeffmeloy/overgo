@@ -9,8 +9,49 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/tensor/planner"
 	"overgo/internal/tokenizer"
 )
+
+func TestDecodeStateOutputsDoNotRetainLayerHistories(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1024, 1))
+	firstHistory := builder.Scale(input, 2)
+	firstState := builder.GroupSlice(firstHistory, 0, 1, 1, 1)
+	secondHistory := builder.Scale(builder.Scale(firstHistory, 3), 4)
+	secondState := builder.GroupSlice(secondHistory, 0, 1, 1, 1)
+	logits := builder.Scale(secondHistory, 5)
+	outputs := decodeGraphOutputs(deviceBatchGraph{
+		logits: logits, keys: []*tensor.Tensor{firstState, secondState},
+		values: []*tensor.Tensor{firstState, secondState}, states: make([]deviceGraphStates, 2),
+	}, deviceOutputPlan{mode: deviceOutputLogits})
+	if len(outputs) != 3 {
+		t.Fatalf("decode outputs duplicated or omitted: %d", len(outputs))
+	}
+	contract, err := tensor.CompileOutputTargetContract(logits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained := make(map[*tensor.Tensor]struct{}, len(outputs))
+	for _, output := range outputs {
+		retained[output] = struct{}{}
+	}
+	plan, err := planner.BuildWithRewrites(outputs, contract.Alignment, nil, retained)
+	if err != nil {
+		t.Fatal(err)
+	}
+	historyBytes, err := firstHistory.Shape.Bytes(dtype.F32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBytes, err := firstState.Shape.Bytes(dtype.F32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if limit := 2*historyBytes + 2*stateBytes; plan.ArenaSize > limit {
+		t.Fatalf("state collection retains full histories: arena=%d, live working-set bound=%d", plan.ArenaSize, limit)
+	}
+}
 
 func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	const (

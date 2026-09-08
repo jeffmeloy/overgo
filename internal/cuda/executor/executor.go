@@ -676,21 +676,22 @@ func (t *RetainedTargets) SetSlot(slot OutputSlot, value DeviceValue) error {
 // CompiledGraph: validated order and memory plan for repeated execution.
 type CompiledGraph struct {
 	// serial is this compilation's unique number; see compiledSerials.
-	serial         uint64
-	outputs        []*tensor.Tensor
-	outputIndexes  map[*tensor.Tensor]int
-	outputViews    []retainedStorageView
-	outputAliases  []bool
-	order          []*tensor.Tensor
-	orderIndexes   map[*tensor.Tensor]int
-	inputCount     uint32
-	operandSlots   []int
-	nodes          []compiledNode
-	launches       []int
-	attributeSlots []dynamicAttributeSlot
-	attributeWords int
-	memory         planner.Plan
-	retainedMemory planner.Plan
+	serial              uint64
+	outputs             []*tensor.Tensor
+	outputIndexes       map[*tensor.Tensor]int
+	outputViews         []retainedStorageView
+	outputAliases       []bool
+	order               []*tensor.Tensor
+	orderIndexes        map[*tensor.Tensor]int
+	inputCount          uint32
+	operandSlots        []int
+	nodes               []compiledNode
+	launches            []int
+	attributeSlots      []dynamicAttributeSlot
+	attributeWords      int
+	memory              planner.Plan
+	retainedMemory      planner.Plan
+	retainedAliasMemory planner.Plan
 	// fusions: rewrite-only descriptors; released after launch compilation.
 	fusions         map[*tensor.Tensor]*compiledFusion
 	elided          map[*tensor.Tensor]struct{}
@@ -1177,6 +1178,32 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 		if err != nil {
 			return nil, err
 		}
+		compiled.retainedMemory = boundRetainedPlan(compiled.retainedMemory, memory)
+	}
+	compiled.retainedAliasMemory = compiled.retainedMemory
+	if !externalOutputs && slices.Contains(compiled.outputAliases, true) {
+		retainedSlices := false
+		for index, aliases := range compiled.outputAliases {
+			if aliases {
+				view := compiled.outputViews[index]
+				bytes, err := view.source.Shape.Bytes(view.source.Type)
+				if err != nil {
+					return nil, err
+				}
+				// Whole views commonly bind caller-owned cache targets.
+				if view.byteOffset != 0 || compiled.targetContracts[index].Bytes < bytes {
+					plannerExcluded[view.source] = struct{}{}
+					retainedSlices = true
+				}
+			}
+		}
+		if retainedSlices {
+			aliasMemory, err := planner.BuildWithRewrites(outputs, deviceAllocationAlignment, dependencies, plannerExcluded)
+			if err != nil {
+				return nil, err
+			}
+			compiled.retainedAliasMemory = boundRetainedPlan(aliasMemory, compiled.retainedMemory)
+		}
 	}
 	compiled.memory = memory
 	compiled.nodes = make([]compiledNode, len(order))
@@ -1427,6 +1454,42 @@ func (e *Executor) PrepareCompiled(ctx context.Context, compiled *CompiledGraph)
 	})
 }
 
+// Exclusions can worsen best-fit packing. Keep the smaller valid layout.
+func boundRetainedPlan(candidate, bound planner.Plan) planner.Plan {
+	if candidate.ArenaSize <= bound.ArenaSize {
+		return candidate
+	}
+	candidate.ArenaSize = 0
+	for node := range candidate.Allocations {
+		allocation := bound.Allocations[node]
+		candidate.Allocations[node] = allocation
+		candidate.ArenaSize = max(candidate.ArenaSize, allocation.Offset+allocation.Size)
+	}
+	return candidate
+}
+
+func (c *CompiledGraph) executionMemory(retain bool, targets *RetainedTargets) planner.Plan {
+	if !retain {
+		return c.memory
+	}
+	if targets != nil {
+		if len(targets.values) != len(c.outputs) {
+			return c.retainedMemory
+		}
+		for index, aliases := range c.outputAliases {
+			if aliases && targets.values[index].Pointer != 0 {
+				root := c.outputViews[index].source
+				_, reserved := c.retainedAliasMemory.Allocations[root]
+				_, required := c.retainedMemory.Allocations[root]
+				if required && !reserved {
+					return c.retainedMemory
+				}
+			}
+		}
+	}
+	return c.retainedAliasMemory
+}
+
 func (e *Executor) runCompiled(
 	ctx context.Context,
 	compiled *CompiledGraph,
@@ -1459,10 +1522,7 @@ func (e *Executor) runCompiled(
 		if resourceErr != nil {
 			return resourceErr
 		}
-		arenaSize := compiled.memory.ArenaSize
-		if retain {
-			arenaSize = compiled.retainedMemory.ArenaSize
-		}
+		arenaSize := compiled.executionMemory(retain, targets).ArenaSize
 		arena, arenaErr := resources.ensureArena(state, arenaSize)
 		if arenaErr != nil {
 			return arenaErr
@@ -1583,10 +1643,7 @@ func execute(
 ) (_ *executionResult, err error) {
 	outputs := compiled.outputs
 	order := compiled.order
-	plan := compiled.memory
-	if retainOutputs {
-		plan = compiled.retainedMemory
-	}
+	plan := compiled.executionMemory(retainOutputs, retainedTargets)
 	if runtimeAttributes != nil &&
 		(runtimeAttributes.compiled != compiled || len(runtimeAttributes.values) != len(order)) {
 		return nil, errors.New("CUDA runtime attributes belong to another compiled graph")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 type guardCohort struct {
 	name, historical string
+	initialModel     string
 	repeats          [3]string
 }
 
@@ -40,11 +42,11 @@ func TestCurrentGuardControls(t *testing.T) {
 			},
 		},
 	}
-	requireGuardCohorts(t, fixtures, "95c0ac02654d9e9034451f9ab1a4d4b2abd0646b")
+	requireGuardCohorts(t, fixtures, "95c0ac02654d9e9034451f9ab1a4d4b2abd0646b", false)
 	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
 }
 
-func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string) {
+func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, catalog bool) {
 	t.Helper()
 	if len(fixtures) == 0 {
 		t.Fatal("empty guard cohort")
@@ -69,14 +71,24 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string) 
 	}
 	defer store.Close()
 
-	requireStoreLineage(t, store, fixtures[0].historical)
+	lineage := cmp.Or(fixtures[0].historical, fixtures[0].repeats[0])
+	requireStoreLineage(t, store, lineage)
 	seen := make(map[artifact.ID]bool)
 	opts := options{Root: filepath.Join("..", ".."), Repository: roots.Store, Corpus: "testdata/guard-corpus.txt", ValidateBaselines: true}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
-			historical := measuredGuardRecord(t, store, fixture.historical)
-			if err := validateGuard(historical.Result); err != nil {
-				t.Fatal(err)
+			var historical longform.Summary
+			if fixture.initialModel != "" {
+				id, err := artifact.ParseID(fixture.initialModel)
+				if err != nil || id.Kind() != artifact.KindModel || fixture.historical != "" {
+					t.Fatal("initial calibration requires one exact model and no substituted historical reference")
+				}
+				t.Log("initial full-budget calibration; no historical comparison is claimed")
+			} else {
+				historical = measuredGuardRecord(t, store, fixture.historical)
+				if err := validateGuard(historical.Result); err != nil {
+					t.Fatal(err)
+				}
 			}
 			var first longform.Result
 			for index, text := range fixture.repeats {
@@ -93,11 +105,16 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string) 
 				if fresh.Surface != surface || fresh.Commit != producer {
 					t.Fatal("control does not identify the current inference surface and clean measured producer")
 				}
+				if fixture.initialModel != "" && fresh.Program.Model.String() != fixture.initialModel {
+					t.Fatal("initial calibration substituted another model")
+				}
 				if err := validateGuard(fresh); err != nil {
 					t.Fatal(err)
 				}
-				if verdict := longform.Compare(historical.Result, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
-					t.Fatalf("historical comparison: %s", verdict)
+				if historical.Record.Valid() {
+					if verdict := longform.Compare(historical.Result, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
+						t.Fatalf("historical comparison: %s", verdict)
+					}
 				}
 				if index == 0 {
 					first = fresh
@@ -116,12 +133,23 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string) 
 	if t.Failed() {
 		return
 	}
+	if catalog {
+		opts.All, opts.Models = true, nil
+	}
 	targets, err := listTargets(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(targets) != len(fixtures) {
 		t.Fatal("live control selection differs from the accepted denominator")
+	}
+	if catalog {
+		report, err := loadGuardCoverage(t.Context(), opts, targets, surface)
+		if err != nil || report.Covered != len(fixtures) {
+			t.Fatalf("live execution coverage is incomplete: %d/%d: %v", report.Covered, report.Selected, err)
+		}
+		t.Logf("catalog: %d exact live models, %d distinct complete records; recipe, definition, profile, corpus and inference surface bound; no model executions", report.Covered, len(seen))
+		return
 	}
 	if err := bindBaselines(t.Context(), opts, targets); err != nil {
 		t.Fatal(err)

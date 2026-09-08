@@ -72,7 +72,7 @@ func launch1DABI(
 		return nil
 	}
 	const threads = uint32(256)
-	blocks := (count + threads - 1) / threads
+	blocks := (count-1)/threads + 1
 	return launchGridABI(
 		state, function,
 		driver.Dim3{X: blocks, Y: 1, Z: 1},

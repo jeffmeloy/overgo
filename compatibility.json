@@ -564,13 +564,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:fcf7a7247c91996e0925832408a44f1af10478407fe74633410b6f462a11eff2"
+     "identity": "file:sha256:f9fb23f88c459d544c0ec86639b311e1fde7488a631a23ab43e26f159610841c"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b5f9b5571b22a2eb5236973171b3e2e07905c8e38901a00a60bf34efa33b8034"
+     "identity": "evidence:sha256:d4ba66ea0fe339e262b508bc2796f625f67df3dc8f8c52f4c6fb617da43ebbef"
     }
    ],
    "id": "compiled-cuda-graph",
@@ -1024,7 +1024,7 @@
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
      "path": "internal/inference/device_cache_paging_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:3c0b70647acb1f1f586b095e5a8cce4e75f7ef5dc5e1527ebdc5c7fd7167c368"
+     "identity": "evidence:sha256:b3d517a7ad6900b0dc2aed94f7299ae24c6cf46f2430a77f7f59f6c823db042e"
     }
    ],
    "id": "paged-continuous-cache",

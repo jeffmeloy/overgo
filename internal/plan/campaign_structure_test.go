@@ -740,6 +740,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/e4b-serving-repair",
 		"modality-verification/e4b-serving-admission",
 		"gpu-capacity-admission/do",
+		"validation-publication-lifetime/do",
 		"gui-conversation-recovery-intake/merge",
 		"audio-cpu-production-intake/merge",
 		"gui-worktree-integration/merge",

@@ -356,7 +356,7 @@ func TestGuardEvidenceContract(t *testing.T) {
 			return fresh, nil
 		}
 		published := false
-		publish := func(_ context.Context, _ string, _ artifact.ID, result longform.Result) (artifact.ID, error) {
+		publish := func(_ context.Context, _ artifact.ID, result longform.Result) (artifact.ID, error) {
 			published = true
 			if result.Verdict.Passed || len(result.Verdict.Reasons) == 0 {
 				t.Fatal("failure was hidden")

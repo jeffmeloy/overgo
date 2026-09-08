@@ -54,10 +54,11 @@ type RunBinding struct {
 // transcriptionWorkspace owns all reusable mutable storage for one caller.
 // Its zero value is ready to use and must not be shared concurrently.
 type transcriptionWorkspace struct {
-	Frontend audiodsp.Workspace
-	Encoder  Workspace
-	frameIDs []int
-	tokens   []int
+	Frontend   audiodsp.Workspace
+	Encoder    Workspace
+	Transducer TransducerWorkspace
+	frameIDs   []int
+	tokens     []int
 }
 
 // transcriptionModel owns immutable, validated CPU execution state. It is safe to
@@ -70,6 +71,9 @@ type transcriptionModel struct {
 	profile    ExecutionProfile
 	frontend   *audiodsp.Frontend
 	encoder    *Encoder
+	transducer *Transducer
+	stream     *audiodsp.StreamFrontend
+	memory     uint64
 	tokenizer  *hfbpe.Tokenizer
 }
 
@@ -141,12 +145,26 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	if err != nil || !found || storedManifest.ID != inventory.Manifest.ID || !slices.Equal(storedManifest.Components, inventory.Manifest.Components) {
 		return nil, errors.Join(errors.New("speech recognition: stored model manifest differs"), err)
 	}
-	encoder, err := LoadEncoder(ctx, hf.Tensors, profile.Encoder, memoryBytes)
+	var encoder *Encoder
+	var transducer *Transducer
+	var stream *audiodsp.StreamFrontend
+	if profile.Transducer == nil {
+		encoder, err = LoadEncoder(ctx, hf.Tensors, profile.Encoder, memoryBytes)
+		if err == nil && (encoder.InputWidth() != width || profile.BlankToken >= encoder.VocabularySize()) {
+			err = errors.New("speech recognition: processor geometry differs from encoder")
+		}
+	} else {
+		if adapted {
+			return nil, errors.New("speech recognition: CTC projection checkpoint cannot adapt a recurrent decoder")
+		}
+		transducer, err = LoadTransducer(ctx, hf.Tensors, profile.Encoder, *profile.Transducer, memoryBytes)
+		if err == nil {
+			encoder = transducer.encoder
+			stream, err = audiodsp.NewStreamFrontend(profile.Frontend, memoryBytes)
+		}
+	}
 	if err != nil {
 		return nil, err
-	}
-	if encoder.InputWidth() != width || profile.BlankToken >= encoder.VocabularySize() {
-		return nil, errors.New("speech recognition: processor geometry differs from encoder")
 	}
 	if adapted {
 		encoder, err = loadCheckpointProjection(ctx, repository, checkpointID, baseDefinition, profileID, encoder)
@@ -160,7 +178,7 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	}
 	return &transcriptionModel{
 		repository: repository, model: modelID, recipe: definition, contract: contract, profile: profile,
-		frontend: frontend, encoder: encoder, tokenizer: tokenizer,
+		frontend: frontend, encoder: encoder, transducer: transducer, stream: stream, memory: memoryBytes, tokenizer: tokenizer,
 	}, nil
 }
 

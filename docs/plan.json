@@ -10,59 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-streaming-transcription",
-          "title": "Bind native streaming state to sessions and authenticated HTTP",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestStreamingTranscriptionAcceptance$' -count=1 -v",
-          "rationale": "Group streaming-service; implement asr-serving/sync-streaming-transcription, asr-serving/streaming-transcription together. Bind the verified recognizer to capabilityruntime.OpenAudioStream with bounded retained state, discontinuities, checkpoint/restart, finalization and cancellation. No growing-prefix offline replay or second scheduler. Also implement TestNativeAudioStreamIntegration in internal/capabilityruntime/audio_stream_integration_test.go for master intake: real chunks, declared offline/chunk equivalence, restart, cancellation, residency release and exact artifact/corpus identities. Contract-only fixtures cannot retire the staged API. Extend the existing audiodsp stream owner for declared centered padding and waveform-wide preemphasis; retain only bounded overlap and native mel-chunk assembly. Bind persisted frontend, subsampling, attention/convolution and recurrent state to exact model/profile/tokenizer identities, with restart equivalence, malformed-state refusal and derived retained-byte bounds. Preserve native mode-specific final-padding outputs; only assert offline/chunk equality where the pinned oracle declares it. Reuse master's production training assembly and add TestNativeAudioProductionIntake in internal/audioparity/production_intake_test.go: exercise NewTextTransform, PublishInputProjection and RestoreInputProjection through the real production consumer with exact base/transform/checkpoint/corpus identities, fresh-process resume, mismatch refusals and held-out quality/resource coverage. Existing production-training and recovery roots are lower bounds, not a new training implementation.",
-          "depends_on": [
-            "audio-contracts/stream-session-contract",
-            "shared-asr-proof/second-architecture",
-            "asr-serving/transcriptions-route",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "native-stream-state",
-            "bounded-session-reuse"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/audiodsp",
-              "internal/speechrecognition",
-              "internal/speechrecognitiontest",
-              "internal/capabilityruntime",
-              "internal/server",
-              "internal/workflowruntime",
-              "internal/modelrecipe",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group streaming-service: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-streaming-transcription",
-                "title": "Bind verified native recognizer state to existing bounded audio sessions",
-                "verify": "go test ./internal/capabilityruntime -run '^TestNativeASRSessionAcceptance$' -count=1 -v"
-              },
-              {
-                "id": "production-intake",
-                "title": "Bind existing CPU training production and resume evidence for native audio intake",
-                "verify": "go test ./internal/audioparity -run '^TestNativeAudioProductionIntake$' -count=1 -v"
-              },
-              {
-                "id": "native-stream-intake",
-                "title": "Prove native waveform streaming through the production session consumer",
-                "verify": "go test ./internal/capabilityruntime -run '^TestNativeAudioStreamIntegration$' -count=1 -v",
-                "depends_on": [
-                  "sync-streaming-transcription"
-                ]
-              }
-            ]
-          }
-        },
-        {
           "id": "streaming-transcription",
           "title": "Verify: Serve partial and final transcripts through the existing session and transport owners",
           "status": "open",

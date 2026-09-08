@@ -66,9 +66,24 @@
    "verify": "go test ./internal/audioparity -run '^TestSecondASROfflineAcceptance$' -count=1 -v",
    "summary": "Two pinned LibriSpeech clean/test recordings execute a declared CPU recurrent transducer using shared acoustic blocks, spatial tensor convolution and artifact-declared Metaspace decoding. Actual PCM, frontend, every encoder boundary, recurrent hidden/cell/prediction state and joint logits match finite native Transformers 5.16.1 CPU SDPA captures under reduction-scaled float32 bounds; emissions, frame advances and decoded text match exactly. Four Granite reference recordings and four registered audio artifacts remain verified. Native transcript errors are preserved. No full-corpus quality, improvement, HTTP/session, transducer training or GPU claim; Metaspace encoding remains explicitly unsupported.",
    "evidence": [
-    {"path": "internal/speechrecognition/transducer.go", "contains": "func LoadTransducer(", "role": "source", "identity": "file:sha256:e62291da6959fb72b07ca90ec1ed1b367f7c546d8b1063f3c30fa053419ce80f"},
-    {"path": "internal/audioparity/second_asr_test.go", "contains": "func TestSecondASROfflineAcceptance(", "role": "artifact", "identity": "evidence:sha256:a8814756c4e32382d194f1adc0bd5fe2085676d744bfe04921754801884fe875"},
-    {"path": "internal/audioparity/testdata/transducer_captures.json", "contains": "f393b56580fe6e1606f58873436ed77989d68751427ce58a879e1ec03185a4be", "role": "source", "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"}
+    {
+     "path": "internal/speechrecognition/transducer.go",
+     "contains": "func LoadTransducer(",
+     "role": "source",
+     "identity": "file:sha256:e62291da6959fb72b07ca90ec1ed1b367f7c546d8b1063f3c30fa053419ce80f"
+    },
+    {
+     "path": "internal/audioparity/second_asr_test.go",
+     "contains": "func TestSecondASROfflineAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:aac11a4e7cf9c7941dbcf455dcaa7d1118b0adec9d0d3a7dd33034d94dc81d4c"
+    },
+    {
+     "path": "internal/audioparity/testdata/transducer_captures.json",
+     "contains": "f393b56580fe6e1606f58873436ed77989d68751427ce58a879e1ec03185a4be",
+     "role": "source",
+     "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"
+    }
    ]
   },
   {
@@ -80,9 +95,24 @@
    "verify": "go test ./internal/audioparity -run '^TestSecondASRStreamingAcceptance$' -count=1 -v",
    "summary": "The same CPU acoustic forward consumes exact declared mel chunks with retained causal convolution, bounded projected-relative key/value caches and recurrent prediction state. Two native recordings cover 12 and 45 chunks, including attention-cache rollover. Every encoder and decoder boundary is compared, with exact emissions, frame advances and final text. Finalized or partially failed state cannot resume. Timestamps are token-emission frames, not aligned words. This is native recognizer streaming on precomputed mel chunks, not incremental raw-wave preprocessing, persisted restart, session/HTTP transport, latency, quality gain or CUDA evidence.",
    "evidence": [
-    {"path": "internal/speechrecognition/transducer_stream.go", "contains": "func (t *Transducer) RecognizeChunk(", "role": "source", "identity": "file:sha256:d42009a3364f94be8a311cd718a996cc9349c78ed18f789e1863a207c158702b"},
-    {"path": "internal/audioparity/second_asr_test.go", "contains": "func TestSecondASRStreamingAcceptance(", "role": "artifact", "identity": "evidence:sha256:a8814756c4e32382d194f1adc0bd5fe2085676d744bfe04921754801884fe875"},
-    {"path": "internal/audioparity/testdata/transducer_captures.json", "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21", "role": "source", "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"}
+    {
+     "path": "internal/speechrecognition/transducer_stream.go",
+     "contains": "func (t *Transducer) RecognizeChunk(",
+     "role": "source",
+     "identity": "file:sha256:18666ce373f333f85f09ac6bae379394a4e7b7810ba5de905af9dd08e29f2330"
+    },
+    {
+     "path": "internal/audioparity/second_asr_test.go",
+     "contains": "func TestSecondASRStreamingAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:aac11a4e7cf9c7941dbcf455dcaa7d1118b0adec9d0d3a7dd33034d94dc81d4c"
+    },
+    {
+     "path": "internal/audioparity/testdata/transducer_captures.json",
+     "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
+     "role": "source",
+     "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"
+    }
    ]
   },
   {
@@ -175,7 +205,7 @@
      "path": "internal/speechrecognition/session.go",
      "contains": "func LoadSession(",
      "role": "source",
-     "identity": "file:sha256:bf052fd3c3a0c03d0a956456fa39c0becc88620515ccc95755d9f4aaacc019f3"
+     "identity": "file:sha256:59f49073f3dba1eeb7adaf90324e0bd348cdc040bea6ec8edfb70d6f2020ff77"
     }
    ]
   },
@@ -210,9 +240,24 @@
    "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
    "summary": "One declared CPU VAD/CTC recipe decodes admitted audio once, traverses unchanged sample spans and publishes one transcript with exact segment provenance. Four spans, PCM hashes and piece transcripts match the pinned native composition capture on one LibriSpeech training record. Source-addressed evaluation and authenticated HTTP execute the same recipe; silence, corrupt, empty and unauthorized controls refuse. Both model components use the shared bounded session owner. No held-out quality, word alignment, native recognizer streaming, performance gain, aggregate-memory or GPU claim.",
    "evidence": [
-    {"path": "internal/speechrecognition/session.go", "contains": "func LoadSession(", "role": "source", "identity": "file:sha256:bf052fd3c3a0c03d0a956456fa39c0becc88620515ccc95755d9f4aaacc019f3"},
-    {"path": "internal/audioparity/segmented_transcription_test.go", "contains": "func TestValidatedTranscriptionConsumers(", "role": "artifact", "identity": "evidence:sha256:1901c25624f12031326514a8b52a119a18e422b82b80947fcbc470021bf2f898"},
-    {"path": "internal/audioparity/testdata/segmented_reference.json", "contains": "7e74c6438b7cfb5090cb6a131538f5e8515a7de3", "role": "source", "identity": "file:sha256:2c483913976762649b908dffc67d23feccb72750c74fd365615f6461a099433c"}
+    {
+     "path": "internal/speechrecognition/session.go",
+     "contains": "func LoadSession(",
+     "role": "source",
+     "identity": "file:sha256:59f49073f3dba1eeb7adaf90324e0bd348cdc040bea6ec8edfb70d6f2020ff77"
+    },
+    {
+     "path": "internal/audioparity/segmented_transcription_test.go",
+     "contains": "func TestValidatedTranscriptionConsumers(",
+     "role": "artifact",
+     "identity": "evidence:sha256:1901c25624f12031326514a8b52a119a18e422b82b80947fcbc470021bf2f898"
+    },
+    {
+     "path": "internal/audioparity/testdata/segmented_reference.json",
+     "contains": "7e74c6438b7cfb5090cb6a131538f5e8515a7de3",
+     "role": "source",
+     "identity": "file:sha256:2c483913976762649b908dffc67d23feccb72750c74fd365615f6461a099433c"
+    }
    ]
   },
   {
@@ -224,9 +269,24 @@
    "verify": "go test ./internal/audioparity -run '^TestVADOfflineAcceptance$' -count=1 -v",
    "summary": "Declared CPU finite-memory classification and offline activity publication match pinned frontend, network and boundary fixtures on one 1451-frame LibriSpeech recording and silence controls. Physical tensor and license binding, unsafe-constructor refusal and ZIP64 metadata bounds are enforced. Integer-frame splitting and signal-clipped extension are explicit; no annotated quality, throughput, HTTP, aggregate-memory or GPU claim.",
    "evidence": [
-    {"path": "internal/speechactivity/execution.go", "contains": "func (d *Detector) Detect(", "role": "source", "identity": "file:sha256:024f8d8f3ab6fa901e252cf8b0b4aa648f319131fdd7f96318639d37b7f7e4b9"},
-    {"path": "internal/audioparity/vad_acceptance_test.go", "contains": "func TestVADOfflineAcceptance(", "role": "artifact", "identity": "evidence:sha256:3eb1be94f0dd838a5563c78b2b489c7d3bf0751182bfd74258ca2be3f9cdb862"},
-    {"path": "internal/audioparity/testdata/vad_reference.json", "contains": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54", "role": "source", "identity": "file:sha256:3574f13e38afe966e9bbe336f8667cb2fd54f8e94511abb5373310ca93028f3b"}
+    {
+     "path": "internal/speechactivity/execution.go",
+     "contains": "func (d *Detector) Detect(",
+     "role": "source",
+     "identity": "file:sha256:024f8d8f3ab6fa901e252cf8b0b4aa648f319131fdd7f96318639d37b7f7e4b9"
+    },
+    {
+     "path": "internal/audioparity/vad_acceptance_test.go",
+     "contains": "func TestVADOfflineAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:f41c64390e3b333968543460cebc2600aba7755ec4376cc98ae97fe4a4b33405"
+    },
+    {
+     "path": "internal/audioparity/testdata/vad_reference.json",
+     "contains": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54",
+     "role": "source",
+     "identity": "file:sha256:3574f13e38afe966e9bbe336f8667cb2fd54f8e94511abb5373310ca93028f3b"
+    }
    ]
   },
   {
@@ -238,9 +298,24 @@
    "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
    "summary": "The separately registered causal model executes through OpenAudioStream with bounded waveform overlap, finite-memory caches, serialized restart, finalization and activity/state publication. Go whole/live probabilities and caches are bit-identical on the pinned speech and silence controls. Cancellation and publication failure preserve completed progress and release residency; gaps refuse and discontinuities match fresh analysis. No native recognizer streaming, HTTP, annotated quality, throughput or GPU claim.",
    "evidence": [
-    {"path": "internal/speechactivity/execution.go", "contains": "func (d *Detector) ProcessStream(", "role": "source", "identity": "file:sha256:024f8d8f3ab6fa901e252cf8b0b4aa648f319131fdd7f96318639d37b7f7e4b9"},
-    {"path": "internal/audioparity/vad_acceptance_test.go", "contains": "func TestVADStreamingAcceptance(", "role": "artifact", "identity": "evidence:sha256:3eb1be94f0dd838a5563c78b2b489c7d3bf0751182bfd74258ca2be3f9cdb862"},
-    {"path": "internal/audioparity/testdata/vad_boundaries.json", "contains": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54", "role": "source", "identity": "file:sha256:8f6ecc79f512faf5578c66b83e66588c69d554f33edabe640151f906a3f0be10"}
+    {
+     "path": "internal/speechactivity/execution.go",
+     "contains": "func (d *Detector) ProcessStream(",
+     "role": "source",
+     "identity": "file:sha256:024f8d8f3ab6fa901e252cf8b0b4aa648f319131fdd7f96318639d37b7f7e4b9"
+    },
+    {
+     "path": "internal/audioparity/vad_acceptance_test.go",
+     "contains": "func TestVADStreamingAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:f41c64390e3b333968543460cebc2600aba7755ec4376cc98ae97fe4a4b33405"
+    },
+    {
+     "path": "internal/audioparity/testdata/vad_boundaries.json",
+     "contains": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54",
+     "role": "source",
+     "identity": "file:sha256:8f6ecc79f512faf5578c66b83e66588c69d554f33edabe640151f906a3f0be10"
+    }
    ]
   },
   {
@@ -293,7 +368,7 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:65cfba8c4e398c45aba3b169067bd0c0efda908c0b104ac8b63afdf596146c35"
+     "identity": "file:sha256:b466d88e5aeb166a7ffe0c916548271492924e8739ce15fda06fa4ef51bd5638"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
@@ -1379,6 +1454,93 @@
    "artifact_identity": "sha256:f719811ee14aae6b4d3742c780f0d93f215c061f4c5928298ae7d3ecd2e4807e+7a20dee9983268c4598ac9f6c04a3afd377e3a39ec6a5a12f87b537637dfc5c9+f9b7a9b925fcf3b104349713ced8415a59aa1b001f192b55f483054899dc994f",
    "status": "implemented",
    "summary": "SenseNova text requests execute through compiled routed-image recipe modules, retained CUDA generation, and fingerprinted PNG publication."
+  },
+  {
+   "id": "audio-cpu-waveform-streaming",
+   "status": "implemented",
+   "evidence_tier": "pinned-oracle",
+   "source_commit": "1c8deaecc64b91f034d73e08dd8b64625eb3395d",
+   "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+   "verify": "go test ./internal/capabilityruntime -run '^TestNativeASRSessionAcceptance$' -count=1 -v",
+   "summary": "Two registered native corpus captures execute waveform chunks through the existing CPU transcription session and audio stream cursor. Bounded frontend overlap, exact native mel assembly, subsampling/attention/convolution and recurrent state plus incremental UTF-8 decoding survive session reload. Exact mode-specific native transcripts, ordering refusal and residency release are checked. No recurrent training, GPU, word alignment or quality-improvement claim.",
+   "evidence": [
+    {
+     "path": "internal/speechrecognition/stream_execution.go",
+     "contains": "func (transcriber *transcriptionModel) processStream(",
+     "role": "source",
+     "identity": "file:sha256:26ffd46da2a44f7457ade8723a12a5fae6346f347e0f785bc0d884a9b832aa24"
+    },
+    {
+     "path": "internal/capabilityruntime/native_asr_session_test.go",
+     "contains": "func TestNativeASRSessionAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:ed178ae7720bf6bcc4121ee4ab3ebc8558422480dce8d752673972a0a7e410e3"
+    },
+    {
+     "path": "internal/audioparity/testdata/transducer_captures.json",
+     "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
+     "role": "source",
+     "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"
+    }
+   ]
+  },
+  {
+   "id": "audio-cpu-streaming-http",
+   "status": "implemented",
+   "evidence_tier": "pinned-oracle",
+   "source_commit": "1c8deaecc64b91f034d73e08dd8b64625eb3395d",
+   "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+   "verify": "go test ./internal/server -run '^TestStreamingTranscriptionAcceptance$' -count=1 -v",
+   "summary": "The existing authenticated transcription route accepts an explicit NDJSON live-input extension and returns SSE text suffixes with durable admission/output/cursor identities. Four sample-exact chunks of a registered native recording reproduce its streaming transcript, including disconnect/restart, ordered finalization and out-of-order refusal. Server error logs fail acceptance. Existing component residency, activation and inspection policies remain authoritative. Timings distinguish first text from final completion; they are not an isolated kernel benchmark or a performance improvement. OpenAI multipart stream=true, GPU execution and word timestamps are not claimed.",
+   "evidence": [
+    {
+     "path": "internal/server/streaming_transcriptions.go",
+     "contains": "func (h *Handler) nativeStreamingTranscriptions(",
+     "role": "source",
+     "identity": "file:sha256:6ef3b2da5cdeedc42560c117ea804e828fbeecd8782c3465bf70ccca55be9f1b"
+    },
+    {
+     "path": "internal/server/streaming_transcriptions_test.go",
+     "contains": "func TestStreamingTranscriptionAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:b73bb73e0e2eedcc9221e8b5f954b73b5cd906ecd1bbe638d2324dea7baae155"
+    },
+    {
+     "path": "internal/audioparity/testdata/transducer_captures.json",
+     "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
+     "role": "source",
+     "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"
+    }
+   ]
+  },
+  {
+   "id": "audio-cpu-streaming-checkpoint-restart",
+   "status": "implemented",
+   "evidence_tier": "pinned-oracle",
+   "source_commit": "1c8deaecc64b91f034d73e08dd8b64625eb3395d",
+   "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+   "verify": "go test ./internal/capabilityruntime -run '^TestNativeAudioStreamIntegration$' -count=1 -v",
+   "summary": "A separate Go process reloads the registered recurrent model and a persisted waveform-stream cursor after the first of 15 chunks. All 14 continuation output and numerical-state identities match uninterrupted execution, including bounded attention-cache rollover and finalization. A mismatched source is refused before residency admission. The complete text matches the pinned native streaming capture. No offline/streaming text equivalence beyond declared oracle semantics, recurrent training, GPU or word-timestamp claim.",
+   "evidence": [
+    {
+     "path": "internal/speechrecognition/stream_execution.go",
+     "contains": "func (transcriber *transcriptionModel) processStream(",
+     "role": "source",
+     "identity": "file:sha256:26ffd46da2a44f7457ade8723a12a5fae6346f347e0f785bc0d884a9b832aa24"
+    },
+    {
+     "path": "internal/capabilityruntime/audio_stream_integration_test.go",
+     "contains": "func TestNativeAudioStreamIntegration(",
+     "role": "artifact",
+     "identity": "evidence:sha256:11f8d2e3d4c042a8afb6e241cddf4594129f321b8a91f36ae62870d6d942310d"
+    },
+    {
+     "path": "internal/audioparity/testdata/transducer_captures.json",
+     "contains": "5e1ab62c4bc9806ef8c8d8455f58374c42fd2d013aade735ed5e880eded8da21",
+     "role": "source",
+     "identity": "file:sha256:4930b02ab87435f7c69f1fd2b67ad7a96ae98578e0a5b877f83a8f72f6da2fb5"
+    }
+   ]
   }
  ],
  "cuda": {

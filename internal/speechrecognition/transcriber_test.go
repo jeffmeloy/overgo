@@ -64,7 +64,7 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
 	}
 	grouping := audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 4}
-	profile, err := NewExecutionProfile(frontend, grouping, declaration, 0, "en")
+	profile, err := NewExecutionProfile(ExecutionProfile{Frontend: frontend, Grouping: grouping, Encoder: declaration, BlankToken: 0, Language: "en"})
 	if err != nil {
 		t.Fatal(err)
 	}

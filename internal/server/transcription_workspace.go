@@ -107,7 +107,8 @@ func (workspace *TranscriptionWorkspace) WorkflowCapabilities(_ context.Context,
 	}
 	definition := workspace.program.Definition()
 	return []WorkflowCapability{{Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
-		Inputs: definition.Inputs, Outputs: definition.Outputs,
+		transcriptionStream: workspace.openTranscriptionStream,
+		Inputs:              definition.Inputs, Outputs: definition.Outputs,
 		// The audio control names a stored file artifact: an attachment the
 		// page stored through the intake route, or a card's stored id.
 		Controls: []WorkflowControl{{Name: "audio", Type: WorkflowControlArtifact, Required: true, Label: "audio clip", Media: "audio"}},

@@ -41,6 +41,22 @@ func TestDeclaredMetaspaceDecoder(t *testing.T) {
 			if err != nil || text != want {
 				t.Fatalf("text=%q want=%q error=%v", text, want, err)
 			}
+			for size := 1; size <= len(ids); size++ {
+				var state DecodeState
+				var result strings.Builder
+				for start := 0; start < len(ids); start += size {
+					end := min(start+size, len(ids))
+					part, next, err := tokenizer.DecodeTextChunk(ids[start:end], state, end == len(ids))
+					if err != nil {
+						t.Fatal(err)
+					}
+					result.WriteString(part)
+					state = next
+				}
+				if result.String() != want || len(state.Pending) != 0 {
+					t.Fatalf("chunk=%d text=%q want=%q", size, result.String(), want)
+				}
+			}
 			literal, err := tokenizer.DecodeStrict(ids)
 			if err != nil || literal != want+"<locale>" {
 				t.Fatalf("literal=%q error=%v", literal, err)

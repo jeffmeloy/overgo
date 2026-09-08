@@ -14,6 +14,7 @@
     "padding": "zero",
     "window": "symmetric-hann",
     "waveform_preemphasis": 0.97,
+    "mask_incomplete_hop": true,
     "mel": {
       "scale": "slaney",
       "min_frequency": 0,

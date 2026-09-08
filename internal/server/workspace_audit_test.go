@@ -52,6 +52,7 @@ var workspaceFileAllowances = map[string][]string{
 	"library_workspace.go":           {"operator"},
 	"native_media_protocols.go":      {"operator", "serving"},
 	"native_audio_transcriptions.go": {"serving"},
+	"streaming_transcriptions.go":    {"serving"},
 	"operation_evidence.go":          {"operator"},
 	"operations.go":                  {"operator"},
 	"operator_decisions.go":          {"operator"},

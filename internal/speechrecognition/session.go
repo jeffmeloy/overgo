@@ -13,7 +13,15 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechactivity"
+	"overgo/internal/workflowruntime"
 )
+
+// StreamRequest binds one source and optional completed cursor for native
+// transcription session admission. Numerical state remains in the checkpoint.
+type StreamRequest struct {
+	Source recipecontract.AudioReference `json:"source"`
+	Resume artifact.ID                   `json:"resume,omitzero"`
+}
 
 // Session owns the compiled component lifetimes for one CPU transcription
 // recipe. Evaluation and serving share this owner, its exclusive workspaces and
@@ -33,6 +41,7 @@ type transcriptionComponent struct {
 	detector    *speechactivity.Detector
 	text        transcriptionWorkspace
 	activity    speechactivity.DetectionWorkspace
+	stream      transcriptionStreamWorkspace
 }
 
 // Close releases the component's model and numeric workspace references.
@@ -131,6 +140,35 @@ func (session *Session) Lease(ctx context.Context) (*TranscriptionLease, error) 
 		result.components = append(result.components, lease)
 	}
 	return result, nil
+}
+
+// OpenStream uses the existing component lease for one native recurrent audio
+// stream. Checkpoints restore only the same source and recipe; Close and final
+// processing release that lease through the shared stream lifecycle owner.
+func (session *Session) OpenStream(ctx context.Context, request StreamRequest) (*capabilityruntime.AudioStreamSession, error) {
+	if session == nil || session.director == nil || session.activity.ID.Valid() {
+		return nil, errors.New("transcription stream: standalone recognizer session required")
+	}
+	return capabilityruntime.OpenAudioStream(ctx, session.repository, func(ctx context.Context) (capabilityruntime.AudioStreamLease, error) {
+		lease, err := session.Lease(ctx)
+		if err != nil {
+			return capabilityruntime.AudioStreamLease{}, err
+		}
+		component := lease.components[0].Model()
+		if component.transcriber == nil || component.transcriber.stream == nil {
+			return capabilityruntime.AudioStreamLease{}, errors.Join(errors.New("transcription stream: recipe has no native recurrent stream"), lease.Release())
+		}
+		return capabilityruntime.AudioStreamLease{
+			Processor: func(ctx context.Context, _ int, work workflowruntime.AudioStreamWork) (workflowruntime.AudioStreamResult, error) {
+				lease.mu.Lock()
+				defer lease.mu.Unlock()
+				if lease.released {
+					return workflowruntime.AudioStreamResult{}, errors.New("transcription stream: lease released")
+				}
+				return component.transcriber.processStream(ctx, work, &component.stream)
+			}, Release: lease.Release,
+		}, nil
+	}, request.Source, request.Resume)
 }
 
 // Transcribe decodes one source once, traverses its declared activity spans and

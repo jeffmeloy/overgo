@@ -136,6 +136,16 @@ func TestVADOfflineAcceptance(t *testing.T) {
 	}
 }
 
+func residentAudioAdmission(director *capabilityruntime.ModelSessionDirector[struct{}, capabilityruntime.AudioStreamProcessor, struct{}]) func(context.Context) (capabilityruntime.AudioStreamLease, error) {
+	return func(ctx context.Context) (capabilityruntime.AudioStreamLease, error) {
+		lease, err := director.Lease(ctx, -1)
+		if err != nil {
+			return capabilityruntime.AudioStreamLease{}, err
+		}
+		return capabilityruntime.AudioStreamLease{Processor: lease.Model(), Slot: lease.ID, Release: lease.Release}, nil
+	}
+}
+
 func TestVADStreamingAcceptance(t *testing.T) {
 	t.Run("recovery-and-discontinuity", TestVADStreamRecovery)
 	t.Run("waveform-and-cache-reference", TestVADWaveformStreamParity)
@@ -162,7 +172,7 @@ func TestVADStreamingAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			session, err := capabilityruntime.OpenAudioStream(t.Context(), l.store, director, source, artifact.ID{})
+			session, err := capabilityruntime.OpenAudioStream(t.Context(), l.store, residentAudioAdmission(director), source, artifact.ID{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -180,7 +190,7 @@ func TestVADStreamingAcceptance(t *testing.T) {
 				t.Fatal("residency leaked at checkpoint close")
 			}
 			workspace = speechactivity.DetectionWorkspace{}
-			session, err = capabilityruntime.OpenAudioStream(t.Context(), l.store, director, source, batch.Contents[0].Descriptor.ID)
+			session, err = capabilityruntime.OpenAudioStream(t.Context(), l.store, residentAudioAdmission(director), source, batch.Contents[0].Descriptor.ID)
 			if err != nil {
 				t.Fatal(err)
 			}

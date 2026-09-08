@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/audiodsp"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratch"
@@ -32,28 +33,47 @@ type segmentedTranscription struct {
 func (transcriber *transcriptionModel) decodeText(ctx context.Context, samples []float32, rate int, workspace *transcriptionWorkspace) (string, []runrecord.PhaseMetric, string, error) {
 	phases := completedTranscriptionPhases(0, 0, 0, 0)
 	prepareStart := time.Now()
-	features, frames, _, err := transcriber.frontend.ProcessGrouped(ctx, samples, rate, &workspace.Frontend, transcriber.profile.Grouping)
+	var features []float32
+	var frames int
+	var err error
+	if transcriber.transducer == nil {
+		features, frames, _, err = transcriber.frontend.ProcessGrouped(ctx, samples, rate, &workspace.Frontend, transcriber.profile.Grouping)
+	} else {
+		features, frames, err = transcriber.frontend.Process(ctx, [][]float32{samples}, rate, &workspace.Frontend, audiodsp.ProcessOptions{})
+	}
 	phases[1].DurationNS = elapsedNanoseconds(prepareStart)
 	if err != nil {
 		return "", phases, "transcription-prepare-failed", err
 	}
 	prefillStart := time.Now()
-	hidden, outputFrames, err := transcriber.encoder.Encode(ctx, features, frames, &workspace.Encoder, nil)
 	var logits []float32
-	if err == nil {
-		logits, err = transcriber.encoder.Project(ctx, hidden, outputFrames, &workspace.Encoder)
+	var outputFrames int
+	var result TransducerResult
+	if transcriber.transducer == nil {
+		var hidden []float32
+		hidden, outputFrames, err = transcriber.encoder.Encode(ctx, features, frames, &workspace.Encoder, nil)
+		if err == nil {
+			logits, err = transcriber.encoder.Project(ctx, hidden, outputFrames, &workspace.Encoder)
+		}
+	} else {
+		result, err = transcriber.transducer.Recognize(ctx, features, frames, &workspace.Transducer, nil)
 	}
 	phases[2].DurationNS = elapsedNanoseconds(prefillStart)
 	if err != nil {
 		return "", phases, "transcription-inference-failed", err
 	}
 	postStart := time.Now()
-	workspace.frameIDs = scratch.Resize(workspace.frameIDs, outputFrames)
-	workspace.tokens = scratch.Resize(workspace.tokens, outputFrames)
-	tokens, err := GreedyCTC(ctx, workspace.frameIDs, workspace.tokens, logits, outputFrames, transcriber.encoder.VocabularySize(), transcriber.profile.BlankToken)
 	var text string
-	if err == nil {
-		text, err = transcriber.tokenizer.DecodeStrict(tokens)
+	if transcriber.transducer == nil {
+		workspace.frameIDs = scratch.Resize(workspace.frameIDs, outputFrames)
+		workspace.tokens = scratch.Resize(workspace.tokens, outputFrames)
+		var tokens []int
+		tokens, err = GreedyCTC(ctx, workspace.frameIDs, workspace.tokens, logits, outputFrames, transcriber.encoder.VocabularySize(), transcriber.profile.BlankToken)
+		if err == nil {
+			text, err = transcriber.tokenizer.DecodeStrict(tokens)
+		}
+	} else {
+		text, err = transcriber.tokenizer.DecodeText(result.Tokens)
 	}
 	phases[3].DurationNS = elapsedNanoseconds(postStart)
 	return text, phases, "transcription-postprocess-failed", err

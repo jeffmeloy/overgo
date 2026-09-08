@@ -239,12 +239,27 @@ func (t *Tokenizer) DecodeText(ids []int) (string, error) {
 }
 
 func (t *Tokenizer) decode(ids []int, strict, skipSpecial bool) (string, error) {
+	bytes, err := t.decodeBytes(ids, strict, skipSpecial)
+	if err != nil {
+		return "", err
+	}
+	if strict && !utf8.Valid(bytes) {
+		return "", fmt.Errorf("decoded token sequence is not UTF-8")
+	}
+	text := string(bytes)
+	if t.stripDecodePrefix {
+		text = strings.TrimPrefix(text, " ")
+	}
+	return text, nil
+}
+
+func (t *Tokenizer) decodeBytes(ids []int, strict, skipSpecial bool) ([]byte, error) {
 	var bytes []byte
 	for _, id := range ids {
 		tok, ok := t.id2tok[id]
 		if !ok {
 			if strict {
-				return "", fmt.Errorf("token id %d not in vocab", id)
+				return nil, fmt.Errorf("token id %d not in vocab", id)
 			}
 			continue
 		}
@@ -275,14 +290,7 @@ func (t *Tokenizer) decode(ids []int, strict, skipSpecial bool) (string, error) 
 			}
 		}
 	}
-	if strict && !utf8.Valid(bytes) {
-		return "", fmt.Errorf("decoded token sequence is not UTF-8")
-	}
-	text := string(bytes)
-	if t.stripDecodePrefix {
-		text = strings.TrimPrefix(text, " ")
-	}
-	return text, nil
+	return bytes, nil
 }
 
 func parseByteFallbackToken(tok string) (byte, bool) {

@@ -76,5 +76,8 @@ func (lease *TranscriptionLease) trainingComponent() (*transcriptionComponent, e
 	if component == nil || component.transcriber == nil {
 		return nil, errors.New("transcription training: recognizer absent")
 	}
+	if component.transcriber.transducer != nil {
+		return nil, errors.New("transcription training: CTC adapter does not support recurrent decoding")
+	}
 	return component, nil
 }

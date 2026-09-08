@@ -216,7 +216,6 @@ func (f *transducerFixture) inputs(t *testing.T, capture transducerCapture) ([]f
 	}
 	// The pinned processor zeros the centered STFT's final invalid frame.
 	valid := len(pcm) / int(f.declaration.Frontend.Geometry.HopSamples)
-	clear(features[valid*f.declaration.Transducer.Bands:])
 	mask, ok := oracle.Tensors["mask"]
 	if !ok || mask.DType != "BOOL" || !slices.Equal(mask.Shape, []uint64{uint64(frames)}) {
 		t.Fatal("invalid frontend mask trace")
@@ -231,6 +230,27 @@ func (f *transducerFixture) inputs(t *testing.T, capture transducerCapture) ([]f
 		}
 	}
 	assertASRBoundary(t, "transducer frontend", features, captureF32(t, oracle, "features", frames, f.declaration.Transducer.Bands), f.declaration.Frontend.FFTLength)
+	stream, err := audiodsp.NewStreamFrontend(f.declaration.Frontend, 4<<30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state audiodsp.StreamState
+	var streamed []float32
+	// Non-hop-aligned chunks exercise waveform continuity independently of the
+	// model's mel-chunk schedule. Restart every boundary with no hidden scratch.
+	chunkSamples := capture.SampleRate + 1
+	for start := 0; start < len(pcm); start += chunkSamples {
+		end := min(start+chunkSamples, len(pcm))
+		var live audiodsp.StreamWorkspace
+		chunk, _, next, err := stream.Process(t.Context(), pcm[start:end], capture.SampleRate, state, end == len(pcm), &live)
+		if err != nil {
+			t.Fatal(err)
+		}
+		streamed, state = append(streamed, chunk...), next
+	}
+	if !slices.Equal(streamed, features) || state.Frames != uint64(frames) {
+		t.Fatal("waveform streaming differs from native-bound offline features")
+	}
 	return features, frames, oracle
 }
 

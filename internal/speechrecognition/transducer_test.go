@@ -2,13 +2,16 @@ package speechrecognition
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math"
 	"path/filepath"
 	"slices"
 	"testing"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/safetensors"
+	"overgo/internal/strictjson"
 )
 
 // tinyTransducer is a shape/lifecycle fixture, not a numerical model oracle.
@@ -48,6 +51,104 @@ func tinyTransducer(t *testing.T) (*safetensors.Source, Declaration, TransducerB
 		t.Fatal(err)
 	}
 	return source, d, b, model
+}
+
+func TestTransducerCheckpointRestart(t *testing.T) {
+	_, _, _, model := tinyTransducer(t)
+	// Exercise nonzero prediction state, including reuse after a blank. This is
+	// a restart-equivalence assertion, not a replacement for native model parity.
+	for i := range model.embedding {
+		model.embedding[i] = float32(i+1) / float32(len(model.embedding))
+	}
+	for i := range model.recurrent[0].input.weight {
+		model.recurrent[0].input.weight[i] = .5
+	}
+	x := []float32{1, -1, 2, -2}
+	var reference TransducerWorkspace
+	if _, err := model.RecognizeChunk(t.Context(), x, 2, false, &reference, nil); err != nil {
+		t.Fatal(err)
+	}
+	counts, _, err := model.checkpointLayout()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for boundary := range 8 {
+		checkpoint, err := model.checkpoint(&reference)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(checkpoint.Values) != len(counts) {
+			t.Fatal("checkpoint retained an undeclared buffer")
+		}
+		for i, data := range checkpoint.Values {
+			if len(data) != counts[i]*binaryschema.Uint32Bytes {
+				t.Fatal("checkpoint retention changed across cache rollover")
+			}
+		}
+		data, err := json.Marshal(checkpoint)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var persisted transducerCheckpoint
+		if err := strictjson.DecodeBytes(data, &persisted); err != nil {
+			t.Fatal(err)
+		}
+		var restart TransducerWorkspace
+		if err := model.restore(persisted, &restart); err != nil {
+			t.Fatal(err)
+		}
+		if boundary != 0 {
+			model.joint.bias[model.binding.Blank] = 2
+		}
+		want, err := model.RecognizeChunk(t.Context(), x, 2, false, &reference, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := model.RecognizeChunk(t.Context(), x, 2, false, &restart, nil)
+		if err != nil || !slices.Equal(got.Tokens, want.Tokens) || !slices.Equal(got.Durations, want.Durations) {
+			t.Fatalf("boundary %d: restored emissions differ: %v", boundary, err)
+		}
+		wantState, err := model.checkpoint(&reference)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gotState, err := model.checkpoint(&restart)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantJSON, err := json.Marshal(wantState)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gotJSON, err := json.Marshal(gotState)
+		if err != nil || !slices.Equal(wantJSON, gotJSON) {
+			t.Fatalf("boundary %d: numerical restart state differs: %v", boundary, err)
+		}
+	}
+	checkpoint, err := model.checkpoint(&reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, change := range []func(*transducerCheckpoint){
+		func(c *transducerCheckpoint) { c.Final = true },
+		func(c *transducerCheckpoint) { c.Frames++ },
+		func(c *transducerCheckpoint) { c.Steps = c.Frames - 1 },
+		func(c *transducerCheckpoint) { c.Steps = math.MaxInt },
+		func(c *transducerCheckpoint) { c.LastToken = model.vocabulary },
+		func(c *transducerCheckpoint) { c.Values = c.Values[:len(c.Values)-1] },
+		func(c *transducerCheckpoint) { c.Values[0] = c.Values[0][:1] },
+		func(c *transducerCheckpoint) {
+			c.Values[0] = binaryschema.LittleEndian.Float32s([]float32{float32(math.NaN()), 0})
+		},
+	} {
+		bad := checkpoint
+		bad.Values = slices.Clone(checkpoint.Values)
+		change(&bad)
+		var untouched TransducerWorkspace
+		if err := model.restore(bad, &untouched); err == nil || untouched.owner != nil || untouched.stream != nil {
+			t.Fatal("invalid restart accepted or mutated destination")
+		}
+	}
 }
 
 func TestTransducerStateIsolationAndForcedAdvance(t *testing.T) {

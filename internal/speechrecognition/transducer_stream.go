@@ -15,7 +15,7 @@ type transducerStream struct {
 	failed, final bool
 }
 
-func (t *Transducer) streamGeometry() (first, following int, bytes uint64, err error) {
+func (t *Transducer) streamGeometry(visit func(int)) (first, following int, bytes uint64, err error) {
 	factor, bands, channels := 1, t.binding.Bands, 1
 	var elements uint64
 	for _, layer := range t.subsampling {
@@ -32,6 +32,9 @@ func (t *Transducer) streamGeometry() (first, following int, bytes uint64, err e
 		count, ok := checked.MulInt(k-stride, plane)
 		if !ok {
 			return 0, 0, 0, errors.New("transducer stream: cache extent overflows")
+		}
+		if visit != nil {
+			visit(count)
 		}
 		elements, ok = checked.Add64(elements, uint64(count))
 		if !ok {
@@ -65,6 +68,11 @@ func (t *Transducer) streamGeometry() (first, following int, bytes uint64, err e
 		convolution, ok := checked.MulInt(c.kernelSize-1, c.channels)
 		if !ok {
 			return 0, 0, 0, errors.New("transducer stream: convolution cache overflows")
+		}
+		if visit != nil {
+			visit(attention / 2) // Key and value have the same declared width.
+			visit(attention / 2)
+			visit(convolution)
 		}
 		elements, ok = checked.Add64(elements, uint64(attention), uint64(convolution))
 		if !ok {
@@ -100,7 +108,7 @@ func (t *Transducer) RecognizeChunk(ctx context.Context, features []float32, fra
 	if err := ctx.Err(); err != nil {
 		return TransducerResult{}, err
 	}
-	first, following, cacheBytes, err := t.streamGeometry()
+	first, following, cacheBytes, err := t.streamGeometry(nil)
 	if err != nil {
 		return TransducerResult{}, err
 	}

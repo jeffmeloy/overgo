@@ -30,11 +30,14 @@ type FrontendConfig struct {
 	Condition    *FrameCondition                   `json:"condition,omitzero"`
 	// WaveformPreemphasis applies x[t]-a*x[t-1] before padding and framing;
 	// x[0] is unchanged. It is distinct from frame-local conditioning.
-	WaveformPreemphasis *float64         `json:"waveform_preemphasis,omitzero"`
-	Mel                 MelConfig        `json:"mel"`
-	Log                 LogConfig        `json:"log"`
-	Normalize           *NormalizeConfig `json:"normalize,omitzero"`
-	ResampleTaps        []float64        `json:"resample_taps,omitempty"`
+	WaveformPreemphasis *float64 `json:"waveform_preemphasis,omitzero"`
+	// MaskIncompleteHop zeros transformed frames whose absolute frame index is
+	// at least floor(sample count / hop), including centered final padding.
+	MaskIncompleteHop bool             `json:"mask_incomplete_hop,omitzero"`
+	Mel               MelConfig        `json:"mel"`
+	Log               LogConfig        `json:"log"`
+	Normalize         *NormalizeConfig `json:"normalize,omitzero"`
+	ResampleTaps      []float64        `json:"resample_taps,omitempty"`
 }
 
 // Clone returns an independently owned declaration, including optional values
@@ -344,6 +347,10 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 	if options.FrameLimit != 0 {
 		frames = options.FrameLimit
 	}
+	return p.processFrames(ctx, source, frames, source.count/p.hop, w, options)
+}
+
+func (p *Frontend) processFrames(ctx context.Context, source chunkSource, frames, validFrames int, w *Workspace, options ProcessOptions) ([]float32, int, error) {
 	count, ok := checked.MulInt(frames, p.bands)
 	if !ok {
 		return nil, 0, errors.New("audio frontend: feature extent overflows")
@@ -401,6 +408,9 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 	}
 	if err := p.transform(ctx, w.features, frames); err != nil {
 		return nil, 0, err
+	}
+	if p.config.MaskIncompleteHop {
+		clear(w.features[min(frames, max(0, validFrames))*p.bands:])
 	}
 	return w.features, frames, nil
 }

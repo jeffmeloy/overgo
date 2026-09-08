@@ -24,7 +24,7 @@ func vadBoundaryCases(t *testing.T) []vadBoundaryCase {
 		Source string            `json:"source_commit"`
 		Cases  []vadBoundaryCase `json:"cases"`
 	}
-	readVADJSON(t, "testdata/vad_boundaries.json", &reference)
+	readAudioFixtureJSON(t, "testdata/vad_boundaries.json", &reference)
 	if reference.Source != "c30ec49e8cc69642b0ee65362eba11b9d11c6e54" || len(reference.Cases) != 22 {
 		t.Fatal("boundary source or denominator differs")
 	}

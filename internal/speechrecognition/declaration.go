@@ -43,16 +43,17 @@ type ProjectedRelativeBinding struct {
 // ConvolutionBinding declares GLU, centered depthwise convolution, frozen batch
 // normalization and output projection. Stride also selects residual mean pooling.
 type ConvolutionBinding struct {
-	Norm      AffineBinding `json:"norm"`
-	In        AffineBinding `json:"in"`
-	Kernel    string        `json:"kernel"`
-	BatchNorm AffineBinding `json:"batch_norm"`
-	Mean      string        `json:"mean"`
-	Variance  string        `json:"variance"`
-	Out       AffineBinding `json:"out"`
-	Stride    int           `json:"stride"`
-	Causal    bool          `json:"causal,omitzero"`
-	LayerNorm AffineBinding `json:"layer_norm,omitzero"`
+	Norm       AffineBinding `json:"norm"`
+	In         AffineBinding `json:"in"`
+	Kernel     string        `json:"kernel"`
+	KernelBias string        `json:"kernel_bias,omitzero"`
+	BatchNorm  AffineBinding `json:"batch_norm"`
+	Mean       string        `json:"mean"`
+	Variance   string        `json:"variance"`
+	Out        AffineBinding `json:"out"`
+	Stride     int           `json:"stride"`
+	Causal     bool          `json:"causal,omitzero"`
+	LayerNorm  AffineBinding `json:"layer_norm,omitzero"`
 }
 
 // BlockBinding declares a macaron feed-forward/attention/convolution block.
@@ -77,4 +78,6 @@ type Declaration struct {
 	FeedForwardScale float32        `json:"feed_forward_scale"`
 	LayerNormEpsilon float64        `json:"layer_norm_epsilon"`
 	BatchNormEpsilon float64        `json:"batch_norm_epsilon"`
+	// ScaleInputByWidth multiplies projected inputs by sqrt(hidden width).
+	ScaleInputByWidth bool `json:"scale_input_by_width,omitzero"`
 }

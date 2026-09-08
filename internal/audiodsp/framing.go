@@ -145,7 +145,12 @@ func (p *Frontend) spectrum(source *chunkSource, frame int, w *Workspace) {
 		if coefficient := p.config.WaveformPreemphasis; coefficient != nil && position > 0 && position < source.count {
 			// Match waveform arithmetic before zero/reflect padding. A padding
 			// zero must not acquire the previous signal sample's contribution.
-			value -= *coefficient * source.at(position-1)
+			previous := source.at(position - 1)
+			if p.config.PreemphasisFloat32 {
+				value = float64(float32(value) - float32(float32(*coefficient)*float32(previous)))
+			} else {
+				value -= *coefficient * previous
+			}
 		}
 		w.window[index] = value
 	}

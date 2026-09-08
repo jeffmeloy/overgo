@@ -42,7 +42,7 @@ func publishVADLifecycle(t *testing.T, reference *overgodb.Store, model vadNumer
 	l.commit(t, batch, err)
 	l.commit(t, artifact.Batch{Key: "vad/license", Contents: []artifact.Content{license}, Lineage: artifact.DependencyLineage(inventory.Manifest.ID, license.Descriptor.ID)}, nil)
 	var frontend audiodsp.FrontendConfig
-	readVADJSON(t, "recipes/vad_frontend.json", &frontend)
+	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &frontend)
 	profile := speechactivity.Profile{Model: inventory.Manifest.ID, Inventory: inventory.TensorInventory.ID, License: license.Descriptor.ID, Frontend: frontend, Network: declaration}
 	// Use the pinned policy fixture, including its explicit non-default gap and
 	// extension settings. Policy data is not duplicated as executable defaults.

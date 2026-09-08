@@ -14,7 +14,7 @@ import (
 // is the resulting maximum CTC output length. The caller must keep this lease
 // alive and use the adapter synchronously with PrepareCTC until releasing it.
 // Only a standalone, unadapted base recipe is an admissible training source.
-func (lease *TranscriptionLease) NewOutputAdapter(ctx context.Context, maximumSamples uint64, policy trainingprogram.OptimizerPolicy) (*adaptertrain.LinearCTC, error) {
+func (lease *SpeechLease) NewOutputAdapter(ctx context.Context, maximumSamples uint64, policy trainingprogram.OptimizerPolicy) (*adaptertrain.LinearCTC, error) {
 	if lease == nil || ctx == nil {
 		return nil, errors.New("transcription training: incomplete adapter request")
 	}
@@ -36,7 +36,7 @@ func (lease *TranscriptionLease) NewOutputAdapter(ctx context.Context, maximumSa
 // then encodes the explicitly transformed training target. Hidden features borrow
 // the lease workspace until its next invocation; target text never enters the
 // encoder. The caller owns signal admission and the unmodified source record.
-func (lease *TranscriptionLease) PrepareCTC(ctx context.Context, samples []float32, rate int, target string) (adaptertrain.LinearCTCExample, error) {
+func (lease *SpeechLease) PrepareCTC(ctx context.Context, samples []float32, rate int, target string) (adaptertrain.LinearCTCExample, error) {
 	if lease == nil || ctx == nil {
 		return adaptertrain.LinearCTCExample{}, errors.New("transcription training: incomplete example")
 	}
@@ -65,7 +65,7 @@ func (lease *TranscriptionLease) PrepareCTC(ctx context.Context, samples []float
 	return adaptertrain.LinearCTCExample{Hidden: hidden, Frames: frames, Targets: targets}, nil
 }
 
-func (lease *TranscriptionLease) trainingComponent() (*transcriptionComponent, error) {
+func (lease *SpeechLease) trainingComponent() (*transcriptionComponent, error) {
 	if lease.released || len(lease.components) != 1 || lease.definition.Task != recipe.TaskTranscription {
 		return nil, errors.New("transcription training: released or composite lease")
 	}

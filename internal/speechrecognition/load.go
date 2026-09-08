@@ -35,6 +35,7 @@ type convolution struct {
 	norm                                norm
 	in, out                             linear
 	kernel, scale, bias, mean, variance []float32
+	kernelBias                          []float32
 	channels, kernelSize, stride        int
 	causal                              bool
 	layerNorm                           norm
@@ -49,6 +50,7 @@ type block struct {
 // Encoder owns immutable promoted weights and validated tensor-derived geometry.
 // A Workspace is required per concurrent call. No source handles are retained.
 type Encoder struct {
+	scaleInputByWidth        bool
 	input, output, feedback  linear
 	blocks                   []block
 	feedbackAfter            int
@@ -188,7 +190,7 @@ func LoadEncoder(ctx context.Context, source *safetensors.Source, d Declaration,
 		return nil, errors.New("encoder: feedback weights without a feedback boundary")
 	}
 	l := loader{source: source, values: make(map[string][]float32), budget: memoryBytes}
-	e := &Encoder{memoryBytes: memoryBytes, feedbackAfter: d.FeedbackAfter, activation: d.Activation, ffScale: d.FeedForwardScale, lnEpsilon: d.LayerNormEpsilon, bnEpsilon: d.BatchNormEpsilon}
+	e := &Encoder{memoryBytes: memoryBytes, feedbackAfter: d.FeedbackAfter, activation: d.Activation, ffScale: d.FeedForwardScale, lnEpsilon: d.LayerNormEpsilon, bnEpsilon: d.BatchNormEpsilon, scaleInputByWidth: d.ScaleInputByWidth}
 	var err error
 	if e.input, err = l.linear(ctx, d.Input, 0); err != nil {
 		return nil, err
@@ -247,8 +249,8 @@ func (l *loader) block(ctx context.Context, b BlockBinding, h int) (block, error
 	if a.out, err = l.linear(ctx, b.Attention.Out, a.query.out); err != nil {
 		return x, err
 	}
-	if a.query.out%b.Attention.Heads != 0 || a.key.out != a.query.out || a.value.out != a.query.out || a.out.out != h || len(a.query.bias) != 0 || len(a.key.bias) != 0 || len(a.value.bias) != 0 {
-		return x, errors.New("attention requires equal-width bias-free query/key/value projections")
+	if a.query.out%b.Attention.Heads != 0 || a.key.out != a.query.out || a.value.out != a.query.out || a.out.out != h {
+		return x, errors.New("attention requires equal-width query/key/value projections")
 	}
 	a.heads, a.width, a.block = b.Attention.Heads, a.query.out/b.Attention.Heads, b.Attention.BlockFrames
 	if err = l.relativeAttention(ctx, a, b.Attention); err != nil {
@@ -292,6 +294,11 @@ func (l *loader) block(ctx context.Context, b BlockBinding, h int) (block, error
 	c.kernelSize = d[2]
 	if c.kernel, err = l.tensor(ctx, b.Convolution.Kernel, d...); err != nil {
 		return x, err
+	}
+	if b.Convolution.KernelBias != "" {
+		if c.kernelBias, err = l.tensor(ctx, b.Convolution.KernelBias, c.channels); err != nil {
+			return x, err
+		}
 	}
 	if b.Convolution.LayerNorm.Weight != "" {
 		if b.Convolution.BatchNorm.Weight != "" || b.Convolution.BatchNorm.Bias != "" || b.Convolution.Mean != "" || b.Convolution.Variance != "" {

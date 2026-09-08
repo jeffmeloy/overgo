@@ -70,6 +70,29 @@ func (l *loader) spatialConvolution(ctx context.Context, binding SpatialConvolut
 	return result, nil
 }
 
+func (l *loader) subsampling(ctx context.Context, bindings []SpatialConvolutionBinding, bands, width int) ([]spatialConvolution, error) {
+	channels := 1
+	var layers []spatialConvolution
+	for _, stage := range bindings {
+		layer, err := l.spatialConvolution(ctx, stage, channels)
+		if err != nil {
+			return nil, err
+		}
+		channels = int(layer.weight.Shape.Dims[3])
+		padded, ok := checked.AddInt(bands, int(stage.Padding[0]), int(stage.Padding[1]))
+		if !ok || padded < int(layer.weight.Shape.Dims[0]) {
+			return nil, errors.New("spatial subsampling: frequency extent is invalid")
+		}
+		bands = (padded-int(layer.weight.Shape.Dims[0]))/int(stage.Stride[0]) + 1
+		layers = append(layers, layer)
+	}
+	flattened, ok := checked.MulInt(bands, channels)
+	if !ok || flattened != width {
+		return nil, errors.New("spatial subsampling: projection width differs")
+	}
+	return layers, nil
+}
+
 func (c spatialConvolution) node(shape tensor.Shape) (*tensor.Tensor, error) {
 	b := tensor.NewBuilder()
 	input := b.Input("input", dtype.F32, shape)

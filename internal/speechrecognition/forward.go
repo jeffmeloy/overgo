@@ -192,6 +192,12 @@ func (e *Encoder) encode(ctx context.Context, features []float32, frames int, w 
 	h := e.input.out
 	x := w.x[:frames*h]
 	e.input.forward(x, features, frames)
+	if e.scaleInputByWidth {
+		scale := float32(math.Sqrt(float64(h)))
+		for i := range x {
+			x[i] *= scale
+		}
+	}
 	if err := emitTrace(ctx, observe, -1, frames, h, x); err != nil {
 		return nil, 0, err
 	}
@@ -357,6 +363,9 @@ func (c convolution) forward(ctx context.Context, x []float32, rows int, epsilon
 				if position >= 0 && position < limit {
 					sum += w.expanded[position*c.channels+ch] * c.kernel[ch*c.kernelSize+k]
 				}
+			}
+			if len(c.kernelBias) != 0 {
+				sum += c.kernelBias[ch]
 			}
 			if len(c.layerNorm.weight) != 0 {
 				w.conv[row*c.channels+ch] = sum

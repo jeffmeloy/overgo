@@ -1,71 +1,66 @@
-# CPU recognition and alignment contracts
+# CPU speech contracts
 
-`internal/speechrecognition` shares CTC/recurrent acoustic blocks. Recipes own
-geometry, bindings and emission limits; no model-name dispatch. Numeric budgets
-cover weights/execution state, not RSS.
+`internal/speechrecognition` shares acoustic blocks and `SpeechLease` across
+recognition, alignment and diarization. Recipes declare tensor roles and geometry;
+no model-family dispatch. Numeric arena limits are not whole-process RSS limits.
 
-Reference: Transformers 5.16.1, Apache-2.0, copyright 2026 The HuggingFace Inc.
-team. `transducer_captures.json` binds source/library/model/corpus hashes;
-`registered_models.json` owns revisions and weight licenses. Python is not a
-product dependency.
+`compatibility.json` owns acceptance scope. `transducer_captures.json` binds
+Transformers 5.16.1 reference identities; `registered_models.json` owns model
+revisions and licenses. Python is not a product dependency.
 
-Finite CPU SDPA captures alone earn parity credit. `compatibility.json` owns
-acceptance commands and claim boundaries.
+## Streaming recognition
 
-Streaming retains raw overlap, applies boundary padding once and masks incomplete
-hops after transforms. Declared mel geometry feeds the decoder without prefix
-replay. Offline and streaming goldens remain separate.
+Raw overlap, one-time padding and post-transform incomplete-hop masking feed
+incremental decoding without prefix replay. Offline and streaming have separate
+goldens. Source/recipe-bound checkpoints preserve lossless binary32 state,
+progress and incomplete UTF-8. Invalid/final states cannot resume; frame advances
+are not word timestamps.
 
-Recipe/source-bound checkpoints retain bounded features, acoustic/recurrent state,
-progress and one incomplete UTF-8 rune; binary32 arrays are lossless. Invalid or
-final states cannot resume. Frame advances are not word timestamps.
+Authenticated `/v1/audio/transcriptions` accepts `application/x-ndjson`, an
+extension distinct from OpenAI multipart; multipart `stream=true` is unsupported.
+The opening line binds `model`, `source` (audio/profile IDs) and optional `resume`.
+`AudioStreamChunk` lines provide sequence, span, audio, discontinuity and final.
+Artifact chunks require inspection; empty final flushes have cursor-local empty
+spans. SSE created/token/done/error events carry suffixes, advances and artifact
+IDs. Publication precedes further input. Resume restores checkpoint/sequence;
+discontinuity resets numerics, not coordinates. Disconnect releases the lease;
+incomplete calls cannot establish a resumable boundary.
 
-## Forced word alignment
+## Analysis evaluation
 
-`cmd/evaluate -alignment-manifest <json> -repo <store>` declares `base_recipe`,
-`profile`, `memory_bytes`, `inspection`, and `inputs`. Each input binds an
-`AudioPayloadReference`, an alignment `request` (transcription/half-open span),
-and a `reference` alignment artifact. Audio stays in place. The report retains
-every attempt; any failure exits nonzero. No activation is performed.
+`cmd/evaluate -alignment-manifest <json> -repo <store>` accepts base_recipe,
+profile, memory_bytes, inspection and inputs. Inputs bind AudioPayloadReference,
+a transcription/span request and reference alignment. Standalone CTC uses pooled
+hop cells, whitespace-token spans and excluded blanks. Confidence is geometric
+mean target probability, not correctness. Unsupported token mappings,
+adapted/recurrent recipes and source mismatches refuse. `ctc_alignment.json`
+pins the Apache-2.0 audio.cpp recurrence; `ami_alignment.json` owns corpus selection.
 
-`AlignmentDefinition`/`TranscriptionLease.Align` reuse standalone CTC. The profile
-declares pooled hop cells, whitespace-token spans and excluded blanks. Confidence
-is mean target-frame probability geometrically, not correctness. Unsupported
-token mappings, adapted/recurrent recipes and mismatched sources refuse.
+`-diarization-manifest` accepts recipe or bound profile, memory_bytes, inspection and inputs
+(audio, reference, span; optional alignment/activity IDs). Declared acoustic and
+post-normalized attention operations produce recording-local speaker turns.
+Float32 pre-emphasis/statistics are explicit; DFT/filterbank accumulation remains
+float64. Integer-grid boundaries clip to actual audio.
 
-The Apache-2.0 recurrence pins audio.cpp
-`3497b7cc44753e2c141d8fe60ac42cec433e3281` and exact ties.
-`ctc_alignment.json` owns oracle cases; `ami_alignment.json` owns corpus selection.
-The [AMI annotation archive](https://groups.inf.ed.ac.uk/ami/download/) is CC-BY-4.0.
-Its forced-alignment-derived timing is not human boundary truth. Every selected
-boundary is scored; precision and exclusions remain explicit.
-`OVERGO_AUDIO_ALIGNMENT_ANNOTATIONS` may locate the exact pinned archive.
-No HTTP alignment, diarization, recurrent training or GPU claim follows.
+Both commands retain every attempt and fail on any failed case, without activation.
+Diarization reports zero-collar overlap-inclusive speaker-time error and directional
+nearest-boundary distances with unmatched counts. Word composition preserves every
+aligned word, timing and confidence; all overlapping labels remain, including
+ambiguity or no attribution. Optional VAD limits contributing samples, not words.
 
-## Native serving and switching
+`speaker_reference.json` pins the C++ capture driver and 156 captures. The
+reference weights are **CC-BY-NC-4.0** and include AMI training. AMI audio/annotations
+are CC-BY-4.0; word timing is forced-alignment-derived and manual segments include
+pauses. Conformance is not held-out quality, commercial readiness, HTTP analysis
+or GPU evidence. `OVERGO_AUDIO_SPEAKER_REFERENCE` locates the fixture;
+`OVERGO_AUDIO_ALIGNMENT_ANNOTATIONS` locates its pinned archive.
 
-`cmd/server` accepts an active transcription model's identity, location or unique
-catalog name without a GGUF inference model. An inference activation retains the
-existing text-serving path. `-transcription-policy`, or `transcription_policy.json`
-beside the store, must supply `memory_bytes` and `inspection`. An omitted `recipe`
-binds the selected model's active recipe; a mismatched pin refuses startup.
+## Serving and switching
 
-The swap proxy owns startup, draining and cancellation; unknown/ambiguous targets
-refuse. Canceled swaps preserve active requests. Fresh children resume published
-checkpoints; modelrecipe retirement and reverified activation own rollback.
-
-## Live transcription protocol
-
-Authenticated `/v1/audio/transcriptions` accepts `Content-Type: application/x-ndjson`;
-this extension differs from OpenAI multipart. Multipart `stream=true` is unsupported.
-
-The opening line supplies `model`, `source` (`audio`/stream-policy `profile` IDs)
-and optional `resume` checkpoint. Following `AudioStreamChunk` lines supply
-`sequence`, `span`, `audio`, optional `discontinuity`, and `final`. Artifact-backed
-chunks must satisfy the configured inspection policy. Empty final flushes have
-no audio and an empty span at the cursor.
-
-SSE `created`/`token`/`done`/`error` events carry suffixes, advances and artifact IDs.
-Publication precedes the next chunk. Resume uses checkpoint/next sequence;
-discontinuity resets numerical state, not coordinates. Disconnect releases the
-lease; incomplete calls earn no resumable boundary.
+`cmd/server` resolves an active transcription model by identity, location or
+unique catalog name without GGUF. Inference activations retain text serving.
+`-transcription-policy` or store-local `transcription_policy.json` supplies
+memory_bytes and inspection; omitted recipe follows activation, mismatches refuse.
+The swap proxy owns startup, draining and cancellation. Unknown/ambiguous targets
+refuse; canceled swaps preserve requests. Fresh children resume checkpoints;
+recipe retirement and reverified activation own rollback.

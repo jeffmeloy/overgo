@@ -55,6 +55,16 @@ func SpeechComponents(definition recipe.Definition) (base, activity recipe.Defin
 	if err = definition.ValidateIdentity(); err != nil {
 		return base, activity, err
 	}
+	if definition.Task == recipe.TaskDiarization {
+		model, _ := definition.PrimaryDependency(recipe.DependencyModel)
+		profile, _ := definition.PrimaryDependency(recipe.DependencyProcessorProfile)
+		inventory, _ := definition.PrimaryDependency(recipe.DependencyTensorInventory)
+		base, err = DiarizationDefinition(model, profile, inventory)
+		if err != nil || base.ID != definition.ID {
+			return recipe.Definition{}, recipe.Definition{}, errors.Join(errors.New("speaker activity: complete topology differs"), err)
+		}
+		return base, activity, nil
+	}
 	var baseDependencies, activityDependencies []recipe.Dependency
 	for _, dependency := range definition.Dependencies {
 		switch dependency.Slot {

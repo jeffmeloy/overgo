@@ -5,29 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "speech-analysis-expansion",
-      "title": "Deliver native speech segmentation, then expand shared speech analysis",
-      "status": "open",
-      "steps": [
-        {
-          "id": "alignment-diarization",
-          "title": "Elect and verify speaker attribution on annotated speech",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestSpeakerDiarizationAcceptance$' -count=1 -v",
-          "rationale": "Group speaker-attribution; implement speech-analysis-expansion/alignment-diarization together. Elect a pinned, licensed executable speaker oracle and annotated corpus. Compose VAD, aligned transcripts, common embeddings/clustering and the typed speech-turn contract. Verify attribution/boundary error and transcript preservation; no unscored heuristics, family dispatch or second analysis pipeline.",
-          "depends_on": [
-            "speech-analysis-expansion/sync-alignment-diarization",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "speech-alignment",
-            "speaker-diarization",
-            "speech-analysis-evaluation"
-          ]
-        }
-      ]
-    },
-    {
       "id": "benchmark-routing",
       "title": "Measure audio capability and resource fitness through existing evaluation and routing owners",
       "status": "open",

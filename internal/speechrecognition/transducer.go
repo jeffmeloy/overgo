@@ -100,24 +100,9 @@ func LoadTransducer(ctx context.Context, source *safetensors.Source, encoder Dec
 	}
 	l := loader{source: source, values: make(map[string][]float32), budget: memoryBytes - e.weightBytes}
 	t := &Transducer{encoder: e, binding: binding, memoryBytes: memoryBytes}
-	channels := 1
-	bands := binding.Bands
-	for _, stage := range binding.Subsampling {
-		layer, err := l.spatialConvolution(ctx, stage, channels)
-		if err != nil {
-			return nil, err
-		}
-		channels = int(layer.weight.Shape.Dims[3])
-		padded, ok := checked.AddInt(bands, int(stage.Padding[0]), int(stage.Padding[1]))
-		if !ok || padded < int(layer.weight.Shape.Dims[0]) {
-			return nil, errors.New("transducer: subsampling frequency extent is invalid")
-		}
-		bands = (padded-int(layer.weight.Shape.Dims[0]))/int(stage.Stride[0]) + 1
-		t.subsampling = append(t.subsampling, layer)
-	}
-	flattened, ok := checked.MulInt(bands, channels)
-	if !ok || flattened != e.input.in {
-		return nil, errors.New("transducer: subsampling projection width differs")
+	t.subsampling, err = l.subsampling(ctx, binding.Subsampling, binding.Bands, e.input.in)
+	if err != nil {
+		return nil, err
 	}
 	input, ok := checked.AddInt(e.input.out, binding.ConditionSlots)
 	if !ok {

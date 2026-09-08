@@ -31,7 +31,7 @@ type AlignmentRequest struct {
 // Align executes forced alignment through this recipe's existing component
 // lease. It records the conditioning transcript, source interval, inspection,
 // execution recipe and code/environment binding. It is not ASR prediction.
-func (lease *TranscriptionLease) Align(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, request AlignmentRequest, binding RunBinding) (recipecontract.TimestampedAlignment, runrecord.Run, error) {
+func (lease *SpeechLease) Align(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, request AlignmentRequest, binding RunBinding) (recipecontract.TimestampedAlignment, runrecord.Run, error) {
 	if lease == nil || ctx == nil {
 		return recipecontract.TimestampedAlignment{}, runrecord.Run{}, errors.New("alignment: incomplete lease invocation")
 	}
@@ -73,7 +73,7 @@ func (transcriber *transcriptionModel) align(ctx context.Context, data []byte, o
 		if ctx.Err() != nil {
 			return recipecontract.TimestampedAlignment{}, runrecord.Run{}, cause
 		}
-		run, err := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil, code, elapsedNanoseconds(started), phases)
+		run, err := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil, code, elapsedNanoseconds(started), phases)
 		return recipecontract.TimestampedAlignment{}, run, errors.Join(cause, err)
 	}
 	requestContent, err := artifact.JSONContent(alignmentRequestContract, request)

@@ -31,6 +31,9 @@ type FrontendConfig struct {
 	// WaveformPreemphasis applies x[t]-a*x[t-1] before padding and framing;
 	// x[0] is unchanged. It is distinct from frame-local conditioning.
 	WaveformPreemphasis *float64 `json:"waveform_preemphasis,omitzero"`
+	// PreemphasisFloat32 rounds the coefficient, product and subtraction to
+	// float32. The default retains the existing float64 waveform arithmetic.
+	PreemphasisFloat32 bool `json:"preemphasis_float32,omitzero"`
 	// MaskIncompleteHop zeros transformed frames whose absolute frame index is
 	// at least floor(sample count / hop), including centered final padding.
 	MaskIncompleteHop bool             `json:"mask_incomplete_hop,omitzero"`
@@ -108,6 +111,9 @@ type LogConfig struct {
 // Fixed mode computes (x-Mean)*InverseStd per feature and requires zero
 // Correction and Epsilon. Other modes must not declare fixed statistics.
 type NormalizeConfig struct {
+	// Float32 uses sequential float32 statistics and normalization arithmetic.
+	// It does not change DFT or filterbank accumulation and is invalid in fixed mode.
+	Float32    bool      `json:"float32,omitzero"`
 	Mode       string    `json:"mode"`
 	Correction int       `json:"correction"`
 	Epsilon    float64   `json:"epsilon"`
@@ -214,6 +220,9 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 	}
 	if config.WaveformPreemphasis != nil && !checked.UnitInterval64(*config.WaveformPreemphasis) {
 		return nil, errors.New("audio frontend: invalid waveform preemphasis")
+	}
+	if config.PreemphasisFloat32 && config.WaveformPreemphasis == nil {
+		return nil, errors.New("audio frontend: preemphasis precision requires a coefficient")
 	}
 	if len(config.ResampleTaps) != 0 && len(config.ResampleTaps)%2 != 1 {
 		return nil, errors.New("audio frontend: FIR taps must have odd length")

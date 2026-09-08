@@ -38,6 +38,8 @@ type Session struct {
 
 type transcriptionComponent struct {
 	transcriber *transcriptionModel
+	speaker     *speakerModel
+	speakers    ActivityWorkspace
 	detector    *speechactivity.Detector
 	text        transcriptionWorkspace
 	activity    speechactivity.DetectionWorkspace
@@ -121,15 +123,17 @@ func (session *Session) load(ctx context.Context, module recipe.ModuleID) (*tran
 		component.transcriber, err = loadTranscriber(ctx, session.repository, session.base, session.memory)
 	case modelrecipe.ModuleDetectActivity:
 		component.detector, err = speechactivity.LoadDetector(ctx, session.repository, session.activity.ID, session.memory)
+	case modelrecipe.ModuleDiarizeAudio:
+		component.speaker, err = loadSpeaker(ctx, session.repository, session.base, session.memory)
 	default:
 		err = errors.New("transcription session: unknown component")
 	}
 	return component, err
 }
 
-// TranscriptionLease holds one complete recognition or alignment invocation. Its methods
+// SpeechLease holds one complete recognition, alignment or diarization invocation. Its methods
 // serialize workspace use and release; a released lease cannot execute again.
-type TranscriptionLease struct {
+type SpeechLease struct {
 	mu         sync.Mutex
 	definition recipe.Definition
 	components []*capabilityruntime.SessionLease[*transcriptionComponent]
@@ -139,11 +143,11 @@ type TranscriptionLease struct {
 
 // Lease acquires components in compiled order. The serving caller can recheck
 // activation after admission; evaluation need not activate a candidate recipe.
-func (session *Session) Lease(ctx context.Context) (*TranscriptionLease, error) {
+func (session *Session) Lease(ctx context.Context) (*SpeechLease, error) {
 	if session == nil || session.director == nil || ctx == nil {
 		return nil, errors.New("transcription session: incomplete execution")
 	}
-	result := &TranscriptionLease{definition: session.definition}
+	result := &SpeechLease{definition: session.definition}
 	for _, component := range session.resources.Components {
 		lease, leaseErr := session.director.LeaseComponent(ctx, component, func(ctx context.Context) (*transcriptionComponent, error) { return session.load(ctx, component.Module) })
 		if leaseErr != nil {
@@ -186,7 +190,7 @@ func (session *Session) OpenStream(ctx context.Context, request StreamRequest) (
 // Transcribe decodes one source once, traverses its declared activity spans and
 // publishes output under the complete recipe identity. It never copies corpus
 // audio into the store or changes the recipe's boundaries to improve a score.
-func (lease *TranscriptionLease) Transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, binding RunBinding) (result recipecontract.Transcription, run runrecord.Run, err error) {
+func (lease *SpeechLease) Transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, binding RunBinding) (result recipecontract.Transcription, run runrecord.Run, err error) {
 	if lease == nil || ctx == nil {
 		return result, run, errors.New("transcription session: incomplete lease execution")
 	}
@@ -217,7 +221,7 @@ func (lease *TranscriptionLease) Transcribe(ctx context.Context, data []byte, or
 }
 
 // Release returns every component exactly once, in reverse acquisition order.
-func (lease *TranscriptionLease) Release() error {
+func (lease *SpeechLease) Release() error {
 	if lease == nil {
 		return nil
 	}

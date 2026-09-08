@@ -5,28 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "shared-asr-proof",
-      "title": "Prove the substrate with a second ASR architecture and live operations",
-      "status": "open",
-      "steps": [
-        {
-          "id": "live-model-operations",
-          "title": "Verify: Prove bounded concurrent audio service through shared placement and scheduling",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRLiveOperationsAcceptance$' -count=1 -v",
-          "rationale": "Group live-service; retained verification receipt for shared-asr-proof/sync-live-model-operations. Use the shared scheduler and store-derived smoke selection on both real ASR models. Verify concurrent isolation, admission, cancellation, switching during active work, restart and complete release. Retain actual audio identities/failure denominators; text-only smoke is not audio evidence.",
-          "depends_on": [
-            "shared-asr-proof/sync-live-model-operations"
-          ],
-          "capabilities": [
-            "live-audio-model-switching",
-            "multi-request-scheduling",
-            "restart-recovery"
-          ]
-        }
-      ]
-    },
-    {
       "id": "speech-analysis-expansion",
       "title": "Deliver native speech segmentation, then expand shared speech analysis",
       "status": "open",

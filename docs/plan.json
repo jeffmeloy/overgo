@@ -185,21 +185,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "vad",
-          "title": "Verify: Prove bounded streaming VAD, restart and segment-boundary parity",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
-          "rationale": "Group vad; retained verification receipt for speech-analysis-expansion/sync-vad. Use the separately registered streaming checkpoint, not relabeled offline weights. Verify offline/stream semantics, boundaries, discontinuity, finalization, checkpoint/restart and all-zero controls through common operations and OpenAudioStream. Retire only staged declarations with verified production consumers; keep ASR streaming obligations distinct. AMI negative evidence applies only to its exact historical materialization.",
-          "depends_on": [
-            "speech-analysis-expansion/sync-vad"
-          ],
-          "capabilities": [
-            "voice-activity-detection",
-            "stream-segmentation",
-            "fireredvad-parity"
-          ]
-        },
-        {
           "id": "sync-alignment-diarization",
           "title": "Score word alignment from verified frame emissions",
           "status": "open",

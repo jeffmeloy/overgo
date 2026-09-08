@@ -24,6 +24,25 @@ artifact revision, LibriSpeech source identity and numerical payload hashes
 are bound in internal/audioparity/testdata/frontend_boundaries.json. These are
 static-feature comparison fixtures, not full encoder or ASR parity evidence.
 
+internal/speechactivity and internal/hostmath/memory_filter.go re-express the
+finite-memory frame classifier and offline/live boundary policies from
+FireRedVAD c30ec49e8cc69642b0ee65362eba11b9d11c6e54. Copyright 2026 Xiaohongshu;
+authors Kaituo Xu, Wenpeng Li, Kai Huang and Kun Liu. Apache License 2.0;
+terms are included in audio-cpp-Apache-2.0.txt. Changes: operation-declared
+topology, bounded caller-owned state, strict validation, CPU float64 reductions,
+serialized restart and cancellation. Offline valley splitting uses integer
+frame indices; symmetric extension clips to the recording length rather than
+expanding short signals to the convolution kernel's length.
+
+Frame conditioning, powered Hann windows, mel-linear interpolation and fixed
+normalization in internal/audiodsp follow the model-native frontend using
+kaldi-native-fbank v1.15, f68c6b43f739697d7ab02ff6debacee130e1d541 (Apache-2.0).
+The numerical implementation retains Overgo's float64 direct DFT, not the
+reference FFT. VAD fixtures bind reference source commits, model/corpus hashes
+and reference runtime versions. No Python, PyTorch or kaldi-native-fbank runtime
+is shipped or invoked by Go execution. Numerical comparison is not an annotated
+speech-detection quality, throughput or GPU claim.
+
 internal/speechrecognition and grouped/delta processing in internal/audiodsp
 re-express the CPU encoder and processor semantics of Transformers 5.16.1
 Granite Speech 5 (copyright 2026 IBM and The HuggingFace Team, Apache-2.0).

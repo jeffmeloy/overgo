@@ -185,45 +185,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-vad",
-          "title": "Implement offline and streaming VAD together",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
-          "rationale": "Group vad; implement speech-analysis-expansion/sync-vad, speech-analysis-expansion/vad together. Use pinned offline FireRedVAD tensors, frontend normalization and feed-forward memory-filter geometry as declarations over common operations. Reuse merged offline registration and bounded PyTorch namespace-metadata reading. Verify feature/probability parity and no-speech controls; retain unsafe pickle, metadata bound, tensor identity and missing-license refusals. No model-specific executor/archive reader. Pin the local FireRedVAD reference c30ec49e8cc69642b0ee65362eba11b9d11c6e54. Derive finite lookback/lookahead and dilation from checkpoint metadata. Extend the existing frontend only for independently demonstrated missing frame conditioning, window/filterbank and fixed normalization semantics; share linear and depthwise filtering operations rather than introducing another audio engine. Use the model-native Python frontend as authority: the bundled C++ frontend carries different pre-emphasis state, so do not silently treat them as equivalent. The required kaldi-native-fbank v1.15 is available at upstream f68c6b43f739697d7ab02ff6debacee130e1d541 and builds locally on CPU. Pin that core for oracle capture: the installed 1.22.3 wheel differed from the source-built 1.15 core in 11 of 16 qualification cases (including a frame-edge impulse), so version/toolchain equivalence is not established. The pinned core was exactly invariant across tested waveform chunk sizes; this does not prove Go parity, postprocessor boundaries, restart or annotated quality. Temporary evidence is in tmp/vad-cpu-pinned-frontend-probe.json; publish durable source-bound fixtures in this group, not inventory-only acceptance.",
-          "depends_on": [
-            "oracle-intake/artifact-compatibility",
-            "audio-primitives/intermediate-parity",
-            "audio-contracts/stream-session-contract",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "declared-vad-recipe",
-            "offline-segmentation-parity"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/audiodsp",
-              "internal/hostmath",
-              "internal/tensor",
-              "internal/modelrecipe",
-              "internal/modelartifact",
-              "internal/capabilityruntime",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group vad: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-vad",
-                "title": "Bind the segmentation artifact to common frontend and recurrent operations",
-                "verify": "go test ./internal/audioparity -run '^TestVADOfflineAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
           "id": "vad",
           "title": "Verify: Prove bounded streaming VAD, restart and segment-boundary parity",
           "status": "open",

@@ -166,6 +166,18 @@ func TranscriptionDefinition(modelID, contractID, processorID, tokenizerID, tens
 	return transcriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID, artifact.ID{})
 }
 
+// ActivityDefinition binds speech activity execution to its exact model,
+// processor declaration and tensor inventory. The processor owns the declared
+// frontend and offline or causal boundary policy; this topology is shared.
+func ActivityDefinition(modelID, processorID, inventoryID artifact.ID) (recipe.Definition, error) {
+	node := recipe.Node{ID: "activity", Module: ModuleDetectActivity, Placement: recipe.PlacementHost, Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache}
+	return recipe.NewDefinitionWithDependencies(recipe.TaskActivityDetection,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}, {Role: recipe.DependencyProcessorProfile, Artifact: processorID}, {Role: recipe.DependencyTensorInventory, Artifact: inventoryID}},
+		[]recipe.Node{node}, nil,
+		[]recipe.Input{{Name: "audio", Data: recipe.DataAudio, Target: recipe.Endpoint{Node: node.ID, Port: "audio"}}},
+		[]recipe.Output{{Name: "segments", Data: recipe.DataActivitySegments, Source: recipe.Endpoint{Node: node.ID, Port: "segments"}}})
+}
+
 // AdaptedTranscriptionDefinition adds one exact checkpoint to the canonical
 // base transcription topology. It does not activate or promote the recipe.
 func AdaptedTranscriptionDefinition(base recipe.Definition, checkpoint artifact.ID) (recipe.Definition, error) {

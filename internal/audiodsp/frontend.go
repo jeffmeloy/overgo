@@ -26,19 +26,57 @@ type FrontendConfig struct {
 	PadRight     int                               `json:"pad_right"`
 	Padding      string                            `json:"padding"`
 	Window       string                            `json:"window"`
+	WindowPower  *float64                          `json:"window_power,omitzero"`
+	Condition    *FrameCondition                   `json:"condition,omitzero"`
 	Mel          MelConfig                         `json:"mel"`
 	Log          LogConfig                         `json:"log"`
 	Normalize    *NormalizeConfig                  `json:"normalize,omitzero"`
 	ResampleTaps []float64                         `json:"resample_taps,omitempty"`
 }
 
+// Clone returns an independently owned declaration, including optional values
+// and fixed normalization statistics used by immutable execution profiles.
+func (c FrontendConfig) Clone() FrontendConfig {
+	c.ResampleTaps = slices.Clone(c.ResampleTaps)
+	if c.WindowPower != nil {
+		value := *c.WindowPower
+		c.WindowPower = &value
+	}
+	if c.Condition != nil {
+		value := *c.Condition
+		c.Condition = &value
+	}
+	if c.Log.DynamicRange != nil {
+		value := *c.Log.DynamicRange
+		c.Log.DynamicRange = &value
+	}
+	if c.Normalize != nil {
+		value := *c.Normalize
+		value.Mean = slices.Clone(value.Mean)
+		value.InverseStd = slices.Clone(value.InverseStd)
+		c.Normalize = &value
+	}
+	return c
+}
+
+// FrameCondition scales samples, optionally removes their frame mean, and then
+// applies x[t]-Preemphasis*x[t-1]. The first sample uses itself as predecessor;
+// no preemphasis state crosses frame boundaries. Gain must be positive.
+type FrameCondition struct {
+	Gain        float64 `json:"gain"`
+	RemoveMean  bool    `json:"remove_mean"`
+	Preemphasis float64 `json:"preemphasis"`
+}
+
 // MelConfig selects HTK or Slaney frequency mapping and optional area scaling.
 // Frequency bounds must be explicit; FFT-bin frequencies use sampleRate*k/N.
+// LinearInMel makes triangle sides linear in mel rather than in hertz.
 type MelConfig struct {
 	Scale         string  `json:"scale"`
 	MinFrequency  float64 `json:"min_frequency"`
 	MaxFrequency  float64 `json:"max_frequency"`
 	AreaNormalize bool    `json:"area_normalize"`
+	LinearInMel   bool    `json:"linear_in_mel,omitzero"`
 }
 
 // LogConfig selects magnitude or power, a natural or base-ten logarithm, and
@@ -54,13 +92,17 @@ type LogConfig struct {
 	Bias         float64  `json:"bias"`
 }
 
-// NormalizeConfig declares per-feature or all-feature standardization.
+// NormalizeConfig declares per-feature, all-feature or fixed standardization.
 // Correction is the variance degrees-of-freedom subtraction (zero or one).
 // Epsilon is added to the standard deviation, not to variance.
+// Fixed mode computes (x-Mean)*InverseStd per feature and requires zero
+// Correction and Epsilon. Other modes must not declare fixed statistics.
 type NormalizeConfig struct {
-	Mode       string  `json:"mode"`
-	Correction int     `json:"correction"`
-	Epsilon    float64 `json:"epsilon"`
+	Mode       string    `json:"mode"`
+	Correction int       `json:"correction"`
+	Epsilon    float64   `json:"epsilon"`
+	Mean       []float64 `json:"mean,omitempty"`
+	InverseStd []float64 `json:"inverse_std,omitempty"`
 }
 
 // Frontend is immutable after construction and may be shared across callers.
@@ -146,15 +188,19 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 		return nil, errors.New("audio frontend: invalid logarithm declaration")
 	}
 	if norm := config.Normalize; norm != nil {
-		if norm.Mode != "per-feature" && norm.Mode != "all" || norm.Correction < 0 || norm.Correction > 1 || !checked.PositiveFinite64(norm.Epsilon) {
-			return nil, errors.New("audio frontend: invalid normalization declaration")
+		if err := norm.validate(bands); err != nil {
+			return nil, err
 		}
-		copy := *norm
-		config.Normalize = &copy
 	}
-	if log.DynamicRange != nil {
-		value := *log.DynamicRange
-		config.Log.DynamicRange = &value
+	if config.WindowPower != nil {
+		if config.Window == "rectangular" || !checked.PositiveFinite64(*config.WindowPower) {
+			return nil, errors.New("audio frontend: invalid window power")
+		}
+	}
+	if condition := config.Condition; condition != nil {
+		if !checked.PositiveFinite64(condition.Gain) || !checked.UnitInterval64(condition.Preemphasis) {
+			return nil, errors.New("audio frontend: invalid frame conditioning")
+		}
 	}
 	if len(config.ResampleTaps) != 0 && len(config.ResampleTaps)%2 != 1 {
 		return nil, errors.New("audio frontend: FIR taps must have odd length")
@@ -171,10 +217,14 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 	if !ok || !bankOK {
 		return nil, errors.New("audio frontend: table extent overflows")
 	}
-	if err := p.reserve(0, []int{windowSize, basis, basis, bank, p.bands + 2, len(config.ResampleTaps)}, nil); err != nil {
+	statistics := 0
+	if config.Normalize != nil {
+		statistics = len(config.Normalize.Mean) + len(config.Normalize.InverseStd)
+	}
+	if err := p.reserve(0, []int{windowSize, basis, basis, bank, p.bands + 2, len(config.ResampleTaps), statistics}, nil); err != nil {
 		return nil, err
 	}
-	p.config.ResampleTaps = slices.Clone(config.ResampleTaps)
+	p.config = config.Clone()
 	p.window = make([]float64, windowSize)
 	for index := range p.window {
 		p.window[index] = 1
@@ -184,6 +234,9 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 				denominator--
 			}
 			p.window[index] = 0.5 - 0.5*math.Cos(2*math.Pi*float64(index)/float64(denominator))
+			if config.WindowPower != nil {
+				p.window[index] = math.Pow(p.window[index], *config.WindowPower)
+			}
 		}
 	}
 	p.cosine, p.sine = make([]float64, basis), make([]float64, basis)
@@ -199,7 +252,7 @@ func NewFrontend(config FrontendConfig, memoryBytes uint64) (*Frontend, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, count := range []int{windowSize, basis, basis, bank, len(config.ResampleTaps)} {
+	for _, count := range []int{windowSize, basis, basis, bank, len(config.ResampleTaps), statistics} {
 		term := uint64(count) * uint64(float64Bytes)
 		if p.tableBytes > math.MaxUint64-term {
 			return nil, errors.New("audio frontend: table byte count overflows")
@@ -346,6 +399,9 @@ func (p *Frontend) Process(ctx context.Context, chunks [][]float32, sampleRate i
 // and squared-window overlap normalization. It rejects uncovered samples rather
 // than silently replacing their zero envelope. It does not undo mel/log features.
 func (p *Frontend) Reconstruct(ctx context.Context, chunks [][]float32, sampleRate int, w *Workspace) ([]float32, error) {
+	if p != nil && p.config.Condition != nil {
+		return nil, errors.New("audio frontend: reconstruction cannot undo frame conditioning")
+	}
 	source, frames, err := p.prepare(ctx, chunks, sampleRate, w)
 	if err != nil {
 		return nil, err

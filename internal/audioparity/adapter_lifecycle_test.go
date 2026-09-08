@@ -2,7 +2,6 @@ package audioparity
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,8 +33,8 @@ import (
 const adapterAcceptanceMemory = 4 << 30
 
 type adapterLifecycle struct {
+	audioPublication
 	fixture    ctcTrainingFixture
-	store      *overgodb.Store
 	storePath  string
 	base       recipe.Definition
 	binding    adaptertrain.InputProjectionBinding
@@ -49,16 +48,6 @@ type adapterLifecycle struct {
 	policy     dataset.AudioInspectionPolicy
 	origin     dataset.AudioPayloadOrigin
 	rngProfile artifact.ID
-}
-
-func (l *adapterLifecycle) commit(t *testing.T, batch artifact.Batch, err error) {
-	t.Helper()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(t.Context(), l.store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
-		t.Fatal(err)
-	}
 }
 
 func (l *adapterLifecycle) content(t *testing.T, content artifact.Content, err error) artifact.ID {

@@ -763,7 +763,9 @@ func storageEntries(files []*zip.File) (string, map[string]*zip.File, error) {
 }
 
 func readZipEntryBytes(f *zip.File, maxBytes int64) ([]byte, error) {
-	if int64(f.UncompressedSize64) > maxBytes {
+	// Check in the unsigned source domain before either signed conversion.
+	// A ZIP64 extent above MaxInt64 must not wrap negative and reach make.
+	if maxBytes < 0 || f.UncompressedSize64 > uint64(maxBytes) || f.UncompressedSize64 > uint64(math.MaxInt) {
 		return nil, fmt.Errorf("pytorchzip: entry %s too large: %d > %d", f.Name, f.UncompressedSize64, maxBytes)
 	}
 	rc, err := f.Open()

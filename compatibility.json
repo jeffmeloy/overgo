@@ -58,6 +58,34 @@
  },
  "claims": [
   {
+   "id": "audio-cpu-offline-activity",
+   "status": "implemented",
+   "evidence_tier": "pinned-oracle",
+   "source_commit": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54",
+   "artifact_identity": "model:sha256:f8b932cdc72a739cb65d0d99e81c6f9c761372d7df26ca970b6a084e4e55b19d",
+   "verify": "go test ./internal/audioparity -run '^TestVADOfflineAcceptance$' -count=1 -v",
+   "summary": "Declared CPU finite-memory classification and offline activity publication match pinned frontend, network and boundary fixtures on one 1451-frame LibriSpeech recording and silence controls. Physical tensor and license binding, unsafe-constructor refusal and ZIP64 metadata bounds are enforced. Integer-frame splitting and signal-clipped extension are explicit; no annotated quality, throughput, HTTP, aggregate-memory or GPU claim.",
+   "evidence": [
+    {"path": "internal/speechactivity/execution.go", "contains": "func (d *Detector) Detect(", "role": "source", "identity": "file:sha256:0a9762f3af081bf93af5417693417d7dd2a1038daf9dff894d818f0326a43b30"},
+    {"path": "internal/audioparity/vad_acceptance_test.go", "contains": "func TestVADOfflineAcceptance(", "role": "artifact", "identity": "evidence:sha256:5b927f4c242f8dbfac73bd4ca06805581ad323fde7d0a63922e94e5d1fa1c8e5"},
+    {"path": "internal/audioparity/testdata/vad_reference.json", "contains": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54", "role": "source", "identity": "file:sha256:3574f13e38afe966e9bbe336f8667cb2fd54f8e94511abb5373310ca93028f3b"}
+   ]
+  },
+  {
+   "id": "audio-cpu-streaming-activity",
+   "status": "implemented",
+   "evidence_tier": "pinned-oracle",
+   "source_commit": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54",
+   "artifact_identity": "model:sha256:04e117c24c7749e8a71a8d5ee92492265f6c38cb069f42c3a727bc50fc06fb61",
+   "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
+   "summary": "The separately registered causal model executes through OpenAudioStream with bounded waveform overlap, finite-memory caches, serialized restart, finalization and activity/state publication. Go whole/live probabilities and caches are bit-identical on the pinned speech and silence controls. Cancellation and publication failure preserve completed progress and release residency; gaps refuse and discontinuities match fresh analysis. No native recognizer streaming, HTTP, annotated quality, throughput or GPU claim.",
+   "evidence": [
+    {"path": "internal/speechactivity/execution.go", "contains": "func (d *Detector) ProcessStream(", "role": "source", "identity": "file:sha256:0a9762f3af081bf93af5417693417d7dd2a1038daf9dff894d818f0326a43b30"},
+    {"path": "internal/audioparity/vad_acceptance_test.go", "contains": "func TestVADStreamingAcceptance(", "role": "artifact", "identity": "evidence:sha256:5b927f4c242f8dbfac73bd4ca06805581ad323fde7d0a63922e94e5d1fa1c8e5"},
+    {"path": "internal/audioparity/testdata/vad_boundaries.json", "contains": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54", "role": "source", "identity": "file:sha256:8f6ecc79f512faf5578c66b83e66588c69d554f33edabe640151f906a3f0be10"}
+   ]
+  },
+  {
    "evidence": [
     {
      "contains": "func PublishInputProjection(",
@@ -69,7 +97,7 @@
      "contains": "func TestASRAdapterPublicationAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b16e143e3aef02978af11048ce660e2bd32b909c54e5d57024c4aa47951eb4ba"
+     "identity": "evidence:sha256:92cd54f0bf9d23f3afd1223005b5b44901014d3399629e216ea4e0a0fedd6953"
     }
    ],
    "id": "asr-cpu-adapter-publication",
@@ -91,7 +119,7 @@
      "contains": "func TestASRExactResumeAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b16e143e3aef02978af11048ce660e2bd32b909c54e5d57024c4aa47951eb4ba"
+     "identity": "evidence:sha256:92cd54f0bf9d23f3afd1223005b5b44901014d3399629e216ea4e0a0fedd6953"
     }
    ],
    "id": "asr-cpu-exact-adapter-resume",

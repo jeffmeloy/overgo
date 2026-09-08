@@ -69,6 +69,27 @@ func TestCompareNamesTheShapeThatMoved(t *testing.T) {
 	if verdict := Compare(record, record, floors, 0); !verdict.Passed {
 		t.Fatalf("identical run = %+v", verdict)
 	}
+	for _, tc := range []struct {
+		name, before, after string
+		changedClass, pass  bool
+	}{
+		{"legacy device class", "", "GPU-a", false, true},
+		{"same physical device", "GPU-a", "GPU-a", false, true},
+		{"different physical device", "GPU-a", "GPU-b", false, false},
+		{"lost physical identity", "GPU-a", "", false, false},
+		{"different legacy device class", "", "GPU-a", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before, after := record, record
+			before.Device.UUID, after.Device.UUID = tc.before, tc.after
+			if tc.changedClass {
+				after.Device.Name = "different device"
+			}
+			if verdict := Compare(before, after, floors, 0); verdict.Passed != tc.pass {
+				t.Fatalf("device comparison = %s, want pass=%v", verdict, tc.pass)
+			}
+		})
+	}
 	diverged := record
 	moved := slices.Clone(ids)
 	moved[47] = 7

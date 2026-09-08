@@ -1,8 +1,8 @@
 # GUI intake on master
 
-Reviewed source: `6ad5668fabed`, from the registered
-`C:/Users/jeffm/professional_overgo_gui` worktree. The historical
-`professional/_overgo/_gui` path no longer names that worktree.
+Reviewed source: `fb7de0423660968fb884944ff0005b42448c2614`, from
+`C:/Users/jeffm/professional_overgo_gui`, integrated after producer `ff2f76cc`.
+The historical `professional/_overgo/_gui` path no longer names that worktree.
 
 ## Adopted contracts
 
@@ -13,6 +13,16 @@ Reviewed source: `6ad5668fabed`, from the registered
   remote and generative; it proves no local numerical parity or reproducibility.
 - Lane-aware dispatch on the existing plan owner. Master keeps its own plan;
   the GUI lane retains HTTP, browser and transport development.
+
+## Conversation recovery intake
+
+- Stored response cancellation, truthful terminal state and restart recovery.
+- Model-bound history, immutable edit/regenerate branches, drafts and export.
+- Recoverable attachment preparation, mobile controls and background activity.
+- Typed resource contention through existing process and proxy owners.
+- Construct each interaction trace once, including terminal outcome; remove the
+  redundant outcome wrapper and migrate every constructor caller.
+- Keep master's staged audio obligations. GUI lane IDs cannot replace them.
 
 ## Intake corrections
 
@@ -26,16 +36,19 @@ Reviewed source: `6ad5668fabed`, from the registered
   evidence-path behavior are excluded; no validation prerequisite becomes a skip.
 - Retain master's gate transaction and structural ceilings. Regenerate manifests
   over the actual merged tree; preserve first-parent target plan authority.
-- Reconcile the measured harness snapshot without headroom: master already has
-  156 files and 174404 nodes; the admitted lane and remote contracts add one
-  file and 89 nodes. Other measured harness metrics are unchanged by this intake.
+- Account for the admitted terminal/CAS contract exactly: 157 harness files,
+  174567 nodes, 754 repeated policy sites. Trace consolidation removes 135 nodes
+  from the lane's 174702-node proposal. Other harness ceilings remain unchanged;
+  no spare budget is added.
 
 ## Validation and later intake
 
 Run owning-package tests, the existing browser/device lanes and the plan-bound
 merge gate. A browser journey proves interaction behavior, not model quality.
 Keep canonical modality, dataset, oracle, protocol and resource acceptance in
-master's validation campaign. Remote tests use declared local fake providers;
+master's validation campaign. After the requested audio intake and shared-GPU
+admission repair, refresh affected E4B protocol/audio/resource evidence and
+all 24 catalog guard records at one combined clean producer. Remote tests use declared local fake providers;
 live paid evaluation requires its own explicit authorization and evidence.
 
 For later intake, inspect current commits and worktree state, rehearse against

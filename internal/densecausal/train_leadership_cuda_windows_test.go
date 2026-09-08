@@ -47,6 +47,9 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	if os.Getenv("OVERGO_DENSE_TRAIN_BASELINE") != "1" {
 		t.Skip("set OVERGO_DENSE_TRAIN_BASELINE=1 for matched Carbon training")
 	}
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	modelDir := artifactDir(t, "Carbon-500M")
 	checkpoint := fileSHA256(t, filepath.Join(modelDir, "model.safetensors"))
 	config := fileSHA256(t, filepath.Join(modelDir, "config.json"))
@@ -147,6 +150,9 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_DENSE_TRAIN_BASELINE") != "1" {
 		t.Skip("set OVERGO_DENSE_TRAIN_BASELINE=1 for real Carbon training")
+	}
+	if cudatest.MeasurementProcess(t, 0) {
+		return
 	}
 	model, err := Load(artifactDir(t, "Carbon-500M"))
 	if err != nil {

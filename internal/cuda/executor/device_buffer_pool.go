@@ -89,6 +89,15 @@ func (p *deviceBufferPool) acquireBucket(
 		return deviceBufferLease{}, err
 	}
 	pointer, err := state.Driver.MemAlloc(bucket)
+	if driver.IsOutOfMemory(err) && p.freeBytes > 0 {
+		before := p.freeBytes
+		if releaseErr := p.trim(state, p.freeLimit); releaseErr != nil {
+			return deviceBufferLease{}, errors.Join(err, releaseErr)
+		}
+		if p.freeBytes < before {
+			pointer, err = state.Driver.MemAlloc(bucket)
+		}
+	}
 	if err != nil {
 		return deviceBufferLease{}, err
 	}
@@ -110,7 +119,7 @@ func (p *deviceBufferPool) trim(state *device.State, incoming uint64) error {
 		}
 		p.freeLimit = total / deviceBufferFreeShare
 	}
-	for p.freeBytes > 0 && p.freeBytes+incoming > p.freeLimit {
+	for p.freeBytes > 0 && (incoming >= p.freeLimit || p.freeBytes > p.freeLimit-incoming) {
 		largest := uint64(0)
 		for size, pointers := range p.free {
 			if len(pointers) > 0 && size > largest {

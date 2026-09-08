@@ -11,7 +11,7 @@ import (
 type packageTestScope struct {
 	direct, dependent, productionPaths []string
 	unresolved                         []string
-	opaqueSubprocesses                 []string
+	opaqueRuntimeInputs                []string
 	excluded                           int
 }
 
@@ -45,7 +45,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		}
 		packages = append(packages, pkg)
 	}
-	direct, production := testscope.DirectPackages(g.repo, g.paths, packages)
+	direct, production := testscope.DirectPackages(graph.root, g.paths, packages)
 	scope := packageTestScope{direct: direct}
 	for _, path := range g.paths {
 		if path == "go.mod" || path == "go.sum" {
@@ -53,7 +53,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			continue
 		}
 		if strings.EqualFold(filepath.Ext(path), ".go") {
-			owners, _ := testscope.DirectPackages(g.repo, []string{path}, packages)
+			owners, _ := testscope.DirectPackages(graph.root, []string{path}, packages)
 			if len(owners) == 0 {
 				scope.unresolved = append(scope.unresolved, path)
 			}
@@ -69,7 +69,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		// Include actual compiled sources so nested embedded assets reach the
 		// same assembly checks as their owning production package.
 		for _, name := range append(slices.Clone(node.GoFiles), node.CgoFiles...) {
-			relative, err := filepath.Rel(g.repo, filepath.Join(node.Dir, name))
+			relative, err := filepath.Rel(graph.root, filepath.Join(node.Dir, name))
 			if err != nil {
 				return packageTestScope{}, err
 			}
@@ -81,7 +81,9 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	// actual imports; do not turn test imports into production dependencies.
 	affected := map[string]bool{}
 	for _, node := range graph.nodes {
-		if productionDirs[node.Dir] {
+		// Opaque readers may inspect test source as data. A test-only edit
+		// therefore reaches them even without a production import change.
+		if productionDirs[node.Dir] || len(node.inputDependencies) != 0 && len(g.paths) != 0 {
 			affected[node.ImportPath] = true
 		}
 	}
@@ -125,10 +127,10 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		if node.ForTest != "" {
 			target = node.ForTest
 		}
-		if (slices.Contains(scope.direct, target) || slices.Contains(scope.dependent, target)) && !slices.Contains(scope.opaqueSubprocesses, target) {
-			scope.opaqueSubprocesses = append(scope.opaqueSubprocesses, target)
+		if (slices.Contains(scope.direct, target) || slices.Contains(scope.dependent, target)) && !slices.Contains(scope.opaqueRuntimeInputs, target) {
+			scope.opaqueRuntimeInputs = append(scope.opaqueRuntimeInputs, target)
 		}
 	}
-	slices.Sort(scope.opaqueSubprocesses)
+	slices.Sort(scope.opaqueRuntimeInputs)
 	return scope, nil
 }

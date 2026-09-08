@@ -4,6 +4,7 @@ package densecausal
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 
 	"overgo/internal/cuda/device"
@@ -44,6 +45,9 @@ func scaleTokens() []int {
 // and a measured allocator granularity G, not a supplied/hardcoded constant.
 func TestTrainDeviceResidentDerivedCapacity(t *testing.T) {
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	worker, err := device.New(0)
 	if err != nil {
 		t.Fatal(err)
@@ -62,10 +66,19 @@ func TestTrainDeviceResidentDerivedCapacity(t *testing.T) {
 
 	m := syntheticCausalModel(t, scaleModelSpec)
 	seq := len(scaleTokens())
-	capacity, err := m.DeriveResidentCapacity(worker, seq)
+	free, err := devicemath.MeasureFreeBytes(worker)
 	if err != nil {
 		t.Fatal(err)
 	}
+	var weightElements int
+	for name, weights := range m.Weights {
+		if strings.HasPrefix(name, "model.layers.0.") {
+			weightElements += len(weights)
+		}
+	}
+	fixed, perLayer := devicemath.ResidentLayerPlanSizes(
+		seq, m.Dims.Hidden, m.Dims.Heads, m.Dims.KVHeads, m.Dims.HeadDim, m.Dims.Intermediate, weightElements)
+	capacity := devicemath.DeriveResidentCapacity(free, g, fixed, perLayer)
 	t.Logf("derived capacity: free=%d bytes (%.1f GiB) G=%d perLayer=%d bytes reserve=%d bytes -> %d layers fit (model has %d)",
 		capacity.FreeBytes, float64(capacity.FreeBytes)/(1<<30), capacity.Granularity,
 		capacity.PerLayerBytes, capacity.ReserveBytes, capacity.Layers, m.Dims.Layers)
@@ -85,8 +98,6 @@ func TestTrainDeviceResidentDerivedCapacity(t *testing.T) {
 
 	// Prove the capacity is a FUNCTION of the measured free memory (not a constant):
 	// halving the measured free memory must roughly halve the derived layer count.
-	fixed, perLayer := devicemath.ResidentLayerPlanSizes(
-		seq, m.Dims.Hidden, m.Dims.Heads, m.Dims.KVHeads, m.Dims.HeadDim, m.Dims.Intermediate, m.perLayerWeightElems())
 	half := devicemath.DeriveResidentCapacity(capacity.FreeBytes/2, g, fixed, perLayer)
 	t.Logf("capacity(free/2) = %d layers (vs %d at full free) -- capacity tracks measured free", half.Layers, capacity.Layers)
 	if !(half.Layers < capacity.Layers) {

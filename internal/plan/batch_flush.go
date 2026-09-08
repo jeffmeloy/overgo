@@ -3,6 +3,8 @@ package plan
 import (
 	"errors"
 	"fmt"
+
+	"math"
 	"time"
 
 	"overgo/internal/textcheck"
@@ -19,10 +21,11 @@ type BatchFlush struct {
 
 // BatchState records one key's accumulation since its last flush.
 type BatchState struct {
-	Key     string
-	Size    int
-	Bytes   int64
-	Elapsed time.Duration
+	Key       string
+	Size      int
+	Bytes     int64
+	Elapsed   time.Duration
+	StartedAt time.Time
 }
 
 // FlushReason names why a batch flushes; closed vocabulary.
@@ -36,99 +39,59 @@ const (
 	// FlushInterval means the interval bound met.
 	FlushInterval FlushReason = "interval"
 	// FlushBytes means the byte bound met.
-	FlushBytes FlushReason = "bytes"
+	FlushBytes    FlushReason = "bytes"
+	flushBoundary FlushReason = "boundary"
 )
 
-// Interval parses MaxInterval; validated declarations never fail here.
+// Interval validates the declaration and returns its elapsed-time bound.
 func (f BatchFlush) Interval() (time.Duration, error) {
 	interval, err := time.ParseDuration(f.MaxInterval)
-	if err != nil || interval <= 0 {
-		return 0, errors.New("plan: batch flush interval must be a positive duration")
+	if err != nil || min(int64(interval), int64(f.MaxSize), f.MaxBytes) <= 0 || !textcheck.LowerIdentifier(f.Key, automationRoleMaxBytes) {
+		return 0, fmt.Errorf("plan: batch flush requires a valid key and positive bounds: %+v", f)
 	}
 	return interval, nil
 }
 
-// Decide is pure; first bound met in size -> interval -> bytes order names the
-// reason; a state for another key never flushes this batch.
-func (f BatchFlush) Decide(state BatchState) (bool, FlushReason) {
-	if state.Key != f.Key {
-		return false, FlushNone
-	}
+// Advance applies one optional member to a persisted state and evaluates flush
+// bounds. Nil bytes checks elapsed time only. The caller clears the state only
+// after accepting the flush, so failed publication cannot discard pending work.
+func (f BatchFlush) Advance(state BatchState, bytes *int64, now time.Time, boundary bool) (BatchState, bool, FlushReason, error) {
 	interval, err := f.Interval()
 	if err != nil {
-		return false, FlushNone
+		return BatchState{}, false, FlushNone, err
 	}
+	if state == (BatchState{}) {
+		state.Key = f.Key
+	}
+	empty := state.Size == 0
+	if state.Key != f.Key || min(int64(state.Size), state.Bytes, int64(state.Elapsed)) < 0 || now.IsZero() ||
+		empty && state != (BatchState{Key: f.Key}) ||
+		!empty && (state.StartedAt.IsZero() || now.Before(state.StartedAt)) {
+		return BatchState{}, false, FlushNone, errors.New("plan: invalid batch state or time")
+	}
+	if bytes != nil {
+		if *bytes < 0 || state.Size == math.MaxInt || *bytes > math.MaxInt64-state.Bytes {
+			return BatchState{}, false, FlushNone, errors.New("plan: invalid or overflowing batch member")
+		}
+		if empty {
+			state.StartedAt = now
+		}
+		state.Size++
+		state.Bytes += *bytes
+	} else if empty {
+		return state, false, FlushNone, nil
+	}
+	state.Elapsed = now.Sub(state.StartedAt)
+	reason := FlushNone
 	switch {
 	case state.Size >= f.MaxSize:
-		return true, FlushSize
+		reason = FlushSize
 	case state.Elapsed >= interval:
-		return true, FlushInterval
+		reason = FlushInterval
 	case state.Bytes >= f.MaxBytes:
-		return true, FlushBytes
+		reason = FlushBytes
+	case boundary:
+		reason = flushBoundary
 	}
-	return false, FlushNone
-}
-
-func validateBatchFlush(flush *BatchFlush) error {
-	if flush == nil {
-		return nil
-	}
-	if !textcheck.LowerIdentifier(flush.Key, automationRoleMaxBytes) {
-		return fmt.Errorf("plan: batch flush key %q is not a lower identifier", flush.Key)
-	}
-	if flush.MaxSize <= 0 || flush.MaxBytes <= 0 {
-		return errors.New("plan: batch flush requires positive size and byte bounds")
-	}
-	_, err := flush.Interval()
-	return err
-}
-
-// BatchAccumulator accumulates per key against one declaration; Add records
-// one member and returns the decision; a flush resets that key only.
-type BatchAccumulator struct {
-	flush  BatchFlush
-	states map[string]*batchAccumulation
-}
-
-type batchAccumulation struct {
-	size  int
-	bytes int64
-	since time.Time
-}
-
-// NewBatchAccumulator validates the declaration -> empty accumulator.
-func NewBatchAccumulator(flush BatchFlush) (*BatchAccumulator, error) {
-	if err := validateBatchFlush(&flush); err != nil {
-		return nil, err
-	}
-	return &BatchAccumulator{flush: flush, states: map[string]*batchAccumulation{}}, nil
-}
-
-// Add records one member of key with payload bytes at now -> state after the
-// add and the decision; keys other than the declared one are refused.
-func (a *BatchAccumulator) Add(key string, payloadBytes int64, now time.Time) (BatchState, bool, FlushReason, error) {
-	if a == nil || key != a.flush.Key || payloadBytes < 0 {
-		return BatchState{}, false, FlushNone, errors.New("plan: batch accumulator refuses a member outside its declared key")
-	}
-	current, found := a.states[key]
-	if !found {
-		current = &batchAccumulation{since: now}
-		a.states[key] = current
-	}
-	current.size++
-	current.bytes += payloadBytes
-	state := BatchState{Key: key, Size: current.size, Bytes: current.bytes, Elapsed: now.Sub(current.since)}
-	flush, reason := a.flush.Decide(state)
-	if flush {
-		delete(a.states, key)
-	}
-	return state, flush, reason, nil
-}
-
-// Pending counts members accumulated for key and not yet flushed.
-func (a *BatchAccumulator) Pending(key string) int {
-	if a == nil || a.states[key] == nil {
-		return 0
-	}
-	return a.states[key].size
+	return state, reason != FlushNone, reason, nil
 }

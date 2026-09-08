@@ -251,12 +251,7 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 			decisions = append(decisions, decision.ID)
 		}
 	}
-	trace, err := NewInteractionTrace(value, requestTranscript.ID, messages, decisions)
-	if err != nil {
-		return Interaction{}, err
-	}
-	trace.ID, trace.Terminal = artifact.ID{}, terminal
-	trace, err = interactionTraceCodec.New(trace)
+	trace, err := NewInteractionTrace(value, requestTranscript.ID, messages, decisions, terminal)
 	if err != nil {
 		return Interaction{}, err
 	}

@@ -1,6 +1,7 @@
 package gate
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -21,7 +22,8 @@ import (
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/codeprofile"
-	"overgo/internal/cuda/driver"
+	"overgo/internal/dataroot"
+	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -33,10 +35,10 @@ import (
 )
 
 func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck.Check {
-	generated := automationcheck.GeneratedChecks(g.repo, command)
-	device := automationcheck.DeviceCheck(g.repo, g.paths, devicePackages, command)
-	published := automationcheck.PublishedCheck(g.repo, command)
-	webui := automationcheck.WebUICheck(g.repo, command)
+	generated := automationcheck.GeneratedChecks(g.sourceRoot(), g.runGateCommand)
+	device := automationcheck.DeviceCheck(g.sourceRoot(), g.paths, devicePackages, g.runGateCommand)
+	published := automationcheck.PublishedCheck(g.sourceRoot(), g.runGateCommand)
+	webui := automationcheck.WebUICheck(g.sourceRoot(), g.runGateCommand)
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
@@ -83,95 +85,101 @@ func (g *gateContext) pipeline() error {
 			return err
 		}
 	}
-	planningStarted := time.Now()
-	planned, err := g.planPipeline()
+	tree, err := g.plannedTree()
 	if err != nil {
 		return err
 	}
-	definitions, checks, impact := planned.definitions, planned.invocations, planned.impact
-	planningDuration := time.Since(planningStarted)
-	if g.terminal == nil {
-		g.terminal = map[string]automationcheck.Evidence{}
-	}
-	cache := g.loadRetryCache()
-	cache.Compact()
-	g.retryCache = &cache
-	inputs := make(map[artifact.ID]artifact.ID, len(checks))
-	for index, check := range checks {
-		input, inputErr := g.phaseInputFingerprint(check.Check.Name)
-		if inputErr != nil {
-			return inputErr
+	return g.withCandidateWorktree(tree, func(string) error {
+		planningStarted := time.Now()
+		planned, err := g.planPipeline()
+		if err != nil {
+			return err
 		}
+		definitions, checks, impact := planned.definitions, planned.invocations, planned.impact
+		planningDuration := time.Since(planningStarted)
+		if g.terminal == nil {
+			g.terminal = map[string]automationcheck.Evidence{}
+		}
+		cache := g.loadRetryCache()
+		cache.Compact()
+		g.retryCache = &cache
+		inputs := make(map[artifact.ID]artifact.ID, len(checks))
+		for index, check := range checks {
+			input, inputErr := g.phaseInputFingerprint(check.Check.Name)
+			if inputErr != nil {
+				return inputErr
+			}
+			if planned.manifest != nil {
+				bound, bindErr := automationcheck.BindManifestExecution(*planned.manifest, check, []artifact.ID{input})
+				if bindErr != nil {
+					return bindErr
+				}
+				checks[index] = bound
+				check = bound
+			}
+			inputs[check.ID] = input
+		}
+		satisfied := make(map[string]bool, len(impact.Exclusions))
+		for _, exclusion := range impact.Exclusions {
+			satisfied[exclusion.Check] = true
+		}
+		var drift func() error
 		if planned.manifest != nil {
-			bound, bindErr := automationcheck.BindManifestExecution(*planned.manifest, check, []artifact.ID{input})
-			if bindErr != nil {
-				return bindErr
+			tree := planned.manifest.CandidateTree
+			drift = func() error { return g.requireCandidateTree(tree) }
+		}
+		results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift)
+		if err != nil {
+			return err
+		}
+		if saveErr := g.saveRetryCache(cache); saveErr != nil {
+			g.audit = append(g.audit, "retry cache not saved: "+saveErr.Error())
+		}
+		byName := make(map[string]automationcheck.DAGResult, len(results))
+		for _, result := range results {
+			if result.Invocation.ID.Valid() {
+				byName[result.Invocation.Check.Name] = result
 			}
-			checks[index] = bound
-			check = bound
 		}
-		inputs[check.ID] = input
-	}
-	satisfied := make(map[string]bool, len(impact.Exclusions))
-	for _, exclusion := range impact.Exclusions {
-		satisfied[exclusion.Check] = true
-	}
-	var drift func() error
-	if planned.manifest != nil {
-		tree := planned.manifest.CandidateTree
-		drift = func() error { return g.requireCandidateTree(tree) }
-	}
-	results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift)
-	if err != nil {
-		return err
-	}
-	if saveErr := g.saveRetryCache(cache); saveErr != nil {
-		g.audit = append(g.audit, "retry cache not saved: "+saveErr.Error())
-	}
-	byName := make(map[string]automationcheck.DAGResult, len(results))
-	for _, result := range results {
-		if result.Invocation.ID.Valid() {
-			byName[result.Invocation.Check.Name] = result
-		}
-	}
-	cacheHits := 0
-	cacheEligible := 0
-	for _, result := range results {
-		if _, _, eligible := g.checkCacheKey(result.Invocation, inputs); eligible {
-			cacheEligible++
-		}
-		if result.Evidence.Reused {
-			cacheHits++
-		}
-	}
-	g.manifestMetrics = automationcheck.MeasureManifest(
-		len(definitions), len(checks), len(impact.Exclusions), len(planned.surface.Unknown),
-		cacheEligible, cacheHits, planningDuration, time.Since(g.start),
-	)
-	for _, definition := range definitions {
-		name := definition.Descriptor.Name
-		result, ran := byName[name]
-		if !ran {
-			if exclusion, excluded := impact.ExclusionReason(name); excluded {
-				g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
-				g.audit = append(g.audit, name+" skipped: "+exclusion)
+		cacheHits := 0
+		cacheEligible := 0
+		for _, result := range results {
+			if _, _, eligible := g.checkCacheKey(result.Invocation, inputs); eligible {
+				cacheEligible++
 			}
-			continue
+			if result.Evidence.Reused {
+				cacheHits++
+			}
 		}
-		if planned.manifest != nil && result.Evidence.ID.Valid() &&
-			!slices.Contains(automationcheck.EvidenceLineage(result.Evidence), planned.manifest.ID) {
-			return fmt.Errorf("%s: terminal evidence omits manifest plan %s", name, planned.manifest.ID)
+		g.manifestMetrics = automationcheck.MeasureManifest(
+			len(definitions), len(checks), len(impact.Exclusions), len(planned.surface.Unknown),
+			cacheEligible, cacheHits, planningDuration, time.Since(g.start),
+		)
+		for _, definition := range definitions {
+			name := definition.Descriptor.Name
+			result, ran := byName[name]
+			if !ran {
+				if exclusion, excluded := impact.ExclusionReason(name); excluded {
+					g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
+					g.audit = append(g.audit, name+" skipped: "+exclusion)
+				}
+				continue
+			}
+			if planned.manifest != nil && result.Evidence.ID.Valid() &&
+				!slices.Contains(automationcheck.EvidenceLineage(result.Evidence), planned.manifest.ID) {
+				return fmt.Errorf("%s: terminal evidence omits manifest plan %s", name, planned.manifest.ID)
+			}
+			g.terminal[name] = result.Evidence
+			g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
+			if result.Evidence.Reused {
+				g.audit = append(g.audit, name+" reused: derived inputs already passed this step")
+			}
+			if result.Err != nil {
+				return fmt.Errorf("%s: %w", name, result.Err)
+			}
 		}
-		g.terminal[name] = result.Evidence
-		g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
-		if result.Evidence.Reused {
-			g.audit = append(g.audit, name+" reused: derived inputs already passed this step")
-		}
-		if result.Err != nil {
-			return fmt.Errorf("%s: %w", name, result.Err)
-		}
-	}
-	return nil
+		return nil
+	})
 }
 
 func ownershipSurface(impact codeprofile.FunctionImpact) automationcheck.Surface {
@@ -220,6 +228,9 @@ func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationc
 // work authority. Ranked current work belongs to the failable plan; prose may
 // retain its historical ordering only with an explicit warning and redirect.
 func (g *gateContext) stepDocumentation() (bool, error) {
+	if err := repoanalysis.ValidateDocsInventory(g.repo); err != nil {
+		return false, err
+	}
 	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
 	if err != nil {
 		return false, err
@@ -273,7 +284,7 @@ func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
 	if g.source != nil {
 		return *g.source, nil
 	}
-	snapshot, err := repoanalysis.DiscoverGo(g.repo, "internal", "cmd")
+	snapshot, err := repoanalysis.DiscoverGo(g.sourceRoot(), "internal", "cmd")
 	if err == nil {
 		g.source = &snapshot
 	}
@@ -393,7 +404,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 }
 
 func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSnapshot, changed []string, profile *codeprofile.Profile) error {
-	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return err
 	}
@@ -833,7 +844,7 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return false, err
 	}
@@ -878,7 +889,7 @@ func (g *gateContext) stepVet() (bool, error) {
 	if len(g.changedGoFiles()) == 0 {
 		return true, nil
 	}
-	_, err := command(g.repo, "go", "vet", "./...")
+	_, err := g.runGateCommand(g.sourceRoot(), "go", "vet", "./...")
 	return false, err
 }
 
@@ -907,7 +918,7 @@ func (g *gateContext) stepBuild() (bool, error) {
 		g.audit = append(g.audit, "build skipped: no Go-owned source or asset paths in -paths")
 		return true, nil
 	}
-	_, err := command(g.repo, "go", "build", "./...")
+	_, err := g.runGateCommand(g.sourceRoot(), "go", "build", "./...")
 	return false, err
 }
 
@@ -944,17 +955,14 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	}
 	g.audit = append(g.audit, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
 	g.audit = append(g.audit, fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
-	if len(scope.opaqueSubprocesses) != 0 {
-		g.audit = append(g.audit, "test scope: opaque subprocess consumers bind all candidate packages and unowned repository inputs: "+strings.Join(scope.opaqueSubprocesses, ","))
+	if len(scope.opaqueRuntimeInputs) != 0 {
+		g.audit = append(g.audit, "test scope: opaque runtime consumers bind candidate packages and repository inputs: "+strings.Join(scope.opaqueRuntimeInputs, ","))
 	}
 	if len(scope.unresolved) != 0 {
 		g.audit = append(g.audit, "test scope widened for global or unresolved Go inputs: "+strings.Join(scope.unresolved, ","))
 	}
 	inputGraph, err := g.inputGraph()
 	if err != nil {
-		return false, err
-	}
-	if err := g.reserveTestDevices(inputGraph, selectedTests); err != nil {
 		return false, err
 	}
 	directInputs, err := packageInputIdentities(inputGraph, direct)
@@ -981,7 +989,7 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	if len(directPending) > 0 {
-		_, runErr := runGoTests(ctx, g.repo, directPending, true, g.packagePassObserver(ctx, ledger, "short", directInputs))
+		_, runErr := g.runGoTests(ctx, directPending, true, g.packagePassObserver(ctx, ledger, "short", directInputs))
 		if runErr != nil {
 			g.packageCacheAudit(directReused, len(directPending))
 			return false, runErr
@@ -997,7 +1005,7 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	}
 	report := testevidence.GoTestReport{}
 	if len(dependentPending) > 0 {
-		report, err = runGoTests(ctx, g.repo, dependentPending, false, g.packagePassObserver(ctx, ledger, "complete", dependentInputs))
+		report, err = g.runGoTests(ctx, dependentPending, false, g.packagePassObserver(ctx, ledger, "complete", dependentInputs))
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.audit = append(g.audit, fmt.Sprintf(
@@ -1037,13 +1045,17 @@ func (g *gateContext) packageCacheAudit(reused, executed int) {
 	}
 }
 
-func runGoTests(ctx context.Context, repo string, packages []string, short bool, observe func(string, bool) error) (testevidence.GoTestReport, error) {
+func (g *gateContext) runGoTests(ctx context.Context, packages []string, short bool, observe func(string, bool) error) (testevidence.GoTestReport, error) {
 	args := []string{"test", "-json", "-count=1"}
 	if short {
 		args = append(args, "-short")
 	}
+	environment, err := g.sourceEnvironment()
+	if err != nil {
+		return testevidence.GoTestReport{}, err
+	}
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
-		Path: "go", Args: append(args, packages...), Dir: repo,
+		Path: "go", Args: append(args, packages...), Dir: g.sourceRoot(), Env: environment,
 	}, short, clioptions.DiagnosticTailBytes, observe)
 	if short || len(report.Failed)+len(report.Unfinished) > 0 {
 		err = errors.Join(err, testevidence.RequireComplete(report))
@@ -1052,40 +1064,6 @@ func runGoTests(ctx context.Context, repo string, packages []string, short bool,
 		return report, fmt.Errorf("go test evidence: %w\n%s", err, strings.Join(report.Diagnostics, "\n"))
 	}
 	return report, nil
-}
-
-// reserveTestDevices makes the gate, rather than a racing test package, own
-// the resource shared by its descendants. Host-only package graphs stay free.
-func (g *gateContext) reserveTestDevices(graph packageInputGraph, packages []string) error {
-	directories, err := graph.dependentDirectories("internal/cuda")
-	if err != nil {
-		return err
-	}
-	for _, pkg := range packages {
-		for _, index := range graph.byID[pkg] {
-			relative, err := filepath.Rel(graph.root, graph.nodes[index].Dir)
-			if err != nil {
-				return err
-			}
-			if !slices.Contains(directories, filepath.ToSlash(relative)) {
-				continue
-			}
-			library, err := driver.Open()
-			if err != nil {
-				return err
-			}
-			defer library.Close()
-			devices, err := library.ReserveDevices()
-			if err != nil {
-				return err
-			}
-			for _, device := range devices {
-				g.audit = append(g.audit, "test resource admission: "+device.UUID)
-			}
-			return nil
-		}
-	}
-	return nil
 }
 
 // stepMagics enforces repository-wide zero debt.
@@ -1149,7 +1127,7 @@ func (g *gateContext) remediateStaleClosureBindings() error {
 		return fmt.Errorf("preflight: repair required; run `go run ./cmd/closure-scan -import-store %s` outside preflight", g.storePath)
 	}
 	started := time.Now()
-	out, err := g.runGateCommand("go", "run", "./cmd/closure-scan", "-import-store", gateStorePath)
+	out, err := g.runGateCommand(g.sourceRoot(), "go", "run", "./cmd/closure-scan", "-import-store", filepath.Join(g.repo, g.storePath))
 	if err != nil {
 		return fmt.Errorf("gate: closure rebind remediation: %w", err)
 	}
@@ -1317,8 +1295,11 @@ func (g *gateContext) executeCandidateVerifier(
 	tree, verify string,
 ) (verdict testevidence.VerdictClass, err error) {
 	err = g.withCandidateWorktree(tree, func(worktree string) error {
-		var executeErr error
-		verdict, executeErr = planverify.Execute(context.Background(), worktree, verify)
+		environment, executeErr := g.sourceEnvironment()
+		if executeErr != nil {
+			return executeErr
+		}
+		verdict, executeErr = planverify.Execute(context.Background(), worktree, verify, environment)
 		if executeErr != nil {
 			return executeErr
 		}
@@ -1355,6 +1336,12 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 	if !validGitObjectID(tree) || use == nil {
 		return errors.New("gate: candidate worktree requires an exact tree and callback")
 	}
+	if g.candidateRoot != "" {
+		if tree != g.candidateTree {
+			return errors.New("gate: active candidate differs from requested tree")
+		}
+		return use(g.candidateRoot)
+	}
 	temporary, err := os.MkdirTemp("", "overgo-gate-acceptance-*")
 	if err != nil {
 		return err
@@ -1380,5 +1367,32 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 	if _, err := gitWriterCommand(worktree, "checkout-index", "--all", "--force"); err != nil {
 		return err
 	}
+	g.candidateRoot, g.candidateTree = worktree, tree
+	g.packageGraph = nil
+	defer func() {
+		g.candidateRoot, g.candidateTree = "", ""
+		g.packageGraph = nil
+	}()
 	return use(worktree)
+}
+
+// sourceRoot separates immutable verification inputs from Git and store ownership.
+func (g *gateContext) sourceRoot() string {
+	return cmp.Or(g.candidateRoot, g.repo)
+}
+
+// Bind external data explicitly; never project ignored source into the candidate.
+func (g *gateContext) sourceEnvironment() ([]string, error) {
+	roots, err := dataroot.Resolve(g.repo)
+	if err != nil {
+		return nil, err
+	}
+	environment := gitauthority.RepositoryEnvironment()
+	if strings.TrimSpace(os.Getenv(dataroot.Env)) == "" {
+		environment = append(environment, dataroot.Env+"="+g.repo)
+	}
+	if os.Getenv("OVERGO_AUDIO_REFERENCE_STORE") == "" {
+		environment = append(environment, "OVERGO_AUDIO_REFERENCE_STORE="+roots.Store)
+	}
+	return environment, nil
 }

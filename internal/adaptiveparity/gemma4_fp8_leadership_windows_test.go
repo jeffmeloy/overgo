@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"overgo/internal/cuda/driver"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
@@ -61,6 +62,9 @@ func TestGemma4FP8Leadership(t *testing.T) {
 	}
 	if os.Getenv("OVERGO_GEMMA4_BASELINE") != "1" {
 		t.Skip("set OVERGO_GEMMA4_BASELINE=1 for Gemma4 FP8 leadership")
+	}
+	if cudatest.MeasurementProcess(t, 0) {
+		return
 	}
 	root := testutil.RepoRoot(t)
 	var evidence gemma4FP8PerformanceEvidence

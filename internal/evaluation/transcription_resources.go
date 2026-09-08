@@ -189,7 +189,7 @@ func EvaluateTranscriptionResources(
 	closed := false
 	defer func() {
 		if !closed {
-			returnErr = errors.Join(returnErr, executor.close())
+			returnErr = errors.Join(returnErr, executor.close(context.WithoutCancel(ctx)))
 		}
 	}()
 	report = TranscriptionResourceReport{
@@ -232,7 +232,7 @@ func EvaluateTranscriptionResources(
 			}
 		}
 	}
-	if err := executor.close(); err != nil {
+	if err := executor.close(context.WithoutCancel(ctx)); err != nil {
 		return TranscriptionResourceReport{}, err
 	}
 	closed = true

@@ -48,31 +48,20 @@ type DeviceInfo struct {
 	MultiprocessorCount    int    `json:"multiprocessorCount"`
 }
 
-// ReserveDevices reserves visible physical devices for this process tree.
-// Consumers inherit the same admission; unrelated process trees cannot enter.
-func (l *Library) ReserveDevices() ([]DeviceInfo, error) {
+// ReserveDevice reserves one physical device for this measurement process tree.
+// Call before creating contexts. Independent shared consumers prevent admission.
+func (l *Library) ReserveDevice(ordinal int) (DeviceInfo, error) {
 	if err := l.Init(); err != nil {
-		return nil, err
+		return DeviceInfo{}, err
 	}
-	count, err := l.DeviceCount()
+	info, err := l.DeviceInfo(ordinal)
 	if err != nil {
-		return nil, err
+		return DeviceInfo{}, err
 	}
-	if count == 0 {
-		return nil, errors.New("CUDA resource admission requires a physical device")
+	if err := processcontrol.ClaimResource(info.UUID); err != nil {
+		return DeviceInfo{}, err
 	}
-	var devices []DeviceInfo
-	for ordinal := range count {
-		info, err := l.DeviceInfo(ordinal)
-		if err != nil {
-			return nil, err
-		}
-		if err := processcontrol.ClaimResource(info.UUID); err != nil {
-			return nil, err
-		}
-		devices = append(devices, info)
-	}
-	return devices, nil
+	return info, nil
 }
 
 // MemoryStats: reports allocations made through one Library instance; is

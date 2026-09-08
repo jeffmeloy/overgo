@@ -201,7 +201,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 			}
 		}
 		trace, err := runrecord.NewInteractionTrace(
-			runrecord.Interaction{Recipe: strategyRecipe.ID, Model: model}, current.request, messages, nil,
+			runrecord.Interaction{Recipe: strategyRecipe.ID, Model: model}, current.request, messages, nil, "",
 		)
 		if err != nil {
 			t.Fatal(err)

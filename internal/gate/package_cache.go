@@ -45,8 +45,10 @@ type goPackageInput struct {
 	XTestGoFiles    []string
 	TestEmbedFiles  []string
 	XTestEmbedFiles []string
-	// Non-import edges derived from opaque subprocess execution.
+	// Non-import edges derived from opaque runtime inputs.
 	inputDependencies []string
+	// Execution edges alone propagate device requirements.
+	executionDependencies []string
 }
 
 type packageInputGraph struct {
@@ -58,7 +60,7 @@ type packageInputGraph struct {
 	fileInputs map[string][]byte
 }
 
-// Presence tags frame the v2 cache input grammar independently of file bytes.
+// Presence tags frame the v3 cache input grammar independently of file bytes.
 const (
 	packageInputAbsent byte = iota
 	packageInputPresent
@@ -110,23 +112,29 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 			compiled[filepath.Join(node.Dir, filepath.FromSlash(name))] = true
 		}
 	}
-	// Dynamic commands may execute any candidate package or unowned repository
-	// input. Keep compiler imports intact; share conservative edges with every
-	// graph consumer until a narrower execution contract proves independence.
-	var subprocessDirectories []string
+	// Opaque commands and file readers may consume any candidate source.
+	// Share conservative edges until a declared contract proves independence.
+	var runtimeDirectories []string
 	for index := range graph.nodes {
 		node := &graph.nodes[index]
-		if !slices.Contains(directories, node.Dir) || !slices.Contains(node.Imports, "os/exec") {
+		if !slices.Contains(directories, node.Dir) || len(node.Match) == 0 && node.ForTest == "" {
+			continue
+		}
+		runtimeReader := slices.Contains(node.Imports, "os/exec") || slices.Contains(node.Imports, "os") || slices.Contains(node.Imports, "io/ioutil")
+		if !runtimeReader {
 			continue
 		}
 		node.inputDependencies = slices.Clone(roots)
-		if !slices.Contains(subprocessDirectories, node.Dir) {
-			subprocessDirectories = append(subprocessDirectories, node.Dir)
+		if slices.Contains(node.Imports, "os/exec") {
+			node.executionDependencies = node.inputDependencies
+		}
+		if !slices.Contains(runtimeDirectories, node.Dir) {
+			runtimeDirectories = append(runtimeDirectories, node.Dir)
 		}
 	}
 	for _, name := range paths {
 		absolute := filepath.Join(graph.root, filepath.FromSlash(name))
-		if strings.EqualFold(filepath.Ext(name), ".go") || compiled[absolute] {
+		if strings.EqualFold(filepath.Ext(name), ".go") {
 			continue
 		}
 		owner := ""
@@ -136,9 +144,9 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 				owner = directory
 			}
 		}
-		owners := subprocessDirectories
-		if owner != "" {
-			owners = []string{owner}
+		owners := slices.Clone(runtimeDirectories)
+		if owner != "" && !compiled[absolute] {
+			owners = append(owners, owner)
 		}
 		for _, directory := range owners {
 			if !slices.Contains(graph.resourceFiles[directory], absolute) {
@@ -171,7 +179,7 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 			if owned[node.ImportPath] {
 				continue
 			}
-			for _, imported := range slices.Concat(node.Imports, node.TestImports, node.XTestImports, node.inputDependencies) {
+			for _, imported := range slices.Concat(node.Imports, node.TestImports, node.XTestImports, node.executionDependencies) {
 				if owned[imported] {
 					owned[node.ImportPath] = true
 					changed = true
@@ -258,17 +266,26 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 			return artifact.ID{}, err
 		}
 	}
+	// Repository paths are logical inputs; temporary checkout locations are not.
+	logical := make(map[string]string, len(files))
 	var paths []string
 	for path := range files {
-		paths = append(paths, filepath.Clean(path))
+		path = filepath.Clean(path)
+		name := "external:" + filepath.ToSlash(path)
+		if relative, err := filepath.Rel(graph.root, path); err == nil && filepath.IsLocal(relative) {
+			name = "repository:" + filepath.ToSlash(relative)
+		}
+		logical[name] = path
+		paths = append(paths, name)
 	}
 	slices.Sort(paths)
 	hasher := sha256.New()
-	hasher.Write([]byte("go-test-inputs/v2\x00"))
+	hasher.Write([]byte("go-test-inputs/v3\x00"))
 	hasher.Write([]byte(target))
 	hasher.Write([]byte("\x00"))
-	for _, path := range paths {
-		hasher.Write([]byte(filepath.ToSlash(path)))
+	for _, name := range paths {
+		path := logical[name]
+		hasher.Write([]byte(name))
 		hasher.Write([]byte("\x00"))
 		input, found := graph.fileInputs[path]
 		if !found {

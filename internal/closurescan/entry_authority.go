@@ -333,14 +333,15 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Domain: EntryAuthorityGoOnly,
 			Owner:  "compiled Go registrations are the only runtime authority: no Go plugin loading, no embedded script interpreters, no dynamic library loading outside the enumerated OS-ABI owners, no runtime script invocation, and no harness-configuration discovery outside the protection guard",
 			Exceptions: map[string]string{
-				"internal/cuda/driver/driver_windows.go":            "OS-ABI owner: loads the NVIDIA driver library through the Windows ABI",
-				"internal/fsatomic/replace_windows.go":              "OS-ABI owner: kernel32 MoveFileExW for durable atomic replace",
-				"internal/processcontrol/supervisor_windows.go":     "OS-ABI owner: kernel32 job objects for process-tree supervision",
-				"internal/processlock/lock_windows.go":              "OS-ABI owner: kernel32 LockFileEx for the exclusive process lock",
-				"internal/processmeasure/peak_windows.go":           "OS-ABI owner: psapi peak-memory measurement",
-				"internal/protection/protection.go":                 "protection guard verifies the harness hook configuration; it grants no capability from it",
-				"internal/repoanalysis/production_authority_rsi.go": "typed architecture audit enumerates forbidden runtime formats; naming them grants no runtime behavior",
-				"internal/closurescan/entry_authority.go":           "single policy owner; the rule table names the plugin, library, script, and configuration patterns it guards",
+				"internal/cuda/driver/driver_windows.go":             "OS-ABI owner: loads the NVIDIA driver library through the Windows ABI",
+				"internal/fsatomic/replace_windows.go":               "OS-ABI owner: kernel32 MoveFileExW for durable atomic replace",
+				"internal/processcontrol/supervisor_windows.go":      "OS-ABI owner: kernel32 job objects for process-tree supervision",
+				"internal/processcontrol/resource_shared_windows.go": "OS-ABI owner: shell32 resolves the machine-wide resource admission directory",
+				"internal/processlock/lock_windows.go":               "OS-ABI owner: kernel32 LockFileEx for the exclusive process lock",
+				"internal/processmeasure/peak_windows.go":            "OS-ABI owner: psapi peak-memory measurement",
+				"internal/protection/protection.go":                  "protection guard verifies the harness hook configuration; it grants no capability from it",
+				"internal/repoanalysis/production_authority_rsi.go":  "typed architecture audit enumerates forbidden runtime formats; naming them grants no runtime behavior",
+				"internal/closurescan/entry_authority.go":            "single policy owner; the rule table names the plugin, library, script, and configuration patterns it guards",
 			},
 			Detect: func(file *ast.File) int {
 				sites := 0

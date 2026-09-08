@@ -51,6 +51,11 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if currentTree != g.acceptedTree {
 		return false, errors.New("commit admission: planned content changed after acceptance")
 	}
+	if g.candidateRoot != "" {
+		if err := requireCandidateWorktreeUnchanged(g.candidateRoot, g.acceptedTree); err != nil {
+			return false, err
+		}
+	}
 	if err := validateManifestCommitAdmission(*g.manifestPlan, g.terminal); err != nil {
 		return false, err
 	}

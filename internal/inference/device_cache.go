@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
@@ -48,8 +49,9 @@ type deviceCacheStorage struct {
 	mu        sync.Mutex
 	refs      int
 	releasing bool
-	keys      []*executor.DeviceBuffer
-	values    []*executor.DeviceBuffer
+	buffer    *executor.DeviceBuffer
+	keys      []executor.DeviceValue
+	values    []executor.DeviceValue
 }
 
 func (s *deviceCacheStorage) retain() bool {
@@ -92,23 +94,25 @@ func (s *deviceCacheStorage) release(ctx context.Context) error {
 		s.mu.Unlock()
 		return err
 	}
-	keys, values := s.keys, s.values
+	buffer, keys, values := s.buffer, s.keys, s.values
 	s.refs = 0
 	s.releasing = true
+	s.buffer = nil
 	s.keys = nil
 	s.values = nil
 	s.mu.Unlock()
 
-	buffers := make([]*executor.DeviceBuffer, 0, len(keys)+len(values))
-	buffers = append(buffers, keys...)
-	buffers = append(buffers, values...)
-	err := executor.ReleaseDeviceBuffers(context.Background(), buffers...)
+	var err error
+	if buffer != nil {
+		err = buffer.Release(context.Background())
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.releasing = false
 	if err != nil {
 		s.refs = 1
+		s.buffer = buffer
 		s.keys = keys
 		s.values = values
 		return err
@@ -474,11 +478,14 @@ type deviceCacheTargetLayer struct {
 	valueShape    tensor.Shape
 	keyCapacity   tensor.Shape
 	valueCapacity tensor.Shape
+	keyOffset     uint64
+	valueOffset   uint64
 	enabled       bool
 }
 
 type deviceCacheTargetPlan struct {
-	layers []deviceCacheTargetLayer
+	layers   []deviceCacheTargetLayer
+	elements uint64
 }
 
 type deviceDecodeSession struct {
@@ -1043,6 +1050,24 @@ func (r *Runner) compileDeviceCacheTargetPlans(
 				keyCapacity: keyCapacity, valueCapacity: valueCapacity,
 				enabled: true,
 			}
+			keyElements, err := keyCapacity.Elements()
+			if err != nil {
+				return nil, err
+			}
+			valueElements, err := valueCapacity.Elements()
+			if err != nil {
+				return nil, err
+			}
+			layerPlan.keyOffset = plan.elements
+			var fits bool
+			layerPlan.valueOffset, fits = checked.Add64(plan.elements, keyElements)
+			if !fits {
+				return nil, errors.New("inference: cache storage extent overflows")
+			}
+			plan.elements, fits = checked.Add64(layerPlan.valueOffset, valueElements)
+			if !fits {
+				return nil, errors.New("inference: cache storage extent overflows")
+			}
 			plan.layers[layer] = layerPlan
 		}
 		plans[branch] = plan
@@ -1084,8 +1109,40 @@ func (r *Runner) prepareDeviceCacheTargets(
 		if storage == nil {
 			storage = &deviceCacheStorage{
 				refs:   1,
-				keys:   make([]*executor.DeviceBuffer, len(graph.keys)),
-				values: make([]*executor.DeviceBuffer, len(graph.values)),
+				keys:   make([]executor.DeviceValue, len(graph.keys)),
+				values: make([]executor.DeviceValue, len(graph.values)),
+			}
+			storages[branch] = storage
+			if plans[branch].elements > 0 {
+				shape, err := tensor.NewShape(plans[branch].elements)
+				if err != nil {
+					return fail(err)
+				}
+				bytes, err := shape.Bytes(dtype.F32)
+				if err != nil {
+					return fail(err)
+				}
+				storage.buffer, err = r.cuda.AllocateDeviceBuffer(ctx, bytes)
+				if err != nil {
+					return fail(err)
+				}
+				group, err := storage.buffer.Value(shape)
+				if err != nil {
+					return fail(err)
+				}
+				for layer, target := range plans[branch].layers {
+					if !target.enabled {
+						continue
+					}
+					storage.keys[layer], err = deviceCacheStorageView(group, target.keyOffset, target.keyCapacity)
+					if err != nil {
+						return fail(err)
+					}
+					storage.values[layer], err = deviceCacheStorageView(group, target.valueOffset, target.valueCapacity)
+					if err != nil {
+						return fail(err)
+					}
+				}
 			}
 		}
 		storages[branch] = storage
@@ -1094,33 +1151,8 @@ func (r *Runner) prepareDeviceCacheTargets(
 			if !layerPlan.enabled {
 				continue
 			}
-			allocate := func(
-				buffers []*executor.DeviceBuffer,
-				shape tensor.Shape,
-				capacityShape tensor.Shape,
-			) (executor.DeviceValue, error) {
-				buffer := buffers[layer]
-				capacityBytes, sizeErr := capacityShape.Bytes(dtype.F32)
-				if sizeErr != nil {
-					return executor.DeviceValue{}, sizeErr
-				}
-				if buffer == nil {
-					buffer, sizeErr = r.cuda.AllocateDeviceBuffer(ctx, capacityBytes)
-					if sizeErr != nil {
-						return executor.DeviceValue{}, sizeErr
-					}
-					buffers[layer] = buffer
-				}
-				return buffer.Value(shape)
-			}
-			key, keyErr := allocate(storage.keys, layerPlan.keyShape, layerPlan.keyCapacity)
-			if keyErr != nil {
-				return fail(fmt.Errorf("inference: allocate key cache layer %d: %w", layer, keyErr))
-			}
-			value, valueErr := allocate(storage.values, layerPlan.valueShape, layerPlan.valueCapacity)
-			if valueErr != nil {
-				return fail(fmt.Errorf("inference: allocate value cache layer %d: %w", layer, valueErr))
-			}
+			key, value := storage.keys[layer], storage.values[layer]
+			key.Shape, value.Shape = layerPlan.keyShape, layerPlan.valueShape
 			if targetErr := targets.SetSlot(layerPlan.keySlot, key); targetErr != nil {
 				return fail(targetErr)
 			}
@@ -1132,18 +1164,32 @@ func (r *Runner) prepareDeviceCacheTargets(
 	return targets, storages, nil
 }
 
+func deviceCacheStorageView(group executor.DeviceValue, offset uint64, shape tensor.Shape) (executor.DeviceValue, error) {
+	elements, err := shape.Elements()
+	if err != nil {
+		return executor.DeviceValue{}, err
+	}
+	view, err := group.SliceLastAxis(dtype.F32, offset, elements)
+	if err != nil {
+		return executor.DeviceValue{}, err
+	}
+	view.Shape = shape
+	view.CapacityBytes, err = shape.Bytes(dtype.F32)
+	return view, err
+}
+
 func deviceCacheStorageFits(storage *deviceCacheStorage, graph deviceBatchGraph) bool {
 	if storage == nil || len(storage.keys) != len(graph.keys) || len(storage.values) != len(graph.values) {
 		return false
 	}
 	for layer := range graph.keys {
-		if storage.keys[layer] != nil {
-			if _, err := storage.keys[layer].Value(graph.keys[layer].Shape); err != nil {
+		if storage.keys[layer].Pointer != 0 {
+			if bytes, err := graph.keys[layer].Shape.Bytes(dtype.F32); err != nil || bytes > storage.keys[layer].CapacityBytes {
 				return false
 			}
 		}
-		if storage.values[layer] != nil {
-			if _, err := storage.values[layer].Value(graph.values[layer].Shape); err != nil {
+		if storage.values[layer].Pointer != 0 {
+			if bytes, err := graph.values[layer].Shape.Bytes(dtype.F32); err != nil || bytes > storage.values[layer].CapacityBytes {
 				return false
 			}
 		}

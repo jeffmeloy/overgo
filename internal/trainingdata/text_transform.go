@@ -19,8 +19,12 @@ type TextTransform struct {
 	ID        artifact.ID `json:"-"`
 }
 
+// TextTransformSchema identifies the target transformation among a run's
+// processing authorities; source-admission profiles do not replace it.
+const TextTransformSchema = "overgo/training-text-transform/v1"
+
 var textTransformCodec = artifact.JSONDocumentCodec(
-	"training text transform", artifact.KindProfile, artifact.JSONMediaType, "overgo/training-text-transform/v1",
+	"training text transform", artifact.KindProfile, artifact.JSONMediaType, TextTransformSchema,
 	func(value *TextTransform) error {
 		if value.Version != artifact.InitialDocumentVersion || value.Unicode != unicode.Version {
 			return errors.New("training text transform: version or Unicode tables differ")

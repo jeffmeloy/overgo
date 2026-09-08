@@ -18,10 +18,12 @@ import (
 // Execute runs one plan verifier from directory and validates that a
 // successful process produced non-vacuous evidence. Deterministic Go-test
 // claims are repeated against the same working tree and must agree exactly.
-func Execute(ctx context.Context, directory, command string) (testevidence.VerdictClass, error) {
+// Overrides bind caller-owned inputs without changing the acceptance command.
+func Execute(ctx context.Context, directory, command string, overrides []string) (testevidence.VerdictClass, error) {
 	if ctx == nil {
 		return "", errors.New("verification context is nil")
 	}
+	environment := append(gitauthority.RepositoryEnvironment(), overrides...)
 	command = strings.TrimSpace(command)
 	if command == "" {
 		return "", errors.New("verification command is empty")
@@ -35,7 +37,7 @@ func Execute(ctx context.Context, directory, command string) (testevidence.Verdi
 	if structuredGoTest {
 		executable = testevidence.JSONCommand(command)
 	}
-	first, err := executeShell(ctx, shell, directory, executable)
+	first, err := executeShell(ctx, shell, directory, executable, environment)
 	if err != nil {
 		detail := clioptions.Tail(first, clioptions.DiagnosticTailBytes)
 		if failures := testevidence.FailureSummary(first); failures != "" {
@@ -53,7 +55,7 @@ func Execute(ctx context.Context, directory, command string) (testevidence.Verdi
 	}
 	verdict := testevidence.ClassifyVerifyCommand(command)
 	if structuredGoTest && verdict == testevidence.VerdictBitwiseDeterministic {
-		repeat, repeatErr := executeShell(ctx, shell, directory, executable)
+		repeat, repeatErr := executeShell(ctx, shell, directory, executable, environment)
 		if repeatErr != nil {
 			return "", fmt.Errorf("REPEAT failed: %w: %s", repeatErr, clioptions.Tail(repeat, clioptions.DiagnosticTailBytes))
 		}
@@ -64,10 +66,10 @@ func Execute(ctx context.Context, directory, command string) (testevidence.Verdi
 	return verdict, nil
 }
 
-func executeShell(ctx context.Context, shell, directory, command string) (string, error) {
+func executeShell(ctx context.Context, shell, directory, command string, environment []string) (string, error) {
 	var output bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: shell, Args: []string{"-c", command}, Dir: directory, Env: gitauthority.RepositoryEnvironment(),
+		Path: shell, Args: []string{"-c", command}, Dir: directory, Env: environment,
 		Stdout: &output, Stderr: &output,
 	})
 	if err != nil {

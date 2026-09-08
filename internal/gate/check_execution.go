@@ -2,6 +2,7 @@ package gate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -23,6 +24,13 @@ func (g *gateContext) executeChecks(
 	cache *automationcheck.EvidenceCache,
 	drift func() error,
 ) ([]automationcheck.DAGResult, error) {
+	ledger, err := g.openBatchEvidence(checks, inputs, cache)
+	if err != nil {
+		return nil, err
+	}
+	if ledger != nil {
+		defer ledger.store.Close()
+	}
 	if g.terminal == nil {
 		g.terminal = map[string]automationcheck.Evidence{}
 	}
@@ -47,6 +55,11 @@ func (g *gateContext) executeChecks(
 			}
 		}
 		evidence, runErr := automationcheck.Run(ctx, check)
+		if ledger != nil {
+			if err := ledger.record(context.WithoutCancel(ctx), check.Check.Name, evidence); err != nil {
+				return evidence, errors.Join(runErr, fmt.Errorf("persist batch obligation: %w", err))
+			}
+		}
 		if runErr == nil && cacheCheck {
 			cacheMutex.Lock()
 			cache.Record(slot, input, evidence)

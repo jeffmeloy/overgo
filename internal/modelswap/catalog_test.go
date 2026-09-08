@@ -66,6 +66,10 @@ func TestCatalogRefreshPreservesMemo(t *testing.T) {
 	if _, _, err := resolver.Catalog(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled refresh: %v", err)
 	}
+	var unbound CatalogResolver
+	if err := unbound.refresh(t.Context()); err == nil {
+		t.Fatal("missing borrowed store accepted")
+	}
 }
 
 // TestMatchServableRoutesRemoteLocations: proxy remote route. Remote entry

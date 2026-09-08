@@ -32,6 +32,9 @@ const (
 
 func TestVideoGenerationLeadership(t *testing.T) {
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	repo := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(repo)
 	if err != nil {

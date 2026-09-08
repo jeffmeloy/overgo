@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,14 +14,48 @@ import (
 	"overgo/internal/testevidence"
 )
 
-// TestCurrentGuardControls readmits exact isolated repeats while retaining the
-// historical guard as an independent comparison. It never measures a model.
+type guardCohort struct {
+	name, historical string
+	initialModel     string
+	repeats          [3]string
+}
+
+// TestCurrentGuardControls checks retained controls without measuring models.
 func TestCurrentGuardControls(t *testing.T) {
+	fixtures := []guardCohort{
+		{
+			name:       "Qwen capacity session",
+			historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
+			repeats: [3]string{
+				"evidence:sha256:8216acc2fdbc4705d6acead094d3253c176aa9c029683bc4e4480d19774d410c",
+				"evidence:sha256:98cb6f0b40bd3ece9d1cf1815b4a5255fd6e26fa550dc57806cd82f5f7d8634a",
+				"evidence:sha256:8a3933043176ed794d5fcad18c647dfedf583fb59a8a1bbe1e6aec0dead657d7",
+			},
+		},
+		{
+			name:       "E4B request session",
+			historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a",
+			repeats: [3]string{
+				"evidence:sha256:5e665ff150fad0fca8ae13a3de609f555ed6b67046c6697a45bfbb48bc9f6cd5",
+				"evidence:sha256:64557c547d3c281bbb4ee77174f28d2c8ba19519197d9d21b54afd54d0abc469",
+				"evidence:sha256:edf1b490201bba3344c73a361a4c8af2db1af0654258e8fd6e3786b11805ec8c",
+			},
+		},
+	}
+	requireGuardCohorts(t, fixtures, "95c0ac02654d9e9034451f9ab1a4d4b2abd0646b", false)
+	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
+}
+
+func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, catalog bool) {
+	t.Helper()
+	if len(fixtures) == 0 {
+		t.Fatal("empty guard cohort")
+	}
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT to check the six exact current control records; no models execute")
+		t.Skip("integration: set OVERGO_DATA_ROOT to check exact guard cohorts; no models execute")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	if err != nil {
@@ -35,37 +70,25 @@ func TestCurrentGuardControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	fixtures := []struct {
-		name, historical string
-		repeats          [3]string
-	}{
-		{
-			name:       "Qwen capacity session",
-			historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
-			repeats: [3]string{
-				"evidence:sha256:14c8126978a28677c330fdda7a1eb80d4c103ed312f08c3546e54d47b31dbb36",
-				"evidence:sha256:ec2dd785dcbb0212b458a419e8dc13724341a2ae19f435ca3deca12bbbb10bb7",
-				"evidence:sha256:6de760ae212837fb2ed28c65c104284f25c6af9466d14ae1d75a6e1518c1a67e",
-			},
-		},
-		{
-			name:       "E4B request session",
-			historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a",
-			repeats: [3]string{
-				"evidence:sha256:691583cd94967c89162c90b5c9cb5ef9463c892e5c060d77c5eeccb2ddbbe3b0",
-				"evidence:sha256:b6e7ae4ae005fc650babfa7eb5e530a59a10abc540b407bacb95fc689a6ebc63",
-				"evidence:sha256:467b065ec9bc86f2bd938bff6d88c0f1079bc2e2e3a003f9a0ba11bd61fea356",
-			},
-		},
-	}
-	requireStoreLineage(t, store, fixtures[0].historical)
+
+	lineage := cmp.Or(fixtures[0].historical, fixtures[0].repeats[0])
+	requireStoreLineage(t, store, lineage)
 	seen := make(map[artifact.ID]bool)
 	opts := options{Root: filepath.Join("..", ".."), Repository: roots.Store, Corpus: "testdata/guard-corpus.txt", ValidateBaselines: true}
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
-			historical := measuredGuardRecord(t, store, fixture.historical)
-			if err := validateGuard(historical.Result); err != nil {
-				t.Fatal(err)
+			var historical longform.Summary
+			if fixture.initialModel != "" {
+				id, err := artifact.ParseID(fixture.initialModel)
+				if err != nil || id.Kind() != artifact.KindModel || fixture.historical != "" {
+					t.Fatal("initial calibration requires one exact model and no substituted historical reference")
+				}
+				t.Log("initial full-budget calibration; no historical comparison is claimed")
+			} else {
+				historical = measuredGuardRecord(t, store, fixture.historical)
+				if err := validateGuard(historical.Result); err != nil {
+					t.Fatal(err)
+				}
 			}
 			var first longform.Result
 			for index, text := range fixture.repeats {
@@ -79,14 +102,19 @@ func TestCurrentGuardControls(t *testing.T) {
 					t.Fatal(err)
 				}
 				fresh := accepted.Result
-				if fresh.Surface != surface || fresh.Commit != "519a2690db1a39e16b6e3254b7556c56dbc549ea" {
+				if fresh.Surface != surface || fresh.Commit != producer {
 					t.Fatal("control does not identify the current inference surface and clean measured producer")
+				}
+				if fixture.initialModel != "" && fresh.Program.Model.String() != fixture.initialModel {
+					t.Fatal("initial calibration substituted another model")
 				}
 				if err := validateGuard(fresh); err != nil {
 					t.Fatal(err)
 				}
-				if verdict := longform.Compare(historical.Result, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
-					t.Fatalf("historical comparison: %s", verdict)
+				if historical.Record.Valid() {
+					if verdict := longform.Compare(historical.Result, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
+						t.Fatalf("historical comparison: %s", verdict)
+					}
 				}
 				if index == 0 {
 					first = fresh
@@ -99,11 +127,14 @@ func TestCurrentGuardControls(t *testing.T) {
 			}
 		})
 	}
-	if len(seen) != 6 {
-		t.Fatalf("accepted control denominator = %d, want six distinct records", len(seen))
+	if len(seen) != len(fixtures)*len(fixtures[0].repeats) {
+		t.Fatalf("accepted cohort denominator differs: %d distinct records", len(seen))
 	}
 	if t.Failed() {
 		return
+	}
+	if catalog {
+		opts.All, opts.Models = true, nil
 	}
 	targets, err := listTargets(t.Context(), opts)
 	if err != nil {
@@ -112,11 +143,18 @@ func TestCurrentGuardControls(t *testing.T) {
 	if len(targets) != len(fixtures) {
 		t.Fatal("live control selection differs from the accepted denominator")
 	}
+	if catalog {
+		report, err := loadGuardCoverage(t.Context(), opts, targets, surface)
+		if err != nil || report.Covered != len(fixtures) {
+			t.Fatalf("live execution coverage is incomplete: %d/%d: %v", report.Covered, report.Selected, err)
+		}
+		t.Logf("catalog: %d exact live models, %d distinct complete records; recipe, definition, profile, corpus and inference surface bound; no model executions", report.Covered, len(seen))
+		return
+	}
 	if err := bindBaselines(t.Context(), opts, targets); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateSelectedBaselines(io.Discard, targets, surface); err != nil {
 		t.Fatal(err)
 	}
-	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
 }

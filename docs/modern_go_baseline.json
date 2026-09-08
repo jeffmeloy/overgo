@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "7bc5036864c9828556881a077c4ce2597d18b4eee16b07fa120f57cb81e61056",
+  "source_identity": "ea5f62e559320ba0e57222022c762f4b3e5a668a1b64da6c8e502f261e7db407",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3056,
-    "typed_files": 2992
+    "inspected_files": 3111,
+    "typed_files": 3047
   },
   "guidelines": [
     {
@@ -1633,17 +1633,6 @@
       "guideline": "cmp_or",
       "path": "internal/inference/continuous_batch.go",
       "symbol": "step",
-      "owner": "overgo/internal/inference",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/inference -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
-      "path": "internal/inference/device_cache.go",
-      "symbol": "prepareDeviceCacheTargets",
       "owner": "overgo/internal/inference",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
       "oracle": "go test ./internal/inference -count=1",
@@ -5139,5 +5128,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "092d273e5a4b8fb9cf0a8a7ebb98b1f93b73771c3f3284108bcdbbf6ebc96151"
+  "exceptions_sha256": "4fc8bda7c07723884e55061e196d3f6fcabf66d0d28ffa50188771ced7e6b54f"
 }

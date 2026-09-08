@@ -36,6 +36,7 @@ func planVerificationBatch(repo, reference string) (*plan.VerificationBatch, err
 }
 
 func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batch *plan.VerificationBatch) ([]automationcheck.Check, error) {
+	g.verificationBatch = batch
 	if batch == nil {
 		return checks, nil
 	}
@@ -47,13 +48,7 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 	// Declared flush bounds: accepted checkpoints accumulate per key; the
 	// decision and its reason join the audit so gate cost per flushed batch is
 	// attributable. Absent declaration -> no accumulation.
-	var accumulator *plan.BatchAccumulator
-	if batch.Flush != nil {
-		var err error
-		if accumulator, err = plan.NewBatchAccumulator(*batch.Flush); err != nil {
-			return nil, fmt.Errorf("acceptance: %w", err)
-		}
-	}
+	var pending plan.BatchState
 	// Checkpoint memo slots: computed once from the declared verifies so the
 	// verification loop can reuse accepted checkpoint evidence across runs.
 	memos, err := g.checkpointMemoInputs(batch)
@@ -78,13 +73,18 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 			if err := g.verifyAcceptedCandidate(checkpoint.Verify, false); err != nil {
 				return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
 			}
-			if accumulator != nil {
-				state, flush, reason, err := accumulator.Add(batch.Flush.Key, int64(len(evidence)), time.Now())
+			if batch.Flush != nil {
+				bytes := int64(len(evidence))
+				state, flush, reason, err := batch.Flush.Advance(pending, &bytes, time.Now(), false)
 				if err != nil {
 					return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
 				}
 				g.audit = append(g.audit, fmt.Sprintf("batch flush: checkpoint=%s key=%s size=%d bytes=%d flush=%t reason=%q",
 					checkpoint.ID, state.Key, state.Size, state.Bytes, flush, reason))
+				pending = state
+				if flush {
+					pending = plan.BatchState{}
+				}
 			}
 			return false, nil
 		})

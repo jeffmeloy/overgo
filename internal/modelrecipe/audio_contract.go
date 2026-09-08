@@ -17,6 +17,9 @@ const (
 
 	// ModuleTranscribeAudio identifies neutral audio-to-text execution.
 	ModuleTranscribeAudio recipe.ModuleID = "model.transcribe-audio"
+	// ModuleTranscribeSegments traverses declared activity intervals with the
+	// transcription model, preserving their original sample coordinates.
+	ModuleTranscribeSegments recipe.ModuleID = "model.transcribe-audio-segments"
 	// ModuleAlignAudio identifies sample-exact transcript alignment.
 	ModuleAlignAudio recipe.ModuleID = "model.align-audio"
 	// ModuleDiarizeAudio identifies speaker-turn extraction.
@@ -152,11 +155,20 @@ var audioTaskSpecs = map[recipe.Task]audioTaskSpec{
 func audioTaskModules() []recipe.Module {
 	modules := make([]recipe.Module, 0, len(audioTaskSpecs))
 	for task, spec := range audioTaskSpecs {
+		tasks := []recipe.Task{task}
+		if task == recipe.TaskActivityDetection {
+			tasks = append(tasks, recipe.TaskTranscription)
+		}
 		modules = append(modules, recipe.Module{
-			ID: spec.module, Tasks: []recipe.Task{task}, Placements: []recipe.Placement{recipe.PlacementHost},
+			ID: spec.module, Tasks: tasks, Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs: spec.inputs, Outputs: []recipe.Port{spec.output},
 		})
 	}
+	modules = append(modules, recipe.Module{
+		ID: ModuleTranscribeSegments, Tasks: []recipe.Task{recipe.TaskTranscription}, Placements: []recipe.Placement{recipe.PlacementHost},
+		Inputs:  []recipe.Port{{Name: "segments", Data: recipe.DataActivitySegments, Cardinality: recipe.CardinalityOne}},
+		Outputs: []recipe.Port{audioTaskSpecs[recipe.TaskTranscription].output},
+	})
 	return modules
 }
 
@@ -164,6 +176,18 @@ func audioTaskModules() []recipe.Module {
 // decoded-audio contract, processor declaration, tokenizer, and tensor catalog.
 func TranscriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID artifact.ID) (recipe.Definition, error) {
 	return transcriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID, artifact.ID{})
+}
+
+// ActivityDefinition binds speech activity execution to its exact model,
+// processor declaration and tensor inventory. The processor owns the declared
+// frontend and offline or causal boundary policy; this topology is shared.
+func ActivityDefinition(modelID, processorID, inventoryID artifact.ID) (recipe.Definition, error) {
+	node := recipe.Node{ID: "activity", Module: ModuleDetectActivity, Placement: recipe.PlacementHost, Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache}
+	return recipe.NewDefinitionWithDependencies(recipe.TaskActivityDetection,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}, {Role: recipe.DependencyProcessorProfile, Artifact: processorID}, {Role: recipe.DependencyTensorInventory, Artifact: inventoryID}},
+		[]recipe.Node{node}, nil,
+		[]recipe.Input{{Name: "audio", Data: recipe.DataAudio, Target: recipe.Endpoint{Node: node.ID, Port: "audio"}}},
+		[]recipe.Output{{Name: "segments", Data: recipe.DataActivitySegments, Source: recipe.Endpoint{Node: node.ID, Port: "segments"}}})
 }
 
 // AdaptedTranscriptionDefinition adds one exact checkpoint to the canonical

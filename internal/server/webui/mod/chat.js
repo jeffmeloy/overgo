@@ -549,13 +549,14 @@
 
       // The composer's protocol parts become Responses input parts.
       function responsesInput(text, parts) {
-        const content = [{ type: "input_text", text }];
+        const content = [];
         for (const part of parts) {
           if (part.type === "image_url") content.push({ type: "input_image", image_url: part.image_url.url });
           else if (part.type === "input_audio") content.push({ type: "input_audio", input_audio: part.input_audio });
           else if (part.type === "input_video") content.push({ type: "input_video", input_video: part.input_video });
           else if (part.type === "input_file") content.push(part);
         }
+        content.push({ type: "input_text", text });
         return [{ role: "user", content: parts.length ? content : text }];
       }
 
@@ -683,7 +684,7 @@
           // A mode beyond chat is one generation over the shared dispatch; its
           // media lands in this thread as artifacts with their provenance.
           if (mode === "agent") {
-            const history = (histories.get(agentPicker.value) || []).concat([{ role: "user", content: parts.length ? [{ type: "text", text }, ...parts] : text }]);
+            const history = (histories.get(agentPicker.value) || []).concat([{ role: "user", content: parts.length ? [...parts, { type: "text", text }] : text }]);
             const result = await overgo.api.post("/agents/chat", { agent: agentPicker.value, messages: history }, { signal: controller.signal });
             assistant = thread.add("assistant", "");
             await thread.consume(overgo.streams.reply(result), assistant);

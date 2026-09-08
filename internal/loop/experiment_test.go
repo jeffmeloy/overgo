@@ -557,7 +557,7 @@ func newStrategyExperimentTestFixtureWithOptions(
 		name := string(rune('a' + index))
 		trace, err := runrecord.NewInteractionTrace(
 			runrecord.Interaction{Recipe: strategy.ModelRecipe, Model: model}, id(artifact.KindEvidence, "strategy request "+name),
-			[]runrecord.InteractionMessage{{Role: "user", Content: "perform the exact task"}}, nil,
+			[]runrecord.InteractionMessage{{Role: "user", Content: "perform the exact task"}}, nil, "",
 		)
 		if err != nil {
 			t.Fatal(err)

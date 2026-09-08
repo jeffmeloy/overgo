@@ -53,17 +53,24 @@ func publishVADLifecycle(t *testing.T, reference *overgodb.Store, model vadNumer
 	} else {
 		profile.Offline = &speechactivity.OfflineConfig{Smoothing: c.Config.Smoothing, Threshold: c.Config.Threshold, MinSpeech: int(c.Config.MinSpeech), MaxSpeech: int(c.Config.MaxSpeech), MinSilence: int(c.Config.MinSilence), MergeSilence: c.MergeSilence, ExtendSpeech: c.ExtendSpeech}
 	}
-	l.profile, err = speechactivity.NewProfile(profile)
+	profile.Version = artifact.InitialDocumentVersion
+	content, err := artifact.JSONContent(artifact.DocumentContract{
+		Kind: artifact.KindProfile, MediaType: "application/vnd.overgo.speech-activity-profile+json", Schema: "overgo/speech-activity-profile/v1",
+	}, profile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch, err = l.profile.Batch("vad/profile")
-	l.commit(t, batch, err)
+	l.commit(t, artifact.Batch{Key: "vad/profile", Contents: []artifact.Content{content},
+		Lineage: artifact.DependencyLineage(content.Descriptor.ID, profile.Model, profile.Inventory, profile.License)}, nil)
+	l.profile, err = speechactivity.RequireProfile(t.Context(), store, content.Descriptor.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	definition, err := modelrecipe.ActivityDefinition(profile.Model, l.profile.ID, profile.Inventory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := definition.ArtifactContent()
+	content, err = definition.ArtifactContent()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +119,7 @@ func TestVADOfflineAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			stored, err := speechactivity.RequireActivity(t.Context(), l.store, id)
+			stored, err := requireActivity(t.Context(), l.store, id)
 			if err != nil || stored.Source != source || !slices.Equal(stored.Segments, result.Segments) {
 				t.Fatal("offline publication differs")
 			}
@@ -183,7 +190,7 @@ func TestVADStreamingAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			output, err := speechactivity.RequireActivity(t.Context(), l.store, result.Output)
+			output, err := requireActivity(t.Context(), l.store, result.Output)
 			if err != nil || output.State != result.State {
 				t.Fatal("stream publication differs")
 			}

@@ -148,6 +148,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
     })()`)
 
 	blockedID := strconv.Quote(blocked.String())
+	assertBrowserPredicate(t, ctx, browser, `(() => {document.querySelector('.activity-summary').click();return document.querySelector('.activity-dialog').open;})()`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const chip = [...document.querySelectorAll(".operation-chip.blocked")].find((item) => item.title.includes(`+blockedID+`));
       if (!chip) return false;
@@ -192,9 +193,10 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if status, err := fixture.handler.operations.Wait(ctx, running); err != nil || status.State != operation.StateCancelled {
 		t.Fatalf("browser cancellation=(%+v, %v)", status, err)
 	}
-	if err := browser.Eventually(ctx, `document.querySelector(".operation-strip").textContent.includes("0 active")`); err != nil {
+	if err := browser.Eventually(ctx, `document.getElementById('global-operation-shell').hidden`); err != nil {
 		t.Fatal(err)
 	}
+	assertBrowserPredicate(t, ctx, browser, `(() => {document.querySelector('[aria-label="Close activity"]').click();return !document.querySelector('.activity-dialog').open;})()`)
 
 	// The API key must live in memory for the page session: browser storage
 	// stays empty until the operator opts in through the remember control,
@@ -265,8 +267,8 @@ func assertChatAttachmentModeReset(t *testing.T, ctx context.Context, browser *w
       return window.modeResetProbe.uploads === 0;
     })()`)
 	if err := browser.Eventually(ctx, `(() => {
-      const attachments = document.querySelector('.composer');
-      return attachments && attachments.textContent.includes("mode-reset.txt") && !attachments.textContent.includes("stored as");
+      const attachment = [...document.querySelectorAll('.composer .attachment-row[data-state=ready]')].find(row => row.textContent.includes('mode-reset.txt'));
+      return !!attachment && window.modeResetProbe.uploads === 0 && ![...attachment.querySelectorAll('a')].some(link => link.textContent === 'Stored file');
     })()`); err != nil {
 		t.Fatal(err)
 	}
@@ -467,9 +469,13 @@ func pressKey(t *testing.T, ctx context.Context, browser *webuilane.Browser, key
 		modifier |= bit
 	}
 	for _, kind := range []string{"keyDown", "keyUp"} {
-		if err := browser.Call(ctx, "Input.dispatchKeyEvent", map[string]any{
+		event := map[string]any{
 			"type": kind, "key": key, "code": key, "windowsVirtualKeyCode": code, "nativeVirtualKeyCode": code, "modifiers": modifier,
-		}, nil); err != nil {
+		}
+		if key == "Enter" && kind == "keyDown" {
+			event["text"] = "\r" // native button activation requires the character event
+		}
+		if err := browser.Call(ctx, "Input.dispatchKeyEvent", event, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

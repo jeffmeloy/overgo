@@ -134,7 +134,7 @@ func TestVADStreamRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err := speechactivity.RequireActivity(t.Context(), l.store, result.Output)
+	output, err := requireActivity(t.Context(), l.store, result.Output)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestVADStreamRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	freshOutput, err := speechactivity.RequireActivity(t.Context(), l.store, replayed.Output)
+	freshOutput, err := requireActivity(t.Context(), l.store, replayed.Output)
 	if err != nil || !reflect.DeepEqual(output.Segments, freshOutput.Segments) {
 		t.Fatal("discontinuity differs from fresh analysis")
 	}

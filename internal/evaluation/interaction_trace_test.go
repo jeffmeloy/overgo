@@ -14,7 +14,7 @@ func TestWorkflowEvaluationBindsTrace(t *testing.T) {
 	request := testutil.ArtifactID(t, artifact.KindEvidence, "evaluation trace request")
 	trace := func(input artifact.ID) runrecord.InteractionTrace {
 		value, err := runrecord.NewInteractionTrace(runrecord.Interaction{Recipe: recipeID, Model: modelID}, input,
-			[]runrecord.InteractionMessage{{Role: "assistant", Content: "answer"}}, nil)
+			[]runrecord.InteractionMessage{{Role: "assistant", Content: "answer"}}, nil, "")
 		if err != nil {
 			t.Fatal(err)
 		}

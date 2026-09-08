@@ -125,6 +125,100 @@ func TestCompileExternalOmitsCallerOwnedOutput(t *testing.T) {
 	}
 }
 
+func TestRetainedPlanOmitsOutputStorage(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
+	first := builder.Scale(input, 2)
+	second := builder.Add(first, input)
+	compiled, err := Compile(first, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compiled.memory.ArenaSize == 0 {
+		t.Fatal("host-output execution lost its arena")
+	}
+	if compiled.retainedMemory.ArenaSize != 0 {
+		t.Fatalf("retained outputs still reserve %d duplicate arena bytes", compiled.retainedMemory.ArenaSize)
+	}
+}
+
+func TestRetainedPlanDoesNotIncreaseArena(t *testing.T) {
+	builder := tensor.NewBuilder()
+	width := uint64(deviceAllocationAlignment / 4)
+	value := builder.Input("input", dtype.F32, tensor.MustShape(width, 1))
+	var outputs []*tensor.Tensor
+	// Excluding the third output changes best-fit placement of later tensors.
+	for index, units := range []uint64{15, 11, 10, 10, 10, 15, 11, 4} {
+		next := units * deviceAllocationAlignment / 4
+		weights := builder.Input("weights", dtype.F32, tensor.MustShape(width, next))
+		value = builder.MulMat(weights, value)
+		width = next
+		if index == 2 || index == 6 || index == 7 {
+			outputs = append(outputs, value)
+		}
+	}
+	compiled, err := Compile(outputs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if compiled.retainedMemory.ArenaSize > compiled.memory.ArenaSize {
+		t.Fatalf("retained arena = %d, managed arena = %d", compiled.retainedMemory.ArenaSize, compiled.memory.ArenaSize)
+	}
+	for _, output := range outputs {
+		if _, exists := compiled.retainedMemory.Allocations[output]; exists {
+			t.Fatal("retained output still owns an arena allocation")
+		}
+	}
+}
+
+func TestRetainedAliasPlanOmitsProducerStorage(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
+	producer := builder.Scale(input, 2)
+	view := builder.FlatSlice(producer, 1000, 24)
+	compiled, err := Compile(view)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if arena := compiled.executionMemory(true, nil).ArenaSize; arena != 0 {
+		t.Fatalf("retained alias producer still reserves %d duplicate arena bytes", arena)
+	}
+	if compiled.executionMemory(false, nil).ArenaSize == 0 {
+		t.Fatal("host output lost its producer storage")
+	}
+	targets := compiled.NewRetainedTargets()
+	if err := targets.Set(view, DeviceValue{Pointer: driver.DevicePtr(deviceAllocationAlignment), Shape: view.Shape, CapacityBytes: 24 * 4}); err != nil {
+		t.Fatal(err)
+	}
+	if compiled.executionMemory(true, targets).ArenaSize == 0 {
+		t.Fatal("caller-bound alias lost its intermediate producer storage")
+	}
+}
+
+func TestRetainedAliasPlanPreservesBoundWholeViews(t *testing.T) {
+	builder := tensor.NewBuilder()
+	input := builder.Input("input", dtype.F32, tensor.MustShape(1024))
+	producer := builder.Scale(input, 2)
+	view := builder.FlatSlice(producer, 1000, 24)
+	other := builder.Scale(input, 3)
+	whole := builder.Reshape(other, 32, 32)
+	compiled, err := Compile(view, whole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := compiled.NewRetainedTargets()
+	if err := targets.Set(whole, DeviceValue{Pointer: driver.DevicePtr(deviceAllocationAlignment), Shape: whole.Shape, CapacityBytes: 1024 * 4}); err != nil {
+		t.Fatal(err)
+	}
+	plan := compiled.executionMemory(true, targets)
+	if _, duplicate := plan.Allocations[producer]; duplicate {
+		t.Fatal("bound whole view kept an unrelated retained slice producer in the arena")
+	}
+	if _, required := plan.Allocations[other]; !required {
+		t.Fatal("bound whole view lost its producer storage")
+	}
+}
+
 func TestCompiledRuntimeAttributesUseNodeIndexes(t *testing.T) {
 	builder := tensor.NewBuilder()
 	builder.SetCacheAppendPlan(tensor.CacheAppendPlan{ActiveTokens: 2, CapacityTokens: 4})

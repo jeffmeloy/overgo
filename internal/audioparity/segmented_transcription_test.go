@@ -183,7 +183,7 @@ func (f *segmentedFixture) run(t *testing.T) (recipecontract.Transcription, runr
 	if composition.Source != result.Source || len(composition.Pieces) != len(want.Pieces) || len(want.Spans) != len(want.Pieces) {
 		t.Fatal("composition source or piece count differs")
 	}
-	activity, err := speechactivity.RequireActivity(t.Context(), f.store, composition.Activity)
+	activity, err := requireActivity(t.Context(), f.store, composition.Activity)
 	if err != nil || len(activity.Segments) != len(want.Pieces) {
 		t.Fatalf("activity output: %v", err)
 	}

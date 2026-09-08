@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"overgo/internal/apimanifest"
+	"overgo/internal/processcontrol"
 )
 
 // maxRoutedBodyBytes bounds the request body the router buffers to
@@ -117,6 +118,12 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	}
 	target, release, err := p.Supervisor.Acquire(request.Context(), servable)
 	if err != nil {
+		if errors.Is(err, processcontrol.ErrResourceBusy) {
+			response.Header().Set("Content-Type", "application/json")
+			response.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"code": "resource_busy", "message": err.Error()}})
+			return
+		}
 		http.Error(response, err.Error(), http.StatusServiceUnavailable)
 		return
 	}

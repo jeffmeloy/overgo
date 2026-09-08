@@ -18,13 +18,28 @@
   async function connect() {
     const controller = new AbortController();
     streamController = controller;
+    let connected = false;
     try {
-      await window.overgo.api.events("/runtime/activity/stream", publish, { signal: controller.signal });
-    } catch (err) { if (err.name !== "AbortError") publish("stream.error", err); } finally {
-      if (streamController === controller) streamController = null;
+      await window.overgo.api.events("/runtime/activity/stream", (name, value) => {
+        if (streamController !== controller || controller.signal.aborted) return;
+        if (!connected) { connected = true; latest.delete('stream.error'); publish('stream.ready', null); }
+        publish(name, value);
+      }, { signal: controller.signal });
+      if (streamController === controller && !controller.signal.aborted) throw new Error('Activity connection closed. Retrying…');
+    } catch (err) {
+      if (streamController === controller && !controller.signal.aborted && err.name !== "AbortError") {
+        // The idle proxy deliberately has no operation service until a model
+        // is selected. Its declared refusal is not a broken connection.
+        if (err.type === 'no_model_serves') { latest.delete('stream.error'); publish('stream.idle', null); }
+        else publish("stream.error", err);
+      }
+    } finally {
       // A broken stream (a model swap replaces the serving child) reconnects
       // while anyone still listens; the pause keeps a dead server quiet.
-      if (!streamController && subscribers.size) setTimeout(() => { if (!streamController && subscribers.size) connect(); }, streamReconnectDelayMS);
+      if (streamController === controller) {
+        streamController = null;
+        if (subscribers.size) setTimeout(() => { if (!streamController && subscribers.size) connect(); }, streamReconnectDelayMS);
+      }
     }
   }
   const streamReconnectDelayMS = 2000;
@@ -133,22 +148,27 @@
 
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
-      let unsubscribe = function () {};
-      function finish(current) { if (observe) observe(current); if (!terminal(current.state)) return; unsubscribe(); resolve(current); }
+      let unsubscribe = function () {}, finished = false, fallback = null;
+      function cleanup() { finished = true; unsubscribe(); if (fallback) fallback.abort(); if (signal) signal.removeEventListener('abort', abort); }
+      function abort() { if (finished) return; cleanup(); reject(new DOMException('aborted', 'AbortError')); }
+      function finish(current) { if (finished) return; if (observe) observe(current); if (!terminal(current.state)) return; cleanup(); resolve(current); }
+      if (signal && signal.aborted) { abort(); return; }
       unsubscribe = subscribe((name, value) => {
+        if (finished) return;
         if (name === "operation" && value.status.id === id) finish(value.status);
         if (name === "operation.snapshot") { const current = value.find((item) => item.id === id); if (current) finish(current); }
-        if (name === "stream.error") {
+        if (name === "stream.error" && !fallback) {
           // The event stream can break under a model swap; the operation's
           // durable status still answers from the server's own wait route.
-          unsubscribe();
-          window.overgo.api.get("/operations/wait?id=" + encodeURIComponent(id)).then(resolve, () => reject(value));
+          const request = new AbortController(); fallback = request;
+          window.overgo.api.get("/operations/wait?id=" + encodeURIComponent(id), { signal: request.signal }).then(finish, err => {
+            // Transient failures keep observing the reconnecting stream. A
+            // blocked receipt still needs its operator decision, not a rerun.
+            if (!finished && err.status === 404) { cleanup(); reject(err); }
+          }).finally(() => { if (fallback === request) fallback = null; });
         }
       });
-      if (signal) signal.addEventListener("abort", () => {
-        unsubscribe();
-        reject(new DOMException("aborted", "AbortError"));
-      }, { once: true });
+      if (signal) signal.addEventListener('abort', abort, { once: true });
     });
   };
   window.overgo.workflowWorkspace = function (definition) {

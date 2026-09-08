@@ -633,6 +633,7 @@ func (h *Handler) Close() error {
 	if h == nil {
 		return nil
 	}
+	h.inflight.shutdown()
 	// Downloads shut down first: the registry cancels in-flight transfers,
 	// records the interruption on each job, and waits for their goroutines,
 	// so nothing below closes out from under a disk write.

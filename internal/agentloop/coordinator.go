@@ -664,7 +664,7 @@ func (c *Coordinator) recordStep(
 			}},
 		},
 		{Role: string(inference.ChatRoleTool), ToolCallID: callID, Content: string(result)},
-	})
+	}, "")
 	if err != nil {
 		return artifact.ID{}, err
 	}

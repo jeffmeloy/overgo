@@ -32,7 +32,7 @@ func TestGlobalOperationShell(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"runtimeEvents.subscribe", "/operations/evidence?id=", "/operations/cancel", "/operations/decision",
-		"searchParams.set(\"operation\"", "Recovery decision", "Outputs and traces", "artifactLink",
+		"searchParams.set(\"operation\"", "Recovery decision", "Results", "artifactLink",
 	} {
 		if !strings.Contains(shell, expected) {
 			t.Errorf("global operation shell lacks %q", expected)

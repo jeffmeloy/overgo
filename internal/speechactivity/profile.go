@@ -46,15 +46,6 @@ var profileCodec = artifact.JSONDocumentCodec("speech activity profile", artifac
 		return p
 	})
 
-// NewProfile identifies a declaration without claiming execution readiness.
-// LoadDetector validates its physical artifacts and numeric execution limits.
-func NewProfile(value Profile) (Profile, error) { return profileCodec.NewInitial(value) }
-
-// Batch packages the profile and its exact artifact dependencies.
-func (p Profile) Batch(key string) (artifact.Batch, error) {
-	return profileCodec.Batch(key, p, artifact.DependencyLineage(p.ID, p.Model, p.Inventory, p.License), nil)
-}
-
 // RequireProfile reads a canonical, content-addressed execution declaration.
 func RequireProfile(ctx context.Context, reader artifact.Reader, id artifact.ID) (Profile, error) {
 	return profileCodec.Require(ctx, reader, id)

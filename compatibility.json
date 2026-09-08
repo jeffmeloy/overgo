@@ -211,7 +211,7 @@
    "summary": "One declared CPU VAD/CTC recipe decodes admitted audio once, traverses unchanged sample spans and publishes one transcript with exact segment provenance. Four spans, PCM hashes and piece transcripts match the pinned native composition capture on one LibriSpeech training record. Source-addressed evaluation and authenticated HTTP execute the same recipe; silence, corrupt, empty and unauthorized controls refuse. Both model components use the shared bounded session owner. No held-out quality, word alignment, native recognizer streaming, performance gain, aggregate-memory or GPU claim.",
    "evidence": [
     {"path": "internal/speechrecognition/session.go", "contains": "func LoadSession(", "role": "source", "identity": "file:sha256:bf052fd3c3a0c03d0a956456fa39c0becc88620515ccc95755d9f4aaacc019f3"},
-    {"path": "internal/audioparity/segmented_transcription_test.go", "contains": "func TestValidatedTranscriptionConsumers(", "role": "artifact", "identity": "evidence:sha256:8a8ad3b3ada426d737e796e97c9533a3f9ae4f6f39e15a23189efa20403bc276"},
+    {"path": "internal/audioparity/segmented_transcription_test.go", "contains": "func TestValidatedTranscriptionConsumers(", "role": "artifact", "identity": "evidence:sha256:1901c25624f12031326514a8b52a119a18e422b82b80947fcbc470021bf2f898"},
     {"path": "internal/audioparity/testdata/segmented_reference.json", "contains": "7e74c6438b7cfb5090cb6a131538f5e8515a7de3", "role": "source", "identity": "file:sha256:2c483913976762649b908dffc67d23feccb72750c74fd365615f6461a099433c"}
    ]
   },
@@ -224,8 +224,8 @@
    "verify": "go test ./internal/audioparity -run '^TestVADOfflineAcceptance$' -count=1 -v",
    "summary": "Declared CPU finite-memory classification and offline activity publication match pinned frontend, network and boundary fixtures on one 1451-frame LibriSpeech recording and silence controls. Physical tensor and license binding, unsafe-constructor refusal and ZIP64 metadata bounds are enforced. Integer-frame splitting and signal-clipped extension are explicit; no annotated quality, throughput, HTTP, aggregate-memory or GPU claim.",
    "evidence": [
-    {"path": "internal/speechactivity/execution.go", "contains": "func (d *Detector) Detect(", "role": "source", "identity": "file:sha256:9464e811d2aedd9574352688393f50a1c8660e4b852ab1a60fcddac48e7877dc"},
-    {"path": "internal/audioparity/vad_acceptance_test.go", "contains": "func TestVADOfflineAcceptance(", "role": "artifact", "identity": "evidence:sha256:64f06c79a064776dcea28708fe6836887409506f5e0cfd0366753bc5de96a52a"},
+    {"path": "internal/speechactivity/execution.go", "contains": "func (d *Detector) Detect(", "role": "source", "identity": "file:sha256:024f8d8f3ab6fa901e252cf8b0b4aa648f319131fdd7f96318639d37b7f7e4b9"},
+    {"path": "internal/audioparity/vad_acceptance_test.go", "contains": "func TestVADOfflineAcceptance(", "role": "artifact", "identity": "evidence:sha256:3eb1be94f0dd838a5563c78b2b489c7d3bf0751182bfd74258ca2be3f9cdb862"},
     {"path": "internal/audioparity/testdata/vad_reference.json", "contains": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54", "role": "source", "identity": "file:sha256:3574f13e38afe966e9bbe336f8667cb2fd54f8e94511abb5373310ca93028f3b"}
    ]
   },
@@ -238,8 +238,8 @@
    "verify": "go test ./internal/audioparity -run '^TestVADStreamingAcceptance$' -count=1 -v",
    "summary": "The separately registered causal model executes through OpenAudioStream with bounded waveform overlap, finite-memory caches, serialized restart, finalization and activity/state publication. Go whole/live probabilities and caches are bit-identical on the pinned speech and silence controls. Cancellation and publication failure preserve completed progress and release residency; gaps refuse and discontinuities match fresh analysis. No native recognizer streaming, HTTP, annotated quality, throughput or GPU claim.",
    "evidence": [
-    {"path": "internal/speechactivity/execution.go", "contains": "func (d *Detector) ProcessStream(", "role": "source", "identity": "file:sha256:9464e811d2aedd9574352688393f50a1c8660e4b852ab1a60fcddac48e7877dc"},
-    {"path": "internal/audioparity/vad_acceptance_test.go", "contains": "func TestVADStreamingAcceptance(", "role": "artifact", "identity": "evidence:sha256:64f06c79a064776dcea28708fe6836887409506f5e0cfd0366753bc5de96a52a"},
+    {"path": "internal/speechactivity/execution.go", "contains": "func (d *Detector) ProcessStream(", "role": "source", "identity": "file:sha256:024f8d8f3ab6fa901e252cf8b0b4aa648f319131fdd7f96318639d37b7f7e4b9"},
+    {"path": "internal/audioparity/vad_acceptance_test.go", "contains": "func TestVADStreamingAcceptance(", "role": "artifact", "identity": "evidence:sha256:3eb1be94f0dd838a5563c78b2b489c7d3bf0751182bfd74258ca2be3f9cdb862"},
     {"path": "internal/audioparity/testdata/vad_boundaries.json", "contains": "c30ec49e8cc69642b0ee65362eba11b9d11c6e54", "role": "source", "identity": "file:sha256:8f6ecc79f512faf5578c66b83e66588c69d554f33edabe640151f906a3f0be10"}
    ]
   },
@@ -750,13 +750,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:8dcd59537104b143b9a3402233807f8c403cb892656a49aef2d916582a924dc3"
+     "identity": "file:sha256:f9fb23f88c459d544c0ec86639b311e1fde7488a631a23ab43e26f159610841c"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:e68ee7db724ea3f06e44de054fc7f117507660282da3544b5dbe3a4a0831742e"
+     "identity": "evidence:sha256:d4ba66ea0fe339e262b508bc2796f625f67df3dc8f8c52f4c6fb617da43ebbef"
     }
    ],
    "id": "compiled-cuda-graph",
@@ -982,7 +982,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:4aab996ede3cb894dc05962da841c9b96d980bc93ec025afeb53163372239c3c"
+     "identity": "file:sha256:2aad6a06aeec6ee93c40b1e88bef93ebfbfe80743cdbff2f4b5f3041a3aca9b5"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1114,7 +1114,7 @@
      "contains": "func PublishInteraction(",
      "path": "internal/runrecord/interaction.go",
      "role": "source",
-     "identity": "file:sha256:b8e887bc621067e9b93fd42d5ded1743f17657e184a3307b28975014e9b75bb8"
+     "identity": "file:sha256:0cadd4b1525f777fcc542993cd6e0ce2fac25d540384608e099e57ec1b4c0f18"
     },
     {
      "contains": "func TestResponsesContinuationRestart(",
@@ -1135,7 +1135,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:4aab996ede3cb894dc05962da841c9b96d980bc93ec025afeb53163372239c3c"
+     "identity": "file:sha256:2aad6a06aeec6ee93c40b1e88bef93ebfbfe80743cdbff2f4b5f3041a3aca9b5"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -1210,7 +1210,7 @@
      "contains": "func TestShiftDeviceHybridCacheEditsOnlyTokenAlignedState(",
      "path": "internal/inference/device_cache_paging_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:3c0b70647acb1f1f586b095e5a8cce4e75f7ef5dc5e1527ebdc5c7fd7167c368"
+     "identity": "evidence:sha256:b3d517a7ad6900b0dc2aed94f7299ae24c6cf46f2430a77f7f59f6c823db042e"
     }
    ],
    "id": "paged-continuous-cache",

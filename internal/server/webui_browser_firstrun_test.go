@@ -124,6 +124,14 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// captureStates: the page as it stands at this leg, captured and audited
 	// at both viewports (written when the lane writes screens); the journey
 	// continues at the desktop size.
+	var layoutFindings []webuilane.StateFinding
+	defer func() {
+		// Keep nonfatal layout failures beside the terminal verdict: the
+		// gate reports a bounded tail after this long real-model journey.
+		for _, finding := range layoutFindings {
+			t.Error(finding)
+		}
+	}()
 	captureStates := func(name string) {
 		t.Helper()
 		for _, viewport := range webuilane.ScreenViewports {
@@ -131,9 +139,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, finding := range findings {
-				t.Error(finding)
-			}
+			layoutFindings = append(layoutFindings, findings...)
 		}
 		if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
 			t.Fatal(err)
@@ -187,6 +193,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		// conversation is empty, names the model by its own declared name.
 		settle("model switched and the composer re-derived", `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` &&
       !!document.querySelector("#panel-chat.active .composer textarea") && !document.querySelector(".composer").dataset.laneBefore &&
+      !window.overgo.modelSwitching() && !document.querySelector('dialog[aria-label="Choose a model"][open]') && !document.querySelector('.send-button').disabled &&
       (window.overgo.capabilities() || {}).id !== `+strconv.Quote(previous)+``)
 	}
 
@@ -236,6 +243,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// 1. First run: the chosen model serves, the pill names it, the proxy dot is on, the cold card is gone.
 	settle("front page over the served model", `!document.querySelector("#cold-start") && !!document.querySelector("#panel-chat.active .composer textarea") &&
       document.querySelector("#model-pill").textContent === `+strconv.Quote(modelName)+` &&
+      !window.overgo.modelSwitching() && !document.querySelector('dialog[aria-label="Choose a model"][open]') && !document.querySelector('.send-button').disabled &&
       document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
 	t.Logf("cold-start leg: the picker served %s from the cold page and the front page followed", modelName)
 
@@ -247,16 +255,13 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 
 	// 2b. The conversation renames in place: the rail's rename control turns the
 	// title into a field, Enter saves through the label route, the rail relists.
-	settle("the rail lists the conversation", `[...document.querySelectorAll("#conversation-list button")].some((button) => button.textContent === "rename")`)
-	// The rail relists once the reply lands, which can replace a field opened
-	// during the relist; the step clicks rename until the field stands.
-	settle("the title is a field", `(() => {
-      if (document.querySelector("#conversation-list input[aria-label='conversation title']")) return true;
-      const rename = [...document.querySelectorAll("#conversation-list button")].find((button) => button.textContent === "rename");
-      if (rename) rename.click();
-      return false; })()`)
-	assertBrowserPredicate(t, ctx, browser, `(() => { const field = document.querySelector("#conversation-list input[aria-label='conversation title']"); field.value = "renamed by the lane"; field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); return true; })()`)
-	settle("the rail shows the new title", `[...document.querySelectorAll("#conversation-list button")].some((button) => button.textContent === "renamed by the lane")`)
+	settle("the rail lists the conversation", `!!document.querySelector('#history-rows .conversation')`)
+	assertBrowserPredicate(t, ctx, browser, `(() => {
+      const row=document.querySelector('#history-rows .conversation');row.querySelector('.history-options').click();row.querySelector('[aria-label="rename conversation"]').click();
+      const field=row.querySelector('input');field.value='renamed by the lane';field.focus();return true;
+    })()`)
+	pressKey(t, ctx, browser, "Enter", 13)
+	settle("the rail shows the new title", `[...document.querySelectorAll('#conversation-list .conversation-title')].some(node=>node.textContent==='renamed by the lane')`)
 	t.Log("rename leg: the conversation renamed in place from the rail")
 	captureStates("thread-reply")
 
@@ -285,7 +290,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		}
 		attachTinyPNG()
 		if vision {
-			settle("image attached", `!!document.querySelector(".composer .card:not(.refused)")`)
+			settle("image attached", `!!document.querySelector('.composer .attachment-row[data-state=ready]')`)
 			// A switch may have opened a fresh conversation: the reply is the one
 			// assistant turn beyond what the thread held before the image was sent.
 			var before int
@@ -298,11 +303,11 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			t.Log("image-in leg: the multimodal model answered the attached image")
 		} else {
 			settle("image refused with the declared reason", `(() => {
-        const card = document.querySelector(".composer .card.refused");
+        const card = document.querySelector('.composer .attachment-row[data-state=refused]');
         const reason = ((window.overgo.capabilities().media || {}).refusals || {}).image || "";
         return !!card && reason !== "" && card.textContent.includes(reason);
       })()`)
-			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer .card.refused button").click(); return !document.querySelector(".composer .card.refused"); })()`)
+			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector('.composer .attachment-row[data-state=refused] button[aria-label^="Remove "]').click(); return !document.querySelector('.composer .attachment-row[data-state=refused]'); })()`)
 			t.Log("vision leg: the served model accepts no images, so the refusal contract was proven instead")
 		}
 	}
@@ -385,9 +390,9 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 	say(t, ctx, browser, "Write a very long story about a lighthouse, at least twenty paragraphs.")
 	settle("turn running", `!document.querySelector(".composer .btn").disabled === false`)
-	assertBrowserPredicate(t, ctx, browser, `(() => { const stop = [...document.querySelectorAll(".composer .btn")].find((button) => button.textContent === "stop"); if (!stop) return false; stop.click(); return true; })()`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { const stop = document.querySelector(".stop-button"); if (!stop) return false; stop.click(); return true; })()`)
 	settle("turn stopped", `!document.querySelector(".composer .btn").disabled &&
-      ([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1).textContent.includes("[stopped]") || !!document.querySelector("#panel-chat .msg.error"))`)
+      (document.querySelector("#panel-chat .chat-log").textContent.includes("Stopped") || !!document.querySelector("#panel-chat .msg.error"))`)
 	captureStates("thread-stopped")
 
 	// 8. Media out: an image from the cheapest declared image model, chosen from
@@ -450,14 +455,14 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		t.Log("media-out leg: an image landed as an artifact card")
 		captureStates("thread-media")
 		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelectorAll("#panel-chat .msg.media button")].find((button) => button.textContent === "use as input"); if (!again) return false; again.click(); return true; })()`)
-		settle("image back in as an attachment", `document.querySelectorAll(".composer .card").length === 1`)
+		settle("image back in as an attachment", `document.querySelectorAll('.composer .attachment-row[data-state=ready], .composer .attachment-row[data-state=refused]').length === 1`)
 		var refused bool
-		if err := browser.Evaluate(ctx, `!!document.querySelector(".composer .card.refused")`, &refused); err != nil {
+		if err := browser.Evaluate(ctx, `!!document.querySelector('.composer .attachment-row[data-state=refused]')`, &refused); err != nil {
 			t.Fatal(err)
 		}
 		t.Logf("media-in leg: the generated image re-entered the composer, refused=%v", refused)
 		captureStates("composer-attachment")
-		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer .card button").click(); return !document.querySelector(".composer .card"); })()`)
+		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector('.composer .attachment-row button[aria-label^="Remove "]').click(); return !document.querySelector('.composer .attachment-row') && !document.querySelector('.send-button').disabled; })()`)
 		// 10b. Gallery after a reload: the image the store holds reappears
 		// newest first in the image mode's gallery rail, and its thumb opens the
 		// record that made it (the request's seed) beside the image.
@@ -557,7 +562,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			settle("clip fills the source artifact", `(() => {
       const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("source clip"));
       const input = field && field.querySelector("input");
-      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .card").length === 0; })()`)
+      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .attachment-row").length === 0; })()`)
 			t.Log("clip-in leg: the clip's stored id filled LiveEdit's source clip")
 		} else {
 			t.Log("clip-in leg not taken: the store declares no LiveEdit model")
@@ -577,9 +582,13 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		settle("image fills the vqa image control", `(() => {
       const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("image"));
       const input = field && field.querySelector("input");
-      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .card").length === 0; })()`)
+      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .attachment-row").length === 0; })()`)
+		var beforeVQA int
+		if err := browser.Evaluate(ctx, `document.querySelectorAll('#panel-chat .msg.assistant').length`, &beforeVQA); err != nil {
+			t.Fatal(err)
+		}
 		say(t, ctx, browser, "What does this image show?")
-		settle("the answer lands as the assistant's text", `!document.querySelector(".composer .btn").disabled &&
+		settle("the answer lands as the assistant's text", `document.querySelectorAll('#panel-chat .msg.assistant').length===`+strconv.Itoa(beforeVQA+1)+` && !document.querySelector(".send-button").disabled &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0 &&
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
 		var answer string
@@ -597,9 +606,9 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		}
 		attachTinyPNG()
 		settle("the upload fills the vqa image control", `(() => {
-      const field = `+vqaImage+`, card = document.querySelector(".composer .card");
+      const field = `+vqaImage+`, row = document.querySelector(".composer .attachment-row[data-state=ready]");
       const input = field && field.querySelector("input");
-      return !!input && input.value.includes(":sha256:") && input.value !== `+strconv.Quote(filled)+` && !!card && !card.classList.contains("refused") && card.textContent.includes("stored as"); })()`)
+      return !!input && input.value.includes(":sha256:") && input.value !== `+strconv.Quote(filled)+` && !!row && [...row.querySelectorAll('a')].some(link => link.textContent==='Stored file' && link.getAttribute('href').includes(encodeURIComponent(input.value))); })()`)
 		// The slot is declared (label "image", media image) and its strip lists the stored
 		// attachment; choosing it from the strip fills the slot with the same id.
 		settle("the image slot lists the stored attachment", `(() => {
@@ -638,8 +647,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 		settle("the clip fills the audio control", `(() => {
       const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("audio clip"));
-      const input = field && field.querySelector("input"), card = document.querySelector(".composer .card");
-      return !!input && input.value.includes(":sha256:") && !!card && !card.classList.contains("refused") && card.textContent.includes("stored as"); })()`)
+      const input = field && field.querySelector("input"), row = document.querySelector(".composer .attachment-row[data-state=ready]");
+      return !!input && input.value.includes(":sha256:") && !!row && [...row.querySelectorAll('a')].some(link => link.textContent==='Stored file' && link.getAttribute('href').includes(encodeURIComponent(input.value))); })()`)
 		var before int
 		if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
 			t.Fatal(err)
@@ -712,7 +721,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       row.textContent.includes(`+strconv.Quote(entryName)+`) && [...row.querySelectorAll("button")].some((button) => button.textContent === "retire"))`)
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       document.querySelector("input[aria-label='retirement reason']").value = "the browser lane's fake provider closed";
-      const catalogNote = [...document.querySelectorAll("#panel-library > .section-title")].find((node) => node.textContent === "Local models").nextElementSibling;
+      const catalogNote = [...document.querySelectorAll("#panel-library .section-title")].find((node) => node.textContent === "Local models").parentElement.nextElementSibling;
       catalogNote.textContent = ""; catalogNote.dataset.laneRetirement = "1";
       const row = [...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(`+strconv.Quote(entryName)+`));
       [...row.querySelectorAll("button")].find((button) => button.textContent === "retire").click(); return true; })()`)

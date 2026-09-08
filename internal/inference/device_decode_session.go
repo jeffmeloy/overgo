@@ -192,19 +192,19 @@ func compileDecodeInputSlot(compiled *executor.CompiledGraph, node *tensor.Tenso
 }
 
 func decodeGraphOutputs(graph deviceBatchGraph, output deviceOutputPlan) []*tensor.Tensor {
-	first := output.graphOutput(graph)
-	result := []*tensor.Tensor{first}
+	var result []*tensor.Tensor
 	// Shared-KV aliases: collect each output once.
-	seen := map[*tensor.Tensor]struct{}{first: {}}
-	if graph.hidden != nil {
-		result = appendUniqueGraphOutputs(result, seen, graph.hidden)
-	}
+	seen := make(map[*tensor.Tensor]struct{})
+	// Collect state before later layers keep its full history live.
 	for layer := range graph.keys {
 		result = appendUniqueGraphOutputs(result, seen, graph.states[layer].AppendValues(
 			[]*tensor.Tensor{graph.keys[layer], graph.values[layer]},
 		)...)
 	}
-	return result
+	if graph.hidden != nil {
+		result = appendUniqueGraphOutputs(result, seen, graph.hidden)
+	}
+	return appendUniqueGraphOutputs(result, seen, output.graphOutput(graph))
 }
 
 func appendUniqueGraphOutputs(

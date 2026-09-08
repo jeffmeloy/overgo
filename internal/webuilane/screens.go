@@ -265,6 +265,11 @@ const layoutAuditTemplate = `(() => {
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return false;
     const style = getComputedStyle(node);
+    // A 50% inset clips the entire box. Screen-reader-only text remains in
+    // the accessibility tree but cannot have a visual truncation/contrast fault.
+    for (let current = node; current; current = current.parentElement) {
+      if (getComputedStyle(current).clipPath === "inset(50%)") return false;
+    }
     return style.visibility !== "hidden" && style.display !== "none";
   };
   const scrollable = (node) => {

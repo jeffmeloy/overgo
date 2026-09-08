@@ -44,7 +44,7 @@ func replayTraceFixture(t *testing.T) runrecord.InteractionTrace {
 		Model:  testutil.ArtifactID(t, artifact.KindModel, "replay model"),
 	}, testutil.ArtifactID(t, artifact.KindEvidence, "replay request"), []runrecord.InteractionMessage{
 		{Role: "assistant", Content: "answer"},
-	}, nil)
+	}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

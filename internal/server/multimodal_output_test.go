@@ -57,7 +57,7 @@ func TestMultimodalOutputProjection(t *testing.T) {
 	}, []runrecord.InteractionMessage{
 		{Role: string(inference.ChatRoleUser), Content: "draw"},
 		{Role: string(inference.ChatRoleAssistant), Content: "drawn"},
-	}); err != nil {
+	}, ""); err != nil {
 		t.Fatal(err)
 	}
 	replay := serveTestRequest(handler, http.MethodGet, "/interactions/replay?response=media-response", "")

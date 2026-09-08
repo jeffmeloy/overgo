@@ -28,9 +28,9 @@ func TestFrontPageMediaRoundtrip(t *testing.T) {
 		}
 	}
 	chat := get("/mod/chat.js")
-	// The hook takes the card's file and its stored id: a mode whose request
-	// names an artifact takes the id, any other turn takes the file.
-	for _, needle := range []string{"reuse: (file, artifact) =>", `field.control.type === "artifact"`, "field.input.value = artifact", "composer.addFile(file)"} {
+	// Native slots take the stored ID; other turns retain both the file and
+	// source identity so a draft can reload the original stored bytes.
+	for _, needle := range []string{"reuse: (file, artifact, source) =>", `field.control.type === "artifact"`, "field.input.value = artifact", "composer.addFile(file, source)"} {
 		if !strings.Contains(chat, needle) {
 			t.Errorf("the chat page does not take media outputs back as input: missing %q", needle)
 		}

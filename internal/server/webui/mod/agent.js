@@ -281,7 +281,7 @@
       }, { signal: stream.signal }).catch((err) => {
         if (err.name !== "AbortError") showError(err);
       });
-      return () => { stream.abort(); definitionForm.dispose(); };
+      return () => { stream.abort(); definitionForm.dispose(); if (chatController) chatController.abort(); if (chatComposer) chatComposer.dispose(); };
     },
   });
 })();

@@ -18,11 +18,13 @@
 
   function getKey() { return sessionKey; }
   function setKey(value, remember) {
+    const changed = sessionKey !== (value || '');
     sessionKey = value || "";
     try {
       if (remember && sessionKey) localStorage.setItem(KEY_STORAGE, sessionKey);
       else localStorage.removeItem(KEY_STORAGE);
     } catch (_) { /* storage unavailable; the in-memory key still works */ }
+    if (changed && window.overgo && window.overgo.runtimeEvents) window.overgo.runtimeEvents.restart();
   }
 
   function authHeaders(extra) {
@@ -42,6 +44,8 @@
         (body && body.message) || text || ("HTTP " + response.status);
       const error = new Error(message);
       error.status = response.status;
+      error.code = body && body.error && body.error.code;
+      error.type = body && body.error && body.error.type;
       throw error;
     }
     return body;
@@ -57,7 +61,7 @@
       return readJSON(await fetch(path, { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body), signal: opts && opts.signal }));
     },
     // upload: a file's bytes under their own media type (opts.mediaType sends the body raw); the server answers the stored artifact.
-    async upload(path, file, opts) { return readJSON(await this.stream(path, file, Object.assign({ mediaType: file.type }, opts))); },
+    async upload(path, file, opts) { return readJSON(await this.stream(path, file, Object.assign({ mediaType: file.type || 'application/octet-stream' }, opts))); },
     async stream(path, body, opts) {
       const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType;
       const response = await fetch(path, { method, headers: authHeaders(method === "POST" ? { "Content-Type": raw || "application/json" } : {}), body: method !== "POST" ? undefined : raw ? body : JSON.stringify(body), signal: opts && opts.signal });
@@ -131,14 +135,21 @@
       if (!node.isConnected) { URL.revokeObjectURL(url); artifactURLs.delete(node); }
     }
   }).observe(document.documentElement, { childList: true, subtree: true });
+  function resourceURL(node, body) {
+    if (artifactURLs.has(node)) URL.revokeObjectURL(artifactURLs.get(node));
+    const url = URL.createObjectURL(body);
+    artifactURLs.set(node, url);
+    return url;
+  }
+  function downloadBlob(node, body, name) {
+    el('a', { href: resourceURL(node, body), download: name }).click();
+  }
   function artifactResource(node, attribute, path) {
     const load = async () => {
       try {
         const body = await api.blob(path);
         if (!node.isConnected) return;
-        if (artifactURLs.has(node)) URL.revokeObjectURL(artifactURLs.get(node));
-        const url = URL.createObjectURL(body);
-        artifactURLs.set(node, url);
+        const url = resourceURL(node, body);
         if (attribute === "src") node.src = url;
         else {
           const download = el("a", { href: url, download: node.getAttribute("download") || "artifact" });
@@ -317,10 +328,15 @@
   document.getElementById("new-chat").addEventListener("click", () => openConversation(null));
   // Follow the browser's visible height when its on-screen keyboard resizes only the visual viewport.
   if (window.visualViewport) {
-    const resize = () => document.documentElement.style.setProperty("--viewport-height", window.visualViewport.height + "px");
+    const resize = () => { if (window.visualViewport.scale === 1) document.documentElement.style.setProperty("--viewport-height", window.visualViewport.height + "px"); };
     window.visualViewport.addEventListener("resize", resize); resize();
+    window.addEventListener("resize", resize);
   }
   let servedEntry = null;
+  let modelSwitchPending = false;
+  let modelSwitchBlocked = false;
+  function modelSwitching() { return modelSwitchBlocked; }
+  function setModelSwitchBlocked(value) { modelSwitchBlocked = value; document.dispatchEvent(new Event("overgo-model-switch")); }
   function servedModel() { return servedEntry; }
 
   // ---- conversations: the server lists stored-response chains; the rail opens, renames or archives one ----
@@ -330,6 +346,14 @@
   function rememberConversation(item) {
     selectedConversation = item;
     try { sessionStorage.setItem("overgo.conversation", JSON.stringify(item)); } catch (_) { /* storage unavailable */ }
+    markConversation();
+  }
+  function markConversation() {
+    for (const button of document.querySelectorAll('.conversation-open')) {
+      const active = !!selectedConversation && button.dataset.latest === selectedConversation.latest;
+      button.classList.toggle('active', active);
+      if (active) button.setAttribute('aria-current', 'true'); else button.removeAttribute('aria-current');
+    }
   }
   function openConversation(item) {
     setFront(true);
@@ -337,35 +361,108 @@
     for (const tab of tabs) { if (tab.id === "chat") tab.mounted = false; }
     activate("chat");
   }
-  async function refreshConversations() {
-    const host = document.getElementById("conversation-list");
-    if (!host) return;
-    let listing;
-    try { listing = await api.get("/interactions"); } catch (_) { clear(host); return; }
-    const fresh = el("button", { class: "tab", text: "+ new conversation", onclick: () => openConversation(null) });
-    clear(host);
-    host.appendChild(fresh);
-    for (const item of (listing.conversations || []).filter((entry) => !entry.archived)) {
-      const open = el("button", { class: "tab" + (selectedConversation && selectedConversation.root === item.root ? " active" : ""),
-        text: item.title, title: item.turns + " turn(s)", onclick: () => openConversation(item) });
-      const label = async (patch) => {
-        await api.post("/interactions/label", { root: item.root, title: item.title, archived: false, ...patch });
-        if (patch.archived && selectedConversation && selectedConversation.root === item.root) openConversation(null);
-        refreshConversations();
-      };
-      // Rename in place: the title becomes a field; Enter saves, Escape restores the rail.
-      const rename = el("button", { class: "link-button", text: "rename", "aria-label": "rename conversation", onclick: () => {
-        const field = el("input", { class: "text", value: item.title, "aria-label": "conversation title" });
-        field.addEventListener("keydown", (event) => { if (event.key === "Enter") label({ title: field.value.trim() || item.title }); else if (event.key === "Escape") refreshConversations(); });
-        open.replaceWith(field); field.focus(); field.select();
-      } });
-      const archive = el("button", { class: "link-button", text: "archive", "aria-label": "archive conversation", onclick: () => label({ archived: true }) });
-      host.appendChild(el("div", { class: "conversation" }, open, el("div", { class: "row" }, rename, archive)));
+  const historyHost = document.getElementById("conversation-list");
+  const historyRows = el('div', { id: 'history-rows' });
+  const historyStatus = el('div', { class: 'note', role: 'status', hidden: true });
+  const historyError = el('div', { class: 'note', role: 'alert', hidden: true });
+  const historySearch = el('input', { class: 'text', type: 'search', placeholder: 'Search titles', 'aria-label': 'Search conversation titles' });
+  let historyQuery = '', historyArchived = false, historyNext = '', historyPaged = false, historyAttempt = 0, historyController = null;
+  const historyReload = el('button', { class: 'link-button', text: 'Reload history', hidden: true, onclick: () => refreshConversations({ force: true }) });
+  const historyMore = el('button', { class: 'tab', text: 'Load older conversations', hidden: true, onclick: () => refreshConversations({ more: true }) });
+  const historyArchive = el('button', { class: 'link-button', text: 'Archived', 'aria-pressed': 'false', onclick: () => {
+    historyArchived = !historyArchived; historyArchive.setAttribute('aria-pressed', String(historyArchived)); searchHistory();
+  } });
+  function searchHistory() { historyQuery = historySearch.value.trim(); refreshConversations({ force: true }); }
+  historyHost.append(el('button', { class: 'tab', text: 'New conversation', onclick: () => openConversation(null) }),
+    el('form', { class: 'history-search', role: 'search', onsubmit: event => { event.preventDefault(); searchHistory(); } }, historySearch,
+      el('button', { class: 'link-button', type: 'submit', text: 'Search' })),
+    el('div', { class: 'row' }, historyArchive, historyReload), historyStatus, historyError, historyRows, historyMore);
+
+  function historyRow(item) {
+    const row = el('div', { class: 'conversation', 'data-latest': item.latest });
+    const open = el('button', { class: 'tab conversation-open', 'data-latest': item.latest,
+      title: item.title + '\nConversation: ' + item.root + '\nResponse: ' + item.latest + '\nModel: ' + item.model + '\nRecipe: ' + (item.recipe || ''),
+      onclick: () => openConversation(item) }, el('span', { class: 'conversation-title', text: item.title }),
+      el('span', { class: 'note', text: item.turns + ' turn' + (item.turns === 1 ? '' : 's') + ' · ' + shortID(item.latest) }));
+    const failure = el('div', { class: 'note', role: 'alert', hidden: true });
+    const actions = el('div', { class: 'history-actions', hidden: true, id: 'history-actions-' + crypto.randomUUID() });
+    const more = el('button', { class: 'link-button history-options', text: 'Actions', 'aria-label': 'Actions for ' + item.title,
+      'aria-expanded': 'false', 'aria-controls': actions.id, onclick: () => { actions.hidden = !actions.hidden; more.setAttribute('aria-expanded', String(!actions.hidden)); } });
+    let saving = false;
+    const label = async (patch) => {
+      if (saving) return false;
+      saving = true; failure.hidden = true;
+      const focused = document.activeElement;
+      const controls = [...row.querySelectorAll('button, input')].map(node => [node, node.disabled]); controls.forEach(([node]) => { node.disabled = true; });
+      try {
+        await api.post("/interactions/label", { root: item.root, title: item.title, archived: !!item.archived, ...patch });
+        Object.assign(item, patch);
+        if (selectedConversation && selectedConversation.root === item.root) rememberConversation({ ...selectedConversation, title: item.title, archived: !!item.archived });
+        await refreshConversations({ force: true });
+        if (!historyHost.closest('[inert]') && (document.activeElement === document.body || row.contains(document.activeElement))) {
+          const updated = [...historyRows.querySelectorAll('.conversation-open')].find(node => node.dataset.latest === item.latest);
+          (updated || historyArchive).focus();
+        }
+        return true;
+      } catch (err) { failure.textContent = friendlyError(err) + ' Try again.'; failure.hidden = false; return false; }
+      finally {
+        saving = false; controls.forEach(([node, disabled]) => { node.disabled = disabled; });
+        if (row.isConnected && !historyHost.closest('[inert]') && document.activeElement === document.body && row.contains(focused)) focused.focus();
+      }
+    };
+    const rename = el('button', { class: 'link-button', text: 'Rename', 'aria-label': 'rename conversation', onclick: () => {
+      actions.hidden = false;
+      const field = el('input', { class: 'text', value: item.title, required: true, 'aria-label': 'conversation title' });
+      const cancel = () => { if (saving) return; editor.replaceWith(open); actions.replaceChildren(rename, archive); more.disabled = false; rename.focus(); };
+      const editor = el('form', { class: 'history-editor', onsubmit: event => {
+        event.preventDefault(); if (field.value.trim()) label({ title: field.value.trim() });
+      } }, field, el('div', { class: 'row' }, el('button', { class: 'link-button', type: 'submit', text: 'Save' }),
+        el('button', { class: 'link-button', type: 'button', text: 'Cancel', onclick: cancel })));
+      editor.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } });
+      open.replaceWith(editor); actions.replaceChildren(); more.disabled = true; field.focus(); field.select();
+    } });
+    const archive = el('button', { class: 'link-button', text: item.archived ? 'Restore' : 'Archive',
+      'aria-label': item.archived ? 'restore conversation' : 'archive conversation', onclick: () => label({ archived: !item.archived }) });
+    actions.append(rename, archive);
+    row.append(el('div', { class: 'history-row' }, open, more), actions, failure);
+    return row;
+  }
+
+  async function refreshConversations({ force = false, more = false } = {}) {
+    // Automatic refresh must not replace an editor, a keyboard target, or a
+    // deliberately paged list. The selected transcript is never remounted here.
+    if (!force && !more && (historyPaged || historyRows.querySelector('form') || historyRows.contains(document.activeElement))) {
+      historyStatus.textContent = 'History may have changed.'; historyStatus.hidden = false; historyReload.hidden = false; return;
     }
+    const attempt = ++historyAttempt;
+    if (historyController) historyController.abort();
+    historyController = new AbortController();
+    historyError.hidden = true; historyStatus.hidden = false; historyStatus.textContent = 'Loading conversations…'; historyMore.disabled = true;
+    const query = new URLSearchParams({ view: historyArchived ? 'archived' : 'active', q: historyQuery });
+    if (more && historyNext) query.set('cursor', historyNext);
+    try {
+      const listing = await api.get("/interactions" + '?' + query, { signal: historyController.signal });
+      if (attempt !== historyAttempt) return;
+      if (!force && !more && (historyRows.querySelector('form') || historyRows.contains(document.activeElement))) {
+        historyStatus.textContent = 'History may have changed.'; historyReload.hidden = false; return;
+      }
+      if (!more) { historyRows.replaceChildren(); historyPaged = false; }
+      else historyPaged = true;
+      const present = new Set([...historyRows.querySelectorAll('.conversation')].map(node => node.dataset.latest));
+      for (const item of listing.conversations || []) if (!present.has(item.latest)) { historyRows.appendChild(historyRow(item)); present.add(item.latest); }
+      historyNext = listing.next || ''; historyMore.hidden = !historyNext; historyReload.hidden = true;
+      const empty = !historyRows.querySelector('.conversation');
+      historyStatus.hidden = !empty;
+      historyStatus.textContent = historyQuery ? 'No matching titles. Try another search.' : historyArchived ? 'No archived conversations.' : 'Your conversations will appear here.';
+      markConversation();
+    } catch (err) {
+      if (attempt !== historyAttempt) return;
+      historyStatus.hidden = true; historyError.textContent = friendlyError(err); historyError.hidden = false; historyReload.hidden = false;
+    } finally { if (attempt === historyAttempt) historyMore.disabled = false; }
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
@@ -385,8 +482,10 @@
 
   // remountActive: the active tab reloads under a new key, a newly served model or a
   // changed store, from the capability document re-read for it.
-  async function remountActive() {
-    try { workspaceManifest = await api.get("/workspace/manifest"); capabilityDocument = workspaceManifest.model || null; } catch (_) { /* the shell stays on what it has */ }
+  async function remountActive(manifest) {
+    const next = manifest || await api.get("/workspace/manifest");
+    workspaceManifest = next;
+    capabilityDocument = next.model || null;
     for (const tab of tabs) {
       if (tab.onDeactivate) tab.onDeactivate();
       tab.mounted = false;
@@ -396,9 +495,11 @@
     }
     applyCapabilities();
     const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
-    if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) activate(current);
+    if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) {
+      if (!await activate(current)) throw new Error("The selected workspace could not load. Choose the model again to retry.");
+    }
     syncColdStart();
-    refreshStatus();
+    await refreshStatus();
   }
 
   // syncColdStart: the landing while no model serves (no capability document: the proxy answers alone) and no tab
@@ -432,6 +533,7 @@
     syncSectionUI();
     syncColdStart();
     if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
+    return tab.ready || Promise.resolve(true);
   }
 
   // selectSection: switch to a section, keeping the current tab if it already
@@ -463,10 +565,13 @@
     return surface;
   }
   function safeMount(tab) {
+    const attempt = {};
+    tab.mountAttempt = attempt;
+    const failed = (err) => { if (tab.mountAttempt === attempt) renderMountError(tab, err); return false; };
     try {
       const result = tab.mount(tab.panel, window.overgo);
-      if (result && typeof result.catch === "function") result.catch((err) => renderMountError(tab, err));
-    } catch (err) { renderMountError(tab, err); }
+      tab.ready = Promise.resolve(result).then(() => tab.mountAttempt === attempt, failed);
+    } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
   function renderMountError(tab, err) { tab.panel.replaceChildren(errorBanner(String(err && err.message || err))); }
 
@@ -475,13 +580,16 @@
     const node = document.getElementById(id);
     if (node) { node.className = "dot " + state; node.title = title; }
   }
+  let statusAttempt = 0;
   async function refreshStatus() {
+    const attempt = ++statusAttempt;
     const statusPill = document.getElementById("status-pill");
     const modelPill = document.getElementById("model-pill");
     try {
       // The proxy names its child in the header; an empty name is the proxy with no child (the cold start).
-      const health = await api.get("/health", { onHeaders: (headers) => { const via = headers.get("X-Overgo-Swap-Proxy");
+      const health = await api.get("/health", { onHeaders: (headers) => { if (attempt !== statusAttempt) return; const via = headers.get("X-Overgo-Swap-Proxy");
         dot("proxy-dot", via == null ? "off" : "ok", via ? "swap proxy serving " + via : via == null ? "no swap proxy: served directly" : "swap proxy running; no model serves"); } });
+      if (attempt !== statusAttempt) return;
       statusPill.textContent = "online";
       document.getElementById("connection-alert").hidden = true;
       statusPill.className = "pill ok";
@@ -496,10 +604,11 @@
       if (health && health.model) {
         // A catalog that fails to list says so under the pill instead of an empty evidence line.
         const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
+        if (attempt !== statusAttempt) return;
         servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
         document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || "";
       }
-    } catch (err) { statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); document.getElementById("connection-alert").hidden = false; }
+    } catch (err) { if (attempt !== statusAttempt) return; statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); document.getElementById("connection-alert").hidden = false; }
   }
 
   // The served model shows on every page as the banner pill; clicking it lists the servable models, and behind
@@ -522,24 +631,27 @@
     // swapModel routes one health probe through the swap proxy with the swap query parameter; the proxy swaps
     // the child to answer it, then the capability document is re-read and the active surface re-mounted.
     async function swapModel(item, name, button) {
+      if (modelSwitchPending) return;
+      modelSwitchPending = true;
+      setModelSwitchBlocked(true);
       const currentPanel = panel;
-      const before = modelPill.textContent;
+      const before = capabilityDocument;
       const started = Date.now();
       const chip = { id: "swap-" + name, task: "model switch " + name, state: "running", progress: {} };
       window.overgo.localOperation(chip);
       button.disabled = true;
+      for (const choice of currentPanel.querySelectorAll('[data-serve]')) choice.disabled = true;
       const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
         await api.get("/health?swap=" + encodeURIComponent(name));
         invalidateModel();
-        await refreshStatus();
-        if (modelPill.textContent !== before) {
+        const manifest = await api.get("/workspace/manifest");
+        if (manifest.model && manifest.model.recipe === item.recipe) {
           try { localStorage.setItem(MODEL_STORAGE, name); } catch (_) { /* storage unavailable */ }
-          workspaceManifest = await api.get("/workspace/manifest");
-          capabilityDocument = workspaceManifest.model || null;
           // Reopening history can request its original model; other switches start a fresh chain.
-          if (!selectedConversation || !servedEntry || selectedConversation.model !== servedEntry.model) rememberConversation(null);
-          remountActive();
+          if (!selectedConversation || selectedConversation.model !== manifest.model.model) rememberConversation(null);
+          await remountActive(manifest);
+          setModelSwitchBlocked(false);
           // The served swap is the operation chip's receipt; the picker has done its work and leaves.
           const elapsed = Math.round((Date.now() - started) / 1000);
           window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served " + modelPill.textContent + " after " + elapsed + "s" +
@@ -547,7 +659,8 @@
           if (panel === currentPanel) close();
           return;
         }
-        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "no swap proxy" }));
+        if (before && manifest.model && before.recipe === manifest.model.recipe) setModelSwitchBlocked(false);
+        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
         const command = 'overgo_gui.bat "' + (item.location || name) + '"';
         const copy = el("button", { class: "btn alt", text: "copy launch" });
         copy.addEventListener("click", () => navigator.clipboard.writeText(command));
@@ -556,9 +669,26 @@
           el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
           el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
       } catch (err) {
-        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: friendlyError(err) }));
-        if (panel === currentPanel) panel.replaceChildren(errorBanner(friendlyError(err)));
-      } finally { clearInterval(timer); button.disabled = false; button.textContent = "serve"; }
+        // A refused swap may leave the original model usable. Confirm its
+        // recipe before releasing Send; an unknown model stays blocked.
+        try {
+          const current = await api.get("/workspace/manifest");
+          if (before && current.model && before.recipe === current.model.recipe) {
+            await remountActive(current);
+            setModelSwitchBlocked(false);
+          }
+        } catch (_) { /* choose a model again to resolve its unknown state */ }
+        const busy = err.code === 'resource_busy';
+        const message = busy ? 'The GPU is busy with another process. Wait for that work to finish, then retry loading this model.' : friendlyError(err);
+        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: message }));
+        if (panel === currentPanel) panel.replaceChildren(errorBanner(message),
+          ...(busy ? [el('details', {}, el('summary', { text: 'Technical details' }), el('div', { class: 'mono', text: err.message })), el('button', { class: 'btn', text: 'Retry loading model', onclick: event => swapModel(item, name, event.currentTarget) })] : []),
+          el("button", { class: "btn alt", text: "Choose model again", onclick: () => { close(); modelPill.click(); } }), el("button", { class: "btn alt", text: "Close", onclick: close }));
+      } finally {
+        modelSwitchPending = false;
+        clearInterval(timer); button.textContent = "serve";
+        if (panel) for (const choice of panel.querySelectorAll('[data-serve]')) choice.disabled = false;
+      }
     }
 
     modelPill.addEventListener("click", async () => {
@@ -609,7 +739,7 @@
               }
               return row;
             }
-            row.appendChild(el("button", { class: "btn alt", text: "serve", onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
+            row.appendChild(el("button", { class: "btn alt", text: "serve", "data-serve": "", disabled: modelSwitchPending, onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
         const first = panel.querySelector(".row"); if (first) first.focus();
       } catch (err) { if (panel === currentPanel) panel.textContent = friendlyError(err); }
@@ -745,7 +875,7 @@
       keyInput.addEventListener("change", () => {
         setKey(keyInput.value.trim(), keyRemember.checked);
         invalidateModel(); // the cached model was fetched under the old key
-        remountActive();
+        remountActive().catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
       });
       window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the

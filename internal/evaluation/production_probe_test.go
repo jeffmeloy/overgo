@@ -353,7 +353,7 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	}, []runrecord.InteractionMessage{
 		{Role: "user", Content: "probe request"},
 		{Role: "assistant", Content: output},
-	})
+	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

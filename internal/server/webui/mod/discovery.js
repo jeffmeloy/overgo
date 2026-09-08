@@ -8,14 +8,19 @@
   window.overgo.registerTab({
     id: "library",
     mount(panel, overgo) {
+      if (this.dispose) this.dispose();
       const { el, clear, fmt } = overgo;
       clear(panel);
+      let catalogRequest = null, disposed = false;
 
       // ---- local catalog ----
       const catalogBody = el("tbody"), catalogNote = el("div", { class: "note", text: "loading catalog…" });
       async function refreshCatalog() {
+        if (catalogRequest) catalogRequest.abort();
+        const request = catalogRequest = new AbortController();
         try {
-          const catalog = await overgo.api.get("/catalog/models");
+          const catalog = await overgo.api.get("/catalog/models", { signal: request.signal });
+          if (disposed || catalogRequest !== request) return;
           overgo.clear(catalogBody);
           const models = catalog.models || [];
           const { profiles = {}, datasets = {} } = catalog.coverage || {};
@@ -33,7 +38,8 @@
             } }) : "";
             catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]));
           }
-        } catch (err) { catalogNote.textContent = overgo.friendlyError(err); }
+        } catch (err) { if (!disposed && catalogRequest === request && !request.signal.aborted) catalogNote.textContent = overgo.friendlyError(err); }
+        finally { if (catalogRequest === request) catalogRequest = null; }
       }
 
       // ---- hub search ----
@@ -78,19 +84,25 @@
         const stage = lifecycles.get(job.id);
         const name = job.repository.split("/").pop();
         const cell = el("span", { class: "row" });
+        stage.cell = cell;
         if (job.state !== "succeeded") return cell;
         const report = (node) => { stage.host.replaceChildren(node); };
-        const register = el("button", { class: "btn alt", text: stage.registered ? "registered" : "register", disabled: !!stage.registered, onclick: async () => {
+        const register = el("button", { class: "btn alt", text: stage.registered ? "registered" : "register", disabled: !!stage.registered || stage.pending, onclick: async () => {
+          if (stage.pending || stage.registered) return;
+          stage.pending = true; register.disabled = validate.disabled = true;
           try {
             stage.registered = await overgo.api.post("/library/register", job.kind === "datasets"
               ? { kind: "dataset", name, directory: job.destination }
               : { kind: "model", path: job.destination, projector: job.projector || "" });
             report(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset),
               stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : ""));
-            jobPoller.start();
+            refreshCatalog();
           } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+          finally { stage.pending = false; if (!disposed) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
         } });
-        const validate = el("button", { class: "btn", text: "validate", disabled: !stage.registered, onclick: async () => {
+        const validate = el("button", { class: "btn", text: "validate", disabled: !stage.registered || stage.pending, onclick: async () => {
+          if (stage.pending || !stage.registered) return;
+          stage.pending = true; register.disabled = validate.disabled = true;
           try {
             if (job.kind === "datasets") {
               const preview = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
@@ -98,10 +110,10 @@
             } else {
               const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path, projector: stage.registered.projector || "" });
               report(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts" + (admitted.projector ? " · projector" : "")));
-              history.pushState({}, "", "?operation=" + encodeURIComponent(admitted.operation));
-              window.dispatchEvent(new PopStateEvent("popstate"));
+              if (!disposed && panel.classList.contains('active')) overgo.showOperation(admitted.operation);
             }
           } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+          finally { stage.pending = false; if (!disposed) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
         } });
         cell.append(register, validate, stage.host);
         return cell;
@@ -118,7 +130,7 @@
       }, 1000);
 
       panel.append(
-        el("div", { class: "section-title", text: "Local models" }),
+        el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: refreshCatalog })),
         catalogNote,
         el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["model", "file", "capabilities", ""])), catalogBody),
         el("div", { class: "section-title", text: "Hugging Face" }),
@@ -165,8 +177,9 @@
       panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
 
       refreshCatalog();
-      this.onActivate = () => jobPoller.start();
+      this.onActivate = () => { refreshCatalog(); jobPoller.start(); };
       this.onDeactivate = () => jobPoller.stop();
+      this.dispose = () => { disposed = true; if (catalogRequest) catalogRequest.abort(); jobPoller.stop(); };
       jobPoller.start();
     },
   });

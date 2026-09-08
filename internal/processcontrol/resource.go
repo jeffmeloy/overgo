@@ -15,6 +15,14 @@ var claimedResources = map[string]bool{}
 
 const inheritedResourcesEnvironment = "OVERGO_PROCESS_RESOURCES"
 
+// ErrResourceBusy means another process owns the requested physical resource.
+var ErrResourceBusy = errors.New("physical resource is already reserved")
+
+// ResourceBusyExitCode carries resource contention across supervised command
+// boundaries using BSD EX_TEMPFAIL (https://man.openbsd.org/sysexits).
+// Overgo commands emit this status only for ErrResourceBusy.
+const ResourceBusyExitCode = 75
+
 // ClaimResource reserves a physical resource for this process and its supervised
 // children until they exit. Names must identify hardware, independent of stores
 // and worktrees. A child may reenter its inherited reservation. Contention fails

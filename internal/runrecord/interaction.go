@@ -224,8 +224,9 @@ func VisibleInteractionMessages(
 	return messages, nil
 }
 
-// PublishInteraction commits the transcript and event atomically.
-func PublishInteraction(ctx context.Context, repository artifact.Repository, value Interaction, messages []InteractionMessage) (Interaction, error) {
+// PublishInteraction commits the transcript, trace outcome and event atomically.
+// An empty terminal leaves the execution outcome unspecified.
+func PublishInteraction(ctx context.Context, repository artifact.Repository, value Interaction, messages []InteractionMessage, terminal Outcome) (Interaction, error) {
 	if ctx == nil || repository == nil {
 		return Interaction{}, errors.New("run record: interaction repository is absent")
 	}
@@ -250,7 +251,7 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 			decisions = append(decisions, decision.ID)
 		}
 	}
-	trace, err := NewInteractionTrace(value, requestTranscript.ID, messages, decisions)
+	trace, err := NewInteractionTrace(value, requestTranscript.ID, messages, decisions, terminal)
 	if err != nil {
 		return Interaction{}, err
 	}
@@ -288,6 +289,28 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 	lineage := artifact.DependencyLineage(value.ID, parents...)
 	lineage = append(lineage, artifact.DependencyLineage(trace.ID, trace.Request)...)
 	aliases := []artifact.AliasBinding{{Name: InteractionResponseAliasRoot + value.Response, Target: value.ID}}
+	previous, found, err := ResolveInteraction(ctx, repository, value.Response)
+	if err != nil {
+		return Interaction{}, err
+	}
+	if found && previous.ID == value.ID {
+		return previous, nil
+	}
+	if found {
+		priorTrace, err := RequireInteractionTrace(ctx, repository, previous.Trace)
+		if err != nil {
+			return Interaction{}, err
+		}
+		// Only the matching reserved prompt can advance to a terminal record.
+		// A completed response is immutable, including against late retries.
+		if priorTrace.Terminal != OutcomeInconclusive || terminal == "" || terminal == OutcomeInconclusive ||
+			priorTrace.Request != trace.Request || previous.Recipe != value.Recipe || previous.Model != value.Model ||
+			previous.Node != value.Node || previous.Parent != value.Parent || previous.Operation != value.Operation {
+			return Interaction{}, errors.New("run record: response identity is already committed")
+		}
+		aliases[0].Previous = artifact.IDPointer(previous.ID)
+		lineage = append(lineage, artifact.DependencyLineage(value.ID, previous.ID)...)
+	}
 	if value.Operation.Valid() {
 		aliases = append(aliases, artifact.AliasBinding{
 			Name: InteractionOperationAliasRoot + value.Operation.String() + "/" + value.ID.String(), Target: value.ID,

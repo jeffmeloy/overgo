@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"overgo/internal/media"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
@@ -16,13 +17,16 @@ import (
 // tab is accepted or refused from this document before any request is
 // sent, and a new server capability reaches the GUI by declaration alone.
 type workspaceModelCapabilities struct {
-	ID            string                   `json:"id"`
-	Name          string                   `json:"name"`
-	ContextLength uint32                   `json:"context_length"`
-	Generation    propertiesSamplingParams `json:"generation"`
-	Modalities    map[string]bool          `json:"modalities"`
-	Media         workspaceMediaLimits     `json:"media"`
-	Modes         []workspaceMode          `json:"modes"`
+	ID              string                   `json:"id"`
+	Name            string                   `json:"name"`
+	Recipe          string                   `json:"recipe,omitzero"`
+	Model           string                   `json:"model,omitzero"`
+	MaxOutputTokens int                      `json:"max_output_tokens"`
+	ContextLength   uint32                   `json:"context_length"`
+	Generation      propertiesSamplingParams `json:"generation"`
+	Modalities      map[string]bool          `json:"modalities"`
+	Media           workspaceMediaLimits     `json:"media"`
+	Modes           []workspaceMode          `json:"modes"`
 	// Remote: served through the relay at a hosted provider; the page marks
 	// its turns (not reproducible from the store).
 	Remote bool `json:"remote"`
@@ -78,18 +82,24 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		refusals[media.MP4MediaType] = "MP4 decoding needs FFmpeg, which is not configured"
 	}
 	document := workspaceModelCapabilities{
-		ID:            h.config.ModelID,
-		Name:          model.Name,
-		ContextLength: model.ContextLength,
-		Remote:        model.Architecture == runrecord.BackendRemote,
-		Generation:    h.defaultSamplingParams(),
-		Modalities:    map[string]bool{"text": true, "image": image, "audio": audio, "video": video, "document": true},
+		ID:              h.config.ModelID,
+		Name:            model.Name,
+		ContextLength:   model.ContextLength,
+		Remote:          model.Architecture == runrecord.BackendRemote,
+		Generation:      h.defaultSamplingParams(),
+		MaxOutputTokens: h.config.MaxTokens,
+		Modalities:      map[string]bool{"text": true, "image": image, "audio": audio, "video": video, "document": true},
 		Media: workspaceMediaLimits{
 			Accept: h.acceptedMedia(image, audio, video), Refusals: refusals,
 			MaxImageBytes: maxImageBytes, MaxMediaBytes: maxMediaBytes,
 			MaxImageDimension: maxImageDimension, MaxImagePixels: maxImagePixels,
 		},
 	}
+	if modelID, recipeID, ok := h.servingIdentity(recipe.TaskInference); ok {
+		document.Model, document.Recipe = modelID.String(), recipeID.String()
+	}
+	document.Generation.MaxTokens = min(document.Generation.MaxTokens, document.MaxOutputTokens)
+	document.Generation.NPredict = min(document.Generation.NPredict, document.MaxOutputTokens)
 	modes := []struct {
 		id, label, capability string
 	}{

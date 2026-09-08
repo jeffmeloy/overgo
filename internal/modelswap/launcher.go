@@ -1,6 +1,7 @@
 package modelswap
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -63,7 +64,12 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 	}
 	exited := make(chan error, 1)
 	go func() {
-		_, waitErr := supervised.Wait(context.WithoutCancel(ctx))
+		receipt, waitErr := supervised.Wait(context.WithoutCancel(ctx))
+		if receipt.ExitCode == processcontrol.ResourceBusyExitCode && !receipt.TreeTerminated {
+			waitErr = processcontrol.ErrResourceBusy
+		} else {
+			waitErr = cmp.Or(waitErr, fmt.Errorf("server exited with status %d", receipt.ExitCode))
+		}
 		exited <- waitErr
 		close(exited)
 	}()
@@ -95,7 +101,8 @@ func (p *serverProcess) Ready(ctx context.Context) error {
 		}
 		select {
 		case exit := <-p.exited:
-			return fmt.Errorf("child server exited before becoming ready: %v", exit)
+			exit = cmp.Or(exit, errors.New("child exited without serving"))
+			return fmt.Errorf("child server exited before becoming ready: %w", exit)
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(healthPollInterval):

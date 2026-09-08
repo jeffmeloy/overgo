@@ -11,6 +11,55 @@ import (
 
 const interactionTestNode recipe.NodeID = "respond"
 
+func TestInteractionTerminalReservation(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	value := Interaction{Response: "reserved", Node: interactionTestNode,
+		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "reserved-recipe"),
+		Model:  testutil.ArtifactID(t, artifact.KindModel, "reserved-model")}
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "reserved-authority", Artifacts: []artifact.Descriptor{{ID: value.Recipe}}}); err != nil {
+		t.Fatal(err)
+	}
+	prompt := []InteractionMessage{{Role: "user", Content: "original prompt"}}
+	reserved, err := PublishInteraction(t.Context(), store, value, prompt, OutcomeInconclusive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PublishInteraction(t.Context(), store, value,
+		[]InteractionMessage{{Role: "user", Content: "another prompt"}, {Role: "assistant", Content: "replacement"}}, OutcomeSucceeded); err == nil {
+		t.Fatal("a different prompt took over the reserved response")
+	}
+	messages := append(prompt, InteractionMessage{Role: "assistant", Content: "partial"})
+	if _, err := PublishInteraction(t.Context(), store, value, messages, Outcome("invented")); err == nil {
+		t.Fatal("invalid outcome was published")
+	}
+	final, err := PublishInteraction(t.Context(), store, value, messages, OutcomeCancelled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if final.ID == reserved.ID {
+		t.Fatal("terminal publication mutated the initial record")
+	}
+	repeated, err := PublishInteraction(t.Context(), store, value, messages, OutcomeCancelled)
+	if err != nil || repeated.ID != final.ID {
+		t.Fatalf("terminal publication is not idempotent: %s (%v)", repeated.ID, err)
+	}
+	trace, err := RequireInteractionTrace(t.Context(), store, final.Trace)
+	if err != nil || trace.Terminal != OutcomeCancelled {
+		t.Fatalf("terminal = %+v (%v)", trace, err)
+	}
+	if _, err := PublishInteraction(t.Context(), store, value, messages, OutcomeSucceeded); err == nil {
+		t.Fatal("late completion overwrote a cancelled response")
+	}
+	current, found, err := ResolveInteraction(t.Context(), store, value.Response)
+	if err != nil || !found || current.ID != final.ID {
+		t.Fatal("terminal alias changed after a refused replacement")
+	}
+}
+
 func TestInteractionIdentity(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "interaction-identity-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-identity-model")
@@ -48,7 +97,7 @@ func TestInteractionLineage(t *testing.T) {
 	}
 	published, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_lineage", Recipe: recipeID, Model: modelID, Node: interactionTestNode, Parent: parentID,
-	}, []InteractionMessage{{Role: "assistant", Content: "answer"}})
+	}, []InteractionMessage{{Role: "assistant", Content: "answer"}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,14 +154,14 @@ func TestCurrentTurnProjection(t *testing.T) {
 	rootMessages := []InteractionMessage{{Role: "user", Content: "root"}, {Role: "assistant", Content: "first"}}
 	root, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_root", Recipe: definition.ID, Model: modelID, Node: interactionTestNode,
-	}, rootMessages)
+	}, rootMessages, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	turnMessages := []InteractionMessage{{Role: "user", Content: "child"}, {Role: "assistant", Content: "second"}}
 	child, err := PublishInteraction(t.Context(), store, Interaction{
 		Response: "resp_child", Recipe: definition.ID, Model: modelID, Node: interactionTestNode, Parent: root.ID,
-	}, turnMessages)
+	}, turnMessages, "")
 	if err != nil {
 		t.Fatal(err)
 	}

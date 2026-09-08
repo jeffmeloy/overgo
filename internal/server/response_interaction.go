@@ -98,6 +98,7 @@ func (h *Handler) publishResponseInteraction(
 	responseID string,
 	parent artifact.ID,
 	messages []inference.ChatMessage,
+	terminal runrecord.Outcome,
 ) error {
 	if h.repository == nil {
 		return nil
@@ -110,7 +111,7 @@ func (h *Handler) publishResponseInteraction(
 	_, err := runrecord.PublishInteraction(ctx, h.repository, runrecord.Interaction{
 		Response: responseID, Recipe: description.Identity.Recipe, Model: description.Identity.Model,
 		Node: description.Interaction.Node, Parent: parent,
-	}, interactionMessages(messages))
+	}, interactionMessages(messages), terminal)
 	if err != nil {
 		h.observationErrors.Add(counterStep)
 		return fmt.Errorf("server: response interaction publication failed: %w", err)
@@ -197,5 +198,24 @@ func (h *Handler) observeResponseID(responseID string) {
 		return
 	}
 	for current := h.nextID.Load(); current < value && !h.nextID.CompareAndSwap(current, value); current = h.nextID.Load() {
+	}
+}
+
+// responseTerminal projects the existing durable trace into Responses states.
+// Legacy immutable traces omitted Terminal and were published only on success.
+func (h *Handler) responseTerminal(ctx context.Context, interaction runrecord.Interaction) (string, string) {
+	trace, err := runrecord.RequireInteractionTrace(ctx, h.repository, interaction.Trace)
+	if err != nil {
+		return "failed", "The turn's terminal record could not be read: " + err.Error()
+	}
+	switch trace.Terminal {
+	case "", runrecord.OutcomeSucceeded:
+		return "completed", ""
+	case runrecord.OutcomeCancelled:
+		return "cancelled", "Stopped"
+	case runrecord.OutcomeInconclusive:
+		return "failed", "The server stopped before this turn was confirmed. Its saved prompt is available to send again."
+	default:
+		return "failed", "The turn failed. Its saved prompt is available to send again."
 	}
 }

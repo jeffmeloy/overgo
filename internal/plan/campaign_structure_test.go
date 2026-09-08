@@ -739,6 +739,9 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/e4b-scored-audio-producer",
 		"modality-verification/e4b-serving-repair",
 		"modality-verification/e4b-serving-admission",
+		"gpu-capacity-admission/do",
+		"gui-conversation-recovery-intake/merge",
+		"audio-cpu-production-intake/merge",
 		"gui-worktree-integration/merge",
 		"gui-vqa-integration/merge",
 		"gui-validation-handoff/do",
@@ -822,7 +825,27 @@ func preparedMergeBoundary(item Item) bool {
 	revision, found := strings.CutPrefix(item.ID, "merge-")
 	return found && len(revision) == 12 && strings.Trim(revision, "0123456789abcdef") == "" &&
 		item.Status == StatusOpen && len(item.Steps) == 1 && item.Steps[0].ID == "do" &&
-		item.Steps[0].Status == StatusOpen && item.Steps[0].Verify == "go run ./cmd/compatibility -check"
+		item.Steps[0].Status == StatusOpen &&
+		(item.Steps[0].Verify == "go run ./cmd/compatibility -check" ||
+			strings.HasPrefix(item.Steps[0].Verify, "go run ./cmd/compatibility -check && "))
+}
+
+func TestPreparedMergeBoundaryVerification(t *testing.T) {
+	item := Item{ID: "merge-fb7de0423660", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}}
+	for _, test := range []struct {
+		verify string
+		want   bool
+	}{
+		{"go run ./cmd/compatibility -check", true},
+		{"go run ./cmd/compatibility -check && go test ./internal/server -run '^TestConversationHistoryPaging$' -count=1", true},
+		{"go test ./internal/server -run '^TestConversationHistoryPaging$' -count=1", false},
+		{"go run ./cmd/compatibility -check || go test ./internal/server", false},
+	} {
+		item.Steps[0].Verify = test.verify
+		if got := preparedMergeBoundary(item); got != test.want {
+			t.Errorf("verification %q: prepared merge = %v, want %v", test.verify, got, test.want)
+		}
+	}
 }
 
 func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {

@@ -47,7 +47,7 @@ func claimResource(name string) error {
 		return fmt.Errorf("processcontrol: inspect resource membership: %w", err)
 	}
 	if errors.Is(callErr, syscall.ERROR_ALREADY_EXISTS) && member == 0 {
-		return fmt.Errorf("processcontrol: physical resource %q is already reserved", name)
+		return fmt.Errorf("processcontrol: %w: %q", ErrResourceBusy, name)
 	}
 	if member == 0 {
 		if ok, _, err := procAssignProcessToJob.Call(job, process); ok == 0 {

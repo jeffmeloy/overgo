@@ -30,7 +30,7 @@ func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 	}
 	if _, err := runrecord.PublishInteraction(t.Context(), store, runrecord.Interaction{
 		Response: "resp_7", Recipe: recipeID, Model: modelID, Node: recipe.NodeID("respond"),
-	}, []runrecord.InteractionMessage{{Role: "assistant", Content: "recorded"}}); err != nil {
+	}, []runrecord.InteractionMessage{{Role: "assistant", Content: "recorded"}}, ""); err != nil {
 		t.Fatal(err)
 	}
 	handler, err := New(Config{

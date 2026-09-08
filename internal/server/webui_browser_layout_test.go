@@ -96,7 +96,7 @@ func TestWebUIBrowserConversationLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertBrowserPredicate(t, ctx, browser, `(() => {overgo.localOperation({id:'layout-operation',task:'test operation',state:'running'});return !document.querySelector('#global-operation-shell').hidden;})()`)
-	assertBrowserPredicate(t, ctx, browser, `(() => {overgo.localOperation({id:'layout-operation',task:'test operation',state:'completed'});return !document.querySelector('.operation-chip[title="test operation / layout-operation"]');})()`)
+	assertBrowserPredicate(t, ctx, browser, `(() => {overgo.localOperation({id:'layout-operation',task:'test operation',state:'completed'});return document.getElementById('global-operation-shell').hidden && !document.querySelector('.activity-dialog').open;})()`)
 	assertBrowserPredicate(t, ctx, browser, `window.overgo.errors.length===0`)
 	t.Log("conversation layout leg: composer reachable at desktop, phone and keyboard heights; drawer and settings keyboard paths; long reply scrolling; visible stop; relevant operations")
 }

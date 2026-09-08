@@ -210,7 +210,7 @@
       const again = reuse && event.url ? el("button", { class: "btn alt", text: "use as input", onclick: async () => {
         try {
           const body = await overgo.api.blob(event.url);
-          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }), event.artifact);
+          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }), event.artifact, event);
         } catch (err) { errorRow(overgo.friendlyError(err)); }
       } }) : null;
       // A card behind a run replays its stored request: unchanged, or with a fresh seed.
@@ -313,6 +313,7 @@
     let busy = false;
     let readOnly = false;
     let sendBlocked = false;
+    let disposed = false;
     const attachmentHost = el("div", { class: "row attachment-strip" });
     // Accepted media and its bounds come from the capability document, never
     // from a list typed into a surface; a surface may narrow it to kinds.
@@ -329,64 +330,162 @@
     const modeHost = el("span", { class: "row mode-controls" });
     const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, ...((options.controls) || []), el("span", { class: "grow" }));
     const extras = el("div", { class: "composer-extras" }, modeHost, attachmentHost);
+    const guidanceText = el('div', { class: 'note' });
+    const guidance = el('details', { class: 'attachment-guidance', hidden: true }, el('summary', { text: 'Accepted files' }), guidanceText);
+    extras.appendChild(guidance);
     const element = el("div", { class: "composer" }, extras, input, controls);
     send.classList.add("send-button"); stop.classList.add("stop-button");
     host.appendChild(element);
 
-    // attachmentPreview: the strip's thumbnail per attachment kind, a refusal tag first.
+    // Stable flat file rows keep keyboard targets and playing previews intact
+    // while read/upload state changes elsewhere in the list.
     function attachmentPreview(item) {
-      if (item.needsReattach) return el("span", { class: "note", text: "Reattach this file, or remove it to continue." });
-      if (item.refusal) return el("span", { class: "tag control", text: "refused" });
-      if (item.pending) return el("span", { class: "note", text: "Loading…" });
+      if (!item.dataURL || item.pending || item.refusal) return null;
       if (item.kind === "image") return el("img", { src: item.dataURL, alt: item.name, class: "thumb-preview" });
       if (item.kind === "video") return el("video", { src: item.dataURL, class: "thumb-preview" });
       if (item.kind === "audio") return el("audio", { src: item.dataURL, controls: "" });
-      return el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
+      return null;
+    }
+    function stage(item, phase, reason = '') {
+      item.phase = phase; item.pending = ['reading', 'validating', 'fetching'].includes(phase); item.storing = phase === 'uploading'; item.refusal = reason;
+    }
+    function invalidate(item) { item.attempt = null; if (item.cancel) item.cancel(); }
+    function releaseFile(item) {
+      if (item.release && !attachments.some(other => other !== item && other.target === item.target && other.artifact === item.artifact)) item.release();
+      item.artifact = ''; item.target = item.release = null;
+      if (item.infoLink) item.infoLink.remove(); item.infoLink = item.link = null;
+    }
+    function removeFile(item) {
+      const index = attachments.indexOf(item);
+      if (index < 0) return;
+      const focused = item.row && item.row.contains(document.activeElement);
+      attachments.splice(index, 1); invalidate(item);
+      releaseFile(item);
+      if (item.row) item.row.remove(); renderAttachments();
+      if (focused) (attachments[index]?.remove || attachments[index - 1]?.remove || attach || input).focus();
+    }
+    function stopFile(item) {
+      if (!item.file && item.sourceArtifact) item.needsReattach = true;
+      invalidate(item); stage(item, 'cancelled', 'File preparation stopped. Retry or remove it.'); renderAttachments(); item.retry.focus();
     }
     function renderAttachments() {
-      attachmentHost.replaceChildren(...attachments.map((item, index) => {
-        const remove = el("button", { class: "btn alt", text: "×", "aria-label": "Remove " + item.name, onclick: () => { attachments.splice(index, 1); renderAttachments(); } });
-        return el("span", { class: "card" + (item.refusal ? " refused" : "") }, attachmentPreview(item), " " + item.name + " ",
-          item.refusal ? el("span", { class: "note", text: item.refusal }) : item.pending || item.storing ? el("span", { class: "note", text: "Loading…" }) : item.artifact ? el("span", { class: "note" }, "stored as ", overgo.artifactLink(item.artifact)) : null, remove);
-      }));
+      if (disposed) return;
+      for (const item of attachments) {
+        if (!item.row) {
+          item.preview = el('span', { class: 'attachment-preview' }); item.status = el('span', { class: 'note', role: 'status' });
+          item.remove = el('button', { class: 'link-button', text: 'Remove', 'aria-label': 'Remove ' + item.name, onclick: () => removeFile(item) });
+          item.retry = el('button', { class: 'link-button', text: 'Retry', 'aria-label': 'Retry ' + item.name, onclick: () => { if (!item.file && item.sourceArtifact) reloadStored(item); else prepareFile(item); } });
+          item.stop = el('button', { class: 'link-button', text: 'Cancel', 'aria-label': 'Cancel ' + item.name, onclick: () => stopFile(item) });
+          item.row = el('span', { class: 'attachment-row' }, item.preview, el('span', { class: 'attachment-info' },
+            el('span', { class: 'attachment-name', text: item.name }), el('span', { class: 'note', text: overgo.fmt.bytes(item.size) }), item.status),
+            el('span', { class: 'attachment-actions' }, item.retry, item.stop, item.remove));
+        }
+        if (item.row.parentNode !== attachmentHost) attachmentHost.appendChild(item.row);
+        item.row.dataset.state = item.phase || 'reattach';
+        let status = 'Ready';
+        if (item.refusal) status = item.refusal;
+        else if (item.needsReattach) status = 'Reattach this file, or remove it to continue.';
+        else if (item.storing) status = 'Uploading…';
+        else if (item.phase === 'fetching') status = 'Loading stored file…';
+        else if (item.phase === 'validating') status = 'Checking image…';
+        else if (item.pending) { status = 'Reading…'; if (item.loaded != null) status += ' ' + overgo.fmt.bytes(item.loaded) + ' of ' + overgo.fmt.bytes(item.size); }
+        else if (item.artifact) status = 'Stored';
+        if (item.status.textContent !== status) item.status.textContent = status;
+        item.status.setAttribute('role', item.refusal ? 'alert' : 'status');
+        const focused = document.activeElement;
+        item.retry.hidden = (!item.file || !['error', 'cancelled'].includes(item.phase)) && !(item.sourceArtifact && item.needsReattach);
+        item.retry.textContent = item.file ? 'Retry' : 'Reload stored file';
+        item.stop.hidden = !item.pending && !item.storing;
+        if (focused === item.retry && item.retry.hidden) (item.stop.hidden ? item.remove : item.stop).focus();
+        else if (focused === item.stop && item.stop.hidden) (item.retry.hidden ? item.remove : item.retry).focus();
+        const previewKey = !item.pending && !item.refusal && item.dataURL;
+        if (item.previewKey !== previewKey) { item.previewKey = previewKey; const preview = attachmentPreview(item); item.preview.replaceChildren(...(preview ? [preview] : [])); }
+        if (item.artifact && !item.link) { item.link = overgo.artifactLink(item.artifact, 'Stored file'); item.infoLink = el('span', {}, item.link); item.row.querySelector('.attachment-info').appendChild(item.infoLink); }
+        if (item.sourceLink && item.sourceArtifact === item.artifact) { item.sourceLink.remove(); item.sourceLink = null; }
+        if (item.sourceArtifact && item.sourceArtifact !== item.artifact && !item.sourceLink) { item.sourceLink = overgo.artifactLink(item.sourceArtifact, 'Source file'); item.row.querySelector('.attachment-info').appendChild(item.sourceLink); }
+      }
+      guidance.hidden = !attachments.length;
+      guidanceText.textContent = options.takesAny && options.takesAny() ? 'Files fill the selected model input. The server checks supported types and sizes.' :
+        'Supported types: ' + accept.join(', ') + '. Image limit: ' + overgo.fmt.bytes(media.max_image_bytes || 0) + '; other files: ' + overgo.fmt.bytes(media.max_media_bytes || 0) + '.';
       setBusy(busy);
       if (options.onChange) options.onChange();
     }
     function refusal(file, kind) {
+      if (file.size === 0) return 'File is empty.';
       const refusals = media.refusals || {};
       if (!accept.includes(file.type)) return refusals[file.type] || refusals[kind] || "the served model does not accept " + (file.type || "this file");
       const limit = kind === "image" ? media.max_image_bytes : media.max_media_bytes;
       return limit && file.size > limit ? "exceeds the " + overgo.fmt.bytes(limit) + " limit" : "";
     }
-    function addFile(file) {
+    function addFile(file, source = {}) {
+      if (disposed || readOnly) return;
       const kind = mediaKind(file.type);
-      // options.intake(file): a surface storing the file as an artifact returns the id's promise; the server's refusal is the card's, and the card sends no part.
-      const stored = options.intake ? options.intake(file) : null;
-      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: stored ? "" : refusal(file, kind), storing: !!stored, pending: true };
-      if (stored) stored.then((id) => { item.artifact = id; }, (err) => { item.refusal = overgo.friendlyError(err); }).then(() => { item.storing = false; renderAttachments(); });
+      const item = { file, kind, name: file.name, mime: file.type, size: file.size, sourceArtifact: source.artifact, sourceRun: source.run };
       const missing = attachments.findIndex(saved => saved.needsReattach && saved.name === item.name && saved.size === item.size && saved.mime === item.mime);
-      if (missing < 0) attachments.push(item); else attachments.splice(missing, 1, item);
-      renderAttachments();
-      if (item.refusal) { item.pending = false; return; }
-      const reader = new FileReader();
-      const fail = () => { item.pending = false; item.refusal = "Could not read " + item.name; renderAttachments(); };
-      reader.onerror = reader.onabort = fail;
+      if (missing < 0) attachments.push(item); else { removeFile(attachments[missing]); attachments.splice(missing, 0, item); }
+      prepareFile(item);
+    }
+    function reloadStored(item) {
+      if (disposed || readOnly || !attachments.includes(item)) return;
+      invalidate(item);
+      const attempt = Symbol(), controller = new AbortController();
+      item.attempt = attempt; item.cancel = () => controller.abort(); item.needsReattach = false;
+      const current = () => !disposed && attachments.includes(item) && item.attempt === attempt;
+      stage(item, 'fetching'); renderAttachments();
+      overgo.api.blob('/artifacts/content?id=' + encodeURIComponent(item.sourceArtifact), { signal: controller.signal }).then(blob => {
+        if (!current()) return;
+        item.file = new File([blob], item.name, { type: blob.type || item.mime });
+        item.mime = item.file.type; item.kind = mediaKind(item.mime); item.size = item.file.size;
+        prepareFile(item);
+      }, err => { if (current()) { item.needsReattach = true; stage(item, 'error', overgo.friendlyError(err)); renderAttachments(); } });
+    }
+    function prepareFile(item) {
+      if (disposed || readOnly || !attachments.includes(item)) return;
+      invalidate(item);
+      releaseFile(item);
+      const attempt = Symbol(), controller = new AbortController();
+      item.attempt = attempt; item.loaded = null;
+      const current = () => !disposed && attachments.includes(item) && item.attempt === attempt;
+      let reader, probe;
+      item.cancel = () => { controller.abort(); if (reader && reader.readyState === FileReader.LOADING) reader.abort(); if (probe) { probe.onload = probe.onerror = null; probe.src = ''; } };
+      const fail = err => { if (current()) { stage(item, [400, 413, 415, 422].includes(err.status) ? 'refused' : 'error', overgo.friendlyError(err)); renderAttachments(); } };
+      let stored;
+      try { stored = options.intake ? options.intake(item.file, { signal: controller.signal }) : null; }
+      catch (err) { fail(err); return; }
+      if (stored) {
+        stage(item, 'uploading'); renderAttachments();
+        Promise.resolve(stored).then(result => {
+          if (!current()) return;
+          item.artifact = result.id; item.release = result.remove; item.target = result.target;
+          if (!item.sourceArtifact) item.sourceArtifact = result.id;
+          stage(item, 'ready'); renderAttachments();
+        }, fail);
+        return;
+      }
+      const reason = refusal(item.file, item.kind);
+      if (reason) { stage(item, 'refused', reason); renderAttachments(); return; }
+      stage(item, 'reading'); renderAttachments();
+      reader = new FileReader();
+      reader.onprogress = event => { if (current() && event.lengthComputable) { item.loaded = event.loaded; renderAttachments(); } };
+      reader.onerror = () => fail(new Error('Could not read ' + item.name + '. Retry or remove it.'));
+      reader.onabort = () => fail(new Error('Reading stopped. Retry or remove the file.'));
       reader.onload = () => {
+        if (!current()) return;
         item.dataURL = reader.result;
-        if (kind === "image" && !item.refusal) {
-          const probe = new Image();
+        if (item.kind === 'image') {
+          stage(item, 'validating'); renderAttachments(); probe = new Image();
           probe.onload = () => {
-            if (probe.width > media.max_image_dimension || probe.height > media.max_image_dimension) item.refusal = "exceeds " + media.max_image_dimension + " pixels on a side";
-            else if (probe.width * probe.height > media.max_image_pixels) item.refusal = "exceeds " + media.max_image_pixels + " pixels";
-            item.pending = false;
-            renderAttachments();
+            if (!current()) return;
+            let reason = '';
+            if (probe.width > media.max_image_dimension || probe.height > media.max_image_dimension) reason = 'Exceeds ' + media.max_image_dimension + ' pixels on a side.';
+            else if (probe.width * probe.height > media.max_image_pixels) reason = 'Exceeds ' + media.max_image_pixels + ' pixels.';
+            stage(item, reason ? 'refused' : 'ready', reason); renderAttachments();
           };
-          probe.onerror = fail;
-          probe.src = reader.result;
-        } else item.pending = false;
-        renderAttachments();
+          probe.onerror = () => fail(new Error('Could not decode ' + item.name + '. Retry or choose another file.'));
+          probe.src = item.dataURL;
+        } else { stage(item, 'ready'); renderAttachments(); }
       };
-      reader.readAsDataURL(file);
+      try { reader.readAsDataURL(item.file); } catch (err) { fail(err); }
     }
     function addFiles(files) { for (const file of files || []) addFile(file); }
     picker.addEventListener("change", () => { addFiles(picker.files); picker.value = ""; });
@@ -428,8 +527,10 @@
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost, extras,
       setSendBlocked(value) { sendBlocked = value; setBusy(busy); },
       setReadOnly(value) { readOnly = value; input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
-      clearAttachments() { attachments.length = 0; renderAttachments(); },
+      clearAttachments() { for (const item of attachments) invalidate(item); attachments.length = 0; attachmentHost.replaceChildren(); renderAttachments(); },
       restoreAttachments(items) { attachments.push(...items); renderAttachments(); },
+      dispose() { disposed = true; for (const item of attachments) invalidate(item); },
+      invalidateIntake() { for (const item of attachments) if (item.storing || item.artifact) { invalidate(item); stage(item, 'error', 'Model input changed. Retry to use this file here, or remove it.'); } renderAttachments(); },
       openPicker,
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },

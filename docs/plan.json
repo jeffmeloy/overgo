@@ -5,24 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-attachment-workflow",
-      "title": "Make attachment intake and modality controls usable on a phone",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make attachment intake and modality controls usable on a phone",
-          "status": "open",
-          "verify": "OVERGO_WEBUI_LANE=1 go test ./internal/server -run '^TestWebUIBrowserAttachmentWorkflow$' -count=1 -timeout=2m",
-          "rationale": "Retain the accepted decoding waits, file refusals, authenticated previews/downloads and generated-media reuse. Extend the same composer with clear per-file read/upload/progress/refusal states, retry/remove actions, capability-driven input guidance and bounded previews. Keep declared media controls reachable above the composer without consuming the conversation; use native phone file/media pickers and expose only declared modalities. Preserve media/recipe identity through reuse and model changes. Add TestWebUIBrowserAttachmentWorkflow for multi-file selection, paste, rejected/corrupt files, upload failure/cancel, protected media and phone keyboard-height layout.",
-          "depends_on": [
-            "gui-draft-lifecycle/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-background-work",
       "title": "Keep conversation and workbench actions responsive during background work",
       "owner": "professional_overgo_gui",

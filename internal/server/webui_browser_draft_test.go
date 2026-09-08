@@ -57,7 +57,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
    const picker=document.querySelector('.composer input[type=file]');picker.files=files.files;picker.dispatchEvent(new Event('change'));
    return !!cap.recipe && !!cap.model && cap.max_output_tokens===8 && Number(draftField('tokens').max)===8;
  })()`)
-	settle(`document.querySelector('.attachment-strip').textContent.includes('notes.txt') && !document.querySelector('.attachment-strip').textContent.includes('Loading')`)
+	settle(`document.querySelector('.attachment-strip').textContent.includes('notes.txt') && !!document.querySelector('.attachment-row[data-state=ready]')`)
 	check(`(() => {
    const stored=Object.keys(sessionStorage).filter(key=>key.startsWith('overgo.draft:')).map(key=>sessionStorage.getItem(key)).join('');
    window.draftOriginalGet=overgo.api.get;

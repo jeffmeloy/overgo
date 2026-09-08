@@ -28,58 +28,60 @@ separator. The behavioral browser lane remains the acceptance authority.
 
 ## Conversation history
 
-History uses a flat list with title search, an archived view and Load older
-conversations. Actions explicitly reveal Rename and Archive/Restore. Duplicate
-titles retain distinct response identities. Automatic refresh preserves the
-editor, keyboard target, selected transcript and draft; Reload applies deferred
-changes. Failed searches retain the previous results and an explicit retry.
+History is a flat searchable list with archived view, Load older and explicit
+Rename/Archive/Restore actions. Response identities distinguish duplicate titles.
+Refresh preserves editing, focus, selection and drafts; Reload applies deferred
+changes. Failed searches retain results and offer retry.
 
-The existing interaction store owns pagination and ancestry. Continuations are
-bound to the search and store head; a concurrent write asks the reader to reload
-instead of mixing pages. Root identity and turn count traverse the complete
-immutable chain, independently of page size. Every read refreshes the existing
-store handle. Labels use compare-and-swap with distinct transition keys so
-repeated archive/restore operations do not replay an earlier state.
-
-Stored transcripts are readable across models. Continuing them still requires
-the matching model and recipe. A failed transcript load blocks Send and offers
-Retry loading or New conversation while preserving the unsent draft.
+The interaction store owns complete ancestry and head-bound pagination;
+concurrent writes require Reload. Reads refresh the existing handle. Label CAS
+uses distinct transition keys, including repeated archive/restore operations.
+Cross-model transcripts remain readable; continuing requires the matching model
+and recipe. Failed loads block Send and offer Retry/New without losing drafts.
 
 `TestConversationHistoryPaging`, `TestConversationHistoryRefresh` and
-`TestWebUIBrowserConversationNavigation` cover these contracts using a real
-temporary store, synthetic model output, browser actions and injected transport
-failures. The browser journey also checks both themes and phone/desktop layouts.
+`TestWebUIBrowserConversationNavigation` use real temporary storage, synthetic
+output and transport faults, including phone/desktop layouts in both themes.
 
 ## Conversation actions
 
-Edit and resend opens an inline message editor. Regenerate uses the stored
-prompt with current settings. Both submit through the existing Responses path
-with the original turn's parent, creating an immutable branch. The history
-list distinguishes the resulting leaves by response identity. Return to
-original keeps the earlier branch reachable while the new response runs.
+Edit and resend and Regenerate use Responses with the original parent and
+current settings, creating immutable branches. Return to original remains
+available during execution. Drafts survive; root edits copy rather than move
+them. Failure restores the original view with Retry branch; accepted disconnected
+requests offer Resume response. Stop cancels execution and retains keyboard focus.
 
-Branch actions preserve the composer's unsent text and files. A root edit
-copies that draft to the new root while keeping the original draft. Failed
-submissions restore the original view with Retry branch; disconnected accepted
-requests use Resume response. Stop cancels the actual branch execution.
-Keyboard focus moves to Stop when a branch starts and back to Send on completion.
+Regeneration preserves UTF-8 media positions and other input messages. Editing
+retains attachments after the edited text. Tool-execution replay is explicitly
+refused. Model/recipe checks guard generation, independently of transcript reads.
 
-Stored media positions survive regeneration, including UTF-8 text offsets.
-An edited prompt keeps its attachments after the edited text. Multi-message
-inputs preserve the other messages. Tool-execution turns explicitly refuse
-automatic replay; continuing with a new message remains available. Model and
-recipe checks guard all generation actions, while stored content remains readable.
+Settings offers Copy conversation and Export Markdown for the stored transcript,
+excluding drafts/configuration and referencing attachments' stored turns.
+Failures offer retry; the shared object-URL owner releases replaced downloads.
 
-Settings exposes Copy conversation and Export Markdown. These use the selected
-stored transcript, omit unsent drafts and configuration, and reference each
-attachment's stored turn. Clipboard/read failures provide retry feedback. The
-shared object-URL owner releases downloads when their UI owner is replaced.
+`TestWebUIBrowserConversationActions` covers stored branches, duplicate admission,
+failure/retry/cancel, root drafts, media fidelity and copy/export. Output is
+synthetic; refused media requests establish no image-model or remote-fetch proof.
 
-`TestWebUIBrowserConversationActions` checks actual stored branches, repeat-click
-admission, failed submission/retry, execution cancellation, draft preservation,
-root edits, multi-message/media request fidelity, clipboard failure and export
-contents. The generation model is synthetic; media request tests deliberately
-refuse before execution and establish no image-model or remote-fetch evidence.
+## Attachment intake
+
+Flat file rows expose reading, decoding, uploading, refusal, failure and ready
+states, with Retry/Cancel/Remove and declared-format guidance. Stable previews
+and keyboard targets survive other files' updates. The bounded composer extras
+area keeps message input and Send/Stop reachable at phone keyboard heights.
+
+Read/upload attempts own cancellation and reject late results after removal,
+navigation or input changes. Native input assignment cannot overwrite a manually
+edited field or a newer upload. Removing a file clears only its own assignment.
+Unknown MIME uploads preserve raw bytes and let the server refuse the format.
+Protected previews and stored-output reuse use shared authenticated transport.
+Drafts retain immutable file references, never bytes; Reload stored file checks
+current capabilities and exposes failures for retry.
+
+`TestWebUIBrowserAttachmentWorkflow` covers native multi-file/paste, read/decode
+faults, size/type refusal, upload retry/cancel, late assignments, authenticated
+intake/preview/reuse and reduced phone layouts. Storage and file bytes are real;
+controlled image/slot declarations establish no model or physical-device proof.
 
 ## Mobile acceptance
 

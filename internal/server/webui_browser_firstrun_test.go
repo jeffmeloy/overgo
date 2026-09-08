@@ -290,7 +290,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		}
 		attachTinyPNG()
 		if vision {
-			settle("image attached", `!!document.querySelector(".composer .card:not(.refused)")`)
+			settle("image attached", `!!document.querySelector('.composer .attachment-row[data-state=ready]')`)
 			// A switch may have opened a fresh conversation: the reply is the one
 			// assistant turn beyond what the thread held before the image was sent.
 			var before int
@@ -303,11 +303,11 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			t.Log("image-in leg: the multimodal model answered the attached image")
 		} else {
 			settle("image refused with the declared reason", `(() => {
-        const card = document.querySelector(".composer .card.refused");
+        const card = document.querySelector('.composer .attachment-row[data-state=refused]');
         const reason = ((window.overgo.capabilities().media || {}).refusals || {}).image || "";
         return !!card && reason !== "" && card.textContent.includes(reason);
       })()`)
-			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer .card.refused button").click(); return !document.querySelector(".composer .card.refused"); })()`)
+			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector('.composer .attachment-row[data-state=refused] button[aria-label^="Remove "]').click(); return !document.querySelector('.composer .attachment-row[data-state=refused]'); })()`)
 			t.Log("vision leg: the served model accepts no images, so the refusal contract was proven instead")
 		}
 	}
@@ -455,14 +455,14 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		t.Log("media-out leg: an image landed as an artifact card")
 		captureStates("thread-media")
 		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelectorAll("#panel-chat .msg.media button")].find((button) => button.textContent === "use as input"); if (!again) return false; again.click(); return true; })()`)
-		settle("image back in as an attachment", `document.querySelectorAll(".composer .card").length === 1`)
+		settle("image back in as an attachment", `document.querySelectorAll('.composer .attachment-row[data-state=ready], .composer .attachment-row[data-state=refused]').length === 1`)
 		var refused bool
-		if err := browser.Evaluate(ctx, `!!document.querySelector(".composer .card.refused")`, &refused); err != nil {
+		if err := browser.Evaluate(ctx, `!!document.querySelector('.composer .attachment-row[data-state=refused]')`, &refused); err != nil {
 			t.Fatal(err)
 		}
 		t.Logf("media-in leg: the generated image re-entered the composer, refused=%v", refused)
 		captureStates("composer-attachment")
-		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector(".composer .card button").click(); return !document.querySelector(".composer .card"); })()`)
+		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector('.composer .attachment-row button[aria-label^="Remove "]').click(); return !document.querySelector('.composer .attachment-row') && !document.querySelector('.send-button').disabled; })()`)
 		// 10b. Gallery after a reload: the image the store holds reappears
 		// newest first in the image mode's gallery rail, and its thumb opens the
 		// record that made it (the request's seed) beside the image.
@@ -562,7 +562,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			settle("clip fills the source artifact", `(() => {
       const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("source clip"));
       const input = field && field.querySelector("input");
-      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .card").length === 0; })()`)
+      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .attachment-row").length === 0; })()`)
 			t.Log("clip-in leg: the clip's stored id filled LiveEdit's source clip")
 		} else {
 			t.Log("clip-in leg not taken: the store declares no LiveEdit model")
@@ -582,7 +582,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		settle("image fills the vqa image control", `(() => {
       const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("image"));
       const input = field && field.querySelector("input");
-      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .card").length === 0; })()`)
+      return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .attachment-row").length === 0; })()`)
 		say(t, ctx, browser, "What does this image show?")
 		settle("the answer lands as the assistant's text", `!document.querySelector(".composer .btn").disabled &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0 &&
@@ -602,9 +602,9 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		}
 		attachTinyPNG()
 		settle("the upload fills the vqa image control", `(() => {
-      const field = `+vqaImage+`, card = document.querySelector(".composer .card");
+      const field = `+vqaImage+`, row = document.querySelector(".composer .attachment-row[data-state=ready]");
       const input = field && field.querySelector("input");
-      return !!input && input.value.includes(":sha256:") && input.value !== `+strconv.Quote(filled)+` && !!card && !card.classList.contains("refused") && card.textContent.includes("stored as"); })()`)
+      return !!input && input.value.includes(":sha256:") && input.value !== `+strconv.Quote(filled)+` && !!row && [...row.querySelectorAll('a')].some(link => link.textContent==='Stored file' && link.getAttribute('href').includes(encodeURIComponent(input.value))); })()`)
 		// The slot is declared (label "image", media image) and its strip lists the stored
 		// attachment; choosing it from the strip fills the slot with the same id.
 		settle("the image slot lists the stored attachment", `(() => {
@@ -643,8 +643,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 		settle("the clip fills the audio control", `(() => {
       const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("audio clip"));
-      const input = field && field.querySelector("input"), card = document.querySelector(".composer .card");
-      return !!input && input.value.includes(":sha256:") && !!card && !card.classList.contains("refused") && card.textContent.includes("stored as"); })()`)
+      const input = field && field.querySelector("input"), row = document.querySelector(".composer .attachment-row[data-state=ready]");
+      return !!input && input.value.includes(":sha256:") && !!row && [...row.querySelectorAll('a')].some(link => link.textContent==='Stored file' && link.getAttribute('href').includes(encodeURIComponent(input.value))); })()`)
 		var before int
 		if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
 			t.Fatal(err)

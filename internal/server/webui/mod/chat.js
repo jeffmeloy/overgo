@@ -50,6 +50,7 @@
       let disposed = false;
       let saveDraft = () => {};
       let updateSwitch = () => {};
+      let disposeComposer = () => {};
       let controller = null;
       let activeTurn = null;
       let recoveryRow = null;
@@ -59,6 +60,7 @@
       disposeChat = () => {
         saveDraft();
         disposed = true;
+        disposeComposer();
         document.removeEventListener("overgo-model-switch", updateSwitch);
         // A queued explicit Stop still needs the incoming ID. Keep only that
         // acknowledgement alive across navigation, then cancel its execution.
@@ -149,9 +151,11 @@
       // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
       // a fresh attachment in such a mode stores through the intake route and fills the control.
       // A file goes to the slot of its kind (the slot's declared media), else to the first slot.
+      const generation = { capabilities: null, capability: null, fields: new Map() };
       const artifactField = (file) => { const slots = [...generation.fields.values()].filter((field) => field.control.type === "artifact");
         return slots.find((field) => file && field.control.media && file.type.startsWith(field.control.media + "/")) || slots[0]; };
-      const thread = overgo.thread(panel, { reuse: (file, artifact) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file); },
+      const fieldUploads = new WeakMap();
+      const thread = overgo.thread(panel, { reuse: (file, artifact, source) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file, source); },
         replay: replayRecord, lineage: showLineage, actions: messageActions, marker: capabilities.remote ? "remote" : "" });
       const branchNotice = el('div', { class: 'note', role: 'status', hidden: true });
       function actionsBlocked() { return disposed || !!controller || !!activeTurn || actionPending || otherModel || overgo.modelSwitching(); }
@@ -334,13 +338,28 @@
         onStop: overgo.stopTurn,
         onChange: () => saveDraft(),
         takesAny: () => !!artifactField(),
-        intake: (file) => { const field = artifactField(file); return field ? overgo.api.upload("/artifacts/intake", file).then((stored) => { field.input.value = stored.id; field.input.dispatchEvent(new Event("intake")); return stored.id; }) : null; },
+        intake: (file, { signal }) => {
+          const field = artifactField(file);
+          if (!field) return null;
+          const attempt = {}, previousValue = field.input.value; fieldUploads.set(field, attempt);
+          return overgo.api.upload('/artifacts/intake', file, { signal }).then(stored => {
+            signal.throwIfAborted();
+            if (!stored || typeof stored.id !== 'string' || !stored.id) throw new Error('Upload returned no stored file identity. Retry or remove the file.');
+            if (disposed || !field.input.isConnected || ![...generation.fields.values()].includes(field)) throw new Error('Model input changed. Retry to use the file here.');
+            if (fieldUploads.get(field) !== attempt) throw new Error('A newer file was selected for this input. Retry or remove this file.');
+            if (field.input.value !== previousValue) throw new Error('The input was changed while uploading. Retry or remove this file.');
+            field.input.value = stored.id; field.input.dispatchEvent(new Event('intake'));
+            return { id: stored.id, target: field.input, remove: () => { if (field.input.value === stored.id) { field.input.value = ''; field.input.dispatchEvent(new Event('input', { bubbles: true })); } } };
+          });
+        },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; saveDraft(); return renderMode(mode); },
         controls: [],
       });
+      disposeComposer = () => composer.dispose();
       composer.input.value = typeof draft.text === "string" ? draft.text : "";
-      if (Array.isArray(draft.attachments)) composer.restoreAttachments(draft.attachments.filter(item => item && typeof item.name === "string" && typeof item.mime === "string" && Number.isFinite(item.size) && item.size >= 0).map(item => ({ name: item.name, mime: item.mime, size: item.size, kind: overgo.mediaKind(item.mime), needsReattach: true })));
+      if (Array.isArray(draft.attachments)) composer.restoreAttachments(draft.attachments.filter(item => item && typeof item.name === "string" && typeof item.mime === "string" && Number.isFinite(item.size) && item.size >= 0).map(item => ({ name: item.name, mime: item.mime, size: item.size, kind: overgo.mediaKind(item.mime), needsReattach: true,
+        sourceArtifact: typeof item.sourceArtifact === 'string' ? item.sourceArtifact : undefined, sourceRun: typeof item.sourceRun === 'string' ? item.sourceRun : undefined })));
       const draftNotice = el("div", { class: "note", role: "status", hidden: true });
       composer.extras.appendChild(draftNotice);
       const modelNotice = el("div", { class: "note", role: "status", hidden: true }, "Confirming the selected model… Choose a model again if loading fails.");
@@ -356,7 +375,7 @@
       saveDraft = () => {
         if (disposed) return;
         persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, mode: composer.mode(),
-          attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size })) });
+          attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun })) });
       };
       saveChat = saveDraft;
       for (const field of [system, temperature, maxTokens]) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
@@ -394,9 +413,9 @@
       }
 
       // Generation modes project declared capabilities; transitions discard old slots.
-      const generation = { capabilities: null, capability: null, fields: new Map() };
       const galleryLimit = 12; // the newest outputs a mode's gallery rail lists
       async function renderMode(mode) {
+        composer.invalidateIntake();
         generation.capability = null;
         generation.fields.clear(); generation.picker = null;
         composer.modeHost.replaceChildren();
@@ -416,6 +435,7 @@
         const only = el("input", { type: "checkbox", "aria-label": "this model only" });
         const filterRail = () => { for (const thumb of rail.children) thumb.hidden = only.checked && thumb.dataset.recipe !== picker.value; };
         const select = () => {
+          composer.invalidateIntake();
           generation.capability = declared.find((capability) => capability.recipe === picker.value && !capability.refusal) || null;
           const typed = generation.capability ? generation.capability.controls.filter((control) => control !== overgo.bodyControl(generation.capability.controls)) : [];
           generation.fields = overgo.controlInputs(controlsHost, typed);

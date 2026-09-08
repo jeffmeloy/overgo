@@ -265,8 +265,8 @@ func assertChatAttachmentModeReset(t *testing.T, ctx context.Context, browser *w
       return window.modeResetProbe.uploads === 0;
     })()`)
 	if err := browser.Eventually(ctx, `(() => {
-      const attachments = document.querySelector('.composer');
-      return attachments && attachments.textContent.includes("mode-reset.txt") && !attachments.textContent.includes("stored as");
+      const attachment = [...document.querySelectorAll('.composer .attachment-row[data-state=ready]')].find(row => row.textContent.includes('mode-reset.txt'));
+      return !!attachment && window.modeResetProbe.uploads === 0 && ![...attachment.querySelectorAll('a')].some(link => link.textContent === 'Stored file');
     })()`); err != nil {
 		t.Fatal(err)
 	}

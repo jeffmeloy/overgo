@@ -604,20 +604,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-profile-and-bind",
-          "title": "Verify: Measure and simplify CPU audio hotspots before introducing device paths",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestASRCPUSimplificationAcceptance$' -count=1 -v",
-          "rationale": "Group cpu-measurements; retained verification receipt for benchmark-routing/pinned-benchmarks. On the pinned CPU baseline, profile separately from timed repetitions. Prefer deleting repeated decode/transforms, copies and allocations; reuse independently equivalent FFT/common operations. Direct DFT remains reference, not speed evidence. Require unchanged quality/boundaries and measured wall/live-memory results; a measured no-change result is valid.",
-          "depends_on": [
-            "benchmark-routing/pinned-benchmarks"
-          ],
-          "capabilities": [
-            "measured-cpu-simplification",
-            "buffer-and-transform-reuse"
-          ]
-        },
-        {
           "id": "profile-and-bind",
           "title": "Bind measured CUDA operations and prove operator-to-recipe parity",
           "status": "open",

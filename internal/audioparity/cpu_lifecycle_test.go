@@ -24,6 +24,7 @@ import (
 )
 
 type lifecycleCorpus struct {
+	suite    evaluation.TranscriptionSuite
 	compiled evaluation.TranscriptionPlan
 	inputs   []evaluation.TranscriptionResourceInput
 }
@@ -31,9 +32,9 @@ type lifecycleCorpus struct {
 // lifecycleHeldout reads ground truth only from the immutable test shard. Its
 // selection was fixed before prediction and is disjoint from both adapter
 // training and the validation rows used by the native implementation oracle.
-func lifecycleHeldout(t *testing.T, l *adapterLifecycle) lifecycleCorpus {
+func lifecycleHeldout(t *testing.T, l *adapterLifecycle, selectionPath string) lifecycleCorpus {
 	t.Helper()
-	data, err := os.ReadFile("testdata/lifecycle_heldout.json")
+	data, err := os.ReadFile(selectionPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,10 +102,15 @@ func lifecycleHeldout(t *testing.T, l *adapterLifecycle) lifecycleCorpus {
 			t.Fatal(err)
 		}
 		name := *values["id"]
-		suite.Cases = append(suite.Cases, evaluation.TranscriptionCase{Name: name, Group: "held-out-test", Source: inspection.Signal.Source,
+		speaker, _, found := strings.Cut(name, "-")
+		if !found || speaker == "" {
+			t.Fatal("held-out source has no speaker identifier")
+		}
+		suite.Cases = append(suite.Cases, evaluation.TranscriptionCase{Name: name, Group: "speaker-" + speaker, Source: inspection.Signal.Source,
 			Reference: *values["text"], SampleCount: uint64(len(audio.Samples)), SampleRate: audio.Format.SampleRate})
 		corpus.inputs = append(corpus.inputs, evaluation.TranscriptionResourceInput{Name: name, Reference: dataset.AudioPayloadReference{Path: path, Audio: inspection.Signal.Source.Audio, Origin: origin}, Policy: policy})
 	}
+	corpus.suite = suite
 	corpus.compiled, err = evaluation.CompileTranscription(suite)
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +175,7 @@ func TestASRCPUClosedLoop(t *testing.T) {
 		return definition
 	}
 	base := compose(l.base)
-	corpus := lifecycleHeldout(t, l)
+	corpus := lifecycleHeldout(t, l, "testdata/lifecycle_heldout.json")
 	environment, err := runrecord.CurrentEnvironment("cpu", "go-host")
 	if err != nil {
 		t.Fatal(err)

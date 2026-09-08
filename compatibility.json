@@ -58,6 +58,28 @@
  },
  "claims": [
   {
+   "id": "audio-cpu-heldout-resource-fitness",
+   "status": "implemented",
+   "evidence_tier": "fixture-gated",
+   "artifact_identity": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+   "verify": "go test ./internal/audioparity -run '^TestAudioResourceFitnessAcceptance$' -count=1 -v",
+   "summary": "Five pinned LibriSpeech clean test utterances from three speakers execute through the native evaluator with separate target scoring, silence and corrupt admission controls, exact fresh output parity, WER/CER and complete failure denominators. Isolated child processes measure wall and peak working set including source I/O, cold load, warmup, inference, scoring and publication. A separate target-free profile preserves raw outputs and never calibrates timing. Shared resource comparisons derive observed envelopes, refuse missing device measurements or reused attempts, and preserve measured regressions. Shared vector-policy counterexamples reject quality regressions, no gain and unapproved tradeoffs. No runtime/API/state/buffer change, speedup, GPU, training, full-corpus or promotion claim.",
+   "evidence": [
+    {
+     "path": "internal/evaluation/transcription_resources.go",
+     "contains": "func EvaluateTranscriptionResources(",
+     "role": "source",
+     "identity": "file:sha256:6ced7fb5912ffcdac74035c2e07ceddf093cc79fa24bfd769be5a8714ecd08d2"
+    },
+    {
+     "path": "internal/audioparity/cpu_resource_fitness_test.go",
+     "contains": "func TestAudioResourceFitnessAcceptance(",
+     "role": "artifact",
+     "identity": "evidence:sha256:680533a7e30e89962669b7dea63681e878076c10afe438ea8bde9eabbdc49470"
+    }
+   ]
+  },
+  {
    "id": "audio-cpu-production-training",
    "status": "implemented",
    "evidence_tier": "fixture-gated",
@@ -97,7 +119,7 @@
      "path": "internal/audioparity/cpu_lifecycle_test.go",
      "contains": "func TestASRCPUClosedLoop(",
      "role": "artifact",
-     "identity": "evidence:sha256:ddd2e21c3f770461ef853389f7c6e61eb120c24d5a61f2d701a078f70cc878c1"
+     "identity": "evidence:sha256:99ddf96a5e78f6e612d3b551137438ebe681bf4f268c98211f843066192d0dc3"
     },
     {
      "path": "internal/audioparity/testdata/lifecycle_heldout.json",

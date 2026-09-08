@@ -224,60 +224,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "pinned-benchmarks",
-          "title": "Establish held-out quality, simplify CPU execution and judge resource fitness",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestAudioResourceFitnessAcceptance$' -count=1 -v",
-          "rationale": "Group cpu-measurements; implement benchmark-routing/pinned-benchmarks, asr-cuda/sync-profile-and-bind, benchmark-routing/sync-resource-quality-fitness, benchmark-routing/resource-quality-fitness together. Extend existing native suites and source-bound prediction records with held-out duration/speaker coverage, silence/corrupt controls, WER/CER normalization and failure denominators. Reuse the first CPU baseline, add only missing coverage and report LibriSpeech-clean domain limits. Broad text/MMLU evaluation remains master-owned.",
-          "depends_on": [
-            "failure-recovery/interruption-drills",
-            "asr-training/sync-closed-loop-proof",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "held-out-audio-quality",
-            "failure-denominators"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/evaluation",
-              "internal/audiodsp",
-              "internal/hostmath",
-              "internal/speechrecognition",
-              "internal/adaptertrain",
-              "internal/runrecord",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group cpu-measurements: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "pinned-benchmarks",
-                "title": "Extend the pinned audio baseline to held-out quality and admission coverage",
-                "verify": "go test ./internal/audioparity -run '^TestAudioBenchmarkCoverageAcceptance$' -count=1 -v"
-              },
-              {
-                "id": "sync-profile-and-bind",
-                "title": "Measure and simplify CPU audio hotspots before introducing device paths",
-                "verify": "go test ./internal/audioparity -run '^TestASRCPUSimplificationAcceptance$' -count=1 -v",
-                "depends_on": [
-                  "pinned-benchmarks"
-                ]
-              },
-              {
-                "id": "sync-resource-quality-fitness",
-                "title": "Measure repeated audio baselines and derive comparison envelopes",
-                "verify": "go test ./internal/audioparity -run '^TestAudioResourceEnvelopeAcceptance$' -count=1 -v",
-                "depends_on": [
-                  "sync-profile-and-bind"
-                ]
-              }
-            ]
-          }
-        },
-        {
           "id": "sync-resource-quality-fitness",
           "title": "Verify: Measure repeated audio baselines and derive comparison envelopes",
           "status": "open",

@@ -164,6 +164,41 @@ func TestTranscriptionRecipeLineage(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || cancelledRun.ID.Valid() || afterCancel != beforeCancel {
 		t.Fatalf("cancelled run = %+v, %v; commits %d -> %d", cancelledRun, err, beforeCancel, afterCancel)
 	}
+	t.Run("shared-component-lifetime", func(t *testing.T) {
+		session, err := LoadSession(t.Context(), store, definition.ID, 1<<20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer session.Close(context.WithoutCancel(t.Context()))
+		lease, err := session.Lease(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lease.Release()
+		if _, err := session.Lease(cancelled); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled admission: %v", err)
+		}
+		got, _, err := lease.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy,
+			RunBinding{Key: "fixture/shared-session", CodeCommit: transcriptionTestCommit, Environment: environment.Descriptor.ID})
+		if err != nil || got != result {
+			t.Fatalf("shared session changed clip execution: %+v %v", got, err)
+		}
+		if err := lease.Release(); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := lease.Transcribe(t.Context(), wave, dataset.AudioPayloadOrigin{Container: waveID}, policy, binding); err == nil {
+			t.Fatal("released lease executed")
+		}
+		if snapshot := session.Snapshot(); snapshot.Active != 0 || snapshot.Waiting != 0 || snapshot.Loads != 1 {
+			t.Fatalf("leaked component: %+v", snapshot)
+		}
+		if err := session.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := session.Lease(t.Context()); err == nil {
+			t.Fatal("closed session admitted")
+		}
+	})
 }
 
 func transcriptionFixtureModel(t *testing.T) (string, Declaration) {

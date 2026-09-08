@@ -14,7 +14,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/hfbpe"
-	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
@@ -69,37 +68,8 @@ func newAdapterLifecycle(t *testing.T) *adapterLifecycle {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { l.store.Close() })
-	inventory, err := modelartifact.FromHFPath(l.fixture.modelRoot)
-	if err != nil || inventory.Manifest.ID != l.fixture.election.Model.ID {
-		t.Fatalf("base inventory: %v", err)
-	}
-	batch, err := inventory.Batch("adapter/base")
-	l.commit(t, batch, err)
-	profile, err := speechrecognition.NewExecutionProfile(l.fixture.frontend, l.fixture.grouping, l.fixture.declaration, l.fixture.blank, "en")
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err = profile.Batch("adapter/profile")
-	l.commit(t, batch, err)
-	contract, err := modelrecipe.NewAudioContract(recipecontract.AudioFormat{SampleRate: uint64(l.fixture.frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, l.fixture.frontend.Geometry, artifact.ID{}, artifact.ID{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err = contract.Batch("adapter/contract")
-	l.commit(t, batch, err)
-	var tokenizerID artifact.ID
-	for _, component := range inventory.Manifest.Components {
-		if component.Role == artifact.ComponentTokenizer && component.Name == "tokenizer.json" {
-			tokenizerID = component.Artifact
-		}
-	}
-	l.base, err = modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizerID, inventory.TensorInventory.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := modelrecipe.PublishCandidate(t.Context(), l.store, "adapter/base-recipe", l.base); err != nil {
-		t.Fatal(err)
-	}
+	base, profile := l.publishTranscriptionBase(t, l.fixture)
+	l.base = base
 	l.transform, err = trainingdata.NewTextTransform(true)
 	if err != nil {
 		t.Fatal(err)

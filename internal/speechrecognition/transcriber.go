@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"overgo/internal/adaptertrain"
@@ -14,12 +15,13 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/hfbpe"
 	"overgo/internal/hfrepo"
+	"overgo/internal/media"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
-	"overgo/internal/scratch"
+	"overgo/internal/speechactivity"
 	"overgo/internal/strictjson"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -225,6 +227,10 @@ func loadCheckpointProjection(ctx context.Context, repository artifact.Repositor
 // Transcribe admits, decodes, executes, and persists one bounded offline clip.
 // The returned values are the existing public transcription and run contracts.
 func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, workspace *TranscriptionWorkspace, binding RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
+	return transcriber.transcribe(ctx, data, origin, policy, workspace, binding, nil, nil)
+}
+
+func (transcriber *Transcriber) transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, workspace *TranscriptionWorkspace, binding RunBinding, detector *speechactivity.Detector, activityWorkspace *speechactivity.DetectionWorkspace) (recipecontract.Transcription, runrecord.Run, error) {
 	if transcriber == nil || ctx == nil || workspace == nil || binding.Key == "" ||
 		binding.Dataset.Valid() != binding.Split.Valid() ||
 		binding.Dataset.Valid() && (binding.Dataset.Kind() != artifact.KindDataset || binding.Split.Kind() != artifact.KindDatasetShard) {
@@ -242,6 +248,11 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 		inspection.Signal.Source.Audio, inspection.Signal.Source.Profile,
 		inspection.SignalID, inspection.PolicyID, inspection.DecisionID,
 	)
+	for _, dependency := range transcriber.recipe.Dependencies {
+		if dependency.Role == recipe.DependencyModel {
+			inputs = uniqueIDs(append(inputs, dependency.Artifact)...)
+		}
+	}
 	if inspection.Decision.Outcome != recipecontract.AudioAdmissionAccepted {
 		run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
 			AudioAdmissionFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
@@ -252,55 +263,81 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 			AudioFormatFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
 		return recipecontract.Transcription{}, run, errors.Join(errors.New("speech recognition: decoded audio format differs"), runErr)
 	}
-	prepareStart := time.Now()
-	features, frames, _, err := transcriber.frontend.ProcessGrouped(ctx, inspection.Samples, int(inspection.Signal.Format.SampleRate), &workspace.Frontend, transcriber.profile.Grouping)
-	prepareDuration := elapsedNanoseconds(prepareStart)
-	if err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-prepare-failed", started,
-			[]runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}, {Phase: runrecord.PhasePrepare, DurationNS: prepareDuration}}, err)
+	phases := completedTranscriptionPhases(decodeDuration, 0, 0, 0)
+	spans := []recipecontract.SampleSpan{{End: uint64(len(inspection.Samples))}}
+	var activityID artifact.ID
+	if detector != nil {
+		activityStart := time.Now()
+		activity, id, detectErr := detector.DetectDecoded(ctx, inspection.Signal.Source,
+			media.DecodedAudio{Format: inspection.Signal.Format, Samples: inspection.Samples}, activityWorkspace)
+		phases[1].DurationNS += elapsedNanoseconds(activityStart)
+		if detectErr != nil {
+			return transcriber.failedExecution(ctx, binding, inputs, "transcription-activity-failed", started, phases, detectErr)
+		}
+		activityID = id
+		inputs = uniqueIDs(append(inputs, activityID)...)
+		spans = make([]recipecontract.SampleSpan, len(activity.Segments))
+		for i, segment := range activity.Segments {
+			spans[i] = segment.Span
+		}
+		if len(spans) == 0 {
+			return transcriber.failedExecution(ctx, binding, inputs, AudioAdmissionFailure, started, phases, ErrAudioAdmissionRefused)
+		}
 	}
-	prefillStart := time.Now()
-	hidden, outputFrames, err := transcriber.encoder.Encode(ctx, features, frames, &workspace.Encoder, nil)
-	var logits []float32
-	if err == nil {
-		logits, err = transcriber.encoder.Project(ctx, hidden, outputFrames, &workspace.Encoder)
-	}
-	prefillDuration := elapsedNanoseconds(prefillStart)
-	if err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-inference-failed", started,
-			[]runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}, {Phase: runrecord.PhasePrepare, DurationNS: prepareDuration}, {Phase: runrecord.PhasePrefill, DurationNS: prefillDuration}}, err)
+	pieces := make([]transcriptionPiece, 0, len(spans))
+	var assembled strings.Builder
+	for _, span := range spans {
+		if span.Start >= span.End || span.End > uint64(len(inspection.Samples)) {
+			return transcriber.failedExecution(ctx, binding, inputs, "transcription-span-invalid", started, phases, errors.New("speech recognition: segment outside admitted samples"))
+		}
+		samples := inspection.Samples[span.Start:span.End]
+		text, measured, failure, decodeErr := transcriber.decodeText(ctx, samples, int(inspection.Signal.Format.SampleRate), workspace)
+		for i, metric := range measured {
+			phases[i].DurationNS += metric.DurationNS
+		}
+		if decodeErr != nil {
+			return transcriber.failedExecution(ctx, binding, inputs, failure, started, phases, decodeErr)
+		}
+		if detector == nil {
+			assembled.WriteString(text)
+		} else {
+			text = strings.TrimSpace(text)
+			pieces = append(pieces, transcriptionPiece{Span: span, SamplesSHA256: media.SamplesSHA256(samples), Text: text})
+			if text != "" {
+				if assembled.Len() != 0 {
+					assembled.WriteByte(' ')
+				}
+				assembled.WriteString(text)
+			}
+		}
 	}
 	postStart := time.Now()
-	workspace.frameIDs = scratch.Resize(workspace.frameIDs, outputFrames)
-	workspace.tokens = scratch.Resize(workspace.tokens, outputFrames)
-	tokens, err := GreedyCTC(ctx, workspace.frameIDs, workspace.tokens, logits, outputFrames, transcriber.encoder.VocabularySize(), transcriber.profile.BlankToken)
-	if err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started,
-			completedTranscriptionPhases(decodeDuration, prepareDuration, prefillDuration, elapsedNanoseconds(postStart)), err)
-	}
-	text, err := transcriber.tokenizer.DecodeStrict(tokens)
-	if err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started,
-			completedTranscriptionPhases(decodeDuration, prepareDuration, prefillDuration, elapsedNanoseconds(postStart)), err)
-	}
-	result := recipecontract.Transcription{Source: inspection.Signal.Source, Text: text, Language: transcriber.profile.Language}
+	result := recipecontract.Transcription{Source: inspection.Signal.Source, Text: assembled.String(), Language: transcriber.profile.Language}
 	if err = result.Validate(); err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started,
-			completedTranscriptionPhases(decodeDuration, prepareDuration, prefillDuration, elapsedNanoseconds(postStart)), err)
+		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started, phases, err)
 	}
 	output, err := artifact.JSONContent(transcriptionContract, result)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
-	postDuration := elapsedNanoseconds(postStart)
-	phases := []runrecord.PhaseMetric{
-		{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration},
-		{Phase: runrecord.PhasePrepare, DurationNS: prepareDuration},
-		{Phase: runrecord.PhasePrefill, DurationNS: prefillDuration},
-		{Phase: runrecord.PhasePostprocess, DurationNS: postDuration},
+	contents := []artifact.Content{output}
+	outputs := []artifact.ID{output.Descriptor.ID}
+	var lineage []artifact.Lineage
+	if detector != nil {
+		segments, err := artifact.JSONContent(segmentedTranscriptionContract, segmentedTranscription{
+			Source: result.Source, Activity: activityID, Pieces: pieces,
+		})
+		if err != nil {
+			return recipecontract.Transcription{}, runrecord.Run{}, err
+		}
+		contents = append(contents, segments)
+		inputs = uniqueIDs(append(inputs, segments.Descriptor.ID)...)
+		lineage = artifact.DependencyLineage(segments.Descriptor.ID, transcriber.recipe.ID, activityID, result.Source.Audio, result.Source.Profile)
+		lineage = append(lineage, artifact.DependencyLineage(output.Descriptor.ID, segments.Descriptor.ID)...)
 	}
+	phases[3].DurationNS += elapsedNanoseconds(postStart)
 	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, runrecord.OutcomeSucceeded, inputs,
-		[]artifact.ID{output.Descriptor.ID}, "", binding.CodeCommit, binding.Environment,
+		outputs, "", binding.CodeCommit, binding.Environment,
 		elapsedNanoseconds(started), phases)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
@@ -309,7 +346,7 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
-	batch, err := artifact.NewDocumentBatch(binding.Key, []artifact.Content{output, runContent}, run.Lineage(), nil)
+	batch, err := artifact.NewDocumentBatch(binding.Key, append(contents, runContent), append(lineage, run.Lineage()...), nil)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}

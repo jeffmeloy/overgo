@@ -90,7 +90,7 @@ func loadProjectedTranscription(ctx context.Context, repository artifact.Reposit
 		decodeRecipe: identity.Recipe, plan: plan.identity, model: modelID, projector: projectorID, prompt: prompt, maxTokens: maxTokens}
 	runtime.sampleRate, err = projector.AudioSampleRate(projection)
 	if err != nil || !projection.Capabilities().Audio {
-		return nil, errors.Join(errors.New("evaluation: projection does not admit waveform input"), err, runtime.close())
+		return nil, errors.Join(errors.New("evaluation: projection does not admit waveform input"), err, runtime.close(context.WithoutCancel(ctx)))
 	}
 	return runtime, nil
 }
@@ -113,7 +113,7 @@ func transcriptionGGUFPath(ctx context.Context, reader artifact.Reader, id artif
 	return "", errors.New("evaluation: transcription model has no registered GGUF weights")
 }
 
-func (runtime *projectedTranscriptionRuntime) close() error {
+func (runtime *projectedTranscriptionRuntime) close(context.Context) error {
 	return errors.Join(runtime.projection.Close(), runtime.runner.Close())
 }
 

@@ -71,6 +71,21 @@ func (d *Detector) Detect(ctx context.Context, source recipecontract.AudioRefere
 	if err != nil {
 		return recipecontract.ActivitySegments{}, artifact.ID{}, err
 	}
+	return d.DetectDecoded(ctx, source, audio, w)
+}
+
+// DetectDecoded executes the same offline detector on caller-admitted PCM.
+// The caller binds the decoded samples to source; the detector checks format,
+// sample bounds and finite values without reading or copying encoded audio.
+func (d *Detector) DetectDecoded(ctx context.Context, source recipecontract.AudioReference, audio media.DecodedAudio, w *DetectionWorkspace) (recipecontract.ActivitySegments, artifact.ID, error) {
+	if d == nil || d.frontend == nil || ctx == nil || w == nil || len(audio.Samples) == 0 ||
+		audio.Format.Channels != 1 || audio.Format.SampleRate != uint64(d.profile.Frontend.SampleRate) ||
+		audio.Format.Encoding != "pcm-f32le" || uint64(len(audio.Samples)) > d.memoryBytes/4 {
+		return recipecontract.ActivitySegments{}, artifact.ID{}, errors.New("speech activity: invalid decoded input")
+	}
+	if err := source.Validate(); err != nil {
+		return recipecontract.ActivitySegments{}, artifact.ID{}, err
+	}
 	features, frames, err := d.frontend.Process(ctx, [][]float32{audio.Samples}, d.profile.Frontend.SampleRate, &w.frontend, audiodsp.ProcessOptions{})
 	if err != nil {
 		return recipecontract.ActivitySegments{}, artifact.ID{}, err

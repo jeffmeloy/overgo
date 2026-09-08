@@ -17,6 +17,9 @@ const (
 
 	// ModuleTranscribeAudio identifies neutral audio-to-text execution.
 	ModuleTranscribeAudio recipe.ModuleID = "model.transcribe-audio"
+	// ModuleTranscribeSegments traverses declared activity intervals with the
+	// transcription model, preserving their original sample coordinates.
+	ModuleTranscribeSegments recipe.ModuleID = "model.transcribe-audio-segments"
 	// ModuleAlignAudio identifies sample-exact transcript alignment.
 	ModuleAlignAudio recipe.ModuleID = "model.align-audio"
 	// ModuleDiarizeAudio identifies speaker-turn extraction.
@@ -152,11 +155,20 @@ var audioTaskSpecs = map[recipe.Task]audioTaskSpec{
 func audioTaskModules() []recipe.Module {
 	modules := make([]recipe.Module, 0, len(audioTaskSpecs))
 	for task, spec := range audioTaskSpecs {
+		tasks := []recipe.Task{task}
+		if task == recipe.TaskActivityDetection {
+			tasks = append(tasks, recipe.TaskTranscription)
+		}
 		modules = append(modules, recipe.Module{
-			ID: spec.module, Tasks: []recipe.Task{task}, Placements: []recipe.Placement{recipe.PlacementHost},
+			ID: spec.module, Tasks: tasks, Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs: spec.inputs, Outputs: []recipe.Port{spec.output},
 		})
 	}
+	modules = append(modules, recipe.Module{
+		ID: ModuleTranscribeSegments, Tasks: []recipe.Task{recipe.TaskTranscription}, Placements: []recipe.Placement{recipe.PlacementHost},
+		Inputs:  []recipe.Port{{Name: "segments", Data: recipe.DataActivitySegments, Cardinality: recipe.CardinalityOne}},
+		Outputs: []recipe.Port{audioTaskSpecs[recipe.TaskTranscription].output},
+	})
 	return modules
 }
 

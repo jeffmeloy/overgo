@@ -224,46 +224,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "sync-validated-transcription",
-          "title": "Compose segmentation and bind dataset and HTTP consumers",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestValidatedTranscriptionConsumers$' -count=1 -v",
-          "rationale": "Group segmented-transcription; implement audio-recipes/sync-validated-transcription, audio-recipes/validated-transcription together. Compose bounded VAD segment traversal with the existing short-clip transcriber in the recipe owner. Preserve sample offsets, overlap/finalization declarations, memory/duration admission and source lineage. Compare whole-record assembly to the oracle; do not duplicate decode/normalize/infer.",
-          "depends_on": [
-            "asr-reference/offline-recipe",
-            "speech-analysis-expansion/vad",
-            "asr-serving/transcriptions-route",
-            "asr-training/dataset-materialization",
-            "audio-gate-control/provisional-commit-control"
-          ],
-          "capabilities": [
-            "bounded-segment-composition",
-            "segment-lineage"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/modelrecipe",
-              "internal/speechrecognition",
-              "internal/capabilityruntime",
-              "internal/dataset",
-              "internal/trainingdata",
-              "internal/server",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "Group segmented-transcription: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
-            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
-            "checkpoints": [
-              {
-                "id": "sync-validated-transcription",
-                "title": "Compose VAD segments with the existing short-clip transcriber",
-                "verify": "go test ./internal/audioparity -run '^TestSegmentedTranscriptionAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        },
-        {
           "id": "validated-transcription",
           "title": "Verify: Bind the same segmented recipe to dataset and authenticated serving consumers",
           "status": "open",

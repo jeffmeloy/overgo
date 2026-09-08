@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/capabilityruntime"
 	"overgo/internal/dataset"
 	"overgo/internal/gitauthority"
 	"overgo/internal/modelrecipe"
@@ -49,22 +48,9 @@ type TranscriptionWorkspace struct {
 	store       artifact.Repository
 	policy      TranscriptionPolicy
 	program     recipe.Program
-	component   modelrecipe.ComponentSession
-	sessions    *capabilityruntime.ModelSessionDirector[struct{}, *transcriptionSession, struct{}]
+	sessions    *speechrecognition.Session
 	commit      string
 	environment artifact.ID
-}
-
-type transcriptionSession struct {
-	model     *speechrecognition.Transcriber
-	workspace speechrecognition.TranscriptionWorkspace
-}
-
-// Close releases the resident transcriber and its reusable buffers.
-func (session *transcriptionSession) Close(context.Context) error {
-	session.model = nil
-	session.workspace = speechrecognition.TranscriptionWorkspace{}
-	return nil
 }
 
 // NewTranscriptionWorkspace loads one exact recipe on the CPU. The assembly
@@ -87,13 +73,6 @@ func NewTranscriptionWorkspace(ctx context.Context, store artifact.Repository, p
 	if activation.Definition.ID != policy.Recipe {
 		return nil, errors.New("transcription workspace: configured recipe is not active")
 	}
-	resources, err := modelrecipe.CompileComponentSessionPlan(ctx, store, program)
-	if err != nil {
-		return nil, err
-	}
-	if len(resources.Components) != 1 || resources.Components[0].Module != modelrecipe.ModuleTranscribeAudio {
-		return nil, errors.New("transcription workspace: one native transcription component required")
-	}
 	environment, err := runrecord.CurrentEnvironment("cpu", "go")
 	if err != nil {
 		return nil, err
@@ -105,28 +84,12 @@ func NewTranscriptionWorkspace(ctx context.Context, store artifact.Repository, p
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return nil, err
 	}
-	sessions, err := capabilityruntime.NewComponentSessionDirector[*transcriptionSession](string(recipe.TaskTranscription), "cpu", len(resources.Components))
+	sessions, err := speechrecognition.LoadSession(ctx, store, policy.Recipe, policy.MemoryBytes)
 	if err != nil {
 		return nil, err
 	}
-	workspace := &TranscriptionWorkspace{store: store, policy: policy, program: program,
-		component: resources.Components[0], sessions: sessions, commit: strings.ToLower(commit), environment: environment.ID}
-	lease, err := sessions.LeaseComponent(ctx, workspace.component, workspace.load)
-	if err != nil {
-		return nil, errors.Join(err, sessions.Close(context.WithoutCancel(ctx)))
-	}
-	if err := lease.Release(); err != nil {
-		return nil, errors.Join(err, sessions.Close(context.WithoutCancel(ctx)))
-	}
-	return workspace, nil
-}
-
-func (workspace *TranscriptionWorkspace) load(ctx context.Context) (*transcriptionSession, error) {
-	model, err := speechrecognition.LoadTranscriber(ctx, workspace.store, workspace.policy.Recipe, workspace.policy.MemoryBytes)
-	if err != nil {
-		return nil, err
-	}
-	return &transcriptionSession{model: model}, nil
+	return &TranscriptionWorkspace{store: store, policy: policy, program: program,
+		sessions: sessions, commit: strings.ToLower(commit), environment: environment.ID}, nil
 }
 
 // Close drains and releases the recipe's resident model and mutable buffers.
@@ -162,7 +125,7 @@ func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, ki
 	}
 	defer func() {
 		if err != nil && !completion.Run.Valid() {
-			completion, err = failWorkflow(ctx, workspace.store, recipeID, []artifact.ID{workspace.component.Model}, "transcription_failed", err)
+			completion, err = failWorkflow(ctx, workspace.store, recipeID, []artifact.ID{workspace.program.Definition().Model}, "transcription_failed", err)
 		}
 	}()
 	var input transcriptionWorkflowInput
@@ -180,16 +143,16 @@ func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, ki
 		return completion, errors.New("transcription workspace: audio is absent or empty")
 	}
 	if descriptor.Size > workspace.policy.Inspection.MaximumEncodedBytes {
-		return failWorkflow(ctx, workspace.store, recipeID, []artifact.ID{workspace.component.Model, input.Audio},
+		return failWorkflow(ctx, workspace.store, recipeID, []artifact.ID{workspace.program.Definition().Model, input.Audio},
 			transcriptionUploadLimit, errors.New("transcription workspace: audio exceeds the encoded-byte bound"))
 	}
-	lease, err := workspace.sessions.LeaseComponent(ctx, workspace.component, workspace.load)
+	lease, err := workspace.sessions.Lease(ctx)
 	if err != nil {
 		return completion, err
 	}
 	defer func() { err = errors.Join(err, lease.Release()) }()
 	// Recheck after admission: a recipe may be retired while this request waits.
-	activation, _, err := modelrecipe.ResolveActiveCapability(ctx, workspace.store, workspace.component.Model, recipe.TaskTranscription)
+	activation, _, err := modelrecipe.ResolveActiveCapability(ctx, workspace.store, workspace.program.Definition().Model, recipe.TaskTranscription)
 	if err != nil {
 		return completion, err
 	}
@@ -203,9 +166,8 @@ func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, ki
 	if !found {
 		return completion, errors.New("transcription workspace: audio content is absent")
 	}
-	session := lease.Model()
-	transcription, run, err := session.model.Transcribe(ctx, content.Data, dataset.AudioPayloadOrigin{Container: input.Audio},
-		workspace.policy.Inspection, &session.workspace, speechrecognition.RunBinding{
+	transcription, run, err := lease.Transcribe(ctx, content.Data, dataset.AudioPayloadOrigin{Container: input.Audio},
+		workspace.policy.Inspection, speechrecognition.RunBinding{
 			Key: "transcription/run/" + reporter.OperationID().String(), CodeCommit: workspace.commit, Environment: workspace.environment,
 		})
 	completion = operation.Completion{Run: run.ID, Outputs: run.Outputs}

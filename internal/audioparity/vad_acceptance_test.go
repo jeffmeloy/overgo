@@ -26,12 +26,17 @@ type vadLifecycle struct {
 
 func newVADLifecycle(t *testing.T, reference *overgodb.Store, model vadNumericalModel, streaming bool) *vadLifecycle {
 	t.Helper()
-	inventory, license, _, declaration := loadVADArtifacts(t, reference, model)
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
+	return publishVADLifecycle(t, reference, model, streaming, store)
+}
+
+func publishVADLifecycle(t *testing.T, reference *overgodb.Store, model vadNumericalModel, streaming bool, store *overgodb.Store) *vadLifecycle {
+	t.Helper()
+	inventory, license, _, declaration := loadVADArtifacts(t, reference, model)
 	l := &vadLifecycle{audioPublication: audioPublication{store: store}}
 	batch, err := inventory.Batch("vad/model")
 	l.commit(t, batch, err)

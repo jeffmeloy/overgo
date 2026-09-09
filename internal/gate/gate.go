@@ -506,6 +506,9 @@ func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, 
 	if failure != "" {
 		fmt.Fprintf(output, "blocker: %s\n", failure)
 	}
+	for _, line := range FormatPhaseWallTable(PhaseWallTable(g.steps), time.Since(g.start)) {
+		fmt.Fprintln(output, line)
+	}
 	for _, line := range compactAudit(g.audit) {
 		fmt.Fprintln(output, line)
 	}

@@ -123,13 +123,10 @@ func priorBatchCosts(ctx context.Context, store *overgodb.Store, planRef string)
 	return costs, nil
 }
 
-// batchCostAudit reports measured wall, summed work and estimated avoided work.
-// No acceptance steps means no batch cost report.
+// batchCostAudit reports measured wall, summed work and estimated avoided work
+// on every gate; without acceptance steps the accepted figures read zero.
 func (g *gateContext) batchCostAudit(ctx context.Context, store *overgodb.Store, steps []runrecord.GateStep, wallNS uint64) {
 	current := batchCostOf(steps)
-	if current.Accepted == 0 {
-		return
-	}
 	prior, err := priorBatchCosts(ctx, store, g.planRef)
 	if err != nil {
 		g.audit = append(g.audit, "gate cost: prior attempts unavailable: "+err.Error())

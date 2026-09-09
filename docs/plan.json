@@ -11,19 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "phase-wall-table",
-          "title": "Print the per-phase wall table and the cost line at the end of every gate",
-          "status": "open",
-          "verify": "test -f internal/gate/phase_wall_test.go \u0026\u0026 go test ./internal/gate -run '^TestPhaseWallTableOrdersByCost$' -count=1",
-          "rationale": "Every step records its duration and the GATE line prints only the total; the cost audit returns early unless a checkpoint was accepted, so an unbatched gate reports nothing. The GATE line is followed by a table of phases ordered by wall with reused, inapplicable and skipped steps marked, and the cost line prints on every gate, so each commit measures where the next second goes.",
-          "depends_on": [
-            "lane-replan/do"
-          ],
-          "capabilities": [
-            "gate-cost"
-          ]
-        },
-        {
           "id": "validate-first",
           "title": "Run the thirteen validate checks as one concurrent batch before acceptance",
           "status": "open",

@@ -440,7 +440,7 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 	t.Helper()
 	for _, required := range []string{
-		"docs/hatchet_for_overgo.md is the design record", "No Hatchet source is copied",
+		"gate throughput review", "No Hatchet source is copied",
 		"one acceptance test in the owning package", "Host rows land first",
 	} {
 		if !strings.Contains(document.Doctrine, required) {
@@ -452,7 +452,9 @@ func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 		"conditional-plan-rows": true, "batch-flush-contracts": true, "declared-capacity": true,
 		"eviction-and-release": true, "keyed-admission": true, "schedule-pause": true,
 		"queue-observability": true, "serving-load-lane": true, "operator-references": true,
-		"hatchet-closeout": true,
+		"hatchet-closeout": true, "lane-replan": true, "selection-coverage": true, "lane-overlap": true,
+		"process-commits": true, "device-reaper": true, "plan-dispatch": true, "lane-merge-automation": true,
+		"closure-catalog": true,
 	}
 	for _, item := range document.Items {
 		if !campaign[item.ID] {
@@ -471,6 +473,8 @@ func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 		{"declared-capacity", "eviction-and-release"},
 		{"keyed-admission", "schedule-pause"},
 		{"queue-observability", "serving-load-lane"},
+		{"gate-wall", "selection-coverage"}, {"selection-coverage", "validation-batch-control"},
+		{"lane-overlap", "validation-batch-control"}, {"validation-batch-control", "hatchet-closeout"},
 	} {
 		assertCampaignOrder(t, document, order[0], order[1])
 	}

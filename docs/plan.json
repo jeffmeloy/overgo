@@ -1,21 +1,62 @@
 {
-  "campaign": "Hatchet-derived workflow contracts: durable attempts, declared capacity, keyed admission and conditional plan rows on existing Go owners",
-  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. docs/hatchet_for_overgo.md is the design record for this campaign and names, for every element, the observed Hatchet mechanism, the Overgo gap, the contract, the owner and the acceptance. No Hatchet source is copied, translated or vendored; every element is a contract restated on the existing Go owner that holds the neighbouring authority, and no parallel runtime, queue or expression language is added. Each row's verify names one acceptance test in the owning package guarded by the test file's existence; the acceptance names are planned work, not claims that the tests exist, and a row closes only when its named test executes and passes through the gate. Host rows land first; device tests are limited to eviction on the real device and the load lane's measured run, and a device verify carries its own OVERGO_CUDA_TEST and OVERGO_DATA_ROOT bindings. The lane cycle, in this order and repeated: merge current master into the lane except master's docs/plan.json, which never enters the lane; update this plan from the merged repository and its measured performance; execute the dispatched row; commit through the gate. Do not chase master during a row. One writer owns a plan edit and gates it. Findings outside the dispatched row are parked with cmd/finding, not folded in. Rows are ranked by their expected reduction of automation cost and their gain in development pace: gate wall per accepted row, re-executed work after interruption, and rows dispatched without operator intervention come before request-level admission, observability and serving measurement; a row's outcome records the measured change in those quantities. Audit language in code, evidence and commit messages is objective. Every element records the measurement that decides it: restart re-execution count, gate cost per accepted checkpoint, device idle time during host phases, and queued-to-first-token latency at declared concurrency; a row whose measurement shows no gain closes with that outcome recorded. Master paused development on 2026-09-06; this lane is the active development line. Gate mechanisms that master's paused validation-batch-control row also named, namely accepted-checkpoint evidence reuse across gate runs, gate wall per accepted checkpoint, and a host-wide exclusive device claim across worktrees and stores, are implemented here on the existing gate and loop owners, additively and minimally, so the later lane-to-master merge stays small; master's uncommitted work is never imported. Rows that subdivide declare a verification batch with a flush declaration of their own, so the campaign measures the mechanism it ships. Owner review 2026-09-06 ranks the gate work: reuse that a process kill can lose is not reuse, so every terminal success persists before the next check runs; a memo input covers every command of a verifier or the verifier is not cached; timing establishes expense while counterexamples establish selection safety, and both obligations stay separate; a flush declaration becomes a durable deferred obligation with governed promotion before it counts as batching; a skipped or cancelled row never satisfies a dependency that requires successful evidence unless that dependency declares it accepts the refusal; a progress refresh extends liveness only under an absolute budget ceiling that an operator budget always bounds. Rows follow that order: persistence, complete identities, shadow verification, physical device exclusion, governed promotion, then conditional workflows, placement and scheduling.",
+  "campaign": "Hatchet-derived process control: gate wall, selection coverage, lane overlap and governed promotion on existing Go owners",
+  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. The gate throughput review of 2026-09-08 (Overgo Gate Throughput Review) ranks this lane's rows by measured payoff: validate checks first with mechanical repairs, the phase wall table on every gate, impact exclusions proven against master's required selection matrix, overlapped GPU lanes and test groups, validate-only gates for plan-only commits, a device reaper, one plan dispatch per turn, an automated lane merge, a collapsed admission chain and a one-transaction closure catalog. Master's reviewed intake (74e8ea80, cbb2a24d, 89deb42c) is the design authority: the full gate stays mandatory for every commit, no denominator shrinks, no skipped check earns credit, and semantic literal authority stays as master decided; the lane re-lands none of what master excluded without an independently bound correctness test and a measured validation benefit. No Hatchet source is copied; concepts are ported onto existing Go owners. Every row lands with one acceptance test in the owning package, named in its file-guarded verify, and commits through the plan-bound gate. Host rows land first; the measured rows precede master's batch-promotion row, which alone completes validation-batch-control; lane rows master's intake declined stay last and are re-planned before dispatch; master's retained rows are assigned to master and never dispatch here.",
+  "lane": "hatchet",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
       "id": "gate-wall",
-      "title": "Cut the gate wall and the reruns lost to late findings",
+      "title": "Cut the gate wall: measure it, front-load the validate checks, repair the mechanical findings, overlap the admission chain",
+      "owner": "hatchet",
       "status": "open",
       "steps": [
         {
           "id": "phase-wall-table",
-          "title": "Print the per-phase wall table at the end of every gate",
+          "title": "Print the per-phase wall table and the cost line at the end of every gate",
           "status": "open",
           "verify": "test -f internal/gate/phase_wall_test.go \u0026\u0026 go test ./internal/gate -run '^TestPhaseWallTableOrdersByCost$' -count=1",
-          "rationale": "The gate prints the ran, reused and skipped lists but not what each phase cost, so the next optimisation is guessed from heartbeats. The GATE line is followed by a table of phases ordered by wall with the reused and inapplicable ones marked, derived from the recorded gate steps, so every commit measures where the next second goes.",
+          "rationale": "Every step records its duration and the GATE line prints only the total; the cost audit returns early unless a checkpoint was accepted, so an unbatched gate reports nothing. The GATE line is followed by a table of phases ordered by wall with reused, inapplicable and skipped steps marked, and the cost line prints on every gate, so each commit measures where the next second goes.",
           "depends_on": [
-            "gate-wall/replan"
+            "lane-replan/do"
+          ],
+          "capabilities": [
+            "gate-cost"
+          ]
+        },
+        {
+          "id": "validate-first",
+          "title": "Run the thirteen validate checks as one concurrent batch before acceptance",
+          "status": "open",
+          "verify": "test -f internal/gate/validate_batch_test.go \u0026\u0026 go test ./internal/gate -run '^TestValidateChecksRunFirstConcurrently$' -count=1",
+          "rationale": "Style, docs, magics and modern-go are cheap static checks placed ten steps into the chain behind profile and architecture, so a late finding discards the run; in the lane session nine of eleven gate runs were reruns on such findings. The validate phase runs as one concurrent batch immediately after admission, every finding printed at once, before acceptance, vet, build and test; the phase order inside the batch is by declared dependency only. The full gate stays mandatory; nothing is skipped or credited.",
+          "depends_on": [
+            "lane-replan/do"
+          ],
+          "capabilities": [
+            "gate-cost"
+          ]
+        },
+        {
+          "id": "mechanical-repairs",
+          "title": "Stage the repairs the gate already knows how to make before refusing",
+          "status": "open",
+          "verify": "test -f internal/gate/mechanical_repair_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateStagesMechanicalRepairs$' -count=1",
+          "rationale": "The modern-go source identity changes on any Go edit and the repair is two census commands; the harness surface baseline has no writer; the same-store closure rebind runs in the gate but preflight refuses it. The gate regenerates the modern-go census and baseline and the harness surface baseline into the candidate and reports them as staged repairs, and preflight rebinds closures into a scratch copy of the store and reports what remains. Refusals remain for the ratchet ceilings, the per-path deltas and every semantic decision; a repair that changes a reviewed ceiling is refused, never applied.",
+          "depends_on": [
+            "gate-wall/validate-first"
+          ],
+          "capabilities": [
+            "gate-cost"
+          ]
+        },
+        {
+          "id": "admission-chain",
+          "title": "Overlap the independent admission steps and reuse the parsed plan in the commit phase",
+          "status": "open",
+          "verify": "test -f internal/gate/admission_overlap_test.go \u0026\u0026 go test ./internal/gate -run '^TestAdmissionStepsOverlap$' -count=1",
+          "rationale": "Six serial admission steps precede the first check, ten to thirty-five seconds per gate; the projected-merge preflight opens a second store and parses the plan at three revisions, work the commit barrier repeats. Steps without a data dependency run concurrently, and the parsed plan and opened store are carried into the commit phase.",
+          "depends_on": [
+            "gate-wall/validate-first"
           ],
           "capabilities": [
             "gate-cost"
@@ -24,8 +65,273 @@
       ]
     },
     {
+      "id": "selection-coverage",
+      "title": "Exclude the GPU lanes on host-only changes and bind subprocess consumers by declared edges",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "closure-exclusions",
+          "title": "Resolve package-owned checks by the linker's rule under symbol uncertainty, proven against the required selection matrix",
+          "status": "open",
+          "verify": "test -f internal/gate/impact_closure_test.go \u0026\u0026 go test ./internal/gate -run '^(TestOwnershipClosureExcludesUntouchedLanes|TestChangeSelectionRequiredMatrix)$' -count=1",
+          "rationale": "Any changed file that declares methods yields an interface-dispatch uncertainty, the manifest surface turns it into unknown, and unknown surface yields zero exclusions, so the device and browser lanes run on every gate, eight to fourteen minutes each. Under symbol-only uncertainty a package-owned check is excluded when no package it owns is, or transitively imports, a changed package; symbol-owned checks stay unresolved and run; a non-Go, build-selection, outside-snapshot or analyzer change keeps the complete plan. Master's required selection matrix (TestChangeSelectionRequiredMatrix, 88e7e4b5) is the acceptance: zero omitted required checks and zero missed seeded regressions with the exclusion active. Master excluded the lane's first version of this as a static exclusion; this row lands it under the matrix master asked for.",
+          "depends_on": [
+            "gate-wall/validate-first"
+          ],
+          "capabilities": [
+            "selection-safety"
+          ]
+        },
+        {
+          "id": "subprocess-contract",
+          "title": "Bind subprocess consumers to declared execution edges instead of every package that imports os",
+          "status": "open",
+          "verify": "test -f internal/gate/execution_edges_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeclaredExecutionEdgesBoundSelection$' -count=1",
+          "rationale": "The subprocess binding from 88e7e4b5 gives every package importing os, os/exec or io/ioutil an input dependency on every repository package root, so one changed file marks most of the repository affected. Packages that execute repository commands declare the commands they run; selection follows those edges and the existing import graph; a package that imports os/exec without a declaration keeps the broad binding and is reported, so coverage never narrows silently.",
+          "depends_on": [
+            "selection-coverage/closure-exclusions"
+          ],
+          "capabilities": [
+            "selection-safety"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lane-overlap",
+      "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "shared-lanes",
+          "title": "Declare the browser lane shared under the context-lifetime GPU admission and co-schedule it with the device lane",
+          "status": "open",
+          "verify": "test -f internal/gate/lane_wave_test.go \u0026\u0026 go test ./internal/gate -run '^TestSharedLanesCoSchedule$' -count=1",
+          "rationale": "a109e8af made the device lane a shared consumer of fitting GPU memory, but the browser lane is still declared exclusive, so the DAG wave refuses to put them in one wave and they serialize behind each other and behind the test phase. The browser lane admits under the same shared admission, only explicit measurements stay exclusive, and the wave selector co-schedules the two lanes; the test proves both lanes run in one wave and that an exclusive measurement still waits.",
+          "depends_on": [
+            "gate-wall/validate-first"
+          ],
+          "capabilities": [
+            "device-exclusion"
+          ]
+        },
+        {
+          "id": "concurrent-test-groups",
+          "title": "Run the direct and dependent test groups concurrently under the package evidence ledger",
+          "status": "open",
+          "verify": "test -f internal/gate/test_groups_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestGroupsOverlapUnderLedger$' -count=1",
+          "rationale": "The direct short group and the dependent complete group run as two strictly serial process groups with -count=1, although each package publishes its terminal receipt as it finishes. The groups run concurrently under the ledger, a package appears in one group only, and -count=1 is dropped where a persisted receipt keyed on the package's cumulative inputs already decides reuse; the acceptance denominator is unchanged.",
+          "depends_on": [
+            "lane-overlap/shared-lanes"
+          ],
+          "capabilities": [
+            "evidence-durability"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "process-commits",
+      "title": "Stop paying a full gate for commits that change no Go input",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "validate-only-gate",
+          "title": "Give plan-only and receipt-only commits a gate that runs the validate checks and the commit barrier",
+          "status": "open",
+          "verify": "test -f internal/gate/plan_only_gate_test.go \u0026\u0026 go test ./internal/gate -run '^TestPlanOnlyCommitSkipsExecution$' -count=1",
+          "rationale": "Since 1 September, 80 of 326 master commits were merges, replans or receipt records, each a full gate. When the changed paths hold no Go, asset or kernel input the vet, build and test phases already self-skip; the gate recognises the case at planning, runs the validate checks and the commit barrier, and records the skipped phases as inapplicable with the reason, so a plan edit or a receipt lands in about a minute. A merge never qualifies.",
+          "depends_on": [
+            "gate-wall/validate-first"
+          ],
+          "capabilities": [
+            "gate-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "device-reaper",
+      "title": "End lane servers with the run and refuse admission under a foreign device holder",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "job-and-refusal",
+          "title": "Put the browser lane's server in the gate's job and refuse admission when an unowned process holds the device",
+          "status": "open",
+          "verify": "test -f internal/gate/device_holder_test.go \u0026\u0026 go test ./internal/gate -run '^TestForeignDeviceHolderRefusesAdmission$' -count=1",
+          "rationale": "A failed browser lane leaves overgo-server holding the GPU; nothing ends it, the next gate's lane times out against it, and a person kills it hours later. The lane's server joins the gate's job object so it dies with the run, and admission lists device holders that belong to no live gate and refuses with the pid and the command; a holder that belongs to a live gate in another worktree is reported as contention, not refused.",
+          "depends_on": [
+            "lane-overlap/shared-lanes"
+          ],
+          "capabilities": [
+            "device-exclusion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "plan-dispatch",
+      "title": "Resolve the dispatch once per turn and hand it to the harness as data",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "dispatch-json",
+          "title": "Add plan -next -json and have the stop hook and the loop consume it",
+          "status": "open",
+          "verify": "test -f cmd/plan/dispatch_json_test.go \u0026\u0026 go test ./cmd/plan -run '^TestDispatchJSONMatchesProse$' -count=1 \u0026\u0026 test -f cmd/loophook/dispatch_test.go \u0026\u0026 go test ./cmd/loophook -run '^TestLoopHookConsumesDispatchJSON$' -count=1",
+          "rationale": "A loop turn runs the plan tool five times, each rebuilding completion authority from git history and the store, the stop hook re-implements the resolver, and the loop parses the prose dispatch back into a struct. The plan tool prints the dispatch as JSON, the completion authority is cached on HEAD and the store head, and the hook and the loop consume the JSON; the dead bounded-request marker is removed.",
+          "depends_on": [
+            "lane-replan/do"
+          ],
+          "capabilities": [
+            "plan-ownership"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lane-merge-automation",
+      "title": "Make a lane merge one command and one gate",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "prepare-merge-lane",
+          "title": "Teach plan -prepare-merge the first-parent-target lane case end to end",
+          "status": "open",
+          "verify": "test -f cmd/plan/prepare_merge_lane_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPrepareMergeLaneProjection$' -count=1",
+          "rationale": "Merging master into this lane took seven gate runs by hand: a manual merge because prepare-merge refuses when another worktree sits on master, keeping the lane plan, adding a merge row with a build verify, the cross-store and same-store closure imports, two baseline republications and a machine-local fixture copy. prepare-merge performs the merge, keeps the lane plan, adds the merge row, imports the source store's closure decisions, republishes the baselines and names the retained fixtures the device lane needs; the test proves the projected plan equals the lane plan plus the merge row.",
+          "depends_on": [
+            "plan-dispatch/dispatch-json"
+          ],
+          "capabilities": [
+            "plan-ownership"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "closure-catalog",
+      "title": "Catalog a literal in one transaction",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "catalog-transaction",
+          "title": "Fold propose, triage and import into one closure-scan command",
+          "status": "open",
+          "verify": "test -f cmd/closure-scan/catalog_test.go \u0026\u0026 go test ./cmd/closure-scan -run '^TestCatalogBindsInOneTransaction$' -count=1",
+          "rationale": "A new named constant or policy literal costs three tool runs plus prose, and the staged-surface and unconsumed-surface rules enforce the same fact twice with a hand-written entry each. One command takes the name and the understanding, proposes, binds and imports in one store transaction, and the staged entry is generated from the failing check's own output. Semantic literal authority stays exactly as master decided; only the mechanics change.",
+          "depends_on": [
+            "lane-replan/do"
+          ],
+          "capabilities": [
+            "closure-authority"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validation-batch-control",
+      "title": "Complete bounded process control after E4B acceptance",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "batch-promotion",
+          "title": "Prove selective, restart-safe verification and governed batch promotion",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^(TestPreflightReportsValidateFindings|TestPreflightSeparatesSkippedChecks|TestPreflightNeverRepairsStore|TestPreflightRejectsCombinedInspection|TestGateStartIndexAdoptsStatRefreshUnderSameTree|TestGateStartIndexRefusesAndPreservesLaterUnplannedStaging)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^(TestCheckpointPersistenceSurvivesKill|TestCheckpointMemoCoversEveryCommand|TestChangeSelectiveVerificationShadow|TestBatchedGateCostEvidence)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^(TestIndependentPackageEvidenceAcceptance|TestGovernedBatchDeclarationAcceptance|TestProjectedMergePreflightBeforeVerification|TestGateReusesUnchangedCheckEvidence|TestPackageSelectiveReuse)$' -count=1 \u0026\u0026 test -f internal/gate/batch_promotion_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchPromotionControl$' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestReusedCheckpointCompletionAuthorityAcceptance$' -count=1 \u0026\u0026 go test ./internal/repoanalysis -run '^(TestDocsHoldNoUnplannedBinaries|TestDocsInventoryPolicy)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestPreflightRejectsUnplannedDocsBeforeStore$' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestChangeSelectionUnownedRuntimeInputs$' -count=1 \u0026\u0026 go test ./internal/plan -run '^TestBatchFlush' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestCandidateGoPhasesExcludeIgnoredSource$' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestBatchEvidence' -count=1",
+          "rationale": "Lane execution of master's row, adopted verbatim from master 43a2c7aa9858 on 2026-09-08. Master has since landed the required selection matrix, terminal evidence restart and cross-worktree GPU admission tests its checkpoints name; the remaining obligation is TestBatchPromotionControl and the integration gate, which alone completes the parent. The audio merge already supplies step-local verification batches, exact subordinate completion/recovery evidence and independent per-package cache reuse. Master adds early projected-merge receipt preflight. Preserve these lower bounds; do not implement them again. The remaining work is checkpoint commits without premature parent completion, durable outstanding obligations bound to cumulative changes, mandatory escalation and measured scheduling through the existing plan/gate/OvergoDB owners.\n\nImplement a concrete governed checkpoint path in cmd/gate: record implemented versus verified versus promoted states without pruning the parent. Persist outstanding checks with exact cumulative source/fixture/environment identities, survive interruption/restart, reject orphaning through replan or branch changes, and require one complete final integration gate. Persistence, authentication, concurrency, kernels, public contracts and gate-policy changes immediately trigger their required checks; the controller may adjust scheduling only inside declared limits. Until this exists, full gates remain mandatory for commits. Batch related implementation by capability/dependency, not commit counts; narrower diagnostics do not grant promotion.\n\nReport elapsed wall from the committed run measurement separately from summed phase durations and estimated step time avoided. Include independently reused packages, executed checks, outstanding obligations, failures found and invalidation causes. Privatize gate-only cost types and functions, migrate every caller, and retain exact reporting tests; no additional reporting API. Use the recent GUI merge failures (1757.2s and 1137.7s after successful verification) and final 952.9s run as recorded before evidence for early refusal and scheduling efficiency; do not claim these wall times predict another model. Prove saving and unchanged regression detection on repeated controlled failure/restart/replan cases, including one failed or unavailable package beside a reusable passing package. The exclusive GPU lease finding evidence:sha256:0f4b6d07607b3fa8ee6ee7f320646e5dbbd5b38b025a19c2046d54aed7fa4b4e remains open: consumers must enforce admitted resources before isolated measurements. Never silently weaken acceptance, fabricate fixture evidence or credit skipped cases. Owner directive 2026-09-06 makes this bounded process-control integration the next dispatch and a prerequisite of the remaining E4B acceptance. Finish the declared checkpoints, then return immediately to E4B; adaptive scheduler tuning, broad API cleanup and unrelated infrastructure are deferred. CPU dataset/reference preparation may proceed independently, but isolated evidence requires enforced GPU admission.\n\nLatest before evidence: audio merge cf3f5eb1 passed in 896.5 seconds after an interrupted run and a 592.4-second failure caused by a stale machine-local dataset root. All four explicit acceptances passed, but the later package run resolved the corpus through a different root. Preserve one resolved input contract across acceptance and package tests; validate required paths/identities before expensive verification. The corrected root changes environment identity and correctly invalidates earlier evidence. The successful gate executed 189 packages and credited none of its 472 skipped dependent fixtures. Classify those by affected required acceptance versus optional/platform coverage: resolve every required missing fixture; record unsupported-platform exclusions with exact reasons and never count them as passing. Add prompt failure reporting with the exact package/test while preserving every unrun obligation. Persist successful terminal package reports during process execution, not only after the whole group returns, and prove process-kill/restart reuse without credit for incomplete packages. Keep process supervision, recovery, rename scope, clone/style/permanent-authority preflight and exclusive GPU admission under their existing owners. Checkpoint policy changes require full existing checks and cannot self-authorize a weaker gate.\n\nSelection acceptance: classify cumulative changes to implementation, tests, documentation, fixtures/artifacts/configuration and gate policy using the existing dependency owners. Include transitive consumers, both rename paths, build tags, device mode, toolchain and resolved input identities. Produce a reviewable explanation for every selected, reused or excluded check and every invalidation. Unknown impact broadens the scope. Before enabling narrower enforcement, shadow-compare with the full required gate on a frozen matrix of representative historical changes and injected known failures, including cross-package, fixture-only, rename, kernel, persistence and gate-policy changes. Require zero omitted required checks or missed seeded regressions; preserve the full matrix denominator and actual timings. A documentation-only change may reuse independent runtime evidence only when the dependency proof supports it. Gate-policy changes themselves use the existing full gate, never their proposed reduced policy.\n\nRestart acceptance: publish each terminal passing package/checkpoint atomically to OvergoDB as it finishes, independently of a later failed, skipped or killed sibling. Bind deferred obligations to the cumulative batch and exact dependencies; demonstrate kill/restart, replan and scope expansion without losing obligations or accepting partial/zero-match runs. Report the precise failing package/test promptly and repair in scope before closure.\n\nGPU acceptance: use the existing resource owner to exclude competing consumers of the same physical GPU across worktrees and stores, for the entire admitted run. Test contention, process death, stale-owner recovery and release; unexpected competing use invalidates isolated performance/resource claims. GPU reservation must not serialize independent CPU preparation.\n\nIntegration acceptance: TestBatchPromotionControl must exercise implemented/checkpointed, verified and promoted transitions, outstanding-check refusal, all mandatory escalation classes and final cumulative acceptance. Compare cold and resumed verification on the same frozen change matrix; report wall time by phase, reused/executed checks, repeated model loads, outstanding obligations and failures detected. Require measured reduction in repeated work on unchanged dependencies without weaker acceptance; record observed savings rather than inventing a universal speedup floor. Scheduling may reorder or reuse proven checks within declared limits, never alter denominators or thresholds.\n\nLanded lower bounds: checkpoint memo with compound-command coverage/refusal; per-check retry persistence with subprocess restart proof; three synthetic selection counterexamples; acceptance/failure/cost telemetry; batch flush declarations. The reviewed 719c32cb intake adds diagnostic preflight, explicit skip reporting, no closure repair during preflight, mutually exclusive modes, and stat-only index refresh recovery. Retain their bound tests. Cache persistence is not cumulative OvergoDB obligations; synthetic import graphs are not the full selection matrix; flush declarations are not promotion; summed step durations are not parallel elapsed wall.\n\nRemaining correctness proofs: selection covers external/subprocess consumers, fixtures, build modes, renames, kernels, persistence and gate policy; unknown reachability keeps required checks. GPU ownership uses a stable physical-resource domain across worktrees and stores, with OS-held exclusion, live-owner contention, process/child death and restart tests; stale heartbeat never grants ownership. Promotion reevaluates elapsed intervals at current time even when all checkpoints are already recorded, survives restart, and consumes every required obligation before parent completion. Exercise exact boundary, no-new-checkpoint and trailing-obligation cases. Reuse existing owners; no parallel scheduler.\n\nExcluded from master: Hatchet lane plan, open lane work, heartbeat-based device takeover, static dependency exclusions, automatic literal exemptions, conditional workflows and broader scheduling/replay features. These are not E4B prerequisites or presumed future imports. Any later admission needs an independently bound correctness test and measured validation benefit. Preserve semantic literal authority; lexical zero/one, min/max, math calls, shadowed imports and strconv arguments are not automatic policy exemptions.\n\nGUI intake selection coverage: extend the frozen full-gate shadow matrix with embedded JavaScript/assets, browser subprocesses, provider declaration and key changes, proxy admission, remote run-record classification and plan lane dispatch. Trace consumers through embedding, environment inputs and subprocess contracts, not Go imports alone. Authentication, persistence, public contracts and gate-policy changes retain mandatory escalation. Keep TestGeneratorUsesUpdatedKey in internal/remoterelay and the media-to-chat attachment case in TestWebUIBrowserAcceptance as bound lower bounds; browser acceptance must run through cmd/webui-lane, never receive credit from its outside-lane skip. Reuse terminal passing checks only with exact independence evidence; do not rerun a whole model bundle for a UI-only change when that proof exists. Treat harness snapshot migrations as explicit reviewed scope changes with measured before/after deltas, never automatic normalization of a failed ratchet. The full selection and promotion proofs remain open.\n\nExecution split after the terminal-evidence and resource-lifetime probes: land evidence-resource-producer through the full existing gate, then complete this parent. Reuse its exact passing receipts; do not rebuild the producer for every acceptance addition. Retain the full selection-shadow denominator, cumulative restart/replan obligations, time-only and trailing flush cases, mandatory escalation, real cold/resumed wall measurements, and unmanaged GPU interference invalidation. Producer completion grants no narrower gate policy and no model acceptance. Candidate-source isolation: an ignored tmp/gui-review test fragment entered go vet ./... during producer gate 6 and failed on an out-of-package helper. The local tmp module boundary removes that immediate scratch contamination, but is not durable gate authority. Prove build, vet, package discovery and execution consume the exact candidate source while ignoring unrelated scratch; retain deliberately bound external fixtures and test ignored Go files both in a scratch directory and beside a tracked package. Unknown required inputs must still broaden checks.\n\nPreserve transaction-refreshed, retained evidence handles during checkpoint integration. TestTerminalEvidenceRestart must retain exact durable-result equality, independent receipt publication, competing revocation and publication-error refusal. Measure store opens and publication wall time beside full-gate wall time; do not infer campaign throughput from the bounded receipt fixture. Share the existing evidence owner across checkpoint and final verification; remove displaced factories and forwarding wrappers with their caller migrations.\n\nRetain TestAbandonedGateAdmission when integrating checkpoints: only the acquired OS gate lock authorizes recovery, independent of heartbeat age. Preserve one typed cancellation, exact package receipts and outstanding obligations; ambiguous/corrupt authority, commit intent and post-commit debt retain their existing explicit recovery paths. Do not add a second liveness service, expiry-based takeover or duplicate recovery implementation.\n\nThe subprocess counterexample reopens the historical two-package scope savings claim for 1939094b: opaque command execution was absent from that projection. Keep the recorded 973.8s incident as history, not a validated narrower baseline. The full matrix must compare against the corrected consumer graph, account for conservative subprocess costs, and prove any later static-target or fixture-independence refinement before reducing checks. Preserve per-batch digest reuse with identical input IDs and fresh reads after each batch; never carry file digests across candidate changes.\n\nPost-merge priorities: reuse the landed checkpoint-completion binding and shared execution/cache eligibility from the audio intake; do not rebuild them. Retain TestReusedCheckpointCompletionAuthorityAcceptance as a lower bound beside cumulative obligation and promotion proofs. Move the existing documentation-inventory acceptance into the existing preflight owner without weakening it: the GUI intake spent 557.8s before rejecting nine historical PNG copies, while its diagnostic preflight had passed. The corrected GUI gate executed 213 packages in 969.2s, including repeated audio resume work. Prove static subprocess target and external-fixture independence before reducing those repeats; compare full/selected regression detection and real cold/resumed cost. Include GUI embedded assets, active-provider pagination over retired history, conversation ownership/recovery, settings and layout audits in the selection matrix. Preserve the full existing policy until these proofs pass.\n\nCurrent implementation counterexample: a changed repository-level runtime file read through os.ReadFile selected zero tests and retained a stale package receipt. Bind opaque runtime file readers through the same input graph used for selection and identity, retaining independent receipts and excluding generated test-main imports from ownership. Cover repository-level, sibling-package and embedded inputs. The documentation inventory now shares the existing repoanalysis policy with gate preflight, refusing all nine misplaced GUI screenshots before census/store access. Preserve these regression checks. Single-key accumulation removes its redundant map. Add empty/negative/overflow/pre-origin refusals alongside durable elapsed-only scheduling in this parent; these behaviors are not implemented by the prerequisite. Complete persistence and actual scheduling integration before promotion.\n\nLand batch-terminal-obligations as the bounded durable-evidence producer, then finish the remaining control boundary. Checkpoint results use typed AgentObligation/AgentObligationResolution and a cumulative gate record in the canonical store; the retry file is only a projection. BatchFlush.Advance owns immutable state transitions; no constructor, duplicate accumulator state or independent reset authority remains. Actual elapsed-only scheduling and governed checkpoint promotion still require their executable integration proofs. Keep full gates mandatory.\n\nReproduced E4B scheduling costs at source 1b7ac581: canonical held-out evaluation refused three times before inference because initial writable-store open uses nonblocking admission; transaction writes already have context-aware waiting. After store release, Windows resource-job membership confirmed a sibling full gate and its package-test descendants retained the physical GPU while no compute workload was reported. Scope the correction to bounded initial-open waiting and resource admission for actual pending device work, with CPU checks outside that reservation where independence is proven. Preserve exclusive timing, required device checks and skipped-fixture noncredit. Do not put this repair ahead of already prepared E4B runs unless they cannot proceed.\n\nMeasured evidence-only readmission at75adb220: 949.581s waiting for the physical reservation, then803.2s in the full gate;233 packages executed, zero reused. Inspection selects device and browser lanes because six documentation/evidence inputs lack structural ownership. Finding evidence:sha256:13a4473eab084e75be2c92ffc5bb6a8544fe78e3c6edd04abf2dd3a8c3be00db and exact inspection/queue observation evidence:sha256:5907e3a581c7ee0151f63a42454a0b576b90735054c1969518d410e07f944795 bind the counterexample. Prove actual document/fixture consumers in the existing full-versus-selected matrix; never add a blanket documentation exemption. Prefer gate-local pending-check and receipt selection so unchanged inference evidence remains valid. Changes to shared processcontrol, store or inference dependencies still require their affected model readmission; avoid introducing those changes solely to improve gate scheduling.\n\nCross-worktree admission: publication gate retry spent 628.5s before correctness tests failed against an audio batch-terminal-resource-queue process retaining exclusive GPU ownership throughout CPU acceptance. Finding evidence:sha256:42f5196b3d02c67f3de8e67ee22f5bcbde3e4673e6d6059e2c052900def5dfc5 binds the Win32 job membership and failures. Migrate legacy launch wrappers to the landed shared context policy; acquire exclusivity only for a pending isolated measurement. Prove mixed correctness users coexist, measurement contention waits within declared cancellation limits, and no CPU gate retains GPU ownership. Never force-release a live owner or credit a contention failure. The same retry reported access denied replacing tmp/gate_cache.json; reproduce reader/writer replacement contention and preserve independently persisted package passes before claiming retry-cost savings.\n\nAudio e36c3103 intake measured a second full six-test acceptance process after the first passed: internal/planverify.Execute reruns marker-free go test commands and compares verdicts. Preserve repeat agreement, but move expensive model acquisition into the existing immutable evidence owner and repeat cheap exact-candidate/evidence admission where dependency independence is proved. Account for acquisition, repeat verification and package-suite cost separately; do not add fake device markers or lower requirements to bypass the classifier.",
+          "depends_on": [
+            "selection-coverage/closure-exclusions",
+            "lane-overlap/shared-lanes"
+          ],
+          "verification_batch": {
+            "scope": [
+              "cmd/gate",
+              "internal/gate",
+              "internal/plan",
+              "internal/testevidence",
+              "internal/runrecord",
+              "cmd/test-lane",
+              "README.md",
+              "internal/processcontrol",
+              "internal/cuda/driver",
+              "cmd/device-lane",
+              "internal/processlock",
+              "internal/server",
+              "internal/authoritylock",
+              "internal/overgodb",
+              "internal/repoanalysis",
+              "internal/planverify",
+              "cmd/plan"
+            ],
+            "rationale": "One existing-owner process-control integration, subdivided into bounded acceptance checkpoints. Inspect existing resource and persistence owners before editing; explicitly amend scope if another owner is required. Existing bound tests remain lower bounds. New named tests below are implementation obligations, not claims that these capabilities already pass. Migrate cmd/test-lane with the shared streaming evidence contract; it is an existing consumer, not a new test runner.",
+            "reopen_when": "Cumulative source, transitive dependencies, fixtures, resolved environment, resource identity, required acceptance or scope changes invalidate the affected evidence and reopen durable obligations. Checkpoints never complete the parent.",
+            "checkpoints": [
+              {
+                "id": "selection-shadow",
+                "title": "Prove full change coverage, including external consumers",
+                "verify": "test -f internal/gate/change_selection_shadow_test.go \u0026\u0026 go test ./internal/gate -run '^TestChangeSelectiveVerificationShadow$' -count=1 \u0026\u0026 test -f internal/gate/change_selection_required_matrix_test.go \u0026\u0026 go test ./internal/gate -run '^TestChangeSelectionRequiredMatrix$' -count=1"
+              },
+              {
+                "id": "terminal-evidence-resume",
+                "title": "Extend landed retry recovery to durable cumulative OvergoDB obligations",
+                "verify": "test -f internal/gate/terminal_evidence_restart_test.go \u0026\u0026 go test ./internal/gate -run '^TestTerminalEvidenceRestart$' -count=1"
+              },
+              {
+                "id": "exclusive-gpu-admission",
+                "title": "Prove OS-held GPU ownership across worktrees and consumer lifetimes",
+                "verify": "test -f internal/gate/gpu_admission_test.go \u0026\u0026 go test ./internal/gate -run '^TestCrossWorktreeGPUAdmission$' -count=1"
+              },
+              {
+                "id": "cumulative-promotion",
+                "title": "Prove restart, time-only flush and complete cumulative promotion",
+                "verify": "test -f internal/gate/batch_promotion_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchPromotionControl$' -count=1",
+                "depends_on": [
+                  "selection-shadow",
+                  "terminal-evidence-resume",
+                  "exclusive-gpu-admission"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "hatchet-closeout",
+      "title": "Publish the gate wall before and after the campaign and record the process-control contracts in the README",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "measured-closeout",
+          "title": "Publish the measured wall per phase, reruns per landed commit and lane exclusions before and after, and document the adopted contracts",
+          "status": "open",
+          "verify": "test -f internal/plan/hatchet_closeout_test.go \u0026\u0026 go test ./internal/plan -run '^TestHatchetCampaignCloseout$' -count=1",
+          "rationale": "The closeout binds each landed row to its recorded measurement from the phase wall tables of the campaign's own gates: wall per phase, gate runs per landed commit, owned checks excluded per gate, lanes overlapped, admission seconds, and the cold versus resumed verification of one change. It records the rows master's intake excluded with their outcome and updates the README's workflow sections to describe the contracts as they exist. It depends on the integration gate, the only row that completes validation-batch-control.",
+          "depends_on": [
+            "validation-batch-control/batch-promotion"
+          ],
+          "capabilities": [
+            "measured-closeout",
+            "readme-manifest"
+          ]
+        }
+      ]
+    },
+    {
       "id": "declared-capacity",
       "title": "Declare slot cost, lane labels and sticky assignment on the existing schedulers",
+      "owner": "hatchet",
       "status": "open",
       "steps": [
         {
@@ -33,7 +339,7 @@
           "title": "Assign by required labels, order by weight, break ties round-robin, and keep dependent rows sticky to the lane holding their resident model",
           "status": "open",
           "verify": "test -f internal/plan/sticky_assignment_test.go \u0026\u0026 go test ./internal/plan -run '^TestWeightedStickyLaneAssignment$' -count=1",
-          "rationale": "The locality scheduler already filters lanes on artifact locality; it gains weight ordering, round-robin ties and soft or hard sticky modes so that rows reusing one resident session are assigned by declaration rather than by hand.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. The locality scheduler already filters lanes on artifact locality; it gains weight ordering, round-robin ties and soft or hard sticky modes so that rows reusing one resident session are assigned by declaration rather than by hand.",
           "depends_on": [
             "declared-capacity/slot-cost-and-labels"
           ],
@@ -47,7 +353,7 @@
           "title": "Express exclusive device rows as full device cost over the host-wide claim and admit host rows beside them",
           "status": "open",
           "verify": "test -f internal/loop/exclusive_device_test.go \u0026\u0026 go test ./internal/loop -run '^TestExclusiveDeviceRowsAdmitHostRows$' -count=1",
-          "rationale": "A device row's cost equals the lane's device capacity and its admission takes the host-wide claim. The driver proves host-only rows dispatch beside an exclusive device row and a second device row waits with the claim holder recorded.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. A device row's cost equals the lane's device capacity and its admission takes the host-wide claim. The driver proves host-only rows dispatch beside an exclusive device row and a second device row waits with the claim holder recorded.",
           "depends_on": [
             "declared-capacity/weighted-and-sticky-assignment",
             "device-exclusion/host-wide-claim"
@@ -62,6 +368,7 @@
     {
       "id": "eviction-and-release",
       "title": "Evict waiting sessions by declared policy and release device claims after the device phase",
+      "owner": "hatchet",
       "status": "open",
       "steps": [
         {
@@ -69,7 +376,7 @@
           "title": "Declare TTL, capacity and priority eviction on resident session leases and waiting operations",
           "status": "open",
           "verify": "test -f internal/capabilityruntime/eviction_policy_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestSessionEvictionPolicy$' -count=1",
-          "rationale": "Design record E2. The ModelSessionDirector evicts by policy when an admission needs capacity: after a waiting TTL, under capacity pressure when permitted, and in priority order among candidates, recording the reason. A fake capacity model proves the order without a device.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E2. The ModelSessionDirector evicts by policy when an admission needs capacity: after a waiting TTL, under capacity pressure when permitted, and in priority order among candidates, recording the reason. A fake capacity model proves the order without a device.",
           "depends_on": [
             "declared-capacity/slot-cost-and-labels",
             "deadlines-and-requeue/deadline-refresh"
@@ -84,7 +391,7 @@
           "title": "Release the device claim after the device phase while the host phase continues under the same attempt",
           "status": "open",
           "verify": "test -f internal/capabilityruntime/device_release_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestDeviceClaimReleaseDuringHostWork$' -count=1",
-          "rationale": "A row that generates on the device and scores on the host holds the device through scoring today. Release is a recorded transition; the claim cannot be reacquired without a new admission; the host phase completes under the same attempt identity.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. A row that generates on the device and scores on the host holds the device through scoring today. Release is a recorded transition; the claim cannot be reacquired without a new admission; the host phase completes under the same attempt identity.",
           "depends_on": [
             "eviction-and-release/eviction-policy"
           ],
@@ -98,7 +405,7 @@
           "title": "Evict and resume a resident session on the real device within the retained-memory bound",
           "status": "open",
           "verify": "test -f internal/capabilityruntime/device_eviction_windows_test.go \u0026\u0026 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./internal/capabilityruntime -run '^TestDeviceEvictionRecovery$' -count=1 -timeout=10m",
-          "rationale": "The device measurement that decides E2: a second admission evicts a waiting resident session under memory pressure, the evicted session resumes by replay, and retained device memory stays within the bound the long-form guard records. Device idle time during the host phase is recorded before and after release.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. The device measurement that decides E2: a second admission evicts a waiting resident session under memory pressure, the evicted session resumes by replay, and retained device memory stays within the bound the long-form guard records. Device idle time during the host phase is recorded before and after release.",
           "depends_on": [
             "eviction-and-release/device-release",
             "durable-attempt-log/memo-replay"
@@ -113,6 +420,7 @@
     {
       "id": "keyed-admission",
       "title": "Admit requests by declared key with recorded strategies and idempotency holds",
+      "owner": "hatchet",
       "status": "open",
       "steps": [
         {
@@ -120,7 +428,7 @@
           "title": "Derive a group key from declared request facts and apply round-robin, cancel-in-progress, cancel-newest and cancel-queued-except-newest strategies",
           "status": "open",
           "verify": "test -f internal/server/keyed_admission_test.go \u0026\u0026 go test ./internal/server -run '^TestKeyedConcurrencyStrategies$' -count=1",
-          "rationale": "Design record E4. A new turn in the same conversation supersedes the in-flight one, one served model is shared fairly across users by a declared limit, and every cancellation records its reason. The key is derived from the conversation, model or workspace identity the request already carries.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E4. A new turn in the same conversation supersedes the in-flight one, one served model is shared fairly across users by a declared limit, and every cancellation records its reason. The key is derived from the conversation, model or workspace identity the request already carries.",
           "depends_on": [
             "deadlines-and-requeue/schedule-and-execution-deadlines"
           ],
@@ -134,7 +442,7 @@
           "title": "Coalesce queued model swaps to the newest request per endpoint and drain with recorded reasons",
           "status": "open",
           "verify": "test -f internal/modelswap/coalesce_test.go \u0026\u0026 go test ./internal/modelswap -run '^TestSwapRequestsCoalesceToNewest$' -count=1",
-          "rationale": "The swap supervisor drains by a grace period today. Cancel-queued-except-newest applied to swap requests keeps only the latest requested model per endpoint and records why the superseded requests were dropped.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. The swap supervisor drains by a grace period today. Cancel-queued-except-newest applied to swap requests keeps only the latest requested model per endpoint and records why the superseded requests were dropped.",
           "depends_on": [
             "keyed-admission/concurrency-strategies"
           ],
@@ -147,7 +455,7 @@
           "title": "Hold one in-flight automation run per idempotency key with a fallback TTL",
           "status": "open",
           "verify": "test -f internal/workflowruntime/idempotency_test.go \u0026\u0026 go test ./internal/workflowruntime -run '^TestStatusIdempotencyKeys$' -count=1",
-          "rationale": "A duplicate webhook or schedule trigger with the same key collides while the owning run is not terminal and is admitted once it is; the fallback TTL bounds a key whose run never reaches a terminal state.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. A duplicate webhook or schedule trigger with the same key collides while the owning run is not terminal and is admitted once it is; the fallback TTL bounds a key whose run never reaches a terminal state.",
           "depends_on": [
             "keyed-admission/concurrency-strategies"
           ],
@@ -161,6 +469,7 @@
     {
       "id": "queue-observability",
       "title": "Record cancellation reasons and publish queue statistics per key",
+      "owner": "hatchet",
       "status": "open",
       "steps": [
         {
@@ -168,7 +477,7 @@
           "title": "Record a typed cancellation reason on every cancelled operation and row",
           "status": "open",
           "verify": "test -f internal/operation/cancellation_reason_test.go \u0026\u0026 go test ./internal/operation -run '^TestCancellationReasonRecorded$' -count=1",
-          "rationale": "Design record E9. Schedule timeout, execution timeout, superseded by key, evicted, operator stop and dependency cancelled are the closed reasons; a cancellation without one is refused.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E9. Schedule timeout, execution timeout, superseded by key, evicted, operator stop and dependency cancelled are the closed reasons; a cancellation without one is refused.",
           "depends_on": [
             "deadlines-and-requeue/schedule-and-execution-deadlines"
           ],
@@ -181,7 +490,7 @@
           "title": "Publish queued and running counts with oldest age per key for operations and lanes",
           "status": "open",
           "verify": "test -f internal/server/queue_statistics_test.go \u0026\u0026 go test ./internal/server -run '^TestQueueStatisticsEndpoint$' -count=1",
-          "rationale": "The front page and the lane dispatcher read the same statistics: counts per state, the distribution per key, and the age of the oldest queued item, derived from operation records rather than from logs.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. The front page and the lane dispatcher read the same statistics: counts per state, the distribution per key, and the age of the oldest queued item, derived from operation records rather than from logs.",
           "depends_on": [
             "queue-observability/cancellation-reasons",
             "keyed-admission/concurrency-strategies"
@@ -195,6 +504,7 @@
     {
       "id": "schedule-pause",
       "title": "Pause one automation with declared behaviour for its due slots",
+      "owner": "hatchet",
       "status": "open",
       "steps": [
         {
@@ -202,7 +512,7 @@
           "title": "Pause one automation with queue-or-drop behaviour for due schedule slots and a queue TTL",
           "status": "open",
           "verify": "test -f internal/workflowruntime/automation_pause_test.go \u0026\u0026 go test ./internal/workflowruntime -run '^TestAutomationPauseQueueOrDrop$' -count=1",
-          "rationale": "Design record E8. In-flight runs continue, new runs queue under a TTL or the due slot is dropped as declared, expired queued runs cancel with the reason recorded, and unpausing requeues the rest. The recorded operator stop remains the whole-plan pause.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E8. In-flight runs continue, new runs queue under a TTL or the due slot is dropped as declared, expired queued runs cancel with the reason recorded, and unpausing requeues the rest. The recorded operator stop remains the whole-plan pause.",
           "depends_on": [
             "keyed-admission/status-idempotency"
           ],
@@ -216,6 +526,7 @@
     {
       "id": "serving-load-lane",
       "title": "Measure serving under concurrent load and ratchet its floors",
+      "owner": "hatchet",
       "status": "open",
       "steps": [
         {
@@ -223,7 +534,7 @@
           "title": "Add a load lane that drives the served model at declared concurrency and collects timings with bounded fetch concurrency and a pending TTL",
           "status": "open",
           "verify": "test -f cmd/load-lane/collector_test.go \u0026\u0026 go test ./cmd/load-lane -run '^TestLoadLaneTimingCollector$' -count=1",
-          "rationale": "Design record E10. Queued-to-first-token latency and throughput through the swap proxy are unmeasured. The collector fetches run timings concurrently under a bound and abandons a run whose timings never arrive after a TTL, so a broken run cannot stall the lane.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E10. Queued-to-first-token latency and throughput through the swap proxy are unmeasured. The collector fetches run timings concurrently under a bound and abandons a run whose timings never arrive after a TTL, so a broken run cannot stall the lane.",
           "depends_on": [
             "queue-observability/queue-statistics"
           ],
@@ -237,7 +548,7 @@
           "title": "Publish one measured load run and ratchet latency and throughput floors from it",
           "status": "open",
           "verify": "test -f cmd/load-lane/floors_windows_test.go \u0026\u0026 OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/load-lane -run '^TestServingLoadFloors$' -count=1 -timeout=15m",
-          "rationale": "The first floors are the measured values of the smallest served text model at the declared concurrency; later runs may only tighten them, as the clone baseline ratchets. The record binds the model, recipe, concurrency and inference surface.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. The first floors are the measured values of the smallest served text model at the declared concurrency; later runs may only tighten them, as the clone baseline ratchets. The record binds the model, recipe, concurrency and inference surface.",
           "depends_on": [
             "serving-load-lane/timing-collector"
           ],
@@ -248,76 +559,9 @@
       ]
     },
     {
-      "id": "hatchet-closeout",
-      "title": "Publish the measurements that decide the campaign and record the workflow contracts in the README",
-      "status": "open",
-      "steps": [
-        {
-          "id": "measured-closeout",
-          "title": "Publish restart re-execution, gate cost per checkpoint, device idle during host phases and load floors before and after, and document the adopted contracts",
-          "status": "open",
-          "verify": "test -f internal/plan/hatchet_closeout_test.go \u0026\u0026 go test ./internal/plan -run '^TestHatchetCampaignCloseout$' -count=1",
-          "rationale": "The closeout binds each element to its recorded measurement, records the elements that showed no gain with their outcome, and updates the README's workflow sections to describe the contracts as they exist. It depends on every terminal row.",
-          "depends_on": [
-            "durable-attempt-log/agent-tool-children",
-            "deadlines-and-requeue/backoff-and-idle-intervals",
-            "declared-capacity/exclusive-device-cost",
-            "eviction-and-release/measured-device-eviction",
-            "keyed-admission/swap-coalescing",
-            "schedule-pause/pause-policy",
-            "serving-load-lane/measured-floors",
-            "operator-references/replay-attempt",
-            "gate-checkpoints/governed-promotion",
-            "device-exclusion/host-wide-claim"
-          ],
-          "capabilities": [
-            "measured-closeout",
-            "readme-manifest"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/gate",
-              "internal/agentloop",
-              "internal/plan",
-              "cmd/load-lane"
-            ],
-            "rationale": "The closeout's four measurements are independent acceptances that accumulate under the campaign's own flush declaration.",
-            "reopen_when": "Any measured element is re-run or a measurement owner changes.",
-            "checkpoints": [
-              {
-                "id": "gate-cost",
-                "title": "Gate wall per accepted checkpoint before and after",
-                "verify": "go test ./internal/gate -run '^TestBatchedGateCostEvidence$' -count=1"
-              },
-              {
-                "id": "checkpoint-reuse",
-                "title": "Re-run savings from checkpoint reuse",
-                "verify": "go test ./internal/gate -run '^TestCheckpointEvidenceReuseAcrossRuns$' -count=1"
-              },
-              {
-                "id": "restart-reexecution",
-                "title": "Tool calls replay without re-execution",
-                "verify": "go test ./internal/agentloop -run '^TestToolCallsReplayAsChildAttempts$' -count=1"
-              },
-              {
-                "id": "load-floors",
-                "title": "Serving load collector and floors",
-                "verify": "go test ./cmd/load-lane -run '^TestLoadLaneTimingCollector$' -count=1"
-              }
-            ],
-            "flush": {
-              "key": "measurement",
-              "max_size": 4,
-              "max_interval": "1h",
-              "max_bytes": 1048576
-            }
-          }
-        }
-      ]
-    },
-    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -408,25 +652,9 @@
       ]
     },
     {
-      "id": "validation-batch-control",
-      "title": "Amortize gate cost over coherent verified batches",
-      "status": "open",
-      "steps": [
-        {
-          "id": "batch-promotion",
-          "title": "Finish governed checkpoint promotion and measured verification scheduling",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestIndependentPackageEvidenceAcceptance|TestGovernedBatchDeclarationAcceptance|TestProjectedMergePreflightBeforeVerification|TestGateReusesUnchangedCheckEvidence|TestPackageSelectiveReuse)$' -count=1 \u0026\u0026 test -f internal/gate/batch_promotion_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchPromotionControl$' -count=1",
-          "rationale": "The audio merge already supplies step-local verification batches, exact subordinate completion/recovery evidence and independent per-package cache reuse. Master adds early projected-merge receipt preflight. Preserve these lower bounds; do not implement them again. The remaining work is checkpoint commits without premature parent completion, durable outstanding obligations bound to cumulative changes, mandatory escalation and measured scheduling through the existing plan/gate/OvergoDB owners.\n\nImplement a concrete governed checkpoint path in cmd/gate: record implemented versus verified versus promoted states without pruning the parent. Persist outstanding checks with exact cumulative source/fixture/environment identities, survive interruption/restart, reject orphaning through replan or branch changes, and require one complete final integration gate. Persistence, authentication, concurrency, kernels, public contracts and gate-policy changes immediately trigger their required checks; the controller may adjust scheduling only inside declared limits. Until this exists, full gates remain mandatory for commits. Batch related implementation by capability/dependency, not commit counts; narrower diagnostics do not grant promotion.\n\nReport wall time by phase, independently reused packages, executed checks, outstanding obligations, failures found and invalidation causes. Use the recent GUI merge failures (1757.2s and 1137.7s after successful verification) and final 952.9s run as recorded before evidence for early refusal and scheduling efficiency; do not claim these wall times predict another model. Prove saving and unchanged regression detection on repeated controlled failure/restart/replan cases, including one failed or unavailable package beside a reusable passing package. The exclusive GPU lease finding evidence:sha256:0f4b6d07607b3fa8ee6ee7f320646e5dbbd5b38b025a19c2046d54aed7fa4b4e remains open: consumers must enforce admitted resources before isolated measurements. Never silently weaken acceptance, invent missing fixtures or credit skipped cases. This automation work does not block E4B evidence acquisition.\n\nLatest before evidence: audio merge cf3f5eb1 passed in 896.5 seconds after an interrupted run and a 592.4-second failure caused by a stale machine-local dataset root. All four explicit acceptances passed, but the later package run resolved the corpus through a different root. Preserve one resolved input contract across acceptance and package tests; validate required paths/identities before expensive verification. The corrected root changes environment identity and correctly invalidates earlier evidence. The successful gate executed 189 packages and credited none of its 472 skipped dependent fixtures. Classify those by affected required acceptance versus optional/platform coverage: resolve every required missing fixture; record unsupported-platform exclusions with exact reasons and never count them as passing. Add prompt failure reporting with the exact package/test while preserving every unrun obligation. Persist successful terminal package reports during process execution, not only after the whole group returns, and prove process-kill/restart reuse without credit for incomplete packages. Keep process supervision, recovery, rename scope, clone/style/permanent-authority preflight and exclusive GPU admission under their existing owners. Checkpoint policy changes require full existing checks and cannot self-authorize a weaker gate.",
-          "depends_on": [
-            "merge-a9561f6703a8/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "model-regression-baseline",
       "title": "Publish an accepted, immutable baseline before simplification",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -448,6 +676,7 @@
     {
       "id": "model-regression-gate",
       "title": "Enforce cheap execution-coverage regression checks before device-wide work",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -479,6 +708,7 @@
     {
       "id": "benchmark-completion",
       "title": "Complete current-surface benchmarks and matched comparisons",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -509,6 +739,7 @@
     {
       "id": "device-memory-retention",
       "title": "Bound retained device memory across changing context capacities",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -526,6 +757,7 @@
     {
       "id": "decode-attention-per-key-cost",
       "title": "Recover small-head decode throughput without losing long-context correctness",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -543,6 +775,7 @@
     {
       "id": "gemma-12b-accuracy",
       "title": "Add the chat-shaped long-form rung for the Gemma 12B twins",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -560,6 +793,7 @@
     {
       "id": "failure-recovery",
       "title": "Run independent host recovery drills before closing reliability claims",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -591,6 +825,7 @@
     {
       "id": "simplify-prefill-paths",
       "title": "Unify measured prefill policy where reference parity permits",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -611,6 +846,7 @@
     {
       "id": "simplify-execution-core",
       "title": "Remove costly execution duplication behind the regression gate",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -628,6 +864,7 @@
     {
       "id": "simplify-command-surface",
       "title": "Consolidate measured command duplication after validation consumers finish",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -649,6 +886,7 @@
     {
       "id": "simplify-checkpoint-locations",
       "title": "Remove dependence on retired checkpoint paths with reversible relocation",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -668,6 +906,7 @@
     {
       "id": "final-model-validation",
       "title": "Prove the final text execution surface and long-lived serving behavior",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -689,7 +928,7 @@
     {
       "id": "benchmark-27b",
       "title": "Operator-launched full 27B benchmark",
-      "owner": "operator",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -707,6 +946,7 @@
     {
       "id": "simplify-capability-report",
       "title": "Publish capability preserved or improved per unit of mechanism removed",
+      "owner": "master",
       "status": "open",
       "steps": [
         {
@@ -726,6 +966,7 @@
     {
       "id": "campaign-closeout",
       "title": "Close only after all capability and reliability branches are accounted for",
+      "owner": "master",
       "status": "open",
       "steps": [
         {

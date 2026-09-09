@@ -70,13 +70,18 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	}
 }
 
-func TestGateRunsAcceptanceBeforeExpensivePhases(t *testing.T) {
+func TestGateRunsStaticChecksBeforeAcceptance(t *testing.T) {
 	steps := (&gateContext{}).pipelineChecks()
 	positions := make(map[string]int, len(steps))
 	for index, step := range steps {
 		positions[step.Descriptor.Name] = index
 	}
-	for _, expensive := range []string{"vet", "build", "test", "device", automationcheck.WebUICheckName} {
+	for _, static := range []string{"vet", "build"} {
+		if positions[static] >= positions["acceptance"] {
+			t.Fatalf("%s at %d follows acceptance at %d", static, positions[static], positions["acceptance"])
+		}
+	}
+	for _, expensive := range []string{"test", "device", automationcheck.WebUICheckName} {
 		if positions["acceptance"] >= positions[expensive] {
 			t.Fatalf("acceptance position %d is not before %s at %d", positions["acceptance"], expensive, positions[expensive])
 		}

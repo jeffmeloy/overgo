@@ -22,27 +22,26 @@ type guardCohort struct {
 
 // TestCurrentGuardControls checks retained controls without measuring models.
 func TestCurrentGuardControls(t *testing.T) {
+	producer, cohorts := readGuardCatalog(t)
 	fixtures := []guardCohort{
 		{
-			name:       "Qwen capacity session",
+			name:       "Qwen 0.5B",
 			historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
-			repeats: [3]string{
-				"evidence:sha256:8216acc2fdbc4705d6acead094d3253c176aa9c029683bc4e4480d19774d410c",
-				"evidence:sha256:98cb6f0b40bd3ece9d1cf1815b4a5255fd6e26fa550dc57806cd82f5f7d8634a",
-				"evidence:sha256:8a3933043176ed794d5fcad18c647dfedf583fb59a8a1bbe1e6aec0dead657d7",
-			},
 		},
 		{
-			name:       "E4B request session",
+			name:       "E4B",
 			historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a",
-			repeats: [3]string{
-				"evidence:sha256:5e665ff150fad0fca8ae13a3de609f555ed6b67046c6697a45bfbb48bc9f6cd5",
-				"evidence:sha256:64557c547d3c281bbb4ee77174f28d2c8ba19519197d9d21b54afd54d0abc469",
-				"evidence:sha256:edf1b490201bba3344c73a361a4c8af2db1af0654258e8fd6e3786b11805ec8c",
-			},
 		},
 	}
-	requireGuardCohorts(t, fixtures, "95c0ac02654d9e9034451f9ab1a4d4b2abd0646b", false)
+	for index := range fixtures {
+		fixture := &fixtures[index]
+		records := cohorts[fixture.name]
+		if len(records) != len(fixture.repeats) {
+			t.Fatalf("%s requires three complete immutable records", fixture.name)
+		}
+		fixture.repeats = [3]string(records)
+	}
+	requireGuardCohorts(t, fixtures, producer, false)
 	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
 }
 

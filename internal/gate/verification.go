@@ -24,6 +24,7 @@ import (
 	"overgo/internal/codeprofile"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
+	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -46,8 +47,8 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2], published,
 		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
 		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
-		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), gateCheck("vet", runrecord.PhaseVet, g.stepVet),
-		gateCheck("build", runrecord.PhaseBuild, g.stepBuild), {
+		gateCheck("vet", runrecord.PhaseVet, g.stepVet), gateCheck("build", runrecord.PhaseBuild, g.stepBuild),
+		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), {
 			Descriptor: automationcheck.Descriptor{Name: "test", Phase: runrecord.PhaseTest, Always: true},
 			Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
 				skipped, err := g.stepTest(ctx)
@@ -59,8 +60,8 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies := map[string][]string{
 		"scope": {"protection"}, "architecture": {"scope"}, "profile": {"architecture"}, "fmt": {"profile"}, "style": {"fmt"},
 		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
-		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "modern-go": {"magics"}, "acceptance": {"modern-go"},
-		"vet": {"acceptance"}, "build": {"acceptance"}, "test": {"vet", "build"},
+		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "modern-go": {"magics"},
+		"vet": {"modern-go"}, "build": {"modern-go"}, "acceptance": {"vet", "build"}, "test": {"acceptance"},
 		"device": {"test"}, automationcheck.WebUICheckName: {"test"}, "commit": {"test", "device", automationcheck.WebUICheckName},
 	}
 	for index := range checks {
@@ -836,7 +837,7 @@ func (g *gateContext) stepStyle() (bool, error) {
 }
 
 func (g *gateContext) stepModernGoRatchet() (bool, error) {
-	baseline, err := repoanalysis.LoadModernGoBaseline(filepath.Join(g.repo, filepath.FromSlash(repoanalysis.ModernGoBaselineFile)))
+	baseline, err := repoanalysis.LoadModernGoBaseline(filepath.Join(g.sourceRoot(), filepath.FromSlash(repoanalysis.ModernGoBaselineFile)))
 	if err != nil {
 		return false, err
 	}
@@ -859,6 +860,17 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 		return false, err
 	}
 	if err := admitModernGoExactExceptions(baseline, candidate); err != nil {
+		return false, err
+	}
+	expected, err := repoanalysis.BuildModernGoPublishedCensus(candidate, baseline)
+	if err != nil {
+		return false, err
+	}
+	var published repoanalysis.ModernGoPublishedCensus
+	if err := jsonfile.DecodeStrict(filepath.Join(g.sourceRoot(), filepath.FromSlash(repoanalysis.ModernGoPublishedCensusFile)), &published); err != nil {
+		return false, err
+	}
+	if err := repoanalysis.ValidateModernGoPublishedCensus(published, expected); err != nil {
 		return false, err
 	}
 	if _, err := command(g.repo, "git", "cat-file", "-e", "HEAD:"+repoanalysis.ModernGoBaselineFile); err == nil {
@@ -988,10 +1000,26 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(directPending) > 0 {
-		_, runErr := g.runGoTests(ctx, directPending, true, g.packagePassObserver(ctx, ledger, "short", directInputs))
+	var edited, remaining []string
+	for _, pkg := range directPending {
+		if slices.Contains(scope.edited, pkg) {
+			edited = append(edited, pkg)
+		} else {
+			remaining = append(remaining, pkg)
+		}
+	}
+	directExecuted := 0
+	if len(edited) > 0 {
+		g.audit = append(g.audit, fmt.Sprintf("test order: changed source owners first [%s]; %d other direct packages remain", strings.Join(edited, ","), len(remaining)))
+	}
+	for _, batch := range [][]string{edited, remaining} {
+		if len(batch) == 0 {
+			continue
+		}
+		directExecuted += len(batch)
+		_, runErr := g.runGoTests(ctx, batch, true, g.packagePassObserver(ctx, ledger, "short", directInputs))
 		if runErr != nil {
-			g.packageCacheAudit(directReused, len(directPending))
+			g.packageCacheAudit(directReused, directExecuted)
 			return false, runErr
 		}
 	}

@@ -761,6 +761,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"model-regression-gate/coverage-inventory",
 		"model-regression-gate/coverage-selection",
 		"model-regression-gate/coverage-acquisition",
+		// Accept the completed model cohorts; retain full-catalog acquisition.
+		"e4b-fp8-evidence-refresh/do",
 		"model-regression-gate/coverage-12b-fp8",
 		"model-regression-gate/repair-retained-output-arena",
 		"model-regression-gate/repair-retained-packing",
@@ -801,6 +803,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"gui-validation-handoff/do",
 		"audio-worktree-integration/register-models",
 		"validation-integration-replan/do",
+		"validation-priority-replan/do",
 		// Accept or remove the staged API from the explicitly authorized audio intake.
 		"modality-verification/native-audio-streaming-intake",
 		"model-validation-batching/do",

@@ -37,7 +37,7 @@ func TestWebUICheckSelection(t *testing.T) {
 		return "", nil
 	})
 	if check.Descriptor.Name != WebUICheckName || !slices.Contains(check.Descriptor.Triggers, WebUIImpact) ||
-		!slices.Contains(check.Descriptor.Ownership.Packages, "internal/server") || len(check.Descriptor.Resources) != 1 || !check.Descriptor.Resources[0].Exclusive {
+		!slices.Contains(check.Descriptor.Ownership.Packages, "internal/server") || len(check.Descriptor.Resources) != 1 || check.Descriptor.Resources[0].Exclusive {
 		t.Fatalf("descriptor = %+v", check.Descriptor)
 	}
 	if _, _, err := check.Run(t.Context(), Invocation{}); err != nil || !slices.Equal(ran, []string{"root", "go", "run", "./cmd/webui-lane"}) {

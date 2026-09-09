@@ -5,6 +5,27 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "lane-overlap",
+      "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "concurrent-test-groups",
+          "title": "Run the direct and dependent test groups concurrently under the package evidence ledger",
+          "status": "open",
+          "verify": "test -f internal/gate/test_groups_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestGroupsOverlapUnderLedger$' -count=1",
+          "rationale": "The direct short group and the dependent complete group run as two strictly serial process groups with -count=1, although each package publishes its terminal receipt as it finishes. The groups run concurrently under the ledger, a package appears in one group only, and -count=1 is dropped where a persisted receipt keyed on the package's cumulative inputs already decides reuse; the acceptance denominator is unchanged.",
+          "depends_on": [
+            "lane-overlap/shared-lanes"
+          ],
+          "capabilities": [
+            "evidence-durability"
+          ]
+        }
+      ]
+    },
+    {
       "id": "selection-coverage",
       "title": "Exclude the GPU lanes on host-only changes and bind subprocess consumers by declared edges",
       "owner": "hatchet",
@@ -68,40 +89,6 @@
           ],
           "capabilities": [
             "gate-cost"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "lane-overlap",
-      "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "shared-lanes",
-          "title": "Declare the browser lane shared under the context-lifetime GPU admission and co-schedule it with the device lane",
-          "status": "open",
-          "verify": "test -f internal/gate/lane_wave_test.go \u0026\u0026 go test ./internal/gate -run '^TestSharedLanesCoSchedule$' -count=1",
-          "rationale": "a109e8af made the device lane a shared consumer of fitting GPU memory, but the browser lane is still declared exclusive, so the DAG wave refuses to put them in one wave and they serialize behind each other and behind the test phase. The browser lane admits under the same shared admission, only explicit measurements stay exclusive, and the wave selector co-schedules the two lanes; the test proves both lanes run in one wave and that an exclusive measurement still waits.",
-          "depends_on": [
-            "gate-wall/validate-first"
-          ],
-          "capabilities": [
-            "device-exclusion"
-          ]
-        },
-        {
-          "id": "concurrent-test-groups",
-          "title": "Run the direct and dependent test groups concurrently under the package evidence ledger",
-          "status": "open",
-          "verify": "test -f internal/gate/test_groups_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestGroupsOverlapUnderLedger$' -count=1",
-          "rationale": "The direct short group and the dependent complete group run as two strictly serial process groups with -count=1, although each package publishes its terminal receipt as it finishes. The groups run concurrently under the ledger, a package appears in one group only, and -count=1 is dropped where a persisted receipt keyed on the package's cumulative inputs already decides reuse; the acceptance denominator is unchanged.",
-          "depends_on": [
-            "lane-overlap/shared-lanes"
-          ],
-          "capabilities": [
-            "evidence-durability"
           ]
         }
       ]

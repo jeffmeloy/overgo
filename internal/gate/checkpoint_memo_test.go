@@ -174,6 +174,27 @@ func TestCheckpointEvidenceReuseAcrossRuns(t *testing.T) {
 	if err != nil || again["acceptance-producer"] != producerMemo {
 		t.Fatalf("recomputed memo differs on an unchanged tree: %+v %v", again["acceptance-producer"], err)
 	}
+	// This root-package fixture reads arbitrary files. Documentation changes
+	// remain inputs until a narrower read contract proves independence.
+	if err := os.WriteFile(filepath.Join(g.repo, "NOTES.md"), []byte("Corrected documentation.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	g.packageGraph = nil
+	repaired, err := g.checkpointMemoInputs(batch)
+	if err != nil || repaired["acceptance-producer"].input == producerMemo.input {
+		t.Fatalf("opaque file reader retained stale checkpoint input: %v", err)
+	}
+	if _, found := cache.Lookup(slot, repaired["acceptance-producer"].input); found {
+		t.Fatal("opaque file reader reused stale checkpoint evidence")
+	}
+	if err := os.Remove(filepath.Join(g.repo, "NOTES.md")); err != nil {
+		t.Fatal(err)
+	}
+	g.packageGraph = nil
+	restored, err := g.checkpointMemoInputs(batch)
+	if err != nil || restored["acceptance-producer"] != producerMemo {
+		t.Fatalf("restored package inputs lost their original memo: %v", err)
+	}
 	batch.Flush.Key = "other"
 	other, err := g.checkpointMemoInputs(batch)
 	if err != nil || other["acceptance-producer"].slot == producerMemo.slot || other["acceptance-producer"].input == producerMemo.input {

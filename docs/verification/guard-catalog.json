@@ -6,20 +6,40 @@
       "evidence:sha256:944f3a8d96a99f38b22c68932aaef17477a92d69f65873d86a9b5a1d6120157d",
       "evidence:sha256:1ea632aadbf5d30388aa8ba91171fca5b747f5a7c09cd226b1e186a8888593d4"
     ],
-    "Gemma 12B BF16": [],
+    "Gemma 12B BF16": [
+      "evidence:sha256:85d4bef716b165c78f225eef24127a1164306ff09fa3cad8caf742cd5a7e5e4c",
+      "evidence:sha256:0ed45ee66c9495912b1f9a5586188e0c8a3c13bce12df4822f2f134baa9ac1a6",
+      "evidence:sha256:a9888e72ab878c118ea4bab28e7b1a14ab42b948021c9e613f012b53da06dea2"
+    ],
     "Gemma 12B FP8": [
       "evidence:sha256:a70c416d554feb47b09dbfdb2281c94ac922e9be23776d4e709ff551b50d3bfd",
       "evidence:sha256:b0c9c68a3ed0cf854e69f19f64943b879a8fda66bbf416d38dd25f2ea81159e8",
       "evidence:sha256:9d5e58624d2ca1308e384d196a60ca05211494b944f1fd3fff4b80ae228bb16f"
     ],
-    "MiniCPM 1B": [],
+    "MiniCPM 1B": [
+      "evidence:sha256:24e738830d4b5ed6b03918ea83bbe681c774eb8a7179f8f078e9f7d26990377f",
+      "evidence:sha256:333afd6de9d45d20803e476851afe91d5095419b8c2b8a10d4295828291cb5bd",
+      "evidence:sha256:61f5dc7d32ce6747fffb27f8d575a2ee23a63d986e7e57746135c2b4d551f021"
+    ],
     "Qwen 0.5B": [
       "evidence:sha256:e8b02b34d5c02761930d7b74ac007e1e218f7e2041c02bb7e196f3dec282fe39",
       "evidence:sha256:79e771518f8cb8d0128c330a07941035002da456a5d5e0694fb5348ef5acc09f",
       "evidence:sha256:bfc8754f7193deea78caabee851b3f26c7efd51f9669d97f928bc9929dfd190b"
     ],
-    "Qwen 27B quantized": [],
-    "Qwen 3.5 4B": [],
-    "Qwen 3.5 9B": []
+    "Qwen 27B quantized": [
+      "evidence:sha256:05e758f423350574f152fd9b8b63b7f2db487f5d358dda6a45d6e68a71e6ecb6",
+      "evidence:sha256:8e4d4132955146dd86496514c355f0a9d16c7fb90fb6cd6db3717ddd97548424",
+      "evidence:sha256:654d63571b8551824ec370431638a505ad6ea1a3413c29f93a4e93cd5cabd5d2"
+    ],
+    "Qwen 3.5 4B": [
+      "evidence:sha256:f1b09f974472d4d4e76f2e20c9fb68c8a8ed80275373c1bbd09670da7b4abc78",
+      "evidence:sha256:cb88b539457d4ea6513261823474575d0c16f487bbb9f43c4844e42cc27e429b",
+      "evidence:sha256:246369571fbed386bc8b3b359372dff4e777cc0c11ca2ed26a59b01a77d1e9bf"
+    ],
+    "Qwen 3.5 9B": [
+      "evidence:sha256:e382b7504644a127cc5de0f96d85372889a4e4692909efb4a5cc7a1ae2156f96",
+      "evidence:sha256:c10c8b84f26a96b6a70f06bef57f07a9bd8d02d37c41ccfe0dad6df2d6138970",
+      "evidence:sha256:a3f9fb17b82a3c0a4946f0fc9851380c9aa12651c0a65b6ea4438d85c664ff1e"
+    ]
   }
 }

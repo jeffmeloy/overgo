@@ -440,7 +440,7 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 	t.Helper()
 	for _, required := range []string{
-		"gate throughput review", "No Hatchet source is copied",
+		"phase wall table", "No Hatchet source is copied",
 		"one acceptance test in the owning package", "Host rows land first",
 	} {
 		if !strings.Contains(document.Doctrine, required) {
@@ -454,7 +454,7 @@ func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 		"queue-observability": true, "serving-load-lane": true, "operator-references": true,
 		"hatchet-closeout": true, "lane-replan": true, "selection-coverage": true, "lane-overlap": true,
 		"process-commits": true, "device-reaper": true, "plan-dispatch": true, "lane-merge-automation": true,
-		"closure-catalog": true,
+		"closure-catalog": true, "priority-replan": true, "selection-review": true,
 	}
 	for _, item := range document.Items {
 		if !campaign[item.ID] {

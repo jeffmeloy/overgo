@@ -9,13 +9,13 @@
       "status": "open",
       "steps": [
         {
-          "id": "minicpm-guard-repair",
-          "title": "Restore MiniCPM performance admission on a bound benchmark protocol",
+          "id": "decode-guard-readmission",
+          "title": "Readmit all affected guards on the frozen decode producer",
           "status": "open",
           "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedGuardCatalog$' -count=1",
-          "rationale": "Resolve finding evidence:sha256:8584276e4b1e44ebcbfc7ac0886b097720049eaddc0c681587bf2f903db1cf28 before broad text validation. Both artifacts have tensor SHA256 55fa141f787323c4b47f54d3490f1f623bc5e35713ea1b8d00ce6fc1d4d18545. Corrected native chat passes; failed guard evidence:sha256:432cdad39b64caf366ea124b3212750683f151cfc2e5f6ec68672614555cbf41 measures 140.0 tok/s against a 160.6 floor from the new six-token benchmark. Historical 182-token benchmark measured 261.0 tok/s; old long guards also measured about 140. Establish matched prompt, sampling, output budget and source before attributing regression. Do not select a slower benchmark to manufacture a pass or relax the declared half-rate floor. Fix measured runtime cost through the existing inference/executor owners when required; coordinate with decode-attention-per-key-cost rather than create a competing kernel policy. Fail missing benchmark prerequisites before loading a model. Publish three complete accepted guards for model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32, preserve the retired three and failed diagnostics, and reuse seven unaffected live cohorts only while their execution surface remains unchanged. A runtime change requires fresh affected-surface evidence. Restore eight-live-model guard acceptance and close the finding with actual evidence.",
+          "rationale": "After the runtime producer commits, freeze that source and acquire three complete isolated guard records for each of the eight active text models through cmd/longform. Use the existing full-budget corpus, contexts, quality/rate bounds and owned-allocation checks. Preserve all prior 43a2c7aa cohorts and the retired MiniCPM cohort; bind the prior selections and compare unchanged model identities against their pre-change records. MiniCPM's corrected identity receives initial calibration, never relabeled historical evidence. New records must identify their immutable short benchmark; verify matching weights and embedded rates against that exact record before acceptance. Populate guard-catalog.json only with complete passing records and make TestAcceptedGuardCatalog accept eight live models plus retained retired history. No record freshness/listing-only closure. Resolve finding evidence:sha256:8584276e4b1e44ebcbfc7ac0886b097720049eaddc0c681587bf2f903db1cf28 only after this acceptance. Reacquire affected modality evidence at the same frozen source in the following modality bundles; preserve old bundles as historical. Do not reopen unrelated implementation or merge lanes during collection.",
           "depends_on": [
-            "modality-verification/declared-smoke-expectations"
+            "modality-verification/minicpm-guard-repair"
           ]
         },
         {
@@ -26,7 +26,7 @@
           "rationale": "Run the existing smoke, embedding, rerank, vqaparity and sensenovaparity owners against declared oracles on the current landed execution surface. Reuse exact unaffected committed text evidence; run missing/invalidated cases only. Bind the exact models, tasks, fixtures, budgets and read-only evidence assertion before starting. Missing oracles remain explicit findings, never successful coverage. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row. Collect and consume complete per-model bundles across applicable modalities; task-group rows are final coverage joins, not a reason to reload every model or recommit already accepted evidence. Include input modalities under inference, even when the activation task name is not VQA or media generation.\n\nRequired read-only acceptance: TestAcceptedTextVisionEvidence in cmd/compatibility/accepted_modalities_test.go. Implement this bound assertion before the row can close; it must reject an omitted required cell, duplicate case, stale identity and failed required outcome using the stated denominator, protocols and thresholds. Existing lane/report checks remain lower bounds. Aggregate existing per-model evidence and acquire only missing or invalidated cells; do not rebuild an evaluation engine or launch long benchmarks from this assertion.",
           "depends_on": [
             "modality-verification/declared-smoke-expectations",
-            "modality-verification/minicpm-guard-repair"
+            "modality-verification/decode-guard-readmission"
           ]
         },
         {
@@ -90,7 +90,7 @@
             "model-regression-baseline/do",
             "model-regression-gate/coverage-selection",
             "model-regression-gate/coverage-acquisition",
-            "modality-verification/minicpm-guard-repair"
+            "modality-verification/decode-guard-readmission"
           ]
         }
       ]
@@ -252,7 +252,7 @@
           "title": "Recover small-head decode throughput without losing long-context correctness",
           "status": "open",
           "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1",
-          "rationale": "The reviewed short-context Qwen2.5-0.5B rate fell from 295 to 139 tokens/s while E4B remained within about three percent. First remove capacity-sized host upload from BenchmarkDecodeAttention's timed iteration and keep caches resident; measure allocation/upload separately. Run the actual benchmark with -bench '^BenchmarkDecodeAttention$' and device opt-in, not only -run. Compare repeated isolated before/after runs across short contexts, 4096 boundaries, tile boundaries, long contexts and representative head geometries. Keep split-key correctness, NLL and memory guarantees; recover the measured short-context gap within predeclared noise bounds without trading away larger-context throughput. Bind both kernel parity and end-to-end Qwen/E4B assertions. Remove capacity-wide work and redundant transfers before introducing another dispatch policy; retain one shared path wherever parity permits.",
+          "rationale": "The reviewed short-context Qwen2.5-0.5B rate fell from 295 to 139 tokens/s while E4B remained within about three percent. First remove capacity-sized host upload from BenchmarkDecodeAttention's timed iteration and keep caches resident; measure allocation/upload separately. Run the actual benchmark with -bench '^BenchmarkDecodeAttention$' and device opt-in, not only -run. Compare repeated isolated before/after runs across short contexts, 4096 boundaries, tile boundaries, long contexts and representative head geometries. Keep split-key correctness, NLL and memory guarantees; recover the measured short-context gap within predeclared noise bounds without trading away larger-context throughput. Bind both kernel parity and end-to-end Qwen/E4B assertions. Remove capacity-wide work and redundant transfers before introducing another dispatch policy; retain one shared path wherever parity permits. The MiniCPM guard repair now owns the initial block-width split derivation and per-split shared allocation. Consume that landed producer and its measurements; do not implement a competing split policy. Close any remaining performance claim only with the prescribed model/geometry comparison.",
           "depends_on": [
             "model-regression-gate/do"
           ]
@@ -474,7 +474,7 @@
             "merge-a9561f6703a8/do",
             "validation-priority-replan/do",
             "modality-verification/smoke-oracle-producer",
-            "modality-verification/minicpm-guard-repair"
+            "modality-verification/decode-guard-readmission"
           ]
         }
       ]

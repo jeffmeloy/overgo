@@ -159,11 +159,12 @@ func parseOptions(args []string) (options, error) {
 // identity its claim binds to, the short-prompt rates its long-form
 // rates are bounded against, and the explicitly selected comparison record.
 type target struct {
-	entry   discovery.Entry
-	weights artifact.ID
-	bytes   int64
-	short   longform.ShortRates
-	record  longform.Summary
+	entry          discovery.Entry
+	weights        artifact.ID
+	bytes          int64
+	short          longform.ShortRates
+	shortBenchmark artifact.ID
+	record         longform.Summary
 }
 
 // listTargets reads everything the run needs from the store before any
@@ -191,7 +192,8 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 		return nil, err
 	}
 	var benchmarks map[string]evaluation.BenchmarkSummary
-	if !options.ValidateBaselines && !options.GuardCoverage && !options.GuardSelect {
+	measure := !options.ValidateBaselines && !options.GuardCoverage && !options.GuardSelect
+	if measure {
 		benchmarks = readBenchmarks()
 	}
 	wanted := make(map[string]bool, len(requested))
@@ -217,6 +219,14 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 			}
 			continue
 		}
+		benchmark := benchmarks[entry.Location]
+		short := longform.ShortRates{
+			PromptTokensPerSecond: benchmark.PromptTokensPerSecond,
+			DecodeTokensPerSecond: benchmark.DecodeTokensPerSecond,
+		}
+		if measure && (!validShortRates(short) || !benchmark.Record.Valid() || benchmark.Record.Kind() != artifact.KindEvidence) {
+			return nil, fmt.Errorf("longform: %s has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement", entry.Location)
+		}
 		info, err := os.Stat(entry.Location)
 		if err != nil {
 			return nil, err
@@ -228,13 +238,9 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 		if err != nil {
 			return nil, err
 		}
-		benchmark := benchmarks[entry.Location]
 		targets = append(targets, target{
 			entry: entry, weights: weights, bytes: info.Size(),
-			short: longform.ShortRates{
-				PromptTokensPerSecond: benchmark.PromptTokensPerSecond,
-				DecodeTokensPerSecond: benchmark.DecodeTokensPerSecond,
-			},
+			short: short, shortBenchmark: benchmark.Record,
 		})
 		delete(wanted, longform.Key(entry.Location))
 	}
@@ -549,7 +555,7 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		Inputs:    longform.BindInputs(target.weights, text, corpus, protocol),
 		ModelPath: properties.Path, ModelName: properties.Name, Architecture: properties.Architecture, FileType: properties.FileType,
 		Commit: commit, Surface: surface, PromptSource: options.Corpus,
-		Measure: judged.Measure, Short: target.short, Floors: floors,
+		Measure: judged.Measure, Short: target.short, ShortBenchmark: target.shortBenchmark, Floors: floors,
 		Shape: shape, Rungs: climbed, LadderStop: stop,
 		PromptTail: tail, Output: outputText,
 	}

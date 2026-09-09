@@ -182,23 +182,18 @@ func blasAttentionTiles(keyWidth, queryTokens, keyValueTokens uint32) (uint32, u
 	return chunk, keyChunk
 }
 
-// Split-key decode geometry: a decode block walks at most
-// attentionDecodeSplitSpan keys of the cache capacity, up to
-// attentionDecodeMaxSplits blocks per head, so a 16k cache runs 8
-// blocks per head instead of one while a 2k cache keeps one block and
-// no combine; each split leaves its maximum and sum
-// (attentionDecodeMetaFloats) and its unnormalized output for the
-// combine kernel. On the 0.5B the split took rung 8192 from 46 to 185
-// tokens/s and rung 16384 from 24 to 113.
+// Split-key decode assigns one key per scoring thread until the split cap.
+// Derive work granularity from the launch width; a separate key-span policy
+// left small-head models underoccupied. Partials hold maximum, sum and output.
 const (
-	attentionDecodeSplitSpan  = uint32(2048)
+	attentionDecodeThreads    = uint32(256)
 	attentionDecodeMaxSplits  = uint32(16)
 	attentionDecodeMetaFloats = uint64(2)
 )
 
 // decodeSplits: blocks per head for a cache of the capacity.
 func decodeSplits(keyCapacityTokens uint32) uint32 {
-	splits := (keyCapacityTokens + attentionDecodeSplitSpan - 1) / attentionDecodeSplitSpan
+	splits := (keyCapacityTokens + attentionDecodeThreads - 1) / attentionDecodeThreads
 	return max(1, min(splits, attentionDecodeMaxSplits))
 }
 
@@ -531,7 +526,6 @@ func launchAttentionLayout(
 			symmetricWindow = uint32(windowModeChunked)
 		}
 		const (
-			attentionDecodeThreads       = uint32(256)
 			attentionDecodeSharedLimit   = uint64(48 * 1024)
 			attentionDecodePartialFloats = uint64(attentionDecodeThreads)
 			f32Bytes                     = uint64(4)
@@ -540,12 +534,9 @@ func launchAttentionLayout(
 			// launch limit, and the kernel walks the capacity tile by tile.
 			attentionDecodeTileTokens = uint32(8192)
 		)
-		// logical KV count is device-resident; shared memory sized to one tile
+		// Logical KV count is device-resident.
 		tokenCountPointer := pointers.attribute
 		hasTokenCount := tokenCountPointer != 0
-		tileTokens := min(keyCapacityTokens, attentionDecodeTileTokens)
-		// one tile of scores, the block's partials, and the running output
-		sharedBytes := (uint64(tileTokens) + attentionDecodePartialFloats + uint64(valueWidth)) * f32Bytes
 		// The keys are split across blocks so a long cache fills the device
 		// (one block per head walked 16k keys on 14 of the SMs); the split
 		// partials combine through the score staging when it holds them,
@@ -556,6 +547,10 @@ func launchAttentionLayout(
 		if splits > 1 && (blas == nil || blas.scores == 0 || partialBytes > blas.scoreBytes) {
 			splits = 1
 		}
+		// Reserve scores for this split, not the whole cache. Each block also
+		// holds its reduction partials and running output.
+		tileTokens := min((keyCapacityTokens+splits-1)/splits, attentionDecodeTileTokens)
+		sharedBytes := (uint64(tileTokens) + attentionDecodePartialFloats + uint64(valueWidth)) * f32Bytes
 		var partials driver.DevicePtr
 		if splits > 1 {
 			partials = blas.scores

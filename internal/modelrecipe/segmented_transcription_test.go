@@ -36,7 +36,7 @@ func TestSegmentedTranscriptionTopology(t *testing.T) {
 	if err != nil || len(components.Components) != 2 || components.ArtifactBytes != 2 || components.Components[0].Model != activity.Model || components.Components[1].Model != base.Model {
 		t.Fatalf("component plan %+v: %v", components, err)
 	}
-	gotBase, gotActivity, err := TranscriptionComponents(definition)
+	gotBase, gotActivity, err := SpeechComponents(definition)
 	if err != nil || gotBase.ID != base.ID || gotActivity.ID != activity.ID {
 		t.Fatalf("component definitions: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestSegmentedTranscriptionTopology(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := TranscriptionComponents(changed); err == nil {
+		if _, _, err := SpeechComponents(changed); err == nil {
 			t.Fatal("altered topology admitted")
 		}
 	}

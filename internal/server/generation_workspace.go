@@ -15,6 +15,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
 )
 
@@ -80,6 +81,9 @@ type WorkflowCapability struct {
 	// model is projected from the compiled recipe by native workspace owners.
 	// It must not be inferred from an unrelated co-hosted text runner.
 	model artifact.ID
+	// Native streaming remains attached to the selected workspace capability;
+	// aggregating workspaces does not create a separate audio registry.
+	transcriptionStream func(context.Context, speechrecognition.StreamRequest) (*transcriptionHTTPStream, error)
 }
 
 type WorkflowKind string

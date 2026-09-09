@@ -20,24 +20,33 @@ import (
 )
 
 type Tokenizer struct {
-	vocab        map[string]int
-	mergeRank    map[string]int
-	special      map[string]int
-	specials     []string // longest-first
-	b2u          [binaryschema.ByteValueCount]rune
-	u2bDense     [2 * binaryschema.ByteValueCount]int16
-	id2tok       map[int]string
-	spaceMarker  string
-	byteFallback bool
+	vocab             map[string]int
+	mergeRank         map[string]int
+	special           map[string]int
+	specials          []string // longest-first
+	b2u               [binaryschema.ByteValueCount]rune
+	u2bDense          [2 * binaryschema.ByteValueCount]int16
+	id2tok            map[int]string
+	spaceMarker       string
+	byteFallback      bool
+	decodeMarker      string
+	stripDecodePrefix bool
+	omitSpecial       map[int]bool
 }
 
 type tokenizerJSON struct {
 	AddedTokens []struct {
 		ID      int    `json:"id"`
 		Content string `json:"content"`
+		Special bool   `json:"special"`
 	} `json:"added_tokens"`
 	Normalizer json.RawMessage `json:"normalizer"`
-	Model      struct {
+	Decoder    struct {
+		Type          string `json:"type"`
+		Replacement   string `json:"replacement"`
+		PrependScheme string `json:"prepend_scheme"`
+	} `json:"decoder"`
+	Model struct {
 		Type         string            `json:"type"`
 		Vocab        map[string]int    `json:"vocab"`
 		Merges       []json.RawMessage `json:"merges"`
@@ -59,6 +68,15 @@ func Load(dir string) (*Tokenizer, error) {
 		mergeRank:    make(map[string]int, len(tj.Model.Merges)),
 		special:      map[string]int{},
 		byteFallback: tj.Model.ByteFallback,
+		omitSpecial:  make(map[int]bool),
+	}
+	if tj.Decoder.Type == "Metaspace" {
+		if utf8.RuneCountInString(tj.Decoder.Replacement) != 1 || !utf8.ValidString(tj.Decoder.Replacement) ||
+			(tj.Decoder.PrependScheme != "always" && tj.Decoder.PrependScheme != "first" && tj.Decoder.PrependScheme != "never") {
+			return nil, fmt.Errorf("invalid Metaspace decoder declaration")
+		}
+		t.decodeMarker = tj.Decoder.Replacement
+		t.stripDecodePrefix = tj.Decoder.PrependScheme != "never"
 	}
 	if len(tj.Normalizer) > 0 {
 		var norm struct {
@@ -89,6 +107,9 @@ func Load(dir string) (*Tokenizer, error) {
 	for _, a := range tj.AddedTokens {
 		t.special[a.Content] = a.ID
 		t.specials = append(t.specials, a.Content)
+		if a.Special {
+			t.omitSpecial[a.ID] = true
+		}
 	}
 	sort.Slice(t.specials, func(i, j int) bool { return len(t.specials[i]) > len(t.specials[j]) })
 	t.buildByteAlphabet()
@@ -133,6 +154,9 @@ func (t *Tokenizer) buildByteAlphabet() {
 
 // Encode: text -> token ids under the declared scheme.
 func (t *Tokenizer) Encode(text string) ([]int, error) {
+	if t.decodeMarker != "" {
+		return nil, fmt.Errorf("metaspace decoding is supported; its normalization and encoding pipeline is not compiled")
+	}
 	var ids []int
 	for _, seg := range t.splitOnSpecials(text) {
 		if id, ok := t.special[seg]; ok {
@@ -198,24 +222,52 @@ func (t *Tokenizer) buildID2Vocab() {
 
 // Decode: token ids -> UTF-8 string (specials decode to their literals).
 func (t *Tokenizer) Decode(ids []int) string {
-	decoded, _ := t.decode(ids, false)
+	decoded, _ := t.decode(ids, false, false)
 	return decoded
 }
 
 // DecodeStrict rejects unknown IDs and non-UTF-8 output. It is intended for
 // persisted inference results, where silently dropping model output is unsafe.
 func (t *Tokenizer) DecodeStrict(ids []int) (string, error) {
-	return t.decode(ids, true)
+	return t.decode(ids, true, false)
 }
 
-func (t *Tokenizer) decode(ids []int, strict bool) (string, error) {
+// DecodeText strictly decodes generated text while omitting only tokens marked
+// special in the artifact. Ordinary added tokens remain part of the output.
+func (t *Tokenizer) DecodeText(ids []int) (string, error) {
+	return t.decode(ids, true, true)
+}
+
+func (t *Tokenizer) decode(ids []int, strict, skipSpecial bool) (string, error) {
+	bytes, err := t.decodeBytes(ids, strict, skipSpecial)
+	if err != nil {
+		return "", err
+	}
+	if strict && !utf8.Valid(bytes) {
+		return "", fmt.Errorf("decoded token sequence is not UTF-8")
+	}
+	text := string(bytes)
+	if t.stripDecodePrefix {
+		text = strings.TrimPrefix(text, " ")
+	}
+	return text, nil
+}
+
+func (t *Tokenizer) decodeBytes(ids []int, strict, skipSpecial bool) ([]byte, error) {
 	var bytes []byte
 	for _, id := range ids {
 		tok, ok := t.id2tok[id]
 		if !ok {
 			if strict {
-				return "", fmt.Errorf("token id %d not in vocab", id)
+				return nil, fmt.Errorf("token id %d not in vocab", id)
 			}
+			continue
+		}
+		if skipSpecial && t.omitSpecial[id] {
+			continue
+		}
+		if t.decodeMarker != "" {
+			bytes = append(bytes, []byte(strings.ReplaceAll(tok, t.decodeMarker, " "))...)
 			continue
 		}
 		if _, isSpecial := t.special[tok]; isSpecial {
@@ -238,10 +290,7 @@ func (t *Tokenizer) decode(ids []int, strict bool) (string, error) {
 			}
 		}
 	}
-	if strict && !utf8.Valid(bytes) {
-		return "", fmt.Errorf("decoded token sequence is not UTF-8")
-	}
-	return string(bytes), nil
+	return bytes, nil
 }
 
 func parseByteFallbackToken(tok string) (byte, bool) {

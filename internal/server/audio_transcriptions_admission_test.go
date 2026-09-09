@@ -29,6 +29,11 @@ func testAudioTranscriptionsLifecycle(t *testing.T) {
 		t.Fatalf("unverified candidate served: workspace=%v err=%v", workspace, err)
 	}
 	fixture := newTranscriptionHTTPFixture(t, nil)
+	writer, err := overgodb.Open(fixture.storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { writer.Close() })
 	definition := fixture.workspace.program.Definition()
 	failed, err := runrecord.NewGateRecord(definition.ID, fixture.workspace.environment, transcriptionHTTPCommit,
 		runrecord.OutcomeFailed, "fixture-retirement", 1, []runrecord.GateStep{{Name: "fixture-retirement",
@@ -40,12 +45,15 @@ func testAudioTranscriptionsLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(t.Context(), fixture.store, batch); err != nil {
+	if _, err := artifact.CommitBatch(t.Context(), writer, batch); err != nil {
 		t.Fatal(err)
 	}
-	if err := modelrecipe.RetireActiveCapability(t.Context(), fixture.store, definition,
+	if err := modelrecipe.RetireActiveCapability(t.Context(), writer, definition,
 		modelrecipe.Verification{Gate: failed.Result.ID, Run: failed.Run.ID}, "synthetic fixture retirement, not model-quality evidence"); err != nil {
 		t.Fatal(err)
+	}
+	if err := fixture.workspace.checkActivation(t.Context()); err == nil {
+		t.Fatal("stream admission ignored retirement committed by another store handle")
 	}
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, fixture.request(t, fixture.wave, nil))

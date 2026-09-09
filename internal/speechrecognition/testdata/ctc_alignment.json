@@ -1,0 +1,48 @@
+{
+  "repository": "https://github.com/0xShug0/audio.cpp",
+  "commit": "3497b7cc44753e2c141d8fe60ac42cec433e3281",
+  "source": "src/community_models/mms_forced_aligner/ctc_alignment.cpp",
+  "source_sha256": "0100431c0fdb3101b55f88c312cba8bc21e3b22b9b081014178bffbb3d051f74",
+  "license": "Apache-2.0",
+  "copyright": "Copyright 2026 ShugoAI LLC",
+  "driver_sha256": "ce752ba5afc432c7c296d586a12244cdef6659cfa4d785d42cf2a6bcf182c736",
+  "executable_sha256": "a6732db4f403467d191171d4d1c07d54cdad9e7adfb3d743d353f2c7678715b8",
+  "scope": "Synthetic recurrence probes, including unnormalized equal log weights for deterministic ties. Not speech or timestamp-quality evidence.",
+  "cases": [
+    {
+      "name": "distinct-target-ties",
+      "frames": 4, "vocabulary": 3, "blank": 0,
+      "targets": [1, 2],
+      "emissions": [0,0,0, 0,0,0, 0,0,0, 0,0,0],
+      "states": [1,3,3,3], "score": 0
+    },
+    {
+      "name": "repeated-target-ties",
+      "frames": 5, "vocabulary": 3, "blank": 0,
+      "targets": [1,1],
+      "emissions": [0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0],
+      "states": [1,2,3,3,3], "score": 0
+    },
+    {
+      "name": "leading-interior-trailing-blanks",
+      "frames": 5, "vocabulary": 3, "blank": 0,
+      "targets": [1,2],
+      "emissions": [-0.1,-3,-4, -4,-0.1,-3, -0.1,-4,-3, -4,-3,-0.1, -0.1,-4,-3],
+      "states": [0,1,2,3,4], "score": -0.5
+    },
+    {
+      "name": "declared-nonzero-blank",
+      "frames": 3, "vocabulary": 3, "blank": 2,
+      "targets": [0],
+      "emissions": [-0.1,-4,-3, -0.1,-4,-3, -4,-3,-0.1],
+      "states": [1,1,2], "score": -0.300000012
+    },
+    {
+      "name": "single-frame-target",
+      "frames": 1, "vocabulary": 2, "blank": 0,
+      "targets": [1],
+      "emissions": [-2,-0.5],
+      "states": [1], "score": -0.5
+    }
+  ]
+}

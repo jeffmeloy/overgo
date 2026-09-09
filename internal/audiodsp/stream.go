@@ -8,9 +8,9 @@ import (
 	"overgo/internal/checked"
 )
 
-// StreamState is a completed unpadded framing boundary. Tail starts at the next
-// frame's sample offset, not the last input chunk boundary. Persisted state must
-// be bound to the exact frontend declaration by its owning artifact profile.
+// StreamState is a completed framing boundary. Tail retains the next frame's
+// raw samples and, when necessary, its preemphasis predecessor. Persisted state
+// must be bound to the exact frontend declaration by its owning artifact profile.
 type StreamState struct {
 	Samples uint64    `json:"samples"`
 	Frames  uint64    `json:"frames"`
@@ -18,12 +18,17 @@ type StreamState struct {
 	Final   bool      `json:"final"`
 }
 
-// StreamFrontend applies an unpadded, frame-local frontend to live mono input.
+// StreamFrontend applies a frame-local frontend to live mono input.
 // Resampling and recording-wide normalization require separate stateful owners;
-// they are refused here. An incomplete final frame is discarded without padding.
-type StreamFrontend struct{ frontend *Frontend }
+// they are refused here. Declared zero padding is applied once at each end;
+// right padding is withheld until finalization, never inserted between chunks.
+type StreamFrontend struct {
+	frontend *Frontend
+	history  int
+	tailSize int
+}
 
-// StreamWorkspace owns borrowed output and a tail shorter than FrameSpan. Its
+// StreamWorkspace owns borrowed output and a geometry-bounded raw tail. Its
 // zero value is usable. Each concurrent stream requires its own workspace.
 type StreamWorkspace struct {
 	frontend Workspace
@@ -33,9 +38,9 @@ type StreamWorkspace struct {
 // NewStreamFrontend validates live semantics and budgets retained overlap in
 // addition to the existing frontend's tables and execution workspace.
 func NewStreamFrontend(config FrontendConfig, memoryBytes uint64) (*StreamFrontend, error) {
-	if config.PadLeft != 0 || config.PadRight != 0 || len(config.ResampleTaps) != 0 || config.Log.DynamicRange != nil ||
+	if (config.PadLeft != 0 || config.PadRight != 0) && config.Padding != "zero" || len(config.ResampleTaps) != 0 || config.Log.DynamicRange != nil ||
 		config.Normalize != nil && config.Normalize.Mode != "fixed" {
-		return nil, errors.New("audio stream frontend: requires unpadded frame-local transforms")
+		return nil, errors.New("audio stream frontend: requires zero-padded frame-local transforms")
 	}
 	p, err := NewFrontend(config, memoryBytes)
 	if err != nil {
@@ -44,20 +49,57 @@ func NewStreamFrontend(config FrontendConfig, memoryBytes uint64) (*StreamFronte
 	if p.hop > p.config.FrameSpan {
 		return nil, errors.New("audio stream frontend: hop exceeds frame span")
 	}
-	if err := p.reserve(p.tableBytes, nil, []int{p.config.FrameSpan - 1}); err != nil {
+	if config.PadLeft >= config.FrameSpan || config.PadRight >= config.FrameSpan ||
+		config.MaskIncompleteHop && config.FrameSpan-config.PadLeft < p.hop {
+		return nil, errors.New("audio stream frontend: padding would publish incomplete-hop frames before finalization")
+	}
+	stream := &StreamFrontend{frontend: p, tailSize: config.FrameSpan - 1}
+	if config.WaveformPreemphasis != nil && config.WindowOffset == 0 {
+		stream.history = 1
+		stream.tailSize++
+	}
+	if err := p.reserve(p.tableBytes, nil, []int{stream.tailSize}); err != nil {
 		return nil, err
 	}
-	p.memoryBytes -= uint64(p.config.FrameSpan-1) * float32Bytes
-	return &StreamFrontend{frontend: p}, nil
+	p.memoryBytes -= uint64(stream.tailSize) * float32Bytes
+	return stream, nil
+}
+
+func (p *StreamFrontend) frameCount(samples uint64, final bool) (uint64, error) {
+	if samples == 0 {
+		return 0, nil
+	}
+	f := p.frontend
+	padding := uint64(f.config.PadLeft)
+	if final {
+		padding += uint64(f.config.PadRight)
+	}
+	if samples > math.MaxUint64-padding {
+		return 0, errors.New("audio stream frontend: padded sample extent overflows")
+	}
+	if samples+padding < uint64(f.config.FrameSpan) {
+		return 0, nil
+	}
+	return 1 + (samples+padding-uint64(f.config.FrameSpan))/uint64(f.hop), nil
+}
+
+// tailStart uses the non-final frame count, whose next origin cannot exceed
+// the sample extent. Keep a raw predecessor rather than rounding a filtered tail.
+func (p *StreamFrontend) tailStart(frames uint64) uint64 {
+	step := frames * uint64(p.frontend.hop)
+	prefix := uint64(p.frontend.config.PadLeft) + uint64(p.history)
+	if step <= prefix {
+		return 0
+	}
+	return step - prefix
 }
 
 func (p *StreamFrontend) validateState(state StreamState) error {
-	f := p.frontend
-	frames := uint64(0)
-	if state.Samples >= uint64(f.config.FrameSpan) {
-		frames = 1 + (state.Samples-uint64(f.config.FrameSpan))/uint64(f.hop)
+	frames, err := p.frameCount(state.Samples, false)
+	if err != nil {
+		return err
 	}
-	if state.Final || state.Frames != frames || state.Samples-frames*uint64(f.hop) != uint64(len(state.Tail)) || len(state.Tail) >= f.config.FrameSpan {
+	if state.Final || state.Frames != frames || state.Samples-p.tailStart(frames) != uint64(len(state.Tail)) || len(state.Tail) > p.tailSize {
 		return errors.New("audio stream frontend: invalid or finalized restart boundary")
 	}
 	for _, value := range state.Tail {
@@ -96,11 +138,41 @@ func (p *StreamFrontend) Process(ctx context.Context, samples []float32, sampleR
 		}
 	}
 	f := p.frontend
+	for _, input := range [][]float32{previous.Tail, samples} {
+		for _, scratch := range [][]float32{w.frontend.features, w.frontend.waveform, w.frontend.joined, w.frontend.resampled, w.frontend.sequence} {
+			if checked.SlicesOverlap(input, scratch[:cap(scratch)]) {
+				return nil, 0, StreamState{}, errors.New("audio stream frontend: input aliases mutable frontend workspace")
+			}
+		}
+	}
+	total := previous.Samples + uint64(len(samples))
+	complete, err := p.frameCount(total, final)
+	if err != nil {
+		return nil, 0, StreamState{}, err
+	}
+	frames, ok := checked.Int(complete - previous.Frames)
+	if !ok {
+		return nil, 0, StreamState{}, errors.New("audio stream frontend: frame extent overflows")
+	}
+	// Both source coordinates and Fourier positions must remain addressable.
+	if _, ok := checked.AddInt(count, f.config.PadRight, f.config.FrameSpan); !ok {
+		return nil, 0, StreamState{}, errors.New("audio stream frontend: padded frame position overflows")
+	}
+	origin := -f.config.PadLeft
+	step := previous.Frames * uint64(f.hop)
+	if step >= uint64(f.config.PadLeft) {
+		origin = int(step - uint64(f.config.PadLeft) - p.tailStart(previous.Frames))
+	} else {
+		origin += int(step)
+	}
 	var features []float32
-	frames := 0
-	if count >= f.config.FrameSpan {
-		var err error
-		features, frames, err = f.Process(ctx, [][]float32{previous.Tail, samples}, sampleRate, &w.frontend, ProcessOptions{})
+	if frames != 0 {
+		source := chunkSource{chunks: [][]float32{previous.Tail, samples}, count: count, frameOrigin: origin}
+		valid := frames
+		if f.config.MaskIncompleteHop {
+			valid = int(min(uint64(frames), total/uint64(f.hop)-previous.Frames))
+		}
+		features, _, err = f.processFrames(ctx, source, frames, valid, &w.frontend, ProcessOptions{})
 		if err != nil {
 			return nil, 0, StreamState{}, err
 		}
@@ -108,15 +180,18 @@ func (p *StreamFrontend) Process(ctx context.Context, samples []float32, sampleR
 	if err := ctx.Err(); err != nil {
 		return nil, 0, StreamState{}, err
 	}
-	keep := count - frames*f.hop
+	keep := 0
+	if !final {
+		keep = int(total - p.tailStart(complete))
+	}
 	if w.tail == nil {
-		w.tail = make([]float32, 0, f.config.FrameSpan-1)
+		w.tail = make([]float32, 0, p.tailSize)
 	}
 	w.tail = w.tail[:keep]
 	fromPrevious := max(0, keep-len(samples))
 	copy(w.tail[:fromPrevious], previous.Tail[len(previous.Tail)-fromPrevious:])
 	copy(w.tail[fromPrevious:], samples[max(0, len(samples)-keep):])
 	w.frontend.owner = f
-	state := StreamState{Samples: previous.Samples + uint64(len(samples)), Frames: previous.Frames + uint64(frames), Tail: w.tail, Final: final}
+	state := StreamState{Samples: total, Frames: complete, Tail: w.tail, Final: final}
 	return features, frames, state, nil
 }

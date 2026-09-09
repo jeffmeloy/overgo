@@ -54,8 +54,8 @@ func resolveRemoteServing(ctx context.Context, repository, reference string) (*r
 	return &remoteServing{provider: provider, definition: activation.Definition, policy: policy}, nil
 }
 
-// remoteServeOptions are the launch flags a remote serving honours.
-type remoteServeOptions struct {
+// serveOptions carries shared HTTP launch flags for non-GGUF runtimes.
+type serveOptions struct {
 	address, apiKey, modelID                                      string
 	maxTokens, maxConcurrent, storedResponses, responseStoreBytes int
 	requestTimeout                                                time.Duration
@@ -84,7 +84,7 @@ type remoteRuntime struct {
 // model, the environment records the remote backend so every interaction
 // and observation under it carries the non-reproducible mark, and the
 // key's absence refuses the launch by the variable's name.
-func serveRemote(ctx context.Context, remote *remoteServing, options remoteServeOptions) error {
+func serveRemote(ctx context.Context, remote *remoteServing, options serveOptions) error {
 	generator, err := remoterelay.New(remote.provider, remote.definition, nil)
 	if err != nil {
 		return err

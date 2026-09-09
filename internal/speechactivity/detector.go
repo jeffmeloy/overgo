@@ -78,32 +78,24 @@ func LoadDetector(ctx context.Context, repository artifact.Repository, definitio
 	if err := license.Validate(); err != nil {
 		return nil, err
 	}
-	root, err := artifact.AvailablePath(ctx, repository, profile.Model, artifact.LocationDirectory)
-	if err != nil {
-		return nil, err
+	inventory, err := modelartifact.ReinspectFiles(ctx, repository, profile.Model)
+	if err != nil || inventory.TensorInventory.ID != profile.Inventory {
+		return nil, errors.Join(errors.New("speech activity: physical tensor identity differs"), err)
 	}
-	manifest, found, err := repository.Manifest(ctx, profile.Model)
-	if err != nil || !found {
-		return nil, errors.Join(errors.New("speech activity: model manifest absent"), err)
-	}
-	var specs []modelartifact.FileSpec
 	checkpoint := ""
-	for _, component := range manifest.Components {
-		path, err := artifact.AvailablePath(ctx, repository, component.Artifact, artifact.LocationFile)
-		if err != nil {
-			return nil, err
-		}
-		specs = append(specs, modelartifact.FileSpec{Path: path, Name: component.Name, Role: component.Role})
+	for _, component := range inventory.Manifest.Components {
 		if component.Role == artifact.ComponentWeights {
 			if checkpoint != "" {
 				return nil, errors.New("speech activity: declaration requires one checkpoint component")
 			}
-			checkpoint = path
+			checkpoint, err = artifact.AvailablePath(ctx, repository, component.Artifact, artifact.LocationFile)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
-	inventory, err := modelartifact.FromFiles(root, specs)
-	if err != nil || inventory.Manifest.ID != profile.Model || inventory.TensorInventory.ID != profile.Inventory || checkpoint == "" {
-		return nil, errors.Join(errors.New("speech activity: physical tensor identity differs"), err)
+	if checkpoint == "" {
+		return nil, errors.New("speech activity: weight component absent")
 	}
 	network, err := LoadNetwork(ctx, checkpoint, profile.Network, memoryBytes)
 	if err != nil {

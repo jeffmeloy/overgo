@@ -182,12 +182,23 @@ func TranscriptionDefinition(modelID, contractID, processorID, tokenizerID, tens
 // processor declaration and tensor inventory. The processor owns the declared
 // frontend and offline or causal boundary policy; this topology is shared.
 func ActivityDefinition(modelID, processorID, inventoryID artifact.ID) (recipe.Definition, error) {
-	node := recipe.Node{ID: "activity", Module: ModuleDetectActivity, Placement: recipe.PlacementHost, Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache}
-	return recipe.NewDefinitionWithDependencies(recipe.TaskActivityDetection,
+	return speechAnalysisDefinition(recipe.TaskActivityDetection, "activity", modelID, processorID, inventoryID)
+}
+
+// DiarizationDefinition binds speaker-turn extraction to its exact model,
+// operation profile and tensor inventory without transcription dependencies.
+func DiarizationDefinition(modelID, processorID, inventoryID artifact.ID) (recipe.Definition, error) {
+	return speechAnalysisDefinition(recipe.TaskDiarization, "diarize", modelID, processorID, inventoryID)
+}
+
+func speechAnalysisDefinition(task recipe.Task, nodeID recipe.NodeID, modelID, processorID, inventoryID artifact.ID) (recipe.Definition, error) {
+	spec := audioTaskSpecs[task]
+	node := recipe.Node{ID: nodeID, Module: spec.module, Placement: recipe.PlacementHost, Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache}
+	return recipe.NewDefinitionWithDependencies(task,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}, {Role: recipe.DependencyProcessorProfile, Artifact: processorID}, {Role: recipe.DependencyTensorInventory, Artifact: inventoryID}},
 		[]recipe.Node{node}, nil,
 		[]recipe.Input{{Name: "audio", Data: recipe.DataAudio, Target: recipe.Endpoint{Node: node.ID, Port: "audio"}}},
-		[]recipe.Output{{Name: "segments", Data: recipe.DataActivitySegments, Source: recipe.Endpoint{Node: node.ID, Port: "segments"}}})
+		[]recipe.Output{{Name: spec.output.Name, Data: spec.output.Data, Source: recipe.Endpoint{Node: node.ID, Port: spec.output.Name}}})
 }
 
 // AdaptedTranscriptionDefinition adds one exact checkpoint to the canonical

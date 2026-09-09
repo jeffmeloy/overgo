@@ -16,6 +16,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
+	"overgo/internal/checked"
 	"overgo/internal/dataset"
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
@@ -259,11 +260,22 @@ func captureF32(t *testing.T, source *safetensors.Source, name string, shape ...
 	return values
 }
 
-func captureIDs(t *testing.T, source *safetensors.Source, name string, count int) []int {
+func captureIDs(t *testing.T, source *safetensors.Source, name string, shape ...int) []int {
 	t.Helper()
 	tensor, ok := source.Tensors[name]
-	if !ok || tensor.DType != "I64" || !slices.Equal(tensor.Shape, []uint64{uint64(count)}) {
+	wantShape := make([]uint64, len(shape))
+	for i, n := range shape {
+		if n <= 0 {
+			t.Fatal("invalid expected ID shape")
+		}
+		wantShape[i] = uint64(n)
+	}
+	if !ok || tensor.DType != "I64" || !slices.Equal(tensor.Shape, wantShape) {
 		t.Fatalf("missing or wrong ID tensor %q", name)
+	}
+	count, valid := checked.Int(tensor.Elements())
+	if !valid {
+		t.Fatal("captured ID extent overflows")
 	}
 	data, err := io.ReadAll(tensor.Reader())
 	if err != nil {

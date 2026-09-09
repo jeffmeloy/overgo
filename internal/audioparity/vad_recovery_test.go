@@ -75,7 +75,7 @@ func TestVADStreamRecovery(t *testing.T) {
 	source := recipecontract.AudioReference{Audio: l.audio(t, audio.Samples, int(audio.Format.SampleRate)), Profile: batch.Contents[0].Descriptor.ID}
 	first := workflowruntime.AudioStreamChunk{Audio: l.audio(t, audio.Samples[:chunk], int(audio.Format.SampleRate)), Span: recipecontract.SampleSpan{End: uint64(chunk)}}
 	last := workflowruntime.AudioStreamChunk{Sequence: 1, Audio: l.audio(t, audio.Samples[chunk:], int(audio.Format.SampleRate)), Span: recipecontract.SampleSpan{Start: uint64(chunk), End: uint64(len(audio.Samples))}, Final: true}
-	session, err := capabilityruntime.OpenAudioStream(t.Context(), l.store, director, source, artifact.ID{})
+	session, err := capabilityruntime.OpenAudioStream(t.Context(), l.store, residentAudioAdmission(director), source, artifact.ID{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestVADStreamRecovery(t *testing.T) {
 	for _, mode := range []string{"cancel", "publication"} {
 		t.Run(mode, func(t *testing.T) {
 			workspace = speechactivity.DetectionWorkspace{}
-			session, err = capabilityruntime.OpenAudioStream(t.Context(), l.store, director, source, checkpoint)
+			session, err = capabilityruntime.OpenAudioStream(t.Context(), l.store, residentAudioAdmission(director), source, checkpoint)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -119,7 +119,7 @@ func TestVADStreamRecovery(t *testing.T) {
 		})
 	}
 	workspace = speechactivity.DetectionWorkspace{}
-	session, err = capabilityruntime.OpenAudioStream(t.Context(), l.store, director, source, checkpoint)
+	session, err = capabilityruntime.OpenAudioStream(t.Context(), l.store, residentAudioAdmission(director), source, checkpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestVADStreamRecovery(t *testing.T) {
 	}
 	// Compare the same segment with a fresh cursor starting at the discontinuity.
 	workspace = speechactivity.DetectionWorkspace{}
-	fresh, err := capabilityruntime.OpenAudioStream(t.Context(), l.store, director, source, artifact.ID{})
+	fresh, err := capabilityruntime.OpenAudioStream(t.Context(), l.store, residentAudioAdmission(director), source, artifact.ID{})
 	if err != nil {
 		t.Fatal(err)
 	}

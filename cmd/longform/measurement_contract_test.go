@@ -192,14 +192,17 @@ func TestCampaignMeasurementContract(t *testing.T) {
 			calls++
 			return record, nil
 		}
-		publishThenCancel := func(ctx context.Context, path string, model artifact.ID, result longform.Result) (artifact.ID, error) {
-			id, err := publish(ctx, path, model, result)
-			cancel(context.Canceled)
-			return id, err
-		}
 		var output strings.Builder
 		targets := []target{{weights: record.Inputs.Model, entry: discovery.Entry{Location: record.ModelPath}}, {entry: discovery.Entry{Location: "unfinished.gguf"}}}
-		err := runTargets(ctx, &output, options{Publish: true, Repository: repository}, targets, record.Commit, record.Surface, measure, publishThenCancel)
+		opts := options{Publish: true, Repository: repository}
+		err := withPublisher(opts, func(publish publishModel) error {
+			publishThenCancel := func(ctx context.Context, model artifact.ID, result longform.Result) (artifact.ID, error) {
+				id, err := publish(ctx, model, result)
+				cancel(context.Canceled)
+				return id, err
+			}
+			return runTargets(ctx, &output, opts, targets, record.Commit, record.Surface, measure, publishThenCancel)
+		})
 		if !errors.Is(err, context.Canceled) || calls != 1 || !strings.Contains(output.String(), "UNFINISHED: unfinished.gguf") {
 			t.Fatalf("calls=%d err=%v output=%s", calls, err, output.String())
 		}
@@ -223,7 +226,7 @@ func TestCampaignMeasurementContract(t *testing.T) {
 			}
 			return record, nil
 		}
-		publish := func(context.Context, string, artifact.ID, longform.Result) (artifact.ID, error) {
+		publish := func(context.Context, artifact.ID, longform.Result) (artifact.ID, error) {
 			published++
 			return artifact.ID{}, nil
 		}

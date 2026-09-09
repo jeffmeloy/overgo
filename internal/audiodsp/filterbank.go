@@ -112,24 +112,35 @@ func (p *Frontend) transform(ctx context.Context, features []float32, frames int
 		if width <= norm.Correction {
 			return errors.New("audio frontend: too few observations for variance correction")
 		}
-		for group := range groups {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			var mean float64
-			for index := range width {
-				mean += float64(features[group+index*stride])
-			}
-			mean /= float64(width)
-			var variance float64
-			for index := range width {
-				delta := float64(features[group+index*stride]) - mean
-				variance += delta * delta
-			}
-			denominator := math.Sqrt(variance/float64(width-norm.Correction)) + norm.Epsilon
-			for index := range width {
-				at := group + index*stride
-				features[at] = float32((float64(features[at]) - mean) / denominator)
+		if norm.Float32 {
+			return normalizeFeatures(ctx, features, groups, width, stride, norm.Correction, float32(norm.Epsilon))
+		}
+		return normalizeFeatures(ctx, features, groups, width, stride, norm.Correction, norm.Epsilon)
+	}
+	return ctx.Err()
+}
+
+func normalizeFeatures[T float32 | float64](ctx context.Context, features []float32, groups, width, stride, correction int, epsilon T) error {
+	for group := range groups {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		var mean T
+		for index := range width {
+			mean += T(features[group+index*stride])
+		}
+		mean /= T(width)
+		var variance T
+		for index := range width {
+			delta := T(features[group+index*stride]) - mean
+			variance += T(delta * delta)
+		}
+		denominator := T(math.Sqrt(float64(variance/T(width-correction)))) + epsilon
+		for index := range width {
+			at := group + index*stride
+			features[at] = float32((T(features[at]) - mean) / denominator)
+			if !checked.Finite32(features[at]) {
+				return errors.New("audio frontend: non-finite normalization")
 			}
 		}
 	}
@@ -138,7 +149,7 @@ func (p *Frontend) transform(ctx context.Context, features []float32, frames int
 
 func (norm NormalizeConfig) validate(bands int) error {
 	if norm.Mode == "fixed" {
-		if norm.Correction != 0 || norm.Epsilon != 0 || len(norm.Mean) != bands || len(norm.InverseStd) != bands {
+		if norm.Float32 || norm.Correction != 0 || norm.Epsilon != 0 || len(norm.Mean) != bands || len(norm.InverseStd) != bands {
 			return errors.New("audio frontend: invalid fixed normalization geometry")
 		}
 		for band, mean := range norm.Mean {
@@ -150,6 +161,9 @@ func (norm NormalizeConfig) validate(bands int) error {
 	}
 	if norm.Mode != "per-feature" && norm.Mode != "all" || norm.Correction < 0 || norm.Correction > 1 || !checked.PositiveFinite64(norm.Epsilon) || len(norm.Mean) != 0 || len(norm.InverseStd) != 0 {
 		return errors.New("audio frontend: invalid normalization declaration")
+	}
+	if norm.Float32 && !checked.PositiveFinite64(float64(float32(norm.Epsilon))) {
+		return errors.New("audio frontend: normalization epsilon is not positive finite float32")
 	}
 	return nil
 }

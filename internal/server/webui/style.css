@@ -473,6 +473,7 @@ dialog::backdrop { background:rgba(0,0,0,.55); }
 summary { cursor:pointer; min-height:32px; }
 .picker-facts .note { display:block; white-space:normal; }
 .picker-facts summary { font-size:13px; color:var(--dim); }
+.picker-facts .mono { display:block; overflow-wrap:anywhere; }
 .picker-card > .row[tabindex] > .mono { font:500 14px var(--font); }
 @media (max-width:860px) {
   #navigation-toggle, #navigation-close { display:block; }

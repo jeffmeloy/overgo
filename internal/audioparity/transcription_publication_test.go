@@ -21,7 +21,7 @@ func (p *audioPublication) publishTranscriptionBase(t *testing.T, fixture ctcTra
 	}
 	batch, err := inventory.Batch("adapter/base")
 	p.commit(t, batch, err)
-	profile, err := speechrecognition.NewExecutionProfile(fixture.frontend, fixture.grouping, fixture.declaration, fixture.blank, "en")
+	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: fixture.frontend, Grouping: fixture.grouping, Encoder: fixture.declaration, BlankToken: fixture.blank, Language: "en"})
 	if err != nil {
 		t.Fatal(err)
 	}

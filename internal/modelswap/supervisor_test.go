@@ -14,6 +14,58 @@ type fakeProcess struct {
 	stopped atomic.Bool
 }
 
+func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
+	launcher := &fakeLauncher{}
+	supervisor, err := New(launcher, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Close()
+	first := Servable{Name: "shared", Model: "first", Location: "first/weights"}
+	_, release, err := supervisor.Acquire(t.Context(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	original := launcher.processes[first.Name]
+	ctx, cancel := context.WithCancelCause(t.Context())
+	done := make(chan error, 1)
+	next := Servable{Name: first.Name, Model: "second", Location: "second/weights"}
+	go func() {
+		_, acquired, err := supervisor.Acquire(ctx, next)
+		if acquired != nil {
+			acquired()
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("same-name replacement did not wait for active request: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	cancel(context.Canceled)
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled swap: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("canceled swap waited for the drain grace")
+	}
+	if current, ok := supervisor.Status(); !ok || current != first || original.stopped.Load() {
+		t.Fatal("canceled swap disturbed the active model")
+	}
+	release()
+	_, releaseNext, err := supervisor.Acquire(t.Context(), next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseNext()
+	if len(launcher.launched) != 2 || !original.stopped.Load() {
+		t.Fatal("same display name hid changed artifact identity")
+	}
+}
+
 func (p *fakeProcess) URL() string                     { return p.url }
 func (p *fakeProcess) Ready(ctx context.Context) error { return ctx.Err() }
 func (p *fakeProcess) Stop() error                     { p.stopped.Store(true); return nil }

@@ -15,6 +15,7 @@ import (
 type chunkSource struct {
 	chunks               [][]float32
 	count, chunk, offset int
+	frameOrigin          int
 }
 
 func (s *chunkSource) at(index int) float64 {
@@ -122,11 +123,12 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 	if !ok {
 		return chunkSource{}, 0, errors.New("audio frontend: frame count overflows")
 	}
+	source.frameOrigin = -p.config.PadLeft
 	return source, frames, nil
 }
 
 func (p *Frontend) spectrum(source *chunkSource, frame int, w *Workspace) {
-	start := frame*p.hop - p.config.PadLeft + p.config.WindowOffset
+	start := source.frameOrigin + frame*p.hop + p.config.WindowOffset
 	for index := range p.window {
 		position := start + index
 		var value float64
@@ -139,6 +141,16 @@ func (p *Frontend) spectrum(source *chunkSource, frame int, w *Workspace) {
 				position = source.count - 1 - (position - (source.count - 1))
 			}
 			value = source.at(position)
+		}
+		if coefficient := p.config.WaveformPreemphasis; coefficient != nil && position > 0 && position < source.count {
+			// Match waveform arithmetic before zero/reflect padding. A padding
+			// zero must not acquire the previous signal sample's contribution.
+			previous := source.at(position - 1)
+			if p.config.PreemphasisFloat32 {
+				value = float64(float32(value) - float32(float32(*coefficient)*float32(previous)))
+			} else {
+				value -= *coefficient * previous
+			}
 		}
 		w.window[index] = value
 	}

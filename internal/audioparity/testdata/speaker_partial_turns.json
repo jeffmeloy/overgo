@@ -1,0 +1,82 @@
+[
+  {
+    "span": {
+      "start": 69120,
+      "end": 89600
+    },
+    "speaker": "speaker-0",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 98560,
+      "end": 125440
+    },
+    "speaker": "speaker-0",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 130560,
+      "end": 138240
+    },
+    "speaker": "speaker-0",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 144640,
+      "end": 149760
+    },
+    "speaker": "speaker-1",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 200960,
+      "end": 207360
+    },
+    "speaker": "speaker-1",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 257280,
+      "end": 263680
+    },
+    "speaker": "speaker-0",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 273920,
+      "end": 281600
+    },
+    "speaker": "speaker-2",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 288000,
+      "end": 296960
+    },
+    "speaker": "speaker-0",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 305920,
+      "end": 314880
+    },
+    "speaker": "speaker-1",
+    "confidence": 0
+  },
+  {
+    "span": {
+      "start": 317440,
+      "end": 318560
+    },
+    "speaker": "speaker-3",
+    "confidence": 0
+  }
+]

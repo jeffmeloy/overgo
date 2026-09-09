@@ -36,7 +36,7 @@ type vadNumericalCase struct {
 func TestVADWaveformStreamParity(t *testing.T) {
 	reference, store, audio := loadVADReference(t)
 	var config audiodsp.FrontendConfig
-	readVADJSON(t, "recipes/vad_frontend.json", &config)
+	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &config)
 	offline, err := audiodsp.NewFrontend(config, vadReferenceBytes)
 	if err != nil {
 		t.Fatal(err)
@@ -144,7 +144,7 @@ type vadNumericalReference struct {
 // This is an explicit integration-test numeric ceiling, not a runtime default.
 const vadReferenceBytes = 32 << 20
 
-func readVADJSON(t *testing.T, path string, value any) {
+func readAudioFixtureJSON(t *testing.T, path string, value any) {
 	t.Helper()
 	if err := jsonfile.Decode(path, value); err != nil {
 		t.Fatal(err)
@@ -154,7 +154,7 @@ func readVADJSON(t *testing.T, path string, value any) {
 func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, media.DecodedAudio) {
 	t.Helper()
 	var reference vadNumericalReference
-	readVADJSON(t, "testdata/vad_reference.json", &reference)
+	readAudioFixtureJSON(t, "testdata/vad_reference.json", &reference)
 	if reference.Schema != "overgo/vad-native-reference/v1" || reference.Source != "c30ec49e8cc69642b0ee65362eba11b9d11c6e54" ||
 		reference.FrontendSource != "f68c6b43f739697d7ab02ff6debacee130e1d541" || len(reference.Models) != 2 {
 		t.Fatal("VAD oracle identities or denominator differ")
@@ -166,7 +166,7 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	var existing ctcTrainingRecord
-	readVADJSON(t, "testdata/ctc_training_record.json", &existing)
+	readAudioFixtureJSON(t, "testdata/ctc_training_record.json", &existing)
 	record := reference.Corpus
 	if record.ShardSHA256 != existing.ShardSHA256 || record.AudioSHA256 != existing.AudioSHA256 || record.RowID != existing.RowID || record.Row != existing.Row || record.Split != existing.Split || record.Shard != existing.Shard {
 		t.Fatal("VAD source is not the pinned shared corpus row")
@@ -223,7 +223,7 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 			Path     string      `json:"path"`
 		} `json:"license"`
 	}
-	readVADJSON(t, "testdata/registered_models.json", &registrations)
+	readAudioFixtureJSON(t, "testdata/registered_models.json", &registrations)
 	for _, registration := range registrations {
 		for _, component := range registration.Components {
 			if component.Role != artifact.ComponentWeights || filepath.ToSlash(component.Path) != model.Checkpoint+"/model.pth.tar" {
@@ -257,7 +257,7 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 			}
 			verifyASRFile(t, checkpoint, id, uint64(info.Size()))
 			var declaration speechactivity.Declaration
-			readVADJSON(t, model.Declaration, &declaration)
+			readAudioFixtureJSON(t, model.Declaration, &declaration)
 			return inventory, license, checkpoint, declaration
 		}
 	}
@@ -268,7 +268,7 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 func TestVADNumericalParity(t *testing.T) {
 	reference, store, audio := loadVADReference(t)
 	var config audiodsp.FrontendConfig
-	readVADJSON(t, "recipes/vad_frontend.json", &config)
+	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &config)
 	frontend, err := audiodsp.NewFrontend(config, vadReferenceBytes)
 	if err != nil {
 		t.Fatal(err)

@@ -1,0 +1,2417 @@
+{
+  "Encoder": {
+    "input": {
+      "weight": "fc_encoder.subsampling.linear.weight",
+      "bias": "fc_encoder.subsampling.linear.bias"
+    },
+    "blocks": [
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.0.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.0.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.0.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.0.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.0.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.0.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.0.norm_self_att.weight",
+            "bias": "fc_encoder.layers.0.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.0.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.0.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.0.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.0.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.0.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.0.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.0.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.0.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.0.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.0.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.0.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.0.norm_conv.weight",
+            "bias": "fc_encoder.layers.0.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.0.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.0.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.0.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.0.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.0.conv.norm.weight",
+            "bias": "fc_encoder.layers.0.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.0.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.0.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.0.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.0.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.0.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.0.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.0.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.0.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.0.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.0.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.0.norm_out.weight",
+          "bias": "fc_encoder.layers.0.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.1.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.1.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.1.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.1.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.1.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.1.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.1.norm_self_att.weight",
+            "bias": "fc_encoder.layers.1.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.1.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.1.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.1.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.1.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.1.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.1.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.1.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.1.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.1.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.1.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.1.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.1.norm_conv.weight",
+            "bias": "fc_encoder.layers.1.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.1.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.1.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.1.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.1.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.1.conv.norm.weight",
+            "bias": "fc_encoder.layers.1.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.1.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.1.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.1.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.1.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.1.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.1.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.1.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.1.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.1.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.1.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.1.norm_out.weight",
+          "bias": "fc_encoder.layers.1.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.2.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.2.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.2.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.2.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.2.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.2.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.2.norm_self_att.weight",
+            "bias": "fc_encoder.layers.2.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.2.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.2.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.2.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.2.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.2.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.2.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.2.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.2.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.2.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.2.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.2.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.2.norm_conv.weight",
+            "bias": "fc_encoder.layers.2.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.2.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.2.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.2.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.2.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.2.conv.norm.weight",
+            "bias": "fc_encoder.layers.2.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.2.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.2.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.2.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.2.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.2.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.2.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.2.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.2.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.2.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.2.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.2.norm_out.weight",
+          "bias": "fc_encoder.layers.2.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.3.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.3.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.3.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.3.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.3.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.3.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.3.norm_self_att.weight",
+            "bias": "fc_encoder.layers.3.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.3.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.3.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.3.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.3.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.3.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.3.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.3.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.3.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.3.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.3.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.3.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.3.norm_conv.weight",
+            "bias": "fc_encoder.layers.3.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.3.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.3.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.3.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.3.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.3.conv.norm.weight",
+            "bias": "fc_encoder.layers.3.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.3.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.3.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.3.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.3.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.3.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.3.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.3.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.3.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.3.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.3.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.3.norm_out.weight",
+          "bias": "fc_encoder.layers.3.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.4.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.4.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.4.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.4.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.4.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.4.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.4.norm_self_att.weight",
+            "bias": "fc_encoder.layers.4.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.4.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.4.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.4.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.4.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.4.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.4.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.4.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.4.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.4.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.4.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.4.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.4.norm_conv.weight",
+            "bias": "fc_encoder.layers.4.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.4.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.4.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.4.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.4.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.4.conv.norm.weight",
+            "bias": "fc_encoder.layers.4.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.4.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.4.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.4.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.4.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.4.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.4.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.4.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.4.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.4.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.4.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.4.norm_out.weight",
+          "bias": "fc_encoder.layers.4.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.5.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.5.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.5.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.5.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.5.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.5.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.5.norm_self_att.weight",
+            "bias": "fc_encoder.layers.5.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.5.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.5.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.5.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.5.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.5.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.5.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.5.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.5.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.5.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.5.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.5.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.5.norm_conv.weight",
+            "bias": "fc_encoder.layers.5.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.5.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.5.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.5.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.5.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.5.conv.norm.weight",
+            "bias": "fc_encoder.layers.5.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.5.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.5.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.5.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.5.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.5.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.5.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.5.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.5.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.5.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.5.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.5.norm_out.weight",
+          "bias": "fc_encoder.layers.5.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.6.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.6.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.6.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.6.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.6.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.6.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.6.norm_self_att.weight",
+            "bias": "fc_encoder.layers.6.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.6.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.6.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.6.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.6.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.6.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.6.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.6.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.6.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.6.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.6.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.6.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.6.norm_conv.weight",
+            "bias": "fc_encoder.layers.6.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.6.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.6.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.6.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.6.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.6.conv.norm.weight",
+            "bias": "fc_encoder.layers.6.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.6.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.6.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.6.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.6.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.6.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.6.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.6.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.6.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.6.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.6.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.6.norm_out.weight",
+          "bias": "fc_encoder.layers.6.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.7.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.7.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.7.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.7.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.7.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.7.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.7.norm_self_att.weight",
+            "bias": "fc_encoder.layers.7.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.7.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.7.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.7.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.7.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.7.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.7.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.7.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.7.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.7.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.7.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.7.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.7.norm_conv.weight",
+            "bias": "fc_encoder.layers.7.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.7.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.7.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.7.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.7.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.7.conv.norm.weight",
+            "bias": "fc_encoder.layers.7.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.7.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.7.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.7.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.7.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.7.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.7.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.7.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.7.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.7.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.7.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.7.norm_out.weight",
+          "bias": "fc_encoder.layers.7.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.8.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.8.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.8.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.8.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.8.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.8.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.8.norm_self_att.weight",
+            "bias": "fc_encoder.layers.8.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.8.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.8.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.8.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.8.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.8.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.8.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.8.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.8.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.8.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.8.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.8.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.8.norm_conv.weight",
+            "bias": "fc_encoder.layers.8.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.8.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.8.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.8.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.8.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.8.conv.norm.weight",
+            "bias": "fc_encoder.layers.8.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.8.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.8.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.8.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.8.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.8.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.8.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.8.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.8.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.8.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.8.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.8.norm_out.weight",
+          "bias": "fc_encoder.layers.8.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.9.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.9.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.9.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.9.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.9.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.9.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.9.norm_self_att.weight",
+            "bias": "fc_encoder.layers.9.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.9.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.9.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.9.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.9.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.9.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.9.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.9.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.9.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.9.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.9.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.9.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.9.norm_conv.weight",
+            "bias": "fc_encoder.layers.9.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.9.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.9.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.9.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.9.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.9.conv.norm.weight",
+            "bias": "fc_encoder.layers.9.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.9.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.9.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.9.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.9.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.9.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.9.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.9.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.9.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.9.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.9.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.9.norm_out.weight",
+          "bias": "fc_encoder.layers.9.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.10.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.10.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.10.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.10.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.10.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.10.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.10.norm_self_att.weight",
+            "bias": "fc_encoder.layers.10.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.10.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.10.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.10.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.10.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.10.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.10.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.10.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.10.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.10.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.10.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.10.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.10.norm_conv.weight",
+            "bias": "fc_encoder.layers.10.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.10.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.10.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.10.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.10.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.10.conv.norm.weight",
+            "bias": "fc_encoder.layers.10.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.10.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.10.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.10.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.10.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.10.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.10.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.10.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.10.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.10.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.10.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.10.norm_out.weight",
+          "bias": "fc_encoder.layers.10.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.11.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.11.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.11.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.11.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.11.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.11.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.11.norm_self_att.weight",
+            "bias": "fc_encoder.layers.11.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.11.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.11.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.11.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.11.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.11.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.11.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.11.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.11.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.11.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.11.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.11.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.11.norm_conv.weight",
+            "bias": "fc_encoder.layers.11.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.11.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.11.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.11.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.11.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.11.conv.norm.weight",
+            "bias": "fc_encoder.layers.11.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.11.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.11.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.11.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.11.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.11.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.11.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.11.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.11.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.11.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.11.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.11.norm_out.weight",
+          "bias": "fc_encoder.layers.11.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.12.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.12.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.12.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.12.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.12.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.12.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.12.norm_self_att.weight",
+            "bias": "fc_encoder.layers.12.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.12.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.12.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.12.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.12.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.12.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.12.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.12.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.12.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.12.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.12.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.12.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.12.norm_conv.weight",
+            "bias": "fc_encoder.layers.12.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.12.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.12.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.12.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.12.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.12.conv.norm.weight",
+            "bias": "fc_encoder.layers.12.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.12.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.12.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.12.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.12.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.12.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.12.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.12.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.12.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.12.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.12.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.12.norm_out.weight",
+          "bias": "fc_encoder.layers.12.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.13.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.13.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.13.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.13.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.13.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.13.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.13.norm_self_att.weight",
+            "bias": "fc_encoder.layers.13.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.13.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.13.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.13.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.13.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.13.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.13.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.13.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.13.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.13.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.13.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.13.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.13.norm_conv.weight",
+            "bias": "fc_encoder.layers.13.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.13.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.13.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.13.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.13.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.13.conv.norm.weight",
+            "bias": "fc_encoder.layers.13.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.13.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.13.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.13.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.13.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.13.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.13.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.13.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.13.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.13.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.13.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.13.norm_out.weight",
+          "bias": "fc_encoder.layers.13.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.14.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.14.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.14.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.14.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.14.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.14.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.14.norm_self_att.weight",
+            "bias": "fc_encoder.layers.14.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.14.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.14.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.14.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.14.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.14.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.14.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.14.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.14.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.14.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.14.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.14.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.14.norm_conv.weight",
+            "bias": "fc_encoder.layers.14.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.14.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.14.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.14.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.14.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.14.conv.norm.weight",
+            "bias": "fc_encoder.layers.14.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.14.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.14.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.14.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.14.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.14.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.14.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.14.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.14.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.14.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.14.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.14.norm_out.weight",
+          "bias": "fc_encoder.layers.14.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.15.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.15.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.15.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.15.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.15.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.15.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.15.norm_self_att.weight",
+            "bias": "fc_encoder.layers.15.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.15.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.15.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.15.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.15.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.15.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.15.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.15.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.15.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.15.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.15.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.15.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.15.norm_conv.weight",
+            "bias": "fc_encoder.layers.15.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.15.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.15.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.15.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.15.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.15.conv.norm.weight",
+            "bias": "fc_encoder.layers.15.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.15.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.15.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.15.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.15.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.15.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.15.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.15.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.15.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.15.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.15.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.15.norm_out.weight",
+          "bias": "fc_encoder.layers.15.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.16.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.16.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.16.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.16.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.16.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.16.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.16.norm_self_att.weight",
+            "bias": "fc_encoder.layers.16.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.16.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.16.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.16.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.16.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.16.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.16.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.16.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.16.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.16.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.16.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.16.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.16.norm_conv.weight",
+            "bias": "fc_encoder.layers.16.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.16.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.16.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.16.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.16.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.16.conv.norm.weight",
+            "bias": "fc_encoder.layers.16.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.16.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.16.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.16.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.16.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.16.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.16.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.16.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.16.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.16.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.16.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.16.norm_out.weight",
+          "bias": "fc_encoder.layers.16.norm_out.bias"
+        }
+      },
+      {
+        "first": {
+          "norm": {
+            "weight": "fc_encoder.layers.17.norm_feed_forward1.weight",
+            "bias": "fc_encoder.layers.17.norm_feed_forward1.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.17.feed_forward1.linear1.weight",
+            "bias": "fc_encoder.layers.17.feed_forward1.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.17.feed_forward1.linear2.weight",
+            "bias": "fc_encoder.layers.17.feed_forward1.linear2.bias"
+          }
+        },
+        "attention": {
+          "norm": {
+            "weight": "fc_encoder.layers.17.norm_self_att.weight",
+            "bias": "fc_encoder.layers.17.norm_self_att.bias"
+          },
+          "query": {
+            "weight": "fc_encoder.layers.17.self_attn.q_proj.weight",
+            "bias": "fc_encoder.layers.17.self_attn.q_proj.bias"
+          },
+          "key": {
+            "weight": "fc_encoder.layers.17.self_attn.k_proj.weight",
+            "bias": "fc_encoder.layers.17.self_attn.k_proj.bias"
+          },
+          "value": {
+            "weight": "fc_encoder.layers.17.self_attn.v_proj.weight",
+            "bias": "fc_encoder.layers.17.self_attn.v_proj.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.17.self_attn.o_proj.weight",
+            "bias": "fc_encoder.layers.17.self_attn.o_proj.bias"
+          },
+          "relative": "",
+          "heads": 8,
+          "block_frames": 5000,
+          "projected_relative": {
+            "projection": {
+              "weight": "fc_encoder.layers.17.self_attn.relative_k_proj.weight"
+            },
+            "content_bias": "fc_encoder.layers.17.self_attn.bias_u",
+            "position_bias": "fc_encoder.layers.17.self_attn.bias_v",
+            "base": 10000,
+            "left_context": 0,
+            "max_positions": 5000
+          }
+        },
+        "convolution": {
+          "norm": {
+            "weight": "fc_encoder.layers.17.norm_conv.weight",
+            "bias": "fc_encoder.layers.17.norm_conv.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.17.conv.pointwise_conv1.weight",
+            "bias": "fc_encoder.layers.17.conv.pointwise_conv1.bias"
+          },
+          "kernel": "fc_encoder.layers.17.conv.depthwise_conv.weight",
+          "kernel_bias": "fc_encoder.layers.17.conv.depthwise_conv.bias",
+          "batch_norm": {
+            "weight": "fc_encoder.layers.17.conv.norm.weight",
+            "bias": "fc_encoder.layers.17.conv.norm.bias"
+          },
+          "mean": "fc_encoder.layers.17.conv.norm.running_mean",
+          "variance": "fc_encoder.layers.17.conv.norm.running_var",
+          "out": {
+            "weight": "fc_encoder.layers.17.conv.pointwise_conv2.weight",
+            "bias": "fc_encoder.layers.17.conv.pointwise_conv2.bias"
+          },
+          "stride": 1
+        },
+        "second": {
+          "norm": {
+            "weight": "fc_encoder.layers.17.norm_feed_forward2.weight",
+            "bias": "fc_encoder.layers.17.norm_feed_forward2.bias"
+          },
+          "in": {
+            "weight": "fc_encoder.layers.17.feed_forward2.linear1.weight",
+            "bias": "fc_encoder.layers.17.feed_forward2.linear1.bias"
+          },
+          "out": {
+            "weight": "fc_encoder.layers.17.feed_forward2.linear2.weight",
+            "bias": "fc_encoder.layers.17.feed_forward2.linear2.bias"
+          }
+        },
+        "out_norm": {
+          "weight": "fc_encoder.layers.17.norm_out.weight",
+          "bias": "fc_encoder.layers.17.norm_out.bias"
+        }
+      }
+    ],
+    "output": {
+      "weight": "sortformer_modules.encoder_proj.weight",
+      "bias": "sortformer_modules.encoder_proj.bias"
+    },
+    "feedback": {
+      "weight": ""
+    },
+    "feedback_after": 0,
+    "activation": "silu",
+    "feed_forward_scale": 0.5,
+    "layer_norm_epsilon": 0.00001,
+    "batch_norm_epsilon": 0.00001,
+    "scale_input_by_width": true
+  },
+  "Activity": {
+    "bands": 80,
+    "subsampling": [
+      {
+        "affine": {
+          "weight": "fc_encoder.subsampling.layers.0.weight",
+          "bias": "fc_encoder.subsampling.layers.0.bias"
+        },
+        "stride": [
+          2,
+          2
+        ],
+        "padding": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "depthwise": false,
+        "relu": true
+      },
+      {
+        "affine": {
+          "weight": "fc_encoder.subsampling.layers.2.weight",
+          "bias": "fc_encoder.subsampling.layers.2.bias"
+        },
+        "stride": [
+          2,
+          2
+        ],
+        "padding": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "depthwise": true,
+        "relu": false
+      },
+      {
+        "affine": {
+          "weight": "fc_encoder.subsampling.layers.3.weight",
+          "bias": "fc_encoder.subsampling.layers.3.bias"
+        },
+        "stride": [
+          1,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "depthwise": false,
+        "relu": true
+      },
+      {
+        "affine": {
+          "weight": "fc_encoder.subsampling.layers.5.weight",
+          "bias": "fc_encoder.subsampling.layers.5.bias"
+        },
+        "stride": [
+          2,
+          2
+        ],
+        "padding": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "depthwise": true,
+        "relu": false
+      },
+      {
+        "affine": {
+          "weight": "fc_encoder.subsampling.layers.6.weight",
+          "bias": "fc_encoder.subsampling.layers.6.bias"
+        },
+        "stride": [
+          1,
+          1
+        ],
+        "padding": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "depthwise": false,
+        "relu": true
+      }
+    ],
+    "blocks": [
+      {
+        "query": {
+          "weight": "tf_encoder.layers.0.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.0.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.0.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.0.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.0.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.0.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.0.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.0.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.0.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.0.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.0.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.0.fc1.weight",
+            "bias": "tf_encoder.layers.0.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.0.fc2.weight",
+            "bias": "tf_encoder.layers.0.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.1.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.1.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.1.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.1.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.1.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.1.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.1.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.1.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.1.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.1.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.1.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.1.fc1.weight",
+            "bias": "tf_encoder.layers.1.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.1.fc2.weight",
+            "bias": "tf_encoder.layers.1.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.2.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.2.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.2.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.2.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.2.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.2.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.2.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.2.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.2.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.2.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.2.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.2.fc1.weight",
+            "bias": "tf_encoder.layers.2.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.2.fc2.weight",
+            "bias": "tf_encoder.layers.2.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.3.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.3.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.3.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.3.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.3.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.3.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.3.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.3.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.3.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.3.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.3.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.3.fc1.weight",
+            "bias": "tf_encoder.layers.3.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.3.fc2.weight",
+            "bias": "tf_encoder.layers.3.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.4.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.4.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.4.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.4.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.4.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.4.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.4.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.4.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.4.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.4.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.4.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.4.fc1.weight",
+            "bias": "tf_encoder.layers.4.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.4.fc2.weight",
+            "bias": "tf_encoder.layers.4.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.5.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.5.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.5.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.5.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.5.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.5.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.5.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.5.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.5.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.5.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.5.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.5.fc1.weight",
+            "bias": "tf_encoder.layers.5.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.5.fc2.weight",
+            "bias": "tf_encoder.layers.5.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.6.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.6.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.6.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.6.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.6.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.6.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.6.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.6.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.6.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.6.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.6.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.6.fc1.weight",
+            "bias": "tf_encoder.layers.6.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.6.fc2.weight",
+            "bias": "tf_encoder.layers.6.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.7.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.7.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.7.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.7.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.7.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.7.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.7.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.7.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.7.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.7.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.7.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.7.fc1.weight",
+            "bias": "tf_encoder.layers.7.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.7.fc2.weight",
+            "bias": "tf_encoder.layers.7.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.8.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.8.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.8.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.8.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.8.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.8.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.8.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.8.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.8.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.8.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.8.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.8.fc1.weight",
+            "bias": "tf_encoder.layers.8.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.8.fc2.weight",
+            "bias": "tf_encoder.layers.8.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.9.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.9.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.9.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.9.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.9.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.9.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.9.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.9.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.9.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.9.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.9.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.9.fc1.weight",
+            "bias": "tf_encoder.layers.9.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.9.fc2.weight",
+            "bias": "tf_encoder.layers.9.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.10.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.10.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.10.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.10.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.10.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.10.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.10.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.10.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.10.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.10.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.10.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.10.fc1.weight",
+            "bias": "tf_encoder.layers.10.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.10.fc2.weight",
+            "bias": "tf_encoder.layers.10.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.11.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.11.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.11.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.11.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.11.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.11.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.11.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.11.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.11.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.11.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.11.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.11.fc1.weight",
+            "bias": "tf_encoder.layers.11.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.11.fc2.weight",
+            "bias": "tf_encoder.layers.11.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.12.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.12.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.12.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.12.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.12.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.12.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.12.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.12.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.12.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.12.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.12.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.12.fc1.weight",
+            "bias": "tf_encoder.layers.12.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.12.fc2.weight",
+            "bias": "tf_encoder.layers.12.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.13.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.13.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.13.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.13.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.13.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.13.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.13.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.13.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.13.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.13.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.13.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.13.fc1.weight",
+            "bias": "tf_encoder.layers.13.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.13.fc2.weight",
+            "bias": "tf_encoder.layers.13.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.14.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.14.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.14.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.14.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.14.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.14.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.14.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.14.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.14.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.14.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.14.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.14.fc1.weight",
+            "bias": "tf_encoder.layers.14.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.14.fc2.weight",
+            "bias": "tf_encoder.layers.14.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.15.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.15.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.15.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.15.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.15.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.15.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.15.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.15.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.15.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.15.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.15.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.15.fc1.weight",
+            "bias": "tf_encoder.layers.15.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.15.fc2.weight",
+            "bias": "tf_encoder.layers.15.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.16.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.16.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.16.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.16.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.16.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.16.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.16.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.16.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.16.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.16.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.16.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.16.fc1.weight",
+            "bias": "tf_encoder.layers.16.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.16.fc2.weight",
+            "bias": "tf_encoder.layers.16.fc2.bias"
+          }
+        }
+      },
+      {
+        "query": {
+          "weight": "tf_encoder.layers.17.self_attn.q_proj.weight",
+          "bias": "tf_encoder.layers.17.self_attn.q_proj.bias"
+        },
+        "key": {
+          "weight": "tf_encoder.layers.17.self_attn.k_proj.weight"
+        },
+        "value": {
+          "weight": "tf_encoder.layers.17.self_attn.v_proj.weight",
+          "bias": "tf_encoder.layers.17.self_attn.v_proj.bias"
+        },
+        "out": {
+          "weight": "tf_encoder.layers.17.self_attn.out_proj.weight",
+          "bias": "tf_encoder.layers.17.self_attn.out_proj.bias"
+        },
+        "attention_norm": {
+          "weight": "tf_encoder.layers.17.self_attn_layer_norm.weight",
+          "bias": "tf_encoder.layers.17.self_attn_layer_norm.bias"
+        },
+        "feed_forward": {
+          "norm": {
+            "weight": "tf_encoder.layers.17.final_layer_norm.weight",
+            "bias": "tf_encoder.layers.17.final_layer_norm.bias"
+          },
+          "in": {
+            "weight": "tf_encoder.layers.17.fc1.weight",
+            "bias": "tf_encoder.layers.17.fc1.bias"
+          },
+          "out": {
+            "weight": "tf_encoder.layers.17.fc2.weight",
+            "bias": "tf_encoder.layers.17.fc2.bias"
+          }
+        }
+      }
+    ],
+    "heads": 8,
+    "max_frames": 1500,
+    "layer_norm_epsilon": 0.00001,
+    "hidden": {
+      "weight": "sortformer_modules.first_hidden_to_hidden.weight",
+      "bias": "sortformer_modules.first_hidden_to_hidden.bias"
+    },
+    "output": {
+      "weight": "sortformer_modules.single_hidden_to_spks.weight",
+      "bias": "sortformer_modules.single_hidden_to_spks.bias"
+    }
+  }
+}

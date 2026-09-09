@@ -19,6 +19,16 @@ type audioSessionFixture struct {
 	chunk  workflowruntime.AudioStreamChunk
 }
 
+func residentAudioAdmission(director *ModelSessionDirector[struct{}, AudioStreamProcessor, struct{}]) func(context.Context) (AudioStreamLease, error) {
+	return func(ctx context.Context) (AudioStreamLease, error) {
+		lease, err := director.Lease(ctx, -1)
+		if err != nil {
+			return AudioStreamLease{}, err
+		}
+		return AudioStreamLease{Processor: lease.Model(), Slot: lease.ID, Release: lease.Release}, nil
+	}
+}
+
 func newAudioSessionFixture(t *testing.T) audioSessionFixture {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
@@ -57,7 +67,7 @@ func (f audioSessionFixture) open(t *testing.T, processor AudioStreamProcessor) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := OpenAudioStream(t.Context(), f.store, director, f.source, artifact.ID{})
+	session, err := OpenAudioStream(t.Context(), f.store, residentAudioAdmission(director), f.source, artifact.ID{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +98,7 @@ func TestAudioSessionRestartAndFinalization(t *testing.T) {
 	if err := session.Close(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := OpenAudioStream(t.Context(), f.store, director, f.source, batch.Contents[0].Descriptor.ID)
+	restored, err := OpenAudioStream(t.Context(), f.store, residentAudioAdmission(director), f.source, batch.Contents[0].Descriptor.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -54,10 +54,11 @@ type RunBinding struct {
 // transcriptionWorkspace owns all reusable mutable storage for one caller.
 // Its zero value is ready to use and must not be shared concurrently.
 type transcriptionWorkspace struct {
-	Frontend audiodsp.Workspace
-	Encoder  Workspace
-	frameIDs []int
-	tokens   []int
+	Frontend   audiodsp.Workspace
+	Encoder    Workspace
+	Transducer TransducerWorkspace
+	frameIDs   []int
+	tokens     []int
 }
 
 // transcriptionModel owns immutable, validated CPU execution state. It is safe to
@@ -70,6 +71,9 @@ type transcriptionModel struct {
 	profile    ExecutionProfile
 	frontend   *audiodsp.Frontend
 	encoder    *Encoder
+	transducer *Transducer
+	stream     *audiodsp.StreamFrontend
+	memory     uint64
 	tokenizer  *hfbpe.Tokenizer
 }
 
@@ -141,12 +145,26 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	if err != nil || !found || storedManifest.ID != inventory.Manifest.ID || !slices.Equal(storedManifest.Components, inventory.Manifest.Components) {
 		return nil, errors.Join(errors.New("speech recognition: stored model manifest differs"), err)
 	}
-	encoder, err := LoadEncoder(ctx, hf.Tensors, profile.Encoder, memoryBytes)
+	var encoder *Encoder
+	var transducer *Transducer
+	var stream *audiodsp.StreamFrontend
+	if profile.Transducer == nil {
+		encoder, err = LoadEncoder(ctx, hf.Tensors, profile.Encoder, memoryBytes)
+		if err == nil && (encoder.InputWidth() != width || profile.BlankToken >= encoder.VocabularySize()) {
+			err = errors.New("speech recognition: processor geometry differs from encoder")
+		}
+	} else {
+		if adapted {
+			return nil, errors.New("speech recognition: CTC projection checkpoint cannot adapt a recurrent decoder")
+		}
+		transducer, err = LoadTransducer(ctx, hf.Tensors, profile.Encoder, *profile.Transducer, memoryBytes)
+		if err == nil {
+			encoder = transducer.encoder
+			stream, err = audiodsp.NewStreamFrontend(profile.Frontend, memoryBytes)
+		}
+	}
 	if err != nil {
 		return nil, err
-	}
-	if encoder.InputWidth() != width || profile.BlankToken >= encoder.VocabularySize() {
-		return nil, errors.New("speech recognition: processor geometry differs from encoder")
 	}
 	if adapted {
 		encoder, err = loadCheckpointProjection(ctx, repository, checkpointID, baseDefinition, profileID, encoder)
@@ -160,7 +178,7 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	}
 	return &transcriptionModel{
 		repository: repository, model: modelID, recipe: definition, contract: contract, profile: profile,
-		frontend: frontend, encoder: encoder, tokenizer: tokenizer,
+		frontend: frontend, encoder: encoder, transducer: transducer, stream: stream, memory: memoryBytes, tokenizer: tokenizer,
 	}, nil
 }
 
@@ -241,12 +259,12 @@ func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []by
 		}
 	}
 	if inspection.Decision.Outcome != recipecontract.AudioAdmissionAccepted {
-		run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
+		run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
 			AudioAdmissionFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
 		return recipecontract.Transcription{}, run, errors.Join(ErrAudioAdmissionRefused, runErr)
 	}
 	if inspection.Signal.Format != transcriber.contract.Format {
-		run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
+		run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
 			AudioFormatFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
 		return recipecontract.Transcription{}, run, errors.Join(errors.New("speech recognition: decoded audio format differs"), runErr)
 	}
@@ -369,8 +387,13 @@ func RequireTranscription(ctx context.Context, reader artifact.Reader, id artifa
 	return transcription, nil
 }
 
-func (transcriber *transcriptionModel) persistRun(ctx context.Context, binding RunBinding, outcome runrecord.Outcome, inputs, outputs []artifact.ID, failure string, measured uint64, phases []runrecord.PhaseMetric) (runrecord.Run, error) {
-	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, outcome, inputs, outputs, failure,
+func persistSpeechRun(ctx context.Context, repository artifact.Repository, definition artifact.ID, binding RunBinding, outcome runrecord.Outcome, inputs, outputs []artifact.ID, failure string, measured uint64, phases []runrecord.PhaseMetric) (runrecord.Run, error) {
+	// A failure can precede later stages. Omit those unexecuted stages;
+	// zero durations are not measurements and remain invalid run evidence.
+	if outcome == runrecord.OutcomeFailed {
+		phases = slices.DeleteFunc(slices.Clone(phases), func(metric runrecord.PhaseMetric) bool { return metric.DurationNS == 0 })
+	}
+	run, err := runrecord.NewBoundRun(definition, outcome, inputs, outputs, failure,
 		binding.CodeCommit, binding.Environment, measured, phases)
 	if err != nil {
 		return runrecord.Run{}, err
@@ -379,7 +402,7 @@ func (transcriber *transcriptionModel) persistRun(ctx context.Context, binding R
 	if err != nil {
 		return runrecord.Run{}, err
 	}
-	if _, err = artifact.CommitBatch(ctx, transcriber.repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err = artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return runrecord.Run{}, err
 	}
 	return run, nil
@@ -389,7 +412,7 @@ func (transcriber *transcriptionModel) failedExecution(ctx context.Context, bind
 	if ctx.Err() != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, executionErr
 	}
-	run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
+	run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
 		failure, elapsedNanoseconds(started), phases)
 	return recipecontract.Transcription{}, run, errors.Join(executionErr, runErr)
 }

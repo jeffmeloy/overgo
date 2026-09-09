@@ -359,12 +359,12 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	check(`(async () => {
   const before=await backgroundGet('/workspace/manifest');window.backgroundModelBefore=before;window.backgroundModelCurrent=before;window.backgroundBusyAttempts=0;
   const candidate=JSON.parse(JSON.stringify(before));candidate.model.recipe='background-busy-recipe';candidate.model.model='background-busy-model';candidate.model.id='background-busy';window.backgroundModelCandidate=candidate;
-  overgo.api.get=async function(path,options){if(path==='/catalog/models')return {models:[{model:candidate.model.model,recipe:candidate.model.recipe,location:'busy.gguf',present:true}]};if(path==='/workspace/manifest')return backgroundModelCurrent;return backgroundGet.call(this,path,options);};
-  window.fetch=async function(path,options){if(typeof path==='string' && path.startsWith('/health?swap=')){backgroundBusyAttempts++;if(backgroundBusyAttempts===1)return new Response(JSON.stringify({error:{code:'resource_busy',message:'Controlled resource reservation diagnostic'}}),{status:503});backgroundModelCurrent=candidate;return new Response('{}');}return backgroundFetch.apply(this,arguments);};
+  overgo.api.get=async function(path,options){if(path==='/catalog/models')return {models:[{model:'other-model',recipe:'other-recipe',location:'/shared/busy.gguf',present:true},{model:candidate.model.model,recipe:candidate.model.recipe,location:'/shared/busy.gguf',present:true}]};if(path==='/workspace/manifest')return backgroundModelCurrent;return backgroundGet.call(this,path,options);};
+  window.fetch=async function(path,options){if(typeof path==='string' && path.startsWith('/health?swap=')){backgroundBusyAttempts++;if(new URL(path,location.origin).searchParams.get('swap')!==candidate.model.model)return new Response(JSON.stringify({error:{message:'Ambiguous or wrong model reference'}}),{status:400});if(backgroundBusyAttempts===1)return new Response(JSON.stringify({error:{code:'resource_busy',message:'Controlled resource reservation diagnostic'}}),{status:503});backgroundModelCurrent=candidate;return new Response('{}');}return backgroundFetch.apply(this,arguments);};
   document.querySelector('#model-pill').click();return true;
 })()`)
 	settle(`!!document.querySelector('[data-serve]')`)
-	check(`(() => {document.querySelector('[data-serve]').click();return true;})()`)
+	check(`(() => {const row=[...document.querySelectorAll('dialog[aria-label="Choose a model"] .row')].find(row=>row.querySelector('.picker-facts')?.textContent.includes(backgroundModelCandidate.model.model));if(!row)return false;row.querySelector('[data-serve]').click();return true;})()`)
 	settle(`document.querySelector('dialog[aria-label="Choose a model"]').textContent.includes('The GPU is busy') && !overgo.modelSwitching()`)
 	check(`(() => {
   const picker=document.querySelector('dialog[aria-label="Choose a model"]');backgroundProbe.busy_preserves_draft_and_selection=document.querySelector('.composer textarea').value==='Draft written during work' && overgo.capabilities().recipe===backgroundModelBefore.model.recipe;

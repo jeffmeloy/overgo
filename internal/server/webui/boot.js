@@ -643,7 +643,7 @@
       for (const choice of currentPanel.querySelectorAll('[data-serve]')) choice.disabled = true;
       const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
-        await api.get("/health?swap=" + encodeURIComponent(name));
+        await api.get("/health?swap=" + encodeURIComponent(item.model));
         invalidateModel();
         const manifest = await api.get("/workspace/manifest");
         if (manifest.model && manifest.model.recipe === item.recipe) {
@@ -723,6 +723,8 @@
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
             } }, el("span", { class: "mono", text: name }));
             const facts = el("details", { class: "picker-facts" }, el("summary", { text: "Details" })); row.appendChild(facts);
+            facts.appendChild(el("span", { class: "mono", text: item.model }));
+            if (item.location) facts.appendChild(el("span", { class: "mono", text: item.location }));
             if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
             const evidence = evidenceLine(item);
             if (evidence) facts.appendChild(el("span", { class: "note", text: evidence }));

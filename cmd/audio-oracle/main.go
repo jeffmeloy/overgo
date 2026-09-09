@@ -31,8 +31,25 @@ func run() error {
 	capturePath := flags.String("capture", "", "optional source-bound encoder capture JSON")
 	captureSource := flags.String("capture-source", "", "capture script required with -capture")
 	captureTensors := flags.String("capture-tensors", "", "captured Safetensors file required with -capture")
+	transducer := flags.Bool("transducer-capture", false, "publish native transducer traces for an already registered model")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if *transducer {
+		if flags.NArg() != 0 || *repository == "" || *capturePath == "" || *captureSource == "" || *captureTensors == "" || *recordPath != "" || *modelRoot != "" || *datasetRoot != "" {
+			return errors.New("audio-oracle: transducer capture requires only repo, capture, capture-source and capture-tensors")
+		}
+		store, err := overgodb.Open(*repository)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		id, err := audioparity.PublishTransducerCapture(context.Background(), store, *capturePath, *captureSource, *captureTensors)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("transducer capture=%s; source/model/tensor identities verified; Go parity, quality evaluation, training and GPU execution did not run\n", id)
+		return nil
 	}
 	if flags.NArg() != 0 || *repository == "" || *recordPath == "" || *modelRoot == "" || *datasetRoot == "" {
 		return errors.New("usage: audio-oracle -repo <store> -election <json> -model-root <directory> -dataset-root <directory>")

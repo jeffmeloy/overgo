@@ -754,6 +754,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		// Accept or remove the staged API from the explicitly authorized audio intake.
 		"modality-verification/native-audio-streaming-intake",
 		"model-validation-batching/do",
+		"modality-verification/smoke-oracle-producer",
 		"modality-verification/declared-smoke-expectations",
 		"modality-verification/text-and-vision",
 		"modality-verification/image-and-video",

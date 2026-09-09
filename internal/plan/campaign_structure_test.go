@@ -708,6 +708,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"model-regression-gate/coverage-inventory",
 		"model-regression-gate/coverage-selection",
 		"model-regression-gate/coverage-acquisition",
+		// Accept the completed model cohorts; retain full-catalog acquisition.
+		"e4b-fp8-evidence-refresh/do",
 		"model-regression-gate/coverage-12b-fp8",
 		"model-regression-gate/repair-retained-output-arena",
 		"model-regression-gate/repair-retained-packing",

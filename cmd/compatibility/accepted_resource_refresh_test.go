@@ -20,8 +20,8 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestAcceptedE4BResourceRefresh preserves the original bundle and checks only
-// the resource evidence invalidated by the retained-output allocation change.
+// TestAcceptedE4BResourceRefresh checks current protocol and resource evidence
+// while preserving the original quality and native-mask bundle.
 func TestAcceptedE4BResourceRefresh(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip)
@@ -60,7 +60,7 @@ func TestAcceptedE4BResourceRefresh(t *testing.T) {
 	defer store.Close()
 	var required []string
 	for _, name := range e4bValidationCells() {
-		if strings.HasPrefix(name, "resources/") {
+		if strings.HasPrefix(name, "resources/") || strings.HasPrefix(name, "protocol/") {
 			required = append(required, name)
 		}
 	}
@@ -104,5 +104,5 @@ func TestAcceptedE4BResourceRefresh(t *testing.T) {
 			t.Fatalf("foreign recovery event: %s %v", line, err)
 		}
 	}
-	t.Log("270 media requests across six modes and the full 32768-token text recovery contract accepted at current surface; original quality, protocol and mask evidence retained")
+	t.Log("18 protocol cases, 270 media resource requests across six modes and full 32768-token text recovery accepted at current surface; original quality and mask evidence retained")
 }

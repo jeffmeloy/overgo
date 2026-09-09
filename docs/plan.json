@@ -12,10 +12,10 @@
       "steps": [
         {
           "id": "concurrent-test-groups",
-          "title": "Run the direct and dependent test groups concurrently under the package evidence ledger",
+          "title": "Overlap the remaining test work only after the changed owners pass, under the package evidence ledger",
           "status": "open",
           "verify": "test -f internal/gate/test_groups_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestGroupsOverlapUnderLedger$' -count=1",
-          "rationale": "The direct short group and the dependent complete group run as two strictly serial process groups with -count=1, although each package publishes its terminal receipt as it finishes. The groups run concurrently under the ledger, a package appears in one group only, and -count=1 is dropped where a persisted receipt keyed on the package's cumulative inputs already decides reuse; the acceptance denominator is unchanged.",
+          "rationale": "Owner review of 8446925b: a blanket overlap of the direct and dependent groups can recreate master's observed timeout, where the gate package passed alone but exceeded 600 seconds under contention, and the shared-lanes gate showed the browser lane and the test processes contending for the lane store's single-writer OS exclusion. The changed owners run first and alone; only once they pass does the remaining dependent work overlap, and the lane store's writer admission is shared across the concurrent processes. Throughput and contention are measured per gate in the phase wall table before and after; -count=1 is dropped only where a persisted receipt keyed on the package's cumulative inputs already decides reuse; the acceptance denominator is unchanged.",
           "depends_on": [
             "lane-overlap/shared-lanes"
           ],
@@ -122,10 +122,10 @@
       "steps": [
         {
           "id": "job-and-refusal",
-          "title": "Put the browser lane's server in the gate's job and refuse admission when an unowned process holds the device",
+          "title": "End lane servers with the run and admit the device by capacity, reserving exclusivity for measurement",
           "status": "open",
           "verify": "test -f internal/gate/device_holder_test.go \u0026\u0026 go test ./internal/gate -run '^TestForeignDeviceHolderRefusesAdmission$' -count=1",
-          "rationale": "A failed browser lane leaves overgo-server holding the GPU; nothing ends it, the next gate's lane times out against it, and a person kills it hours later. The lane's server joins the gate's job object so it dies with the run, and admission lists device holders that belong to no live gate and refuses with the pid and the command; a holder that belongs to a live gate in another worktree is reported as contention, not refused.",
+          "rationale": "Owner review of 8446925b: rejecting any GPU process outside a live gate conflicts with sharing memory with interactive models under a109e8af. A failed browser lane leaves overgo-server holding the GPU and nothing ends it, so the lane's server joins the gate's job object and dies with the run. Admission is capacity-aware: the gate reports every device holder with its owner and memory, admits when the served model and the checks fit beside the holders, waits with a bounded, reported delay when they do not, and refuses only an explicit performance measurement that cannot hold the device exclusively. An orphaned lane server, one whose gate no longer lives, is reported with its pid and command and reaped by the reaper, never a foreign holder.",
           "depends_on": [
             "lane-overlap/shared-lanes"
           ],

@@ -23,7 +23,7 @@ func TestPhaseWallTableOrdersByCost(t *testing.T) {
 		{Name: "magics", Phase: runrecord.PhaseValidate, Outcome: runrecord.StepInapplicable, DurationNS: uint64(12 * time.Second)},
 		{Name: "docs", Phase: runrecord.PhaseValidate, Outcome: runrecord.StepSucceeded, DurationNS: uint64(12 * time.Second)},
 	}
-	rows := PhaseWallTable(steps)
+	rows := phaseWallTable(steps)
 	var order []string
 	for _, row := range rows {
 		order = append(order, row.Name)
@@ -31,7 +31,7 @@ func TestPhaseWallTableOrdersByCost(t *testing.T) {
 	if got := strings.Join(order, ","); got != "test,build,docs,magics,device,claims" {
 		t.Fatalf("phase wall order = %s", got)
 	}
-	lines := FormatPhaseWallTable(rows, 149*time.Second)
+	lines := formatPhaseWallTable(rows, 149*time.Second)
 	if len(lines) != len(steps)+1 || !strings.HasPrefix(lines[0], "phase wall: total=2m29s steps=6") {
 		t.Fatalf("phase wall lines = %q", lines)
 	}

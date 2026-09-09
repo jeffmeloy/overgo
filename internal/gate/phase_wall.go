@@ -9,23 +9,23 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// PhaseWall is one row of the per-phase wall table: a recorded gate step
+// phaseWall is one row of the per-phase wall table: a recorded gate step
 // with its wall and outcome.
-type PhaseWall struct {
+type phaseWall struct {
 	Name    string
 	Phase   runrecord.Phase
 	Outcome runrecord.StepOutcome
 	Wall    time.Duration
 }
 
-// PhaseWallTable orders the recorded steps by wall, longest first, ties by
+// phaseWallTable orders the recorded steps by wall, longest first, ties by
 // name; a step without wall sorts last.
-func PhaseWallTable(steps []runrecord.GateStep) []PhaseWall {
-	rows := make([]PhaseWall, 0, len(steps))
+func phaseWallTable(steps []runrecord.GateStep) []phaseWall {
+	rows := make([]phaseWall, 0, len(steps))
 	for _, step := range steps {
-		rows = append(rows, PhaseWall{Name: step.Name, Phase: step.Phase, Outcome: step.Outcome, Wall: time.Duration(step.DurationNS)})
+		rows = append(rows, phaseWall{Name: step.Name, Phase: step.Phase, Outcome: step.Outcome, Wall: time.Duration(step.DurationNS)})
 	}
-	slices.SortStableFunc(rows, func(left, right PhaseWall) int {
+	slices.SortStableFunc(rows, func(left, right phaseWall) int {
 		return cmp.Or(cmp.Compare(right.Wall, left.Wall), cmp.Compare(left.Name, right.Name))
 	})
 	return rows
@@ -40,9 +40,9 @@ func phaseWallMark(outcome runrecord.StepOutcome) string {
 	return " " + string(outcome)
 }
 
-// FormatPhaseWallTable renders the table under a heading: one line per step
+// formatPhaseWallTable renders the table under a heading: one line per step
 // with its wall, name, phase and non-success outcome.
-func FormatPhaseWallTable(rows []PhaseWall, total time.Duration) []string {
+func formatPhaseWallTable(rows []phaseWall, total time.Duration) []string {
 	lines := make([]string, 0, len(rows)+1)
 	lines = append(lines, fmt.Sprintf("phase wall: total=%s steps=%d", total.Round(time.Millisecond), len(rows)))
 	for _, row := range rows {

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"overgo/internal/automationcheck"
 )
 
 // matrixCase is one frozen representative change: the paths the gate is
@@ -108,4 +110,68 @@ func TestChangeSelectionRequiredMatrix(t *testing.T) {
 		names = append(names, entry.name)
 	}
 	t.Logf("required matrix: %s", strings.Join(names, ", "))
+	t.Run("lane exclusions", laneExclusionMatrix)
+}
+
+// laneExclusionMatrix drives the lane exclusion path itself, the dependency
+// resolver under OwnershipByDependency, over the compiler fixture extended
+// with a shared launcher, a runtime file reader and a deleted command: a lane
+// whose owned package reaches a command only through a helper that runs it
+// stays in scope, a lane owning a file reader stays in scope for any change,
+// a changed package the graph no longer holds keeps every lane, and a lane
+// owning a pure package leaves the scope of an unrelated change.
+func laneExclusionMatrix(t *testing.T) {
+	g := scopeCompilerFixture(t)
+	write := func(name, content string) {
+		path := filepath.Join(g.repo, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("cmd/tool/main.go", "package main\nimport \"fmt\"\nfunc main() { fmt.Print(1) }\n")
+	write("internal/launcher/launcher.go", "package launcher\nimport (\"context\"; \"os/exec\")\nfunc Run(ctx context.Context) ([]byte, error) { return exec.CommandContext(ctx, \"go\", \"run\", \"../../cmd/tool\").CombinedOutput() }\n")
+	write("internal/lane/lane.go", "package lane\nconst Value = 1\n")
+	write("internal/lane/lane_test.go", "package lane\nimport (\"testing\"; \"overgo/internal/launcher\")\nfunc TestRun(t *testing.T) { if _, err := launcher.Run(t.Context()); err != nil { t.Skip(err) } }\n")
+	write("internal/reader/reader.go", "package reader\nimport \"os\"\nfunc Read(name string) ([]byte, error) { return os.ReadFile(name) }\n")
+	runGitFixture(t, g.repo, "add", ".")
+	g.packageGraph = nil
+	resolver, err := g.dependencyResolver()
+	if err != nil {
+		t.Fatal(err)
+	}
+	owning := func(name string, fact automationcheck.Fact, packages ...string) automationcheck.Check {
+		return automationcheck.Check{Descriptor: automationcheck.Descriptor{Name: name, Ownership: automationcheck.Ownership{Fact: fact, Packages: packages}}}
+	}
+	checks := []automationcheck.Check{
+		owning("launcher-lane", "launcher fact", "internal/lane"),
+		owning("reader-lane", "reader fact", "internal/reader"),
+		owning("pure-lane", "pure fact", "internal/client"),
+	}
+	excluded := func(impact automationcheck.Impact) []string {
+		var names []string
+		for _, exclusion := range impact.Exclusions {
+			names = append(names, exclusion.Check)
+		}
+		return names
+	}
+	cases := []struct {
+		name     string
+		changed  []string
+		excluded []string
+	}{
+		{name: "shared launcher reaches the command", changed: []string{"cmd/tool"}, excluded: []string{"pure-lane"}},
+		{name: "runtime file reader stays in scope", changed: []string{"internal/other"}, excluded: []string{"pure-lane"}},
+		{name: "deleted command keeps every lane", changed: []string{"cmd/gone"}, excluded: nil},
+		{name: "pure lane follows its imports", changed: []string{"internal/recipe"}, excluded: nil},
+	}
+	for _, entry := range cases {
+		impact := automationcheck.OwnershipByDependency(checks, entry.changed, resolver)
+		if got := excluded(impact); !slices.Equal(got, entry.excluded) {
+			t.Fatalf("%s: excluded=%v facts=%v, want excluded %v", entry.name, got, impact.Facts, entry.excluded)
+		}
+		t.Logf("lane matrix case=%s changed=%v excluded=%v facts=%v", entry.name, entry.changed, excluded(impact), impact.Facts)
+	}
 }

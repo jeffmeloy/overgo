@@ -146,10 +146,19 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		if err != nil {
 			return err
 		}
-		graph, err := g.inputGraph()
-		graphErr = err
+		_, graphErr = g.inputGraph()
+		// The device lane owns the packages it tests, not every dependent
+		// of the device runtime: its full plan plus the packages the changed
+		// kernels' functions own.
 		if graphErr == nil {
-			devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
+			devicePackages = slices.Clone(automationcheck.DeviceLanePackages[1:])
+			if devicePlan, planErr := automationcheck.DevicePlan(root, g.paths); planErr == nil {
+				for _, packagePath := range devicePlan.Packages {
+					devicePackages = append(devicePackages, strings.TrimPrefix(packagePath, "./"))
+				}
+			}
+			slices.Sort(devicePackages)
+			devicePackages = slices.Compact(devicePackages)
 		}
 		structural, baseManifest, candidateManifest, structuralErr = g.deriveManifestImpact()
 		if structuralErr != nil {
@@ -194,6 +203,19 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		))
 	}
 	impact := automationcheck.OwnershipImpact(definitions, surface)
+	// Symbol reachability uncertain (interface dispatch, reflection, cgo):
+	// the linker's rule still decides package-owned checks, since a check's
+	// tests observe only packages in their dependency closure.
+	if len(surface.Unknown) != 0 && structuralErr == nil && graphErr == nil && !requiresManifestBootstrap(g.paths) && reachabilityOnlyUncertainty(structural) {
+		changed := changedPackages(structural)
+		if resolver, resolverErr := g.dependencyResolver(); resolverErr == nil {
+			impact = automationcheck.OwnershipByDependency(definitions, changed, resolver)
+			g.audit = append(g.audit, fmt.Sprintf("impact fallback: dependency closure over changed packages %s excluded %d owned check(s) under %d uncertainties",
+				strings.Join(changed, ","), len(impact.Exclusions), len(surface.Unknown)))
+		} else {
+			g.audit = append(g.audit, "impact fallback unavailable; owned checks defaulted to run: "+resolverErr.Error())
+		}
+	}
 	// The shell's assets are not Go symbols: a changed web UI path triggers
 	// the browser lane that the symbol closure could not select.
 	if automationcheck.WebUIPaths(g.paths) {

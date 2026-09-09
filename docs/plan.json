@@ -5,6 +5,27 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "selection-coverage",
+      "title": "Exclude the GPU lanes on host-only changes and bind subprocess consumers by declared edges",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "subprocess-contract",
+          "title": "Bind subprocess consumers to declared execution edges instead of every package that imports os",
+          "status": "open",
+          "verify": "test -f internal/gate/execution_edges_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeclaredExecutionEdgesBoundSelection$' -count=1",
+          "rationale": "The subprocess binding from 88e7e4b5 gives every package importing os, os/exec or io/ioutil an input dependency on every repository package root, so one changed file marks most of the repository affected. Packages that execute repository commands declare the commands they run; selection follows those edges and the existing import graph; a package that imports os/exec without a declaration keeps the broad binding and is reported, so coverage never narrows silently.",
+          "depends_on": [
+            "selection-coverage/closure-exclusions"
+          ],
+          "capabilities": [
+            "selection-safety"
+          ]
+        }
+      ]
+    },
+    {
       "id": "gate-wall",
       "title": "Cut the gate wall: measure it, front-load the validate checks, repair the mechanical findings, overlap the admission chain",
       "owner": "hatchet",
@@ -47,40 +68,6 @@
           ],
           "capabilities": [
             "gate-cost"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "selection-coverage",
-      "title": "Exclude the GPU lanes on host-only changes and bind subprocess consumers by declared edges",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "closure-exclusions",
-          "title": "Resolve package-owned checks by the linker's rule under symbol uncertainty, proven against the required selection matrix",
-          "status": "open",
-          "verify": "test -f internal/gate/impact_closure_test.go \u0026\u0026 go test ./internal/gate -run '^(TestOwnershipClosureExcludesUntouchedLanes|TestChangeSelectionRequiredMatrix)$' -count=1",
-          "rationale": "Any changed file that declares methods yields an interface-dispatch uncertainty, the manifest surface turns it into unknown, and unknown surface yields zero exclusions, so the device and browser lanes run on every gate, eight to fourteen minutes each. Under symbol-only uncertainty a package-owned check is excluded when no package it owns is, or transitively imports, a changed package; symbol-owned checks stay unresolved and run; a non-Go, build-selection, outside-snapshot or analyzer change keeps the complete plan. Master's required selection matrix (TestChangeSelectionRequiredMatrix, 88e7e4b5) is the acceptance: zero omitted required checks and zero missed seeded regressions with the exclusion active. Master excluded the lane's first version of this as a static exclusion; this row lands it under the matrix master asked for.",
-          "depends_on": [
-            "gate-wall/validate-first"
-          ],
-          "capabilities": [
-            "selection-safety"
-          ]
-        },
-        {
-          "id": "subprocess-contract",
-          "title": "Bind subprocess consumers to declared execution edges instead of every package that imports os",
-          "status": "open",
-          "verify": "test -f internal/gate/execution_edges_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeclaredExecutionEdgesBoundSelection$' -count=1",
-          "rationale": "The subprocess binding from 88e7e4b5 gives every package importing os, os/exec or io/ioutil an input dependency on every repository package root, so one changed file marks most of the repository affected. Packages that execute repository commands declare the commands they run; selection follows those edges and the existing import graph; a package that imports os/exec without a declaration keeps the broad binding and is reported, so coverage never narrows silently.",
-          "depends_on": [
-            "selection-coverage/closure-exclusions"
-          ],
-          "capabilities": [
-            "selection-safety"
           ]
         }
       ]

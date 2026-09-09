@@ -473,7 +473,7 @@ func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 		{"declared-capacity", "eviction-and-release"},
 		{"keyed-admission", "schedule-pause"},
 		{"queue-observability", "serving-load-lane"},
-		{"gate-wall", "selection-coverage"}, {"selection-coverage", "validation-batch-control"},
+		{"selection-coverage", "gate-wall"}, {"selection-coverage", "validation-batch-control"},
 		{"lane-overlap", "validation-batch-control"}, {"validation-batch-control", "hatchet-closeout"},
 	} {
 		assertCampaignOrder(t, document, order[0], order[1])

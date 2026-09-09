@@ -59,7 +59,7 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 		if repeatErr != nil {
 			return "", fmt.Errorf("REPEAT failed: %w: %s", repeatErr, clioptions.Tail(repeat, clioptions.DiagnosticTailBytes))
 		}
-		if err := testevidence.RepeatAgreement(first, repeat); err != nil {
+		if err := testevidence.RepeatAgreementForCommand(command, first, repeat); err != nil {
 			return "", fmt.Errorf("NOT deterministic: %w", err)
 		}
 	}

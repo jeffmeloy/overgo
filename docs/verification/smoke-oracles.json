@@ -18,8 +18,8 @@
     "reference": "evidence:sha256:86a7eb02d634614aecc50de372aeac736329d74f56532972cd4165259a6d1573"
   },
   {
-    "model": "model:sha256:353fb1a59060ee2152e2ac34bc25bb3127038869c0ff3b70b0aa7d1132781a56",
-    "recipe": "recipe:sha256:1c06c9a6f4084b4e23e39ec1a181b0820f932a5bef0ba4f73a387e154b9b308c",
+    "model": "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32",
+    "recipe": "recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c",
     "domain": "text",
     "chat": true,
     "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",

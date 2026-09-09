@@ -755,6 +755,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/native-audio-streaming-intake",
 		"model-validation-batching/do",
 		"modality-verification/smoke-oracle-producer",
+		"modality-verification/minicpm-guard-repair",
 		"modality-verification/declared-smoke-expectations",
 		"modality-verification/text-and-vision",
 		"modality-verification/image-and-video",
